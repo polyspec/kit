@@ -32,3 +32,29 @@ install-tools: ## Install the toolchains that the checkout declares into var/too
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
 	node scripts/kit/check-toolchain.mjs $(TOOLS)
+# ---- The gates: Git hooks, push gate and guard of the full run ------------------------------------------------------
+# scripts/kit/git-hooks.mjs, push-gate.mjs and full-run.mjs read config/checklist.json. The target that runs the full suite
+# is the repository's own: it calls `node scripts/kit/full-run.mjs run <target>...` with the targets of its suite.
+COMMIT ?= HEAD
+FULL_RUN_KEYS ?=
+
+.PHONY: hooks hooks-check push-gate-commit rerun-failed
+
+# Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
+ifneq ($(wildcard .githooks/pre-push),)
+ifneq ($(shell git config core.hooksPath),.githooks)
+$(shell git config core.hooksPath .githooks)
+endif
+endif
+
+hooks: ## Set core.hooksPath to .githooks, write the pre-push hook of the push gate and check the hooks
+	node scripts/kit/git-hooks.mjs install
+
+hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
+	node scripts/kit/git-hooks.mjs check
+
+push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
+	node scripts/kit/push-gate.mjs commit $(COMMIT)
+
+rerun-failed: ## Rerun the targets of the last full run of this tree that did not pass; FULL_RUN_KEYS repeats the keys of that run
+	node scripts/kit/full-run.mjs rerun-failed$(if $(FULL_RUN_KEYS), $(FULL_RUN_KEYS))

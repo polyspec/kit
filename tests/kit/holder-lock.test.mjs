@@ -201,3 +201,18 @@ test('run is refused while another holder has the lock and runs nothing', { time
   assert.equal(tool('run', lock).status, 1);
   assert.match(tool('frobnicate', lock).stderr, /usage: node scripts\/kit\/holder-lock\.mjs run <lock> -- <command>/);
 });
+
+test('only one of several processes that take the lock at once holds it', { timeout: 30_000 }, async (t) => {
+  const lock = path.join(workspace(t), 'resource.lock');
+  const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); try { acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'racer' }); process.stdout.write('won\\n'); await new Promise(resolve => setTimeout(resolve, 400)); } catch (error) { process.stdout.write(error.name + '\\n'); }`;
+  const racers = Array.from({ length: 6 }, () => new Promise((resolve) => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let output = '';
+    child.stdout.on('data', (data) => { output += data; });
+    child.once('exit', () => resolve(output.trim()));
+  }));
+  const results = await Promise.all(racers);
+  assert.equal(results.filter(result => result === 'won').length, 1, results.join(', '));
+  assert.deepEqual(results.filter(result => result !== 'won'), Array(5).fill('HolderLockRefused'));
+  assert.equal(existsSync(lock), false);
+});
