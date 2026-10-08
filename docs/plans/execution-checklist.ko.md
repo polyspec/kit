@@ -54,3 +54,4 @@
 | K12 | npm이 복사본으로 설치한 lock 항목(`resolved: file:<directory>`, `link` 없음)을 저장소의 package로 읽는다 | `scripts/kit/dependency-state.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
 | K12-1 | 한국어 문서의 `source-sha256`을 영어 파일에서 `make documents-stamp`로 쓴다 | `scripts/kit/documents-stamp.mjs, tests/kit/documents-stamp.test.mjs` | `make kit-test` | [o] |
 | K12-2 | 저장소 root의 composer.json을 dependency policy의 Composer manifest로 받아들인다 | `scripts/kit/schema/dependency-policy.schema.json, tests/kit/schema.test.mjs` | `make kit-test` | [o] |
+| K12-3 | dependency gate가 `file:<package 디렉터리>`로 요구한 local npm package를 받아들인다 | `scripts/kit/check-dependency-policy.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
