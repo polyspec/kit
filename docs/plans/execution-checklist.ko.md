@@ -1,24 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: df17b286b80bbf349f6d06794027010f4414ebfeeccdc90751cf7f8b18b9fe24 -->
-<!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
-<!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
-<!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
-<!-- source-sha256: 30146bf2a5958bd2448f605a3c672389dc271312c840f7680f940ec4f7ddeaf8 -->
-<!-- source-sha256: 2d7978ff8b6a9c6f09749c39ecb1f58c4c9c775f4a2f0380436c9c735daf7023 -->
-<!-- source-sha256: 77b703c92ebb2348c66d8cc615bff737bc5827f8fddbd770eb9169299d1a3b92 -->
-<!-- source-sha256: ef8a2705a5651ab67a2218022c70b953b8af092105adc76bfac21652aafe766c -->
-<!-- source-sha256: 477f1edba8b8bdb47e7c422fc293914d44dbd3078231ec24229fa2b432c0ef4a -->
-<!-- source-sha256: 329372a602d6efb0a2a998db309a90b023028d94b7f1e6f124e1dc44cba4816a -->
-<!-- source-sha256: 7421d977bd8343d03763d537240e52adf924dfabeb554771596585b71a3d0dc3 -->
-<!-- source-sha256: ee43cf502127c187794254c4184484cbb4b91dd1285257d6d967291366ad989b -->
-<!-- source-sha256: c282bbde4557d105e15556219d40dacd311137a5f83d0e7592fc7a5b266a0355 -->
-<!-- source-sha256: 8c0499bf683b87000963368ed6f574038b7a52564fcdc70389e13d585aa335af -->
-<!-- source-sha256: 76576e06a04d74973c24a06b139286ec3a45312ef10a49429928732b28bbead3 -->
-<!-- source-sha256: 615bfc213f1c0586a8a3476840356955af8b356d86850c9245e213be09c2a275 -->
-<!-- source-sha256: ca4ea832d0a80bd4c357f09572cf51014b0e03747c8dfbd0b3fa638bc4d7d5d6 -->
-<!-- source-sha256: c13cb5355b04a98e2c8c9e073e5edf948825331b1e8362d64f09e6eb76019d6c -->
-<!-- source-sha256: 8f8d71a84841439b990e593b4fa0dc1d9c2af54b0cdca58b9973b889ddc379d0 -->
-<!-- source-sha256: cf09cfeec4ddb64acd375950967e550882deb31ec4e617214bd377eb7edce250 -->
+<!-- source-sha256: 26c2e3eaf78c1a0573f5f4ab2d1204424d2a3b8fb16b39417b8ae622651833e0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -65,4 +46,5 @@
 | K8.3 | 검사가 cargo를 오프라인으로 실행하기 전에 모든 Cargo.lock의 crate가 내려받아져 있는지 검사하고, --fetch로 내려받는다 | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
-| K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [ ] |
+| K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
+| K11-1 | full-run의 runMakeTarget과 ci-targets의 runLogged를 log 형식 하나를 쓰는 runner 하나로 합친다 | `scripts/kit/target-run.mjs, target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [ ] |

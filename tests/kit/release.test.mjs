@@ -7,12 +7,13 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mjs';
+import { Stop } from '../../scripts/kit/process.mjs';
 import * as release from '../../scripts/kit/release.mjs';
 import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-sandbox.mjs';
 
 const REPOSITORY = 'example/kit-fixture';
 const context = (box, extra = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof release.Stop && pattern.test(error.message), String(pattern));
+const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const edit = (root, file, change) => writeJson(root, file, change(readJson(root, file)));
 
 test('a release tag is a version or a Go module directory and a version', (t) => {

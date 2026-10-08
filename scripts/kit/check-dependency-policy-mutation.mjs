@@ -3,14 +3,14 @@
 // mutation must make scripts/check-dependency-policy.mjs report its finding. It reports every mutation that the check
 // accepts and fails when there is one.
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { check } from './check-dependency-policy.mjs';
-import { POLICY, RECORD, readJson } from './dependency-state.mjs';
+import { POLICY, RECORD } from './dependency-state.mjs';
+import { readJson, writeJson } from './files.mjs';
+import { ROOT } from './paths.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** A copy of the manifests, locks, local package manifests, Python manifests, policy and review record of the repository. */
 function copy(directory) {
@@ -28,9 +28,9 @@ function copy(directory) {
 }
 
 const editJson = (root, file, edit) => {
-  const data = JSON.parse(readFileSync(join(root, file), 'utf8'));
+  const data = readJson(root, file);
   edit(data);
-  writeFileSync(join(root, file), `${JSON.stringify(data, null, 2)}\n`);
+  writeJson(join(root, file), data);
 };
 
 // The lock of the first Composer platform of the policy: the file that the lock mutation changes.

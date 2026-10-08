@@ -1,14 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9a184d9c6d053b5e701638191a737977232f1b57b3dca7c388e0c437370aaeb9 -->
-<!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
-<!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
-<!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
-<!-- source-sha256: 7ae77d943c7590647b6aed5f3fa90c950a125bf185476539a8e4ec3978e7875e -->
-<!-- source-sha256: c02d688f5f5686fea282376f9c180c78a0a2fa47c5b4cf8f94362d8c95166b5a -->
-<!-- source-sha256: 5343da2cd949d631596630a9090f00227821189210578c3ede1eaee5bc119881 -->
-<!-- source-sha256: 65c6c0cf93f7fe167b2c98e6f55093fb2959a36def48a074fbd30778b5afd05a -->
-<!-- source-sha256: eb6d4382dc5a3fa6f74e900216a6d36c56949fca278c7266dc25e461b7201c97 -->
-<!-- source-sha256: a22f7cb8d75c4dadf3ca6bbb299e508bcc072e69ef042749fe0ac52bdd878851 -->
+<!-- source-sha256: b425f63fa94dd92a6e1292efe4edd7f027ea0ef1a1fb368d8672b9a6ad258082 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -128,11 +119,6 @@ tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이�
 request, merge queue, ruleset이 없습니다.
 
 ### `config/checklist.json`
-## Release 도구 (K5)
-
-`scripts/kit/release.mjs`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
-`coverage`). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
-
 ```json
 {
   "schema": 1,
@@ -361,6 +347,15 @@ version 일관성과 orm의 다른 영역 검사:
 
 - `ORM_GIT_RANGE`: 범위는 인자 `--range`(make 변수 `RANGE`)입니다.
 - rule id `git.subject-format`과 `contracts/rules.json`: 설정은 `config/commits.json`입니다.
+
+## Release 도구 (K5)
+
+`scripts/kit/release.mjs`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
+`coverage`). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+
+```json
+{
+  "schema": 1,
   "repositoryUrl": "https://github.com/<owner>/<name>",
   "changelog": "CHANGELOG.md",
   "changelogTranslations": ["CHANGELOG.ko.md"],
@@ -460,3 +455,55 @@ finding 하나입니다.
   있습니다. `states`는 엄격한 읽기에도 적용되므로 `states`를 선언하지 않은 체크리스트는 엄격한 읽기에서 모든 state 단어를 받습니다(엄격한
   reader는 네 state만 받았음). 구분 줄과 header는 위치와 cell `ID`로 알아봅니다.
 - `ci-targets.mjs`는 `holder-lock.mjs`로 report를 잡고, 자체 lock 함수는 없앴습니다.
+
+
+## 공유 module (K11)
+
+`scripts/kit`의 여러 도구가 같은 helper를 각자 가지고 있었습니다. 이제 각 helper는 module 하나에 있고 사용하는 쪽이 import하며,
+`tests/kit/duplication.test.mjs`는 서로 다른 두 파일이 정규화한 본문이 같고 6줄 이상인 함수를 가지면 실패합니다(정규화 방법은
+test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다.
+
+| Module | 담는 것 | 대체한 것 | 사용처 |
+|---|---|---|---|
+| `paths.mjs` | `ROOT`, `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
+| `process.mjs` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `git.mjs` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
+| `files.mjs` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
+| `digest.mjs` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer의 `digest`, install-npm의 sha512 | 위 module들 |
+| `time.mjs` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
+| `version.mjs` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰 | changelog, dependency-review, check-dependency-policy |
+| `findings.mjs` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
+| `markdown.mjs` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀 | checklist, status-table, changelog |
+| `schema-validate.mjs` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
+| `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
+| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run, target-run |
+| `toolchain-declared.mjs` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
+| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
+| `dependency-state.mjs` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
+
+그 밖에 없앤 중복:
+
+- `toolchainVersions`가 둘(target-report, check-toolchain) 있었습니다. 이제 `ci-targets`의 record는 node, npm, go, rust, php,
+  composer의 release를 `check-toolchain.toolchainVersions`에서 가져오며, target-report가 `v22.1.0`으로 출력하던 것이 `22.1.0`으로
+  출력됩니다.
+- check-dependency-policy의 `composer validate` 호출 두 곳이 함수 하나를 공유합니다.
+- `cargoAuditCommand`, `govulncheckCommand`, check-toolchain probe의 경로는 같은 경로의 세 가지 표기였습니다.
+
+사본마다 달랐고 합친 동작(더 넓거나 안전한 쪽을 유지):
+
+- 실패한 git 명령은 어디서나 `git <인자> exited with <status>: <standard error>`로 보고하고, `check-commits`는 풀리지 않는 range의
+  메시지에 git 명령을 적습니다.
+- `dependency-review`의 실패한 명령은 마지막 세 줄 대신 standard error 전체를 보고합니다.
+- `ci-targets`의 target 이름은 `full-run`처럼 글자나 숫자로 시작합니다. `ci-targets`는 make가 option으로 읽는 `-x`도 받았습니다.
+- `dependency-review`와 `release` coverage는 kit fixture뿐 아니라 `node_modules`, `var`, `.tools`도 건너뜁니다.
+- changelog의 fence 탐색은 `scanFences`의 규칙(닫는 fence는 여는 fence만큼 김)으로 fence를 닫습니다.
+- install-cargo-audit와 install-govulncheck는 build를 `tool-wrappers.run`으로 실행하며, 이는 실행 전에 명령을 출력하고 없는 명령을
+  이름으로 알립니다.
+
+그대로 둔 것과 이유:
+
+- `runMakeTarget`(full-run)과 `runLogged`(ci-targets)는 둘 다 `make -k <target>`을 log로 실행합니다. 두 log는 첫 줄, 마지막 줄,
+  출력의 buffering, 환경이 다르고 각 gate의 test가 그 log를 단언하므로, 합치려면 log 형식 하나를 골라야 합니다. 이것이 task K11-1입니다.
+- 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
+- `kit-check.walk`는 vendored directory를 무시된 파일까지 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
+- npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.

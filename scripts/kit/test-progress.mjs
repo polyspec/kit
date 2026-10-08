@@ -2,8 +2,7 @@
 // or runs out of time, each stamped with the elapsed time of the run. Every test runner prints through this module, so all
 // suites read the same way.
 import { writeFileSync } from 'node:fs';
-
-const seconds = milliseconds => `${(milliseconds / 1000).toFixed(1)}s`;
+import { compactSeconds } from './time.mjs';
 
 /**
  * @param {object} options
@@ -20,17 +19,17 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   const running = new Map();
   const counts = { passed: 0, failed: 0, skipped: 0, timedOut: 0 };
   const groupCounts = { passed: 0, failed: 0 };
-  const line = text => write(`[${seconds(now() - started).padStart(8)}] ${text}\n`);
+  const line = text => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
   const timer = setInterval(() => {
     for (const [id, test] of running) {
       const elapsed = now() - test.started;
       if (timeoutMs !== undefined && elapsed > timeoutMs && !test.expired) {
         test.expired = true;
         counts.timedOut++;
-        line(`⏱ ${id} ran ${seconds(elapsed)} and exceeded its ${seconds(timeoutMs)} timeout${command ? `; stopping \`${command}\`` : ''}`);
+        line(`⏱ ${id} ran ${compactSeconds(elapsed)} and exceeded its ${compactSeconds(timeoutMs)} timeout${command ? `; stopping \`${command}\`` : ''}`);
         onTimeout?.(id);
       } else if (!test.expired) {
-        line(`… ${id} still running (${seconds(elapsed)}${timeoutMs === undefined ? '' : ` of ${seconds(timeoutMs)}`})`);
+        line(`… ${id} still running (${compactSeconds(elapsed)}${timeoutMs === undefined ? '' : ` of ${compactSeconds(timeoutMs)}`})`);
       }
     }
   }, heartbeatMs);
@@ -40,7 +39,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   const groupTime = (id, durationMs) => {
     const time = durationMs || now() - groups.get(id);
     groups.delete(id);
-    return seconds(time);
+    return compactSeconds(time);
   };
   const finish = (id, durationMs) => {
     const test = running.get(id);
@@ -57,13 +56,13 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
     pass(id, durationMs) {
       if (groups.has(id)) { groupCounts.passed++; return line(`✔ ${id} (${groupTime(id, durationMs)})`); }
       counts.passed++;
-      line(`✔ ${id} (${seconds(finish(id, durationMs))})`);
+      line(`✔ ${id} (${compactSeconds(finish(id, durationMs))})`);
     },
     fail(id, durationMs, message) {
       if (groups.has(id)) { groupCounts.failed++; line(`✖ ${id} (${groupTime(id, durationMs)})`); }
       else {
         counts.failed++;
-        line(`✖ ${id} (${seconds(finish(id, durationMs))})`);
+        line(`✖ ${id} (${compactSeconds(finish(id, durationMs))})`);
       }
       for (const detail of String(message ?? '').split('\n').filter(Boolean)) write(`           ${detail}\n`);
     },
@@ -94,7 +93,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       const why = !unexplained ? '' : errors.length ? `: ${errors.slice(-3).join('; ')}` : ' and printed no error line';
       const exit = exitCode === 0 ? '' : `, the tool exited with ${exitCode}${why}`;
       const built = build.length ? `; build errors: ${build.slice(0, 10).join('; ')}${build.length > 10 ? `; and ${build.length - 10} more` : ''}` : '';
-      line(`${failed ? '✖' : '✔'} ${label}: ${summary}${exit}${built} (${seconds(now() - started)})`);
+      line(`${failed ? '✖' : '✔'} ${label}: ${summary}${exit}${built} (${compactSeconds(now() - started)})`);
       const result = { ...counts, ran, ok: failed === 0 };
       if (resultFile) writeFileSync(resultFile, JSON.stringify(result));
       return result;

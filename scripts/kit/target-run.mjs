@@ -4,26 +4,14 @@
 //
 //   <report>/targets/<target>.log   the whole output of `make -k <target>` and the way it ended
 import { spawn } from 'node:child_process';
-import { createWriteStream, mkdirSync, rmSync } from 'node:fs';
+import { createWriteStream, mkdirSync } from 'node:fs';
 import path from 'node:path';
-
-// The number of last output lines of a target that the record keeps.
-export const LAST_LINES = 20;
-// A target name is a word of letters, digits, dots, underscores and hyphens, so it names its log file without escaping.
-export const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-export const logPath = (directory, target) => path.join(directory, 'targets', `${target}.log`);
-
-/** Starts the report of a full run: the directory holds only the logs of this run. */
-export function startReport(directory) {
-  rmSync(directory, { recursive: true, force: true });
-  mkdirSync(path.join(directory, 'targets'), { recursive: true });
-}
+import { FAILURE_LINES, logPath, TARGET_NAME } from './target-report.mjs';
 
 /**
  * Runs `make -k <target>` in `root` (`-k` keeps going after a failed prerequisite, so one run reports every failure), prints
  * its output as it arrives and writes it to the log of the target in `directory`. Resolves `{ passed, lastLines }`: whether
- * make ended with status 0, and the last LAST_LINES lines of its standard output and standard error in the order of arrival.
+ * make ended with status 0, and the last FAILURE_LINES lines of its standard output and standard error in the order of arrival.
  */
 export function runMakeTarget(root, target, directory) {
   if (!TARGET_NAME.test(target)) throw new Error(`the target name ${JSON.stringify(target)} does not match ${TARGET_NAME}`);
@@ -44,7 +32,7 @@ export function runMakeTarget(root, target, directory) {
         const parts = (pending + text).split('\n');
         pending = parts.pop();
         lines.push(...parts);
-        lines.splice(0, Math.max(0, lines.length - LAST_LINES));
+        lines.splice(0, Math.max(0, lines.length - FAILURE_LINES));
       });
       return () => {
         if (pending !== '') lines.push(pending);
@@ -58,7 +46,7 @@ export function runMakeTarget(root, target, directory) {
       flushOut();
       flushErr();
       log.write(`\n[full-run] make -k ${target} ended with ${signal ? `signal ${signal}` : `status ${status}`}\n`);
-      log.end(() => resolve({ passed: status === 0, lastLines: lines.slice(-LAST_LINES) }));
+      log.end(() => resolve({ passed: status === 0, lastLines: lines.slice(-FAILURE_LINES) }));
     });
   });
 }

@@ -6,17 +6,18 @@
 //
 // A change of a vendored file is made in kit and copied with `make kit-sync`, never in the checkout; the check names
 // each file whose hash differs, each file that is missing and each unexpected file, with its expected and actual value.
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { validate } from './schema-validate.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { fileDigest } from './digest.mjs';
+import { readJson } from './files.mjs';
 
 export const LOCK = '.kit/kit.lock.json';
 
 /** The vendored directories of the checkout at `root`, from kit.json. */
 export function vendoredDirectories(root) {
-  return JSON.parse(readFileSync(path.join(root, 'kit.json'), 'utf8')).vendored;
+  return readJson(root, 'kit.json').vendored;
 }
 
 /** Every file below `directory` (relative to root), sorted; a missing directory has none. */
@@ -35,8 +36,6 @@ export function walk(root, directory) {
   return files;
 }
 
-export const sha256 = (root, file) => createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');
-
 /**
  * The findings of the configuration of `root` against the schemas of scripts/kit/schema: each config/<name>.json that the
  * repository has must validate against scripts/kit/schema/<name>.schema.json; an error names the file, the location and the rule.
@@ -50,8 +49,8 @@ export function checkConfig(root) {
     const config = `config/${name}.json`;
     // A repository declares a configuration by having its file; the schema checks the declared file only.
     if (!existsSync(path.join(root, config))) continue;
-    const schema = JSON.parse(readFileSync(path.join(directory, schemaFile), 'utf8'));
-    const value = JSON.parse(readFileSync(path.join(root, config), 'utf8'));
+    const schema = readJson(directory, schemaFile);
+    const value = readJson(root, config);
     for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: scripts/kit/schema/${schemaFile}`);
   }
   return found;
@@ -62,7 +61,7 @@ export function check(root) {
   const config = checkConfig(root);
   const lockFile = path.join(root, LOCK);
   if (!existsSync(lockFile)) return [...config, `${LOCK}: the lock is missing. Fix: make kit-sync KIT_TAG=<tag>`];
-  const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+  const lock = readJson(lockFile);
   const found = [];
   const present = new Set(vendoredDirectories(root).flatMap(directory => walk(root, directory)));
   if (existsSync(path.join(root, 'kit.json'))) present.add('kit.json');
@@ -71,7 +70,7 @@ export function check(root) {
       found.push(`${file}: the vendored file is missing; expected sha256 ${expected}. Fix: make kit-sync KIT_TAG=${lock.tag}`);
       continue;
     }
-    const actual = sha256(root, file);
+    const actual = fileDigest(path.join(root, file));
     if (actual !== expected) found.push(`${file}: sha256 is ${actual}, the lock records ${expected}. Fix: make kit-sync KIT_TAG=${lock.tag}`);
   }
   for (const file of [...present].sort()) {
@@ -80,8 +79,8 @@ export function check(root) {
   return [...config, ...found];
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const found = check(root);
   for (const line of found) console.error(`[kit-check] ${line}`);
   if (found.length) {

@@ -17,8 +17,8 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mjs';
+import { isMain, ROOT } from './paths.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT = path.dirname(fileURLToPath(import.meta.url));
 const TOOLS = ['node', 'vitest', 'go', 'cargo', 'phpunit'];
 const USAGE = `Usage: node scripts/kit/run-tests.mjs <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--cwd <directory>] [--] [<arguments>]`;
@@ -314,6 +314,6 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   run(process.argv.slice(2)).then(status => { process.exitCode = status; }, (error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
 }

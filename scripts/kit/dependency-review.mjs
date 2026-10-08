@@ -18,25 +18,28 @@
 // `make install-tools` runs) and the RustSec advisory database. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mjs.
 import { spawnSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { POLICY, RECORD, NPM_LOCK, dependencyKey, digest, isPrerelease, lockEcosystem, older, readJson, readState, stableDescending } from './dependency-state.mjs';
+import { POLICY, RECORD, NPM_LOCK, UPDATE, dependencyKey, lockEcosystem, readState } from './dependency-state.mjs';
 import { cargoAuditCommand } from './install-cargo-audit.mjs';
 import { govulncheckCommand } from './install-govulncheck.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { Stop, run as runCommand } from './process.mjs';
+import { fileDigest } from './digest.mjs';
+import { readJson, writeJson } from './files.mjs';
+import { compareParts, dottedParts, isPrerelease, older, stableDescending } from './version.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const UPDATE = 'make dependency-review UPDATE=1';
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
 const say = text => process.stdout.write(`[dependency-review] ${text}\n`);
 
-function run(command, args, cwd, statuses = [0]) {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (result.error || !statuses.includes(result.status)) {
-    return { error: `${command} ${args.join(' ')} ended with ${result.error?.message ?? `exit status ${result.status}`}: ${`${result.stderr}`.trim().split('\n').slice(-3).join(' ')}` };
+function run(command, args, cwd, statuses) {
+  try {
+    return { stdout: runCommand(command, args, { cwd, statuses }) };
+  } catch (error) {
+    if (!(error instanceof Stop)) throw error;
+    return { error: error.message };
   }
-  return { stdout: result.stdout };
 }
 
 function query(command, args, cwd, statuses) {
@@ -68,13 +71,8 @@ function npmLatest(root, name) {
 
 /** The highest release of a PyPI project that has files and no pre-release or development marker; releases: version -> files. */
 export function highestStableRelease(releases) {
-  const stable = Object.keys(releases).filter(version => /^\d+(\.\d+)*$/.test(version) && releases[version].length > 0);
-  stable.sort((a, b) => {
-    const x = a.split('.').map(Number);
-    const y = b.split('.').map(Number);
-    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
-    return 0;
-  });
+  const stable = Object.keys(releases).filter(version => dottedParts(version) && releases[version].length > 0);
+  stable.sort((a, b) => compareParts(dottedParts(a), dottedParts(b)));
   return stable.at(-1) ?? null;
 }
 
@@ -282,7 +280,7 @@ export function review(root) {
     schema: 1,
     comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mjs) from the registries; make dependency-policy-check compares the checkout with it without a network.',
     reviewed: new Date().toISOString(),
-    locks: state.locks.map(lock => ({ lock, sha256: digest(root, lock), advisories: (audits.get(lock).advisories ?? []).map(({ package: name, version, id, severity, title, url }) => ({ package: name, version, id, severity, title, ...(url ? { url } : {}) })) })),
+    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (audits.get(lock).advisories ?? []).map(({ package: name, version, id, severity, title, url }) => ({ package: name, version, id, severity, title, ...(url ? { url } : {}) })) })),
     dependencies: state.dependencies.map(dependency => ({ ecosystem: dependency.ecosystem, manifest: dependency.manifest, package: dependency.package, version: dependency.version, latest: latest.get(dependencyKey(dependency)).latest ?? null })),
   };
   const complete = state.locks.every(lock => !audits.get(lock).error) && [...latest.values()].every(answer => !answer.error);
@@ -336,7 +334,7 @@ function print(result) {
     : 'no newer stable release without an exception and no advisory');
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   let root = ROOT;
   let record = false;
@@ -372,7 +370,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       say(`${RECORD} is unchanged: a registry or advisory query failed`);
       process.exit(1);
     }
-    writeFileSync(path.join(root, RECORD), `${JSON.stringify(result.record, null, 2)}\n`);
+    writeJson(path.join(root, RECORD), result.record);
     say(`wrote ${RECORD}: ${result.record.dependencies.length} registry dependencies and ${result.record.locks.length} locks reviewed at ${result.record.reviewed}`);
   }
   process.exitCode = result.lines.length ? 1 : 0;

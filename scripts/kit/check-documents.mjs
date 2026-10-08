@@ -16,16 +16,17 @@
 //
 // Each finding is one line `<file>:<line>:<column>: <rule>: <message>` (line and column are left out where the finding
 // has none). The command prints its findings and exits with status 1, or prints the count of what it checked.
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { changelogFindings, changelogPairFindings } from './changelog.mjs';
 import { CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, twinFindings } from './checklist.mjs';
-import { globExpression, matchesAny } from './glob.mjs';
+import { matchesAny } from './glob.mjs';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mjs';
 import { readStatusTable } from './status-table.mjs';
 import { trackedFiles } from './tracked-files.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { sha256 } from './digest.mjs';
+import { readJson } from './files.mjs';
 
 export const CONFIG = 'config/documents.json';
 const DOC_ID = /<!-- doc-id: ([^>]*?) -->/g;
@@ -34,7 +35,6 @@ const PRIVATE_PATH = /(?:\/(?:Users|home)\/[^/\s"'<>`)]+\/|[A-Za-z]:\\Users\\[^\
 
 const koreanOf = file => file.replace(/\.md$/, '.ko.md');
 const englishOf = file => file.replace(/\.ko\.md$/, '.md');
-const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const position = (text, offset) => {
   const before = text.slice(0, offset).split('\n');
   return { line: before.length, column: before[before.length - 1].length + 1 };
@@ -206,13 +206,13 @@ export function check(root, config) {
   return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   if (!existsSync(path.join(root, CONFIG))) {
     console.error(`[check-documents] ${CONFIG} does not exist; declare the documents of the repository there (scripts/kit/schema/documents.schema.json)`);
     process.exit(1);
   }
-  const config = JSON.parse(readFileSync(path.join(root, CONFIG), 'utf8'));
+  const config = readJson(root, CONFIG);
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
   const { findings, documents, checklists } = check(root, config);
   for (const line of findings) console.error(`[check-documents] ${line}`);

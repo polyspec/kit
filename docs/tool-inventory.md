@@ -122,11 +122,6 @@ gate. The guard of the full run refuses while an item is in the active state, wh
 record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
-## Release tool (K5)
-
-`scripts/kit/release.mjs` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
-`coverage`). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
-
 ```json
 {
   "schema": 1,
@@ -363,6 +358,15 @@ Dropped behaviors:
 
 - `ORM_GIT_RANGE`: the range is the argument `--range` (the make variable `RANGE`).
 - The rule id `git.subject-format` and `contracts/rules.json`: the configuration is `config/commits.json`.
+
+## Release tool (K5)
+
+`scripts/kit/release.mjs` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
+`coverage`). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
+
+```json
+{
+  "schema": 1,
   "repositoryUrl": "https://github.com/<owner>/<name>",
   "changelog": "CHANGELOG.md",
   "changelogTranslations": ["CHANGELOG.ko.md"],
@@ -477,3 +481,58 @@ the reader of the document check (K7.1). Both read the same documents (table row
   accepts every state word there, where the strict reader accepted only the four states; the separators and the header are
   recognized by their position and by the cell `ID`.
 - `ci-targets.mjs` holds its report with `holder-lock.mjs`; its own lock function is removed.
+
+
+## Shared modules (K11)
+
+Several tools of `scripts/kit` held their own copy of the same helper. Each helper now lives in one module that its users
+import, and `tests/kit/duplication.test.mjs` fails when two files hold a function with the same normalized text of 6 lines or
+more (the normalization is in the test). The base had no pair that long; the shortest pair was the 4 lines of `startReport`.
+
+| Module | Holds | Replaces | Users |
+|---|---|---|---|
+| `paths.mjs` | `ROOT`, `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
+| `process.mjs` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `git.mjs` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
+| `files.mjs` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
+| `digest.mjs` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer, the sha512 of install-npm | those modules |
+| `time.mjs` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
+| `version.mjs` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed | changelog, dependency-review, check-dependency-policy |
+| `findings.mjs` | `finding` | `finding` of status-table and changelog | status-table, changelog |
+| `markdown.mjs` | `tableCells` | `cells` of checklist and `rowCells` of status-table; the fence scan of `changelog.sections` now uses `scanFences` | checklist, status-table, changelog |
+| `schema-validate.mjs` | `SCHEMAS`, `readConfig` | the read-and-validate code of `loadConfig` in checklist and in release | checklist, release |
+| `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
+| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run, target-run |
+| `toolchain-declared.mjs` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
+| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, cargo-audit and govulncheck that install-ruff, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
+| `dependency-state.mjs` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
+
+Other duplicates removed:
+
+- `toolchainVersions` existed twice (target-report and check-toolchain). The record of `ci-targets` now takes the releases
+  of node, npm, go, rust, php and composer from `check-toolchain.toolchainVersions`, which prints `22.1.0` where target-report
+  printed `v22.1.0`.
+- The two `composer validate` calls of check-dependency-policy share one function.
+- `cargoAuditCommand`, `govulncheckCommand` and the path of the probe in check-toolchain were three spellings of one path.
+
+Behaviors that differ between the copies and were merged (the wider or safer one is kept):
+
+- A failed git command reports `git <arguments> exited with <status>: <standard error>` everywhere; `check-commits` names the
+  git command in the message about a range that does not resolve.
+- A failed command of `dependency-review` reports the whole standard error, where it reported the last three lines.
+- A target name for `ci-targets` starts with a letter or a digit, as it did for `full-run`; `ci-targets` accepted `-x`, which
+  make reads as an option.
+- `dependency-review` and `release` coverage skip `node_modules`, `var` and `.tools` as well as the kit fixture.
+- The fence scan of a changelog closes a fence by the rule of `scanFences` (the closing fence is as long as the opening one).
+- install-cargo-audit and install-govulncheck run their build through `tool-wrappers.run`, which prints the command before it
+  runs and names the missing command.
+
+Left as it is, with the reason:
+
+- `runMakeTarget` (full-run) and `runLogged` (ci-targets) both run `make -k <target>` into a log. Their logs differ in the first
+  line, the last line, the buffering of the output and the environment, and the tests of each gate assert those logs, so
+  merging them means choosing one log format. This is the task K11-1.
+- The message that a configuration file is missing, in the commands `check-commits`, `check-documents` and `owner-check`, names
+  the purpose of the file; the three sentences differ.
+- `kit-check.walk` reads the vendored directories from the disk, ignored files included, where `trackedFiles` reads the Git view.
+- The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.

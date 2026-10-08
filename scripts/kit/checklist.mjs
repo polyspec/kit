@@ -7,15 +7,14 @@
 // A list tracker has one line per item, `- [state] ID text`, indented for a sub-item. A state is the leading `[x]` of
 // its cell or item, or the whole cell when the cell does not start with `[`. A tracker that cannot be read is an error
 // and never an empty result: the gate refuses a push whose items it cannot read.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { validate } from './schema-validate.mjs';
+import { tableCells } from './markdown.mjs';
+import { readConfig } from './schema-validate.mjs';
 
 export const CONFIG = 'config/checklist.json';
 export const PRE_PUSH_HOOK = 'pre-push';
 
-const SCHEMA = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema/checklist.schema.json');
 const DEFAULT_ID = '[A-Za-z][A-Za-z0-9.-]*';
 const SEPARATOR_CELL = /^:?-{3,}:?$/;
 const LIST_ITEM = /^( *)- (\[[^\]]*\]) (\S+)\s*(.*)$/;
@@ -24,8 +23,7 @@ const LIST_ITEM = /^( *)- (\[[^\]]*\]) (\S+)\s*(.*)$/;
 export function loadConfig(root) {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its trackers and hooks there`);
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  const findings = validate(config, JSON.parse(readFileSync(SCHEMA, 'utf8'))).map(error => `${CONFIG}: ${error}`);
+  const { value: config, errors: findings } = readConfig(root, CONFIG, 'checklist.schema.json');
   if (findings.length === 0) {
     if (!config.hooks.includes(PRE_PUSH_HOOK)) findings.push(`${CONFIG}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
     const paths = config.trackers.flatMap(tracker => [tracker.path, ...(tracker.translation ? [tracker.translation] : [])]);
@@ -51,19 +49,6 @@ const stateOf = cell => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
 const firstSentence = text => /^(.+?\.)(?:\s|$)/.exec(text)?.[1] ?? text.trim();
 const isSeparator = row => row.length > 0 && row.every(cell => SEPARATOR_CELL.test(cell.text.trim()));
 const listOf = words => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`);
-
-/** The cells of a table row split on `|` that is not escaped, with the column (0-based) at which each begins. */
-function cells(line) {
-  const result = [];
-  let start = line.indexOf('|') + 1;
-  for (let index = start; index < line.length; index += 1) {
-    if (line[index] === '|' && line[index - 1] !== '\\') {
-      result.push({ text: line.slice(start, index), start });
-      start = index + 1;
-    }
-  }
-  return line.trimEnd().endsWith('|') ? result : [...result, { text: line.slice(start), start }];
-}
 
 /** A finding as one sentence: `line 3: ...` when it has a line. */
 export const describeFinding = finding => (finding.line ? `line ${finding.line}: ${finding.message}` : finding.message);
@@ -116,10 +101,10 @@ export function readChecklist(text, tracker, { strict = false } = {}) {
     let place = -1;
     let allowed = line.trim() === '' || HEADING.test(line) || DOCUMENT_MARKER.test(line);
     if (format === 'table') {
-      const row = line.trimStart().startsWith('|') ? cells(line) : [];
+      const row = line.trimStart().startsWith('|') ? tableCells(line) : [];
       const first = row[0]?.text.trim() ?? '';
       const task = ID_CELL.exec(first)?.[1];
-      if (isSeparator(row) || (row.length > 0 && (first === 'ID' || isSeparator(cells(lines[index + 1] ?? ''))))) {
+      if (isSeparator(row) || (row.length > 0 && (first === 'ID' || isSeparator(tableCells(lines[index + 1] ?? ''))))) {
         allowed = true;
       } else if (task && id.test(task)) {
         allowed = true;
@@ -168,7 +153,7 @@ export function readChecklist(text, tracker, { strict = false } = {}) {
     }
     if (strict) {
       for (const marker of line.matchAll(MARKER)) {
-        if (marker.index !== place) finding(number, marker.index + 1, 'checklist-marker', `the state marker ${marker[0]} is not the state of a task; a state marker stands only at the start of ${format === 'table' ? 'the state cell of a task row' : 'a task item'}`);
+        if (marker.index !== place) finding(number, marker.index + 1, 'checklist-marker', `the state marker ${marker[0]} is not the state of a task; a state marker stands only at the start of ${format === 'table' ? `${tracker.column === undefined ? 'the last' : 'the state'} cell of a task row` : 'a task item'}`);
       }
     }
   });

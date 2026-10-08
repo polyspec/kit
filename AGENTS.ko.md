@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 5e8f8eec83596e8542b8f2330bd91b5298d72993a2cc95f2875ef412c3a69b1e -->
+<!-- source-sha256: 146d9cbb7e860d44b272d30b0c825d5f7f2e48ac3a5d1594ee83148844ace8e3 -->
 # 개발
 
 [English](AGENTS.md)
@@ -19,6 +19,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   schema 검증기는 자신이 나열한 키워드만 지원합니다.
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
   바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
+- 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `tests/kit/duplication.test.mjs`는 서로 다른 두 파일이
+  6줄 이상의 같은 함수를 가지면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트

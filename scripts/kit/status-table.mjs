@@ -1,13 +1,8 @@
 // Reading a table of statuses, such as a feature status table: rows `| <ID> | ... |` whose cells have a fixed count, a
 // closed set of values or a pattern. The rows of the English and the Korean file must agree on the ID and on every
 // column that has a closed set of values (the other columns are translated text).
-
-/** The cells of a table row, split on `|` that is not escaped. */
-export function rowCells(line) {
-  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(cell => cell.trim());
-}
-
-const finding = (line, rule, message) => ({ line, column: 1, rule, message });
+import { finding } from './findings.mjs';
+import { tableCells } from './markdown.mjs';
 
 /**
  * Reads the rows of `text` for the table `spec` ({ idPattern, cells, columns: [{ index, enum?, pattern? }] }).
@@ -21,7 +16,7 @@ export function readStatusTable(text, spec) {
   const seen = new Map();
   text.split('\n').forEach((line, index) => {
     if (!line.startsWith('|')) return;
-    const cells = rowCells(line);
+    const cells = tableCells(line).map(cell => cell.text.trim());
     if (!id.test(cells[0])) return;
     const number = index + 1;
     if (cells.length !== spec.cells) findings.push(finding(number, 'status-table', `the row ${cells[0]} has ${cells.length} cells; expected ${spec.cells}`));

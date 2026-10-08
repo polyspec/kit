@@ -19,10 +19,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mjs';
 import { trackedFiles } from './tracked-files.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { git } from './git.mjs';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -206,17 +207,13 @@ export function npmProject(root, tracked) {
   return { scripts: manifest.scripts ?? {}, workspaces, prefixes };
 }
 
-function git(root, ...args) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`git ${args.join(' ')} exited with ${result.status}: ${result.stderr.trim()}`);
-  return result.stdout.split('\n').filter(Boolean);
-}
+const gitLines = (root, ...args) => git(root, ...args).split('\n').filter(Boolean);
 
 /** The changed paths of `values` (`paths`, `base`): the given ones, or those changed since the revision or since HEAD. */
 export function changedPaths(root, values) {
   if (values.paths !== undefined) return values.paths.split(/\s+/).filter(Boolean);
-  const changed = git(root, 'diff', '--name-only', values.base ?? 'HEAD');
-  return [...new Set([...changed, ...git(root, 'ls-files', '--others', '--exclude-standard')])].sort();
+  const changed = gitLines(root, 'diff', '--name-only', values.base ?? 'HEAD');
+  return [...new Set([...changed, ...gitLines(root, 'ls-files', '--others', '--exclude-standard')])].sort();
 }
 
 /** The commands that run the selection: the checks, then one run of the selected test files. */
@@ -241,8 +238,8 @@ function step(root, { name, command, args }) {
   return passed;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const { values } = parseArgs({ options: { paths: { type: 'string' }, base: { type: 'string' }, 'dry-run': { type: 'boolean' }, validate: { type: 'boolean' } } });
   if (!existsSync(path.join(root, DECLARATION))) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);

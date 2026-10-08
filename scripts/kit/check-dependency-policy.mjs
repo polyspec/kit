@@ -6,13 +6,14 @@
 // breaks and its fix, one line each, and fails when there is one.
 //
 //   node scripts/kit/check-dependency-policy.mjs [--root <checkout>]
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { POLICY, RECORD, NPM_LOCK, dependencyKey, digest, isPrerelease, older, readJson, readState } from './dependency-state.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+import { POLICY, RECORD, NPM_LOCK, UPDATE, dependencyKey, readState } from './dependency-state.mjs';
+import { isPrerelease, older } from './version.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { execute } from './process.mjs';
+import { fileDigest } from './digest.mjs';
+import { readJson } from './files.mjs';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -28,9 +29,15 @@ export const RULES = {
   advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
-export const UPDATE = 'make dependency-review UPDATE=1';
 
 const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
+
+/** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
+function composerValidation(composer, args, cwd) {
+  const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' } });
+  if (!validate.error && validate.status === 0) return null;
+  return `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
+}
 
 /** The findings of the checkout at `root`: `{ rule, subject, problem, fix }`. */
 export function check(root, { composer = 'composer' } = {}) {
@@ -72,24 +79,14 @@ export function check(root, { composer = 'composer' } = {}) {
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published
     // composer.json declares its version, which the artifact repository of its release zip reads, so the warning on a
     // version field is not reported.
-    const validate = spawnSync(composer, ['validate', '--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], {
-      cwd: path.join(root, directory), encoding: 'utf8', env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' },
-    });
-    if (validate.error || validate.status !== 0) {
-      const output = `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
-      add('composerLock', manifestPath, `composer validate --strict failed: ${output}`, `run composer update --lock in ${directory}`);
-    }
+    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory));
+    if (failure) add('composerLock', manifestPath, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
   }
 
   // The published Composer manifests have no lock: the development root composer.json resolves them.
   for (const manifestPath of state.local.filter(item => item.ecosystem === 'composer').map(item => path.posix.join(path.posix.dirname(item.manifest), item.directory, 'composer.json'))) {
-    const validate = spawnSync(composer, ['validate', '--no-check-lock', '--no-check-publish', '--no-interaction'], {
-      cwd: path.join(root, path.posix.dirname(manifestPath)), encoding: 'utf8', env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' },
-    });
-    if (validate.error || validate.status !== 0) {
-      const output = `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
-      add('composerPackage', manifestPath, `composer validate failed: ${output}`, `fix ${manifestPath}`);
-    }
+    const failure = composerValidation(composer, ['--no-check-lock', '--no-check-publish', '--no-interaction'], path.join(root, path.posix.dirname(manifestPath)));
+    if (failure) add('composerPackage', manifestPath, `composer validate failed: ${failure}`, `fix ${manifestPath}`);
   }
 
   for (const item of state.local) {
@@ -143,7 +140,7 @@ export function check(root, { composer = 'composer' } = {}) {
       add('record', lock, 'the lock has no entry in the review record', REVIEW);
       continue;
     }
-    const actual = digest(root, lock);
+    const actual = fileDigest(path.join(root, lock));
     if (entry.sha256 !== actual) add('record', lock, `the lock changed after the review of ${record.reviewed}: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
     for (const advisory of entry.advisories ?? []) {
       add('advisory', `${lock} ${advisory.package} ${advisory.version}`, `the review of ${record.reviewed} found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, `${UPDATE}, which updates the affected package and records the review`);
@@ -178,7 +175,7 @@ export function check(root, { composer = 'composer' } = {}) {
 /** The line of a finding. */
 export const findingLine = finding => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   if (!(args.length === 0 || (args.length === 2 && args[0] === '--root'))) {
     console.error('Usage: node scripts/kit/check-dependency-policy.mjs [--root <checkout>]');

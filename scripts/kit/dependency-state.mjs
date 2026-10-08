@@ -15,11 +15,11 @@
 // The locks are package-lock.json, the composer.lock of each Composer manifest and every Cargo.lock of the checkout;
 // the review records the sha256 and the advisories of each. A Cargo lock has no registry dependencies in the review:
 // its advisories come from RustSec.
-import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { trackedFiles } from './tracked-files.mjs';
+import { checkedFiles } from './tracked-files.mjs';
+import { readJson } from './files.mjs';
 
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
@@ -34,7 +34,6 @@ const EXACT_PYTHON_PIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)==(\d+(?:\.\d+)*)$/;
 const URL_SPEC = /^(?!npm:)[A-Za-z][A-Za-z0-9+.-]*:|^[^@/][^/]*\/[^/]/;
 const PLATFORM_REQUIREMENT = /^(php(-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.+|composer(-plugin-api|-runtime-api)?)$/;
 
-export const readJson = (root, file) => JSON.parse(readFileSync(path.join(root, file), 'utf8'));
 
 /** The exact requirements of a pyproject.toml: build-system.requires and every extra, each `name==version`. */
 export function pythonRequirements(text, manifest) {
@@ -58,60 +57,14 @@ export function pythonRequirements(text, manifest) {
   return requirements;
 }
 
-/** The sha256 of a file of the checkout, in hexadecimal. */
-export function digest(root, file) {
-  return createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');
-}
-
-/** The numeric release of a version, without a leading `v`; null when the version is not `<major>.<minor>.<patch>`. */
-export function versionParts(version) {
-  const match = String(version).match(/^v?(\d+)\.(\d+)\.(\d+)/);
-  return match ? match.slice(1).map(Number) : null;
-}
-
-/** Whether a version is a prerelease: a suffix after `-`, as in `10.0.0-rc.2` of npm and `2.0.0-beta1` of Composer. */
-export function isPrerelease(version) {
-  return /^v?\d+\.\d+\.\d+-/.test(String(version));
-}
-
-/** Whether `current` is an older release than `latest`; versions that are not numeric compare as strings. */
-export function older(current, latest) {
-  const left = versionParts(current);
-  const right = versionParts(latest);
-  if (!left || !right) return String(current).replace(/^v/, '') !== String(latest).replace(/^v/, '');
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] < right[index];
-  }
-  return false;
-}
-
-/** The stable releases of a list of versions, highest first. */
-export function stableDescending(versions) {
-  return versions.filter(version => !isPrerelease(version) && versionParts(version))
-    .sort((left, right) => (older(left, right) ? 1 : older(right, left) ? -1 : 0));
-}
-
-/** The highest stable release of a list of versions, or null. */
-export function highestStable(versions) {
-  let best = null;
-  for (const version of versions) {
-    if (isPrerelease(version) || !versionParts(version)) continue;
-    if (best === null || older(best, version)) best = version;
-  }
-  return best;
-}
+/** The command that reviews the dependencies and writes the review record. */
+export const UPDATE = 'make dependency-review UPDATE=1';
 
 /** The key of a dependency in the policy and the record. */
 export const dependencyKey = ({ ecosystem, manifest, package: name }) => `${ecosystem}:${manifest}:${name}`;
 
-/** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
-export const KIT_FIXTURE = 'tests/kit/fixture/';
-
-/** The files of the checkout that its reviews read: the tracked files and the new files that Git does not ignore, except the kit fixture. */
-export const reviewedFiles = root => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE));
-
 /** The go.mod files of the checkout: every go.mod that is tracked or new and not ignored. */
-export const goModules = root => reviewedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
+export const goModules = root => checkedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
 
 /**
  * The direct requirements of a go.mod as { module, version }: the `require` lines without `// indirect`, except a module
@@ -133,7 +86,7 @@ export function goRequirements(text) {
 }
 
 /** The Cargo locks of the checkout: every Cargo.lock that is tracked or new and not ignored. */
-export const cargoLocks = root => reviewedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
+export const cargoLocks = root => checkedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
 
 /** The ecosystem of a lock: npm, composer, cargo or go. */
 export const lockEcosystem = lock => ({ 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' })[path.posix.basename(lock)];

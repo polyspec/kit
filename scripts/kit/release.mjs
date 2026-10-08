@@ -27,13 +27,13 @@
 // create TAG --verify-tag --title TAG --notes-file <notes>` with the archives; the notes are the section X.Y.Z, or one
 // line that links the section when it is longer than NOTES_LIMIT characters, the limit of a release body.
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { validate } from './schema-validate.mjs';
-import { trackedFiles } from './tracked-files.mjs';
+import { readConfig } from './schema-validate.mjs';
+import { checkedFiles } from './tracked-files.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { execute, run, Stop } from './process.mjs';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -53,17 +53,6 @@ const ARCHIVE_FORMAT = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'];
 
-/** A step fails; the message names the cause. */
-export class Stop extends Error {}
-
-/** The standard output of a command; Stop with the command, its exit status and its standard error. */
-export function run(command, args, { cwd, env = process.env } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (result.error) throw new Stop(`${[command, ...args].join(' ')} could not start: ${result.error.message}`);
-  if (result.status !== 0) throw new Stop(`${[command, ...args].join(' ')} exited with ${result.status}: ${(result.stderr || result.stdout).trim()}`);
-  return result.stdout;
-}
-
 /**
  * The configuration of the repository at `root`: config/release.json validated against its schema and for the rules that the
  * schema cannot express (the values of the maps, the packages against the manifests). Stop with every finding.
@@ -71,9 +60,7 @@ export function run(command, args, { cwd, env = process.env } = {}) {
 export function loadConfig(root) {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Stop(`${CONFIG}: the file is missing; a repository that releases declares its packages in it`);
-  const schema = JSON.parse(readFileSync(new URL('./schema/release.schema.json', import.meta.url), 'utf8'));
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  const problems = validate(config, schema).map(error => `${CONFIG}: ${error}`);
+  const { value: config, errors: problems } = readConfig(root, CONFIG, 'release.schema.json');
   if (problems.length) throw new Stop(problems.join('; '));
   const reason = (map, where, check) => {
     for (const [key, value] of Object.entries(config[map])) {
@@ -141,7 +128,7 @@ export function goTagProblems(ctx, tag) {
   for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort()) {
     if (module === '.') continue;
     const goTag = `${module}/v${version}`;
-    const found = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${goTag}^{commit}`], { cwd: ctx.root, env: ctx.env, encoding: 'utf8' });
+    const found = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${goTag}^{commit}`], at(ctx));
     const create = `git tag -a ${goTag} -m ${goTag} ${commit} && git push origin ${goTag}`;
     if (found.status !== 0) problems.push(`the Go module tag ${goTag} is missing; a Go proxy resolves ${modulePath} from it. Fix: ${create}`);
     else if (found.stdout.trim() !== commit) problems.push(`the Go module tag ${goTag} is at ${found.stdout.trim()}, the tag ${tag} is at ${commit}. Fix: git tag -d ${goTag} && ${create}`);
@@ -156,7 +143,7 @@ export function verify(ctx, tag) {
   if (!repository) throw new Stop('GITHUB_REPOSITORY is not set; it names the repository <owner>/<name> whose check runs are read');
   const commit = taggedCommit(ctx, tag);
   const problems = [];
-  const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', commit, MAIN], { cwd: ctx.root, env: ctx.env, encoding: 'utf8' });
+  const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, MAIN], at(ctx));
   if (ancestry.status === 1) problems.push(`the commit is not on ${MAIN}; a release tags a commit of main`);
   else if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
   ctx.log(`[release] ${tag}: reading the Go module tags of ${Object.keys(ctx.config.goModules).filter(item => item !== '.').length} modules`);
@@ -413,9 +400,6 @@ export function publish(ctx, tag) {
   return names;
 }
 
-/** The directories whose files coverage does not read: the dependency installs, the run outputs and the vendored fixture. */
-const EXCLUDED = file => /(^|\/)(node_modules|var|\.tools)\//.test(file) || file.startsWith('tests/kit/fixture/');
-
 /**
  * The problems of the classification of the package files of the checkout: every tracked or new file named package.json,
  * composer.json, Cargo.toml, pyproject.toml, go.mod or VERSION is a key of `manifests` or `notReleased`, or the go.mod of a
@@ -423,7 +407,7 @@ const EXCLUDED = file => /(^|\/)(node_modules|var|\.tools)\//.test(file) || file
  */
 export function coverage(ctx) {
   const { root, config } = ctx;
-  const files = trackedFiles(root).filter(file => PACKAGE_FILES.includes(path.posix.basename(file)) && !EXCLUDED(file));
+  const files = checkedFiles(root).filter(file => PACKAGE_FILES.includes(path.posix.basename(file)));
   const goFiles = Object.keys(config.goModules).map(module => `${module === '.' ? '' : `${module}/`}go.mod`);
   const lists = { manifests: Object.keys(config.manifests), notReleased: Object.keys(config.notReleased), goModules: goFiles };
   const problems = [];
@@ -444,7 +428,7 @@ export function coverage(ctx) {
 const USAGE = 'usage: node scripts/kit/release.mjs verify|versions|assets|publish|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
+export function main(argv, { root = ROOT, env = process.env, print = console.log, error = console.error } = {}) {
   const [mode, tag, ...rest] = argv;
   const tagged = ['verify', 'versions', 'assets', 'publish', 'go-tags'].includes(mode);
   if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
@@ -490,4 +474,4 @@ export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(impo
   return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url)) process.exitCode = main(process.argv.slice(2));
