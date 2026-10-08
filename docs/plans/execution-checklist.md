@@ -25,7 +25,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
 | K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [ ] |
-| K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-1 | Declare the toolchains in config/toolchain.json with its schema and read them from their files | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | Install npm, Go, ruff and Composer into var/tools with wrappers and no symbolic link | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-3 | Install cargo-audit and govulncheck through install-tools and add the make target | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |
