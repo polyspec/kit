@@ -22,8 +22,7 @@ import path from 'node:path';
 import { inspectTrackers, loadConfig } from './checklist.mjs';
 import { hooksIssue } from './git-hooks.mjs';
 import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } from './holder-lock.mjs';
-import { startReport, TARGET_NAME } from './target-report.mjs';
-import { runMakeTarget } from './target-run.mjs';
+import { FAILURE_LINES, logPath, runLogged, startReport, TARGET_NAME, targetPassed } from './target-report.mjs';
 import { isMain, ROOT } from './paths.mjs';
 import { readJson, writeJson } from './files.mjs';
 import { git } from './git.mjs';
@@ -87,6 +86,19 @@ function readRecord(root) {
 
 // The record is written to a file of this process and renamed, so a reader never sees a partial record.
 const writeRecord = (root, record) => writeJson(path.join(root, RECORD), record);
+
+/**
+ * Runs `make -k <target>` in `root` through the same runner as the CI report (target-report.mjs `runLogged`): its output goes
+ * to the terminal as complete lines and to the log of the target in `directory`. Resolves `{ passed, lastLines }`: whether make
+ * ended with status 0, and the last FAILURE_LINES lines of its output in the order of arrival. A failed write of the log throws.
+ */
+async function runMakeTarget(root, target, directory) {
+  if (!TARGET_NAME.test(target)) throw new Error(`the target name ${JSON.stringify(target)} does not match ${TARGET_NAME}`);
+  const writer = { errors: [] };
+  const { lines, exit } = await runLogged({ root, target, log: logPath(directory, target), writer, output: (text, stream) => process[stream].write(text) });
+  if (writer.errors.length) throw new Error(writer.errors.join('; '));
+  return { passed: targetPassed(target, exit), lastLines: lines.slice(-FAILURE_LINES) };
+}
 
 /**
  * Inspects the checkout, decides and runs. `runTarget(name)` resolves `{ passed, lastLines }` of a target. Returns the exit

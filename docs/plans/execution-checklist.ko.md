@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 26c2e3eaf78c1a0573f5f4ab2d1204424d2a3b8fb16b39417b8ae622651833e0 -->
+<!-- source-sha256: fa2aa99edd39b3d308a1da505c3b986f643bbb86f1b8f7be40664254c19ae90e -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -47,4 +47,4 @@
 | K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
 | K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
-| K11-1 | full-run의 runMakeTarget과 ci-targets의 runLogged를 log 형식 하나를 쓰는 runner 하나로 합친다 | `scripts/kit/target-run.mjs, target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [ ] |
+| K11-1 | full-run의 runMakeTarget과 ci-targets의 runLogged를 log 형식 하나를 쓰는 runner 하나로 합친다 | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |

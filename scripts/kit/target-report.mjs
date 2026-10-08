@@ -121,6 +121,9 @@ export function warningLines(lines) {
   return lines.map(line => line.replace(ANSI, '')).filter(line => WARNING.test(line)).slice(0, FAILURE_LINES);
 }
 
+/** Whether the `exit` text that runLogged resolves is a pass of `target`. */
+export const targetPassed = (target, exit) => exit === `make ${target} exited with status 0`;
+
 /**
  * Runs `make -k <target>` in `root`, which keeps going after a failed prerequisite, and writes its output to the log file
  * `log` line by line as the lines come. A line is passed on when it is complete, so the output of standard output and of

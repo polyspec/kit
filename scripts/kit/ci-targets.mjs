@@ -19,7 +19,7 @@ import path from 'node:path';
 import { acquireHolderLock } from './holder-lock.mjs';
 import { now } from './time.mjs';
 import { toolchainVersions } from './check-toolchain.mjs';
-import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, treeId, warningLines } from './target-report.mjs';
+import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mjs';
 import { isMain, ROOT } from './paths.mjs';
 import { jsonText, readJson } from './files.mjs';
 
@@ -60,7 +60,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
       const begin = Date.now();
       const log = logPath(report, target.name);
       const { lines, exit } = await runLogged({ root, target: target.name, log, writer, output, make, env });
-      const passed = exit === `make ${target.name} exited with status 0`;
+      const passed = targetPassed(target.name, exit);
       Object.assign(target, { status: passed ? 'passed' : 'failed', ended: now(), elapsedMs: Date.now() - begin });
       if (!passed) target.failures = failureLines(lines, exit);
       const warnings = warningLines(lines);
