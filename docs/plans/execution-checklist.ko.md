@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 9d038ebf3c76607a864257e3a8d52ef883a86185816434caaff9ff06c62973ae -->
+<!-- source-sha256: 5e9bde8dbd9efcf9edaf49afaa1b49ac60ddafba1db95ec27d004f44fa3cf8d5 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -31,7 +31,7 @@
 | K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [ ] |
-| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-1 | config/toolchain.json과 그 schema에 toolchain을 선언하고 선언한 파일에서 읽는다 | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | npm, Go, ruff, Composer를 wrapper와 symbolic link 없이 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-3 | cargo-audit와 govulncheck를 install-tools로 설치하고 make target을 추가한다 | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |
