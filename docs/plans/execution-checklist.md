@@ -50,3 +50,5 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [o] |
 | K11 | Move every function and constant that several modules of scripts/kit repeat into one shared module, and fail a second copy in a test | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
 | K11-1 | Merge runMakeTarget of full-run and runLogged of ci-targets into one runner with one log format | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |
+| K12 | Read an npm lock entry that npm installed as a copy (`resolved: file:<directory>`, no `link`) as a package of the repository | `scripts/kit/dependency-state.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
+| K12-1 | Write the `source-sha256` of the Korean documents from the English files with `make documents-stamp` | `scripts/kit/documents-stamp.mjs, tests/kit/documents-stamp.test.mjs` | `make kit-test` | [o] |

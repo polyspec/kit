@@ -51,3 +51,5 @@
 | K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [o] |
 | K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
 | K11-1 | full-run의 runMakeTarget과 ci-targets의 runLogged를 log 형식 하나를 쓰는 runner 하나로 합친다 | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |
+| K12 | npm이 복사본으로 설치한 lock 항목(`resolved: file:<directory>`, `link` 없음)을 저장소의 package로 읽는다 | `scripts/kit/dependency-state.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
+| K12-1 | 한국어 문서의 `source-sha256`을 영어 파일에서 `make documents-stamp`로 쓴다 | `scripts/kit/documents-stamp.mjs, tests/kit/documents-stamp.test.mjs` | `make kit-test` | [o] |
