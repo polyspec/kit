@@ -7,9 +7,10 @@
 //
 //   node scripts/kit/install-cargo-audit.mjs
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installOnce } from './install-tool.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -40,32 +41,15 @@ function installedRelease(prefix) {
  * `{ installed, release }`; throws with the expected and the actual release when the result is not `recorded`.
  */
 export function installCargoAudit({ root = ROOT, recorded = recordedCargoAudit(root), print = () => {} } = {}) {
-  const prefix = cargoAuditPrefix(root);
-  const found = installedRelease(prefix);
-  if (found === recorded) {
-    print(`cargo-audit: ${recorded} is installed in ${path.relative(root, prefix)}`);
-    return { installed: false, release: recorded };
-  }
-  print(`cargo-audit: ${found ? `${found} is installed` : 'none is installed'} in ${path.relative(root, prefix)}; installing ${recorded}`);
-  mkdirSync(path.dirname(prefix), { recursive: true });
-  const next = mkdtempSync(`${prefix}.next-`);
-  try {
-    const args = ['install', '--locked', '--root', next, '--target-dir', path.join(next, 'build'), `cargo-audit@${recorded}`];
-    const result = spawnSync('cargo', args, { cwd: root, stdio: 'inherit' });
-    if (result.error || result.status !== 0) throw new Error(`cargo ${args.join(' ')} ended with ${result.error?.message ?? `exit status ${result.status}`}`);
-    rmSync(path.join(next, 'build'), { recursive: true, force: true });
-    const release = installedRelease(next);
-    if (release !== recorded) throw new Error(`the installation of cargo-audit ${recorded} into ${next} prints ${release}; expected ${recorded}`);
-    // The old installation moves aside with one rename and the new one takes its place with another.
-    const old = `${prefix}.old-${process.pid}`;
-    if (existsSync(prefix)) renameSync(prefix, old);
-    renameSync(next, prefix);
-    rmSync(old, { recursive: true, force: true });
-    print(`cargo-audit: installed ${recorded} in ${path.relative(root, prefix)}`);
-    return { installed: true, release: recorded };
-  } finally {
-    rmSync(next, { recursive: true, force: true });
-  }
+  return installOnce({
+    root, label: 'cargo-audit', prefix: cargoAuditPrefix(root), recorded, installedRelease, print,
+    install: (next) => {
+      const args = ['install', '--locked', '--root', next, '--target-dir', path.join(next, 'build'), `cargo-audit@${recorded}`];
+      const result = spawnSync('cargo', args, { cwd: root, stdio: 'inherit' });
+      if (result.error || result.status !== 0) throw new Error(`cargo ${args.join(' ')} ended with ${result.error?.message ?? `exit status ${result.status}`}`);
+      rmSync(path.join(next, 'build'), { recursive: true, force: true });
+    },
+  });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

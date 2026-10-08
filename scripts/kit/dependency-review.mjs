@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY, RECORD, NPM_LOCK, dependencyKey, digest, isPrerelease, lockEcosystem, older, readJson, readState, stableDescending } from './dependency-state.mjs';
 import { cargoAuditCommand } from './install-cargo-audit.mjs';
+import { govulncheckCommand } from './install-govulncheck.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const UPDATE = 'make dependency-review UPDATE=1';
@@ -77,6 +78,50 @@ export function highestStableRelease(releases) {
   return stable.at(-1) ?? null;
 }
 
+/** The JSON objects that a command prints one after the other (govulncheck -json), in order. */
+export function parseJsonStream(text) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{') {
+      if (depth === 0) start = index;
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) objects.push(JSON.parse(text.slice(start, index + 1)));
+    }
+  }
+  return objects;
+}
+
+/** The advisories of the vulnerabilities that the code calls, from the messages of govulncheck -json, one per advisory and module. */
+export function goAdvisories(messages) {
+  const details = new Map(messages.filter(message => message.osv).map(message => [message.osv.id, message.osv]));
+  const seen = new Set();
+  const list = [];
+  for (const { finding } of messages) {
+    const frame = finding?.trace?.[0];
+    // A finding without a function is a vulnerability in a module or package that the code does not call.
+    if (!frame?.function) continue;
+    const key = `${finding.osv}:${frame.module}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push({ package: frame.module, version: frame.version, id: finding.osv, severity: 'vulnerability', title: details.get(finding.osv)?.summary ?? finding.osv, url: `https://pkg.go.dev/vuln/${finding.osv}` });
+  }
+  return list;
+}
+
 /** The latest stable release of every registry dependency: key -> { latest } or { error }. */
 function latestReleases(root, state) {
   const latest = new Map();
@@ -87,6 +132,17 @@ function latestReleases(root, state) {
     if (dependency.ecosystem === 'npm') {
       if (!npm.has(dependency.package)) npm.set(dependency.package, npmLatest(root, dependency.package));
       latest.set(key, npm.get(dependency.package));
+      continue;
+    }
+    if (dependency.ecosystem === 'go') {
+      const directory = path.posix.dirname(dependency.manifest);
+      const answer = query('go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
+      if (answer.error) {
+        latest.set(key, { error: answer.error });
+        continue;
+      }
+      // A module without a stable release has nothing newer than the version that go.mod requires.
+      latest.set(key, { latest: stableDescending(answer.value.Versions ?? [])[0] ?? dependency.version });
       continue;
     }
     if (dependency.ecosystem === 'pypi') {
@@ -153,6 +209,15 @@ function advisories(root, state) {
       }
     }
     result.set(lock, { advisories: list });
+  }
+  for (const lock of state.locks.filter(item => lockEcosystem(item) === 'go')) {
+    const command = govulncheckCommand(root);
+    const answer = existsSync(command) ? run(command, ['-json', './...'], path.join(root, path.posix.dirname(lock))) : { error: `${path.relative(root, command)} is not installed; run make install-tools` };
+    if (answer.error) {
+      result.set(lock, { error: answer.error });
+      continue;
+    }
+    result.set(lock, { advisories: goAdvisories(parseJsonStream(answer.stdout)) });
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
     const directory = path.posix.dirname(lock);
@@ -238,6 +303,8 @@ export function updatePlan({ newer, advisories: found }) {
       const save = dependency.kind === 'devDependencies' ? ['--save-dev'] : ['--save'];
       const workspace = directory === '.' ? [] : ['--workspace', directory];
       plan.push({ command: 'npm', args: ['install', ...workspace, ...save, ...(range ? [] : ['--save-exact']), `${dependency.package}@${range}${version}`], cwd: '.' });
+    } else if (dependency.ecosystem === 'go') {
+      plan.push({ command: 'go', args: ['get', `${dependency.package}@${dependency.latest}`], cwd: path.posix.dirname(dependency.manifest) });
     } else if (dependency.ecosystem === 'pypi') {
       plan.push({ command: 'node', args: ['scripts/kit/pin-python-dependency.mjs', dependency.manifest, dependency.package, version], cwd: '.' });
     } else {
@@ -253,9 +320,11 @@ export function updatePlan({ newer, advisories: found }) {
   }
   for (const [lock, packages] of affected) {
     const directory = path.posix.dirname(lock);
-    if (lockEcosystem(lock) === 'cargo') plan.push({ command: 'cargo', args: ['update', ...[...packages].flatMap(name => ['-p', name])], cwd: directory });
+    if (lockEcosystem(lock) === 'go') plan.push({ command: 'go', args: ['get', ...[...packages].map(name => `${name}@latest`)], cwd: directory });
+    else if (lockEcosystem(lock) === 'cargo') plan.push({ command: 'cargo', args: ['update', ...[...packages].flatMap(name => ['-p', name])], cwd: directory });
     else plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', ...packages], cwd: directory });
   }
+  for (const directory of new Set(plan.filter(step => step.command === 'go').map(step => step.cwd))) plan.push({ command: 'go', args: ['mod', 'tidy'], cwd: directory });
   return plan;
 }
 

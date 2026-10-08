@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 10418e5e45fdf740cece6b097641959ad0eb506d6fc232cf63aad464a50ba45d -->
+<!-- source-sha256: 7f6da8a5bea214b9535bf594e2f4ef4ff081951c780a76a369ede6180557f4c0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -18,8 +18,8 @@
 | K3.1 | 추적되는 모든 Cargo.lock을 sha256과 함께 검토 기록에 쓴다 | `scripts/kit/dependency-state.mjs` | `make kit-test` | [o] |
 | K3.2 | config/toolchain.json의 cargo-audit을 var/tools에 설치하고 설치된 release는 건너뛴다 | `scripts/kit/install-cargo-audit.mjs` | `make kit-test` | [o] |
 | K3.3 | 각 Cargo.lock의 advisory를 cargo-audit과 RustSec 데이터베이스에서 검토 때만 조회해 기록한다 | `scripts/kit/dependency-review.mjs` | `make kit-test` | [o] |
-| K4.1 | 모든 go.mod의 직접 의존성을 최신 stable과 비교해 검토한다 | `scripts/kit/dependency-review.mjs` | `make kit-test` | [ ] |
-| K4.2 | var/tools에 설치한 govulncheck로 Go advisory를 기록한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K4.1 | 모든 go.mod의 직접 의존성을 최신 stable과 비교해 검토한다 | `scripts/kit/dependency-review.mjs` | `make kit-test` | [o] |
+| K4.2 | var/tools에 설치한 govulncheck로 Go advisory를 기록한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K5.1 | template, crudui, hyper, ordered-json, orm의 release 도구를 config/release.json을 읽는 하나로 합친다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.2 | 아카이브를 <package>-<language>-<version>.<ext>로 이름 짓고 npm pack 결과의 이름을 바꾼다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.3 | release 검증에서 선언된 각 Go 모듈의 tag go/vX.Y.Z를 요구한다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |

@@ -77,6 +77,22 @@ if (!releases) { console.error('404 ' + url); process.exit(22); }
 console.log(JSON.stringify({ info: { version: Object.keys(releases).at(-1) }, releases }));
 `;
 
+const GO_STUB = `#!/usr/bin/env node
+const { appendFileSync, readFileSync } = require('node:fs');
+const args = process.argv.slice(2);
+appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
+const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
+if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
+  const module = args[args.length - 1];
+  const versions = registry.go?.[module];
+  if (!versions) { console.error('go: module ' + module + ' not found'); process.exit(1); }
+  console.log(JSON.stringify({ Path: module, Versions: versions }));
+} else {
+  console.error('go stub: unsupported ' + args.join(' '));
+  process.exit(2);
+}
+`;
+
 /**
  * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
  * the directory with `t.after`.
@@ -86,7 +102,7 @@ export function stubRegistries(t) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
   mkdirSync(bin);
-  for (const [name, source] of [['npm', NPM_STUB], ['composer', COMPOSER_STUB], ['curl', CURL_STUB]]) {
+  for (const [name, source] of [['npm', NPM_STUB], ['composer', COMPOSER_STUB], ['curl', CURL_STUB], ['go', GO_STUB]]) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
@@ -111,4 +127,5 @@ export const FIXTURE_REGISTRY = {
   composer: { 'fixture-php': { 'psr/log': '3.0.2' } },
   composerAudit: { 'fixture-php': { advisories: [], abandoned: [] } },
   pypi: { setuptools: { '84.0.0': [{}] }, ruff: { '0.16.10': [{}] } },
+  go: { 'github.com/google/uuid': ['v1.5.0', 'v1.6.0'] },
 };

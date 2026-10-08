@@ -39,3 +39,19 @@ else { console.log(JSON.stringify(report)); process.exit(report.vulnerabilities.
 `);
   chmodSync(file, 0o755);
 }
+
+/**
+ * Installs a stub of govulncheck into var/tools/govulncheck/bin of `root`: it prints `Scanner: govulncheck@v1.1.4` for
+ * -version and the JSON `messages` one after the other for a scan, and exits 0 as govulncheck -json does.
+ */
+export function installGovulncheckStub(root, messages = []) {
+  const bin = path.join(root, 'var/tools/govulncheck/bin');
+  mkdirSync(bin, { recursive: true });
+  const file = path.join(bin, 'govulncheck');
+  writeFileSync(file, `#!/usr/bin/env node
+const messages = ${JSON.stringify(messages)};
+if (process.argv.includes('-version')) console.log('Go: go1.27.0\\nScanner: govulncheck@v1.1.4\\nDB: https://vuln.go.dev');
+else for (const message of messages) console.log(JSON.stringify(message, null, 2));
+`);
+  chmodSync(file, 0o755);
+}
