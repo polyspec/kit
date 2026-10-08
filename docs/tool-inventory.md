@@ -292,3 +292,39 @@ Dropped behaviors:
 - crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
   `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
   (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.
+
+## CI report tools (K8.1-3)
+
+`scripts/kit/ci-targets.mjs`, `target-report.mjs` and `ci-passed.mjs` replace `ci-targets.mjs`, `target-report.mjs` and
+`ci-passed.mjs` of template and crudui, `ci-run.mjs` of hyper, `ci_run.py` of ordered-json, `scripts/check/ci-passed.mjs` and
+`scripts/check/report.mjs`, `summary.mjs` of orm.
+
+Merged behaviors:
+
+- Every target runs as `make -k <target>` to its end, past failures, with its output printed and written to
+  `<report>/targets/<target>.log` (template, crudui, hyper, ordered-json); the run holds `<report>.lock` (template, crudui). The
+  report of an earlier run is removed first. No target has a time limit.
+- hyper: `make --no-print-directory`, no variable of a calling make (`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`), complete
+  lines of standard output and standard error that never join, `record.json` written before and after each target
+  (a run that stops leaves the target that was running), a report write that never throws and is recorded in `reportErrors`
+  (orm has the same rule), and the `--summary` step with `CI_STEPS` that renders the page also for a run that recorded nothing
+  or did not end (`summary` of hyper and ordered-json).
+- Failure lines: the lines marked `✖` with their indented detail (hyper), else the lines that state a failure without the
+  passing, start and make lines (hyper, template), plus the checker lines `file:line: message` and the words of ordered-json,
+  else the last lines; then how make ended. The lines `WARNING ...` of a passing target are recorded and shown (hyper, orm).
+- The toolchain versions and the runner image are in `record.json` and in the summary (template's `toolchains.json` and
+  hyper's `environment`).
+- A log above 1 MiB keeps its head and its last 256 KiB (orm).
+- `ci-passed`: the input is `RESULTS`, the JSON of `needs` (template, hyper, ordered-json; orm named it `CI_NEEDS`); each job is
+  printed with its result; any result other than `success` fails with status 1; an unset or unusable input fails with status 2
+  (crudui, orm); `::error` annotations are written on GitHub Actions (crudui, orm).
+
+Dropped behaviors:
+
+- `toolchains.json` and `summary.json` (separate files for what `record.json` holds), the group directory `var/ci/<group>`
+  and the `ci-check`, `ci-pins` targets of hyper (the report directory is an argument, the PHP pin is repository specific),
+  the refusal outside GitHub Actions (hyper: a run of the targets is allowed anywhere; the full suite guard belongs to the full
+  run), the copy of `var/records` (ordered-json) and the environment, disk and server-log files, the case-runner protocol
+  (`RUN`, `STEP`, `PASS`, `FAIL`) and the run id of the full-run report (orm): they depend on one repository's checks and stay there.
+- The lock is a small file with the process id of the holder, inside `ci-targets.mjs`; the shared holder lock of the full run
+  is a separate tool (K6.1).

@@ -33,7 +33,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.1-1 | Merge the owner-check of template, crudui and hyper and the owner map of ordered-json into one tool read from config/owner-checks.json | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
 | K8.1-2 | Merge the test runners with their progress reporters, per-test timeouts and the failing run without tests | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
-| K8.1-3 | Merge the target report, ci-targets and ci-passed of template, crudui, hyper, ordered-json and orm | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [ ] |
+| K8.1-3 | Merge the target report, ci-targets and ci-passed of template, crudui, hyper, ordered-json and orm | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [o] |
 | K8.1-4 | Take the commit subject check and the changelog sections of orm as shared git hygiene | `scripts/kit/check-commits.mjs` | `make kit-test` | [ ] |
 | K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K8.2-1 | Declare the toolchains in config/toolchain.json with its schema and read them from their files | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |

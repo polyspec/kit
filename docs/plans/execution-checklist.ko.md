@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 94a52b238ce8953554647ee13eba5e6d93163561b870ba9c6ae1f2652a1965c0 -->
+<!-- source-sha256: 8403d97e77627cbc71950e7cc4b2352ca66d9886154b2c298532c6fb51f49e12 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -14,6 +14,7 @@
 <!-- source-sha256: c282bbde4557d105e15556219d40dacd311137a5f83d0e7592fc7a5b266a0355 -->
 <!-- source-sha256: 8c0499bf683b87000963368ed6f574038b7a52564fcdc70389e13d585aa335af -->
 <!-- source-sha256: 76576e06a04d74973c24a06b139286ec3a45312ef10a49429928732b28bbead3 -->
+<!-- source-sha256: 615bfc213f1c0586a8a3476840356955af8b356d86850c9245e213be09c2a275 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -48,7 +49,7 @@
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.1-1 | template, crudui, hyper의 owner-check와 ordered-json의 owner map을 config/owner-checks.json을 읽는 도구 하나로 합친다 | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
 | K8.1-2 | 테스트 실행기를 진행 reporter, 테스트별 timeout, 테스트가 없는 실행의 실패와 함께 합친다 | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
-| K8.1-3 | template, crudui, hyper, ordered-json, orm의 target report, ci-targets, ci-passed를 합친다 | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [ ] |
+| K8.1-3 | template, crudui, hyper, ordered-json, orm의 target report, ci-targets, ci-passed를 합친다 | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [o] |
 | K8.1-4 | orm의 commit subject 검사를 공유 git 위생 검사로 가져온다 | `scripts/kit/check-commits.mjs` | `make kit-test` | [ ] |
 | K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K8.2-1 | config/toolchain.json과 그 schema에 toolchain을 선언하고 선언한 파일에서 읽는다 | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
