@@ -261,3 +261,34 @@ Dropped behaviors:
   becomes `$path`. Python test modules are not node tests and stay outside kit.
 - `useCheckoutNpm` of crudui: the Makefile puts the npm of `var/tools` first on `PATH`; the tool starts `npm` from `PATH`.
 - The bare target name as the key of `inputs` (template, hyper): the name is `make <target>` as in crudui.
+
+## Test runner (K8.1-2)
+
+`scripts/kit/run-tests.mjs` replaces `run-tests.mjs` of template, crudui and hyper and `test.py` of ordered-json. Its progress
+reporters are `test-progress.mjs`, `node-reporter.mjs` and `vitest-reporter.mjs`; `test-load-check.mjs` is preloaded into
+each node test file and `test-hooks.mjs` is the `setup` and `teardown` helper of tests.
+
+Merged behaviors:
+
+- Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui); hyper has the first, the last and `vitest`. Each test
+  prints its start, a line while it runs, and its result with the elapsed time; each test has its own timeout
+  (`--timeout`, 30 s by default), enforced by `node --test` and vitest and by the runner for the other tools. No whole run, package or
+  file has a time limit (all implementations; crudui's `go test -timeout 10m` is dropped for `-timeout=0`).
+- A run in which no test passed, failed or ran out of time fails. template counted a skipped test as a test; hyper and crudui did
+  not, and kit takes theirs, because a run that only skipped verified nothing. The reporters write their counts to the file in
+  `KIT_TEST_RESULT` (hyper's `HYPER_TEST_RESULT`) and the runner fails when no counts arrive.
+- A node test file that registers no test fails (crudui), and so does a file whose process ends before its module registered
+  every test (crudui `load-check`). A Go package that started no test case is reported as skipped (crudui).
+- The summary of a failed run names the error lines of the tool, and the build errors of a Go package that does not build
+  (template); the timeout line names the command that it stops (crudui).
+- `phpunit` runs `<cwd>/vendor/bin/phpunit`, or the vendor directory of `COMPOSER_VENDOR_DIR` (crudui), with `--php-extension`
+  for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts.
+- A tool that cannot start fails with its command and the fix.
+
+Dropped behaviors:
+
+- Python `unittest` runs with signal timeouts (`test.py`): the Python tests of ordered-json are not run by kit, which runs
+  node tests.
+- crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
+  `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
+  (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.

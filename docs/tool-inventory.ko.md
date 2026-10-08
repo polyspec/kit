@@ -1,8 +1,9 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 38a965d53320dee717f273e38284860f00ede86715484286dd52620994814135 -->
+<!-- source-sha256: a731a2bde12ba971c5310da9ba18d4b602d60946e8dd10eaf19c8126c82b7efb -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
+<!-- source-sha256: 7ae77d943c7590647b6aed5f3fa90c950a125bf185476539a8e4ec3978e7875e -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -257,3 +258,34 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   됩니다. Python test module은 node test가 아니므로 kit 밖에 남습니다.
 - crudui의 `useCheckoutNpm`: Makefile이 `var/tools`의 npm을 `PATH` 맨 앞에 두고, 도구는 `PATH`의 `npm`을 시작합니다.
 - `inputs`의 key로 쓰던 target 이름(template, hyper): 이름은 crudui처럼 `make <target>`입니다.
+
+## 테스트 실행기 (K8.1-2)
+
+`scripts/kit/run-tests.mjs`는 template, crudui, hyper의 `run-tests.mjs`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
+`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이고, `test-load-check.mjs`는 각 node test 파일에 preload되며,
+`test-hooks.mjs`는 test의 `setup`과 `teardown` helper입니다.
+
+합친 동작:
+
+- tool: `node`, `vitest`, `go`, `cargo`, `phpunit`(template, crudui); hyper는 첫째, 마지막, `vitest`를 가집니다. 각 test는 시작,
+  실행 중 한 줄, 경과 시간과 함께 결과를 출력하고, test마다 자기 timeout(`--timeout`, 기본 30 s)을 가집니다. `node --test`와
+  vitest가, 다른 tool은 실행기가 timeout을 적용합니다. 전체 실행, package, 파일에는 시간 제한이 없습니다(모든 구현; crudui의
+  `go test -timeout 10m`은 `-timeout=0`으로 바꿉니다).
+- pass, fail, timeout인 test가 하나도 없는 실행은 실패합니다. template은 skip한 test도 test로 셌고 hyper와 crudui는 세지 않았으며,
+  skip만 한 실행은 아무것도 검증하지 않았으므로 kit은 후자를 따릅니다. reporter는 count를 `KIT_TEST_RESULT`(hyper의
+  `HYPER_TEST_RESULT`) 파일에 쓰고, count가 오지 않으면 실행기가 실패합니다.
+- test를 하나도 등록하지 않은 node test 파일(crudui)과, module이 모든 test를 등록하기 전에 process가 끝난 파일(crudui
+  `load-check`)은 실패합니다. test case를 시작하지 않은 Go package는 skip으로 보고합니다(crudui).
+- 실패한 실행의 요약은 tool의 error 줄과 build되지 않은 Go package의 build error를 적습니다(template). timeout 줄은 멈추는
+  command를 적습니다(crudui).
+- `phpunit`은 `<cwd>/vendor/bin/phpunit` 또는 `COMPOSER_VENDOR_DIR`의 vendor directory(crudui)를 실행하고, extension은
+  `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
+- 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
+
+버린 동작:
+
+- signal timeout을 쓰는 Python `unittest` 실행(`test.py`): kit은 node test를 실행하므로 ordered-json의 Python test는 실행하지
+  않습니다.
+- crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
+  vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
+  앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.
