@@ -56,3 +56,4 @@
 | K12-2 | 저장소 root의 composer.json을 dependency policy의 Composer manifest로 받아들인다 | `scripts/kit/schema/dependency-policy.schema.json, tests/kit/schema.test.mjs` | `make kit-test` | [o] |
 | K12-3 | dependency gate가 `file:<package 디렉터리>`로 요구한 local npm package를 받아들인다 | `scripts/kit/check-dependency-policy.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
 | K12-4 | install-tools가 이름으로 tool을 고르게 하고, mutation 검사를 저장소의 ecosystem에 적용하며, release recipe에 TAG를 인용된 변수로 넘기고, policy가 root pyproject.toml을 받아들이게 하며, fixture를 vendor/ 밖에 둔다 | `scripts/kit/install-tools.mjs, check-dependency-policy-mutation.mjs, kit.mk, schema/dependency-policy.schema.json` | `make kit-test` | [o] |
+| K12-5 | `siteLinks`일 때 heading의 VitePress slug와 `{#id}`를 읽고, root `overrides`가 URL로 설치하는 dependency는 registry review에서 뺀다 | `scripts/kit/markdown.mjs, check-documents.mjs, dependency-state.mjs` | `make kit-test` | [o] |

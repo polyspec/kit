@@ -125,6 +125,8 @@ export function readState(root, policy) {
   const locks = [NPM_LOCK];
 
   const lock = readJson(root, NPM_LOCK);
+  // A package that the root `overrides` installs from a URL (a release archive) is not in the registry: it has no review.
+  const urlOverrides = new Set(Object.entries(readJson(root, NPM_MANIFEST).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
   const manifests = npmManifests(root);
   for (const { directory, manifest: manifestPath } of manifests) {
     const manifest = readJson(root, manifestPath);
@@ -152,7 +154,7 @@ export function readState(root, policy) {
           });
           continue;
         }
-        if (URL_SPEC.test(spec)) continue;
+        if (URL_SPEC.test(spec) || urlOverrides.has(name)) continue;
         dependencies.push({ ecosystem: 'npm', manifest: manifestPath, package: name, kind, spec, version: entry?.version ?? null, lock: NPM_LOCK });
       }
     }

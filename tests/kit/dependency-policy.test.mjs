@@ -78,3 +78,18 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
+
+test('a package that the root overrides install from a URL is not reviewed against the registry', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+  manifest.overrides = { 'is-number': 'https://example.org/releases/is-number-7.0.0.tgz' };
+  writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  const stub = stubRegistries(t);
+  stub.registry({ ...FIXTURE_REGISTRY, npm: Object.fromEntries(Object.entries(FIXTURE_REGISTRY.npm).filter(([name]) => name !== 'is-number')) });
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
+  assert.equal(record.dependencies.some(entry => entry.package === 'is-number'), false);
+});
