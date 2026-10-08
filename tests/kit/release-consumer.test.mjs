@@ -21,13 +21,14 @@ const install = (box, version = box.version, directory = path.join(box.root, rel
 test('the schema accepts the consumers of the fixture and names each error of another', (t) => {
   const box = releaseSandbox(t);
   assert.deepEqual(checkConfig(box.root).filter(line => line.startsWith('config/release.json')), []);
-  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { npm: { directory: '/abs', smoke: {} }, pip: {} } }));
+  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { npm: { directory: '/abs', smoke: {} }, pip: {} }, proof: {} }));
   const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json')).join('\n');
   assert.match(findings, /\$\.consumers\.npm\.directory is "\/abs"/);
   assert.match(findings, /\$\.consumers\.pip is not in the schema/);
+  assert.match(findings, /\$\.proof lacks gitTag/);
 });
 
-test('the configuration rules name each inconsistent consumer entry', (t) => {
+test('the configuration rules name each inconsistent consumer and proof entry', (t) => {
   const box = releaseSandbox(t);
   const original = readJson(box.root, 'config/release.json');
   const load = (change) => {
@@ -42,6 +43,13 @@ test('the configuration rules name each inconsistent consumer entry', (t) => {
   stop(load((c) => { c.consumers.npm.smoke = {}; return c; }), /consumers\.npm\.smoke needs one entry per installed package/);
   stop(load((c) => { c.consumers.composer.directory = c.consumers.npm.directory; return c; }), /consumers\.composer\.directory tests\/release-consumer\/npm is also the directory of another consumer/);
   stop(load(c => ({ ...c, packages: c.packages.filter(item => item.kind === 'npm'), manifests: Object.fromEntries(Object.entries(c.manifests).filter(([file]) => !file.endsWith('composer.json'))) })), /consumers\.composer is set but packages lists no composer package/);
+  delete original.proof.gitTag['packages/fixture-rust/Cargo.toml'];
+  stop(load(c => c), /proof\.gitTag lacks packages\/fixture-rust\/Cargo\.toml, which manifests releases by "git-tag"/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-lib/package.json'] = { kind: 'python', name: 'x', smoke: ['python'] }; return c; }), /proof\.gitTag\.packages\/fixture-lib\/package\.json is not a manifest with the mode "git-tag"/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-python/pyproject.toml'].kind = 'rust'; return c; }), /kind rust installs a Cargo\.toml, not a pyproject\.toml/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-python/pyproject.toml'].kind = 'ruby'; return c; }), /kind is "ruby", the allowed values are python, rust/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-python/pyproject.toml'].name = ''; return c; }), /\.name needs the package name/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-python/pyproject.toml'].smoke = [1]; return c; }), /\.smoke needs a command/);
 });
 
 test('lock writes the manifests and locks of the archives of the tag, without the hashes of the archives, and a second run changes nothing', (t) => {

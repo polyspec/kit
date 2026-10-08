@@ -131,6 +131,20 @@
           }
         }
       }
+    },
+    "proof": {
+      "description": "What the release proof (release-proof.mjs) installs from the tag besides the archives.",
+      "type": "object",
+      "required": [
+        "gitTag"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "gitTag": {
+          "description": "Each manifest with the mode git-tag, with { kind: python|rust, name, smoke } for its install from the tag.",
+          "type": "object"
+        }
+      }
     }
   }
 }

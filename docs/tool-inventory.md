@@ -628,3 +628,52 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 
 - `smoke` does not have to list every package: a package without a key is copied and not installed or checked.
 - The locks hold the dependencies that the archives declared when `lock` ran; a changed dependency needs `lock` again.
+
+## Release proof (K5.5)
+
+`scripts/kit/release-proof.mjs TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
+repository. It runs after the release exists, as a developer or CI command, and belongs to no offline check. No tool of the five
+repositories had a counterpart; the install of the archives is `installConsumers` of K5.4. It stops at the first failed step and
+prints `✔ <what>` for each step that passed. A failure names the command with its status and error, or the expected and the
+actual value.
+
+For a tag `vX.Y.Z`:
+
+1. `gh release view TAG --repo HOST/OWNER/REPO --json assets` (from `repositoryUrl`) lists exactly the archives that
+   `packages` declares for the version; the failure names the missing and the unexpected names.
+2. `gh release download` writes the assets into a temporary directory; `installConsumers` installs them in clean npm and
+   Composer projects with the committed manifests and locks of the checkout and runs the smoke commands of `consumers` (run it
+   in a checkout of the tag, whose consumer projects name the archives of the version).
+3. Each manifest with the mode `git-tag` installs from the tag in a temporary directory, with the command of
+   `proof.gitTag`: a Python package with `pip install "<name> @ git+<repositoryUrl>@TAG#subdirectory=<directory>"` into a new
+   virtual environment (no subdirectory for a manifest at the root) and the smoke command with that environment first on `PATH`;
+   a Rust crate as the git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }` of a temporary crate with its own
+   target directory and the smoke command (for example `cargo check`) in that crate.
+4. Each Go module of `goModules` has the tag `<directory>/vX.Y.Z` (the module at the root `vX.Y.Z`) on the remote
+   (`git ls-remote --tags <repositoryUrl>`) and `go list -m <module>@vX.Y.Z` with `GOFLAGS=-mod=mod`, `GOPROXY=direct` and an empty
+   `GOPATH` prints `<module> vX.Y.Z`.
+
+A tag `<directory>/vX.Y.Z` releases that Go module alone: the release must list no archive and only step 4 runs for that module.
+
+### `proof` of `config/release.json`
+
+```json
+"proof": {
+  "gitTag": {
+    "python/pyproject.toml": { "kind": "python", "name": "name", "smoke": ["python", "-c", "import name"] },
+    "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
+  }
+}
+```
+
+Every manifest with the mode `git-tag` in `manifests` needs an entry when `proof` exists, and `release-proof` fails without one.
+`kind` is `python` for a `pyproject.toml` and `rust` for a `Cargo.toml`. `smoke` is an array of strings that runs without a
+shell. The smoke commands of the archives are `consumers` of K5.4.
+
+### Limitations
+
+- The proof stops at the first failed step.
+- The Rust step uses the `CARGO_HOME` of the machine for the registry crates that the crate needs; only the crate and its target
+  directory are new. The Go step uses a new `GOPATH`, so it downloads the module.
+- The install of the archives reads the manifests and locks of the checkout; a checkout of another version fails at the first
+  difference, naming `make release-consumer-lock`.

@@ -65,5 +65,26 @@
         ]
       }
     }
+  },
+  "proof": {
+    "gitTag": {
+      "packages/fixture-python/pyproject.toml": {
+        "kind": "python",
+        "name": "kit-fixture",
+        "smoke": [
+          "python",
+          "-c",
+          "import kit_fixture"
+        ]
+      },
+      "packages/fixture-rust/Cargo.toml": {
+        "kind": "rust",
+        "name": "kit-fixture-rust",
+        "smoke": [
+          "cargo",
+          "check"
+        ]
+      }
+    }
   }
 }

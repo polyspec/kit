@@ -23,6 +23,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K5.2 | Name archives <package>-<language>-<version>.<ext> and rename the npm pack output | `scripts/kit/release.mjs` | `make kit-test` | [o] |
 | K5.3 | Require the Go module tag go/vX.Y.Z of each declared Go module in release verification | `scripts/kit/release.mjs` | `make kit-test` | [o] |
 | K5.4 | Install all archives of a tag in clean npm and Composer consumer projects from committed locks and run the smoke command of each package | `scripts/kit/release-consumer.mjs`, `scripts/kit/release-consumer-config.mjs` | `make kit-test` | [o] |
+| K5.5 | Prove a released tag from outside the repository: the release assets, the consumer installs, the git-tag installs and the Go modules | `scripts/kit/release-proof.mjs` | `make kit-test` | [o] |
 | K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K6.1-1 | Read the trackers (table, list, translation) and the hooks from config/checklist.json | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | Merge the holder locks: start time against reused process IDs, safe removal of a lock whose holder ended | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
