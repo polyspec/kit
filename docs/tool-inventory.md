@@ -193,3 +193,40 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | `user-lock-file` and `checkoutLockFile` | crudui | the path of the lock holds a repository name; the caller passes an absolute path |
 | Progress lines of `test-progress` | crudui | a module of crudui; the gates print one line per step |
 | `scripts/git/check.mjs` (commit subject format, `commit-msg` hook) and the marker and bypass-text rules of `scripts/checklist/check.mjs` | orm | not a gate; the hook is named in `hooks`, the document rules belong to K7 |
+## Document checks (K7.1)
+
+`scripts/kit/check-documents.mjs` replaces `check-documents.mjs` of template, crudui and hyper and `docs_check.py` of
+ordered-json. Which Markdown files are documents, its checklists, status tables and changelogs are declared in
+`config/documents.json` (`scripts/kit/schema/documents.schema.json`). Each finding is one line
+`<file>:<line>:<column>: <rule>: <message>`.
+
+Merged behaviors (the wider behavior is taken):
+
+| Concern | Implementations | Behavior in kit |
+|---|---|---|
+| Selection of documents | template and crudui: fixed list and directories; hyper: tracked `*.md`; ordered-json: a manifest that registers every document | tracked and new unignored Markdown files selected by `include` and `exclude` globs; a `.ko.md` file maps to its English file |
+| Pair | all: English needs Korean; hyper and ordered-json: Korean needs English | both directions (`pair-missing`) |
+| `doc-id` | ordered-json only | both files hold the same `<!-- doc-id: id -->` once; an id names one document |
+| Revision | ordered-json only | the Korean file holds `<!-- source-sha256: ... -->` once, equal to the sha256 of the English file |
+| Section identifiers | ordered-json (`<a id>` anchors) | anchors are equal in both files and appear once |
+| Fenced blocks | template, crudui, hyper: content only; ordered-json: info string and content, `~~~`, unclosed fence | ordered-json behavior: info string and content are compared, both fence characters are read, an unclosed fence fails |
+| Links | all: inline links; ordered-json: reference links, autolinks, `href`, a query or an escape of the repository, explicit anchors; template: `.md`, `.ko.md` and `index.md` candidates and skips `/`; crudui: rejects `/` | all link forms; code is not read; an anchor is an explicit anchor or a heading anchor; the `/` and extension-less behavior of a static site is `siteLinks` |
+| Private paths | ordered-json | a path into a home directory fails (`private-path`) |
+| `{{` | template (VitePress) | `interpolation` globs name the documents in which `{{` outside a fenced block fails |
+| Checklist, table | template, crudui, hyper | task rows, state in the last cell, markers only in the state, other lines fail; the header separators of crudui and hyper (`:---:`) are accepted; the ID pattern is `idPattern` of the checklist |
+| Checklist, list | orm | `- [o] ID text` items with sub-items and continuation lines, `Cause:` and `Retry:` for `[!]`; the Korean labels are accepted in both styles |
+| Checklist pair | template and hyper compare the whole last cell; orm compares IDs and states | task IDs and state markers are compared; a bypass names its cause and retry condition in each language, and the text is translated |
+| Duplicate and empty | orm, ordered-json | a repeated task ID and a checklist without tasks fail |
+| Status tables | template (two shapes), crudui (6 cells), ordered-json (7 cells) | `statusTables` in the configuration: cells, closed values and patterns per cell; the English and Korean rows agree on the ID and on the closed values |
+| Changelog | orm | `## Unreleased` first and once, versions `X.Y.Z` newest first and once, the same sections in both languages |
+
+Dropped behaviors:
+
+- The fixed document list of template and crudui and the registry manifest of ordered-json: the include globs and the
+  `doc-id` marker replace them.
+- The second status table shape of template (5 cells): a table has one shape, and no compatibility layer keeps the old one.
+- The checks of ordered-json that read repository facts stay in the repository: the relations between the implementation,
+  verification and distribution states, the evidence record of a state, the record and benchmark files, the distribution
+  observations, the layout rule of the tracker section and the recursion into child repositories.
+- The comparison of the changelog section with `VERSION` (orm): the release check reads the manifests and compares it.
+- The `trace` and `docs` scripts of orm (`scripts/docs`, `scripts/features`) are product-specific and stay in orm.

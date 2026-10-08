@@ -58,3 +58,8 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 
 rerun-failed: ## Rerun the targets of the last full run of this tree that did not pass; FULL_RUN_KEYS repeats the keys of that run
 	node scripts/kit/full-run.mjs rerun-failed$(if $(FULL_RUN_KEYS), $(FULL_RUN_KEYS))
+# --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
+.PHONY: documents-check
+
+documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, checklists; offline
+	node scripts/kit/check-documents.mjs

@@ -22,14 +22,14 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K5.1 | Merge the release tools of template, crudui, hyper, ordered-json and orm into one release tool read from config/release.json | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.2 | Name archives <package>-<language>-<version>.<ext> and rename the npm pack output | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.3 | Require the Go module tag go/vX.Y.Z of each declared Go module in release verification | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
-| K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [o] |
+| K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K6.1-1 | Read the trackers (table, list, translation) and the hooks from config/checklist.json | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | Merge the holder locks: start time against reused process IDs, safe removal of a lock whose holder ended | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Install the Git hooks idempotently and check them | `scripts/kit/git-hooks.mjs` | `make kit-test` | [o] |
 | K6.1-4 | Merge the push gates: the pre-push hook and the commit check refuse an item in the active state | `scripts/kit/push-gate.mjs` | `make kit-test` | [o] |
 | K6.1-5 | Merge the guards of the full run with the record of the tree, the lock and the rerun of failed targets | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [o] |
 | K6.1-6 | Add the make targets of the gates and record the merge in the inventory | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
-| K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
+| K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [o] |
 | K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-1 | Declare the toolchains in config/toolchain.json with its schema and read them from their files | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
