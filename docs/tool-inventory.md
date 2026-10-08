@@ -328,3 +328,34 @@ Dropped behaviors:
   (`RUN`, `STEP`, `PASS`, `FAIL`) and the run id of the full-run report (orm): they depend on one repository's checks and stay there.
 - The lock is a small file with the process id of the holder, inside `ci-targets.mjs`; the shared holder lock of the full run
   is a separate tool (K6.1).
+
+## Commit message check (K8.1-4)
+
+`scripts/kit/check-commits.mjs` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
+and ordered-json state the same message format in their rules but have no check. The format and the limits are data in
+`config/commits.json` (`scripts/kit/schema/commits.schema.json`).
+
+Merged behaviors:
+
+- orm: the subject is `type(scope): Subject (#id)`, the Subject starts with a capital letter, does not end with a period and has
+  at most `subjectMax` characters; a range `<base>..<head>` or the last commit is read, a merge commit is not checked, and
+  `--message <file>` checks the message being committed (the commit-msg hook) without its comment lines.
+- New, from the shared rule of the repositories: a blank line follows the subject, and a body line has at most `bodyMax`
+  characters (a single longer word, such as a URL, is allowed).
+
+Version consistency and the other area checks of orm:
+
+- `scripts/checklist/check.mjs` of orm is covered by the checklist reader of the document check (list style). `scripts/version/check.mjs`
+  keeps its list of version declarations (the Cargo, Composer and npm manifests, the lock files, the contract, README,
+  SECURITY and AGENTS texts) and the comparison with the file `VERSION` in orm: the declarations are product specific. The
+  shared part, that every manifest has the version of the release, is the release tool (K5), and the shared part of its
+  changelog check, the sections of the changelog, is the document check (K7.1).
+- `scripts/repo/*.mjs` of orm (`check`, `ci`, `scripts`, `target`, `testcases`, `toolchains`, `gosource`, `node`, `probes`,
+  `messages`) check the layout, the Rust target paths, the toolchains, the test cases and the form of failure messages of orm
+  and stay in orm.
+- `scripts/check/ci-passed.mjs` of orm is the CI report tool (K8.1-3).
+
+Dropped behaviors:
+
+- `ORM_GIT_RANGE`: the range is the argument `--range` (the make variable `RANGE`).
+- The rule id `git.subject-format` and `contracts/rules.json`: the configuration is `config/commits.json`.

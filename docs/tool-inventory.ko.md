@@ -1,10 +1,11 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 819c6935199994a5766132b5634f3c7088b0dffccb8fb0a7a64f3bb57da54459 -->
+<!-- source-sha256: 0d5579a1066272128a67f08814b5ce9bf76b792a3d206d0bbcc1b859888c93f2 -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
 <!-- source-sha256: 7ae77d943c7590647b6aed5f3fa90c950a125bf185476539a8e4ec3978e7875e -->
 <!-- source-sha256: c02d688f5f5686fea282376f9c180c78a0a2fa47c5b4cf8f94362d8c95166b5a -->
+<!-- source-sha256: 5343da2cd949d631596630a9090f00227821189210578c3ede1eaee5bc119881 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -324,3 +325,32 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   남습니다.
 - lock은 holder의 process id를 담은 작은 파일이고 `ci-targets.mjs` 안에 있습니다. full run의 공유 holder lock은 별도 도구입니다
   (K6.1).
+
+## 커밋 메시지 검사 (K8.1-4)
+
+`scripts/kit/check-commits.mjs`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
+ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 형식과 한도는 `config/commits.json`
+(`scripts/kit/schema/commits.schema.json`)의 data입니다.
+
+합친 동작:
+
+- orm: subject는 `type(scope): Subject (#id)`이고, Subject는 대문자로 시작하고 마침표로 끝나지 않으며 `subjectMax`자 이하입니다.
+  범위 `<base>..<head>` 또는 마지막 commit을 읽고, merge commit은 검사하지 않으며, `--message <file>`은 commit하려는 메시지를
+  (commit-msg hook) 주석 줄을 빼고 검사합니다.
+- 새로 추가, 저장소의 공통 규칙에서: subject 다음에 빈 줄이 오고, 본문 한 줄은 `bodyMax`자 이하입니다(그보다 긴 단어 하나, 예를
+  들어 URL은 허용).
+
+version 일관성과 orm의 다른 영역 검사:
+
+- orm의 `scripts/checklist/check.mjs`는 문서 검사의 checklist reader(list 형식)가 대신합니다. `scripts/version/check.mjs`는 version
+  선언 목록(Cargo, Composer, npm manifest, lock 파일, contract, README, SECURITY, AGENTS 문구)과 `VERSION` 파일과의 비교를 orm에
+  둡니다. 선언은 제품 전용이기 때문입니다. 모든 manifest가 release의 version을 가진다는 공통 부분은 release 도구(K5)이고, changelog
+  검사의 공통 부분인 changelog section은 문서 검사(K7.1)입니다.
+- orm의 `scripts/repo/*.mjs`(`check`, `ci`, `scripts`, `target`, `testcases`, `toolchains`, `gosource`, `node`, `probes`,
+  `messages`)는 orm의 배치, Rust target 경로, toolchain, test case, 실패 메시지의 형식을 검사하므로 orm에 남습니다.
+- orm의 `scripts/check/ci-passed.mjs`는 CI report 도구(K8.1-3)입니다.
+
+버린 동작:
+
+- `ORM_GIT_RANGE`: 범위는 인자 `--range`(make 변수 `RANGE`)입니다.
+- rule id `git.subject-format`과 `contracts/rules.json`: 설정은 `config/commits.json`입니다.
