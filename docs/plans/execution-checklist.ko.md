@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 0d988ca1dcc4b8da93d0ac5dedfd3deaa7c0170b7e1ff75cde495c2a6452c1c5 -->
+<!-- source-sha256: d9ba0086a583313666724f3821665e1ce2dc82d18f2bddfa1686fa85102d1e23 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -10,6 +10,7 @@
 <!-- source-sha256: 477f1edba8b8bdb47e7c422fc293914d44dbd3078231ec24229fa2b432c0ef4a -->
 <!-- source-sha256: 329372a602d6efb0a2a998db309a90b023028d94b7f1e6f124e1dc44cba4816a -->
 <!-- source-sha256: 7421d977bd8343d03763d537240e52adf924dfabeb554771596585b71a3d0dc3 -->
+<!-- source-sha256: ee43cf502127c187794254c4184484cbb4b91dd1285257d6d967291366ad989b -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -33,13 +34,13 @@
 | K5.1 | template, crudui, hyper, ordered-json, orm의 release 도구를 config/release.json을 읽는 하나로 합친다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.2 | 아카이브를 <package>-<language>-<version>.<ext>로 이름 짓고 npm pack 결과의 이름을 바꾼다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K5.3 | release 검증에서 선언된 각 Go 모듈의 tag go/vX.Y.Z를 요구한다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
-| K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
+| K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-1 | Table, list, 번역 체크리스트와 hook을 config/checklist.json에서 읽는다 | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | holder-lock을 합친다: 재사용된 process ID에 대비한 시작 시각, 홀더가 끝난 lock의 안전한 제거 | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Git hook을 멱등하게 설치하고 검사한다 | `scripts/kit/git-hooks.mjs` | `make kit-test` | [o] |
 | K6.1-4 | push-gate를 합친다: pre-push hook과 commit 검사가 active 상태의 항목을 거부한다 | `scripts/kit/push-gate.mjs` | `make kit-test` | [o] |
 | K6.1-5 | full-run guard를 합친다: tree 기록, lock, 실패한 target의 재실행 | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [o] |
-| K6.1-6 | gate의 make target을 추가하고 합친 내용을 도구 목록에 기록한다 | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [ ] |
+| K6.1-6 | gate의 make target을 추가하고 합친 내용을 도구 목록에 기록한다 | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |

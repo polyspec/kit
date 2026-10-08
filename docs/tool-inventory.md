@@ -108,3 +108,88 @@ checked.
   `go.mod` module: they check files of one repository, not a tool of the machine.
 - The Node.js archive checksums of `config/toolchain.json` `node` are data that a repository's own download reads; kit
   accepts them and reads none.
+## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
+
+Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`, `target-run.mjs`,
+`schema/checklist.schema.json`, and the make targets `hooks`, `hooks-check`, `push-gate-commit` and `rerun-failed` at the end of
+`kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
+
+### Policy
+
+A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
+tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
+gate. The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
+record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
+
+### `config/checklist.json`
+
+```json
+{
+  "schema": 1,
+  "hooks": ["pre-push"],
+  "trackers": [
+    {
+      "path": "docs/plans/execution-checklist.md",
+      "translation": "docs/plans/execution-checklist.ko.md",
+      "format": "table",
+      "states": ["[ ]", "[~]", "[o]", "[!]"],
+      "active": "[~]"
+    }
+  ]
+}
+```
+
+`hooks` lists the tracked hooks of `.githooks` and must include `pre-push`. A tracker has `path`, `format` (`table`: a row
+`| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
+`states` (a state outside the list is an error) and `column` (the zero-based cell of a table row that holds the state; the last
+cell when absent). A state is the leading `[x]` of its cell or item, or the whole cell when the cell does not start with `[`.
+
+### Merged behaviors
+
+| Behavior | Sources | Decision |
+|---|---|---|
+| Table rows with the state in the last cell | template, crudui, hyper, ordered-json | `format: table` |
+| List items `- [state] ID text` with sub-items | orm | `format: list`; the title is the first sentence |
+| A second tracker whose state is a word in a column (`partial` in the implementation column of the feature table) | ordered-json | `column` and `active` of a tracker; several trackers are allowed |
+| A tracker without an item, a repeated ID, a state outside the declared states, or a row that is not an item is unreadable and refuses | ordered-json, orm (document checks); template ignored such rows | refuse in the gate and the guard: the wider reading never takes an unreadable document for an empty one |
+| A pushed commit without the tracker file refuses | all | kept; the message names the file |
+| A malformed line of the hook input refuses; a deleted ref pushes no commit; the working tree is always read | ordered-json (malformed), all (others) | kept |
+| The Korean twin must hold the same IDs in the same order and the same states | orm, ordered-json (document checks) | the gate and the guard also refuse a pair that differs, because the pair is read with the same parser; the document checks of K7 keep the other rules (markers, bypass text) |
+| The refusal names the file, the ID, the title and the place (pushed ref and commit, or working tree) | all | kept; it also states which states block and which do not; the commit is shown with 12 characters (ordered-json, orm; template and hyper used 7) |
+| `commit <rev>` prints a GitHub annotation per line, escapes `%` and line breaks, appends to `$GITHUB_STEP_SUMMARY`, requires mode 100755 of the hook, and names a revision that is not a commit | template, crudui, hyper, ordered-json, orm | kept; it requires the mode of every hook in `hooks` (ordered-json required `pre-commit` too; the others only `pre-push`) |
+| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mjs check`; it also fails when `pre-push` has other content than the hook of the tool |
+| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mjs install` also writes `pre-push` and makes the listed hooks executable; a second run changes nothing |
+| Every make invocation sets `core.hooksPath` | template, orm | `kit.mk` sets it only in a checkout that tracks `.githooks/pre-push`, so a checkout without hooks is not changed |
+| The content of `pre-push` | all differ in the `cd` to the top level and the comment | one content, written by `git-hooks install` and compared by `check` |
+| Hooks other than `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
+| Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mjs`; template and hyper recorded no start time |
+| A lock of an ended holder stays until `clear`; `clear` renames the lock aside and restores it when a new holder took it meanwhile | crudui (`remove-dead`), template and hyper (`clear`) | crudui's removal under the name `clear` |
+| Release on process exit, and on SIGINT, SIGTERM and SIGHUP with the status 128 + n | template | kept, as the default of an in-process holder; `run` forwards the signals to the command instead |
+| `run <lock> -- <command>` exits with the status of the command; 128 + n for a signal; 127 when it does not start | crudui (`hold`), template, hyper | kept under the name `run` |
+| The release fails when the token differs | template, crudui; hyper printed a message | fail |
+| The lock directory is created | crudui, hyper | kept |
+| Guard conditions: active item, hooks not installed, dirty tree, another run going on, record of the current tree | template, crudui, hyper, ordered-json | kept |
+| Untracked files that Git does not ignore refuse the run, because the record names the tree and the tree does not hold them | ordered-json; the others looked at tracked files only | the wider check |
+| One run at a time: the guard holds `var/full-run.lock` from its first read to its last write | template (`var/full-run.json.lock`), crudui (`var/locks/full-run.lock`), hyper and ordered-json (`var/full-run.lock`) | `var/full-run.lock` through `holder-lock.mjs` (ordered-json used `flock`) |
+| Record `var/full-run.json`: tree, commit, result, targets with status, times and elapsed time, reruns | all but orm | kept; written to a file of the process and renamed |
+| The incomplete record names its process; a running process refuses the run | template, crudui, hyper, ordered-json | the record also holds the start time of the process, so a reused process ID does not refuse a later run for good (a defect of all four) |
+| `rerun-failed` reruns the targets that did not pass (failed, running, pending) of the current tree | template, crudui, hyper, ordered-json | kept |
+| A further input of a run beside the tree: the commit of a dependency | hyper | `--key name=value`; the record holds `keys`, and a run and a rerun need equal keys |
+| A failed target keeps its last 20 output lines in the record and prints them | hyper | kept |
+| `make -k <target>` and a log per target in `var/report/full-run/targets/<target>.log`; a line after an output without a final newline starts at column 0 | template (`-k`, log), hyper (column 0, last lines) | kept |
+
+### Dropped behaviors
+
+| Behavior | Source | Reason |
+|---|---|---|
+| Texts that name pull requests, the merge queue, merge groups or the ruleset (`REASON`, the workflow `push-gate.yml` triggers, the required check `push-gate`) | template, crudui, hyper, ordered-json, orm | the 0.x policy has none of them; `commit <rev>` stays for a push from a checkout without the hook |
+| The mode `hooks-check` of `push-gate.mjs` and `hooks-install` of `push_gate.py` | template, crudui, hyper, ordered-json, orm | a hook belongs to `git-hooks.mjs`; the make target keeps the name |
+| Targets that are command lines (`sh -c <text>`) or argument groups after `--` | crudui, ordered-json | a record name and a log path must be stable words; a repository wraps a command in a make target |
+| The run in a fresh clone of the committed tree with `make install` and a marker in the clone | crudui | it needs the repository's install command and a marker named after the repository; a repository that needs it makes a target that clones |
+| The reset of the conformance evidence directory before a run | crudui | repository-specific |
+| `environment` (versions of the toolchains) in the record and `summary.md` of the report | template, crudui | the toolchain commands are repository data; K8.1 merges the target report and the toolchain record |
+| Selection of the targets of a rerun by the paths changed since the recorded commit, a rerun on a descendant commit, the statuses `not-run` and `crashed`, the preflight `decide`, the `claim` and `recorder` interface, and the record in `.runtime/` | orm | only orm has them, and they read the owner checks of K8; the other four agree on a rerun of the same tree |
+| `flock` guard of `full_run.py` | ordered-json | replaced by `holder-lock.mjs`; all tools are Node |
+| `user-lock-file` and `checkoutLockFile` | crudui | the path of the lock holds a repository name; the caller passes an absolute path |
+| Progress lines of `test-progress` | crudui | a module of crudui; the gates print one line per step |
+| `scripts/git/check.mjs` (commit subject format, `commit-msg` hook) and the marker and bypass-text rules of `scripts/checklist/check.mjs` | orm | not a gate; the hook is named in `hooks`, the document rules belong to K7 |

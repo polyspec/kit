@@ -314,6 +314,14 @@ test('a guard is refused while another process holds the lock of the record, and
   assert.equal(existsSync(path.join(work, LOCK)), true, 'the refused guard removed the lock of the other holder');
 });
 
+test('two guards that start together run the targets once: the second is refused with the holder', async (t) => {
+  const { work } = prepared(t);
+  const [first, second] = await Promise.all([guard(work, 'run', ['a', 'b']), guard(work, 'run', ['a', 'b'])]);
+  assert.deepEqual([first.status, second.status], [0, 1]);
+  assert.deepEqual([...first.ran, ...second.ran], ['a', 'b']);
+  assert.match(second.output, /refuse: .*full-run\.lock is held by process/);
+});
+
 // A `make` on PATH that logs its arguments and the checkout, prints two lines, and fails for the targets named in FAIL.
 function stubMake(work) {
   const bin = path.join(work, '..', 'bin');
@@ -337,6 +345,7 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '-k good\n-k bad\n');
   assert.match(failed.stdout, /\[full-run\] start good \(1\/2\)\nbuilding good\n/);
+  assert.equal(failed.stderr, 'no final newline of good\nerror: bad broke\n', 'a standard error output without a final newline is followed by the next output at column 0');
   assert.match(failed.stdout, /\[full-run\] bad failed; its last 2 lines:\n {2}\| building bad\n {2}\| error: bad broke/);
   assert.match(readFileSync(path.join(work, REPORT, 'targets/good.log'), 'utf8'), /^building good\nno final newline of good\n\[full-run\] make -k good ended with status 0\n$/);
   assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /error: bad broke\n\n\[full-run\] make -k bad ended with status 2\n$/);
