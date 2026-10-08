@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b2edbfca485a56e8df04075df8999ad8517b529b3059660b2a67b84bb62cd722 -->
+<!-- source-sha256: 013758ed16835884530228be38d83555f29361ca3e449bb02eb23b701270befe -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -592,3 +592,47 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 
 - `smoke`가 모든 package를 나열할 필요는 없습니다: key가 없는 package는 복사만 하고 설치하거나 검사하지 않습니다.
 - lock은 `lock`을 실행한 때 archive가 선언한 dependency를 담으므로, dependency가 바뀌면 `lock`을 다시 실행해야 합니다.
+
+## Release proof (K5.5)
+
+`scripts/kit/release-proof.mjs TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
+developer 또는 CI command로 실행하며 어떤 offline check에도 속하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
+설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
+또는 기대값과 실제 값을 적습니다.
+
+tag `vX.Y.Z`에 대해:
+
+1. `gh release view TAG --repo HOST/OWNER/REPO --json assets`(`repositoryUrl`에서 만듦)가 `packages`가 그 version에 선언한 archive를 정확히 나열합니다.
+   실패는 없는 이름과 예상하지 못한 이름을 적습니다.
+2. `gh release download`가 asset을 임시 directory에 쓰고, `installConsumers`가 checkout의 commit된 manifest와 lock으로 깨끗한 npm과 Composer project에
+   설치한 뒤 `consumers`의 smoke command를 실행합니다(consumer project가 그 version의 archive를 가리키는 tag의 checkout에서 실행).
+3. `git-tag` mode의 각 manifest를 `proof.gitTag`의 command로 임시 directory에서 tag로 설치합니다. Python package는 새 virtual environment에
+   `pip install "<name> @ git+<repositoryUrl>@TAG#subdirectory=<directory>"`(root의 manifest는 subdirectory 없음)을 실행하고, 그 environment를 `PATH` 앞에 두고
+   smoke command를 실행합니다. Rust crate는 임시 crate의 git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }`로 두고, 자신의 target directory를
+   쓰는 그 crate에서 smoke command(예: `cargo check`)를 실행합니다.
+4. `goModules`의 각 Go module은 remote(`git ls-remote --tags <repositoryUrl>`)에 tag `<directory>/vX.Y.Z`(root의 module은 `vX.Y.Z`)가 있고,
+   `GOFLAGS=-mod=mod`, `GOPROXY=direct`, 빈 `GOPATH`로 실행한 `go list -m <module>@vX.Y.Z`가 `<module> vX.Y.Z`를 출력합니다.
+
+tag `<directory>/vX.Y.Z`는 그 Go module만 release하므로 release에는 archive가 없어야 하고, 그 module에 대해 4단계만 실행합니다.
+
+### `config/release.json`의 `proof`
+
+```json
+"proof": {
+  "gitTag": {
+    "python/pyproject.toml": { "kind": "python", "name": "name", "smoke": ["python", "-c", "import name"] },
+    "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
+  }
+}
+```
+
+`proof`가 있으면 `manifests`에서 mode가 `git-tag`인 모든 manifest에 entry가 필요하고, entry가 없으면 `release-proof`가 실패합니다. `kind`는
+`pyproject.toml`이면 `python`, `Cargo.toml`이면 `rust`입니다. `smoke`는 shell 없이 실행하는 문자열 배열입니다. archive의 smoke command는 K5.4의
+`consumers`입니다.
+
+### 한계
+
+- proof는 첫 실패 step에서 멈춥니다.
+- Rust step은 crate가 필요로 하는 registry crate에 이 machine의 `CARGO_HOME`을 쓰고, 새로 만드는 것은 crate와 그 target directory뿐입니다. Go step은 새
+  `GOPATH`를 쓰므로 module을 download합니다.
+- archive 설치는 checkout의 manifest와 lock을 읽으므로 다른 version의 checkout은 첫 차이에서 `make release-consumer-lock`을 적고 실패합니다.

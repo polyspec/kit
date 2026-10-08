@@ -121,11 +121,14 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 lint-python: ## Lint and format-check the Python package with the ruff of var/tools; offline
 	node scripts/kit/lint-python.mjs
 # ---- Consumer install of the release archives (K5.4) ------------------------------------------------------------
+# ---- Consumer install and proof of a release (K5.4, K5.5) ------------------------------------------------------------
 # scripts/kit/release-consumer.mjs installs the archives of TAG from var/release/assets (make release-assets) in clean npm and
 # Composer projects outside the checkout, from the manifests and locks that config/release.json `consumers` names, and runs a
 # smoke command for each package. A lock pins registry packages by version and integrity, so the install downloads them: that is
 # installation, and the target is no offline check. release-consumer-lock resolves versions and runs ONLINE.
-.PHONY: release-consumer release-consumer-lock
+# scripts/kit/release-proof.mjs proves a released TAG from outside the repository (GitHub Release, consumer installs, git-tag
+# installs, Go modules); it runs after the release exists and belongs to no check.
+.PHONY: release-consumer release-consumer-lock release-proof
 
 release-consumer: ## Install the archives of TAG in var/release/assets in clean npm and Composer projects and run the smoke commands
 	@test -n "$(TAG)" || { echo "release-consumer: TAG is required, for example make release-consumer TAG=v0.0.1"; exit 1; }
@@ -134,3 +137,7 @@ release-consumer: ## Install the archives of TAG in var/release/assets in clean 
 release-consumer-lock: ## Write the consumer manifests and locks of TAG from the archives in var/release/assets; ONLINE
 	@test -n "$(TAG)" || { echo "release-consumer-lock: TAG is required, for example make release-consumer-lock TAG=v0.0.1"; exit 1; }
 	$(ONLINE) node scripts/kit/release-consumer.mjs lock $(TAG)
+
+release-proof: ## Prove the released TAG from outside the checkout: release assets, consumer installs, git-tag installs, Go modules; ONLINE
+	@test -n "$(TAG)" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
+	$(ONLINE) node scripts/kit/release-proof.mjs $(TAG)
