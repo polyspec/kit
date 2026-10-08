@@ -68,7 +68,7 @@ test('the configuration is checked for the rules that the schema cannot express'
 
 test('a commit of main whose checks succeeded is verified, and the check runs are read for it', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('v0.0.1');
+  const tag = box.release('0.0.1');
   const lines = [];
   const result = release.verify(context(box, { log: line => lines.push(line) }), tag);
   assert.deepEqual(result, { commit: box.commit, checks: ['push-gate', 'ci-passed'] });
@@ -87,7 +87,7 @@ test('a commit that is not an ancestor of origin/main fails and names the commit
 
 test('a missing, running or failed check is named and the latest run of a check decides', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('v0.0.1');
+  const tag = box.release('0.0.1');
   box.checkRuns([['push-gate', 'success']]);
   stop(() => release.verify(context(box), tag), /the check ci-passed is missing/);
   box.checkRuns([['push-gate', 'failure'], ['ci-passed', null]]);
@@ -100,7 +100,7 @@ test('a missing, running or failed check is named and the latest run of a check 
 
 test('the checks come from the configuration', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('v0.0.1');
+  const tag = box.release('0.0.1');
   edit(box.root, 'config/release.json', c => ({ ...c, checks: ['build'] }));
   box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);
   stop(() => release.verify(context(box), tag), /the check build is missing/);
@@ -110,7 +110,7 @@ test('the checks come from the configuration', (t) => {
 
 test('verify without the repository, with an unknown tag or with a failing gh stops with the cause', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('v0.0.1');
+  const tag = box.release('0.0.1');
   stop(() => release.verify(release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: '' } }), tag), /GITHUB_REPOSITORY is not set/);
   assert.deepEqual(box.state().calls, [], 'no request without the repository');
   stop(() => release.verify(context(box), 'v9.9.9'), /git rev-parse --verify refs\/tags\/v9\.9\.9\^\{commit\} exited with 128/);
@@ -388,7 +388,7 @@ const cli = (box, args) => spawnSync(process.execPath, ['scripts/kit/release.mjs
 
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('v0.0.1');
+  const tag = box.release('0.0.1');
   let result = cli(box, ['verify', tag]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`\\[release\\] v0\\.0\\.1: the commit ${box.commit} is on origin/main and passed push-gate, ci-passed`));
@@ -421,13 +421,13 @@ test('the command line refuses a missing mode, a missing tag and an extra argume
   for (const args of [[], ['verify'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mjs verify\|versions\|assets\|publish TAG \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mjs verify\|versions\|assets\|publish\|go-tags TAG \| coverage/);
   }
 });
 
 test('make runs each release step with the tag of the environment and fails without it', (t) => {
   const box = releaseSandbox(t);
-  box.tag('v0.0.1');
+  box.release('0.0.1');
   const make = (...args) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
   for (const target of ['release-verify', 'release-versions', 'release-assets', 'release-publish']) {
     const result = make(target);

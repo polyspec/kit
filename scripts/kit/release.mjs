@@ -5,6 +5,7 @@
 //   node scripts/kit/release.mjs versions TAG   every manifest of the tag has its version, CHANGELOG has its section
 //   node scripts/kit/release.mjs assets TAG     build the archive of every package of the tag into var/release/assets
 //   node scripts/kit/release.mjs publish TAG    create the GitHub Release of the tag with its notes and archives
+//   node scripts/kit/release.mjs go-tags TAG    every Go module has its tag <directory>/vX.Y.Z at the commit of TAG
 //   node scripts/kit/release.mjs coverage       every package file of the checkout is classified in config/release.json
 //
 // The repository is data: config/release.json (schema scripts/kit/schema/release.schema.json) lists the packages that a
@@ -12,8 +13,9 @@
 // A tag `vX.Y.Z` releases the packages at the version X.Y.Z; a tag `<Go module directory>/vX.Y.Z` releases that Go module
 // and builds no archive. No step reruns the tests: every commit of main passed the full suite before it reached main.
 //
-// `verify` resolves the tag to its commit, requires the commit to be an ancestor of origin/main and reads the check runs of
-// the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
+// `verify` resolves the tag to its commit, requires the commit to be an ancestor of origin/main, requires for a tag vX.Y.Z
+// the tag `<directory>/vX.Y.Z` of every Go module at the same commit (`go-tags`; a Go proxy reads a module from that tag
+// only) and reads the check runs of the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
 // of each configured check must be completed with the conclusion success. `versions` compares X.Y.Z with the version of
 // every manifest of `manifests` and requires the section `## X.Y.Z` in the change logs; for a Go module it requires the module
 // path of the go.mod. `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
@@ -126,7 +128,28 @@ export function parseTag(config, tag) {
 
 const taggedCommit = (ctx, tag) => run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
 
-/** The tagged commit is on main and the latest run of every configured check concluded success: { commit, checks }. */
+/**
+ * The problems of the Go module tags of a tag vX.Y.Z: each declared Go module below the root needs the tag
+ * `<directory>/vX.Y.Z` at the commit of vX.Y.Z, because a Go proxy resolves the module from that tag. A missing tag and a tag at
+ * another commit name the git command that creates it. A Go module tag releases that module only and has no sibling tags.
+ */
+export function goTagProblems(ctx, tag) {
+  const [directory, version] = parseTag(ctx.config, tag);
+  if (directory !== null) return [];
+  const commit = taggedCommit(ctx, tag);
+  const problems = [];
+  for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort()) {
+    if (module === '.') continue;
+    const goTag = `${module}/v${version}`;
+    const found = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${goTag}^{commit}`], { cwd: ctx.root, env: ctx.env, encoding: 'utf8' });
+    const create = `git tag -a ${goTag} -m ${goTag} ${commit} && git push origin ${goTag}`;
+    if (found.status !== 0) problems.push(`the Go module tag ${goTag} is missing; a Go proxy resolves ${modulePath} from it. Fix: ${create}`);
+    else if (found.stdout.trim() !== commit) problems.push(`the Go module tag ${goTag} is at ${found.stdout.trim()}, the tag ${tag} is at ${commit}. Fix: git tag -d ${goTag} && ${create}`);
+  }
+  return problems;
+}
+
+/** The tagged commit is on main, its Go module tags exist and the latest run of every configured check concluded success: { commit, checks }. */
 export function verify(ctx, tag) {
   parseTag(ctx.config, tag);
   const repository = ctx.repository ?? ctx.env.GITHUB_REPOSITORY;
@@ -136,6 +159,8 @@ export function verify(ctx, tag) {
   const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', commit, MAIN], { cwd: ctx.root, env: ctx.env, encoding: 'utf8' });
   if (ancestry.status === 1) problems.push(`the commit is not on ${MAIN}; a release tags a commit of main`);
   else if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
+  ctx.log(`[release] ${tag}: reading the Go module tags of ${Object.keys(ctx.config.goModules).filter(item => item !== '.').length} modules`);
+  problems.push(...goTagProblems(ctx, tag));
   ctx.log(`[release] ${tag}: reading the check runs of ${commit} in ${repository}`);
   const listed = run('gh', ['api', '--paginate', `repos/${repository}/commits/${commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json'], at(ctx));
   const runs = listed.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
@@ -416,12 +441,12 @@ export function coverage(ctx) {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mjs verify|versions|assets|publish TAG | coverage';
+const USAGE = 'usage: node scripts/kit/release.mjs verify|versions|assets|publish|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
   const [mode, tag, ...rest] = argv;
-  const tagged = ['verify', 'versions', 'assets', 'publish'].includes(mode);
+  const tagged = ['verify', 'versions', 'assets', 'publish', 'go-tags'].includes(mode);
   if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
     return 2;
@@ -439,6 +464,14 @@ export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(impo
     } else if (mode === 'verify') {
       const { commit, checks } = verify(ctx, tag);
       print(`[release] ${tag}: the commit ${commit} is on ${MAIN} and passed ${checks.join(', ')}`);
+    } else if (mode === 'go-tags') {
+      const problems = goTagProblems(ctx, tag);
+      for (const problem of problems) error(`[release] go-tags ${tag}: ${problem}`);
+      if (problems.length) {
+        error(`[release] go-tags ${tag} failed: ${problems.length} Go module tags are missing or at another commit`);
+        return 1;
+      }
+      print(`[release] ${tag}: every Go module has its tag at the commit of ${tag}`);
     } else if (mode === 'versions') {
       const version = versions(ctx, tag);
       print(`[release] ${tag}: every manifest of the tag declares ${version} and ${ctx.config.changelog} has ## ${version}`);

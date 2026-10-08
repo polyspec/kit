@@ -128,6 +128,11 @@ export function releaseSandbox(t, { version = '0.0.1', changelog = CHANGELOG, mu
       git(root, 'tag', '-a', name, '-m', name, target);
       return name;
     },
+    /** The release tags of a version: vX.Y.Z and the tag of each Go module of the fixture, all at the commit. */
+    release(version, target = commit) {
+      for (const directory of ['packages/fixture-go']) box.tag(`${directory}/v${version}`, target);
+      return box.tag(`v${version}`, target);
+    },
     state: () => JSON.parse(readFileSync(state, 'utf8')),
     npmCalls: () => readFileSync(npmLog, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)),
   };

@@ -438,3 +438,18 @@ Dropped behaviors:
   `TZ=UTC` (ordered-json used a fixed constant time, template the commit time, crudui, hyper and orm neither). `git archive`
   of a tree otherwise writes the current time, and a zip stores local time. A second run of the same tag writes the same
   bytes at any time and in any time zone.
+
+### Go module tags (K5.3)
+
+- A Go proxy resolves a module that lives below the repository root from the tag `<directory>/vX.Y.Z`, not from `vX.Y.Z`. A
+  release once lacked these tags. `verify` of a tag `vX.Y.Z` now requires, for every module of `goModules` below the root, the
+  tag `<directory>/vX.Y.Z` at the same commit as `vX.Y.Z`. A missing tag and a tag at another commit are findings that name
+  the tag, the module path or both commits, and the command that creates the tag
+  (`git tag -a <directory>/vX.Y.Z -m <directory>/vX.Y.Z <commit> && git push origin <directory>/vX.Y.Z`; a tag at another commit
+  is deleted first with `git tag -d`). The findings are reported in the same message as the ancestry and the check runs.
+- The step `go-tags TAG` (`make release-go-tags`) runs this check alone, offline, so the maintainer can run it after tagging.
+  Before this row template and ordered-json named the tags in their release policy, and no tool of the five repositories
+  checked them.
+- A tag `<directory>/vX.Y.Z` releases that module alone: it needs no sibling tag and builds no archive. A module at the
+  repository root (`.`) is released by `vX.Y.Z` itself and needs no further tag. The tags must exist in the checkout that runs
+  `verify`, so a workflow that runs it fetches the tags.
