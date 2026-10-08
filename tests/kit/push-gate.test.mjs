@@ -7,16 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { CHECKLIST, TRANSLATION, checkout, commitAll, commitIndex, git, run } from './gates-checkout.mjs';
-
-// A checkout with the hooks installed and its first commit made.
-function prepared(t, options) {
-  const made = checkout(t, options);
-  const installed = run(made.work, process.execPath, ['scripts/kit/git-hooks.mjs', 'install']);
-  assert.equal(installed.status, 0, installed.stderr);
-  commitAll(made.work, 'checklist');
-  return made;
-}
+import { CHECKLIST, TRANSLATION, commitAll, commitIndex, git, prepared, run } from './gates-checkout.mjs';
 
 const push = (work, ...refspecs) => run(work, 'git', ['push', '--quiet', 'origin', ...(refspecs.length ? refspecs : ['HEAD:refs/heads/main'])]);
 const remoteHead = remote => run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/main']).stdout.trim();
