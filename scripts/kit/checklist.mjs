@@ -1,5 +1,7 @@
-// The trackers of a repository: the documents whose items carry a state, declared in config/checklist.json. The push gate
-// (push-gate.mjs) and the guard of the full run (full-run.mjs) read the items that are in the active state of each tracker.
+// The checklists of a repository: the documents whose items carry a state, declared in config/checklist.json. The push gate
+// (push-gate.mjs) and the guard of the full run (full-run.mjs) read the items that are in the active state of each
+// checklist; the document check (check-documents.mjs) reads the same checklists strictly. One function, readChecklist,
+// reads a checklist at both levels.
 //
 // A table tracker has one row per item, `| ID | title | ... | state |`; the state is the last cell or the cell `column`.
 // A list tracker has one line per item, `- [state] ID text`, indented for a sub-item. A state is the leading `[x]` of
@@ -14,7 +16,7 @@ export const CONFIG = 'config/checklist.json';
 export const PRE_PUSH_HOOK = 'pre-push';
 
 const SCHEMA = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema/checklist.schema.json');
-const ID = /^[A-Za-z][A-Za-z0-9.-]*$/;
+const DEFAULT_ID = '[A-Za-z][A-Za-z0-9.-]*';
 const SEPARATOR_CELL = /^:?-{3,}:?$/;
 const LIST_ITEM = /^( *)- (\[[^\]]*\]) (\S+)\s*(.*)$/;
 
@@ -36,71 +38,186 @@ export function loadConfig(root) {
   return config;
 }
 
-const stateOf = cell => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
-const cellsOf = line => line.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(cell => cell.trim());
-const firstSentence = text => /^(.+?\.)(?:\s|$)/.exec(text)?.[1] ?? text.trim();
+const MARKER = /\[[ ~o!xX]\]/g;
+const DOCUMENT_MARKER = /^<!-- (?:doc-id|source-sha256): \S+ -->$/;
+const HEADING = /^#{1,6} \S/;
+const TABLE_BYPASS = /^\[!\] (?:cause|원인): \S.*; (?:retry|재시도): \S.*$/;
+const BYPASSED = '[!]';
+const FOUR_STATES = ['[ ]', '[~]', '[o]', '[!]'];
+// The first cell of a task row is the task ID, which a code span may follow: `T3.2 \`parallel\``.
+const ID_CELL = /^(\S+)(?:\s+`[^`]*`)?$/;
 
-/** The items of `text` as `{ id, title, state, line }` and the errors that make the text unreadable as `tracker`. */
-export function parseTracker(text, tracker) {
-  const items = [];
-  const errors = [];
-  const lines = text.split('\n');
-  const add = (item, index) => {
-    if (items.some(known => known.id === item.id)) errors.push(`line ${index + 1}: the item ${item.id} is listed twice`);
-    if (tracker.states && !tracker.states.includes(item.state)) errors.push(`line ${index + 1}: ${item.id} has the state ${JSON.stringify(item.state)}, the states are ${tracker.states.map(state => JSON.stringify(state)).join(', ')}`);
-    items.push({ ...item, line: index + 1 });
-  };
-  lines.forEach((line, index) => {
-    if (tracker.format === 'list') {
-      if (!/^ *- \[/.test(line)) return;
-      const match = LIST_ITEM.exec(line);
-      if (!match || !ID.test(match[3])) {
-        errors.push(`line ${index + 1}: ${JSON.stringify(line.trim())} is not an item of the form "- [state] ID text"`);
-        return;
-      }
-      add({ id: match[3], title: firstSentence(match[4]), state: match[2] }, index);
-      return;
+const stateOf = cell => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
+const firstSentence = text => /^(.+?\.)(?:\s|$)/.exec(text)?.[1] ?? text.trim();
+const isSeparator = row => row.length > 0 && row.every(cell => SEPARATOR_CELL.test(cell.text.trim()));
+const listOf = words => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`);
+
+/** The cells of a table row split on `|` that is not escaped, with the column (0-based) at which each begins. */
+function cells(line) {
+  const result = [];
+  let start = line.indexOf('|') + 1;
+  for (let index = start; index < line.length; index += 1) {
+    if (line[index] === '|' && line[index - 1] !== '\\') {
+      result.push({ text: line.slice(start, index), start });
+      start = index + 1;
     }
-    if (!line.trim().startsWith('|')) return;
-    const cells = cellsOf(line);
-    const separator = cells.every(cell => SEPARATOR_CELL.test(cell));
-    const header = !separator && SEPARATOR_CELL.test(cellsOf(lines[index + 1] ?? '')[0] ?? '') && (lines[index + 1] ?? '').trim().startsWith('|');
-    if (separator || header) return;
-    const column = tracker.column ?? cells.length - 1;
-    if (!ID.test(cells[0]) || cells.length <= column || column === 0) {
-      errors.push(`line ${index + 1}: ${JSON.stringify(line.trim().slice(0, 60))} is not a row with an ID in its first cell and a state in cell ${column + 1}`);
-      return;
-    }
-    add({ id: cells[0], title: cells[1] ?? '', state: stateOf(cells[column]) }, index);
-  });
-  if (items.length === 0 && errors.length === 0) errors.push('it has no item');
-  return { items, errors };
+  }
+  return line.trimEnd().endsWith('|') ? result : [...result, { text: line.slice(start), start }];
 }
 
-/** The items of `text` in the active state of `tracker`; throws with every error when the text cannot be read. */
+/** A finding as one sentence: `line 3: ...` when it has a line. */
+export const describeFinding = finding => (finding.line ? `line ${finding.line}: ${finding.message}` : finding.message);
+
+/**
+ * Reads the checklist of `text` as the tracker `tracker` declares it (format, idPattern, column, states). Returns
+ * `{ items, findings }`: the items as `{ id, title, state, line }` with the state as the document writes it, for example
+ * `[o]`, and the findings as `{ line, column, rule, message }`.
+ *
+ * The lenient reading (the default) is the reading of the push gate and the guard of the full run. It looks only at the
+ * items and reports what makes the document unreadable as a tracker: a row or an item that is malformed, a state outside
+ * `states`, an ID listed twice and a document without an item.
+ *
+ * The strict reading (`strict: true`) is the reading of the document check. It reports the same and also that a checklist
+ * holds only tasks: a line that is not a heading, a task or a document marker; a state marker that is not the state of a
+ * task; a state cell that holds more than its state (a table state is alone in its cell, but `[!]` is followed by
+ * `cause: <cause>; retry: <condition>`); a bypassed list item without `Cause:` and `Retry:`. The Korean labels 원인: and
+ * 재시도: are accepted. Each finding has a line and a column.
+ */
+export function readChecklist(text, tracker, { strict = false } = {}) {
+  const { format, states } = tracker;
+  const id = new RegExp(`^(?:${tracker.idPattern ?? DEFAULT_ID})$`);
+  const findings = [];
+  const items = [];
+  const seen = new Map();
+  const finding = (line, column, rule, message) => findings.push({ line, column, rule, message });
+  const both = (line, column, rule, strictMessage, plainMessage) => finding(line, column, rule, strict ? strictMessage : plainMessage);
+  const strictOnly = (...found) => { if (strict) finding(...found); };
+  const plainOnly = (line, rule, message) => { if (!strict) finding(line, undefined, rule, message); };
+  const expected = states ?? FOUR_STATES;
+  const expectedCell = listOf(expected.map(known => (known === BYPASSED ? `${known} cause: <cause>; retry: <condition>` : known)));
+  const stateRule = (task, number, column, shown, state) => {
+    if (states && !states.includes(state)) {
+      both(number, column, 'checklist-state', `the state of ${task} is ${shown}; expected ${(format === 'table' ? expectedCell : listOf(expected))}`, `${task} has the state ${JSON.stringify(state)}, the states are ${states.map(known => JSON.stringify(known)).join(', ')}`);
+      return false;
+    }
+    return true;
+  };
+  const add = (number, item) => {
+    if (seen.has(item.id)) both(number, 1, 'checklist-duplicate', `the task ${item.id} has a second row; the first is on line ${seen.get(item.id)}`, `the item ${item.id} is listed twice`);
+    else seen.set(item.id, number);
+    items.push({ ...item, line: number });
+  };
+  const lines = text.replace(/\n$/, '').split('\n');
+  let current = null;
+  const lists = [];
+  lines.forEach((line, index) => {
+    const number = index + 1;
+    const indent = Math.max(line.search(/\S/), 0);
+    let place = -1;
+    let allowed = line.trim() === '' || HEADING.test(line) || DOCUMENT_MARKER.test(line);
+    if (format === 'table') {
+      const row = line.trimStart().startsWith('|') ? cells(line) : [];
+      const first = row[0]?.text.trim() ?? '';
+      const task = ID_CELL.exec(first)?.[1];
+      if (isSeparator(row) || (row.length > 0 && (first === 'ID' || isSeparator(cells(lines[index + 1] ?? ''))))) {
+        allowed = true;
+      } else if (task && id.test(task)) {
+        allowed = true;
+        const column = tracker.column ?? row.length - 1;
+        if (column === 0 || row.length <= column) {
+          both(number, indent + 1, 'checklist-state', `the row of ${task} has ${row.length} cells; expected a state cell at position ${column + 1}`, `${JSON.stringify(line.trim().slice(0, 60))} is not a row with an ID in its first cell and a state in cell ${column + 1}`);
+        } else {
+          const cell = row[column];
+          const state = cell.text.trim();
+          place = cell.start + cell.text.search(/\S/);
+          if (strict && (!line.trimEnd().endsWith('|') || !state)) {
+            finding(number, line.length + 1, 'checklist-state', `the row of ${task} does not end with a state cell; expected a closing | after ${expectedCell}`);
+          } else {
+            const kept = stateOf(state);
+            const alone = !strict || state === kept || (kept === BYPASSED && TABLE_BYPASS.test(state));
+            if (alone) stateRule(task, number, place + 1, JSON.stringify(state), kept);
+            else both(number, place + 1, 'checklist-state', `the state of ${task} is ${JSON.stringify(state)}; expected ${expectedCell}`);
+            add(number, { id: task, title: row[1]?.text.trim() ?? '', state: kept });
+          }
+        }
+      } else if (row.length > 0) {
+        plainOnly(number, 'checklist-state', `${JSON.stringify(line.trim().slice(0, 60))} is not a row with an ID in its first cell and a state in cell ${(tracker.column ?? row.length - 1) + 1}`);
+      }
+      if (!allowed) {
+        const where = row.length ? `the first cell ${JSON.stringify(first)} is not a task ID matching ${tracker.idPattern ?? DEFAULT_ID}` : 'the line is not a heading or a task table row';
+        strictOnly(number, indent + 1, 'checklist-line', `${where}; a checklist holds only tasks, so its plan and notes belong in another document`);
+      }
+    } else {
+      const attempt = /^ *- \[/.test(line);
+      const entry = LIST_ITEM.exec(line);
+      if (attempt && entry && id.test(entry[3])) {
+        allowed = true;
+        place = entry[1].length + 2;
+        stateRule(entry[3], number, place + 1, entry[2], entry[2]);
+        add(number, { id: entry[3], title: firstSentence(entry[4]), state: entry[2] });
+        current = { id: entry[3], state: entry[2], line: number, text: line, indent: entry[1].length };
+        lists.push(current);
+      } else if (attempt) {
+        plainOnly(number, 'checklist-line', `${JSON.stringify(line.trim())} is not an item of the form "- [state] ID text"`);
+      } else if (current && /^ +\S/.test(line) && indent > current.indent) {
+        allowed = true;
+        current.text += `\n${line}`;
+      }
+      if (HEADING.test(line)) current = null;
+      if (!allowed) strictOnly(number, indent + 1, 'checklist-line', 'the line is not a heading, a task item "- [ ] <ID> text" or the continuation of one; a checklist holds only tasks');
+    }
+    if (strict) {
+      for (const marker of line.matchAll(MARKER)) {
+        if (marker.index !== place) finding(number, marker.index + 1, 'checklist-marker', `the state marker ${marker[0]} is not the state of a task; a state marker stands only at the start of ${format === 'table' ? 'the state cell of a task row' : 'a task item'}`);
+      }
+    }
+  });
+  // A bypassed list item names its cause and its retry condition on the item or its continuation lines.
+  if (strict) {
+    for (const entry of lists.filter(candidate => candidate.state === BYPASSED)) {
+      if (!/(?:cause|원인):\s*\S/i.test(entry.text)) finding(entry.line, 1, 'checklist-state', `the bypassed task ${entry.id} names no cause; write "Cause: <cause>" on the item`);
+      if (!/(?:retry|재시도):\s*\S/i.test(entry.text)) finding(entry.line, 1, 'checklist-state', `the bypassed task ${entry.id} names no retry condition; write "Retry: <condition>" on the item`);
+    }
+  }
+  if (items.length === 0 && (strict || findings.length === 0)) {
+    if (strict) finding(1, 1, 'checklist-empty', `the checklist has no task whose ID matches ${tracker.idPattern ?? DEFAULT_ID}`);
+    else finding(undefined, undefined, 'checklist-empty', 'it has no item');
+  }
+  return { items, findings };
+}
+
+/** The items of `text` in the active state of `tracker`; throws with every finding when the text cannot be read. */
 export function activeItems(text, tracker) {
-  const { items, errors } = parseTracker(text, tracker);
-  if (errors.length > 0) throw new Error(errors.join('; '));
+  const { items, findings } = readChecklist(text, tracker);
+  if (findings.length > 0) throw new Error(findings.map(describeFinding).join('; '));
   return items.filter(item => item.state === tracker.active);
 }
 
-/** The differences between a document and its translation: IDs in another order or missing, and states that differ. */
-export function compareTwin(english, korean, tracker) {
-  const a = parseTracker(english, tracker);
-  const b = parseTracker(korean, tracker);
-  if (a.errors.length > 0 || b.errors.length > 0) throw new Error([...a.errors.map(e => `${tracker.path}: ${e}`), ...b.errors.map(e => `${tracker.translation}: ${e}`)].join('; '));
-  const differences = [];
+/**
+ * The differences between the items of a document and of its translation: IDs in another order or missing, and states
+ * that differ. A strict difference names the line of the translation and the rule `checklist-pair`.
+ */
+export function twinFindings(english, korean, tracker, { strict = false } = {}) {
   const ids = items => items.map(item => item.id).join(' ');
-  if (ids(a.items) !== ids(b.items)) {
-    const missing = a.items.filter(item => !b.items.some(other => other.id === item.id)).map(item => item.id);
-    const extra = b.items.filter(item => !a.items.some(other => other.id === item.id)).map(item => item.id);
-    differences.push(`${tracker.translation} lists other items than ${tracker.path}: missing ${missing.join(', ') || 'none'}, extra ${extra.join(', ') || 'none'}${missing.length + extra.length === 0 ? ', in another order' : ''}`);
-    return differences;
+  if (ids(english) !== ids(korean)) {
+    if (strict) return [{ rule: 'checklist-pair', message: `the task IDs differ from ${tracker.path}: [${ids(korean)}] and [${ids(english)}]` }];
+    const missing = english.filter(item => !korean.some(other => other.id === item.id)).map(item => item.id);
+    const extra = korean.filter(item => !english.some(other => other.id === item.id)).map(item => item.id);
+    return [{ rule: 'checklist-pair', message: `${tracker.translation} lists other items than ${tracker.path}: missing ${missing.join(', ') || 'none'}, extra ${extra.join(', ') || 'none'}${missing.length + extra.length === 0 ? ', in another order' : ''}` }];
   }
-  for (const [index, item] of a.items.entries()) {
-    if (item.state !== b.items[index].state) differences.push(`${item.id} is ${item.state} in ${tracker.path} and ${b.items[index].state} in ${tracker.translation}`);
+  return english.flatMap((item, index) => (item.state === korean[index].state ? [] : [strict
+    ? { line: korean[index].line, column: 1, rule: 'checklist-pair', message: `the state of ${item.id} is ${korean[index].state}; ${tracker.path} has ${item.state}` }
+    : { rule: 'checklist-pair', message: `${item.id} is ${item.state} in ${tracker.path} and ${korean[index].state} in ${tracker.translation}` }]));
+}
+
+/** The differences between a document and its translation, read leniently; throws when either cannot be read. */
+export function compareTwin(english, korean, tracker) {
+  const a = readChecklist(english, tracker);
+  const b = readChecklist(korean, tracker);
+  if (a.findings.length > 0 || b.findings.length > 0) {
+    throw new Error([...a.findings.map(found => `${tracker.path}: ${describeFinding(found)}`), ...b.findings.map(found => `${tracker.translation}: ${describeFinding(found)}`)].join('; '));
   }
-  return differences;
+  return twinFindings(a.items, b.items, tracker).map(found => found.message);
 }
 
 /**

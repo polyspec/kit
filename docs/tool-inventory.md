@@ -145,7 +145,7 @@ record of a full run of the current tree exists. There is no pull request, merge
 
 `hooks` lists the tracked hooks of `.githooks` and must include `pre-push`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
-`states` (a state outside the list is an error) and `column` (the zero-based cell of a table row that holds the state; the last
+`idPattern` (the source of the regular expression that a task ID matches as a whole; a letter followed by letters, digits, `.` and `-` when absent), `states` (a state outside the list is an error) and `column` (the zero-based cell of a table row that holds the state; the last
 cell when absent). A state is the leading `[x]` of its cell or item, or the whole cell when the cell does not start with `[`.
 
 ### Merged behaviors
@@ -200,8 +200,8 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 ## Document checks (K7.1)
 
 `scripts/kit/check-documents.mjs` replaces `check-documents.mjs` of template, crudui and hyper and `docs_check.py` of
-ordered-json. Which Markdown files are documents, its checklists, status tables and changelogs are declared in
-`config/documents.json` (`scripts/kit/schema/documents.schema.json`). Each finding is one line
+ordered-json. Which Markdown files are documents, its status tables and changelogs are declared in
+`config/documents.json` (`scripts/kit/schema/documents.schema.json`); its checklists are declared in `config/checklist.json` (K7.2). Each finding is one line
 `<file>:<line>:<column>: <rule>: <message>`.
 
 Merged behaviors (the wider behavior is taken):
@@ -330,8 +330,8 @@ Dropped behaviors:
   the refusal outside GitHub Actions (hyper: a run of the targets is allowed anywhere; the full suite guard belongs to the full
   run), the copy of `var/records` (ordered-json) and the environment, disk and server-log files, the case-runner protocol
   (`RUN`, `STEP`, `PASS`, `FAIL`) and the run id of the full-run report (orm): they depend on one repository's checks and stay there.
-- The lock is a small file with the process id of the holder, inside `ci-targets.mjs`; the shared holder lock of the full run
-  is a separate tool (K6.1).
+- The private lock of `ci-targets.mjs` (a file with the process id of the holder, removed as stale when the process ended) is
+  replaced by `holder-lock.mjs` (K7.2): a lock of an ended holder stays until `holder-lock.mjs clear` removes it.
 
 ## Commit message check (K8.1-4)
 
@@ -453,3 +453,27 @@ Dropped behaviors:
 - A tag `<directory>/vX.Y.Z` releases that module alone: it needs no sibling tag and builds no archive. A module at the
   repository root (`.`) is released by `vX.Y.Z` itself and needs no further tag. The tags must exist in the checkout that runs
   `verify`, so a workflow that runs it fetches the tags.
+
+## One checklist model (K7.2)
+
+`scripts/kit/checklist.mjs` held the reader of the push gate and the guard (K6.1), and `scripts/kit/checklist-rows.mjs` held
+the reader of the document check (K7.1). Both read the same documents (table rows `| ID | ... | [o] |`, list items
+`- [o] ID text`, the states `[ ]`, `[~]`, `[o]` and `[!]`) under two configurations, `trackers` of `config/checklist.json` and
+`checklists` of `config/documents.json`. There is now one reader, one configuration and one set of findings.
+
+- `readChecklist(text, tracker, { strict })` returns `{ items, findings }`; an item is `{ id, title, state, line }` with the
+  state as the document writes it (`[o]`). The lenient reading (the gate and the guard) reports a malformed row or item, a
+  state outside `states`, a repeated ID and a document without an item, and `activeItems` throws on any of them. The strict
+  reading (the document check) reports the same findings and also a line that is not a heading or a task, a state marker that is
+  not the state of a task, a state cell that holds more than its state, a bypass without cause and retry, each with line and
+  column. The messages of each reading are the ones that their tests asserted before the merge.
+- `twinFindings` compares the items of a document and of its translation for both readings.
+- `config/checklist.json` declares every checklist: `path`, `translation`, `format` (`table` or `list`), `idPattern`, `states`,
+  `active`, `column`. `check-documents.mjs` reads its checklists from it. The key `checklists` of `config/documents.json`
+  and its schema is removed, and the key `style` is `format`. A checklist without `translation` is read in English only.
+- Wider behavior taken: a task ID may be followed by a code span, as `` T3.2 `parallel` ``, in both readings (the strict reader
+  accepted any text after the ID; it now accepts a code span, so that a first cell such as `not an id` is a finding in both
+  readings); a table row may be indented; `states` applies to the strict reading, so a checklist that declares no `states`
+  accepts every state word there, where the strict reader accepted only the four states; the separators and the header are
+  recognized by their position and by the cell `ID`.
+- `ci-targets.mjs` holds its report with `holder-lock.mjs`; its own lock function is removed.

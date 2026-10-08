@@ -7,42 +7,22 @@
 // Each target runs as `make -k <target>` to its end, also after an earlier target failed, with its output printed and written
 // to <report directory>/targets/<target>.log; record.json and summary.md name each target with its result and, for a failed
 // target, its first failure lines (scripts/kit/target-report.mjs). No target has a time limit. The run holds the lock
-// <report directory>.lock, so two runs never write one report. The command ends with status 1 when a target failed or the
+// <report directory>.lock (holder-lock.mjs), so two runs never write one report. The command ends with status 1 when a target failed or the
 // report could not be written, and with status 2 for a usage error.
 //
 // `--summary` writes summary.md again from record.json, also when the run recorded nothing or did not record its end, and
 // appends it to the job summary of GitHub Actions (GITHUB_STEP_SUMMARY). It names each setup step that did not succeed from
 // CI_STEPS, the JSON of `toJSON(steps)`. A CI job runs it under `if: always()`, so the report of a job whose runner stopped is
 // still written and uploaded.
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { acquireHolderLock } from './holder-lock.mjs';
 import { capLog, failureLines, git, logPath, render, reportWriter, runLogged, startReport, toolchainVersions, warningLines } from './target-report.mjs';
 
 const TARGET_NAME = /^[A-Za-z0-9_.-]+$/;
 const USAGE = 'usage: node scripts/kit/ci-targets.mjs <report directory> <target>...  |  --summary <report directory>';
 const now = () => new Date().toISOString();
-
-/** Holds the lock file `file` (the pid of the holder) until the returned function is called; throws while another run holds it. */
-export function acquire(file) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  for (;;) {
-    try {
-      writeFileSync(file, `${process.pid}\n`, { flag: 'wx' });
-      return () => rmSync(file, { force: true });
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      const holder = Number.parseInt(readFileSync(file, 'utf8'), 10);
-      let alive = Number.isInteger(holder);
-      if (alive) {
-        try { process.kill(holder, 0); } catch (killed) { alive = killed.code === 'EPERM'; }
-      }
-      if (alive) throw new Error(`the report is in use: ${file} is held by the process ${holder}; wait for that run to end`);
-      // The holder ended without releasing the lock, so the lock is stale.
-      rmSync(file, { force: true });
-    }
-  }
-}
 
 /**
  * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
@@ -51,7 +31,7 @@ export function acquire(file) {
  */
 export async function ciTargets({ root, directory, targets, env = process.env, make = 'make', environment, print = line => console.log(line), output = (text, stream) => process[stream].write(text) }) {
   const report = path.resolve(root, directory);
-  const release = acquire(`${report}.lock`);
+  const held = acquireHolderLock(`${report}.lock`, { checkout: root, command: `ci-targets ${targets.join(' ')}` });
   try {
     startReport(report);
     const writer = reportWriter(print);
@@ -100,7 +80,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
     print(`[ci-targets] ${targets.length - failed.length} of ${targets.length} targets passed${failed.length ? `; failed: ${failed.map(target => target.name).join(', ')}` : ''}`);
     return failed.length === 0 && writer.errors.length === 0 ? 0 : 1;
   } finally {
-    release();
+    held.release();
   }
 }
 

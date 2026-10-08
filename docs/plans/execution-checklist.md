@@ -30,6 +30,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K6.1-5 | Merge the guards of the full run with the record of the tree, the lock and the rerun of failed targets | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [o] |
 | K6.1-6 | Add the make targets of the gates and record the merge in the inventory | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [o] |
+| K7.2 | Read table and list checklists with one function at a lenient and a strict level from one config/checklist.json; remove checklist-rows.mjs and the private lock of ci-targets | `scripts/kit/checklist.mjs, check-documents.mjs, ci-targets.mjs, schema/checklist.schema.json, schema/documents.schema.json` | `make kit-test` | [o] |
 | K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [o] |
 | K8.1-1 | Merge the owner-check of template, crudui and hyper and the owner map of ordered-json into one tool read from config/owner-checks.json | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
 | K8.1-2 | Merge the test runners with their progress reporters, per-test timeouts and the failing run without tests | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
@@ -44,3 +45,4 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K8.3 | Check that the crates of every Cargo.lock are downloaded before a check runs cargo offline, and download them with --fetch | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K9 | Write the schemas of release, toolchain, checklist, owner-checks and the dependency files | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
+| K11 | Move every function and constant that several modules of scripts/kit repeat into one shared module, and fail a second copy in a test | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [ ] |

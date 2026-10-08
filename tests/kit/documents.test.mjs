@@ -124,10 +124,15 @@ test('interpolation: {{ outside a code block fails in the selected documents', (
   assert.equal(found.filter(line => line.startsWith('docs/a.md')).length, 1, 'the v-pre element and the fenced block are not read');
 });
 
-const TABLE = { path: 'plan.md', style: 'table', idPattern: 'T[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)*' };
+const FOUR_STATES = ['[ ]', '[~]', '[o]', '[!]'];
+const TABLE = { path: 'plan.md', translation: 'plan.ko.md', format: 'table', idPattern: 'T[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)*', states: FOUR_STATES, active: '[~]' };
+const LIST = { path: 'plan.md', translation: 'plan.ko.md', format: 'list', idPattern: '[A-Z][A-Za-z0-9.-]*', states: FOUR_STATES, active: '[~]' };
 const checklist = (rows, extra = '') => `# Plan\n\n${extra}| ID | Task | State |\n| --- | --- | --- |\n${rows}\n`;
 const withChecklist = (t, en, ko = en, config = TABLE) => tree(t, { ...pair(config.path, 'plan', en.replace(/^# Plan\n/, '').trimStart(), ko.replace(/^# Plan\n/, '').trimStart()) });
-const run2 = (root, list = TABLE) => run(root, { ...CONFIG, checklists: [list] });
+const run2 = (root, list = TABLE) => {
+  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [list] }) });
+  return run(root);
+};
 
 test('checklist table: the four states pass, derived sub-items included', (t) => {
   const rows = '| T1.1 | a | [o] |\n| T1.2 | b | [ ] |\n| T1.2-1 | c | [~] |\n| T1.3 `parallel` | d | [!] cause: blocked by T1.2; retry: T1.2 done |';
@@ -163,13 +168,13 @@ test('checklist table: a document without task rows fails', (t) => {
 });
 
 test('checklist list: items, sub-items and a bypass with cause and retry pass', (t) => {
-  const list = { path: 'plan.md', style: 'list', idPattern: '[A-Z][A-Za-z0-9.-]*' };
+  const list = LIST;
   const text = '# Plan\n\n## Wave\n\n- [o] C1 First\n  - [~] C1.1 Sub-item\n- [ ] C2 Second\n  continued text\n- [!] C3 Third\n  Cause: blocked. Retry: when C2 is done.\n';
   assert.deepEqual(run2(withChecklist(t, text, text, list), list), []);
 });
 
 test('checklist list: a bypass without cause, an unknown state, a stray marker and free text fail', (t) => {
-  const list = { path: 'plan.md', style: 'list', idPattern: '[A-Z][A-Za-z0-9.-]*' };
+  const list = LIST;
   const text = '# Plan\n\n- [!] C1 First\n- [x] C2 Second\n- [o] C3 mentions [ ] here\n\nfree text\n- [ ] C3 again\n';
   const found = run2(withChecklist(t, text, text, list), list);
   hasPart(found, 'checklist-state: the bypassed task C1 names no cause');
@@ -187,6 +192,29 @@ test('checklist-pair: the Korean checklist has the same tasks and states', (t) =
   hasPart(run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |'))), 'plan.ko.md: checklist-pair: the task IDs differ from plan.md');
   const bypass = checklist('| T1.1 | a | [!] cause: blocked; retry: later |');
   assert.deepEqual(run2(withChecklist(t, bypass, checklist('| T1.1 | 가 | [!] 원인: 막힘; 재시도: 나중 |'))), [], 'the cause text is translated, the state is compared');
+});
+
+test('checklist list: a state outside the declared states fails, and the states of a tracker apply to its items', (t) => {
+  const text = '# Plan\n\n- [o] C1 First\n- [?] C2 Second\n- [~] C3 Third\n';
+  const found = run2(withChecklist(t, text, text, LIST), LIST);
+  hasPart(found, 'plan.md:', 'checklist-state: the state of C2 is [?]; expected [ ], [~], [o] or [!]');
+  assert.equal(found.filter(line => line.includes('checklist-state')).length, 2, '[?] is wrong in the English and the Korean file');
+  const reduced = { ...LIST, states: ['[ ]', '[o]'], active: '[ ]' };
+  hasPart(run2(withChecklist(t, '# Plan\n\n- [~] C1 First\n', undefined, reduced), reduced), 'checklist-state: the state of C1 is [~]; expected [ ] or [o]');
+});
+
+test('checklist: a task ID may be followed by a code span, and a checklist without a translation reads its English file only', (t) => {
+  const rows = '| T1.1 `parallel` | a | [o] |\n| T1.2 | b | [~] |';
+  const solo = { ...TABLE, translation: undefined };
+  const root = tree(t, { 'plan.md': `<!-- doc-id: plan -->\n${checklist(rows)}`, 'plan.ko.md': '<!-- doc-id: plan -->\n# Plan\n\nfree text that no checklist rule reads\n' });
+  const found = run2(root, solo);
+  assert.equal(found.filter(line => line.includes('checklist-')).length, 0, found.join('\n'));
+});
+
+test('checklist: an invalid config/checklist.json is a finding of the document check', (t) => {
+  const root = tree(t, pair('plan.md', 'plan'));
+  put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [{ path: 'plan.md', format: 'tree', active: '[~]' }] }) });
+  hasPart(run(root), 'config/checklist.json: config: ', '$.trackers[0].format is "tree"');
 });
 
 const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, columns: [{ index: 1, enum: ['planned', 'implemented'] }, { index: 3, pattern: '\\]\\([^)]+\\)' }] };
@@ -245,7 +273,7 @@ test('config/documents.json is validated against its schema', (t) => {
   mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
   cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema'), path.join(root, 'scripts/kit/schema'), { recursive: true });
   const found = checkConfig(root);
-  hasPart(found, 'config/documents.json: $.checklists[0].style is "grid", the schema allows "table", "list"');
+  hasPart(found, 'config/documents.json: $.checklists is not in the schema');
   hasPart(found, '$.statusTables[0].cells is 0, the schema requires at least 1');
   hasPart(found, '$.extra is not in the schema');
 });

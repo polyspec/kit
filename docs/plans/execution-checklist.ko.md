@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 833ded15dc05fd4269ff633150cb9c612dc2e4da4a6afe48099e95634616acba -->
+<!-- source-sha256: df17b286b80bbf349f6d06794027010f4414ebfeeccdc90751cf7f8b18b9fe24 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -50,6 +50,7 @@
 | K6.1-5 | full-run guard를 합친다: tree 기록, lock, 실패한 target의 재실행 | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [o] |
 | K6.1-6 | gate의 make target을 추가하고 합친 내용을 도구 목록에 기록한다 | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [o] |
+| K7.2 | 표형과 목록형 체크리스트를 config/checklist.json 하나에서 읽는 함수 하나로(관대한 수준과 엄격한 수준) 읽고, checklist-rows.mjs와 ci-targets의 자체 lock을 없앤다 | `scripts/kit/checklist.mjs, check-documents.mjs, ci-targets.mjs, schema/checklist.schema.json, schema/documents.schema.json` | `make kit-test` | [o] |
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [o] |
 | K8.1-1 | template, crudui, hyper의 owner-check와 ordered-json의 owner map을 config/owner-checks.json을 읽는 도구 하나로 합친다 | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
 | K8.1-2 | 테스트 실행기를 진행 reporter, 테스트별 timeout, 테스트가 없는 실행의 실패와 함께 합친다 | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
@@ -64,3 +65,4 @@
 | K8.3 | 검사가 cargo를 오프라인으로 실행하기 전에 모든 Cargo.lock의 crate가 내려받아져 있는지 검사하고, --fetch로 내려받는다 | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
+| K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [ ] |

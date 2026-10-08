@@ -9,7 +9,8 @@
 //   link            every relative link resolves to a file, a directory, an explicit anchor or a heading anchor
 //   private-path    no document holds a path into a user's home directory
 //   interpolation   no {{ outside a fenced code block in the documents that a site renderer evaluates
-//   checklist-*     the checklists hold only tasks, their markers and states are valid and equal in both languages
+//   checklist-*     the checklists of config/checklist.json hold only tasks, their markers and states are valid and equal in
+//                   both languages (the strict reading of scripts/kit/checklist.mjs)
 //   status-table    the status tables have the declared cells and values, equal in both languages
 //   changelog       the changelogs start with ## Unreleased, then the versions newest first, equal in both languages
 //
@@ -20,7 +21,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { changelogFindings, changelogPairFindings } from './changelog.mjs';
-import { readChecklist } from './checklist-rows.mjs';
+import { CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, twinFindings } from './checklist.mjs';
 import { globExpression, matchesAny } from './glob.mjs';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mjs';
 import { readStatusTable } from './status-table.mjs';
@@ -160,31 +161,28 @@ export function check(root, config) {
   const ids = new Map();
   for (const english of documents) found.push(...pairFindings(root, config, english, ids, read));
 
-  const both = (file, run) => {
-    for (const name of [file, koreanOf(file)]) {
-      if (!existsSync(path.join(root, name))) add(name, { rule: 'pair-missing', message: `the file named in ${CONFIG} does not exist` });
+  const both = (files, source, run) => {
+    for (const name of files) {
+      if (!existsSync(path.join(root, name))) add(name, { rule: 'pair-missing', message: `the file named in ${source} does not exist` });
       else run(name, read(name));
     }
   };
-  for (const list of config.checklists ?? []) {
+  let checklists = [];
+  if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
+    try { checklists = loadChecklists(root).trackers; } catch (error) { add(CHECKLIST_CONFIG, { rule: 'config', message: error.message }); }
+  }
+  for (const list of checklists) {
     const results = [];
-    both(list.path, (name, text) => {
-      const result = readChecklist(text, list);
+    both([list.path, ...(list.translation ? [list.translation] : [])], CHECKLIST_CONFIG, (name, text) => {
+      const result = readChecklist(text, list, { strict: true });
       for (const entry of result.findings) add(name, entry);
-      results.push([name, result.rows]);
+      results.push(result.items);
     });
-    if (results.length === 2) {
-      const [[, en], [ko, kor]] = results;
-      const ids2 = (rows) => rows.map(row => row.id).join(' ');
-      if (ids2(en) !== ids2(kor)) add(ko, { rule: 'checklist-pair', message: `the task IDs differ from ${list.path}: [${ids2(kor)}] and [${ids2(en)}]` });
-      else en.forEach((row, index) => {
-        if (row.state !== kor[index].state) add(ko, { line: kor[index].line, column: 1, rule: 'checklist-pair', message: `the state of ${row.id} is [${kor[index].state}]; ${list.path} has [${row.state}]` });
-      });
-    }
+    if (results.length === 2) for (const entry of twinFindings(results[0], results[1], list, { strict: true })) add(list.translation, entry);
   }
   for (const table of config.statusTables ?? []) {
     const results = [];
-    both(table.path, (name, text) => {
+    both([table.path, koreanOf(table.path)], CONFIG, (name, text) => {
       const result = readStatusTable(text, table);
       for (const entry of result.findings) add(name, entry);
       results.push([name, result.rows]);
@@ -197,7 +195,7 @@ export function check(root, config) {
   }
   for (const changelog of config.changelogs ?? []) {
     const texts = [];
-    both(changelog, (name, text) => {
+    both([changelog, koreanOf(changelog)], CONFIG, (name, text) => {
       for (const entry of changelogFindings(text)) add(name, entry);
       texts.push(text);
     });
@@ -205,7 +203,7 @@ export function check(root, config) {
   }
   const lines = found.map(([file, entry]) => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
-  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length };
+  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -216,11 +214,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const config = JSON.parse(readFileSync(path.join(root, CONFIG), 'utf8'));
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  const { findings, documents } = check(root, config);
+  const { findings, documents, checklists } = check(root, config);
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
     console.error(`[check-documents] ${findings.length} findings in ${documents} document pairs`);
     process.exit(1);
   }
-  console.log(`[check-documents] ${documents} document pairs, ${(config.checklists ?? []).length} checklists, ${(config.statusTables ?? []).length} status tables and ${(config.changelogs ?? []).length} changelogs passed`);
+  console.log(`[check-documents] ${documents} document pairs, ${checklists} checklists, ${(config.statusTables ?? []).length} status tables and ${(config.changelogs ?? []).length} changelogs passed`);
 }

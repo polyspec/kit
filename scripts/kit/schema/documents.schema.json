@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/documents.json",
-  "description": "The documents that scripts/kit/check-documents.mjs checks: which Markdown files are documents, its checklists, status tables and changelogs.",
+  "description": "The documents that scripts/kit/check-documents.mjs checks: which Markdown files are documents, its status tables and changelogs. Its checklists are in config/checklist.json.",
   "type": "object",
   "required": ["schema", "include"],
   "additionalProperties": false,
@@ -27,19 +27,6 @@
       "description": "Globs of the English documents (and their Korean twins) in which {{ outside a fenced code block fails, because the site renderer evaluates it.",
       "type": "array",
       "items": { "type": "string" }
-    },
-    "checklists": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["path", "style", "idPattern"],
-        "additionalProperties": false,
-        "properties": {
-          "path": { "description": "The English checklist; its Korean twin is read too.", "type": "string" },
-          "style": { "description": "table: task rows | ID | ... | state |; list: items - [ ] ID text.", "type": "string", "enum": ["table", "list"] },
-          "idPattern": { "description": "The source of the regular expression that a task ID matches as a whole.", "type": "string" }
-        }
-      }
     },
     "statusTables": {
       "type": "array",

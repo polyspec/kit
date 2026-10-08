@@ -7,11 +7,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { blockingSentence, compareTwin, inspectTrackers, loadConfig, parseTracker } from '../../scripts/kit/checklist.mjs';
+import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist } from '../../scripts/kit/checklist.mjs';
 import { checkConfig } from '../../scripts/kit/kit-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
+
+/** The items and the findings of the lenient reading, each finding as the sentence that the gate prints. */
+function parseTracker(text, tracker) {
+  const { items, findings } = readChecklist(text, tracker);
+  return { items, errors: findings.map(describeFinding) };
+}
 
 const TABLE = { path: 'a.md', translation: 'a.ko.md', format: 'table', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
 const LIST = { path: 'b.md', format: 'list', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
@@ -69,6 +75,14 @@ test('a list is read by its items, with sub-items and the first sentence as the 
     ['T2.1', 'Name the members.', '[~]'],
     ['T3', 'Remove the runner.', '[ ]'],
   ]);
+});
+
+test('the lenient reading ignores the prose of a list document that the strict reading reports', () => {
+  const text = `# Items\n\nFree text before the list.\n\n${LIST_TEXT}\nmore free text\n`;
+  assert.deepEqual(parseTracker(text, LIST).errors, []);
+  const strict = readChecklist(text, { ...LIST, idPattern: 'T[0-9.]+' }, { strict: true });
+  assert.deepEqual(strict.findings.map(({ line, rule }) => [line, rule]), [[3, 'checklist-line'], [15, 'checklist-line']]);
+  assert.deepEqual(strict.items.map(item => item.id), ['T1', 'T2', 'T2.1', 'T3']);
 });
 
 test('a table state may be a cell of another column and any word', () => {
