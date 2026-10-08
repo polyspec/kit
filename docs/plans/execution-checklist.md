@@ -30,11 +30,11 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K6.1-5 | Merge the guards of the full run with the record of the tree, the lock and the rerun of failed targets | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [o] |
 | K6.1-6 | Add the make targets of the gates and record the merge in the inventory | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [o] |
-| K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [ ] |
+| K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [o] |
 | K8.1-1 | Merge the owner-check of template, crudui and hyper and the owner map of ordered-json into one tool read from config/owner-checks.json | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
 | K8.1-2 | Merge the test runners with their progress reporters, per-test timeouts and the failing run without tests | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
 | K8.1-3 | Merge the target report, ci-targets and ci-passed of template, crudui, hyper, ordered-json and orm | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [o] |
-| K8.1-4 | Take the commit subject check and the changelog sections of orm as shared git hygiene | `scripts/kit/check-commits.mjs` | `make kit-test` | [ ] |
+| K8.1-4 | Take the commit subject check and the changelog sections of orm as shared git hygiene | `scripts/kit/check-commits.mjs` | `make kit-test` | [o] |
 | K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K8.2-1 | Declare the toolchains in config/toolchain.json with its schema and read them from their files | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | Install npm, Go, ruff and Composer into var/tools with wrappers and no symbolic link | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |

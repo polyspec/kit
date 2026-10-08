@@ -84,3 +84,8 @@ ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a r
 
 ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
 	node scripts/kit/ci-passed.mjs
+
+.PHONY: commits-check
+
+commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against config/commits.json; offline
+	node scripts/kit/check-commits.mjs $(if $(RANGE),--range $(RANGE))
