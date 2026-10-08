@@ -104,8 +104,14 @@ export function highestStable(versions) {
 /** The key of a dependency in the policy and the record. */
 export const dependencyKey = ({ ecosystem, manifest, package: name }) => `${ecosystem}:${manifest}:${name}`;
 
+/** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
+export const KIT_FIXTURE = 'tests/kit/fixture/';
+
+/** The files of the checkout that its reviews read: the tracked files and the new files that Git does not ignore, except the kit fixture. */
+export const reviewedFiles = root => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE));
+
 /** The Cargo locks of the checkout: every Cargo.lock that is tracked or new and not ignored. */
-export const cargoLocks = root => trackedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
+export const cargoLocks = root => reviewedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
 
 /** The ecosystem of a lock: npm, composer or cargo. */
 export const lockEcosystem = lock => ({ 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo' })[path.posix.basename(lock)];
