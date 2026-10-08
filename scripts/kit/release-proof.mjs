@@ -20,7 +20,8 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Stop, assetNames, context, parseTag, run } from './release.mjs';
+import { assetNames, context, parseTag } from './release.mjs';
+import { run, Stop } from './process.mjs';
 import { installConsumers } from './release-consumer.mjs';
 
 /** `HOST/OWNER/REPO` of the repository URL, the form that `gh --repo` takes for any host. */

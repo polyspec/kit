@@ -22,7 +22,9 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ASSETS, Stop, assetName, assetNames, context, parseTag, run } from './release.mjs';
+import { ASSETS, assetName, assetNames, context, parseTag } from './release.mjs';
+import { readJson, writeAtomic } from './files.mjs';
+import { run, Stop } from './process.mjs';
 import { CONSUMER_KINDS } from './release-consumer-config.mjs';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
@@ -35,16 +37,6 @@ const FILES = { npm: { manifest: 'package.json', lock: 'package-lock.json', exte
 const INHERITED = ['npm_config_offline', 'COMPOSER_DISABLE_NETWORK', 'COMPOSER', 'COMPOSER_VENDOR_DIR'];
 
 const json = (value, indent) => `${JSON.stringify(value, null, indent)}\n`;
-const readJson = file => JSON.parse(readFileSync(file, 'utf8'));
-
-/** Writes `text` into `file` through a temporary file and a rename, so a reader never sees half a file. */
-function writeAtomic(file, text) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  const next = `${file}.next-${process.pid}`;
-  writeFileSync(next, text);
-  renameSync(next, file);
-}
-
 /** The package kinds that `config` has a consumer for, each with its packages: [[kind, consumer, [{ name, file }]]]. */
 function plan(config, version) {
   if (!config.consumers) throw new Stop('config/release.json has no consumers section; it declares the consumer projects that install the archives');
