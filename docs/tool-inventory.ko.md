@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c25f3fecdfaef8314cbfb96a006f10d3da1791865bbe1531d3cccf4c2a66a79a -->
+<!-- source-sha256: 9a184d9c6d053b5e701638191a737977232f1b57b3dca7c388e0c437370aaeb9 -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
@@ -206,8 +206,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 ## 문서 검사 (K7.1)
 
 `scripts/kit/check-documents.mjs`는 template, crudui, hyper의 `check-documents.mjs`와 ordered-json의 `docs_check.py`를 대체합니다.
-어느 Markdown 파일이 문서인지, 체크리스트, status table, changelog는 `config/documents.json`
-(`scripts/kit/schema/documents.schema.json`)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다.
+어느 Markdown 파일이 문서인지, status table, changelog는 `config/documents.json`
+(`scripts/kit/schema/documents.schema.json`)에 선언하고, 체크리스트는 `config/checklist.json`(K7.2)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다.
 
 합친 동작(더 넓은 동작을 채택):
 
@@ -330,8 +330,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   실행은 어디서나 허용하며 전체 suite 가드는 full run의 몫), `var/records` 복사(ordered-json), 환경, disk, server log 파일,
   case runner protocol(`RUN`, `STEP`, `PASS`, `FAIL`)과 full-run report의 run id(orm)는 한 저장소의 검사에 의존하므로 그 저장소에
   남습니다.
-- lock은 holder의 process id를 담은 작은 파일이고 `ci-targets.mjs` 안에 있습니다. full run의 공유 holder lock은 별도 도구입니다
-  (K6.1).
+- `ci-targets.mjs`의 자체 lock(holder의 process id를 담은 파일이며, process가 끝나면 낡은 lock으로 보고 지움)은
+  `holder-lock.mjs`(K7.2)로 대체합니다. 끝난 holder의 lock은 `holder-lock.mjs clear`가 지울 때까지 남습니다.
 
 ## 커밋 메시지 검사 (K8.1-4)
 
@@ -438,3 +438,25 @@ go.mod의 module path에 연결합니다.
   template과 ordered-json은 release 정책에 이 tag를 적었지만, 다섯 저장소의 어떤 도구도 검사하지 않았습니다.
 - tag `<directory>/vX.Y.Z`는 그 module만 release합니다. sibling tag가 필요 없고 archive도 만들지 않습니다. 저장소 root(`.`)의 module은 `vX.Y.Z` 자체로 release되며 다른
   tag가 필요 없습니다. tag는 `verify`를 실행하는 checkout에 있어야 하므로, 이를 실행하는 workflow는 tag를 fetch합니다.
+
+## 체크리스트 모델 하나 (K7.2)
+
+`scripts/kit/checklist.mjs`는 push gate와 guard의 reader(K6.1)를, `scripts/kit/checklist-rows.mjs`는 문서 검사의 reader(K7.1)를
+담았습니다. 둘은 같은 문서(표의 행 `| ID | ... | [o] |`, 목록 항목 `- [o] ID text`, 상태 `[ ]`, `[~]`, `[o]`, `[!]`)를 두 설정,
+곧 `config/checklist.json`의 `trackers`와 `config/documents.json`의 `checklists`로 읽었습니다. 이제 reader 하나, 설정 하나,
+finding 하나입니다.
+
+- `readChecklist(text, tracker, { strict })`는 `{ items, findings }`를 반환합니다. item은 `{ id, title, state, line }`이며 state는
+  문서에 적힌 그대로(`[o]`)입니다. 관대한 읽기(gate와 guard)는 형식이 틀린 행이나 항목, `states` 밖의 state, 반복된 ID, 항목이 없는
+  문서를 보고하고, `activeItems`는 그 어느 것에서든 예외를 던집니다. 엄격한 읽기(문서 검사)는 같은 finding에 더해 제목이나 task가
+  아닌 줄, task의 state가 아닌 state marker, state 말고 다른 것을 담은 state cell, cause와 retry가 없는 bypass를 줄과 열과 함께
+  보고합니다. 각 읽기의 메시지는 합치기 전에 test가 단언하던 메시지입니다.
+- `twinFindings`는 두 읽기에서 문서와 번역의 item을 비교합니다.
+- `config/checklist.json`은 모든 체크리스트를 선언합니다: `path`, `translation`, `format`(`table` 또는 `list`), `idPattern`, `states`,
+  `active`, `column`. `check-documents.mjs`는 체크리스트를 여기서 읽습니다. `config/documents.json`의 `checklists` key와 그 schema는
+  없어지고, key `style`은 `format`입니다. `translation`이 없는 체크리스트는 영어만 읽습니다.
+- 더 넓은 동작을 채택: task ID 뒤에 `` T3.2 `parallel` ``처럼 code span이 올 수 있습니다(두 읽기 모두). 엄격한 reader는 ID 뒤의 아무
+  글이나 받았으나, 이제 code span만 받으므로 `not an id` 같은 첫 cell은 두 읽기 모두에서 finding입니다. 표의 행은 들여 쓸 수
+  있습니다. `states`는 엄격한 읽기에도 적용되므로 `states`를 선언하지 않은 체크리스트는 엄격한 읽기에서 모든 state 단어를 받습니다(엄격한
+  reader는 네 state만 받았음). 구분 줄과 header는 위치와 cell `ID`로 알아봅니다.
+- `ci-targets.mjs`는 `holder-lock.mjs`로 report를 잡고, 자체 lock 함수는 없앴습니다.

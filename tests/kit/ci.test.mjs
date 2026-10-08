@@ -6,7 +6,8 @@ import { cpSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { acquire, ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mjs';
+import { ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mjs';
+import { acquireHolderLock, HolderLockRefused, removeDeadLock } from '../../scripts/kit/holder-lock.mjs';
 import { passed } from '../../scripts/kit/ci-passed.mjs';
 import { capLog, failureLines, reportWriter, warningLines } from '../../scripts/kit/target-report.mjs';
 import { put, tree } from './tree.mjs';
@@ -115,14 +116,17 @@ test('the report of an earlier run is removed and a run holds the lock of its re
   assert.throws(() => statSync(path.join(root, 'var/report/ci/targets/old.log')), /ENOENT/);
   const lock = path.join(root, 'var/report/ci.lock');
   assert.throws(() => statSync(lock), /ENOENT/, 'the lock is released');
-  writeFileSync(lock, `${process.pid}\n`);
-  await assert.rejects(run(root, ['good']), /the report is in use: .*ci\.lock is held by the process \d+; wait for that run to end/);
+  const held = acquireHolderLock(lock, { checkout: root, command: 'another run' });
+  await assert.rejects(run(root, ['good']), /ci\.lock is held by process \d+ .*for "another run"; the holder releases it when its run ends/);
+  held.release();
   const dead = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }).stdout;
-  writeFileSync(lock, `${dead}\n`);
-  assert.equal((await run(root, ['good'])).status, 0, 'a lock of an ended process is stale');
-  const release = acquire(path.join(root, 'other.lock'));
-  assert.throws(() => acquire(path.join(root, 'other.lock')), /the report is in use/);
-  release();
+  writeFileSync(lock, `${JSON.stringify({ checkout: root, pid: Number(dead), processStart: 'long ago', acquired: 'then', command: 'ended run', token: 'x' })}\n`);
+  await assert.rejects(run(root, ['good']), /ci\.lock is held by process \d+ .*which has ended; remove the lock with `node .*holder-lock\.mjs clear /);
+  removeDeadLock(lock);
+  assert.equal((await run(root, ['good'])).status, 0, 'the lock of an ended holder is removed with clear and the next run holds it');
+  const other = acquireHolderLock(path.join(root, 'other.lock'));
+  assert.throws(() => acquireHolderLock(path.join(root, 'other.lock')), HolderLockRefused);
+  other.release();
 });
 
 test('the failure lines prefer the marked failures, skip passing lines and end with how make ended', () => {

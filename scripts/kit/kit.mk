@@ -61,7 +61,7 @@ rerun-failed: ## Rerun the targets of the last full run of this tree that did no
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
 .PHONY: documents-check
 
-documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, checklists; offline
+documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
 	node scripts/kit/check-documents.mjs
 
 .PHONY: owner-check owner-validate
