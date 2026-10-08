@@ -93,11 +93,11 @@ test('the commands of var/tools/bin run before those of PATH, and the toolchain 
 });
 
 test('a command that is missing or prints no release is a mismatch that names the command and the declared version', (t) => {
-  const { root, stubs } = setup(t, { npm: 'twelve', go: 'go1.27.1' });
+  const { root, stubs } = setup(t, { npm: 'twelve', go: 'go1.27.1', composer: null });
   const result = check(root, stubs.env, 'npm', 'composer');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /npm: no release in the output of `npm --version`: "twelve"; packageManager of package\.json declares 12\.2\.0; fix: make install-tools/);
-  assert.match(result.stderr, /composer: `composer --version --no-ansi` failed \(.*\); config\/toolchain\.json composer declares 2\.10\.3; fix: install Composer 2\.10\.3/);
+  assert.match(result.stderr, /composer: `composer --version --no-ansi` failed \(.*\).*; config\/toolchain\.json composer declares 2\.10\.3; fix: install Composer 2\.10\.3, or declare its sha256/);
 });
 
 test('the tools to check come from the arguments; an undeclared tool, an unknown tool or no declaration fails', (t) => {
@@ -119,14 +119,14 @@ test('the tools to check come from the arguments; an undeclared tool, an unknown
 });
 
 test('toolchainVersions reports an unreadable tool as unavailable', (t) => {
-  const { root, stubs } = setup(t, { npm: '12.2.0' });
+  const { root, stubs } = setup(t, { npm: '12.2.0', composer: null });
   const versions = toolchainVersions(['npm', 'composer'], { root, env: { ...stubs.env, PATH: stubs.env.PATH } });
   assert.equal(versions.npm, '12.2.0');
   assert.match(versions.composer, /^unavailable: `composer --version --no-ansi` failed/);
 });
 
 test('the make target toolchain-check passes the tools to the check', () => {
-  const dry = spawnSync('make', ['-n', '-f', 'scripts/kit/kit.mk', 'toolchain-check', 'TOOLS=npm go'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'toolchain-check', 'TOOLS=npm go'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), 'node scripts/kit/check-toolchain.mjs npm go');
 });
