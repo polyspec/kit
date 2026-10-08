@@ -71,3 +71,12 @@ export function checkout(t, { state = '[ ]', config = null, files = {} } = {}) {
   git(work, 'remote', 'add', 'origin', remote);
   return { work, remote };
 }
+
+/** A checkout with the hooks installed through `git-hooks install` and everything committed. */
+export function prepared(t, options) {
+  const made = checkout(t, options);
+  const installed = run(made.work, process.execPath, ['scripts/kit/git-hooks.mjs', 'install']);
+  if (installed.status !== 0) throw new Error(`git-hooks install failed: ${installed.stderr}`);
+  commitAll(made.work, 'checklist');
+  return made;
+}
