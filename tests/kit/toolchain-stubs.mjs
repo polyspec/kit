@@ -85,3 +85,28 @@ export function toolchainStubs(t, { downloads = {}, extra = {} } = {}) {
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_DOWNLOADS: JSON.stringify(downloads), ...extra };
   return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
+
+/**
+ * Stubs of version commands: each command of `outputs` ({ name: text }) prints its text for any arguments, and the log line
+ * holds the arguments and the GOTOOLCHAIN and RUSTUP_AUTO_INSTALL it ran with. The environment has the stubs first on PATH,
+ * followed by the directory of this Node.js and the system directories only, so a tool that is not stubbed is absent.
+ */
+export function versionStubs(t, outputs) {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-versions-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const bin = path.join(directory, 'bin');
+  mkdirSync(bin);
+  const log = path.join(directory, 'calls.log');
+  writeFileSync(log, '');
+  for (const [name, text] of Object.entries(outputs)) {
+    writeFileSync(path.join(bin, name), `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+fs.appendFileSync(process.env.STUB_LOG, path.basename(process.argv[1]) + ' ' + process.argv.slice(2).join(' ') + ' [GOTOOLCHAIN=' + process.env.GOTOOLCHAIN + ' RUSTUP_AUTO_INSTALL=' + process.env.RUSTUP_AUTO_INSTALL + ']\\n');
+console.log(${JSON.stringify(text)});
+`);
+    chmodSync(path.join(bin, name), 0o755);
+  }
+  const env = { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter), STUB_LOG: log, HOME: directory };
+  return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+}
