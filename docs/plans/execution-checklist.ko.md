@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3fa7aa7bb029cee92066323b78f594b5af555fb13a11600e4373a47f084c3029 -->
+<!-- source-sha256: 584792c5c49ab65d01c0058caba8b83a4ea6dcc3775589e38842ca6551c4ca97 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -11,10 +11,10 @@
 | ID | 작업 | 산출물 | 검증 | 상태 |
 |---|---|---|---|---|
 | K1 | 다섯 저장소의 공유 도구를 크기와 kit의 기반 구현과 함께 목록으로 만든다 | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
-| K2.1 | crudui의 npm workspaces, tagged 패키지, npm 범위 판정, 중복 검사를 의존성 상태로 옮긴다 | `scripts/kit/dependency-state.mjs` | `make kit-test` | [ ] |
-| K2.2 | template의 Composer 플랫폼 규칙을 유지하고 crudui의 composer manifest도 그 규칙으로 읽는다 | `scripts/kit/check-dependency-policy.mjs` | `make kit-test` | [ ] |
-| K2.3 | 정책 형식(composerPlatforms, pythonManifests, exceptions)과 스키마를 확정한다 | `scripts/kit/schema/dependency-policy.schema.json` | `make kit-test` | [ ] |
-| K2.4 | npm workspaces 둘, tagged 패키지, Composer, PyPI 픽스처와 mutation 검사로 의존성 도구를 시험한다 | `tests/kit/` | `make kit-test` | [ ] |
+| K2.1 | crudui의 npm workspaces, tagged 패키지, npm 범위 판정, 중복 검사를 의존성 상태로 옮긴다 | `scripts/kit/dependency-state.mjs` | `make kit-test` | [o] |
+| K2.2 | template의 Composer 플랫폼 규칙을 유지하고 crudui의 composer manifest도 그 규칙으로 읽는다 | `scripts/kit/check-dependency-policy.mjs` | `make kit-test` | [o] |
+| K2.3 | 정책 형식(composerPlatforms, pythonManifests, exceptions)과 스키마를 확정한다 | `scripts/kit/schema/dependency-policy.schema.json` | `make kit-test` | [o] |
+| K2.4 | npm workspaces 둘, tagged 패키지, Composer, PyPI 픽스처와 mutation 검사로 의존성 도구를 시험한다 | `tests/kit/` | `make kit-test` | [o] |
 | K3.1 | 추적되는 모든 Cargo.lock을 sha256과 함께 검토 기록에 쓴다 | `scripts/kit/dependency-state.mjs` | `make kit-test` | [ ] |
 | K3.2 | config/toolchain.json의 cargo-audit을 var/tools에 설치하고 설치된 release는 건너뛴다 | `scripts/kit/install-cargo-audit.mjs` | `make kit-test` | [ ] |
 | K3.3 | 각 Cargo.lock의 advisory를 cargo-audit과 RustSec 데이터베이스에서 검토 때만 조회해 기록한다 | `scripts/kit/dependency-review.mjs` | `make kit-test` | [ ] |

@@ -10,10 +10,10 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | ID | Task | Deliverables | Verification | State |
 |---|---|---|---|---|
 | K1 | List the shared tools of the five repositories with their sizes and the base implementation of kit | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
-| K2.1 | Take npm workspaces, tagged packages, npm range satisfaction and duplicate detection from crudui into the dependency state | `scripts/kit/dependency-state.mjs` | `make kit-test` | [ ] |
-| K2.2 | Keep the Composer platform rule of template and read crudui's composer manifest through it | `scripts/kit/check-dependency-policy.mjs` | `make kit-test` | [ ] |
-| K2.3 | Fix the policy shape (composerPlatforms, pythonManifests, exceptions) and its schema | `scripts/kit/schema/dependency-policy.schema.json` | `make kit-test` | [ ] |
-| K2.4 | Cover the dependency tools with a fixture of two npm workspaces, tagged packages, Composer and PyPI, and the mutation check | `tests/kit/` | `make kit-test` | [ ] |
+| K2.1 | Take npm workspaces, tagged packages, npm range satisfaction and duplicate detection from crudui into the dependency state | `scripts/kit/dependency-state.mjs` | `make kit-test` | [o] |
+| K2.2 | Keep the Composer platform rule of template and read crudui's composer manifest through it | `scripts/kit/check-dependency-policy.mjs` | `make kit-test` | [o] |
+| K2.3 | Fix the policy shape (composerPlatforms, pythonManifests, exceptions) and its schema | `scripts/kit/schema/dependency-policy.schema.json` | `make kit-test` | [o] |
+| K2.4 | Cover the dependency tools with a fixture of two npm workspaces, tagged packages, Composer and PyPI, and the mutation check | `tests/kit/` | `make kit-test` | [o] |
 | K3.1 | Record every tracked Cargo.lock with its sha256 in the review record | `scripts/kit/dependency-state.mjs` | `make kit-test` | [ ] |
 | K3.2 | Install the cargo-audit of config/toolchain.json into var/tools, skipping an installed release | `scripts/kit/install-cargo-audit.mjs` | `make kit-test` | [ ] |
 | K3.3 | Record the advisories of each Cargo.lock from cargo-audit and the RustSec database in the review only | `scripts/kit/dependency-review.mjs` | `make kit-test` | [ ] |

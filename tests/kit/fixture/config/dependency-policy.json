@@ -9,5 +9,14 @@
   "pythonManifests": [
     "packages/fixture-python/pyproject.toml"
   ],
+  "taggedNpmPackages": [
+    {
+      "directory": "vendor/tagged/js",
+      "repository": "https://example.com/tagged-lib",
+      "tag": "v1.2.3",
+      "version": "1.2.3",
+      "fix": "make install-tagged"
+    }
+  ],
   "exceptions": []
 }

@@ -2,3 +2,7 @@
 include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
+
+.PHONY: kit-fixture-record
+kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
+	node tests/kit/record-fixture.mjs
