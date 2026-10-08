@@ -538,3 +538,11 @@ Left as it is, with the reason:
   the purpose of the file; the three sentences differ.
 - `kit-check.walk` reads the vendored directories from the disk, ignored files included, where `trackedFiles` reads the Git view.
 - The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
+
+## Python lint (K8.4)
+
+The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
+`scripts/kit/lint-python.mjs` and `make lint-python`: the package is the directory of the `ruff.pyproject` that
+`config/toolchain.json` names, ruff is the one of `var/tools/bin`, and the rules are the `[tool.ruff]` tables of that
+`pyproject.toml`, so the result does not depend on the ruff configuration of a machine. Both steps run after a failure of the
+first. An undeclared ruff and a missing ruff fail with their fix.

@@ -115,3 +115,8 @@ release-coverage: ## Require every package file of the checkout to be classified
 release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
 	@test -n "$(TAG)" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
 	node scripts/kit/release.mjs go-tags $(TAG)
+
+# --- lint-python: ruff check and ruff format --check of the Python package that config/toolchain.json ruff.pyproject names.
+.PHONY: lint-python
+lint-python: ## Lint and format-check the Python package with the ruff of var/tools; offline
+	node scripts/kit/lint-python.mjs

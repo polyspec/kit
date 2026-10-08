@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c1d162264229f8eee65119ca5abcb627de0b53727746f6a594c342a5e44c4b0e -->
+<!-- source-sha256: 2144f9aa11a97a9341c5f3767aff941301dd8b2a6cd1c952ef72f6410ba49f00 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -509,3 +509,10 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
 - `kit-check.walk`는 vendored directory를 무시된 파일까지 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.
+
+## Python lint (K8.4)
+
+Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
+`scripts/kit/lint-python.mjs`와 `make lint-python`으로 가져옵니다. package는 `config/toolchain.json`이 가리키는 `ruff.pyproject`의
+디렉터리이고, ruff는 `var/tools/bin`의 것이며, 규칙은 그 `pyproject.toml`의 `[tool.ruff]` table이므로 결과가 머신의 ruff 설정에 의존하지
+않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지 않았으면 고치는 방법과 함께 실패합니다.
