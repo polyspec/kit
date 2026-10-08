@@ -14,3 +14,11 @@ kit-check: ## Check the vendored files against .kit/kit.lock.json and the config
 
 kit-test: ## Run the tests of the vendored tools (tests/kit); offline
 	node --test tests/kit/
+
+# --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
+.PHONY: cargo-downloads-check cargo-downloads-fetch
+cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the registry of CARGO_HOME; offline
+	node scripts/kit/check-cargo-downloads.mjs
+
+cargo-downloads-fetch: ## Download the crates of every Cargo.lock
+	$(ONLINE) node scripts/kit/check-cargo-downloads.mjs --fetch

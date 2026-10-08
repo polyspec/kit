@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 7f6da8a5bea214b9535bf594e2f4ef4ff081951c780a76a369ede6180557f4c0 -->
+<!-- source-sha256: 55cff3dcb09bf7a32a1b1ee087bbc39e216c0e33de79a104bc3e359076b8f0b0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -27,5 +27,6 @@
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.3 | 검사가 cargo를 오프라인으로 실행하기 전에 모든 Cargo.lock의 crate가 내려받아져 있는지 검사하고, --fetch로 내려받는다 | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
