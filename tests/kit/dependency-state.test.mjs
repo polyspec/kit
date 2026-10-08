@@ -57,6 +57,18 @@ test('the gate fails when a tagged package has another version than its tag, and
   assert.match(line, /vendor\/tagged\/js has version 9\.9\.9, the tag v1\.2\.3 has version 1\.2\.3\. Rule: .+\. Fix: make install-tagged\.$/);
 });
 
+test('a package that npm installed as a copy (install-links) is a package of the repository, read by its file: lock entry', (t) => {
+  const root = fixture(t);
+  edit(root, 'package-lock.json', (lock) => {
+    lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:vendor/tagged/js' };
+  });
+  // The lock changed after its review, which is the only finding; the copy is read, so no finding names the package.
+  assert.deepEqual(findings(gate(root)).filter(line => line.includes('tagged-lib')), []);
+  edit(root, 'package-lock.json', (lock) => { lock.packages['node_modules/tagged-lib'].version = '1.2.4'; });
+  const failed = findings(gate(root)).filter(line => line.includes('tagged-lib'));
+  assert.equal(failed.length, 1, failed.join('\n'));
+});
+
 test('the gate fails when the Composer platform of a manifest is not the policy minimum', (t) => {
   const root = fixture(t);
   edit(root, 'packages/fixture-php/composer.json', (manifest) => { manifest.config.platform.php = '8.1.0'; });

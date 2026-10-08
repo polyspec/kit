@@ -27,6 +27,8 @@ export const NPM_MANIFEST = 'package.json';
 export const NPM_LOCK = 'package-lock.json';
 
 const LOCAL_SPEC = /^(file|link|workspace):/;
+// A lock entry that npm installed as a copy (`install-links=true`) has `resolved: file:<directory>` and no `link`.
+const COPY_PREFIX = 'file:';
 
 /** The polyspec packages taken from a GitHub tag, from `taggedNpmPackages` of the policy: { directory, repository, tag, version }. */
 const taggedPackages = policy => policy.taggedNpmPackages ?? [];
@@ -129,21 +131,23 @@ export function readState(root, policy) {
     for (const kind of ['dependencies', 'devDependencies']) {
       for (const [name, spec] of Object.entries(manifest[kind] ?? {})) {
         const entry = npmLockEntry(lock, directory, name);
-        if (LOCAL_SPEC.test(spec) || entry?.link) {
-          const target = entry?.link ? entry.resolved : null;
+        const copied = !entry?.link && entry?.resolved?.startsWith(COPY_PREFIX);
+        if (LOCAL_SPEC.test(spec) || entry?.link || copied) {
+          const target = entry?.link ? entry.resolved : copied ? entry.resolved.slice(COPY_PREFIX.length) : null;
+          const lockVersion = copied ? entry.version ?? null : target ? lock.packages?.[target]?.version ?? null : null;
           const targetManifest = target && existsSync(path.join(root, target, NPM_MANIFEST)) ? readJson(root, `${target}/${NPM_MANIFEST}`) : null;
           const release = taggedPackages(policy).find(item => spec === `file:${item.directory}` || target === item.directory);
           if (release) {
             tagged.push({
               ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, directory: target, release,
-              lockVersion: target ? lock.packages?.[target]?.version ?? null : null,
+              lockVersion,
               version: targetManifest?.version ?? null, name: targetManifest?.name ?? null,
             });
             continue;
           }
           local.push({
             ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, directory: target,
-            lockVersion: target ? lock.packages?.[target]?.version ?? null : null,
+            lockVersion,
             version: targetManifest?.version ?? null, name: targetManifest?.name ?? null,
           });
           continue;

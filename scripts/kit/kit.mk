@@ -64,6 +64,11 @@ rerun-failed: ## Rerun the targets of the last full run of this tree that did no
 documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
 	node scripts/kit/check-documents.mjs
 
+.PHONY: documents-stamp
+
+documents-stamp: ## Write the source-sha256 of each English document into its Korean twin; run it after the translation matches
+	node scripts/kit/documents-stamp.mjs
+
 .PHONY: owner-check owner-validate
 
 owner-check: ## Run the checks that own the changed paths (config/owner-checks.json); PATHS="a b" or BASE=<revision> selects the paths

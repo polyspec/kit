@@ -12,7 +12,7 @@
 | Toolchain | `install-tools.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-cargo-audit.mjs`, `install-govulncheck.mjs`, `check-toolchain.mjs`, `check-cargo-downloads.mjs` | `install-tools`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | Python | `lint-python.mjs` | `lint-python` |
 | Gate | `push-gate.mjs`, `full-run.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `checklist.mjs` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
-| 문서와 commit | `check-documents.mjs`, `check-commits.mjs`, `owner-check.mjs` | `documents-check`, `commits-check`, `owner-check`, `owner-validate` |
+| 문서와 commit | `check-documents.mjs`, `documents-stamp.mjs`, `check-commits.mjs`, `owner-check.mjs` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | 테스트와 CI | `run-tests.mjs`, `ci-targets.mjs`, `ci-passed.mjs`, `target-report.mjs` | `ci-targets`, `ci-summary`, `ci-passed` |
 | Release | `release.mjs`, `release-consumer.mjs`, `release-proof.mjs` | `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
 
