@@ -230,3 +230,34 @@ Dropped behaviors:
   observations, the layout rule of the tracker section and the recursion into child repositories.
 - The comparison of the changelog section with `VERSION` (orm): the release check reads the manifests and compares it.
 - The `trace` and `docs` scripts of orm (`scripts/docs`, `scripts/features`) are product-specific and stay in orm.
+
+## Owner check (K8.1-1)
+
+`scripts/kit/owner-check.mjs` replaces `owner-check.mjs` of template, crudui and hyper and `owner_check.py` of
+ordered-json. The declaration is `config/owner-checks.json` (`scripts/kit/schema/owner-checks.schema.json`).
+
+Merged behaviors:
+
+- Globs (`*`, `**`, `{a,b}`), the `always` tests, `$path` for a changed test file, `--paths`, `--base`, `--dry-run` and
+  `--validate` are the same in template, crudui and hyper and are kept.
+- Check kinds: crudui selects make targets, scripts of the root `package.json`, workspaces and package directories;
+  template and hyper select make targets; ordered-json selects implementations and two named checks. kit takes the crudui
+  kinds. A workspace is a `package.json` with a `test` script in a directory that `workspaces` of the root `package.json`
+  names, a package directory is one outside them (crudui assumed the directory `packages/`).
+- `variable` (template, hyper) passes the matched paths to the targets of a rule as a make variable.
+- Targets are ordered by `CHECK_TARGETS` (template, hyper); the other checks keep the order of the declaration (crudui).
+- The full-suite targets are those whose recipe starts `full-run.mjs` and those named in `fullSuite`; template's fixed names
+  `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
+- A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
+  declaration is a list of `{ check, paths }`, because the schema validator reads no object with free keys.
+- Targets of a file that the Makefile includes (`include scripts/kit/kit.mk`) are known targets (new).
+- A node test file runs through `scripts/kit/run-tests.mjs`, or through the make target `testTarget` with `TESTS=<files>`
+  (hyper).
+- Every selected check runs to its end and the failures are listed together (all implementations); no check has a time limit.
+
+Dropped behaviors:
+
+- `languages` and `checks` of ordered-json name that repository's builds; they become `targets` of the Makefile. Its `$module`
+  becomes `$path`. Python test modules are not node tests and stay outside kit.
+- `useCheckoutNpm` of crudui: the Makefile puts the npm of `var/tools` first on `PATH`; the tool starts `npm` from `PATH`.
+- The bare target name as the key of `inputs` (template, hyper): the name is `make <target>` as in crudui.

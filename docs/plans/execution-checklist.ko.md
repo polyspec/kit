@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 75e4840a4f1ff3560aa3351ad07e638a8ab440541b031ebadab07002e48fe9d3 -->
+<!-- source-sha256: 2bdcd92e6f9c9ebb990e2f32612ad66df60e940a5579a415c67bfd9f0e6bd7d6 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -12,6 +12,7 @@
 <!-- source-sha256: 7421d977bd8343d03763d537240e52adf924dfabeb554771596585b71a3d0dc3 -->
 <!-- source-sha256: ee43cf502127c187794254c4184484cbb4b91dd1285257d6d967291366ad989b -->
 <!-- source-sha256: c282bbde4557d105e15556219d40dacd311137a5f83d0e7592fc7a5b266a0355 -->
+<!-- source-sha256: 8c0499bf683b87000963368ed6f574038b7a52564fcdc70389e13d585aa335af -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -44,7 +45,11 @@
 | K6.1-6 | gate의 make target을 추가하고 합친 내용을 도구 목록에 기록한다 | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [o] |
 | K8.1 | owner-check, run-tests, target-report, ci-targets, ci-passed를 합친다 | `scripts/kit/` | `make kit-test` | [ ] |
-| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
+| K8.1-1 | template, crudui, hyper의 owner-check와 ordered-json의 owner map을 config/owner-checks.json을 읽는 도구 하나로 합친다 | `scripts/kit/owner-check.mjs` | `make kit-test` | [o] |
+| K8.1-2 | 테스트 실행기를 진행 reporter, 테스트별 timeout, 테스트가 없는 실행의 실패와 함께 합친다 | `scripts/kit/run-tests.mjs` | `make kit-test` | [ ] |
+| K8.1-3 | template, crudui, hyper, ordered-json, orm의 target report, ci-targets, ci-passed를 합친다 | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [ ] |
+| K8.1-4 | orm의 commit subject 검사를 공유 git 위생 검사로 가져온다 | `scripts/kit/check-commits.mjs` | `make kit-test` | [ ] |
+| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K8.2-1 | config/toolchain.json과 그 schema에 toolchain을 선언하고 선언한 파일에서 읽는다 | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | npm, Go, ruff, Composer를 wrapper와 symbolic link 없이 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-3 | cargo-audit와 govulncheck를 install-tools로 설치하고 make target을 추가한다 | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |

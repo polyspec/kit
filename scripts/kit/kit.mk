@@ -63,3 +63,11 @@ rerun-failed: ## Rerun the targets of the last full run of this tree that did no
 
 documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, checklists; offline
 	node scripts/kit/check-documents.mjs
+
+.PHONY: owner-check owner-validate
+
+owner-check: ## Run the checks that own the changed paths (config/owner-checks.json); PATHS="a b" or BASE=<revision> selects the paths
+	node scripts/kit/owner-check.mjs $(if $(PATHS),--paths "$(PATHS)") $(if $(BASE),--base $(BASE))
+
+owner-validate: ## Check that config/owner-checks.json owns every tracked path and names only existing checks; offline
+	node scripts/kit/owner-check.mjs --validate
