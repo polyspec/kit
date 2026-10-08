@@ -69,6 +69,18 @@ test('a package that npm installed as a copy (install-links) is a package of the
   assert.equal(failed.length, 1, failed.join('\n'));
 });
 
+test('a package required as file:<directory> is the package of that directory, and another directory fails', (t) => {
+  const root = fixture(t);
+  const require = (spec) => {
+    edit(root, 'packages/fixture-app/package.json', (manifest) => { manifest.dependencies['fixture-lib'] = spec; });
+    edit(root, 'package-lock.json', (lock) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
+    return findings(gate(root)).filter(line => line.includes('fixture-lib'));
+  };
+  assert.deepEqual(require('file:packages/fixture-lib'), []);
+  const other = require('file:packages/other');
+  assert.ok(other.some(line => line.includes('requires file:packages/other')), other.join('\n'));
+});
+
 test('the gate fails when the Composer platform of a manifest is not the policy minimum', (t) => {
   const root = fixture(t);
   edit(root, 'packages/fixture-php/composer.json', (manifest) => { manifest.config.platform.php = '8.1.0'; });
