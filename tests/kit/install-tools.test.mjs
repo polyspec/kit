@@ -262,3 +262,60 @@ test('an undeclared or malformed declaration fails before any install', (t) => {
   assert.match(result.stderr, /\[install-tools\] package\.json packageManager is "yarn@4\.0\.0", expected npm@/);
   assert.deepEqual(stubs.calls(), []);
 });
+
+const AUDIT_FILES = { 'config/toolchain.json': config({ cargoAudit: '0.22.2', govulncheck: '1.1.4' }) };
+
+test('cargo-audit and govulncheck are installed by their own installers and kept by a second run', (t) => {
+  const root = toolchainCheckout(t, AUDIT_FILES);
+  const stubs = toolchainStubs(t);
+  const first = install(root, stubs.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stdout, /cargo-audit: installed 0\.22\.2 in var\/tools\/cargo-audit/);
+  assert.match(first.stdout, /govulncheck: installed 1\.1\.4 in var\/tools\/govulncheck/);
+  assert.match(stubs.calls()[0], /^cargo install --locked --root .*var\/tools\/cargo-audit\.next-.* cargo-audit@0\.22\.2$/);
+  assert.equal(stubs.calls()[1], 'go install golang.org/x/vuln/cmd/govulncheck@v1.1.4');
+  assert.equal(run(path.join(root, 'var/tools/cargo-audit/bin/cargo-audit'), stubs.env), 'cargo-audit 0.22.2');
+  noSymlinks(path.join(root, 'var/tools'));
+  assert.equal(install(root, stubs.env).status, 0);
+  assert.equal(stubs.calls().length, 2, 'a second run builds nothing');
+
+  writeFileSync(path.join(root, 'config/toolchain.json'), config({ cargoAudit: '0.22.3', govulncheck: '1.1.5' }));
+  assert.equal(install(root, stubs.env).status, 0);
+  assert.equal(stubs.calls().length, 4);
+  assert.equal(run(path.join(root, 'var/tools/cargo-audit/bin/cargo-audit'), stubs.env), 'cargo-audit 0.22.3');
+});
+
+test('an audit tool that prints another release fails with the expected and the actual release', (t) => {
+  const root = toolchainCheckout(t, AUDIT_FILES);
+  const result = install(root, toolchainStubs(t, { extra: { STUB_CARGO_AUDIT_SHOWS: '0.21.0' } }).env);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /the installation of cargo-audit 0\.22\.2 into .* prints 0\.21\.0; expected 0\.22\.2/);
+});
+
+test('every declared tool is installed in the order npm, Go, ruff, Composer, cargo-audit, govulncheck', (t) => {
+  const phar = path.join(toolchainCheckout(t), 'phar');
+  writeFileSync(phar, 'phar');
+  const sha256 = createHash('sha256').update('phar').digest('hex');
+  const root = toolchainCheckout(t, {
+    'package.json': '{ "packageManager": "npm@12.2.0" }',
+    'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
+    'pyproject.toml': 'dev = ["ruff==0.16.10"]\n',
+    'config/toolchain.json': config({ python: '3.14', go: { mod: 'go.mod' }, ruff: { pyproject: 'pyproject.toml' }, composer: { version: '2.10.3', sha256 }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
+  });
+  const stubs = toolchainStubs(t, { downloads: { 'https://getcomposer.org/download/2.10.3/composer.phar': phar } });
+  const result = install(root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0].replace('[install-tools] ', '')), ['npm', 'Go', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
+  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'go', 'gofmt', 'npm', 'npx', 'ruff']);
+  const calls = stubs.calls().length;
+  const again = install(root, stubs.env);
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(stubs.calls().length, calls, 'a second run starts no command');
+  assert.doesNotMatch(again.stdout, /: installed /);
+});
+
+test('the make target install-tools runs the tool, online through ONLINE', () => {
+  const dry = spawnSync('make', ['-n', '-f', 'scripts/kit/kit.mk', 'install-tools', 'ONLINE=online-wrapper'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/install-tools.mjs');
+});
