@@ -1,7 +1,7 @@
 // Tests of the Cargo review: every tracked Cargo.lock is a lock of the review, its advisories come from cargo-audit and
 // are recorded at the review only, and cargo-audit is installed into var/tools once. cargo and cargo-audit are stubs.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -74,4 +74,13 @@ chmod 755 "$prefix/bin/cargo-audit"
   assert.equal(readFileSync(log, 'utf8').split('\n').filter(Boolean).length, 1);
   const replaced = installCargoAudit({ root, recorded: '0.23.0' });
   assert.deepEqual(replaced, { installed: true, release: '0.23.0' });
+});
+
+test('the vendored fixture of kit is not a lock of the repository that holds it', (t) => {
+  const root = fixture(t);
+  // A repository that vendors kit holds the fixture under tests/kit/fixture, with a Cargo.lock of its own.
+  cpSync(path.join(root, 'packages/fixture-rust'), path.join(root, 'tests/kit/fixture/packages/fixture-rust'), { recursive: true });
+  const result = gate(root);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /5 registry dependencies and 3 locks match the review of /);
 });
