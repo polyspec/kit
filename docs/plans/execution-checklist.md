@@ -43,6 +43,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K8.2-4 | Check the running Node.js, npm, Go, Rust, PHP, Python, Composer, ruff and audit tools against the declarations | `scripts/kit/check-toolchain.mjs` | `make kit-test` | [o] |
 | K8.2-5 | Record the merged and dropped toolchain behaviors in the tool inventory | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K8.3 | Check that the crates of every Cargo.lock are downloaded before a check runs cargo offline, and download them with --fetch | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
+| K8.4 | Lint and format-check the Python package that config/toolchain.json names with the ruff of var/tools | `scripts/kit/lint-python.mjs` | `make kit-test` | [o] |
 | K9 | Write the schemas of release, toolchain, checklist, owner-checks and the dependency files | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
 | K11 | Move every function and constant that several modules of scripts/kit repeat into one shared module, and fail a second copy in a test | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
