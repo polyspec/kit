@@ -86,6 +86,51 @@
     "goModules": {
       "description": "Each Go module by its directory (`.` for the repository root) with its module path.",
       "type": "object"
+    },
+    "consumers": {
+      "description": "The consumer projects that install the archives of a tag outside the repository (release-consumer.mjs); one per package kind that has packages.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "npm": {
+          "type": "object",
+          "required": [
+            "directory",
+            "smoke"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "directory": {
+              "description": "The directory of the committed manifest and lock of the consumer project.",
+              "type": "string",
+              "pattern": "^[^/\\\\][^\\\\]*[^/\\\\]$"
+            },
+            "smoke": {
+              "description": "Each package that the consumer installs, with the command (an array of strings) that checks it in the installed project.",
+              "type": "object"
+            }
+          }
+        },
+        "composer": {
+          "type": "object",
+          "required": [
+            "directory",
+            "smoke"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "directory": {
+              "description": "The directory of the committed manifest and lock of the consumer project.",
+              "type": "string",
+              "pattern": "^[^/\\\\][^\\\\]*[^/\\\\]$"
+            },
+            "smoke": {
+              "description": "Each package that the consumer installs, with the command (an array of strings) that checks it in the installed project.",
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   }
 }

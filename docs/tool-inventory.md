@@ -422,7 +422,7 @@ Dropped behaviors:
 - crudui and orm ran `make build`, `make typescript-build` or `scripts/package-dist.mjs` inside the release tool: dropped. The
   build of a package is a prerequisite that the repository adds to its own `release-assets` recipe, so the tool names no build.
 - crudui `RELEASE_COMMIT` (assets before the tag exists) and the install of the archives as a consumer (template
-  `release-consumer`, crudui `release-install`, hyper and orm `release-install`) are not merged here; a later row covers them.
+  `release-consumer`, crudui `release-install`, hyper and orm `release-install`) is merged in "Consumer install of the release archives (K5.4)".
 - orm output under `.runtime/release` and `assets.txt`: the output is `var/release/assets` in every repository.
 - Not release steps and not merged: template `check-clean-release.mjs` (a full matrix in a clean worktree) and hyper
   `publish.mjs` (installed copies for development).
@@ -546,3 +546,85 @@ The Python lint was a target of one repository that ran `ruff check` and `ruff f
 `config/toolchain.json` names, ruff is the one of `var/tools/bin`, and the rules are the `[tool.ruff]` tables of that
 `pyproject.toml`, so the result does not depend on the ruff configuration of a machine. Both steps run after a failure of the
 first. An undeclared ruff and a missing ruff fail with their fix.
+## Consumer install of the release archives (K5.4)
+
+`scripts/kit/release-consumer.mjs install TAG` installs all archives of a tag together in clean consumer projects outside the
+repository and runs a smoke command for each package; `lock TAG` writes the manifests and locks of those projects. Files:
+`scripts/kit/release-consumer.mjs`, `scripts/kit/release-consumer-config.mjs` (the rules of the configuration, called by
+`release.mjs` `loadConfig`), the section `consumers` of `schema/release.schema.json`, and the make targets `release-consumer` and
+`release-consumer-lock`. The base is template for the install and the lock, with the archive rule of crudui, the manifest rule of
+crudui and ordered-json and the smoke checks of all five.
+
+### `consumers` of `config/release.json`
+
+```json
+"consumers": {
+  "npm": {
+    "directory": "tests/release-consumer/npm",
+    "smoke": { "@scope/lib": ["node", "-e", "require('@scope/lib/package.json')"] }
+  },
+  "composer": {
+    "directory": "tests/release-consumer/composer",
+    "smoke": { "vendor/lib": ["php", "-r", "require 'vendor/autoload.php';"] }
+  }
+}
+```
+
+`directory` holds the committed manifest (`package.json`, `composer.json`) and lock (`package-lock.json`, `composer.lock`) of the
+project. `smoke` maps each package that the project installs to its command, an array of strings that runs without a shell in
+the installed project. Every package of `packages` of a kind needs the project of that kind when `consumers` exists; a smoke key
+is a package of that kind. A package that is not a key is copied into the project and not installed (for example a Composer
+package of the type `php-ext`, which Composer does not install). The manifest files are in `notReleased` of the repository.
+
+### Procedure
+
+1. `make release-assets TAG=vX.Y.Z` builds the archives. `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) copies each project
+   into a temporary directory outside the repository with all archives of its kind, sets each installed package in the manifest
+   (`"file:<archive>"` for npm, the version for Composer), runs `npm install --package-lock-only` or `composer update
+   --no-install`, removes the hashes of the archives from the lock and writes the manifest and the lock back atomically. The
+   archives are built in the run that installs them, so an npm entry has no `integrity` and a Composer entry an empty `shasum`;
+   a registry package keeps both. A second run writes the same bytes. Run it on the release commit before the tag is pushed
+   (a local tag is enough for `release-assets`).
+2. `make release-consumer TAG=vX.Y.Z` requires `var/release/assets` to hold exactly the archives of the version, requires the
+   manifest and the lock to name them (`dependencies.<name>` is `file:<archive>`, the lock entry has the version and the same
+   `resolved`; `require.<name>` is the version, the lock entry has the version and the url `artifacts/<archive>`, and the
+   manifest has the `artifact` repository `artifacts`), copies the project into a new temporary directory outside the
+   repository, runs `npm ci` or `composer install`, requires every installed package at the version of the tag and runs its
+   smoke command in the project. A difference names the expected and the actual value and the command that fixes it.
+3. The environment has empty `npm_config_cache`, `COMPOSER_HOME` and `COMPOSER_CACHE_DIR` in the temporary directory, no
+   `npm_config_offline`, `COMPOSER_DISABLE_NETWORK`, `COMPOSER` or `COMPOSER_VENDOR_DIR`, and each npm scope of this repository
+   points at the unreachable registry `http://127.0.0.1:9/`. A package that a lock pins from a registry is downloaded with its
+   version and integrity: that is installation, not a registry query, so the install is no offline check. Only `lock` resolves
+   ranges. A Go module tag has no archive and nothing to install.
+
+### Merged behaviors
+
+| Behavior | Source | Merged form |
+|---|---|---|
+| Install in a temporary directory outside the repository with empty npm and Composer caches | template, crudui, hyper, ordered-json, orm | kept; the directory must be outside the checkout, checked by real path |
+| npm project: `file:<archive>` dependencies, committed lock, `npm ci` with the scope of the repository at an unreachable registry | all | kept; the scopes are read from the names of `packages` |
+| Composer project: `artifact` repository, Packagist disabled, committed lock, `composer install` | all | kept; the directory of the zips is `artifacts` (template) |
+| An archive of the repository is locked by name and version only: no `integrity`, an empty `shasum` | all | kept; found by the archive name in `resolved` and in the url |
+| The offline settings of the recipes are removed for the install | crudui, hyper, ordered-json, orm (environment); template (`--offline=false`) | the environment variables are removed |
+| `--ignore-scripts --no-audit --no-fund` and `--no-plugins --no-scripts` | template, crudui, orm | kept; `--fetch-retries=0` (crudui, hyper) too, so an unreachable registry fails at once |
+| The installed version of every package equals the version of the tag | crudui, template | kept for every smoke key, npm from `node_modules` and Composer from `installed.json` |
+| `lock` writes the manifests for the version of the tree | crudui, ordered-json | kept; the committed manifest keeps its other fields |
+| A smoke command per package: a module load, a class load, a build | template, orm, ordered-json, hyper | the command comes from the configuration |
+| A manifest or lock that names other archives fails and names the lock command | template, hyper, ordered-json | kept, with the expected and the actual value of each difference |
+| A Go module tag installs nothing | crudui | kept |
+
+### Dropped behaviors
+
+| Behavior | Source | Reason |
+|---|---|---|
+| Building the archives inside the install (`packTree`, `buildAssets`, `git stash create` of the working tree) | template, crudui, hyper, ordered-json, orm | `release.mjs assets` builds the archives of a tag; the install reads `var/release/assets`, so a check never installs an archive that no release builds |
+| Downloading the release archives of other repositories into the project | orm, hyper | kit names no repository; a dependency of another repository is pinned in the lock by URL, integrity or shasum, and the install downloads it as any registry package |
+| `--allow-remote` settings of npm for a URL dependency | hyper | a workaround of one npm release (npm/cli#9818); no repository setting is merged, so a lock with a remote tarball needs an npm that accepts it |
+| `--workspaces=false` | crudui | the project is outside every workspace |
+| The sample application that the project builds, and `composer show --available` of a `php-ext` package | hyper, template | a smoke command runs in the installed project and reads no file of the repository; a check of such a package belongs to the package |
+| The Python test class `InstallFromAssets` and `install_fixtures.py` | ordered-json | replaced by the Node tool |
+
+### Limitations
+
+- `smoke` does not have to list every package: a package without a key is copied and not installed or checked.
+- The locks hold the dependencies that the archives declared when `lock` ran; a changed dependency needs `lock` again.

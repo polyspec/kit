@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 2144f9aa11a97a9341c5f3767aff941301dd8b2a6cd1c952ef72f6410ba49f00 -->
+<!-- source-sha256: b2edbfca485a56e8df04075df8999ad8517b529b3059660b2a67b84bb62cd722 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -404,8 +404,8 @@ go.mod의 module path에 연결합니다.
   orm은 run을 `started_at`으로 정렬했습니다. 생성 순서대로 커지는 id로 대체하여 버렸습니다.
 - crudui와 orm은 release 도구 안에서 `make build`, `make typescript-build`, `scripts/package-dist.mjs`를 실행했습니다. 버렸습니다. package의 build는
   저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
-- crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)과 archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui `release-install`,
-  hyper와 orm `release-install`)은 여기서 합치지 않으며, 이후 row에서 다룹니다.
+- crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)은 합치지 않습니다. archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui
+  `release-install`, hyper와 orm `release-install`)은 "Release archive의 consumer 설치 (K5.4)"에서 합쳤습니다.
 - orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 모든 저장소에서 `var/release/assets`입니다.
 - release 단계가 아니어서 합치지 않음: template `check-clean-release.mjs`(clean worktree에서 전체 matrix)와 hyper `publish.mjs`(개발용 설치본).
 - ordered-json `release.py`는 Node 도구로 대체합니다.
@@ -516,3 +516,79 @@ Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff f
 `scripts/kit/lint-python.mjs`와 `make lint-python`으로 가져옵니다. package는 `config/toolchain.json`이 가리키는 `ruff.pyproject`의
 디렉터리이고, ruff는 `var/tools/bin`의 것이며, 규칙은 그 `pyproject.toml`의 `[tool.ruff]` table이므로 결과가 머신의 ruff 설정에 의존하지
 않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지 않았으면 고치는 방법과 함께 실패합니다.
+## Release archive의 consumer 설치 (K5.4)
+
+`scripts/kit/release-consumer.mjs install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다
+smoke command를 실행합니다. `lock TAG`는 그 project의 manifest와 lock을 씁니다. 파일은 `scripts/kit/release-consumer.mjs`,
+`scripts/kit/release-consumer-config.mjs`(설정 규칙이며 `release.mjs`의 `loadConfig`가 호출), `schema/release.schema.json`의 section `consumers`,
+make target `release-consumer`와 `release-consumer-lock`입니다. 설치와 lock은 template을 base로 하고, archive 규칙은 crudui, manifest 규칙은
+crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔습니다.
+
+### `config/release.json`의 `consumers`
+
+```json
+"consumers": {
+  "npm": {
+    "directory": "tests/release-consumer/npm",
+    "smoke": { "@scope/lib": ["node", "-e", "require('@scope/lib/package.json')"] }
+  },
+  "composer": {
+    "directory": "tests/release-consumer/composer",
+    "smoke": { "vendor/lib": ["php", "-r", "require 'vendor/autoload.php';"] }
+  }
+}
+```
+
+`directory`는 project의 commit된 manifest(`package.json`, `composer.json`)와 lock(`package-lock.json`, `composer.lock`)을 담습니다. `smoke`는 project가
+설치하는 package마다 설치된 project에서 shell 없이 실행하는 command(문자열 배열)를 대응시킵니다. `consumers`가 있으면 `packages`에 해당 종류의 package가
+있는 모든 종류에 project가 필요하고, smoke key는 그 종류의 package여야 합니다. key가 아닌 package는 project에 복사만 하고 설치하지 않습니다
+(예: Composer가 설치하지 않는 type `php-ext`의 Composer package). manifest 파일은 저장소의 `notReleased`에 둡니다.
+
+### 절차
+
+1. `make release-assets TAG=vX.Y.Z`가 archive를 만듭니다. `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)는 각 project를 저장소 밖의 임시 directory에 그 종류의
+   모든 archive와 함께 복사하고, 설치할 package를 manifest에 적고(npm은 `"file:<archive>"`, Composer는 version), `npm install --package-lock-only` 또는
+   `composer update --no-install`을 실행한 뒤 lock에서 archive의 hash를 지우고 manifest와 lock을 atomic하게 다시 씁니다. archive는 그것을 설치하는 실행에서
+   만들므로 npm entry에는 `integrity`가, Composer entry에는 `shasum`이 비어 있고, registry package는 둘 다 유지합니다. 두 번째 실행은 같은 byte를 씁니다.
+   tag를 push하기 전의 release commit에서 실행합니다(`release-assets`에는 local tag면 충분합니다).
+2. `make release-consumer TAG=vX.Y.Z`는 `var/release/assets`가 그 version의 archive만 정확히 담을 것, manifest와 lock이 그 archive를 이름으로 가리킬 것
+   (`dependencies.<name>`이 `file:<archive>`이고 lock entry의 version과 `resolved`가 같음; `require.<name>`이 version이고 lock entry의 version과 url이
+   `artifacts/<archive>`이며 manifest에 `artifact` repository `artifacts`가 있음)을 요구합니다. 그런 다음 project를 저장소 밖의 새 임시 directory에 복사하고
+   `npm ci` 또는 `composer install`을 실행하며, 설치된 모든 package가 tag의 version일 것을 요구하고 project에서 smoke command를 실행합니다. 차이는
+   기대값과 실제 값, 그리고 고치는 command를 적습니다.
+3. 환경에는 임시 directory 안의 빈 `npm_config_cache`, `COMPOSER_HOME`, `COMPOSER_CACHE_DIR`가 있고 `npm_config_offline`, `COMPOSER_DISABLE_NETWORK`,
+   `COMPOSER`, `COMPOSER_VENDOR_DIR`는 없으며, 이 저장소의 각 npm scope는 닿지 않는 registry `http://127.0.0.1:9/`를 가리킵니다. lock이 registry에서 고정한
+   package는 version과 integrity로 download합니다. 이것은 registry 조회가 아니라 설치이므로 이 설치는 offline check가 아닙니다. 범위를 해석하는 것은 `lock`뿐입니다.
+   Go module tag는 archive가 없어 설치할 것이 없습니다.
+
+### 합친 동작
+
+| 동작 | 출처 | 합친 형태 |
+|---|---|---|
+| 비어 있는 npm과 Composer cache로 저장소 밖의 임시 directory에 설치 | template, crudui, hyper, ordered-json, orm | 유지; directory가 checkout 밖임을 real path로 확인 |
+| npm project: `file:<archive>` dependency, commit된 lock, 이 저장소의 scope를 닿지 않는 registry로 두고 `npm ci` | 전부 | 유지; scope는 `packages`의 이름에서 읽음 |
+| Composer project: `artifact` repository, Packagist 끔, commit된 lock, `composer install` | 전부 | 유지; zip directory는 `artifacts`(template) |
+| 이 저장소의 archive는 이름과 version만으로 lock: `integrity` 없음, `shasum` 빈 값 | 전부 | 유지; `resolved`와 url의 archive 이름으로 찾음 |
+| 설치할 때 recipe의 offline 설정 제거 | crudui, hyper, ordered-json, orm(환경); template(`--offline=false`) | 환경 변수를 제거 |
+| `--ignore-scripts --no-audit --no-fund`와 `--no-plugins --no-scripts` | template, crudui, orm | 유지; `--fetch-retries=0`(crudui, hyper)도 넣어 닿지 않는 registry에서 바로 실패 |
+| 설치된 모든 package의 version이 tag의 version | crudui, template | 모든 smoke key에 대해 유지; npm은 `node_modules`, Composer는 `installed.json`에서 읽음 |
+| `lock`이 tree의 version에 맞는 manifest를 씀 | crudui, ordered-json | 유지; commit된 manifest의 다른 field는 그대로 둠 |
+| package마다 smoke command: module load, class load, build | template, orm, ordered-json, hyper | command는 설정에서 옴 |
+| 다른 archive를 가리키는 manifest나 lock은 lock command를 적고 실패 | template, hyper, ordered-json | 유지; 차이마다 기대값과 실제 값을 적음 |
+| Go module tag는 아무것도 설치하지 않음 | crudui | 유지 |
+
+### 버린 동작
+
+| 동작 | 출처 | 이유 |
+|---|---|---|
+| 설치 안에서 archive를 만듦(`packTree`, `buildAssets`, working tree의 `git stash create`) | template, crudui, hyper, ordered-json, orm | `release.mjs assets`가 tag의 archive를 만들고, 설치는 `var/release/assets`를 읽으므로 어떤 release도 만들지 않는 archive를 check가 설치하는 일이 없음 |
+| 다른 저장소의 release archive를 project로 download | orm, hyper | kit은 저장소 이름을 모름; 다른 저장소의 dependency는 lock에 URL, integrity, shasum으로 고정되고 설치는 이를 registry package처럼 download함 |
+| URL dependency를 위한 npm `--allow-remote` 설정 | hyper | npm 한 release의 우회(npm/cli#9818); 저장소 설정을 합치지 않으므로 remote tarball이 있는 lock은 이를 받아들이는 npm이 필요 |
+| `--workspaces=false` | crudui | project는 어떤 workspace 밖에 있음 |
+| project가 build하는 sample application과 `php-ext` package의 `composer show --available` | hyper, template | smoke command는 설치된 project에서 실행되며 저장소의 파일을 읽지 않음; 그런 package의 검사는 package 자신에 속함 |
+| Python test class `InstallFromAssets`와 `install_fixtures.py` | ordered-json | Node 도구로 대체 |
+
+### 한계
+
+- `smoke`가 모든 package를 나열할 필요는 없습니다: key가 없는 package는 복사만 하고 설치하거나 검사하지 않습니다.
+- lock은 `lock`을 실행한 때 archive가 선언한 dependency를 담으므로, dependency가 바뀌면 `lock`을 다시 실행해야 합니다.
