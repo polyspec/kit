@@ -71,3 +71,16 @@ owner-check: ## Run the checks that own the changed paths (config/owner-checks.j
 
 owner-validate: ## Check that config/owner-checks.json owns every tracked path and names only existing checks; offline
 	node scripts/kit/owner-check.mjs --validate
+
+.PHONY: ci-targets ci-summary ci-passed
+
+CI_REPORT ?= var/report/ci-targets
+
+ci-targets: ## Run the make targets of TARGETS past failures and write the report to CI_REPORT (logs, record.json, summary.md)
+	node scripts/kit/ci-targets.mjs $(CI_REPORT) $(TARGETS)
+
+ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
+	node scripts/kit/ci-targets.mjs --summary $(CI_REPORT)
+
+ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
+	node scripts/kit/ci-passed.mjs

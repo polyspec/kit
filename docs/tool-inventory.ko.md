@@ -1,9 +1,10 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a731a2bde12ba971c5310da9ba18d4b602d60946e8dd10eaf19c8126c82b7efb -->
+<!-- source-sha256: 819c6935199994a5766132b5634f3c7088b0dffccb8fb0a7a64f3bb57da54459 -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
 <!-- source-sha256: 7ae77d943c7590647b6aed5f3fa90c950a125bf185476539a8e4ec3978e7875e -->
+<!-- source-sha256: c02d688f5f5686fea282376f9c180c78a0a2fa47c5b4cf8f94362d8c95166b5a -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -289,3 +290,37 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 - crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
   vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
   앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.
+
+## CI report 도구 (K8.1-3)
+
+`scripts/kit/ci-targets.mjs`, `target-report.mjs`, `ci-passed.mjs`는 template, crudui의 `ci-targets.mjs`, `target-report.mjs`,
+`ci-passed.mjs`, hyper의 `ci-run.mjs`, ordered-json의 `ci_run.py`, orm의 `scripts/check/ci-passed.mjs`,
+`scripts/check/report.mjs`, `summary.mjs`를 대체합니다.
+
+합친 동작:
+
+- 모든 target은 `make -k <target>`으로 실패 이후에도 끝까지 실행하고, 출력은 화면에 쓰면서 `<report>/targets/<target>.log`에
+  기록합니다(template, crudui, hyper, ordered-json). 실행은 `<report>.lock`을 잡습니다(template, crudui). 이전 실행의 report는
+  먼저 지웁니다. target에는 시간 제한이 없습니다.
+- hyper: `make --no-print-directory`, 호출한 make의 변수(`MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`, `MAKEOVERRIDES`)를 넘기지 않음,
+  표준 출력과 표준 오류가 한 줄로 섞이지 않는 완전한 줄, target 전후에 쓰는 `record.json`(중단된 실행은 실행 중이던 target을
+  남김), 던지지 않고 `reportErrors`에 기록하는 report 쓰기(orm도 같은 규칙), 아무것도 기록하지 못했거나 끝나지 않은 실행에서도
+  page를 만드는 `CI_STEPS`를 쓰는 `--summary` 단계(hyper와 ordered-json의 `summary`).
+- 실패 줄: `✖`로 표시된 줄과 들여 쓴 상세(hyper), 없으면 통과, 시작, make 줄을 제외한 실패를 말하는 줄(hyper, template)과 검사기의
+  `file:line: message` 줄 및 ordered-json의 낱말, 없으면 마지막 줄들; 그 뒤에 make가 끝난 방식. 통과한 target의 `WARNING ...`
+  줄은 기록하고 보여 줍니다(hyper, orm).
+- toolchain version과 runner image는 `record.json`과 summary에 들어갑니다(template의 `toolchains.json`, hyper의 `environment`).
+- 1 MiB를 넘는 log는 처음 부분과 마지막 256 KiB를 남깁니다(orm).
+- `ci-passed`: 입력은 `needs`의 JSON인 `RESULTS`(template, hyper, ordered-json; orm은 `CI_NEEDS`)이고, job마다 결과를 출력하며,
+  `success`가 아닌 결과는 status 1로 실패하고, 설정되지 않았거나 쓸 수 없는 입력은 status 2로 실패합니다(crudui, orm). GitHub
+  Actions에서는 `::error` annotation을 씁니다(crudui, orm).
+
+버린 동작:
+
+- `toolchains.json`과 `summary.json`(`record.json`이 담는 내용의 별도 파일), group directory `var/ci/<group>`와 hyper의
+  `ci-check`, `ci-pins` target(report directory는 인자이고 PHP pin은 저장소 전용), GitHub Actions 밖에서의 거부(hyper: target
+  실행은 어디서나 허용하며 전체 suite 가드는 full run의 몫), `var/records` 복사(ordered-json), 환경, disk, server log 파일,
+  case runner protocol(`RUN`, `STEP`, `PASS`, `FAIL`)과 full-run report의 run id(orm)는 한 저장소의 검사에 의존하므로 그 저장소에
+  남습니다.
+- lock은 holder의 process id를 담은 작은 파일이고 `ci-targets.mjs` 안에 있습니다. full run의 공유 holder lock은 별도 도구입니다
+  (K6.1).
