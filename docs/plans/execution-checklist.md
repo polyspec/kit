@@ -24,7 +24,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K5.3 | Require the Go module tag go/vX.Y.Z of each declared Go module in release verification | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K6.1-1 | Read the trackers (table, list, translation) and the hooks from config/checklist.json | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
-| K6.1-2 | Merge the holder locks: start time against reused process IDs, safe removal of a lock whose holder ended | `scripts/kit/holder-lock.mjs` | `make kit-test` | [ ] |
+| K6.1-2 | Merge the holder locks: start time against reused process IDs, safe removal of a lock whose holder ended | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Install the Git hooks idempotently and check them | `scripts/kit/git-hooks.mjs` | `make kit-test` | [ ] |
 | K6.1-4 | Merge the push gates: the pre-push hook and the commit check refuse an item in the active state | `scripts/kit/push-gate.mjs` | `make kit-test` | [ ] |
 | K6.1-5 | Merge the guards of the full run with the record of the tree, the lock and the rerun of failed targets | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [ ] |

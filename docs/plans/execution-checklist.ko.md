@@ -1,11 +1,12 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: df569557f17db77cdcfd688ee2561a7525fe5cc57611060b7a5b064473262052 -->
+<!-- source-sha256: 54787b18b20be9f701162608851ff8bbfb30a718dbd7047e75eae984753e3d78 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
 <!-- source-sha256: 30146bf2a5958bd2448f605a3c672389dc271312c840f7680f940ec4f7ddeaf8 -->
 <!-- source-sha256: 2d7978ff8b6a9c6f09749c39ecb1f58c4c9c775f4a2f0380436c9c735daf7023 -->
 <!-- source-sha256: 77b703c92ebb2348c66d8cc615bff737bc5827f8fddbd770eb9169299d1a3b92 -->
+<!-- source-sha256: ef8a2705a5651ab67a2218022c70b953b8af092105adc76bfac21652aafe766c -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -31,7 +32,7 @@
 | K5.3 | release 검증에서 선언된 각 Go 모듈의 tag go/vX.Y.Z를 요구한다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K6.1-1 | Table, list, 번역 체크리스트와 hook을 config/checklist.json에서 읽는다 | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
-| K6.1-2 | holder-lock을 합친다: 재사용된 process ID에 대비한 시작 시각, 홀더가 끝난 lock의 안전한 제거 | `scripts/kit/holder-lock.mjs` | `make kit-test` | [ ] |
+| K6.1-2 | holder-lock을 합친다: 재사용된 process ID에 대비한 시작 시각, 홀더가 끝난 lock의 안전한 제거 | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Git hook을 멱등하게 설치하고 검사한다 | `scripts/kit/git-hooks.mjs` | `make kit-test` | [ ] |
 | K6.1-4 | push-gate를 합친다: pre-push hook과 commit 검사가 active 상태의 항목을 거부한다 | `scripts/kit/push-gate.mjs` | `make kit-test` | [ ] |
 | K6.1-5 | full-run guard를 합친다: tree 기록, lock, 실패한 target의 재실행 | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [ ] |
