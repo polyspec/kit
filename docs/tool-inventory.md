@@ -423,3 +423,18 @@ Dropped behaviors:
 - Not release steps and not merged: template `check-clean-release.mjs` (a full matrix in a clean worktree) and hyper
   `publish.mjs` (installed copies for development).
 - ordered-json `release.py` is replaced by the Node tool.
+
+### Archive names (K5.2)
+
+- Name: `<package>-<language>-<version>.<ext>`; `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`; the
+  language is `npm` for an npm package and `php` for a Composer package. `@polyspec/x` is `polyspec-x-npm-0.0.5.tgz`,
+  `polyspec/x` is `polyspec-x-php-0.0.5.zip` and `polyspec/x-extension` is `polyspec-x-extension-php-0.0.5.zip`. The five tools
+  named archives `<package>-<version>.<ext>` (ordered-json already had the language); the language is kept because an npm
+  package and a Composer package may share a name.
+- `npm pack` names its output itself. The single new file in the destination is renamed to the archive name (ordered-json,
+  template); zero or several new files fail with their names. crudui and orm took the name from the pack report or the
+  package name; the rule for the single new file covers both and needs no npm output format.
+- Zip: `git archive --format=zip -0` of the package directory at the tagged commit with `--mtime` set to the commit time and
+  `TZ=UTC` (ordered-json used a fixed constant time, template the commit time, crudui, hyper and orm neither). `git archive`
+  of a tree otherwise writes the current time, and a zip stores local time. A second run of the same tag writes the same
+  bytes at any time and in any time zone.

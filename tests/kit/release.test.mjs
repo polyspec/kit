@@ -235,7 +235,7 @@ test('assets builds one archive per package of the configuration', (t) => {
   const tag = box.tag('v0.0.1');
   const lines = [];
   const names = release.assets(context(box, { log: line => lines.push(line) }), tag);
-  assert.deepEqual(names, ['fixture-lib-0.0.1.tgz', 'fixture-app-0.0.1.tgz', 'polyspec-kit-fixture-0.0.1.zip']);
+  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip']);
   const target = path.join(box.root, 'var/release/assets');
   assert.deepEqual(readdirSync(target).sort(), [...names].sort());
   assert.equal(lines.filter(line => line.includes('packing')).length, 3, lines.join('\n'));
@@ -257,7 +257,7 @@ test('a packed manifest that differs from the manifest of the commit fails asset
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   box.env.STUB_NPM_MODE = 'rewrite';
-  stop(() => release.assets(context(box), tag), /v0\.0\.1: the release assets do not install outside the repository: fixture-lib-0\.0\.1\.tgz: the packed package\.json differs from packages\/fixture-lib\/package\.json of the commit [0-9a-f]{40}; fixture-app-0\.0\.1\.tgz: the packed package\.json differs/);
+  stop(() => release.assets(context(box), tag), /v0\.0\.1: the release assets do not install outside the repository: fixture-lib-npm-0\.0\.1\.tgz: the packed package\.json differs from packages\/fixture-lib\/package\.json of the commit [0-9a-f]{40}; fixture-app-npm-0\.0\.1\.tgz: the packed package\.json differs/);
   assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false, 'a failed run leaves no archive');
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), [], 'and no temporary directory');
 });
@@ -284,7 +284,7 @@ test('assets compares the archives with the commit of the tag, not with the work
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   edit(box.root, 'packages/fixture-lib/package.json', m => ({ ...m, dependencies: { x: '^1.0.0' } }));
-  stop(() => release.assets(context(box), tag), /fixture-lib-0\.0\.1\.tgz: the packed package\.json differs from packages\/fixture-lib\/package\.json of the commit/);
+  stop(() => release.assets(context(box), tag), /fixture-lib-npm-0\.0\.1\.tgz: the packed package\.json differs from packages\/fixture-lib\/package\.json of the commit/);
 });
 
 test('npm pack that writes none or several archives fails and names them', (t) => {
@@ -326,7 +326,7 @@ test('publish with a missing archive fails before any request', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   box.checkRuns([]);
-  stop(() => release.publish(context(box), tag), /var\/release\/assets lacks \[fixture-lib-0\.0\.1\.tgz, fixture-app-0\.0\.1\.tgz, polyspec-kit-fixture-0\.0\.1\.zip\]; make release-assets builds them/);
+  stop(() => release.publish(context(box), tag), /var\/release\/assets lacks \[fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip\]; make release-assets builds them/);
   assert.deepEqual(box.state().calls, []);
 });
 
@@ -397,11 +397,11 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   assert.match(result.stdout, /\[release\] v0\.0\.1: every manifest of the tag declares 0\.0\.1 and CHANGELOG\.md has ## 0\.0\.1/);
   result = cli(box, ['assets', tag]);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-0\.0\.1\.tgz, fixture-app-0\.0\.1\.tgz, polyspec-kit-fixture-0\.0\.1\.zip in var\/release\/assets/);
+  assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip in var\/release\/assets/);
   box.checkRuns([]);
   result = cli(box, ['publish', tag]);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /created the GitHub Release with fixture-lib-0\.0\.1\.tgz/);
+  assert.match(result.stdout, /created the GitHub Release with fixture-lib-npm-0\.0\.1\.tgz/);
   result = cli(box, ['coverage']);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /every package file is classified in config\/release\.json/);
@@ -441,4 +441,61 @@ test('make runs each release step with the tag of the environment and fails with
   assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('an archive is named <package>-<language>-<version>.<ext>', () => {
+  assert.equal(release.assetName('@polyspec/x', 'npm', '0.0.5', 'tgz'), 'polyspec-x-npm-0.0.5.tgz');
+  assert.equal(release.assetName('polyspec/x', 'php', '0.0.5', 'zip'), 'polyspec-x-php-0.0.5.zip');
+  assert.equal(release.assetName('polyspec/x-extension', 'php', '0.0.5', 'zip'), 'polyspec-x-extension-php-0.0.5.zip');
+  assert.equal(release.assetName('plain', 'npm', '1.0.0', 'tgz'), 'plain-npm-1.0.0.tgz');
+});
+
+test('the archive names of a repository with scoped packages differ by language and cannot collide', (t) => {
+  const box = releaseSandbox(t, { mutate: (root) => {
+    edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
+    edit(root, 'packages/fixture-php/composer.json', m => ({ ...m, name: 'polyspec/fixture-app' }));
+    edit(root, 'config/release.json', c => ({ ...c, packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)) }));
+  } });
+  const { config } = context(box);
+  assert.deepEqual(release.assetNames(config, '0.0.1'), ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-fixture-app-php-0.0.1.zip']);
+});
+
+test('the output of npm pack is renamed to the archive name', (t) => {
+  const box = releaseSandbox(t, { mutate: (root) => {
+    edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
+    edit(root, 'config/release.json', c => ({ ...c, packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)) }));
+  } });
+  const ctx = context(box);
+  const names = release.assets(ctx, box.tag('v0.0.1'));
+  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip']);
+  assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [...names].sort(), 'no file keeps the name that npm pack gave');
+  assert.equal(JSON.parse(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', names[1]))).name, '@polyspec/fixture-app');
+});
+
+const sha256 = file => spawnSync('shasum', ['-a', '256', file], { encoding: 'utf8' }).stdout.split(' ')[0];
+
+test('a second assets run of the same tag writes the same bytes at another time zone', (t) => {
+  const box = releaseSandbox(t);
+  const tag = box.tag('v0.0.1');
+  const zip = path.join(box.root, 'var/release/assets/polyspec-kit-fixture-php-0.0.1.zip');
+  const at = zone => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, TZ: zone } });
+  release.assets(at('Pacific/Auckland'), tag);
+  const first = sha256(zip);
+  release.assets(at('America/Los_Angeles'), tag);
+  assert.equal(sha256(zip), first, 'the bytes do not depend on the time zone');
+  const listing = spawnSync('unzip', ['-Z', '-T', zip], { encoding: 'utf8', env: { ...process.env, TZ: 'UTC' } }).stdout.split('\n').filter(line => /^[-d]r/.test(line));
+  assert.equal(listing.length, 4, listing.join('\n'));
+  for (const line of listing) {
+    assert.match(line, / stor /, `the entry is stored: ${line}`);
+    assert.match(line, /20010203\.040506/, `the entry has the time of the commit: ${line}`);
+  }
+});
+
+test('the zip of a tree with other content has other bytes', (t) => {
+  const zipOf = (content) => {
+    const box = releaseSandbox(t, { mutate: root => writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), content) });
+    release.assets(context(box), box.tag('v0.0.1'));
+    return sha256(path.join(box.root, 'var/release/assets/polyspec-kit-fixture-php-0.0.1.zip'));
+  };
+  assert.notEqual(zipOf('<?php\n'), zipOf('<?php\n// changed\n'));
 });

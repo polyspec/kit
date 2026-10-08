@@ -16,8 +16,11 @@
 // the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
 // of each configured check must be completed with the conclusion success. `versions` compares X.Y.Z with the version of
 // every manifest of `manifests` and requires the section `## X.Y.Z` in the change logs; for a Go module it requires the module
-// path of the go.mod. `assets` builds one archive per package: `npm pack` of an npm package and a `git archive` zip of the
-// directory of a Composer package at the tagged commit. Each archive carries the manifest of its package unchanged, and
+// path of the go.mod. `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
+// written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
+// `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
+// package at the tagged commit, with stored entries, the time of the commit and TZ=UTC, so a second run of the same tag
+// writes the same bytes. Each archive carries the manifest of its package unchanged, and
 // the manifest names every package of its scope by an exact version (see manifestProblems). `publish` runs `gh release
 // create TAG --verify-tag --title TAG --notes-file <notes>` with the archives; the notes are the section X.Y.Z, or one
 // line that links the section when it is longer than NOTES_LIMIT characters, the limit of a release body.
@@ -43,7 +46,8 @@ const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^(?:(?<directory>[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\/)?v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF = { npm: 'package.json', composer: 'composer.json' };
-const EXTENSION = { npm: 'tgz', composer: 'zip' };
+// The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
+const ARCHIVE_FORMAT = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'];
 
@@ -232,14 +236,18 @@ export function versions(ctx, tag) {
   return version;
 }
 
-/** <package name>-<version>.<ext>: `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`. */
-export function assetName(name, version, extension) {
-  return `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}.${extension}`;
+/**
+ * <package>-<language>-<version>.<ext>: `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`, the language
+ * is `npm` for an npm package and `php` for a Composer package: `@scope/x` is `scope-x-npm-1.0.0.tgz` and `vendor/x` is
+ * `vendor-x-php-1.0.0.zip`.
+ */
+export function assetName(name, language, version, extension) {
+  return `${name.replace(/^@/, '').replaceAll('/', '-')}-${language}-${version}.${extension}`;
 }
 
 /** The archive names of the packages at `version`, in the order of the configuration. */
 export function assetNames(config, version) {
-  return config.packages.map(({ kind, name }) => assetName(name, version, EXTENSION[kind]));
+  return config.packages.map(({ kind, name }) => assetName(name, ARCHIVE_FORMAT[kind][0], version, ARCHIVE_FORMAT[kind][1]));
 }
 
 const SOURCE_FORMS = [
@@ -321,6 +329,7 @@ export function assets(ctx, tag) {
     ];
   });
   if (problems.length) throw new Stop(`${tag}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
+  const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
   const next = `${target}.next-${process.pid}`;
   rmSync(next, { recursive: true, force: true });
   mkdirSync(next, { recursive: true });
@@ -330,11 +339,14 @@ export function assets(ctx, tag) {
       if (kind === 'npm') {
         const before = new Set(readdirSync(next));
         run('npm', ['pack', '--pack-destination', next], { cwd: path.join(root, folder), env: ctx.env });
+        // npm pack names its output itself; the single new file is renamed to the archive name.
         const created = readdirSync(next).filter(item => !before.has(item));
         if (created.length !== 1) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not one archive`);
         renameSync(path.join(next, created[0]), path.join(next, names[index]));
       } else {
-        run('git', ['archive', '--format=zip', `--output=${path.join(next, names[index])}`, `${commit}:${folder}`], at(ctx));
+        // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
+        // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.
+        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, names[index])}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
       }
     });
     const present = readdirSync(next).sort();

@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: d6a7efb5415a2f44bf02bf80617b965d48f040a0dc8bc532e5b843f3eaa58c8f -->
+<!-- source-sha256: f59b85e414733356ad6c85687b9ad1200ddbf71cfabb91ef12893550a77d7d5f -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -17,6 +17,7 @@
 <!-- source-sha256: 615bfc213f1c0586a8a3476840356955af8b356d86850c9245e213be09c2a275 -->
 <!-- source-sha256: ca4ea832d0a80bd4c357f09572cf51014b0e03747c8dfbd0b3fa638bc4d7d5d6 -->
 <!-- source-sha256: c13cb5355b04a98e2c8c9e073e5edf948825331b1e8362d64f09e6eb76019d6c -->
+<!-- source-sha256: 8f8d71a84841439b990e593b4fa0dc1d9c2af54b0cdca58b9973b889ddc379d0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -38,7 +39,7 @@
 | K4.1 | 모든 go.mod의 직접 의존성을 최신 stable과 비교해 검토한다 | `scripts/kit/dependency-review.mjs` | `make kit-test` | [o] |
 | K4.2 | var/tools에 설치한 govulncheck로 Go advisory를 기록한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K5.1 | template, crudui, hyper, ordered-json, orm의 release 도구를 config/release.json을 읽는 하나로 합친다 | `scripts/kit/release.mjs` | `make kit-test` | [o] |
-| K5.2 | 아카이브를 <package>-<language>-<version>.<ext>로 이름 짓고 npm pack 결과의 이름을 바꾼다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
+| K5.2 | 아카이브를 <package>-<language>-<version>.<ext>로 이름 짓고 npm pack 결과의 이름을 바꾼다 | `scripts/kit/release.mjs` | `make kit-test` | [o] |
 | K5.3 | release 검증에서 선언된 각 Go 모듈의 tag go/vX.Y.Z를 요구한다 | `scripts/kit/release.mjs` | `make kit-test` | [ ] |
 | K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
 | K6.1-1 | Table, list, 번역 체크리스트와 hook을 config/checklist.json에서 읽는다 | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |

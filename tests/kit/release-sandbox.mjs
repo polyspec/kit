@@ -60,8 +60,12 @@ export const CHANGELOG = `# Changelog
 - The second entry of 0.0.1.
 `;
 
+// The time of every commit of the sandbox; the zip entries of an archive carry it.
+export const COMMIT_DATE = '2001-02-03T04:05:06Z';
+
 export const git = (root, ...args) => {
-  const result = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd: root, encoding: 'utf8' });
+  const env = { ...process.env, GIT_AUTHOR_DATE: COMMIT_DATE, GIT_COMMITTER_DATE: COMMIT_DATE };
+  const result = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} exited ${result.status}: ${result.stderr}`);
   return result.stdout.trim();
 };

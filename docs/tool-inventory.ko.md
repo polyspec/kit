@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f98aa16bdc6fc884771f696c7385a0e7280509b247c79c4fccd18a203e120ff3 -->
+<!-- source-sha256: f23365192ed41c2672de13a540c2f019d4cac1815058ca339b7bb2700905eb6f -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
@@ -7,6 +7,7 @@
 <!-- source-sha256: c02d688f5f5686fea282376f9c180c78a0a2fa47c5b4cf8f94362d8c95166b5a -->
 <!-- source-sha256: 5343da2cd949d631596630a9090f00227821189210578c3ede1eaee5bc119881 -->
 <!-- source-sha256: 65c6c0cf93f7fe167b2c98e6f55093fb2959a36def48a074fbd30778b5afd05a -->
+<!-- source-sha256: eb6d4382dc5a3fa6f74e900216a6d36c56949fca278c7266dc25e461b7201c97 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -412,3 +413,15 @@ go.mod의 module path에 연결합니다.
 - orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 모든 저장소에서 `var/release/assets`입니다.
 - release 단계가 아니어서 합치지 않음: template `check-clean-release.mjs`(clean worktree에서 전체 matrix)와 hyper `publish.mjs`(개발용 설치본).
 - ordered-json `release.py`는 Node 도구로 대체합니다.
+
+### Archive 이름 (K5.2)
+
+- 이름: `<package>-<language>-<version>.<ext>`; `@scope/name`은 `scope-name`, `vendor/name`은 `vendor-name`으로 쓰고, language는 npm package는 `npm`,
+  Composer package는 `php`입니다. `@polyspec/x`는 `polyspec-x-npm-0.0.5.tgz`, `polyspec/x`는 `polyspec-x-php-0.0.5.zip`,
+  `polyspec/x-extension`은 `polyspec-x-extension-php-0.0.5.zip`입니다. 다섯 도구는 archive를 `<package>-<version>.<ext>`로 불렀습니다(ordered-json은 이미
+  language를 가졌음). npm package와 Composer package가 이름을 공유할 수 있으므로 language를 유지합니다.
+- `npm pack`은 출력 이름을 스스로 정합니다. 대상 directory에 새로 생긴 file 하나의 이름을 archive 이름으로 바꿉니다(ordered-json, template). 새 file이 없거나
+  여럿이면 그 이름과 함께 실패합니다. crudui와 orm은 pack report나 package 이름에서 이름을 얻었습니다. 새 file 하나 규칙이 둘을 모두 덮고 npm 출력 형식을 요구하지 않습니다.
+- Zip: tag한 commit의 package directory를 `git archive --format=zip -0`으로 만들고 `--mtime`을 commit 시각으로, `TZ=UTC`로 둡니다(ordered-json은 고정 상수 시각,
+  template은 commit 시각, crudui, hyper, orm은 둘 다 쓰지 않았음). tree에 대한 `git archive`는 `--mtime` 없이는 현재 시각을 쓰고 zip은 local time을 저장합니다.
+  같은 tag의 두 번째 실행은 언제 어느 time zone에서든 같은 바이트를 씁니다.
