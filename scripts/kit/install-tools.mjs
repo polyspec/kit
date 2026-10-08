@@ -8,8 +8,6 @@
 // declarations are read by toolchain-declared.mjs. Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust, PHP and
 // Python are verified by check-toolchain.mjs, not installed. The command prints a line for each step and has no time limit.
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { installCargoAudit } from './install-cargo-audit.mjs';
 import { installComposer } from './install-composer.mjs';
 import { installGo } from './install-go.mjs';
@@ -17,8 +15,7 @@ import { installGovulncheck } from './install-govulncheck.mjs';
 import { installNpm } from './install-npm.mjs';
 import { installRuff } from './install-ruff.mjs';
 import { declaredToolchain } from './toolchain-declared.mjs';
-
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+import { isMain, ROOT } from './paths.mjs';
 
 /** Installs the declared tools into var/tools of `root`; returns the names of the tools it installed. */
 export function installTools({ root = ROOT, print = () => {} } = {}) {
@@ -34,7 +31,7 @@ export function installTools({ root = ROOT, print = () => {} } = {}) {
   return installed;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     installTools({ print: text => console.log(`[install-tools] ${text}`) });
   } catch (error) {

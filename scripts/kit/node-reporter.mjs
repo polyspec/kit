@@ -5,8 +5,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { Transform } from 'node:stream';
 import { createProgress } from './test-progress.mjs';
-
-const ROOT = path.resolve(import.meta.dirname, '../..');
+import { ROOT } from './paths.mjs';
 
 // The failure of a test: what failed (for example `failed running after hook`), then its cause.
 const failureText = error => {

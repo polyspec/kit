@@ -14,12 +14,12 @@
 //
 // The refusal names each item with its file and ID and the place where it was found: the pushed ref and commit or the
 // working tree. A tracker whose translation lists other IDs or states than the document is unreadable for the gate.
-import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { blockingSentence, inspectTrackers, loadConfig } from './checklist.mjs';
 import { HOOKS_PATH } from './git-hooks.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { git, gitResult } from './git.mjs';
 
 const USAGE = 'Usage: node scripts/kit/push-gate.mjs hook | commit <rev>';
 const NO_OBJECT = /^0+$/;
@@ -27,13 +27,6 @@ const SHORT = 12;
 
 const RULE = 'A push happens only when no item of a tracker is in its active state; work in progress does not reach the remote.';
 const FIX = 'Finish each listed item in a commit with its documentation and tests, or move it to a state that does not block, such as bypassed with its cause and retry condition; then push again.';
-
-function git(root, ...args) {
-  const run = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (run.error) throw run.error;
-  if (run.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${run.stderr.trim()}`);
-  return run.stdout;
-}
 
 /**
  * Inspects the trackers of `sources`, each `{ where, read }` where `read(file)` returns the text of a file or throws why it
@@ -55,10 +48,10 @@ export function inspect(config, sources) {
 
 // The reader of the files of a commit, which names the commit and the file that it lacks.
 const committed = (root, sha) => (file) => {
-  const run = spawnSync('git', ['show', `${sha}:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (run.error) throw run.error;
-  if (run.status !== 0) throw new Error(`the commit has no ${file}: ${run.stderr.trim()}`);
-  return run.stdout;
+  const shown = gitResult(root, 'show', `${sha}:${file}`);
+  if (shown.error) throw shown.error;
+  if (shown.status !== 0) throw new Error(`the commit has no ${file}: ${shown.stderr.trim()}`);
+  return shown.stdout;
 };
 
 const working = root => (file) => {
@@ -85,7 +78,7 @@ export function hook(root, input) {
 /** The failure lines of the commit `rev`, or an empty array, with the commit that `rev` names. */
 export function commit(root, rev) {
   const config = loadConfig(root);
-  const resolved = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], { cwd: root, encoding: 'utf8' });
+  const resolved = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
   if (resolved.status !== 0) return { sha: rev, lines: [`push refused: ${rev} is not a commit of this repository`] };
   const sha = resolved.stdout.trim();
   const lines = inspect(config, [{ where: `commit ${sha.slice(0, SHORT)}`, read: committed(root, sha) }]);
@@ -101,8 +94,8 @@ export function commit(root, rev) {
 // A GitHub annotation holds the message on one line; % and the line breaks are escaped as GitHub requires.
 const annotation = line => `::error::${line.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`;
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const [mode, ...args] = process.argv.slice(2);
   if (mode === 'hook' && args.length === 0) {
     let lines;

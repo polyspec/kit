@@ -6,11 +6,12 @@
 //   node scripts/kit/git-hooks.mjs install   set core.hooksPath, write pre-push when it differs, make each listed hook
 //                                            executable, then check; a second run changes nothing
 //   node scripts/kit/git-hooks.mjs check     fail while a hook is not installed
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadConfig, PRE_PUSH_HOOK } from './checklist.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { writeAtomic } from './files.mjs';
+import { gitResult } from './git.mjs';
 
 export const HOOKS_PATH = '.githooks';
 export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
@@ -23,7 +24,7 @@ exec node scripts/kit/push-gate.mjs hook
 `;
 
 function configuredHooksPath(root) {
-  const run = spawnSync('git', ['config', 'core.hooksPath'], { cwd: root, encoding: 'utf8' });
+  const run = gitResult(root, 'config', 'core.hooksPath');
   if (run.error) throw run.error;
   // git config exits with 1 when the key is not set.
   return run.status === 0 ? run.stdout.trim() : '';
@@ -55,16 +56,13 @@ export function installHooks(root, hooks = loadConfig(root).hooks) {
   const changes = [];
   const configured = configuredHooksPath(root);
   if (configured !== HOOKS_PATH) {
-    const run = spawnSync('git', ['config', 'core.hooksPath', HOOKS_PATH], { cwd: root, encoding: 'utf8' });
+    const run = gitResult(root, 'config', 'core.hooksPath', HOOKS_PATH);
     if (run.status !== 0) throw new Error(`git config core.hooksPath ${HOOKS_PATH} failed in ${root}: ${run.stderr.trim()}`);
     changes.push(`core.hooksPath set to ${HOOKS_PATH} (was ${configured || 'not set'})`);
   }
   const prePush = path.join(root, PRE_PUSH);
   if (!existsSync(prePush) || readFileSync(prePush, 'utf8') !== PRE_PUSH_CONTENT) {
-    mkdirSync(path.dirname(prePush), { recursive: true });
-    const pending = `${prePush}.${process.pid}`;
-    writeFileSync(pending, PRE_PUSH_CONTENT, { mode: 0o755 });
-    renameSync(pending, prePush);
+    writeAtomic(prePush, PRE_PUSH_CONTENT, { mode: 0o755 });
     changes.push(`${PRE_PUSH} written`);
   }
   for (const name of hooks) {
@@ -77,8 +75,8 @@ export function installHooks(root, hooks = loadConfig(root).hooks) {
   return changes;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const [mode, ...rest] = process.argv.slice(2);
   if ((mode !== 'install' && mode !== 'check') || rest.length > 0) {
     console.error('Usage: node scripts/kit/git-hooks.mjs install | check');

@@ -9,13 +9,13 @@
 // declared by minor release, so a patch release of the minor passes and the running patch is the evidence of the run; every other
 // tool is compared by its exact release. Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails.
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { declaredToolchain } from './toolchain-declared.mjs';
-import { toolsPath } from './tool-wrappers.mjs';
-
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+import { cargoAuditCommand } from './install-cargo-audit.mjs';
+import { govulncheckCommand } from './install-govulncheck.mjs';
+import { RELEASE_OUTPUT, toolsPath } from './tool-wrappers.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { execute } from './process.mjs';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -28,9 +28,9 @@ const probes = {
   php: { command: () => 'php', args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `install PHP ${v}` },
   python: { command: () => 'python3', args: ['--version'], pattern: /^Python (\d+\.\d+\.\d+)/m, fix: v => `install Python ${v}` },
   composer: { command: () => 'composer', args: ['--version', '--no-ansi'], pattern: /^Composer version (\d+\.\d+\.\d+) /m, fix: v => `install Composer ${v}, or declare its sha256 and run ${INSTALL}` },
-  ruff: { command: () => 'ruff', args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m, fix: () => INSTALL },
-  cargoAudit: { command: root => toolsPath(root, 'cargo-audit/bin/cargo-audit'), args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools' },
-  govulncheck: { command: root => toolsPath(root, 'govulncheck/bin/govulncheck'), args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools' },
+  ruff: { command: () => 'ruff', ...RELEASE_OUTPUT.ruff, fix: () => INSTALL },
+  cargoAudit: { command: cargoAuditCommand, ...RELEASE_OUTPUT.cargoAudit, fix: () => 'make install-tools' },
+  govulncheck: { command: govulncheckCommand, ...RELEASE_OUTPUT.govulncheck, fix: () => 'make install-tools' },
 };
 export const TOOLS = Object.keys(probes);
 
@@ -41,7 +41,7 @@ export function toolchainEnvironment(root, base = process.env) {
   return { ...base, PATH: [bin, ...rest].join(path.delimiter), GOTOOLCHAIN: 'local', RUSTUP_AUTO_INSTALL: '0' };
 }
 
-const defaultRun = (root, env) => (command, args) => spawnSync(command, args, { cwd: root, env, encoding: 'utf8' });
+const defaultRun = (root, env) => (command, args) => execute(command, args, { cwd: root, env });
 
 // The release that `tool` runs at, or the reason that it cannot be read.
 function probe(root, tool, run) {
@@ -91,7 +91,7 @@ export function toolchainMismatches(tools, { root = ROOT, env = toolchainEnviron
 
 const expectation = entry => (entry.minors ?? (entry.minor ? [entry.minor] : [entry.version])).join(' or ');
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredToolchain(ROOT)[tool]);

@@ -14,11 +14,12 @@
 //
 // A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one.
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { isMain, ROOT } from './paths.mjs';
+import { readJson } from './files.mjs';
+import { git } from './git.mjs';
 
 export const CONFIG = 'config/commits.json';
 
@@ -59,9 +60,9 @@ export function rangeMessages(root, range) {
   const args = range === 'HEAD' ? ['--max-count=1', 'HEAD'] : [range];
   let output;
   try {
-    output = execFileSync('git', ['-C', root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    output = git(root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args);
   } catch (error) {
-    throw new Error(`the range ${range} does not resolve in this checkout: ${String(error.stderr || error.message).split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
+    throw new Error(`the range ${range} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
     const separator = entry.indexOf('\x1f');
@@ -74,14 +75,14 @@ export function rangeFindings(root, range, config) {
   return rangeMessages(root, range).flatMap(({ id, message }) => messageFindings(message, config).map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' } } });
   if (!existsSync(path.join(root, CONFIG))) {
     console.error(`[check-commits] ${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
     process.exit(1);
   }
-  const config = JSON.parse(readFileSync(path.join(root, CONFIG), 'utf8'));
+  const config = readJson(root, CONFIG);
   let findings;
   let label;
   try {

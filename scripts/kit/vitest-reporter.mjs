@@ -2,8 +2,7 @@
 // reporter shows every test starting, still running and ending.
 import path from 'node:path';
 import { createProgress } from './test-progress.mjs';
-
-const ROOT = path.resolve(import.meta.dirname, '../..');
+import { ROOT } from './paths.mjs';
 
 // An error with its message: the stack of a timed-out hook does not hold the message.
 const errorText = errors => errors.map(error => {

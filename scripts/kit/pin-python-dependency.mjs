@@ -6,9 +6,10 @@
 //
 // It replaces `"<package>==<old>"` with `"<package>==<version>"` in every array of the file and writes the file through
 // a temporary file and a rename. A package that the file does not pin exactly fails the command.
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from './paths.mjs';
+import { writeAtomic } from './files.mjs';
 
 /** The text of the file with the pin of `name` set to `version`; the number of replacements is returned with it. */
 export function pinPythonRequirement(text, name, version) {
@@ -18,7 +19,7 @@ export function pinPythonRequirement(text, name, version) {
   return { text: text.replace(pattern, `"${name}==${version}"`), count: matches.length };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const [manifest, name, version] = process.argv.slice(2);
   if (!manifest || !name || !version) {
     console.error('usage: node scripts/pin-python-dependency.mjs <manifest> <package> <version>');
@@ -26,7 +27,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const file = path.resolve(manifest);
   const { text } = pinPythonRequirement(readFileSync(file, 'utf8'), name, version);
-  writeFileSync(`${file}.next-${process.pid}`, text);
-  renameSync(`${file}.next-${process.pid}`, file);
+  writeAtomic(file, text);
   console.log(`[pin-python-dependency] ${manifest}: ${name}==${version}`);
 }

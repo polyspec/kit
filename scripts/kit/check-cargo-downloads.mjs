@@ -6,12 +6,11 @@
 // network step of this tool and belongs to the install of a repository.
 //
 //   node scripts/kit/check-cargo-downloads.mjs [--fetch]
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { cargoLocks } from './dependency-state.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { execute } from './process.mjs';
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const FIX = 'run make cargo-downloads-fetch, which downloads the crates';
 
 /**
@@ -23,7 +22,7 @@ export function cargoDownloads({ root = ROOT, fetch = false, cargo = 'cargo', en
   const locks = cargoLocks(root);
   for (const lock of locks) {
     const args = ['fetch', '--locked', ...(fetch ? [] : ['--offline']), '--manifest-path', path.join(path.dirname(lock), 'Cargo.toml')];
-    const result = spawnSync(cargo, args, { cwd: root, encoding: 'utf8', env });
+    const result = execute(cargo, args, { cwd: root, env });
     // The first error line of cargo names the crate; its help, to retry without --offline, is not the fix of a check.
     if (result.error || result.status !== 0) {
       failures.push(`${lock}: ${result.error?.message ?? result.stderr.split('\n').find(line => line.startsWith('error')) ?? `exit status ${result.status}`}`);
@@ -34,7 +33,7 @@ export function cargoDownloads({ root = ROOT, fetch = false, cargo = 'cargo', en
   return { locks, failures };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   if (!(args.length === 0 || (args.length === 1 && args[0] === '--fetch'))) {
     console.error('Usage: node scripts/kit/check-cargo-downloads.mjs [--fetch]');

@@ -20,6 +20,7 @@ import { constants } from 'node:os';
 import { linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain, ROOT } from './paths.mjs';
 
 const SCRIPT = fileURLToPath(import.meta.url);
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
@@ -206,7 +207,7 @@ export async function holdWhileRunning(lock, command, args, { checkout, cwd } = 
 async function main(argv) {
   const [operation, lock, separator, command, ...args] = argv;
   if (operation === 'run' && lock && separator === '--' && command) {
-    return holdWhileRunning(path.resolve(lock), command, args, { checkout: path.resolve(path.dirname(SCRIPT), '../..') });
+    return holdWhileRunning(path.resolve(lock), command, args, { checkout: ROOT });
   }
   if (operation === 'clear' && lock && argv.length === 2) {
     const record = removeDeadLock(path.resolve(lock));
@@ -216,7 +217,7 @@ async function main(argv) {
   throw new Error('usage: node scripts/kit/holder-lock.mjs run <lock> -- <command> [arguments...] | clear <lock>');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT) {
+if (isMain(import.meta.url)) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {

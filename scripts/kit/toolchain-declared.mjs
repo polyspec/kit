@@ -51,6 +51,9 @@ function goVersion(root, go) {
   return { version: directive, source: `${go.mod} go directive` };
 }
 
+/** The exact release that config/toolchain.json of `root` records for `key`; an error names the expected form when it is missing or not exact. */
+export const recordedRelease = (root, key) => exact('config/toolchain.json', key, toolchainConfig(root)[key]);
+
 /** The declared toolchains of the checkout at `root`. */
 export function declaredToolchain(root) {
   const config = toolchainConfig(root);
@@ -94,7 +97,7 @@ export function declaredToolchain(root) {
     declared.ruff = { version: [...pins][0], source: `${config.ruff.pyproject} ruff pin` };
   }
   for (const key of ['cargoAudit', 'govulncheck']) {
-    if (config[key]) declared[key] = { version: exact('config/toolchain.json', key, config[key]), source: `config/toolchain.json ${key}` };
+    if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
   return declared;
 }

@@ -4,10 +4,11 @@
 // and unpacked. An installed release with the same digest is kept. The npm of the machine is never changed.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { installOnce } from './install-tool.mjs';
 import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mjs';
+import { fileDigest } from './digest.mjs';
+import { readJson } from './files.mjs';
 
 const MARKER = '.sha512';
 
@@ -15,7 +16,7 @@ const MARKER = '.sha512';
 function installedRelease(prefix) {
   const directory = path.join(prefix, 'node_modules/npm');
   if (!existsSync(path.join(directory, 'package.json'))) return undefined;
-  const version = JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')).version;
+  const version = readJson(directory, 'package.json').version;
   return existsSync(path.join(directory, MARKER)) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
 }
 
@@ -26,7 +27,7 @@ function unpackVerified({ root, next, version, sha512, print }) {
   const tarball = path.join(scratch, 'npm.tgz');
   const url = `https://registry.npmjs.org/npm/-/npm-${version}.tgz`;
   run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', tarball, url], { cwd: root, env: bootstrapEnvironment(root) }, print);
-  const actual = createHash('sha512').update(readFileSync(tarball)).digest('hex');
+  const actual = fileDigest(tarball, 'sha512');
   if (actual !== sha512) throw new Error(`npm ${version} tarball ${url} has the sha512 ${actual}; packageManager of package.json declares ${sha512}`);
   const listing = spawnSync('tar', ['-tvf', tarball], { encoding: 'utf8' });
   if (listing.status !== 0) throw new Error(`tar -tvf ${tarball} ended with exit status ${listing.status}: ${listing.stderr.trim()}`);

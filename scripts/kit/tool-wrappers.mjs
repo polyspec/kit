@@ -1,9 +1,10 @@
 // What the installers of var/tools share: the directories, the environment of the bootstrap commands, a command that
 // prints itself before it runs, and the wrapper scripts of var/tools/bin. A wrapper starts the installed file by its
 // absolute path; there is no symbolic link.
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { writeAtomic } from './files.mjs';
 
 export const TOOLS = 'var/tools';
 export const toolsPath = (root, ...parts) => path.join(root, TOOLS, ...parts);
@@ -26,6 +27,19 @@ export function run(command, args, options, print) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} ended with exit status ${result.status}`);
 }
 
+// The arguments that make a tool of var/tools print its release, and the pattern that reads the release from the output.
+export const RELEASE_OUTPUT = {
+  ruff: { args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m },
+  cargoAudit: { args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m },
+  govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },
+};
+
+/** The release that `command` prints for `tool` of RELEASE_OUTPUT, or undefined when the command does not exist. */
+export function printedRelease(command, tool) {
+  const { args, pattern } = RELEASE_OUTPUT[tool];
+  return existsSync(command) ? pattern.exec(execFileSync(command, args, { encoding: 'utf8' }))?.[1] : undefined;
+}
+
 /** `text` quoted for sh. */
 export const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
 
@@ -33,11 +47,7 @@ export const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
 export function writeWrapper(root, name, text, print) {
   const file = toolsPath(root, 'bin', name);
   if (existsSync(file) && readFileSync(file, 'utf8') === text) return;
-  mkdirSync(path.dirname(file), { recursive: true });
-  const next = `${file}.next-${process.pid}`;
-  writeFileSync(next, text, { mode: 0o755 });
-  chmodSync(next, 0o755);
-  renameSync(next, file);
+  writeAtomic(file, text, { mode: 0o755 });
   print(`wrote ${path.relative(root, file)}`);
 }
 

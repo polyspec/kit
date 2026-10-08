@@ -8,9 +8,12 @@
 //
 // A write of the report never throws: it is printed, recorded in `reportErrors` of the record, and the run fails after every
 // target ran. A report file is written to a temporary file and renamed.
-import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import path from 'node:path';
+import { writeAtomic } from './files.mjs';
+import { git } from './git.mjs';
+import { seconds } from './time.mjs';
 
 // The number of failure lines of a failed target in the record and the summary.
 export const FAILURE_LINES = 20;
@@ -20,36 +23,18 @@ export const TAIL_BYTES = 256 * 1024;
 // The variables of a calling make, which a target of the run must not inherit.
 const CALLER = ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES'];
 
+// A target name is a word of letters, digits, dots, underscores and hyphens that starts with a letter or a digit, so it names its log file without escaping and make takes it for a target.
+export const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 export const logPath = (directory, target) => path.join(directory, 'targets', `${target}.log`);
 
-// The commands that print the version of each toolchain of a run.
-const VERSION_COMMANDS = {
-  node: ['node', ['--version']],
-  npm: ['npm', ['--version']],
-  go: ['go', ['env', 'GOVERSION']],
-  cargo: ['cargo', ['--version']],
-  php: ['php', ['-r', 'echo PHP_VERSION;']],
-  composer: ['composer', ['--version', '--no-ansi']],
-};
-
-/**
- * The version of each toolchain on PATH in `root`, as the commands print it, or `unavailable: <reason>`. The record of a run
- * keeps them as evidence of what the run ran on.
- */
-export function toolchainVersions(root) {
-  const versions = {};
-  for (const [name, [command, args]] of Object.entries(VERSION_COMMANDS)) {
-    const result = spawnSync(command, args, { cwd: root, encoding: 'utf8' });
-    const line = (result.stdout ?? '').trim().split('\n')[0];
-    versions[name] = result.error ? `unavailable: ${result.error.message}` : result.status === 0 ? line : `unavailable: ${command} exited with ${result.status}`;
+/** The id of the tree of HEAD in `root`, or `unknown (<reason>)`. */
+export function treeId(root) {
+  try {
+    return git(root, 'rev-parse', 'HEAD^{tree}').trim();
+  } catch (error) {
+    return `unknown (${error.message})`;
   }
-  return versions;
-}
-
-/** The result of `git` in `root`, or `unknown (<reason>)`. */
-export function git(root, ...args) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  return result.status === 0 ? result.stdout.trim() : `unknown (git ${args.join(' ')}: ${(result.stderr || result.error?.message || '').trim()})`;
 }
 
 /** A writer of report files that never throws: a failed write is printed and kept in `errors`. */
@@ -68,9 +53,7 @@ export function reportWriter(print) {
   return {
     errors,
     write: (file, text) => attempt(file, () => {
-      const temporary = `${file}.${process.pid}`;
-      writeFileSync(temporary, text);
-      renameSync(temporary, file);
+      writeAtomic(file, text);
     }),
     append: (file, text) => attempt(file, () => appendFileSync(file, text)),
   };
@@ -188,7 +171,6 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
   });
 }
 
-const seconds = milliseconds => (Number.isFinite(milliseconds) ? `${(milliseconds / 1000).toFixed(1)} s` : '-');
 const cell = text => String(text).replaceAll('|', '\\|').replaceAll('\n', ' ');
 
 /**

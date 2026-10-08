@@ -19,6 +19,8 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
   `config/<name>.json` with a schema in `scripts/kit/schema/`. The schema validator supports only the keywords it lists.
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
   `make kit-check` fails on a changed, missing or unexpected vendored file.
+- A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
+  `tests/kit/duplication.test.mjs` fails when two files hold the same function of 6 lines or more.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line

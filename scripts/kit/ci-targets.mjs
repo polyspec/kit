@@ -14,15 +14,18 @@
 // appends it to the job summary of GitHub Actions (GITHUB_STEP_SUMMARY). It names each setup step that did not succeed from
 // CI_STEPS, the JSON of `toJSON(steps)`. A CI job runs it under `if: always()`, so the report of a job whose runner stopped is
 // still written and uploaded.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { acquireHolderLock } from './holder-lock.mjs';
-import { capLog, failureLines, git, logPath, render, reportWriter, runLogged, startReport, toolchainVersions, warningLines } from './target-report.mjs';
+import { now } from './time.mjs';
+import { toolchainVersions } from './check-toolchain.mjs';
+import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, treeId, warningLines } from './target-report.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { jsonText, readJson } from './files.mjs';
 
-const TARGET_NAME = /^[A-Za-z0-9_.-]+$/;
 const USAGE = 'usage: node scripts/kit/ci-targets.mjs <report directory> <target>...  |  --summary <report directory>';
-const now = () => new Date().toISOString();
+// The toolchains whose releases the record of a run names.
+const REPORTED_TOOLS = ['node', 'npm', 'go', 'rust', 'php', 'composer'];
 
 /**
  * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
@@ -37,8 +40,8 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
     const writer = reportWriter(print);
     const record = {
       title: `make ci-targets ${targets.join(' ')}`,
-      tree: git(root, 'rev-parse', 'HEAD^{tree}'),
-      environment: { ...(environment ?? toolchainVersions(root)), ...(env.ImageOS ? { runner: `${env.ImageOS} ${env.ImageVersion ?? ''}`.trim() } : {}) },
+      tree: treeId(root),
+      environment: { ...(environment ?? toolchainVersions(REPORTED_TOOLS, { root })), ...(env.ImageOS ? { runner: `${env.ImageOS} ${env.ImageVersion ?? ''}`.trim() } : {}) },
       result: 'incomplete',
       started: now(),
       ended: null,
@@ -46,7 +49,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
     };
     const save = () => {
       record.reportErrors = [...writer.errors];
-      writer.write(path.join(report, 'record.json'), `${JSON.stringify(record, null, 2)}\n`);
+      writer.write(path.join(report, 'record.json'), jsonText(record));
     };
     save();
     print(`[ci-targets] ${targets.length} targets on tree ${record.tree}; report ${path.relative(root, report) || '.'}`);
@@ -90,7 +93,7 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
   const file = path.join(report, 'record.json');
   let record = null;
   if (existsSync(file)) {
-    try { record = JSON.parse(readFileSync(file, 'utf8')); } catch (error) { record = { error: `${path.relative(root, file)}: ${error.message}` }; }
+    try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${error.message}` }; }
   }
   let steps = {};
   if (env.CI_STEPS) {
@@ -104,8 +107,8 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
   return writer.errors.length === 0 ? 0 : 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (isMain(import.meta.url)) {
+  const root = ROOT;
   const [first, ...rest] = process.argv.slice(2);
   try {
     if (first === '--summary' && rest.length === 1) {

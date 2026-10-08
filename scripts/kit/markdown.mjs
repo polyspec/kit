@@ -101,3 +101,16 @@ export function headingAnchors(text) {
   });
   return result;
 }
+
+/** The cells of a table row split on `|` that is not escaped, with the column (0-based) at which each begins. */
+export function tableCells(line) {
+  const result = [];
+  let start = line.indexOf('|') + 1;
+  for (let index = start; index < line.length; index += 1) {
+    if (line[index] === '|' && line[index - 1] !== '\\') {
+      result.push({ text: line.slice(start, index), start });
+      start = index + 1;
+    }
+  }
+  return line.trimEnd().endsWith('|') ? result : [...result, { text: line.slice(start), start }];
+}

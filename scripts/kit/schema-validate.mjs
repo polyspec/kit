@@ -2,6 +2,13 @@
 // additionalProperties (false), items, enum, const, pattern, minItems and minimum. Other keywords fail the schema
 // itself, so a schema never passes unchecked. `kit-check` validates config/<name>.json against
 // scripts/kit/schema/<name>.schema.json.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readJson } from './files.mjs';
+
+/** The directory of the schemas of kit. */
+export const SCHEMAS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema');
+
 const KEYWORDS = new Set(['$schema', 'title', 'description', 'type', 'required', 'properties', 'additionalProperties', 'items', 'enum', 'const', 'pattern', 'minItems', 'minimum']);
 
 const typeOf = value => (value === null ? 'null' : Array.isArray(value) ? 'array' : Number.isInteger(value) ? 'integer' : typeof value);
@@ -33,4 +40,10 @@ export function validate(value, schema, where = '$') {
     if (schema.items) value.forEach((item, index) => errors.push(...validate(item, schema.items, `${where}[${index}]`)));
   }
   return errors;
+}
+
+/** The JSON value of the file `file` of `root` and its errors, each prefixed with `file`, against the schema `schema` (a file name in SCHEMAS). */
+export function readConfig(root, file, schema) {
+  const value = readJson(root, file);
+  return { value, errors: validate(value, readJson(SCHEMAS, schema)).map(error => `${file}: ${error}`) };
 }

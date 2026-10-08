@@ -7,28 +7,16 @@
 // same paths, a file that is identical is not written, a vendored file that kit no longer has is removed, and the lock
 // records the commit, the tag and the sha256 of every file. A second run at the same tag writes nothing. The command
 // queries the network only for the clone; it prints a line for each change and has no time limit.
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { LOCK, sha256, walk } from './kit-check.mjs';
+import { LOCK, walk } from './kit-check.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { fileDigest } from './digest.mjs';
+import { jsonText, readJson, writeAtomic } from './files.mjs';
+import { git } from './git.mjs';
 
 export const DEFAULT_REPOSITORY = 'https://github.com/polyspec/kit';
-
-function git(args, cwd) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed with status ${result.status}: ${result.stderr.trim()}`);
-  return result.stdout.trim();
-}
-
-// Writes the file through a temporary file and a rename, so a reader never finds it half written.
-function writeAtomic(file, content) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  const next = `${file}.next-${process.pid}`;
-  writeFileSync(next, content);
-  renameSync(next, file);
-}
 
 /**
  * Syncs the vendored files of kit at `tag` from `repository` into `root`; returns the lines that describe the changes
@@ -37,15 +25,15 @@ function writeAtomic(file, content) {
 export function sync({ root, repository, tag }) {
   const clone = mkdtempSync(path.join(tmpdir(), 'kit-sync-'));
   try {
-    git(['clone', '--quiet', '--depth', '1', '--branch', tag, repository, clone], root);
-    const commit = git(['rev-parse', 'HEAD'], clone);
-    const kit = JSON.parse(readFileSync(path.join(clone, 'kit.json'), 'utf8'));
+    git(root, 'clone', '--quiet', '--depth', '1', '--branch', tag, repository, clone);
+    const commit = git(clone, 'rev-parse', 'HEAD').trim();
+    const kit = readJson(clone, 'kit.json');
     const sources = ['kit.json', ...kit.vendored.flatMap(directory => walk(clone, directory))];
     const changes = [];
     for (const file of sources) {
       const target = path.join(root, file);
       const existed = existsSync(target);
-      if (existed && sha256(root, file) === sha256(clone, file)) continue;
+      if (existed && fileDigest(path.join(root, file)) === fileDigest(path.join(clone, file))) continue;
       writeAtomic(target, readFileSync(path.join(clone, file)));
       changes.push(`${existed ? 'written' : 'added'} ${file}`);
     }
@@ -58,8 +46,8 @@ export function sync({ root, repository, tag }) {
         }
       }
     }
-    const files = Object.fromEntries(sources.sort().map(file => [file, sha256(clone, file)]));
-    const lock = `${JSON.stringify({ schema: 1, repository, tag, commit, files }, null, 2)}\n`;
+    const files = Object.fromEntries(sources.sort().map(file => [file, fileDigest(path.join(clone, file))]));
+    const lock = jsonText({ schema: 1, repository, tag, commit, files });
     if (!existsSync(path.join(root, LOCK)) || readFileSync(path.join(root, LOCK), 'utf8') !== lock) {
       writeAtomic(path.join(root, LOCK), lock);
       changes.push(`written ${LOCK}`);
@@ -70,7 +58,7 @@ export function sync({ root, repository, tag }) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   const option = name => args[args.indexOf(name) + 1];
   const tag = option('--tag');
@@ -79,7 +67,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error('[kit-sync] --tag is required. Fix: make kit-sync KIT_TAG=vX.Y.Z');
     process.exit(2);
   }
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const root = ROOT;
   try {
     const changes = sync({ root, repository, tag });
     for (const line of changes) console.log(`[kit-sync] ${line}`);

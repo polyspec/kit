@@ -17,14 +17,17 @@
 // its result with the elapsed time, and writes the record before and after each target, so a run that is stopped stays
 // recorded as `incomplete`. The output of each target goes to var/report/full-run/targets/<target>.log, and a failed target
 // keeps its last output lines in the record. No step has a time limit.
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { inspectTrackers, loadConfig } from './checklist.mjs';
 import { hooksIssue } from './git-hooks.mjs';
 import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } from './holder-lock.mjs';
-import { runMakeTarget, startReport, TARGET_NAME } from './target-run.mjs';
+import { startReport, TARGET_NAME } from './target-report.mjs';
+import { runMakeTarget } from './target-run.mjs';
+import { isMain, ROOT } from './paths.mjs';
+import { readJson, writeJson } from './files.mjs';
+import { git } from './git.mjs';
+import { now, seconds } from './time.mjs';
 
 const USAGE = 'Usage: node scripts/kit/full-run.mjs run [--key name=value]... <target>... | rerun-failed [--key name=value]...';
 // The record of the last full run of this checkout; /var/ is ignored by Git.
@@ -77,28 +80,13 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
   return { run: true, reason: `the full run of tree ${tree} started ${record.started} has ${plural(open.length, 'target')} that did not pass: ${open.join(', ')}`, targets: open };
 }
 
-function git(root, ...args) {
-  const run = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (run.error) throw run.error;
-  if (run.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${root}: ${run.stderr.trim()}`);
-  return run.stdout;
-}
-
 function readRecord(root) {
   const file = path.join(root, RECORD);
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+  return existsSync(file) ? readJson(file) : null;
 }
 
 // The record is written to a file of this process and renamed, so a reader never sees a partial record.
-function writeRecord(root, record) {
-  const file = path.join(root, RECORD);
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(`${file}.${process.pid}`, `${JSON.stringify(record, null, 2)}\n`);
-  renameSync(`${file}.${process.pid}`, file);
-}
-
-const seconds = milliseconds => `${(milliseconds / 1000).toFixed(1)} s`;
-const now = () => new Date().toISOString();
+const writeRecord = (root, record) => writeJson(path.join(root, RECORD), record);
 
 /**
  * Inspects the checkout, decides and runs. `runTarget(name)` resolves `{ passed, lastLines }` of a target. Returns the exit
@@ -194,7 +182,7 @@ export function parseArguments(args) {
   return { mode, keys, targets };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   let parsed;
   try {
     parsed = parseArguments(process.argv.slice(2));
@@ -203,7 +191,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(2);
   }
   try {
-    process.exitCode = await fullRun({ root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), ...parsed });
+    process.exitCode = await fullRun({ root: ROOT, ...parsed });
   } catch (error) {
     console.error(`[full-run] failed: ${error.message}`);
     process.exitCode = 1;

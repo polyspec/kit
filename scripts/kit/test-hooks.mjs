@@ -4,14 +4,13 @@
 // exited), and its result or error decides it. Each prints its start, a line while it is still running and its end with the
 // elapsed time.
 import { after, before } from 'node:test';
-
-const seconds = milliseconds => `${(milliseconds / 1000).toFixed(1)}s`;
+import { compactSeconds } from './time.mjs';
 
 function hook(register, kind, name, operation, { context, write = text => process.stdout.write(text), heartbeatMs = 5000 } = {}) {
   const add = context ? context[register].bind(context) : { before, after }[register];
   add(async () => {
     const started = performance.now();
-    const elapsed = () => seconds(performance.now() - started);
+    const elapsed = () => compactSeconds(performance.now() - started);
     write(`[${kind}] ${name}: started\n`);
     const running = setInterval(() => write(`[${kind}] ${name}: still running (${elapsed()})\n`), heartbeatMs);
     try {

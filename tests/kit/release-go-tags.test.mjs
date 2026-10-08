@@ -5,13 +5,14 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { Stop } from '../../scripts/kit/process.mjs';
 import * as release from '../../scripts/kit/release.mjs';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mjs';
 
 const REPOSITORY = 'example/kit-fixture';
 const GO_TAG = 'packages/fixture-go/v0.0.1';
 const context = (box) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY } });
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof release.Stop && pattern.test(error.message), String(pattern));
+const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const withModules = (modules) => (root) => {
   const config = readJson(root, 'config/release.json');
   writeJson(root, 'config/release.json', { ...config, goModules: modules });
