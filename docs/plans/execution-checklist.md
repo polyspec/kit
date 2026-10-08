@@ -14,9 +14,9 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K2.2 | Keep the Composer platform rule of template and read crudui's composer manifest through it | `scripts/kit/check-dependency-policy.mjs` | `make kit-test` | [o] |
 | K2.3 | Fix the policy shape (composerPlatforms, pythonManifests, exceptions) and its schema | `scripts/kit/schema/dependency-policy.schema.json` | `make kit-test` | [o] |
 | K2.4 | Cover the dependency tools with a fixture of two npm workspaces, tagged packages, Composer and PyPI, and the mutation check | `tests/kit/` | `make kit-test` | [o] |
-| K3.1 | Record every tracked Cargo.lock with its sha256 in the review record | `scripts/kit/dependency-state.mjs` | `make kit-test` | [ ] |
-| K3.2 | Install the cargo-audit of config/toolchain.json into var/tools, skipping an installed release | `scripts/kit/install-cargo-audit.mjs` | `make kit-test` | [ ] |
-| K3.3 | Record the advisories of each Cargo.lock from cargo-audit and the RustSec database in the review only | `scripts/kit/dependency-review.mjs` | `make kit-test` | [ ] |
+| K3.1 | Record every tracked Cargo.lock with its sha256 in the review record | `scripts/kit/dependency-state.mjs` | `make kit-test` | [o] |
+| K3.2 | Install the cargo-audit of config/toolchain.json into var/tools, skipping an installed release | `scripts/kit/install-cargo-audit.mjs` | `make kit-test` | [o] |
+| K3.3 | Record the advisories of each Cargo.lock from cargo-audit and the RustSec database in the review only | `scripts/kit/dependency-review.mjs` | `make kit-test` | [o] |
 | K4.1 | Review the direct dependencies of every go.mod against the latest stable release | `scripts/kit/dependency-review.mjs` | `make kit-test` | [ ] |
 | K4.2 | Record Go advisories from govulncheck installed into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K5.1 | Merge the release tools of template, crudui, hyper, ordered-json and orm into one release tool read from config/release.json | `scripts/kit/release.mjs` | `make kit-test` | [ ] |

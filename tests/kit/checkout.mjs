@@ -1,7 +1,7 @@
 // Helpers of the dependency tests: a copy of tests/kit/fixture with the tools, as a Git repository of a temporary
 // directory, so that each tool reads its own checkout, and the commands that run the gate and the review in it.
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,3 +23,19 @@ export function fixtureCheckout(t) {
 
 export const gate = (root, env = process.env) => spawnSync(process.execPath, ['scripts/kit/check-dependency-policy.mjs'], { cwd: root, encoding: 'utf8', env });
 export const review = (root, args, env) => spawnSync(process.execPath, ['scripts/kit/dependency-review.mjs', ...args], { cwd: root, encoding: 'utf8', env });
+
+/**
+ * Installs a stub of cargo-audit into var/tools/cargo-audit/bin of `root`: it prints `cargo-audit 0.22.2` for --version and
+ * the JSON `report` for an audit, and exits 1 when the report lists a vulnerability, as cargo-audit does.
+ */
+export function installCargoAuditStub(root, report = { vulnerabilities: { found: false, count: 0, list: [] }, warnings: {} }) {
+  const bin = path.join(root, 'var/tools/cargo-audit/bin');
+  mkdirSync(bin, { recursive: true });
+  const file = path.join(bin, 'cargo-audit');
+  writeFileSync(file, `#!/usr/bin/env node
+const report = ${JSON.stringify(report)};
+if (process.argv.includes('--version')) console.log('cargo-audit 0.22.2');
+else { console.log(JSON.stringify(report)); process.exit(report.vulnerabilities.found ? 1 : 0); }
+`);
+  chmodSync(file, 0o755);
+}
