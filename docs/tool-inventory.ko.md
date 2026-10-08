@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b425f63fa94dd92a6e1292efe4edd7f027ea0ef1a1fb368d8672b9a6ad258082 -->
+<!-- source-sha256: c1d162264229f8eee65119ca5abcb627de0b53727746f6a594c342a5e44c4b0e -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -107,7 +107,7 @@
   읽지 않습니다.
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
-파일: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`, `target-run.mjs`,
+파일: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`,
 `schema/checklist.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed`입니다.
 lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합을 기반으로 삼았습니다.
 
@@ -476,7 +476,7 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 | `markdown.mjs` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀 | checklist, status-table, changelog |
 | `schema-validate.mjs` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
 | `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
-| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run, target-run |
+| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `toolchain-declared.mjs` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
 | `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
 | `dependency-state.mjs` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
@@ -502,8 +502,10 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 
 그대로 둔 것과 이유:
 
-- `runMakeTarget`(full-run)과 `runLogged`(ci-targets)는 둘 다 `make -k <target>`을 log로 실행합니다. 두 log는 첫 줄, 마지막 줄,
-  출력의 buffering, 환경이 다르고 각 gate의 test가 그 log를 단언하므로, 합치려면 log 형식 하나를 골라야 합니다. 이것이 task K11-1입니다.
+- `make -k <target>`을 실행하는 runner는 하나입니다. target-report의 `runLogged`입니다. `target-run.mjs`와 그 `runMakeTarget`은 제거했고,
+  full-run은 target을 `runLogged`로 실행하며 통과 여부는 `targetPassed`로 읽습니다. 더 넓은 동작을 유지합니다. 호출한 make의 환경을
+  지우고, 완전한 줄만 넘기고, log 쓰기 실패를 기록합니다. full run의 target log는 명령으로 시작하고 CI report의 log처럼
+  `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
 - `kit-check.walk`는 vendored directory를 무시된 파일까지 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.

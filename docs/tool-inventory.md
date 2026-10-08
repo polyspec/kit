@@ -110,7 +110,7 @@ checked.
   accepts them and reads none.
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
-Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`, `target-run.mjs`,
+Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`,
 `schema/checklist.schema.json`, and the make targets `hooks`, `hooks-check`, `push-gate-commit` and `rerun-failed` at the end of
 `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
 
@@ -502,7 +502,7 @@ more (the normalization is in the test). The base had no pair that long; the sho
 | `markdown.mjs` | `tableCells` | `cells` of checklist and `rowCells` of status-table; the fence scan of `changelog.sections` now uses `scanFences` | checklist, status-table, changelog |
 | `schema-validate.mjs` | `SCHEMAS`, `readConfig` | the read-and-validate code of `loadConfig` in checklist and in release | checklist, release |
 | `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
-| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run, target-run |
+| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `toolchain-declared.mjs` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
 | `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, cargo-audit and govulncheck that install-ruff, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
 | `dependency-state.mjs` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
@@ -529,9 +529,11 @@ Behaviors that differ between the copies and were merged (the wider or safer one
 
 Left as it is, with the reason:
 
-- `runMakeTarget` (full-run) and `runLogged` (ci-targets) both run `make -k <target>` into a log. Their logs differ in the first
-  line, the last line, the buffering of the output and the environment, and the tests of each gate assert those logs, so
-  merging them means choosing one log format. This is the task K11-1.
+- The runner of `make -k <target>` is one: `runLogged` of target-report. `target-run.mjs` and its `runMakeTarget` are removed;
+  full-run runs its targets through `runLogged` and reads a pass with `targetPassed`. The wider behavior is kept: the environment
+  of a calling make is removed, only complete lines are passed on, a failed write of the log is recorded. The log of a target
+  of the full run starts with the command and ends with `[report] make <target> exited with status N`, as the log of a CI report
+  does (task K11-1).
 - The message that a configuration file is missing, in the commands `check-commits`, `check-documents` and `owner-check`, names
   the purpose of the file; the three sentences differ.
 - `kit-check.walk` reads the vendored directories from the disk, ignored files included, where `trackedFiles` reads the Git view.

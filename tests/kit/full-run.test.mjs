@@ -329,9 +329,10 @@ function stubMake(work) {
   const file = path.join(bin, 'make');
   writeFileSync(file, `#!/bin/sh
 echo "$@" >> "${path.join(work, '..', 'make.log')}"
-echo "building $2"
-case " $FAIL " in *" $2 "*) echo "error: $2 broke" >&2; exit 2;; esac
-printf 'no final newline of %s' "$2" >&2
+for target; do :; done
+echo "building $target"
+case " $FAIL " in *" $target "*) echo "error: $target broke" >&2; exit 2;; esac
+printf 'no final newline of %s' "$target" >&2
 `);
   chmodSync(file, 0o755);
   return bin;
@@ -343,12 +344,12 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, FAIL: 'bad' };
   const failed = run(work, process.execPath, ['scripts/kit/full-run.mjs', 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
-  assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '-k good\n-k bad\n');
+  assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '--no-print-directory -k good\n--no-print-directory -k bad\n');
   assert.match(failed.stdout, /\[full-run\] start good \(1\/2\)\nbuilding good\n/);
   assert.equal(failed.stderr, 'no final newline of good\nerror: bad broke\n', 'a standard error output without a final newline is followed by the next output at column 0');
   assert.match(failed.stdout, /\[full-run\] bad failed; its last 2 lines:\n {2}\| building bad\n {2}\| error: bad broke/);
-  assert.match(readFileSync(path.join(work, REPORT, 'targets/good.log'), 'utf8'), /^building good\nno final newline of good\n\[full-run\] make -k good ended with status 0\n$/);
-  assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /error: bad broke\n\n\[full-run\] make -k bad ended with status 2\n$/);
+  assert.match(readFileSync(path.join(work, REPORT, 'targets/good.log'), 'utf8'), /^make --no-print-directory -k good\nbuilding good\nno final newline of good\n\[report\] make good exited with status 0\n$/);
+  assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /error: bad broke\n\[report\] make bad exited with status 2\n$/);
   const written = record(work);
   assert.deepEqual([written.keys, written.failed, written.targets.map(target => target.status)], [{ dep: 'c1' }, ['bad'], ['passed', 'failed']]);
   assert.deepEqual(written.targets[1].lastLines, ['building bad', 'error: bad broke']);
@@ -359,9 +360,9 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
 
   const rerun = run(work, process.execPath, ['scripts/kit/full-run.mjs', 'rerun-failed', '--key', 'dep=c1'], { env: { ...env, FAIL: '' } });
   assert.equal(rerun.status, 0, rerun.stdout + rerun.stderr);
-  assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '-k good\n-k bad\n-k bad\n');
+  assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '--no-print-directory -k good\n--no-print-directory -k bad\n--no-print-directory -k bad\n');
   assert.equal(record(work).result, 'passed');
-  assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /ended with status 0/);
+  assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /\[report\] make bad exited with status 0\n$/);
 });
 
 test('the command prints its usage for arguments that do not fit', (t) => {
