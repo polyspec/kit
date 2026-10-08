@@ -1,11 +1,12 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0d5579a1066272128a67f08814b5ce9bf76b792a3d206d0bbcc1b859888c93f2 -->
+<!-- source-sha256: f98aa16bdc6fc884771f696c7385a0e7280509b247c79c4fccd18a203e120ff3 -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
 <!-- source-sha256: 7ae77d943c7590647b6aed5f3fa90c950a125bf185476539a8e4ec3978e7875e -->
 <!-- source-sha256: c02d688f5f5686fea282376f9c180c78a0a2fa47c5b4cf8f94362d8c95166b5a -->
 <!-- source-sha256: 5343da2cd949d631596630a9090f00227821189210578c3ede1eaee5bc119881 -->
+<!-- source-sha256: 65c6c0cf93f7fe167b2c98e6f55093fb2959a36def48a074fbd30778b5afd05a -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -125,6 +126,10 @@ tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이�
 request, merge queue, ruleset이 없습니다.
 
 ### `config/checklist.json`
+## Release 도구 (K5)
+
+`scripts/kit/release.mjs`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
+`coverage`). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -354,3 +359,56 @@ version 일관성과 orm의 다른 영역 검사:
 
 - `ORM_GIT_RANGE`: 범위는 인자 `--range`(make 변수 `RANGE`)입니다.
 - rule id `git.subject-format`과 `contracts/rules.json`: 설정은 `config/commits.json`입니다.
+  "repositoryUrl": "https://github.com/<owner>/<name>",
+  "changelog": "CHANGELOG.md",
+  "changelogTranslations": ["CHANGELOG.ko.md"],
+  "checks": ["push-gate", "ci-passed"],
+  "packages": [{ "kind": "npm", "directory": "packages/x", "name": "@scope/x" }],
+  "manifests": { "package.json": "version", "packages/x/package.json": "archive", "crate/Cargo.toml": "git-tag" },
+  "notReleased": { "tests/consumer/package.json": "the reason" },
+  "goModules": { "packages/go": "example.com/module/packages/go" }
+}
+```
+
+`changelogTranslations`와 `checks`는 선택입니다(`checks`의 기본값은 `push-gate`와 `ci-passed`). `manifests`의 값은 `archive`(`packages`에 있는
+package의 manifest), `version`(archive 없이 version만 가짐), `git-tag`(git tag로 소비됨)입니다. `goModules`는 directory(저장소 root는 `.`)를 그
+go.mod의 module path에 연결합니다.
+
+### 합친 동작 (더 넓은 동작을 유지)
+
+- 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `CHECKS`, `REPOSITORY_URL`과
+  changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
+- `verify`: `origin/main`의 조상인지와 각 check의 가장 최근 run(다섯 저장소 모두). main에 없다는 결과와 check 결과는 한 메시지로
+  보고합니다(crudui). check의 가장 최근 run은 id가 가장 큰 run이므로, 성공한 재실행이 실패한 run을 대체합니다.
+- `versions`: manifest 종류 package.json, composer.json, Cargo.toml, pyproject.toml(template)과 VERSION(orm); Go tag뿐 아니라 root tag에서도
+  선언된 모든 go.mod의 module path(orm, template보다 넓음); 저장소 root의 Go module(orm); section이 있어야 하는 추가 changelog(orm,
+  `changelogTranslations`). composer.json은 `archive` manifest가 아니면 `version`을 생략할 수 있습니다(hyper는 어디서나 생략을 허용하고
+  template과 ordered-json은 어디서나 version을 요구합니다. artifact repository가 version을 읽으므로 archive는 선언해야 합니다).
+- changelog section: heading, entry 필수, 다음 section의 anchor 줄 제거(template, hyper, ordered-json); 긴 section의 link는 heading 위의
+  `<a id>` 줄을 쓰고 없으면 점을 뺀 version을 씁니다(hyper, ordered-json); notes 한도는 125000자입니다(모두).
+- manifest 규칙(`manifestProblems`)은 규칙의 합집합입니다: npm의 모든 dependency field(`dependencies`, `devDependencies`,
+  `peerDependencies`, `optionalDependencies`)와 Composer의 `require`, `require-dev`(crudui, ordered-json); 어떤 dependency도 path, URL, git source,
+  development version이 아님(ordered-json); 이 저장소 scope의 package는 정확한 version 하나이고 저장소의 package는 tag의 version임(template);
+  package.json에 `overrides` 없음(ordered-json); composer.json은 tag의 version을 선언하고 `repositories`가 없음(template, orm). scope는 `packages`의
+  이름에서 얻으므로 도구는 scope 이름을 갖지 않습니다.
+- `assets`: tag한 commit의 manifest가 package를 묶기 전에 규칙을 통과하고(ordered-json), manifest의 name이 `config/release.json`의 name과 같고(신규),
+  각 archive가 commit의 manifest를 바이트 단위로 그대로 담습니다(ordered-json, crudui, orm; template은 파싱한 JSON을 비교했음). directory는
+  대상 옆에 만들어 이름을 바꾸므로 실패한 실행은 archive를 남기지 않습니다.
+- `publish`: archive와 함께 `gh release create TAG --verify-tag --title TAG --notes-file`(다섯 모두); archive 이름은 목록 file이 아니라
+  설정에서 옵니다(orm은 `assets.txt`를 썼음).
+- `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
+  `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
+
+### 버린 동작
+
+- crudui는 `packages/`의 package를 찾고 `private`을 건너뛰었습니다. 명시적 목록으로 대체하여 버렸고, 목록에 빠진 package file은
+  coverage가 보고합니다.
+- crudui는 check의 어떤 run이라도 성공이 아니면 실패했습니다(재실행된 이전 실패 run 포함). 성공한 재실행 뒤에도 release를 막으므로 버렸습니다.
+  orm은 run을 `started_at`으로 정렬했습니다. 생성 순서대로 커지는 id로 대체하여 버렸습니다.
+- crudui와 orm은 release 도구 안에서 `make build`, `make typescript-build`, `scripts/package-dist.mjs`를 실행했습니다. 버렸습니다. package의 build는
+  저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
+- crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)과 archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui `release-install`,
+  hyper와 orm `release-install`)은 여기서 합치지 않으며, 이후 row에서 다룹니다.
+- orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 모든 저장소에서 `var/release/assets`입니다.
+- release 단계가 아니어서 합치지 않음: template `check-clean-release.mjs`(clean worktree에서 전체 matrix)와 hyper `publish.mjs`(개발용 설치본).
+- ordered-json `release.py`는 Node 도구로 대체합니다.
