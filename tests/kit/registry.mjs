@@ -11,7 +11,10 @@ const { appendFileSync, readFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 appendFileSync(process.env.STUB_LOG, 'npm ' + args.join(' ') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
-if (args[0] === 'view') {
+if (args[0] === 'view' && args[2] === 'deprecated') {
+  // npm view <name>@<version> deprecated prints the deprecation message, or nothing for a release in good standing.
+  console.log((registry.deprecated ?? {})[args[1]] ?? '');
+} else if (args[0] === 'view') {
   const versions = registry.npm[args[1]];
   if (!versions) { console.error('404 ' + args[1]); process.exit(1); }
   console.log(JSON.stringify([{ 'dist-tags': { latest: versions[versions.length - 1] }, versions }]));
@@ -101,3 +104,11 @@ export function stubRegistries(t) {
 
 /** The version of `command` found on PATH outside the stubs, or null. */
 export const realCommand = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).stdout.trim() || null;
+
+/** What the stub registries answer for the fixture of tests/kit/fixture: every dependency is at its latest stable release. */
+export const FIXTURE_REGISTRY = {
+  npm: { 'is-number': ['7.0.0'], semver: ['7.6.0'] },
+  composer: { 'fixture-php': { 'psr/log': '3.0.2' } },
+  composerAudit: { 'fixture-php': { advisories: [], abandoned: [] } },
+  pypi: { setuptools: { '84.0.0': [{}] }, ruff: { '0.16.10': [{}] } },
+};

@@ -2,6 +2,7 @@
 // The mutation gate of the dependency policy (T18.10): on a copy of the dependency files of the repository, each
 // mutation must make scripts/check-dependency-policy.mjs report its finding. It reports every mutation that the check
 // accepts and fails when there is one.
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -22,6 +23,8 @@ function copy(directory) {
     mkdirSync(dirname(join(directory, file)), { recursive: true });
     cpSync(join(ROOT, file), join(directory, file));
   }
+  // The gate lists the files of a checkout through Git, so each copy is a repository.
+  spawnSync('git', ['init', '--quiet'], { cwd: directory });
 }
 
 const editJson = (root, file, edit) => {
@@ -33,15 +36,18 @@ const editJson = (root, file, edit) => {
 // The lock of the first Composer platform of the policy: the file that the lock mutation changes.
 const lockOfFirstPlatform = root => join(dirname(readJson(root, POLICY).composerPlatforms[0].manifest), 'composer.lock');
 
+// The first npm dependency of the review record: the one that the outdated-dependency mutation changes.
+const firstNpmPackage = root => readJson(root, RECORD).dependencies.find(entry => entry.ecosystem === 'npm').package;
+
 const MUTATIONS = [
   {
     name: 'an outdated dependency without an exception',
     apply: root => editJson(root, RECORD, (record) => {
-      const item = record.dependencies.find(entry => entry.ecosystem === 'npm' && entry.package === 'eslint');
+      const item = record.dependencies.find(entry => entry.ecosystem === 'npm');
       // The record names a release newer than the locked one: the last number of the locked version, plus one.
       item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
     }),
-    expect: finding => finding.rule === 'latest' && finding.subject === 'package.json eslint',
+    expect: finding => finding.rule === 'latest' && finding.subject === `package.json ${firstNpmPackage(ROOT)}`,
   },
   {
     name: 'a Composer platform other than the declared minimum PHP',
@@ -62,7 +68,7 @@ const MUTATIONS = [
 
 const accepted = [];
 for (const mutation of MUTATIONS) {
-  const directory = mkdtempSync(join(tmpdir(), 'template-dependency-policy-'));
+  const directory = mkdtempSync(join(tmpdir(), 'kit-dependency-policy-'));
   try {
     copy(directory);
     mutation.apply(directory);

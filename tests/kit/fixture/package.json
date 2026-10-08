@@ -1,7 +1,9 @@
 {
   "name": "@polyspec/kit-fixture",
   "private": true,
+  "workspaces": ["packages/*"],
   "devDependencies": {
-    "eslint": "9.0.0"
+    "is-number": "7.0.0",
+    "tagged-lib": "file:vendor/tagged/js"
   }
 }
