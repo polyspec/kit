@@ -1,7 +1,8 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a37f3fbdec8887d899ff5a0560790bc37a0ae111c357b1f8b7218a361d6d4bae -->
+<!-- source-sha256: 38a965d53320dee717f273e38284860f00ede86715484286dd52620994814135 -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
+<!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -226,3 +227,33 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   상태의 근거 record, record와 benchmark 파일, distribution 관찰, tracker 절의 배치 규칙, 하위 저장소로의 재귀.
 - changelog section과 `VERSION`의 비교(orm): release 검사가 manifest를 읽어 비교합니다.
 - orm의 `scripts/docs`, `scripts/features`는 제품 전용이므로 orm에 남습니다.
+
+## Owner check (K8.1-1)
+
+`scripts/kit/owner-check.mjs`는 template, crudui, hyper의 `owner-check.mjs`와 ordered-json의 `owner_check.py`를 대체합니다.
+선언은 `config/owner-checks.json`(`scripts/kit/schema/owner-checks.schema.json`)입니다.
+
+합친 동작:
+
+- glob(`*`, `**`, `{a,b}`), `always` test, 변경된 test 파일을 뜻하는 `$path`, `--paths`, `--base`, `--dry-run`, `--validate`는
+  template, crudui, hyper가 같고 그대로 유지합니다.
+- check 종류: crudui는 make target, root `package.json`의 script, workspace, package directory를 고릅니다. template과 hyper는
+  make target을, ordered-json은 implementation과 이름 붙은 check 둘을 고릅니다. kit은 crudui의 종류를 따릅니다. workspace는 root
+  `package.json`의 `workspaces`가 가리키는 directory에서 `test` script가 있는 `package.json`이고, package directory는 그 밖의
+  것입니다(crudui는 directory `packages/`를 가정했습니다).
+- `variable`(template, hyper)은 rule의 target에 일치한 경로를 make 변수로 넘깁니다.
+- target은 `CHECK_TARGETS` 순서(template, hyper)로 정렬하고, 다른 check는 선언 순서(crudui)를 유지합니다.
+- full suite target은 recipe가 `full-run.mjs`를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
+  `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
+- `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, schema validator가 키가
+  자유로운 object를 읽지 못하므로 선언은 `{ check, paths }`의 목록입니다.
+- Makefile이 include하는 파일(`include scripts/kit/kit.mk`)의 target도 알려진 target입니다(새 동작).
+- node test 파일은 `scripts/kit/run-tests.mjs`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
+- 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.
+
+버린 동작:
+
+- ordered-json의 `languages`와 `checks`는 그 저장소의 build를 가리키므로 Makefile의 `targets`가 됩니다. `$module`은 `$path`가
+  됩니다. Python test module은 node test가 아니므로 kit 밖에 남습니다.
+- crudui의 `useCheckoutNpm`: Makefile이 `var/tools`의 npm을 `PATH` 맨 앞에 두고, 도구는 `PATH`의 `npm`을 시작합니다.
+- `inputs`의 key로 쓰던 target 이름(template, hyper): 이름은 crudui처럼 `make <target>`입니다.
