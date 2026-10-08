@@ -26,5 +26,6 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K7.1 | Merge the document checks (translation pairs, revisions, fences, links, status fields) for table and list checklists | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
 | K8.1 | Merge owner-check, run-tests, target-report, ci-targets and ci-passed | `scripts/kit/` | `make kit-test` | [ ] |
 | K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.3 | Check that the crates of every Cargo.lock are downloaded before a check runs cargo offline, and download them with --fetch | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K9 | Write the schemas of release, toolchain, checklist, owner-checks and the dependency files | `scripts/kit/schema/` | `make kit-test` | [ ] |
 | K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
