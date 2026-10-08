@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "comment": "Written by make dependency-review RECORD=1 (scripts/dependency-review.mjs) from the registries; make dependency-policy-check compares the checkout with it without a network.",
+  "reviewed": "2026-10-08T19:12:49.176Z",
+  "locks": [
+    {
+      "lock": "package-lock.json",
+      "sha256": "af3366ef7b745c3ba06acdc3f9d6a8584a6383adeede3f1e385c61bbf6033a62",
+      "advisories": []
+    },
+    {
+      "lock": "packages/fixture-php/composer.lock",
+      "sha256": "27e91f2489524c42fc51dd637f0c06c29ae376ce9f21322ed24e61716c8fb92d",
+      "advisories": []
+    }
+  ],
+  "dependencies": [
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "eslint",
+      "version": "9.0.0",
+      "latest": "9.0.0"
+    },
+    {
+      "ecosystem": "composer",
+      "manifest": "packages/fixture-php/composer.json",
+      "package": "psr/log",
+      "version": "3.0.2",
+      "latest": "3.0.2"
+    },
+    {
+      "ecosystem": "pypi",
+      "manifest": "packages/fixture-python/pyproject.toml",
+      "package": "setuptools",
+      "version": "84.0.0",
+      "latest": "84.0.0"
+    },
+    {
+      "ecosystem": "pypi",
+      "manifest": "packages/fixture-python/pyproject.toml",
+      "package": "ruff",
+      "version": "0.16.10",
+      "latest": "0.16.10"
+    }
+  ]
+}
