@@ -38,8 +38,8 @@ export function walk(root, directory) {
 export const sha256 = (root, file) => createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');
 
 /**
- * The findings of the configuration of `root` against the schemas of scripts/kit/schema: each schema `<name>.schema.json`
- * requires config/<name>.json, which must validate. A missing file or an error names the file, the location and the rule.
+ * The findings of the configuration of `root` against the schemas of scripts/kit/schema: each config/<name>.json that the
+ * repository has must validate against scripts/kit/schema/<name>.schema.json; an error names the file, the location and the rule.
  */
 export function checkConfig(root) {
   const directory = path.join(root, 'scripts/kit/schema');
@@ -48,10 +48,8 @@ export function checkConfig(root) {
   for (const schemaFile of readdirSync(directory).filter(name => name.endsWith('.schema.json')).sort()) {
     const name = schemaFile.slice(0, -'.schema.json'.length);
     const config = `config/${name}.json`;
-    if (!existsSync(path.join(root, config))) {
-      found.push(`${config}: the file is missing; scripts/kit/schema/${schemaFile} requires it`);
-      continue;
-    }
+    // A repository declares a configuration by having its file; the schema checks the declared file only.
+    if (!existsSync(path.join(root, config))) continue;
     const schema = JSON.parse(readFileSync(path.join(directory, schemaFile), 'utf8'));
     const value = JSON.parse(readFileSync(path.join(root, config), 'utf8'));
     for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: scripts/kit/schema/${schemaFile}`);

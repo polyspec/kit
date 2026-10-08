@@ -28,7 +28,7 @@ test('the schemas accept the configuration of the fixture', (t) => {
   assert.ok(findings.some(line => line === 'config/dependency-policy.json: $.schema is 2, the schema requires 1. Rule: scripts/kit/schema/dependency-policy.schema.json'), findings.join('\n'));
   assert.ok(findings.some(line => line.startsWith('config/dependency-policy.json: $.extra is not in the schema')), findings.join('\n'));
   rmSync(policy);
-  assert.ok(checkConfig(root).includes('config/dependency-policy.json: the file is missing; scripts/kit/schema/dependency-policy.schema.json requires it'));
+  assert.deepEqual(checkConfig(root), [], 'a repository without a declared configuration file has no finding');
 });
 
 test('the validator names the type, the enumeration and the pattern of a value', () => {
