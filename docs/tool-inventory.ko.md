@@ -1,6 +1,7 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 58538b606b9dd9c8b0842a6b75625e4d99d8a81ebe3c67f10993770bcac70810 -->
+<!-- source-sha256: a37f3fbdec8887d899ff5a0560790bc37a0ae111c357b1f8b7218a361d6d4bae -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
+<!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -191,3 +192,37 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | `user-lock-file`과 `checkoutLockFile` | crudui | lock 경로에 저장소 이름이 있음, 호출자가 절대 경로를 넘김 |
 | `test-progress`의 진행 줄 | crudui | crudui의 module, gate는 단계마다 한 줄을 출력 |
 | `scripts/git/check.mjs`(commit subject 형식, `commit-msg` hook)와 `scripts/checklist/check.mjs`의 marker·우회 문구 규칙 | orm | gate가 아님, hook은 `hooks`에 적고 문서 규칙은 K7의 몫 |
+## 문서 검사 (K7.1)
+
+`scripts/kit/check-documents.mjs`는 template, crudui, hyper의 `check-documents.mjs`와 ordered-json의 `docs_check.py`를 대체합니다.
+어느 Markdown 파일이 문서인지, 체크리스트, status table, changelog는 `config/documents.json`
+(`scripts/kit/schema/documents.schema.json`)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다.
+
+합친 동작(더 넓은 동작을 채택):
+
+| 관심사 | 구현 | kit의 동작 |
+|---|---|---|
+| 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
+| 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
+| `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: ... -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
+| fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
+| link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
+| private path | ordered-json | home directory 경로는 실패 (`private-path`) |
+| `{{` | template (VitePress) | `interpolation` glob이 정한 문서에서 fenced block 밖의 `{{`는 실패 |
+| checklist, table | template, crudui, hyper | task row, 마지막 cell의 state, marker는 state에만, 그 밖의 줄은 실패; crudui와 hyper의 구분 줄(`:---:`) 허용; ID pattern은 checklist의 `idPattern` |
+| checklist, list | orm | `- [o] ID text` 항목, 하위 항목, 이어지는 줄, `[!]`의 `Cause:`와 `Retry:`; 두 형식 모두 한국어 label 허용 |
+| checklist 쌍 | template, hyper: 마지막 cell 전체 비교; orm: ID와 state 비교 | task ID와 state marker를 비교; bypass는 각 언어에서 cause와 retry 조건을 적고, 그 글은 번역함 |
+| 중복과 빈 checklist | orm, ordered-json | 반복된 task ID와 task가 없는 checklist는 실패 |
+| status table | template (두 형식), crudui (6 cell), ordered-json (7 cell) | 설정의 `statusTables`: cell 수, cell별 닫힌 값과 pattern; 영어와 한국어 row는 ID와 닫힌 값이 같음 |
+| changelog | orm | `## Unreleased`가 맨 처음에 한 번, 버전 `X.Y.Z`는 최신이 위에 한 번씩, 두 언어의 section이 같음 |
+
+버린 동작:
+
+- template과 crudui의 고정 문서 목록과 ordered-json의 등록 manifest: include glob과 `doc-id` marker가 대체합니다.
+- template의 두 번째 status table 형식(5 cell): table의 형식은 하나이고, 호환 계층으로 옛 형식을 유지하지 않습니다.
+- 저장소 사실을 읽는 ordered-json의 검사는 그 저장소에 남습니다: implementation, verification, distribution 상태 사이의 관계,
+  상태의 근거 record, record와 benchmark 파일, distribution 관찰, tracker 절의 배치 규칙, 하위 저장소로의 재귀.
+- changelog section과 `VERSION`의 비교(orm): release 검사가 manifest를 읽어 비교합니다.
+- orm의 `scripts/docs`, `scripts/features`는 제품 전용이므로 orm에 남습니다.
