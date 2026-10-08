@@ -36,7 +36,11 @@ const lockOfFirstPlatform = root => join(dirname(readJson(root, POLICY).composer
 const MUTATIONS = [
   {
     name: 'an outdated dependency without an exception',
-    apply: root => editJson(root, RECORD, (record) => { record.dependencies.find(item => item.package === 'eslint').latest = '9.1.0'; }),
+    apply: root => editJson(root, RECORD, (record) => {
+      const item = record.dependencies.find(entry => entry.ecosystem === 'npm' && entry.package === 'eslint');
+      // The record names a release newer than the locked one: the last number of the locked version, plus one.
+      item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
+    }),
     expect: finding => finding.rule === 'latest' && finding.subject === 'package.json eslint',
   },
   {
