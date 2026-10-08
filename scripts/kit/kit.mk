@@ -89,3 +89,25 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 
 commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against config/commits.json; offline
 	node scripts/kit/check-commits.mjs $(if $(RANGE),--range $(RANGE))
+# The steps of a release (scripts/kit/release.mjs, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
+# directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
+.PHONY: release-verify release-versions release-assets release-publish release-coverage
+
+release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
+	@test -n "$(TAG)" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
+	node scripts/kit/release.mjs verify $(TAG)
+
+release-versions: ## Require the version of TAG in every manifest, the Go module path and the change log section; offline
+	@test -n "$(TAG)" || { echo "release-versions: TAG is required, for example make release-versions TAG=v0.0.1"; exit 1; }
+	node scripts/kit/release.mjs versions $(TAG)
+
+release-assets: ## Build the archive of every package of TAG into var/release/assets
+	@test -n "$(TAG)" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
+	node scripts/kit/release.mjs assets $(TAG)
+
+release-publish: ## Create the GitHub Release of TAG with the notes and the archives of release-assets
+	@test -n "$(TAG)" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
+	node scripts/kit/release.mjs publish $(TAG)
+
+release-coverage: ## Require every package file of the checkout to be classified in config/release.json; offline
+	node scripts/kit/release.mjs coverage

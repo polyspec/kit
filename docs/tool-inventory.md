@@ -122,6 +122,10 @@ gate. The guard of the full run refuses while an item is in the active state, wh
 record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
+## Release tool (K5)
+
+`scripts/kit/release.mjs` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
+`coverage`). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -359,3 +363,63 @@ Dropped behaviors:
 
 - `ORM_GIT_RANGE`: the range is the argument `--range` (the make variable `RANGE`).
 - The rule id `git.subject-format` and `contracts/rules.json`: the configuration is `config/commits.json`.
+  "repositoryUrl": "https://github.com/<owner>/<name>",
+  "changelog": "CHANGELOG.md",
+  "changelogTranslations": ["CHANGELOG.ko.md"],
+  "checks": ["push-gate", "ci-passed"],
+  "packages": [{ "kind": "npm", "directory": "packages/x", "name": "@scope/x" }],
+  "manifests": { "package.json": "version", "packages/x/package.json": "archive", "crate/Cargo.toml": "git-tag" },
+  "notReleased": { "tests/consumer/package.json": "the reason" },
+  "goModules": { "packages/go": "example.com/module/packages/go" }
+}
+```
+
+`changelogTranslations` and `checks` are optional (`checks` defaults to `push-gate` and `ci-passed`). The values of
+`manifests` are `archive` (the manifest of a package in `packages`), `version` (carries the version without an archive) and
+`git-tag` (consumed by git tag). `goModules` maps a directory (`.` for the repository root) to the module path of its go.mod.
+
+### Merged behaviors (the wider behavior is kept)
+
+- Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `CHECKS`, `REPOSITORY_URL` and the change
+  logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
+- `verify`: ancestor of `origin/main` and the latest run of each check (template, hyper, ordered-json, crudui, orm). The
+  not-on-main finding and the check findings are reported in one message (crudui). The latest run of a check is the run with the
+  greatest id, so a rerun that succeeded replaces a failed run.
+- `versions`: the manifest kinds package.json, composer.json, Cargo.toml, pyproject.toml (template) and VERSION (orm); the
+  module path of every declared go.mod on a root tag, not only on a Go tag (orm, wider than template); a Go module at the
+  repository root (orm); further change logs that must hold the section (orm, `changelogTranslations`). A composer.json may omit
+  `version` unless it is an `archive` manifest (hyper accepts the omission everywhere, template and ordered-json require the
+  version everywhere; an archive must declare it because an artifact repository reads it).
+- Change log section: heading, entry required, the anchor lines of the next section removed (template, hyper, ordered-json);
+  the link of a long section uses the `<a id>` line above the heading, else the version without its dots (hyper,
+  ordered-json); the notes limit is 125000 characters (all).
+- Manifest rules (`manifestProblems`), the union of the rules: every dependency field of npm (`dependencies`,
+  `devDependencies`, `peerDependencies`, `optionalDependencies`) and of Composer (`require`, `require-dev`) (crudui,
+  ordered-json); no path, URL, git source or development version for any dependency (ordered-json); a package of a scope of
+  this repository is one exact version and a package of the repository is the version of the tag (template); no `overrides` in a
+  package.json (ordered-json); a composer.json declares the version of the tag and no `repositories` (template, orm). The
+  scopes are derived from the names in `packages`, so the tool names no scope.
+- `assets`: the manifests of the tagged commit pass the rules before a package is packed (ordered-json), the manifest name
+  equals the name in `config/release.json` (new), and each archive carries the manifest of the commit byte for byte
+  (ordered-json, crudui, orm; template compared parsed JSON). The directory is built beside the target and renamed, so a failed
+  run leaves no archive.
+- `publish`: `gh release create TAG --verify-tag --title TAG --notes-file` with the archives (all five); the archive names come
+  from the configuration, not from a list file (orm wrote `assets.txt`).
+- `coverage`: every tracked or new package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION file is in
+  `manifests`, `notReleased` or `goModules` (template test, orm `unlistedManifests`); a listed file that does not exist and a file
+  in two lists are findings (orm, wider).
+
+### Dropped behaviors
+
+- crudui discovered the packages of `packages/` and skipped `private` ones: dropped for the explicit list; coverage reports
+  a package file that the list omits.
+- crudui failed when any run of a check was not successful, even an older failed run that was rerun: dropped, because it blocks
+  a release after a successful rerun. orm ordered the runs by `started_at`: dropped for the id, which grows with creation.
+- crudui and orm ran `make build`, `make typescript-build` or `scripts/package-dist.mjs` inside the release tool: dropped. The
+  build of a package is a prerequisite that the repository adds to its own `release-assets` recipe, so the tool names no build.
+- crudui `RELEASE_COMMIT` (assets before the tag exists) and the install of the archives as a consumer (template
+  `release-consumer`, crudui `release-install`, hyper and orm `release-install`) are not merged here; a later row covers them.
+- orm output under `.runtime/release` and `assets.txt`: the output is `var/release/assets` in every repository.
+- Not release steps and not merged: template `check-clean-release.mjs` (a full matrix in a clean worktree) and hyper
+  `publish.mjs` (installed copies for development).
+- ordered-json `release.py` is replaced by the Node tool.
