@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validate } from './schema-validate.mjs';
 
 export const LOCK = '.kit/kit.lock.json';
 
@@ -36,10 +37,33 @@ export function walk(root, directory) {
 
 export const sha256 = (root, file) => createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');
 
+/**
+ * The findings of the configuration of `root` against the schemas of scripts/kit/schema: each schema `<name>.schema.json`
+ * requires config/<name>.json, which must validate. A missing file or an error names the file, the location and the rule.
+ */
+export function checkConfig(root) {
+  const directory = path.join(root, 'scripts/kit/schema');
+  if (!existsSync(directory)) return [];
+  const found = [];
+  for (const schemaFile of readdirSync(directory).filter(name => name.endsWith('.schema.json')).sort()) {
+    const name = schemaFile.slice(0, -'.schema.json'.length);
+    const config = `config/${name}.json`;
+    if (!existsSync(path.join(root, config))) {
+      found.push(`${config}: the file is missing; scripts/kit/schema/${schemaFile} requires it`);
+      continue;
+    }
+    const schema = JSON.parse(readFileSync(path.join(directory, schemaFile), 'utf8'));
+    const value = JSON.parse(readFileSync(path.join(root, config), 'utf8'));
+    for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: scripts/kit/schema/${schemaFile}`);
+  }
+  return found;
+}
+
 /** The findings of the vendored files of `root` against its lock: a list of lines, empty when they match. */
 export function check(root) {
+  const config = checkConfig(root);
   const lockFile = path.join(root, LOCK);
-  if (!existsSync(lockFile)) return [`${LOCK}: the lock is missing. Fix: make kit-sync KIT_TAG=<tag>`];
+  if (!existsSync(lockFile)) return [...config, `${LOCK}: the lock is missing. Fix: make kit-sync KIT_TAG=<tag>`];
   const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
   const found = [];
   const present = new Set(vendoredDirectories(root).flatMap(directory => walk(root, directory)));
@@ -55,7 +79,7 @@ export function check(root) {
   for (const file of [...present].sort()) {
     if (!(file in lock.files)) found.push(`${file}: the file is not in the lock. Fix: make kit-sync KIT_TAG=${lock.tag}`);
   }
-  return found;
+  return [...config, ...found];
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
