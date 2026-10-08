@@ -48,7 +48,7 @@ export function check(root, { composer = 'composer' } = {}) {
   const exceptions = new Map();
   for (const exception of policy.exceptions) {
     const key = dependencyKey(exception);
-    const complete = ['npm', 'composer', 'pypi'].includes(exception.ecosystem) && nonEmpty(exception.manifest) && nonEmpty(exception.package)
+    const complete = ['npm', 'composer', 'pypi', 'go'].includes(exception.ecosystem) && nonEmpty(exception.manifest) && nonEmpty(exception.package)
       && nonEmpty(exception.reason) && nonEmpty(exception.removalCondition)
       && Array.isArray(exception.verification) && exception.verification.length > 0 && exception.verification.every(nonEmpty);
     if (!complete) add('policy', key, 'the exception lacks an ecosystem, manifest, package, reason, removal condition or verification command', `complete the exception in ${POLICY}`);

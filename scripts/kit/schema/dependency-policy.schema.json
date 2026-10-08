@@ -61,7 +61,8 @@
             "enum": [
               "npm",
               "composer",
-              "pypi"
+              "pypi",
+              "go"
             ]
           },
           "manifest": {

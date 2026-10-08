@@ -110,11 +110,33 @@ export const KIT_FIXTURE = 'tests/kit/fixture/';
 /** The files of the checkout that its reviews read: the tracked files and the new files that Git does not ignore, except the kit fixture. */
 export const reviewedFiles = root => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE));
 
+/** The go.mod files of the checkout: every go.mod that is tracked or new and not ignored. */
+export const goModules = root => reviewedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
+
+/**
+ * The direct requirements of a go.mod as { module, version }: the `require` lines without `// indirect`, except a module
+ * that a `replace` directive points to a directory of the checkout, which is a package of this repository.
+ */
+export function goRequirements(text) {
+  const replaced = new Set([...text.matchAll(/^\s*(?:replace\s+)?(\S+)(?:\s+v\S+)?\s*=>\s*(?:\.{1,2}\/|\/)\S*\s*$/gm)].map(match => match[1]));
+  const lines = [
+    ...[...text.matchAll(/^require\s*\(([\s\S]*?)^\)/gm)].flatMap(match => match[1].split('\n')),
+    ...[...text.matchAll(/^require\s+(\S+\s+v\S+.*)$/gm)].map(match => match[1]),
+  ];
+  const requirements = [];
+  for (const line of lines) {
+    if (/\/\/\s*indirect/.test(line)) continue;
+    const match = /^\s*(\S+)\s+(v\d\S*)/.exec(line);
+    if (match && !replaced.has(match[1])) requirements.push({ module: match[1], version: match[2] });
+  }
+  return requirements;
+}
+
 /** The Cargo locks of the checkout: every Cargo.lock that is tracked or new and not ignored. */
 export const cargoLocks = root => reviewedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
 
-/** The ecosystem of a lock: npm, composer or cargo. */
-export const lockEcosystem = lock => ({ 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo' })[path.posix.basename(lock)];
+/** The ecosystem of a lock: npm, composer, cargo or go. */
+export const lockEcosystem = lock => ({ 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' })[path.posix.basename(lock)];
 
 /** The npm manifests of the checkout: the root package.json and the package.json of each workspace directory. */
 export function npmManifests(root) {
@@ -201,6 +223,16 @@ export function readState(root, policy) {
     const text = readFileSync(path.join(root, manifestPath), 'utf8');
     for (const requirement of pythonRequirements(text, manifestPath)) {
       dependencies.push({ ecosystem: 'pypi', manifest: manifestPath, ...requirement, lock: null });
+    }
+  }
+  for (const manifestPath of goModules(root)) {
+    const requirements = goRequirements(readFileSync(path.join(root, manifestPath), 'utf8'));
+    if (requirements.length === 0) continue;
+    const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'go.sum');
+    if (!existsSync(path.join(root, lockPath))) throw new Error(`${manifestPath} requires modules and ${lockPath} is missing; run go mod tidy in ${path.posix.dirname(manifestPath)}`);
+    locks.push(lockPath);
+    for (const { module, version } of requirements) {
+      dependencies.push({ ecosystem: 'go', manifest: manifestPath, package: module, kind: 'require', spec: version, version, lock: lockPath });
     }
   }
   locks.push(...cargoLocks(root));

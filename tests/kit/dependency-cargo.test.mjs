@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { installCargoAudit } from '../../scripts/kit/install-cargo-audit.mjs';
-import { fixtureCheckout as fixture, gate, installCargoAuditStub, review } from './checkout.mjs';
+import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mjs';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mjs';
 
 const VULNERABLE = {
@@ -17,6 +17,7 @@ const VULNERABLE = {
 test('the review records the Cargo lock with its advisories, and the gate then names each advisory', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root, VULNERABLE);
+  installGovulncheckStub(root);
   const stub = stubRegistries(t);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, ['--record'], stub.env);
@@ -82,5 +83,5 @@ test('the vendored fixture of kit is not a lock of the repository that holds it'
   cpSync(path.join(root, 'packages/fixture-rust'), path.join(root, 'tests/kit/fixture/packages/fixture-rust'), { recursive: true });
   const result = gate(root);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /5 registry dependencies and 3 locks match the review of /);
+  assert.match(result.stdout, /6 registry dependencies and 4 locks match the review of /);
 });

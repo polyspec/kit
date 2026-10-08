@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Writes the review record of tests/kit/fixture with the review tool, the stub registries of FIXTURE_REGISTRY and a stub
-// cargo-audit that finds nothing, in a copy of the fixture, and copies the record back, so the committed record is the
+// cargo-audit and a stub govulncheck that find nothing, in a copy of the fixture, and copies the record back, so the committed record is the
 // output of the tool (`make kit-fixture-record`). A second run changes only the time.
 //
 //   node tests/kit/record-fixture.mjs
@@ -8,7 +8,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fixtureCheckout, installCargoAuditStub, review } from './checkout.mjs';
+import { fixtureCheckout, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mjs';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +17,7 @@ const t = { after: callback => cleanups.push(callback) };
 try {
   const root = fixtureCheckout(t);
   installCargoAuditStub(root);
+  installGovulncheckStub(root);
   const stub = stubRegistries(t);
   stub.registry(FIXTURE_REGISTRY);
   const run = review(root, ['--record'], stub.env);
