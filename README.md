@@ -9,7 +9,7 @@ The tools that every polyspec repository shares. A repository holds a byte-for-b
 |---|---|---|
 | Vendoring | `kit-sync.mjs`, `kit-check.mjs` | `kit-sync KIT_TAG=…`, `kit-check`, `kit-test` |
 | Dependencies | `dependency-state.mjs`, `dependency-review.mjs`, `check-dependency-policy.mjs`, `check-dependency-policy-mutation.mjs`, `pin-python-dependency.mjs` | `dependency-policy-check`, `dependency-policy-mutation-check`, `dependency-review RECORD=1 UPDATE=1` |
-| Toolchains | `install-tools.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-cargo-audit.mjs`, `install-govulncheck.mjs`, `check-toolchain.mjs`, `check-cargo-downloads.mjs` | `install-tools`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
+| Toolchains | `install-tools.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-cargo-audit.mjs`, `install-govulncheck.mjs`, `check-toolchain.mjs`, `check-cargo-downloads.mjs` | `install-tools TOOLS=…`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | Python | `lint-python.mjs` | `lint-python` |
 | Gates | `push-gate.mjs`, `full-run.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `checklist.mjs` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
 | Documents and commits | `check-documents.mjs`, `documents-stamp.mjs`, `check-commits.mjs`, `owner-check.mjs` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |

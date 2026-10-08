@@ -3,7 +3,7 @@
 // the same way on every run. The registries are stubs (tests/kit/registry.mjs), so no test queries the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mjs';
@@ -63,4 +63,18 @@ test('the mutation check rejects every mutation of the fixture', (t) => {
   const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mjs'], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /4 mutations rejected/);
+});
+
+test('the mutation check applies to the ecosystems of the repository: no Composer platform, and a record that starts with a Python dependency', (t) => {
+  const root = fixture(t);
+  const edit = (file, change) => {
+    const data = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+    change(data);
+    writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
+  };
+  edit('config/dependency-policy.json', (policy) => { policy.composerPlatforms = []; });
+  edit('config/dependency-review.json', (record) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
+  const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mjs'], { cwd: root, encoding: 'utf8', env: process.env });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
