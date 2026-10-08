@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f23365192ed41c2672de13a540c2f019d4cac1815058ca339b7bb2700905eb6f -->
+<!-- source-sha256: c25f3fecdfaef8314cbfb96a006f10d3da1791865bbe1531d3cccf4c2a66a79a -->
 <!-- source-sha256: 423420f084740d3b7a1a744f8687d7aab997ade69e7bb796139b9594f0dfe055 -->
 <!-- source-sha256: a4dcbbbce0d2e3393d95c817c6cb930790db4f564f7a384fbf898453fff8beba -->
 <!-- source-sha256: 933a7cb3966f4ef7c43d7a74b16b43568e7c3734f91ddb3d11dbf214132caa48 -->
@@ -8,6 +8,7 @@
 <!-- source-sha256: 5343da2cd949d631596630a9090f00227821189210578c3ede1eaee5bc119881 -->
 <!-- source-sha256: 65c6c0cf93f7fe167b2c98e6f55093fb2959a36def48a074fbd30778b5afd05a -->
 <!-- source-sha256: eb6d4382dc5a3fa6f74e900216a6d36c56949fca278c7266dc25e461b7201c97 -->
+<!-- source-sha256: a22f7cb8d75c4dadf3ca6bbb299e508bcc072e69ef042749fe0ac52bdd878851 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -425,3 +426,15 @@ go.mod의 module path에 연결합니다.
 - Zip: tag한 commit의 package directory를 `git archive --format=zip -0`으로 만들고 `--mtime`을 commit 시각으로, `TZ=UTC`로 둡니다(ordered-json은 고정 상수 시각,
   template은 commit 시각, crudui, hyper, orm은 둘 다 쓰지 않았음). tree에 대한 `git archive`는 `--mtime` 없이는 현재 시각을 쓰고 zip은 local time을 저장합니다.
   같은 tag의 두 번째 실행은 언제 어느 time zone에서든 같은 바이트를 씁니다.
+
+### Go module tag (K5.3)
+
+- Go proxy는 저장소 root 아래에 있는 module을 `vX.Y.Z`가 아니라 tag `<directory>/vX.Y.Z`에서 얻습니다. 한 release에서 이 tag가 빠진 적이 있습니다.
+  이제 tag `vX.Y.Z`의 `verify`는 root 아래 `goModules`의 모든 module에 대해 `vX.Y.Z`와 같은 commit의 tag `<directory>/vX.Y.Z`를 요구합니다.
+  tag가 없는 경우와 다른 commit에 있는 경우는 결과로 보고하며, tag 이름, module path 또는 두 commit, 그리고 tag를 만드는 명령을 적습니다
+  (`git tag -a <directory>/vX.Y.Z -m <directory>/vX.Y.Z <commit> && git push origin <directory>/vX.Y.Z`; 다른 commit에 있는 tag는 먼저 `git tag -d`로 지움).
+  결과는 ancestry와 check run 결과와 같은 메시지에 보고합니다.
+- 단계 `go-tags TAG`(`make release-go-tags`)는 이 검사만 offline으로 실행하므로, maintainer가 tag를 붙인 뒤 실행할 수 있습니다. 이 row 이전에
+  template과 ordered-json은 release 정책에 이 tag를 적었지만, 다섯 저장소의 어떤 도구도 검사하지 않았습니다.
+- tag `<directory>/vX.Y.Z`는 그 module만 release합니다. sibling tag가 필요 없고 archive도 만들지 않습니다. 저장소 root(`.`)의 module은 `vX.Y.Z` 자체로 release되며 다른
+  tag가 필요 없습니다. tag는 `verify`를 실행하는 checkout에 있어야 하므로, 이를 실행하는 workflow는 tag를 fetch합니다.

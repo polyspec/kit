@@ -91,7 +91,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	node scripts/kit/check-commits.mjs $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mjs, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-verify release-versions release-assets release-publish release-coverage
+.PHONY: release-verify release-versions release-assets release-publish release-coverage release-go-tags
 
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$(TAG)" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
@@ -111,3 +111,7 @@ release-publish: ## Create the GitHub Release of TAG with the notes and the arch
 
 release-coverage: ## Require every package file of the checkout to be classified in config/release.json; offline
 	node scripts/kit/release.mjs coverage
+
+release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
+	@test -n "$(TAG)" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
+	node scripts/kit/release.mjs go-tags $(TAG)
