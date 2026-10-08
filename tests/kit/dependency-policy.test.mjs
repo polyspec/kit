@@ -1,6 +1,6 @@
 // Tests of the dependency tools on the fixture of this repository (package.json, packages/fixture-php, packages/fixture-python,
 // config/): the gate passes on the fixture, fails on a lock changed without a review, and the review records the fixture
-// the same way on every run. The registries are stubs (tests/helpers/registry.mjs), so no test queries the network.
+// the same way on every run. The registries are stubs (tests/kit/registry.mjs), so no test queries the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { stubRegistries } from '../helpers/registry.mjs';
+import { stubRegistries } from './registry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of the fixture: the tools, the stubs' users, the manifests and locks, the policy and the record.
@@ -18,7 +18,7 @@ const FILES = [
   'packages/fixture-python/pyproject.toml',
   'config/dependency-policy.json', 'config/dependency-review.json',
 ];
-const TOOLS = ['scripts/dependency-state.mjs', 'scripts/dependency-review.mjs', 'scripts/check-dependency-policy.mjs', 'scripts/pin-python-dependency.mjs'];
+const TOOLS = ['scripts/kit/dependency-state.mjs', 'scripts/kit/dependency-review.mjs', 'scripts/kit/check-dependency-policy.mjs', 'scripts/kit/pin-python-dependency.mjs'];
 
 // A copy of the fixture with the tools, so that each tool reads its own checkout.
 function fixture(t) {
@@ -31,8 +31,8 @@ function fixture(t) {
   return directory;
 }
 
-const gate = (root, env = process.env) => spawnSync(process.execPath, ['scripts/check-dependency-policy.mjs'], { cwd: root, encoding: 'utf8', env });
-const review = (root, args, env) => spawnSync(process.execPath, ['scripts/dependency-review.mjs', ...args], { cwd: root, encoding: 'utf8', env });
+const gate = (root, env = process.env) => spawnSync(process.execPath, ['scripts/kit/check-dependency-policy.mjs'], { cwd: root, encoding: 'utf8', env });
+const review = (root, args, env) => spawnSync(process.execPath, ['scripts/kit/dependency-review.mjs', ...args], { cwd: root, encoding: 'utf8', env });
 
 test('the gate passes on the fixture and queries no registry', (t) => {
   const root = fixture(t);

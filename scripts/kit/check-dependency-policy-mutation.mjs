@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { check } from './check-dependency-policy.mjs';
 import { POLICY, RECORD, readJson } from './dependency-state.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** A copy of the manifests, locks, local package manifests, Python manifests, policy and review record of the repository. */
 function copy(directory) {
