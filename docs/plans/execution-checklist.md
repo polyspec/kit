@@ -52,3 +52,4 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K11-1 | Merge runMakeTarget of full-run and runLogged of ci-targets into one runner with one log format | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |
 | K12 | Read an npm lock entry that npm installed as a copy (`resolved: file:<directory>`, no `link`) as a package of the repository | `scripts/kit/dependency-state.mjs, tests/kit/dependency-state.test.mjs` | `make kit-test` | [o] |
 | K12-1 | Write the `source-sha256` of the Korean documents from the English files with `make documents-stamp` | `scripts/kit/documents-stamp.mjs, tests/kit/documents-stamp.test.mjs` | `make kit-test` | [o] |
+| K12-2 | Accept the composer.json at the root of a repository as a Composer manifest of the dependency policy | `scripts/kit/schema/dependency-policy.schema.json, tests/kit/schema.test.mjs` | `make kit-test` | [o] |
