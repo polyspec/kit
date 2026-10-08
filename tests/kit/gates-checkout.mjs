@@ -43,10 +43,11 @@ export function checklists(state) {
 }
 
 /**
- * A checkout `work` with scripts/kit, config/checklist.json, the checklists in the state `state` (the second task of the
- * fixture), a Git history of one commit and the remote `origin` in `remote`. Removed with `t.after`.
+ * A checkout `work` with scripts/kit, config/checklist.json (or `config`), the checklists in the state `state` (the second
+ * task of the fixture) and the files of `files`, written over them, and the remote `origin` in `remote`; nothing is committed.
+ * Removed with `t.after`.
  */
-export function checkout(t, { state = '[ ]', config = null } = {}) {
+export function checkout(t, { state = '[ ]', config = null, files = {} } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-gates-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const work = path.join(directory, 'work');
@@ -61,6 +62,10 @@ export function checkout(t, { state = '[ ]', config = null } = {}) {
   writeFileSync(path.join(work, CHECKLIST), english);
   writeFileSync(path.join(work, TRANSLATION), korean);
   writeFileSync(path.join(work, '.gitignore'), '/var/\n');
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(work, name)), { recursive: true });
+    writeFileSync(path.join(work, name), text);
+  }
   git(directory, 'init', '--quiet', '--bare', remote);
   git(directory, 'init', '--quiet', '--initial-branch=main', work);
   git(work, 'remote', 'add', 'origin', remote);

@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 2d41f50034706494b394fc337ac05d9fd29a4800317a56ba5296e22283ea6b27 -->
+<!-- source-sha256: 63210a948b19e523e3d57f1be2cefe119189a4e2c615054c0d38b2724db85292 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
 <!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
@@ -8,6 +8,7 @@
 <!-- source-sha256: 77b703c92ebb2348c66d8cc615bff737bc5827f8fddbd770eb9169299d1a3b92 -->
 <!-- source-sha256: ef8a2705a5651ab67a2218022c70b953b8af092105adc76bfac21652aafe766c -->
 <!-- source-sha256: 477f1edba8b8bdb47e7c422fc293914d44dbd3078231ec24229fa2b432c0ef4a -->
+<!-- source-sha256: 329372a602d6efb0a2a998db309a90b023028d94b7f1e6f124e1dc44cba4816a -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -35,7 +36,7 @@
 | K6.1-1 | Table, list, 번역 체크리스트와 hook을 config/checklist.json에서 읽는다 | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | holder-lock을 합친다: 재사용된 process ID에 대비한 시작 시각, 홀더가 끝난 lock의 안전한 제거 | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Git hook을 멱등하게 설치하고 검사한다 | `scripts/kit/git-hooks.mjs` | `make kit-test` | [o] |
-| K6.1-4 | push-gate를 합친다: pre-push hook과 commit 검사가 active 상태의 항목을 거부한다 | `scripts/kit/push-gate.mjs` | `make kit-test` | [ ] |
+| K6.1-4 | push-gate를 합친다: pre-push hook과 commit 검사가 active 상태의 항목을 거부한다 | `scripts/kit/push-gate.mjs` | `make kit-test` | [o] |
 | K6.1-5 | full-run guard를 합친다: tree 기록, lock, 실패한 target의 재실행 | `scripts/kit/full-run.mjs, target-run.mjs` | `make kit-test` | [ ] |
 | K6.1-6 | gate의 make target을 추가하고 합친 내용을 도구 목록에 기록한다 | `scripts/kit/kit.mk, docs/tool-inventory.md(.ko)` | `make kit-test` | [ ] |
 | K7.1 | 문서 검사(번역 쌍, 개정, 코드 블록, 링크, 상태 필드)를 표형과 목록형 체크리스트에 대해 하나로 합친다 | `scripts/kit/check-documents.mjs` | `make kit-test` | [ ] |
