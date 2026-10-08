@@ -8,11 +8,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mjs';
 import * as release from '../../scripts/kit/release.mjs';
+import { Stop, run } from '../../scripts/kit/process.mjs';
 import * as consumer from '../../scripts/kit/release-consumer.mjs';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mjs';
 import { consumerSandbox } from './release-consumer-sandbox.mjs';
 
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof release.Stop && pattern.test(error.message), String(pattern));
+const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const NPM = 'tests/release-consumer/npm';
 const COMPOSER = 'tests/release-consumer/composer';
 const edit = (root, file, change) => writeJson(root, file, change(readJson(root, file)));

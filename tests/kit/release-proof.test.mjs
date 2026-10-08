@@ -7,11 +7,12 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import * as release from '../../scripts/kit/release.mjs';
+import { Stop, run } from '../../scripts/kit/process.mjs';
 import * as proof from '../../scripts/kit/release-proof.mjs';
 import { git, readJson, writeJson } from './release-sandbox.mjs';
 import { consumerSandbox } from './release-consumer-sandbox.mjs';
 
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof release.Stop && pattern.test(error.message), String(pattern));
+const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const REMOTE = 'example.com/polyspec/kit-fixture';
 const URL = `https://${REMOTE}`;
 
