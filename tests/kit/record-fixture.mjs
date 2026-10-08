@@ -1,19 +1,29 @@
 #!/usr/bin/env node
-// Writes the review record of tests/kit/fixture with the review tool and the stub registries of FIXTURE_REGISTRY, so the
-// committed record is the output of the tool and a second run changes only the time (`make kit-fixture-record`).
+// Writes the review record of tests/kit/fixture with the review tool, the stub registries of FIXTURE_REGISTRY and a stub
+// cargo-audit that finds nothing, in a copy of the fixture, and copies the record back, so the committed record is the
+// output of the tool (`make kit-fixture-record`). A second run changes only the time.
 //
 //   node tests/kit/record-fixture.mjs
-import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fixtureCheckout, installCargoAuditStub, review } from './checkout.mjs';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const stub = stubRegistries({ after() {} });
-stub.registry(FIXTURE_REGISTRY);
-const run = spawnSync(process.execPath, [path.join(here, '../../scripts/kit/dependency-review.mjs'), '--root', path.join(here, 'fixture'), '--record'], {
-  encoding: 'utf8', env: stub.env,
-});
-process.stdout.write(run.stdout);
-process.stderr.write(run.stderr);
-process.exitCode = run.status ?? 1;
+const cleanups = [];
+const t = { after: callback => cleanups.push(callback) };
+try {
+  const root = fixtureCheckout(t);
+  installCargoAuditStub(root);
+  const stub = stubRegistries(t);
+  stub.registry(FIXTURE_REGISTRY);
+  const run = review(root, ['--record'], stub.env);
+  process.stdout.write(run.stdout);
+  process.stderr.write(run.stderr);
+  if (run.status === 0) copyFileSync(path.join(root, 'config/dependency-review.json'), path.join(here, 'fixture/config/dependency-review.json'));
+  process.exitCode = run.status ?? 1;
+} finally {
+  for (const callback of cleanups) callback();
+}
