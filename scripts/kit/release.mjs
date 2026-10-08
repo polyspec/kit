@@ -30,6 +30,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { consumerConfigProblems } from './release-consumer-config.mjs';
 import { readConfig } from './schema-validate.mjs';
 import { checkedFiles } from './tracked-files.mjs';
 import { isMain, ROOT } from './paths.mjs';
@@ -91,6 +92,7 @@ export function loadConfig(root) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
+  problems.push(...consumerConfigProblems(config).map(problem => `${CONFIG}: ${problem}`));
   if (problems.length) throw new Stop(problems.join('; '));
   return { checks: DEFAULT_CHECKS, changelogTranslations: [], ...config };
 }

@@ -455,7 +455,11 @@ test('the archive names of a repository with scoped packages differ by language 
   const box = releaseSandbox(t, { mutate: (root) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
     edit(root, 'packages/fixture-php/composer.json', m => ({ ...m, name: 'polyspec/fixture-app' }));
-    edit(root, 'config/release.json', c => ({ ...c, packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)) }));
+    edit(root, 'config/release.json', c => ({
+      ...c,
+      packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
+      consumers: { npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } }, composer: { ...c.consumers.composer, smoke: { 'polyspec/fixture-app': c.consumers.composer.smoke['polyspec/kit-fixture'] } } },
+    }));
   } });
   const { config } = context(box);
   assert.deepEqual(release.assetNames(config, '0.0.1'), ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-fixture-app-php-0.0.1.zip']);
@@ -464,7 +468,11 @@ test('the archive names of a repository with scoped packages differ by language 
 test('the output of npm pack is renamed to the archive name', (t) => {
   const box = releaseSandbox(t, { mutate: (root) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
-    edit(root, 'config/release.json', c => ({ ...c, packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)) }));
+    edit(root, 'config/release.json', c => ({
+      ...c,
+      packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
+      consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } } },
+    }));
   } });
   const ctx = context(box);
   const names = release.assets(ctx, box.tag('v0.0.1'));
