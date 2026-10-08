@@ -87,7 +87,8 @@ export function toolchainStubs(t, { downloads = {}, extra = {} } = {}) {
 }
 
 /**
- * Stubs of version commands: each command of `outputs` ({ name: text }) prints its text for any arguments, and the log line
+ * Stubs of version commands: each command of `outputs` ({ name: text }) prints its text for any arguments (a command whose text
+ * is `null` exits with status 1, as a command that fails to run), and the log line
  * holds the arguments and the GOTOOLCHAIN and RUSTUP_AUTO_INSTALL it ran with. The environment has the stubs first on PATH,
  * followed by the directory of this Node.js and the system directories only, so a tool that is not stubbed is absent.
  */
@@ -103,7 +104,7 @@ export function versionStubs(t, outputs) {
 const fs = require('node:fs');
 const path = require('node:path');
 fs.appendFileSync(process.env.STUB_LOG, path.basename(process.argv[1]) + ' ' + process.argv.slice(2).join(' ') + ' [GOTOOLCHAIN=' + process.env.GOTOOLCHAIN + ' RUSTUP_AUTO_INSTALL=' + process.env.RUSTUP_AUTO_INSTALL + ']\\n');
-console.log(${JSON.stringify(text)});
+${text === null ? 'console.error("stub: the command fails"); process.exit(1);' : `console.log(${JSON.stringify(text)});`}
 `);
     chmodSync(path.join(bin, name), 0o755);
   }

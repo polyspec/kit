@@ -31,7 +31,7 @@ function setup(t, files = {}) {
 async function run(root, targets, extra = {}) {
   const printed = [];
   const outputs = [];
-  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, print: line => printed.push(line), output: (text, stream) => outputs.push([stream, text]), ...extra });
+  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH }, print: line => printed.push(line), output: (text, stream) => outputs.push([stream, text]), ...extra });
   const read = file => readFileSync(path.join(root, 'var/report/ci', file), 'utf8');
   return { status, printed, outputs, read, record: () => JSON.parse(read('record.json')) };
 }

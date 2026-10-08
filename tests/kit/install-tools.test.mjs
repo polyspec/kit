@@ -315,7 +315,7 @@ test('every declared tool is installed in the order npm, Go, ruff, Composer, car
 });
 
 test('the make target install-tools runs the tool, online through ONLINE', () => {
-  const dry = spawnSync('make', ['-n', '-f', 'scripts/kit/kit.mk', 'install-tools', 'ONLINE=online-wrapper'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'install-tools', 'ONLINE=online-wrapper'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/install-tools.mjs');
 });
