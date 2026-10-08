@@ -20,7 +20,6 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
+      # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         run: make kit-test
-      - name: mutation check of the gate
-        run: node scripts/kit/check-dependency-policy-mutation.mjs
