@@ -1,4 +1,4 @@
-// Tests of the dependency tools on the fixture of this repository (package.json, packages/fixture-php, packages/fixture-python,
+// Tests of the dependency tools on the fixture of tests/kit/fixture (package.json, packages/fixture-php, packages/fixture-python,
 // config/): the gate passes on the fixture, fails on a lock changed without a review, and the review records the fixture
 // the same way on every run. The registries are stubs (tests/kit/registry.mjs), so no test queries the network.
 import assert from 'node:assert/strict';
@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { stubRegistries } from './registry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture');
 // The files of the fixture: the tools, the stubs' users, the manifests and locks, the policy and the record.
 const FILES = [
   'package.json', 'package-lock.json',
@@ -18,13 +19,17 @@ const FILES = [
   'packages/fixture-python/pyproject.toml',
   'config/dependency-policy.json', 'config/dependency-review.json',
 ];
-const TOOLS = ['scripts/kit/dependency-state.mjs', 'scripts/kit/dependency-review.mjs', 'scripts/kit/check-dependency-policy.mjs', 'scripts/kit/pin-python-dependency.mjs'];
+const TOOLS = ['scripts/kit/check-dependency-policy-mutation.mjs', 'scripts/kit/dependency-state.mjs', 'scripts/kit/dependency-review.mjs', 'scripts/kit/check-dependency-policy.mjs', 'scripts/kit/pin-python-dependency.mjs'];
 
 // A copy of the fixture with the tools, so that each tool reads its own checkout.
 function fixture(t) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-checkout-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const file of [...FILES, ...TOOLS]) {
+  for (const file of FILES) {
+    mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+    cpSync(path.join(FIXTURE, file), path.join(directory, file));
+  }
+  for (const file of TOOLS) {
     mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
     cpSync(path.join(ROOT, file), path.join(directory, file));
   }
@@ -76,4 +81,11 @@ test('the review records the fixture, and a second run writes the same record', 
   assert.deepEqual(twice.dependencies.map(item => [item.ecosystem, item.package, item.version]), [
     ['npm', 'eslint', '9.0.0'], ['composer', 'psr/log', '3.0.2'], ['pypi', 'setuptools', '84.0.0'], ['pypi', 'ruff', '0.16.10'],
   ]);
+});
+
+test('the mutation check rejects every mutation of the fixture', (t) => {
+  const root = fixture(t);
+  const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mjs'], { cwd: root, encoding: 'utf8', env: process.env });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /4 mutations rejected/);
 });
