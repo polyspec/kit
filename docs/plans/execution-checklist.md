@@ -24,7 +24,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K5.3 | Require the Go module tag go/vX.Y.Z of each declared Go module in release verification | `scripts/kit/release.mjs` | `make kit-test` | [o] |
 | K5.4 | Install all archives of a tag in clean npm and Composer consumer projects from committed locks and run the smoke command of each package | `scripts/kit/release-consumer.mjs`, `scripts/kit/release-consumer-config.mjs` | `make kit-test` | [o] |
 | K5.5 | Prove a released tag from outside the repository: the release assets, the consumer installs, the git-tag installs and the Go modules | `scripts/kit/release-proof.mjs` | `make kit-test` | [o] |
-| K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
+| K6.1 | Merge push-gate, full-run, git-hooks and holder-lock, reading the checklist from config/checklist.json | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-1 | Read the trackers (table, list, translation) and the hooks from config/checklist.json | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | Merge the holder locks: start time against reused process IDs, safe removal of a lock whose holder ended | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Install the Git hooks idempotently and check them | `scripts/kit/git-hooks.mjs` | `make kit-test` | [o] |
@@ -38,7 +38,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K8.1-2 | Merge the test runners with their progress reporters, per-test timeouts and the failing run without tests | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
 | K8.1-3 | Merge the target report, ci-targets and ci-passed of template, crudui, hyper, ordered-json and orm | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [o] |
 | K8.1-4 | Take the commit subject check and the changelog sections of orm as shared git hygiene | `scripts/kit/check-commits.mjs` | `make kit-test` | [o] |
-| K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.2 | Install npm, Go, the Python lint environment, cargo-audit and govulncheck into var/tools | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-1 | Declare the toolchains in config/toolchain.json with its schema and read them from their files | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | Install npm, Go, ruff and Composer into var/tools with wrappers and no symbolic link | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-3 | Install cargo-audit and govulncheck through install-tools and add the make target | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |
@@ -46,7 +46,7 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K8.2-5 | Record the merged and dropped toolchain behaviors in the tool inventory | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K8.3 | Check that the crates of every Cargo.lock are downloaded before a check runs cargo offline, and download them with --fetch | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K8.4 | Lint and format-check the Python package that config/toolchain.json names with the ruff of var/tools | `scripts/kit/lint-python.mjs` | `make kit-test` | [o] |
-| K9 | Write the schemas of release, toolchain, checklist, owner-checks and the dependency files | `scripts/kit/schema/` | `make kit-test` | [ ] |
-| K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
+| K9 | Write the schemas of release, toolchain, checklist, owner-checks and the dependency files | `scripts/kit/schema/` | `make kit-test` | [o] |
+| K10 | Give kit its AGENTS.md, README, CI and the tag of each completed version | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [o] |
 | K11 | Move every function and constant that several modules of scripts/kit repeat into one shared module, and fail a second copy in a test | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
 | K11-1 | Merge runMakeTarget of full-run and runLogged of ci-targets into one runner with one log format | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |

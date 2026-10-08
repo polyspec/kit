@@ -25,7 +25,7 @@
 | K5.3 | release 검증에서 선언된 각 Go 모듈의 tag go/vX.Y.Z를 요구한다 | `scripts/kit/release.mjs` | `make kit-test` | [o] |
 | K5.4 | tag의 모든 archive를 commit된 lock으로 깨끗한 npm과 Composer consumer project에 설치하고 package마다 smoke command를 실행한다 | `scripts/kit/release-consumer.mjs`, `scripts/kit/release-consumer-config.mjs` | `make kit-test` | [o] |
 | K5.5 | release된 tag를 저장소 밖에서 증명한다: release asset, consumer 설치, git-tag 설치, Go module | `scripts/kit/release-proof.mjs` | `make kit-test` | [o] |
-| K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [ ] |
+| K6.1 | push-gate, full-run, git-hooks, holder-lock을 config/checklist.json에서 체크리스트를 읽도록 합친다 | `scripts/kit/push-gate.mjs, full-run.mjs, git-hooks.mjs, holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-1 | Table, list, 번역 체크리스트와 hook을 config/checklist.json에서 읽는다 | `scripts/kit/checklist.mjs, schema/checklist.schema.json` | `make kit-test` | [o] |
 | K6.1-2 | holder-lock을 합친다: 재사용된 process ID에 대비한 시작 시각, 홀더가 끝난 lock의 안전한 제거 | `scripts/kit/holder-lock.mjs` | `make kit-test` | [o] |
 | K6.1-3 | Git hook을 멱등하게 설치하고 검사한다 | `scripts/kit/git-hooks.mjs` | `make kit-test` | [o] |
@@ -39,7 +39,7 @@
 | K8.1-2 | 테스트 실행기를 진행 reporter, 테스트별 timeout, 테스트가 없는 실행의 실패와 함께 합친다 | `scripts/kit/run-tests.mjs` | `make kit-test` | [o] |
 | K8.1-3 | template, crudui, hyper, ordered-json, orm의 target report, ci-targets, ci-passed를 합친다 | `scripts/kit/ci-targets.mjs, target-report.mjs, ci-passed.mjs` | `make kit-test` | [o] |
 | K8.1-4 | orm의 commit subject 검사를 공유 git 위생 검사로 가져온다 | `scripts/kit/check-commits.mjs` | `make kit-test` | [o] |
-| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
+| K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-1 | config/toolchain.json과 그 schema에 toolchain을 선언하고 선언한 파일에서 읽는다 | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | npm, Go, ruff, Composer를 wrapper와 symbolic link 없이 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
 | K8.2-3 | cargo-audit와 govulncheck를 install-tools로 설치하고 make target을 추가한다 | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |
@@ -47,7 +47,7 @@
 | K8.2-5 | 합친 toolchain 동작과 버린 동작을 도구 목록에 기록한다 | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K8.3 | 검사가 cargo를 오프라인으로 실행하기 전에 모든 Cargo.lock의 crate가 내려받아져 있는지 검사하고, --fetch로 내려받는다 | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |
 | K8.4 | config/toolchain.json이 가리키는 Python package를 var/tools의 ruff로 lint하고 format을 검사한다 | `scripts/kit/lint-python.mjs` | `make kit-test` | [o] |
-| K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [ ] |
-| K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [ ] |
+| K9 | release, toolchain, checklist, owner-checks와 의존성 파일의 스키마를 쓴다 | `scripts/kit/schema/` | `make kit-test` | [o] |
+| K10 | kit에 AGENTS.md, README, CI와 완료된 버전마다의 tag를 둔다 | `AGENTS.md(.ko), README.md(.ko), .github/workflows/ci.yml` | `make kit-test` | [o] |
 | K11 | scripts/kit의 여러 module이 되풀이하는 함수와 상수를 공유 module 하나로 옮기고, 두 번째 사본은 test로 실패시킨다 | `scripts/kit/, tests/kit/duplication.test.mjs` | `make kit-test` | [o] |
 | K11-1 | full-run의 runMakeTarget과 ci-targets의 runLogged를 log 형식 하나를 쓰는 runner 하나로 합친다 | `scripts/kit/target-report.mjs, full-run.mjs, ci-targets.mjs` | `make kit-test` | [o] |

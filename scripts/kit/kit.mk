@@ -141,3 +141,14 @@ release-consumer-lock: ## Write the consumer manifests and locks of TAG from the
 release-proof: ## Prove the released TAG from outside the checkout: release assets, consumer installs, git-tag installs, Go modules; ONLINE
 	@test -n "$(TAG)" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
 	$(ONLINE) node scripts/kit/release-proof.mjs $(TAG)
+
+# --- dependencies: the gate reads the manifests, the locks and the review record; the review asks the registries.
+.PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review
+dependency-policy-check: ## Check the manifests and locks against config/dependency-policy.json and the review record; offline
+	node scripts/kit/check-dependency-policy.mjs
+
+dependency-policy-mutation-check: ## Check that the dependency gate rejects each known mutation of the checkout; offline
+	node scripts/kit/check-dependency-policy-mutation.mjs
+
+dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; ONLINE
+	$(ONLINE) node scripts/kit/dependency-review.mjs $(if $(RECORD),--record) $(if $(UPDATE),--update)
