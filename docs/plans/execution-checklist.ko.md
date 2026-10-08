@@ -1,7 +1,8 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: e0e7382a861b9dba959f93410467a42d00b79b0ce4b70a5c6b4e137f15ed8d21 -->
+<!-- source-sha256: a83e1bbf7d8a3a367f5dba44f7e53521137a0cfebca04a0308fb9bffa5b57fc8 -->
 <!-- source-sha256: a1dcd91e706968b7e6fede335f561ff0ab78222d6ac3b327391ddfbbfcd00de6 -->
 <!-- source-sha256: 5c660cd2d7b214a5a80fa2c106340693b25d9e952d9ca43aedbf64e3eee3d79a -->
+<!-- source-sha256: d51d4135fe5d701fbfb7e55eda06ce9d198444b6b7a423690709ad90c635793d -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -31,7 +32,7 @@
 | K8.2 | npm, Go, Python lint 환경, cargo-audit, govulncheck를 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [ ] |
 | K8.2-1 | config/toolchain.json과 그 schema에 toolchain을 선언하고 선언한 파일에서 읽는다 | `scripts/kit/toolchain-declared.mjs`, `scripts/kit/schema/toolchain.schema.json` | `make kit-test` | [o] |
 | K8.2-2 | npm, Go, ruff, Composer를 wrapper와 symbolic link 없이 var/tools에 설치한다 | `scripts/kit/install-tools.mjs` | `make kit-test` | [o] |
-| K8.2-3 | cargo-audit와 govulncheck를 install-tools로 설치하고 make target을 추가한다 | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [ ] |
+| K8.2-3 | cargo-audit와 govulncheck를 install-tools로 설치하고 make target을 추가한다 | `scripts/kit/install-tools.mjs`, `scripts/kit/kit.mk` | `make kit-test` | [o] |
 | K8.2-4 | 실행 중인 Node.js, npm, Go, Rust, PHP, Python, Composer, ruff와 audit 도구를 선언과 대조한다 | `scripts/kit/check-toolchain.mjs` | `make kit-test` | [ ] |
 | K8.2-5 | 합친 toolchain 동작과 버린 동작을 도구 목록에 기록한다 | `docs/tool-inventory.md(.ko)` | `make kit-test` | [ ] |
 | K8.3 | 검사가 cargo를 오프라인으로 실행하기 전에 모든 Cargo.lock의 crate가 내려받아져 있는지 검사하고, --fetch로 내려받는다 | `scripts/kit/check-cargo-downloads.mjs` | `make kit-test` | [o] |

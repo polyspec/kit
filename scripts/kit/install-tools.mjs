@@ -4,14 +4,16 @@
 //
 //   node scripts/kit/install-tools.mjs
 //
-// npm, Go, ruff and Composer (with a sha256) are installed by their own modules; the declarations are read by
-// toolchain-declared.mjs. Each tool is installed only when it is declared, and an install is skipped when the exact
+// npm, Go, ruff, Composer (with a sha256), cargo-audit and govulncheck are installed by their own modules; the
+// declarations are read by toolchain-declared.mjs. Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust, PHP and
 // Python are verified by check-toolchain.mjs, not installed. The command prints a line for each step and has no time limit.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installCargoAudit } from './install-cargo-audit.mjs';
 import { installComposer } from './install-composer.mjs';
 import { installGo } from './install-go.mjs';
+import { installGovulncheck } from './install-govulncheck.mjs';
 import { installNpm } from './install-npm.mjs';
 import { installRuff } from './install-ruff.mjs';
 import { declaredToolchain } from './toolchain-declared.mjs';
@@ -27,6 +29,8 @@ export function installTools({ root = ROOT, print = () => {} } = {}) {
   if (declared.go) step('go', () => installGo({ root, declared: declared.go, print }));
   if (declared.ruff) step('ruff', () => installRuff({ root, declared: declared.ruff, python: declared.python, print }));
   if (declared.composer?.sha256) step('composer', () => installComposer({ root, declared: declared.composer, print }));
+  if (declared.cargoAudit) step('cargo-audit', () => installCargoAudit({ root, recorded: declared.cargoAudit.version, print }));
+  if (declared.govulncheck) step('govulncheck', () => installGovulncheck({ root, recorded: declared.govulncheck.version, print }));
   return installed;
 }
 

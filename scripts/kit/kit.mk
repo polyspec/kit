@@ -22,3 +22,9 @@ cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the r
 
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 	$(ONLINE) node scripts/kit/check-cargo-downloads.mjs --fetch
+# Toolchains (K8.2): install-tools installs the declared npm, Go, ruff, Composer (with a sha256), cargo-audit and
+# govulncheck into var/tools; ONLINE, because it downloads. Nothing on the machine changes. Put var/tools/bin first on PATH.
+.PHONY: install-tools
+
+install-tools: ## Install the toolchains that the checkout declares into var/tools; ONLINE
+	$(ONLINE) node scripts/kit/install-tools.mjs
