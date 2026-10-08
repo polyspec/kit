@@ -39,7 +39,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^[^/][^\\\\]*pyproject\\.toml$"
+        "pattern": "^([^/\\\\][^\\\\]*/)?pyproject\\.toml$"
       }
     },
     "exceptions": {

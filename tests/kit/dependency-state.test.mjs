@@ -49,18 +49,18 @@ test('the gate fails when a workspace package has another version than its lock 
 
 test('the gate fails when a tagged package has another version than its tag, and prints the fix of the policy', (t) => {
   const root = fixture(t);
-  edit(root, 'vendor/tagged/js/package.json', (manifest) => { manifest.version = '9.9.9'; });
+  edit(root, 'external/tagged/js/package.json', (manifest) => { manifest.version = '9.9.9'; });
   const result = gate(root);
   assert.equal(result.status, 1);
   const line = findings(result).find(item => item.includes('tagged-lib'));
   assert.ok(line, result.stderr);
-  assert.match(line, /vendor\/tagged\/js has version 9\.9\.9, the tag v1\.2\.3 has version 1\.2\.3\. Rule: .+\. Fix: make install-tagged\.$/);
+  assert.match(line, /external\/tagged\/js has version 9\.9\.9, the tag v1\.2\.3 has version 1\.2\.3\. Rule: .+\. Fix: make install-tagged\.$/);
 });
 
 test('a package that npm installed as a copy (install-links) is a package of the repository, read by its file: lock entry', (t) => {
   const root = fixture(t);
   edit(root, 'package-lock.json', (lock) => {
-    lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:vendor/tagged/js' };
+    lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:external/tagged/js' };
   });
   // The lock changed after its review, which is the only finding; the copy is read, so no finding names the package.
   assert.deepEqual(findings(gate(root)).filter(line => line.includes('tagged-lib')), []);
