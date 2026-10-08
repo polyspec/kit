@@ -18,7 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY, RECORD, dependencyKey, digest, highestStable, isPrerelease, older, readJson, readState } from './dependency-state.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const UPDATE = 'make dependency-review UPDATE=1';
 // npm audit reports these severities; the configured severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);

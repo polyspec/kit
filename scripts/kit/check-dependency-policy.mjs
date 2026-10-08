@@ -12,7 +12,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY, RECORD, NPM_MANIFEST, dependencyKey, digest, isPrerelease, older, readJson, readState } from './dependency-state.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 export const RULES = {
   policy: 'config/dependency-policy.json declares each exception for a registry dependency with a reason, a removal condition and verification commands',
