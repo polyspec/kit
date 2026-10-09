@@ -18,6 +18,7 @@
 // only) and reads the check runs of the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
 // of each configured check must be completed with the conclusion success. `versions` compares X.Y.Z with the version of
 // every manifest of `manifests` and requires the section `## X.Y.Z` in the change logs; for a Go module it requires the module
+//   TAG is `latest` for the newest root release tag reachable from HEAD.
 // path of the go.mod. `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
 // written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
@@ -102,6 +103,18 @@ const at = ctx => ({ cwd: ctx.root, env: ctx.env });
 /** A command context: the repository root, its configuration, the environment of its commands and a log function. */
 export function context(root, { config = loadConfig(root), env = process.env, log = () => {} } = {}) {
   return { root, config, env, log };
+}
+
+/** The newest root release tag reachable from HEAD, which resolves the argument `latest` of the release
+ * commands: no release task names a version in its retry, and `make release-consumer TAG=latest` verifies the
+ * release that the tree carries. */
+export function latestTag(ctx) {
+  const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
+  const tags = list.trim().split('\n').filter(Boolean);
+  if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
+  const numbers = (tag) => tag.slice(1).split('.').map(Number);
+  const compare = (a, b) => { const pa = numbers(a); const pb = numbers(b); return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2]; };
+  return tags.sort(compare).at(-1);
 }
 
 /** [Go module directory or null, version] of a release tag. */
@@ -431,7 +444,8 @@ const USAGE = 'usage: node scripts/kit/release.mjs verify|versions|assets|publis
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv, { root = ROOT, env = process.env, print = console.log, error = console.error } = {}) {
-  const [mode, tag, ...rest] = argv;
+  const [mode, latest, ...rest] = argv;
+  let tag = latest;
   const tagged = ['verify', 'versions', 'assets', 'publish', 'go-tags'].includes(mode);
   if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
@@ -439,6 +453,9 @@ export function main(argv, { root = ROOT, env = process.env, print = console.log
   }
   try {
     const ctx = context(root, { env, log: print });
+    const release = tag === 'latest' ? latestTag(ctx) : tag;
+    if (release !== tag) print(`[release] latest is ${release}`);
+    tag = release;
     if (mode === 'coverage') {
       const problems = coverage(ctx);
       for (const problem of problems) error(`[release] coverage: ${problem}`);

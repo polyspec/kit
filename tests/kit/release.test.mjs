@@ -16,6 +16,21 @@ const context = (box, extra = {}) => release.context(box.root, { env: { ...box.e
 const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const edit = (root, file, change) => writeJson(root, file, change(readJson(root, file)));
 
+test('latest names the newest root release tag reachable from HEAD', (t) => {
+  const box = releaseSandbox(t, { version: '0.0.3' });
+  const ctx = context(box);
+  git(ctx.root, 'tag', 'v0.0.1');
+  git(ctx.root, 'tag', 'v0.0.2');
+  git(ctx.root, 'tag', 'v0.0.10');
+  git(ctx.root, 'tag', 'packages/fixture-go/v0.0.11');
+  assert.equal(release.latestTag(ctx), 'v0.0.10');
+});
+
+test('latest fails when no release tag is reachable', (t) => {
+  const ctx = context(releaseSandbox(t));
+  stop(() => release.latestTag(ctx), /no release tag is reachable from HEAD/);
+});
+
 test('a release tag is a version or a Go module directory and a version', (t) => {
   const { config } = context(releaseSandbox(t));
   assert.deepEqual(release.parseTag(config, 'v1.2.3'), [null, '1.2.3']);
