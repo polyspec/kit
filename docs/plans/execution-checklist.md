@@ -3,7 +3,7 @@
 
 [한국어](execution-checklist.ko.md)
 
-A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with its cause and retry condition. A task becomes `[o]` in the commit that completes it, after its owning command passes.
+A task is `[ ]` waiting, `[~]` in progress, `[o]` done, `[!]` bypassed with its cause and retry condition, or `[-]` impossible with its cause. A task becomes `[o]` in the commit that completes it, after its owning command passes.
 
 ## Tool unification
 
@@ -59,3 +59,4 @@ A task is `[ ]` waiting, `[~]` in progress, `[o]` done, or `[!]` bypassed with i
 | K12-6 | Remove the temporary folders of the npm stub of the consumer tests, and test that none stays in TMPDIR | `tests/kit/release-consumer-sandbox.mjs, release-consumer.test.mjs` | `make kit-test` | [o] |
 | K12-7 | The release commands take `TAG=latest` for the newest root release tag reachable from HEAD: `scripts/kit/release.mjs` exports `latestTag`, and the release, consumer and proof mains resolve `latest` before they parse the tag, so a release task and its retry name no version. Verification: `node --test tests/kit/release.test.mjs`. | `node --test tests/kit/release.test.mjs` | [o] The release 0.0.11 publishes it. |
 | K12-8 | The nested consumer run of the TMPDIR case of the consumer tests sets NO_COLOR and FORCE_COLOR=0, so the summary line that the case matches carries no color of a colored parent environment. Cause: the case matched `ℹ tests 2` in the standard output of the nested `node --test`, a colored parent environment (an agent shell with FORCE_COLOR) colored the nested output and the match failed, while the CI of the tag, which colors nothing, passed. Verification: `node --test tests/kit/release-consumer.test.mjs`. | `node --test tests/kit/release-consumer.test.mjs` | [o] |
+| K13 | Read the impossible state at both levels: the lenient reading accepts it as a state of its own, the strict reading requires a cause on its list items and accepts the cause in a table state cell, and the marker scan reports it outside a task | `scripts/kit/checklist.mjs, tests/kit/checklist.test.mjs` | `node --test tests/kit/checklist.test.mjs` | [o] |
