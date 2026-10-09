@@ -277,7 +277,7 @@ test('the real npm ci and composer install install the archives of a tag from th
 test('the consumer tests leave no temporary entry of the npm stub in TMPDIR', (t) => {
   const directory = mkdtempSync(path.join(realpathSync(tmpdir()), 'kit-consumer-tmp-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=/lock writes the manifests and locks|lock runs npm and Composer/', 'tests/kit/release-consumer.test.mjs'], { encoding: 'utf8', env: { ...process.env, NODE_TEST_CONTEXT: undefined, TMPDIR: directory } });
+  const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=/lock writes the manifests and locks|lock runs npm and Composer/', 'tests/kit/release-consumer.test.mjs'], { encoding: 'utf8', env: { ...process.env, NODE_TEST_CONTEXT: undefined, TMPDIR: directory, NO_COLOR: '1', FORCE_COLOR: '0' } });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /ℹ tests 2\n/);
   assert.deepEqual(readdirSync(directory).filter(entry => entry.startsWith('stub-npm-')), []);
