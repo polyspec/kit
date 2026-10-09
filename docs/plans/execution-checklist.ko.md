@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 4eefc273c0c2a02f32aa1d146e9fad457bff8f0205bb5e40586e2ae3e2f29205 -->
+<!-- source-sha256: 7fe97671830fe19d9bf996c0a4d2ff30fb5b6be76de59a448183272db2592a96 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -58,4 +58,5 @@
 | K12-4 | install-tools가 이름으로 tool을 고르게 하고, mutation 검사를 저장소의 ecosystem에 적용하며, release recipe에 TAG를 인용된 변수로 넘기고, policy가 root pyproject.toml을 받아들이게 하며, fixture를 vendor/ 밖에 둔다 | `scripts/kit/install-tools.mjs, check-dependency-policy-mutation.mjs, kit.mk, schema/dependency-policy.schema.json` | `make kit-test` | [o] |
 | K12-5 | `siteLinks`일 때 heading의 VitePress slug와 `{#id}`를 읽고, root `overrides`가 URL로 설치하는 dependency는 registry review에서 뺀다 | `scripts/kit/markdown.mjs, check-documents.mjs, dependency-state.mjs` | `make kit-test` | [o] |
 | K12-6 | consumer 테스트의 npm stub이 만드는 임시 folder를 지우고, TMPDIR에 남는 것이 없음을 test한다 | `tests/kit/release-consumer-sandbox.mjs, release-consumer.test.mjs` | `make kit-test` | [o] |
-| K12-7 | release 명령이 `TAG=latest`를 HEAD에서 도달 가능한 가장 새로운 root release tag로 받는다. `scripts/kit/release.mjs`가 `latestTag`를 내보내고 release·consumer·proof main이 tag를 parse하기 전에 `latest`를 해석하므로 release 작업과 그 재시도가 version을 적지 않는다. 확인: `node --test tests/kit/release.test.mjs`. | `node --test tests/kit/release.test.mjs` | [o] |
+| K12-7 | release 명령이 `TAG=latest`를 HEAD에서 도달 가능한 가장 새로운 root release tag로 받는다. `scripts/kit/release.mjs`가 `latestTag`를 내보내고 release·consumer·proof main이 tag를 parse하기 전에 `latest`를 해석하므로 release 작업과 그 재시도가 version을 적지 않는다. 확인: `node --test tests/kit/release.test.mjs`. | `node --test tests/kit/release.test.mjs` | [o] 0.0.11 release가 이것을 내보낸다. |
+| K12-8 | consumer test의 TMPDIR case가 중첩 실행에 NO_COLOR와 FORCE_COLOR=0을 정해, case가 맞추는 요약 줄에 색을 강제하는 부모 환경의 색이 없게 한다. 원인: case가 중첩 `node --test`의 표준 출력에서 `ℹ tests 2`를 맞췄는데, 색을 강제하는 부모 환경(agent shell의 FORCE_COLOR)이 중첩 출력에 색을 입혀 맞추기가 실패했다. tag의 CI는 색을 입히지 않아 통과했다. 확인: `node --test tests/kit/release-consumer.test.mjs`. | `node --test tests/kit/release-consumer.test.mjs` | [o] |
