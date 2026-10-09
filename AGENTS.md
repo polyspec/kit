@@ -31,10 +31,11 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
 
 ## Checklist
 
-`docs/plans/execution-checklist.md` is the only checklist. A task is `[ ]` waiting, `[~]` in progress, `[o]` done or
-`[!] cause: <cause>; retry: <condition>` bypassed. A task becomes `[o]` in the commit that completes it, after its owning
-command passes. A commit message is `type(scope): Subject (#task)`, with a subject of at most 50 characters, a body wrapped
-at 72 characters, and the types `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
+`docs/plans/execution-checklist.md` is the only checklist. A task is `[ ]` waiting, `[~]` in progress, `[o]` done,
+`[!] cause: <cause>; retry: <condition>` bypassed or `[-] cause: <cause>` impossible. A task becomes `[o]` in the commit
+that completes it, after its owning command passes. A commit message is `type(scope): Subject (#task)`, with a subject of
+at most 50 characters, a body wrapped at 72 characters, and the types `feat`, `fix`, `docs`, `style`, `refactor`, `test`,
+`chore`.
 
 ## Release
 

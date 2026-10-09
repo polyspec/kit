@@ -31,7 +31,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 ## 체크리스트
 
 `docs/plans/execution-checklist.ko.md`가 유일한 체크리스트입니다. 작업은 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!] cause: <cause>; retry: <condition>`
-우회입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤 `[o]`가 됩니다. commit message는 `type(scope): Subject (#task)`이며
+우회, `[-] cause: <cause>` 불가입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤 `[o]`가 됩니다. commit message는 `type(scope): Subject (#task)`이며
 subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`입니다.
 
 ## 릴리스

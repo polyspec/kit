@@ -1,10 +1,10 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 7fe97671830fe19d9bf996c0a4d2ff30fb5b6be76de59a448183272db2592a96 -->
+<!-- source-sha256: bca7feebf508c9678139ec5eb9a734ceea56b212fa9c4618e88d33f78c880193 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
 
-작업 상태는 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!]` 원인과 재시도 조건을 가진 우회입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤에 `[o]`가 됩니다.
+작업 상태는 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!]` 원인과 재시도 조건을 가진 우회, `[-]` 원인을 가진 불가입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤에 `[o]`가 됩니다.
 
 ## 도구 통합
 
@@ -60,3 +60,4 @@
 | K12-6 | consumer 테스트의 npm stub이 만드는 임시 folder를 지우고, TMPDIR에 남는 것이 없음을 test한다 | `tests/kit/release-consumer-sandbox.mjs, release-consumer.test.mjs` | `make kit-test` | [o] |
 | K12-7 | release 명령이 `TAG=latest`를 HEAD에서 도달 가능한 가장 새로운 root release tag로 받는다. `scripts/kit/release.mjs`가 `latestTag`를 내보내고 release·consumer·proof main이 tag를 parse하기 전에 `latest`를 해석하므로 release 작업과 그 재시도가 version을 적지 않는다. 확인: `node --test tests/kit/release.test.mjs`. | `node --test tests/kit/release.test.mjs` | [o] 0.0.11 release가 이것을 내보낸다. |
 | K12-8 | consumer test의 TMPDIR case가 중첩 실행에 NO_COLOR와 FORCE_COLOR=0을 정해, case가 맞추는 요약 줄에 색을 강제하는 부모 환경의 색이 없게 한다. 원인: case가 중첩 `node --test`의 표준 출력에서 `ℹ tests 2`를 맞췄는데, 색을 강제하는 부모 환경(agent shell의 FORCE_COLOR)이 중첩 출력에 색을 입혀 맞추기가 실패했다. tag의 CI는 색을 입히지 않아 통과했다. 확인: `node --test tests/kit/release-consumer.test.mjs`. | `node --test tests/kit/release-consumer.test.mjs` | [o] |
+| K13 | 불가 상태를 두 수준에서 읽는다: lenient reading은 그것을 하나의 고유 상태로 받아들이고, strict reading은 그 상태의 list 항목에 cause를 요구하며 table 상태 cell 안의 cause를 받아들이고, marker 검사는 작업 밖의 그 상태를 보고한다 | `scripts/kit/checklist.mjs, tests/kit/checklist.test.mjs` | `node --test tests/kit/checklist.test.mjs` | [o] |
