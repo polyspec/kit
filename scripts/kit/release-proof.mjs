@@ -16,11 +16,12 @@
 //      GOFLAGS=-mod=mod and GOPROXY=direct.
 // A tag `<Go module directory>/vX.Y.Z` releases that module alone: the release holds no archive and only step 4 runs for it.
 // Every command of a step comes from config/release.json: `consumers` (smoke commands of the archives) and `proof.gitTag`.
+//   TAG is `latest` for the newest root release tag reachable from HEAD.
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assetNames, context, parseTag } from './release.mjs';
+import { assetNames, context, latestTag, parseTag } from './release.mjs';
 import { run, Stop } from './process.mjs';
 import { installConsumers } from './release-consumer.mjs';
 
@@ -120,12 +121,14 @@ const USAGE = 'usage: node scripts/kit/release-proof.mjs TAG';
 
 /** Runs the command line; the exit status. */
 export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
-  const [tag, ...rest] = argv;
+  const [latest, ...rest] = argv;
+  let tag = latest;
   if (!tag || rest.length) {
     error(USAGE);
     return 2;
   }
   try {
+    if (tag === 'latest') tag = latestTag(context(root, { env }));
     prove(context(root, { env }), tag, text => print(`✔ ${text}`));
   } catch (failure) {
     if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && failure?.code !== 'ENOENT') throw failure;

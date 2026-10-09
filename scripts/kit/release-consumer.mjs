@@ -18,11 +18,12 @@
 // changes only with a version or a dependency, and `lock` runs on the release commit before the tag is pushed.
 // `lock` resolves version ranges, so it is the one step that reads a registry; no check runs it.
 // A Go module tag releases no archive and has nothing to install. Each failure names the expected and the actual value.
+//   TAG is `latest` for the newest root release tag reachable from HEAD.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ASSETS, assetName, assetNames, context, parseTag } from './release.mjs';
+import { ASSETS, assetName, assetNames, context, latestTag, parseTag } from './release.mjs';
 import { readJson, writeAtomic } from './files.mjs';
 import { run, Stop } from './process.mjs';
 import { CONSUMER_KINDS } from './release-consumer-config.mjs';
@@ -213,13 +214,15 @@ const USAGE = 'usage: node scripts/kit/release-consumer.mjs install|lock TAG';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
-  const [mode, tag, ...rest] = argv;
+  const [mode, latest, ...rest] = argv;
+  let tag = latest;
   if (!['install', 'lock'].includes(mode) || !tag || rest.length) {
     error(USAGE);
     return 2;
   }
   try {
     const ctx = context(root, { env, log: print });
+    if (tag === 'latest') tag = latestTag(ctx);
     const [directory, version] = parseTag(ctx.config, tag);
     const step = text => print(`[release-consumer] ${tag}: ${text}`);
     if (mode === 'lock') {
