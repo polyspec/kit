@@ -350,6 +350,10 @@ Merged behaviors:
   `--message <file>` checks the message being committed (the commit-msg hook) without its comment lines.
 - New, from the shared rule of the repositories: a blank line follows the subject, and a body line has at most `bodyMax`
   characters (a single longer word, such as a URL, is allowed).
+- New (K19): when config/checklist.json exists, a commit changes the state of at most one tracker item (a row the commit adds
+  is not a change), and a commit that moves an item to the `done` state of its tracker also changes the `changelog` of
+  `config/commits.json` and its translation. A commit of a range is compared with its parent; the message being committed,
+  with the index against HEAD.
 
 Version consistency and the other area checks of orm:
 

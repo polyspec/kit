@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 6d888e2a51e1b821bcad770255af40843a939ef9735fad9971bed0f5b6d28597 -->
+<!-- source-sha256: f0e714f716362cc08fc127a34e2ac3e936e6eb7cf1a03e35a6a94f86db68cf89 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -66,4 +66,4 @@
 | K16 | `trackedFiles`는 경로마다 한 번만 돌려준다: 해결되지 않은 merge나 cherry-pick 동안 `git ls-files --cached`가 unmerged 경로를 stage마다 한 번씩 내보내므로, tree를 도는 모든 검사가 그 문서를 두세 번 읽었다(consumer의 참조 검사가 cherry-pick 충돌 중 38개가 아닌 44개 문서를 셌다) | `scripts/kit/tracked-files.mjs, tests/kit/tracked-files.test.mjs` | `make kit-test` | [o] 다음 release가 이것을 내보낸다. |
 | K17 | `run-tests.mjs python`은 `python3 -m unittest -v`를 실행하고 그 표준 오류를 읽는다: 테스트는 시작할 때 `<description> ... `을, 끝날 때 결과를 쓰며, cargo와 함께 쓰는 시작·결과 줄 parser 하나로 읽는다. runner는 timeout을 넘긴 테스트를 멈춘다. description 뒤에 docstring 줄이 오면 테스트 id는 description을 따른다 | `scripts/kit/run-tests.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] |
 | K18 | `run-tests.mjs --results <file>`은 run의 counts에 `cases: [{id, status, elapsedMs}]`, `tool`, `inputs`, `elapsedMs`를 붙여 임시 파일과 rename으로 쓴다. `inputs`는 paths 아래의 추적 파일과 무시되지 않은 파일의 `inputsDigest(root, paths)`다 | `scripts/kit/run-tests.mjs, test-progress.mjs, tracked-files.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] |
-| K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [ ] |
+| K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [o] |

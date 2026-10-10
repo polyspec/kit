@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4650b3589c34c0e08b6d2fbfd07dc8ad686715e71c72ab456ec414ad4bc16d8b -->
+<!-- source-sha256: 86bace4d9ee6848ffb99970cd1f16ed21993d8a2b2e5c8e5008856bd0ca2f774 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -340,6 +340,9 @@ ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없�
   (commit-msg hook) 주석 줄을 빼고 검사합니다.
 - 새로 추가, 저장소의 공통 규칙에서: subject 다음에 빈 줄이 오고, 본문 한 줄은 `bodyMax`자 이하입니다(그보다 긴 단어 하나, 예를
   들어 URL은 허용).
+- 새로 추가(K19): config/checklist.json이 있으면 commit 하나는 tracker 항목 하나의 상태만 바꾸고(그 commit이 추가한 행은 변경이
+  아님), 항목을 tracker의 `done` 상태로 옮기는 commit은 `config/commits.json`의 `changelog`와 그 번역도 바꿉니다. 범위의 commit은
+  부모와 비교하고, commit하려는 메시지는 index를 HEAD와 비교합니다.
 
 version 일관성과 orm의 다른 영역 검사:
 
