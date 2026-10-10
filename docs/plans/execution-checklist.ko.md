@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: c4d77ab6e1bc8186fb1b8f7fe321d2797a236f7e4c107f24c5ef7e5e238b1dd8 -->
+<!-- source-sha256: b7ac2f50831881c1d35a40bc04bbf0573509074c13176e5164e17d1048edb46b -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -67,3 +67,4 @@
 | K17 | `run-tests.mjs python`은 `python3 -m unittest -v`를 실행하고 그 표준 오류를 읽는다: 테스트는 시작할 때 `<description> ... `을, 끝날 때 결과를 쓰며, cargo와 함께 쓰는 시작·결과 줄 parser 하나로 읽는다. runner는 timeout을 넘긴 테스트를 멈춘다. description 뒤에 docstring 줄이 오면 테스트 id는 description을 따른다 | `scripts/kit/run-tests.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
 | K18 | `run-tests.mjs --results <file>`은 run의 counts에 `cases: [{id, status, elapsedMs}]`, `tool`, `inputs`, `elapsedMs`를 붙여 임시 파일과 rename으로 쓴다. `inputs`는 paths 아래의 추적 파일과 무시되지 않은 파일의 `inputsDigest(root, paths)`다 | `scripts/kit/run-tests.mjs, test-progress.mjs, tracked-files.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
 | K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
+| K20 | `kit-sync.mjs`는 `--repository`가 있을 때만 읽는다: 없으면 `indexOf`가 -1을 돌려 `option('--repository')`가 `args[0]`(`--tag`)을 저장소로 읽고 clone이 실패한다. 값 없는 option은 사용법과 함께 실패한다 | `scripts/kit/kit-sync.mjs, tests/kit/kit-sync.test.mjs` | `node --test tests/kit/kit-sync.test.mjs` | [ ] |
