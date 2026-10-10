@@ -412,3 +412,16 @@ test('a node file of 89 tests reports every test when the reporter reads its eve
   assert.equal(result.stdout.match(/✔ tests\/many\.test\.mjs › case \d+ /g)?.length, 89, output(result));
   assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 timed out, 0 skipped/);
 });
+
+test('python tests are read without color when FORCE_COLOR is set, since unittest colors its output then', (t) => {
+  // A stub of python3 that colors its verbose lines as Python 3.14 does under FORCE_COLOR, unless PYTHON_COLORS is 0.
+  const bin = stubTool(t, 'python3', `
+const colored = process.env.FORCE_COLOR && process.env.PYTHON_COLORS !== '0';
+const ok = colored ? '\\x1b[32mok\\x1b[0m' : 'ok';
+process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+  const root = checkout(t, { 'tests/t.py': '' });
+  const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3', PATH: `${bin}${path.delimiter}${process.env.PATH}` });
+  assert.equal(colored.status, 0, output(colored));
+  assert.match(colored.stdout, /✔ test_a \(t\.T\.test_a\)/);
+  assert.match(colored.stdout, /1 passed, 0 failed/);
+});
