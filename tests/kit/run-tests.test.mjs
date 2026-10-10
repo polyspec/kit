@@ -397,3 +397,18 @@ test('under --cwd a node file group is not a test case, and its ids name the fil
   const record = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['pkg/tests/a.test.mjs › adds', 'pass'], ['pkg/tests/a.test.mjs › subtracts', 'pass']]);
 });
+
+test('a node file of 89 tests reports every test when the reporter reads its events late', (t) => {
+  const tests = Array.from({ length: 89 }, (_, index) => `test('case ${index}', () => {});`).join('\n');
+  const root = checkout(t, { 'tests/many.test.mjs': `${SPEC}${tests}\n` });
+  // The reporter spends 5 ms on each event, so the reports queue up while the file's process ends.
+  const reporter = path.join(root, 'scripts/kit/node-reporter.mjs');
+  const source = readFileSync(reporter, 'utf8');
+  const lagged = source.replace('const { type, data } = event;', 'const { type, data } = event;\n    for (const end = Date.now() + 5; Date.now() < end;);');
+  assert.notEqual(lagged, source);
+  writeFileSync(reporter, lagged);
+  const result = runner(root, ['node', '--', 'tests/many.test.mjs']);
+  assert.equal(result.status, 0, output(result));
+  assert.equal(result.stdout.match(/✔ tests\/many\.test\.mjs › case \d+ /g)?.length, 89, output(result));
+  assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 timed out, 0 skipped/);
+});

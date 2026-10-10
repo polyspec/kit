@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: c95d1712bcb7c1d80028dd403cb954a96dbf6e44bcdf4158c9dfe2c83cbc56d1 -->
+<!-- source-sha256: 1ce4c78620e8abf42cc3b398409a288f774a4593425da470af56546587fbaf03 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -69,3 +69,4 @@
 | K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
 | K20 | `kit-sync.mjs`는 `--repository`가 있을 때만 읽는다: 없으면 `indexOf`가 -1을 돌려 `option('--repository')`가 `args[0]`(`--tag`)을 저장소로 읽고 clone이 실패한다. 값 없는 option은 사용법과 함께 실패한다 | `scripts/kit/kit-sync.mjs, tests/kit/kit-sync.test.mjs` | `node --test tests/kit/kit-sync.test.mjs` | [o] 다음 release가 이것을 내보낸다. |
 | K21 | `node-reporter.mjs`는 test 파일을 checkout root 기준으로 부르지만 node는 작업 디렉터리 기준으로 부른다: `run-tests --cwd <dir>`이면 파일 그룹이 맞지 않아 test case로 세어진다. 두 경로를 작업 디렉터리 기준으로 풀어서 비교한다 | `scripts/kit/node-reporter.mjs, tests/kit/run-tests.test.mjs` | `node --test tests/kit/run-tests.test.mjs` | [o] 다음 release가 이것을 내보낸다. |
+| K23 | run-tests node는 부하에서 test event를 잃는다: test 파일의 process가 결과를 stdout pipe에 아직 남긴 채 끝나고, process.exit이 그것을 버려서 통과한 test가 "the test did not finish"로 보고된다 | scripts/kit/test-load-check.mjs, tests/kit/run-tests.test.mjs | node --test tests/kit/run-tests.test.mjs | [o] 다음 release가 이것을 내보낸다. |
