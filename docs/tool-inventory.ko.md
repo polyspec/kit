@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 013758ed16835884530228be38d83555f29361ca3e449bb02eb23b701270befe -->
+<!-- source-sha256: 6ede9a45a1520dfdefe969a35f7f3eb0ce664e6d992fc4778f732bfa4519ab7c -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -262,7 +262,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 
 합친 동작:
 
-- tool: `node`, `vitest`, `go`, `cargo`, `phpunit`(template, crudui); hyper는 첫째, 마지막, `vitest`를 가집니다. 각 test는 시작,
+- tool: `node`, `vitest`, `go`, `cargo`, `phpunit`(template, crudui), `python`(K17); hyper는 첫째, 마지막, `vitest`를 가집니다. 각 test는 시작,
   실행 중 한 줄, 경과 시간과 함께 결과를 출력하고, test마다 자기 timeout(`--timeout`, 기본 30 s)을 가집니다. `node --test`와
   vitest가, 다른 tool은 실행기가 timeout을 적용합니다. 전체 실행, package, 파일에는 시간 제한이 없습니다(모든 구현; crudui의
   `go test -timeout 10m`은 `-timeout=0`으로 바꿉니다).
@@ -276,11 +276,15 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 - `phpunit`은 `<cwd>/vendor/bin/phpunit` 또는 `COMPOSER_VENDOR_DIR`의 vendor directory(crudui)를 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
+- `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
+  끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`와
+  `expected failure`는 pass, `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
+  description의 id를 유지합니다. timeout은 실행기가 적용합니다.
 
 버린 동작:
 
-- signal timeout을 쓰는 Python `unittest` 실행(`test.py`): kit은 node test를 실행하므로 ordered-json의 Python test는 실행하지
-  않습니다.
+- signal timeout을 쓰는 Python `unittest` 실행(`test.py`): 대신 `python` tool이 실행기의 timeout으로 `python3 -m unittest`를
+  실행합니다(K17).
 - crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
   vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
   앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.

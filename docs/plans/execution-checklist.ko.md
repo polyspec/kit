@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 5da7d8f25965ce9c763f8d6b3c6db7e604c61e946a43c664827b1fa3bbcff2b4 -->
+<!-- source-sha256: 673b907a45e68b254bc41ff4c4212ab2098a807251ef132596a5aa9d84c5f2cb -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -64,3 +64,6 @@
 | K14 | kit 원본 저장소의 kit-check는 설정만 읽는다: 원본은 자기 자신을 vendoring하지 않아 lock이 없고, origin이 kit.json의 repository이다 | `scripts/kit/kit-check.mjs, tests/kit/kit-check-source.test.mjs` | `make kit-test` | [o] |
 | K15 | 설정 `npmLocks`에 이름 붙인 npm lock을 루트 lock만이 아니라 모두 읽는다: gate의 local, tagged, manifest-lock 규칙은 각 lock을 그 옆의 manifest와 함께 읽고, review는 각 lock을 기록하고 감사한다 | `scripts/kit/dependency-state.mjs, check-dependency-policy.mjs, dependency-review.mjs, schema/dependency-policy.schema.json, tests/kit/dependency-policy.test.mjs` | `make kit-test` | [o] 0.0.13 release가 이것을 내보낸다. |
 | K16 | `trackedFiles`는 경로마다 한 번만 돌려준다: 해결되지 않은 merge나 cherry-pick 동안 `git ls-files --cached`가 unmerged 경로를 stage마다 한 번씩 내보내므로, tree를 도는 모든 검사가 그 문서를 두세 번 읽었다(consumer의 참조 검사가 cherry-pick 충돌 중 38개가 아닌 44개 문서를 셌다) | `scripts/kit/tracked-files.mjs, tests/kit/tracked-files.test.mjs` | `make kit-test` | [o] 다음 release가 이것을 내보낸다. |
+| K17 | `run-tests.mjs python`은 `python3 -m unittest -v`를 실행하고 그 표준 오류를 읽는다: 테스트는 시작할 때 `<description> ... `을, 끝날 때 결과를 쓰며, cargo와 함께 쓰는 시작·결과 줄 parser 하나로 읽는다. runner는 timeout을 넘긴 테스트를 멈춘다. description 뒤에 docstring 줄이 오면 테스트 id는 description을 따른다 | `scripts/kit/run-tests.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] |
+| K18 | `run-tests.mjs --results <file>`은 run의 counts에 `cases: [{id, status, elapsedMs}]`, `tool`, `inputs`, `elapsedMs`를 붙여 임시 파일과 rename으로 쓴다. `inputs`는 paths 아래의 추적 파일과 무시되지 않은 파일의 `inputsDigest(root, paths)`다 | `scripts/kit/run-tests.mjs, test-progress.mjs, tracked-files.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [ ] |
+| K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [ ] |

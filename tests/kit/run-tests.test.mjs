@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { cargoEvents, goEvents, parseArguments, phpunitEvents, run, toolCommand } from '../../scripts/kit/run-tests.mjs';
+import { cargoEvents, goEvents, parseArguments, phpunitEvents, pythonEvents, run, toolCommand } from '../../scripts/kit/run-tests.mjs';
 import { createProgress } from '../../scripts/kit/test-progress.mjs';
 import { tree } from './tree.mjs';
 
@@ -91,8 +91,9 @@ test('the arguments of the runner are read before the arguments of the tool', ()
   assert.deepEqual([options.tool, options.timeoutSeconds, options.cwd, options.args], ['node', 5, '/repo/sub', ['a.test.mjs', '--x']]);
   assert.equal(parseArguments(['phpunit', '--php-extension', 'ext.so'], '/repo').phpExtension, '/repo/ext.so');
   assert.equal(parseArguments(['go', './...'], '/repo').args[0], './...');
-  for (const bad of [[], ['python'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
-    assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mjs <node\|vitest\|go\|cargo\|phpunit>/, JSON.stringify(bad));
+  assert.deepEqual(parseArguments(['python', '--cwd', 'pkg', 'tests'], '/repo').args, ['tests']);
+  for (const bad of [[], ['ruby'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
+    assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mjs <node\|vitest\|go\|cargo\|phpunit\|python>/, JSON.stringify(bad));
   }
 });
 
@@ -107,6 +108,7 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'] }, '/r'), { command: '/r/p/vendor/bin/phpunit', args: ['--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtension: '/r/e.so' }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: 'python3', args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
   try {
     assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [] }, '/r').command, '/elsewhere/bin/phpunit');
@@ -229,6 +231,30 @@ test('the phpunit events pair tests, join the failure messages and print other l
   assert.equal(progress.close('phpunit').ok, false);
 });
 
+test('the python events pair each test with its outcome, keep the description id over a docstring line and print other lines', () => {
+  const lines = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const feed = pythonEvents(progress);
+  feed('test_a (tests.test_x.T.test_a) ... ok\n');
+  feed('test_b (tests.test_x.T.test_b) ... ');
+  feed('FAIL\n');
+  feed('test_c (tests.test_x.T.test_c) ... ERROR\ntest_d (tests.test_x.T.test_d) ... skipped \'later\'\n');
+  feed('test_e (tests.test_x.T.test_e) ... expected failure\ntest_f (tests.test_x.T.test_f) ... unexpected success\n');
+  feed('test_g (tests.test_x.T.test_g)\nChecks the docstring. ... ok\n');
+  feed('======================================================================\nFAIL: test_b (tests.test_x.T.test_b)\nAssertionError: 1 != 2\n');
+  const text = lines.join('');
+  assert.match(text, /✔ test_a \(tests\.test_x\.T\.test_a\)/);
+  assert.match(text, /✖ test_b \(tests\.test_x\.T\.test_b\)/);
+  assert.match(text, /✖ test_c \(tests\.test_x\.T\.test_c\)/);
+  assert.match(text, /○ test_d \(tests\.test_x\.T\.test_d\) skipped/);
+  assert.match(text, /✔ test_e \(tests\.test_x\.T\.test_e\)/);
+  assert.match(text, /✖ test_f \(tests\.test_x\.T\.test_f\)/);
+  assert.match(text, /✔ test_g \(tests\.test_x\.T\.test_g\)/);
+  assert.doesNotMatch(text, /✔ Checks the docstring/);
+  assert.match(text, /AssertionError: 1 != 2/);
+  assert.deepEqual(progress.counts, { passed: 3, failed: 3, skipped: 1, timedOut: 0 });
+});
+
 function stubTool(t, name, script) {
   const bin = mkdtempSync(path.join(tmpdir(), 'kit-stub-'));
   t.after(() => rmSync(bin, { recursive: true, force: true }));
@@ -284,4 +310,32 @@ test('a PHP extension that is not built fails before the tool starts', async (t)
   const result = await inProcess(t, ['phpunit', '--php-extension', 'build/ext.so']);
   assert.equal(result.status, 1);
   assert.match(result.text, /the PHP extension build\/ext\.so is not built; build it before the run/);
+});
+
+test('python tests run through python3 on PATH, pass, fail and stop at their timeout', async (t) => {
+  const passing = stubTool(t, 'python3', `process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+  const passed = await inProcess(t, ['python', 'tests'], { path: `${passing}${path.delimiter}${process.env.PATH}` });
+  assert.equal(passed.status, 0, passed.text);
+  assert.match(passed.text, /✔ python \. tests: 1 passed/);
+
+  const failing = stubTool(t, 'python3', `process.stderr.write('test_a (t.T.test_a) ... FAIL\\n'); process.exitCode = 1;`);
+  const failed = await inProcess(t, ['python', 'tests'], { path: `${failing}${path.delimiter}${process.env.PATH}` });
+  assert.equal(failed.status, 1, failed.text);
+  assert.match(failed.text, /✖ test_a \(t\.T\.test_a\)/);
+
+  const hanging = stubTool(t, 'python3', `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
+  const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { path: `${hanging}${path.delimiter}${process.env.PATH}` });
+  assert.equal(hung.status, 1, hung.text);
+  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran \d\.\ds and exceeded its 1\.0s timeout; stopping `python3 -m unittest`/);
+
+  const empty = stubTool(t, 'python3', `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
+  const none = await inProcess(t, ['python', 'tests'], { path: `${empty}${path.delimiter}${process.env.PATH}` });
+  assert.equal(none.status, 1, none.text);
+  assert.match(none.text, /no test ran/);
+});
+
+test('a python3 that cannot start fails with the fix', async (t) => {
+  const result = await inProcess(t, ['python', 'tests'], { path: path.join(tmpdir(), 'kit-no-such-directory') });
+  assert.equal(result.status, 1);
+  assert.match(result.text, /✖ python \. tests: cannot start python3: .*; install the Python release of config\/toolchain\.json python or \.python-version/);
 });
