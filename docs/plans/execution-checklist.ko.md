@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: cce8e090c89c0cb81b0596201d5e3e40e95d711473cff140c392f04711ae9803 -->
+<!-- source-sha256: 5da7d8f25965ce9c763f8d6b3c6db7e604c61e946a43c664827b1fa3bbcff2b4 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -63,3 +63,4 @@
 | K13 | 불가 상태를 두 수준에서 읽는다: lenient reading은 그것을 하나의 고유 상태로 받아들이고, strict reading은 그 상태의 list 항목에 cause를 요구하며 table 상태 cell 안의 cause를 받아들이고, marker 검사는 작업 밖의 그 상태를 보고한다 | `scripts/kit/checklist.mjs, tests/kit/checklist.test.mjs` | `node --test tests/kit/checklist.test.mjs` | [o] |
 | K14 | kit 원본 저장소의 kit-check는 설정만 읽는다: 원본은 자기 자신을 vendoring하지 않아 lock이 없고, origin이 kit.json의 repository이다 | `scripts/kit/kit-check.mjs, tests/kit/kit-check-source.test.mjs` | `make kit-test` | [o] |
 | K15 | 설정 `npmLocks`에 이름 붙인 npm lock을 루트 lock만이 아니라 모두 읽는다: gate의 local, tagged, manifest-lock 규칙은 각 lock을 그 옆의 manifest와 함께 읽고, review는 각 lock을 기록하고 감사한다 | `scripts/kit/dependency-state.mjs, check-dependency-policy.mjs, dependency-review.mjs, schema/dependency-policy.schema.json, tests/kit/dependency-policy.test.mjs` | `make kit-test` | [o] 0.0.13 release가 이것을 내보낸다. |
+| K16 | `trackedFiles`는 경로마다 한 번만 돌려준다: 해결되지 않은 merge나 cherry-pick 동안 `git ls-files --cached`가 unmerged 경로를 stage마다 한 번씩 내보내므로, tree를 도는 모든 검사가 그 문서를 두세 번 읽었다(consumer의 참조 검사가 cherry-pick 충돌 중 38개가 아닌 44개 문서를 셌다) | `scripts/kit/tracked-files.mjs, tests/kit/tracked-files.test.mjs` | `make kit-test` | [o] 다음 release가 이것을 내보낸다. |
