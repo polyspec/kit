@@ -8,18 +8,24 @@
 //   commit-length    the Subject has at most `subjectMax` characters
 //   commit-blank     a body follows the subject after a blank line
 //   commit-width     a line of the body has at most `bodyMax` characters
+//   commit-items     the commit changes the state of at most one item of the trackers of config/checklist.json; a row
+//                    that the commit adds is not a change, so a commit may add items and sub-items
+//   commit-changelog a commit that moves an item to the `done` state of its tracker also changes the `changelog` of the
+//                    configuration, its path and its translation (only when config/commits.json declares a changelog)
 //
 //   node scripts/kit/check-commits.mjs [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mjs --message <file>           the message being committed (the commit-msg hook)
 //
-// A merge commit keeps the message that Git writes and is not checked. Each finding is one line
+// A commit of a range is compared with its parent; the message being committed, with the index against HEAD. The item rules
+// apply when config/checklist.json exists. A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, ROOT } from './paths.mjs';
 import { readJson } from './files.mjs';
-import { git } from './git.mjs';
+import { loadConfig, readChecklist, CONFIG as CHECKLIST } from './checklist.mjs';
+import { git, gitResult } from './git.mjs';
 
 export const CONFIG = 'config/commits.json';
 
@@ -44,6 +50,60 @@ export function messageFindings(message, config) {
     }
   });
   return found;
+}
+
+// The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file.
+const fileAt = (root, rev, file) => {
+  const shown = gitResult(root, 'show', `${rev}:${file}`);
+  return shown.status === 0 ? shown.stdout : '';
+};
+
+/**
+ * The item findings of one change as `{ rule, message }`: `before` and `after` read a tracker file at the two sides of the
+ * change, `changed` holds the paths that the change touches.
+ */
+export function itemFindings(root, config, { before, after, changed }) {
+  if (!existsSync(path.join(root, CHECKLIST))) return [];
+  const changes = [];
+  for (const tracker of loadConfig(root).trackers) {
+    const states = text => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
+    const old = states(before(tracker.path));
+    for (const [id, state] of states(after(tracker.path))) {
+      if (old.has(id) && old.get(id) !== state) changes.push({ id, from: old.get(id), to: state, tracker });
+    }
+  }
+  const found = [];
+  if (changes.length > 1) {
+    const listed = changes.map(change => `${change.id} ${change.from} → ${change.to}`).join(', ');
+    found.push({ rule: 'commit-items', message: `the commit changes the state of ${changes.length} items (${listed}); change one item per commit` });
+  }
+  const changelog = config.changelog ? [config.changelog.path, ...(config.changelog.translation ? [config.changelog.translation] : [])] : [];
+  for (const change of changes.filter(entry => entry.tracker.done !== undefined && entry.to === entry.tracker.done)) {
+    for (const file of changelog.filter(entry => !changed.includes(entry))) {
+      found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
+    }
+  }
+  return found;
+}
+
+/** The item findings of the commit `id` against its parent; a root commit is compared with an empty tree. */
+const commitItemFindings = (root, config, id) => {
+  const parent = gitResult(root, 'rev-parse', '--verify', '--quiet', `${id}^`).status === 0 ? `${id}^` : null;
+  return itemFindings(root, config, {
+    before: file => (parent ? fileAt(root, parent, file) : ''),
+    after: file => fileAt(root, id, file),
+    changed: git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--root', id).split('\n').filter(Boolean),
+  });
+};
+
+/** The item findings of the change being committed: the index against HEAD. */
+export function indexItemFindings(root, config) {
+  const head = gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status === 0;
+  return itemFindings(root, config, {
+    before: file => (head ? fileAt(root, 'HEAD', file) : ''),
+    after: file => fileAt(root, '', file),
+    changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
+  });
 }
 
 /** The message of a commit-msg file: without the comment lines that Git removes; null for a merge commit. */
@@ -72,7 +132,7 @@ export function rangeMessages(root, range) {
 
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
 export function rangeFindings(root, range, config) {
-  return rangeMessages(root, range).flatMap(({ id, message }) => messageFindings(message, config).map(found => `${id}: ${found.rule}: ${found.message}`));
+  return rangeMessages(root, range).flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id)].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 
 if (isMain(import.meta.url)) {
@@ -89,7 +149,7 @@ if (isMain(import.meta.url)) {
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : messageFindings(message, config).map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...messageFindings(message, config), ...indexItemFindings(root, config)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);
