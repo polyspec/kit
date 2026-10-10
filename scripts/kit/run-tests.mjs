@@ -6,8 +6,9 @@
 //
 // The arguments after the options of the runner go to the tool.
 //
-// Tools: node (node --test), vitest, go (go test), cargo (cargo test) and phpunit. node and vitest stop a test at its
-// timeout themselves; for go, cargo and phpunit this runner stops the tool when a test outlives it. No tool has a time
+// Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
+// vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
+// outlives it. No tool has a time
 // limit on a package, a file or a whole run. A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn } from 'node:child_process';
@@ -20,7 +21,7 @@ import { createProgress } from './test-progress.mjs';
 import { isMain, ROOT } from './paths.mjs';
 
 const KIT = path.dirname(fileURLToPath(import.meta.url));
-const TOOLS = ['node', 'vitest', 'go', 'cargo', 'phpunit'];
+const TOOLS = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mjs <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--cwd <directory>] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
@@ -34,6 +35,7 @@ const INSTALL = {
   go: () => 'run make install-tools, which installs Go into var/tools',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
   phpunit: ({ cwd }) => `run composer install in ${path.relative(ROOT, cwd) || '.'}`,
+  python: () => 'install the Python release of config/toolchain.json python or .python-version',
 };
 
 export function parseArguments(argv, root = ROOT) {
@@ -91,6 +93,10 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension }, r
       if (phpExtension) return { command: 'php', args: ['-d', `extension=${phpExtension}`, phpunit, '--teamcity', ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
+    case 'python':
+      // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
+      // `discover` argument unittest would read `discover` as a test name.
+      return { command: 'python3', args: ['-m', 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }
@@ -147,48 +153,91 @@ export function goEvents(progress, build = []) {
 }
 
 /**
+ * Read the output of a serial runner in which a test prints `<name> ... ` when it starts and its outcome on the same line
+ * when it ends. `result` matches a finished line with the name and the outcome, `pending` the name of the test that started
+ * at the end of an unfinished line, `outcome` names the progress call of an outcome (`pass`, `fail` or `skip`), `idOf` turns
+ * a name into a test id and `other` receives every other line. The runner is serial, so an outcome belongs to the test that
+ * started last.
+ */
+function startResultLines(progress, { result, pending, outcome, idOf, other }) {
+  let current;
+  let buffer = '';
+  const start = (name) => {
+    if (current !== undefined) return;
+    current = idOf(name);
+    progress.start(current);
+  };
+  const line = (text) => {
+    const match = result.exec(text);
+    if (!match) return other(text);
+    start(match[1]);
+    progress[outcome(match[2])](current);
+    current = undefined;
+    return undefined;
+  };
+  return (data) => {
+    buffer += data;
+    let end;
+    while ((end = buffer.indexOf('\n')) !== -1) {
+      line(buffer.slice(0, end));
+      buffer = buffer.slice(end + 1);
+    }
+    const started = pending.exec(buffer);
+    if (started) start(started[1]);
+  };
+}
+
+/**
  * Read serial libtest output into progress lines. A test prints `test <name> ... ` when it starts and its result (`ok`,
  * `FAILED` or `ignored`) when it ends; cargo names each test binary on standard error before running it.
  */
 export function cargoEvents(progress) {
   let binary = 'cargo';
-  let current;
-  let buffer = '';
-  const start = name => {
-    const id = `${binary} › ${name}`;
-    if (current === id) return;
-    current = id;
-    progress.start(id);
-  };
-  const line = text => {
-    const result = /^test (\S+) \.\.\. (ok|FAILED|ignored)\b/.exec(text);
-    if (!result) {
+  const stdout = startResultLines(progress, {
+    result: /^test (\S+) \.\.\. (ok|FAILED|ignored)\b/,
+    pending: /^test (\S+) \.\.\. $/,
+    outcome: word => ({ ok: 'pass', FAILED: 'fail', ignored: 'skip' })[word],
+    idOf: name => `${binary} › ${name}`,
+    other: (text) => {
       if (text.trim() && !/^(?:running \d+ tests?$|test result:|failures:$|successes:$)/.test(text.trim())) progress.line(`  ${text}`);
-      return;
-    }
-    start(result[1]);
-    if (result[2] === 'ok') progress.pass(current);
-    else if (result[2] === 'ignored') progress.skip(current);
-    else progress.fail(current);
-    current = undefined;
-  };
-  return {
-    stdout(data) {
-      buffer += data;
-      let end;
-      while ((end = buffer.indexOf('\n')) !== -1) {
-        line(buffer.slice(0, end));
-        buffer = buffer.slice(end + 1);
-      }
-      const started = /^test (\S+) \.\.\. $/.exec(buffer);
-      if (started) start(started[1]);
     },
+  });
+  return {
+    stdout,
     stderr(text) {
       const running = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(text);
       if (running) binary = running[1];
       if (text.trim()) progress.line(text.trim());
     },
   };
+}
+
+/**
+ * Read the verbose output of Python unittest, which it writes to standard error, into progress lines. A test prints
+ * `<method> (<module>.<class>.<method>) ... ` when it starts and its outcome when it ends: `ok` and `expected failure` pass,
+ * `skipped '<reason>'` is skipped, and `FAIL`, `ERROR` and `unexpected success` fail. A test with a docstring prints its
+ * description on a line of its own and the first docstring line before ` ... `; the test keeps the id of the description.
+ * The failure reports at the end of the run are printed as they are.
+ */
+export function pythonEvents(progress) {
+  const DESCRIPTION = /^\w+ \([\w.]+\)$/;
+  // The description line of a test with a docstring, which names the test whose outcome follows.
+  let described;
+  return startResultLines(progress, {
+    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*|expected failure|unexpected success)$/,
+    pending: /^(.+?) \.\.\. $/,
+    outcome: word => (word === 'ok' || word === 'expected failure' ? 'pass' : word.startsWith('skipped') ? 'skip' : 'fail'),
+    idOf: (name) => {
+      const id = described ?? name;
+      described = undefined;
+      return id;
+    },
+    other: (text) => {
+      if (DESCRIPTION.test(text)) { described = text; return; }
+      described = undefined;
+      if (text.trim()) progress.line(`  ${text}`);
+    },
+  });
 }
 
 const unescapeTeamcity = value => value.replace(/\|(['|\][nr])/g, (match, character) => ({ n: '\n', r: '\r' })[character] ?? character);
@@ -245,16 +294,17 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
     write(`✖ ${label}: the PHP extension ${path.relative(root, options.phpExtension)} is not built; build it before the run\n`);
     return 1;
   }
-  const reads = ['go', 'cargo', 'phpunit'].includes(options.tool);
+  const reads = ['go', 'cargo', 'phpunit', 'python'].includes(options.tool);
   const cargo = options.tool === 'cargo';
+  const python = options.tool === 'python';
   // The progress reporters write their counts to this file; the runner requires that a test ran.
   const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
   // A runner started from inside node --test must not join that run as its child.
-  const env = { ...process.env, KIT_TEST_RESULT: resultFile };
+  const env = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   try {
-    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo ? 'pipe' : 'inherit'], detached: reads });
+    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: reads });
     let timedOut = false;
     const progress = reads ? createProgress({
       write,
@@ -275,6 +325,14 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
       const events = cargoEvents(progress);
       child.stdout.setEncoding('utf8').on('data', events.stdout);
       readline.createInterface({ input: child.stderr }).on('line', noting(events.stderr));
+    } else if (python) {
+      // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
+      const events = pythonEvents(progress);
+      child.stderr.setEncoding('utf8').on('data', (data) => {
+        for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
+        events(data);
+      });
+      readline.createInterface({ input: child.stdout }).on('line', text => progress.line(`  ${text}`));
     } else if (reads) {
       readline.createInterface({ input: child.stdout }).on('line', noting(options.tool === 'go' ? goEvents(progress, build) : phpunitEvents(progress)));
     }

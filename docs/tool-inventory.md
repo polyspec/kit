@@ -269,7 +269,7 @@ each node test file and `test-hooks.mjs` is the `setup` and `teardown` helper of
 
 Merged behaviors:
 
-- Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui); hyper has the first, the last and `vitest`. Each test
+- Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui) and `python` (K17); hyper has the first, the last and `vitest`. Each test
   prints its start, a line while it runs, and its result with the elapsed time; each test has its own timeout
   (`--timeout`, 30 s by default), enforced by `node --test` and vitest and by the runner for the other tools. No whole run, package or
   file has a time limit (all implementations; crudui's `go test -timeout 10m` is dropped for `-timeout=0`).
@@ -283,11 +283,15 @@ Merged behaviors:
 - `phpunit` runs `<cwd>/vendor/bin/phpunit`, or the vendor directory of `COMPOSER_VENDOR_DIR` (crudui), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts.
 - A tool that cannot start fails with its command and the fix.
+- `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
+  when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
+  and result lines reads both. `ok` and `expected failure` pass, `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
+  success` fail; a docstring line after the description keeps the id of the description. The runner applies the timeout.
 
 Dropped behaviors:
 
-- Python `unittest` runs with signal timeouts (`test.py`): the Python tests of ordered-json are not run by kit, which runs
-  node tests.
+- Python `unittest` runs with signal timeouts (`test.py`): the `python` tool runs `python3 -m unittest` with the timeout of
+  the runner instead (K17).
 - crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
   `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
   (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.
