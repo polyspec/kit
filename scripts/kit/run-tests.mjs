@@ -316,7 +316,9 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
   const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
   // A runner started from inside node --test must not join that run as its child.
-  const env = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1' } : {}) };
+  // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
+  // color off.
+  const env = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   try {
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: reads });
