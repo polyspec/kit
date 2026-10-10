@@ -287,6 +287,11 @@ Merged behaviors:
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
   and result lines reads both. `ok` and `expected failure` pass, `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
   success` fail; a docstring line after the description keeps the id of the description. The runner applies the timeout.
+- `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
+  test as `{id, status, elapsedMs}` (`pass`, `fail`, `timeout` or `skip`), the tool, the elapsed time of the run and `inputs`,
+  the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The
+  progress module records the tests, so the reporters of node and vitest and the parsers of the other tools need nothing
+  more. A check compares `inputs` with the current files to tell a stale record.
 
 Dropped behaviors:
 

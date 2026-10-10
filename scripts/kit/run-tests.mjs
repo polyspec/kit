@@ -2,9 +2,13 @@
 // The test runner. A test target runs its test tool through this script, which prints each test as it starts, keeps running,
 // passes, fails or is skipped, with the elapsed time, and gives every test its own timeout.
 //
-//   node scripts/kit/run-tests.mjs <tool> [--timeout <seconds>] [--cwd <directory>] [--php-extension <file>] [--] [<arguments>]
+//   node scripts/kit/run-tests.mjs <tool> [--timeout <seconds>] [--cwd <directory>] [--php-extension <file>]
+//       [--results <file> [--inputs <path>]...] [--] [<arguments>]
 //
-// The arguments after the options of the runner go to the tool.
+// The arguments after the options of the runner go to the tool. --results writes the record of the run, passed or not, to
+// <file> (relative to the checkout root): the counts, each test with its status and elapsed time, the tool, the elapsed time
+// of the run and `inputs`, the `inputsDigest` of the --inputs paths (the --cwd directory when none is given), so that a
+// check can tell a record of the current files from a stale one.
 //
 // Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
@@ -18,11 +22,13 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mjs';
+import { writeJson } from './files.mjs';
 import { isMain, ROOT } from './paths.mjs';
+import { inputsDigest } from './tracked-files.mjs';
 
 const KIT = path.dirname(fileURLToPath(import.meta.url));
 const TOOLS = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
-const USAGE = `Usage: node scripts/kit/run-tests.mjs <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--cwd <directory>] [--] [<arguments>]`;
+const USAGE = `Usage: node scripts/kit/run-tests.mjs <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
@@ -41,7 +47,7 @@ const INSTALL = {
 export function parseArguments(argv, root = ROOT) {
   const [tool, ...rest] = argv;
   if (!TOOLS.includes(tool)) throw new Error(USAGE);
-  const options = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [] };
+  const options = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [] };
   let index = 0;
   for (; index < rest.length; index += 2) {
     const [flag, value] = [rest[index], rest[index + 1]];
@@ -54,8 +60,16 @@ export function parseArguments(argv, root = ROOT) {
     } else if (flag === '--cwd') {
       if (!value) throw new Error(USAGE);
       options.cwd = path.resolve(root, value);
+    } else if (flag === '--results') {
+      if (!value) throw new Error(USAGE);
+      options.results = path.resolve(root, value);
+    } else if (flag === '--inputs') {
+      if (!value) throw new Error(USAGE);
+      options.inputs.push(value);
     } else break;
   }
+  if (options.inputs.length && !options.results) throw new Error(`--inputs needs --results\n${USAGE}`);
+  if (options.results && !options.inputs.length) options.inputs.push(path.relative(root, options.cwd) || '.');
   options.args = rest.slice(rest[index] === '--' ? index + 1 : index);
   return options;
 }
@@ -287,6 +301,7 @@ export function phpunitEvents(progress) {
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */
 export async function run(argv, { root = ROOT, write = text => process.stdout.write(text) } = {}) {
   const options = parseArguments(argv, root);
+  const began = Date.now();
   const { command, args } = toolCommand(options, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
@@ -358,6 +373,11 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
       exit = code === 0 ? 0 : 1;
     }
     const counts = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : null;
+    if (counts !== null && options.results) {
+      const inputs = { paths: options.inputs, digest: inputsDigest(root, options.inputs) };
+      writeJson(options.results, { tool: options.tool, inputs, elapsedMs: Date.now() - began, ...counts });
+      write(`▶ ${label}: recorded ${path.relative(root, options.results)}\n`);
+    }
     if (counts === null) {
       write(`✖ ${label}: the progress reporter wrote no counts, so the run cannot show that a test ran; the tool must run with the reporter of scripts/kit\n`);
       return 1;

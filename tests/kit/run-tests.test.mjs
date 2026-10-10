@@ -9,8 +9,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cargoEvents, goEvents, parseArguments, phpunitEvents, pythonEvents, run, toolCommand } from '../../scripts/kit/run-tests.mjs';
+import { inputsDigest } from '../../scripts/kit/tracked-files.mjs';
 import { createProgress } from '../../scripts/kit/test-progress.mjs';
-import { tree } from './tree.mjs';
+import { put, tree } from './tree.mjs';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const SPEC = "import test from 'node:test';\n";
@@ -92,7 +93,11 @@ test('the arguments of the runner are read before the arguments of the tool', ()
   assert.equal(parseArguments(['phpunit', '--php-extension', 'ext.so'], '/repo').phpExtension, '/repo/ext.so');
   assert.equal(parseArguments(['go', './...'], '/repo').args[0], './...');
   assert.deepEqual(parseArguments(['python', '--cwd', 'pkg', 'tests'], '/repo').args, ['tests']);
-  for (const bad of [[], ['ruby'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
+  const recorded = parseArguments(['go', '--results', '.results/go.json', '--inputs', 'pkg', '--inputs', 'schema/a.dbs', './...'], '/repo');
+  assert.deepEqual([recorded.results, recorded.inputs, recorded.args], ['/repo/.results/go.json', ['pkg', 'schema/a.dbs'], ['./...']]);
+  assert.deepEqual(parseArguments(['go', '--results', 'r.json', '--cwd', 'pkg'], '/repo').inputs, ['pkg']);
+  assert.throws(() => parseArguments(['go', '--inputs', 'pkg'], '/repo'), /--inputs needs --results/);
+  for (const bad of [[], ['ruby'], ['go', '--results'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
     assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mjs <node\|vitest\|go\|cargo\|phpunit\|python>/, JSON.stringify(bad));
   }
 });
@@ -130,8 +135,11 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   const progress = counts(file);
   progress.start('a'); progress.pass('a', 10);
   progress.start('b'); progress.skip('b');
-  assert.deepEqual(progress.close('suite'), { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true });
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true });
+  const result = progress.close('suite');
+  assert.deepEqual({ ...result, cases: undefined }, { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true, cases: undefined });
+  assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['a', 'pass'], ['b', 'skip']]);
+  assert.equal(result.cases[0].elapsedMs, 10);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), result);
   assert.match(lines.at(-1), /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/);
 
   const failing = counts();
@@ -166,9 +174,12 @@ test('the progress reports a test that outlives its timeout', async () => {
   progress.start('slow');
   await new Promise(resolve => setTimeout(resolve, 200));
   assert.deepEqual(stopped, ['slow']);
+  progress.fail('slow', undefined, 'stopped');
   assert.ok(lines.some(line => /⏱ slow ran \d\.\ds and exceeded its 0\.1s timeout; stopping `tool run`/.test(line)), lines.join(''));
   assert.ok(lines.some(line => line.includes('… slow still running')));
-  assert.equal(progress.close('suite').timedOut, 1);
+  const closed = progress.close('suite');
+  assert.equal(closed.timedOut, 1);
+  assert.deepEqual(closed.cases.map(({ id, status }) => [id, status]), [['slow', 'timeout']]);
 });
 
 test('the go events print tests, show the output of a failing test, name build errors and skip a package without a test', () => {
@@ -338,4 +349,41 @@ test('a python3 that cannot start fails with the fix', async (t) => {
   const result = await inProcess(t, ['python', 'tests'], { path: path.join(tmpdir(), 'kit-no-such-directory') });
   assert.equal(result.status, 1);
   assert.match(result.text, /✖ python \. tests: cannot start python3: .*; install the Python release of config\/toolchain\.json python or \.python-version/);
+});
+
+test('inputsDigest hashes the tracked and new non-ignored files under the paths and fails on a path without files', (t) => {
+  const root = tree(t, { 'pkg/a.txt': 'a', 'pkg/out/ignored.txt': 'x', 'schema/s.dbs': 's', 'other.txt': 'o', '.gitignore': 'pkg/out/\n' });
+  const first = inputsDigest(root, ['pkg', 'schema/s.dbs']);
+  assert.match(first, /^[0-9a-f]{64}$/);
+  put(root, { 'pkg/out/ignored.txt': 'y', 'other.txt': 'p' });
+  assert.equal(inputsDigest(root, ['pkg', 'schema/s.dbs']), first, 'ignored files and files outside the paths do not count');
+  put(root, { 'pkg/a.txt': 'b' });
+  assert.notEqual(inputsDigest(root, ['pkg', 'schema/s.dbs']), first);
+  put(root, { 'pkg/new.txt': 'n' });
+  const withNew = inputsDigest(root, ['pkg', 'schema/s.dbs']);
+  put(root, { 'pkg/new.txt': null });
+  assert.notEqual(inputsDigest(root, ['pkg', 'schema/s.dbs']), withNew);
+  assert.throws(() => inputsDigest(root, ['missing']), /--inputs missing names no tracked or new file/);
+});
+
+test('--results writes the cases, the tool, the inputs and the elapsed time of a passing and of a failing run', async (t) => {
+  const root = tree(t, { 'pkg/a_test.go': 'package a' });
+  const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0.25 },
+    { Action: 'run', Package: 'p', Test: 'TestB' }, { Action: 'fail', Package: 'p', Test: 'TestB', Elapsed: 0.5 }, { Action: 'fail', Package: 'p', Elapsed: 1 }];
+  const bin = stubTool(t, 'go', `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exitCode = 1;`);
+  const result = await inProcess(t, ['go', '--results', '.results/go.json', '--cwd', 'pkg', './...'], { root, path: `${bin}${path.delimiter}${process.env.PATH}` });
+  assert.equal(result.status, 1, result.text);
+  const record = JSON.parse(readFileSync(path.join(root, '.results/go.json'), 'utf8'));
+  assert.deepEqual(record.cases, [{ id: 'p › TestA', status: 'pass', elapsedMs: 250 }, { id: 'p › TestB', status: 'fail', elapsedMs: 500 }]);
+  assert.deepEqual([record.tool, record.inputs.paths, record.inputs.digest, record.ok], ['go', ['pkg'], inputsDigest(root, ['pkg']), false]);
+  assert.equal(typeof record.elapsedMs, 'number');
+});
+
+test('--results records the cases of node tests, which the reporter counts in its own process', (t) => {
+  const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('later', { skip: true }, () => {});\n` });
+  const result = runner(root, ['node', '--results', '.results/node.json', '--inputs', 'tests', '--', 'tests/a.test.mjs']);
+  assert.equal(result.status, 0, output(result));
+  const record = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/a.test.mjs › adds', 'pass'], ['tests/a.test.mjs › later', 'skip']]);
+  assert.equal(record.tool, 'node');
 });
