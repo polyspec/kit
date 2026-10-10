@@ -15,9 +15,12 @@ export const KIT_FIXTURE = 'tests/kit/fixture/';
 // The directories of dependency installs, tool installs and run outputs, which no check of the repository reads.
 const INSTALLED = /(^|\/)(node_modules|var|\.tools)\//;
 
-/** The files of the checkout under `root`, tracked or new and not ignored, that exist as regular files. */
+/**
+ * The files of the checkout under `root`, tracked or new and not ignored, that exist as regular files. An unresolved merge
+ * lists a conflicted path once for each stage, so each path is kept once.
+ */
 export function trackedFiles(root = ROOT) {
-  return gitPaths(root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard')
+  return [...new Set(gitPaths(root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'))]
     .filter(file => existsSync(path.join(root, file)) && statSync(path.join(root, file)).isFile())
     .sort();
 }
