@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 126a99dbe7e026c18ac0acfca861d20719649766a6f93f18f8acc5e2a5610587 -->
+<!-- source-sha256: c95d1712bcb7c1d80028dd403cb954a96dbf6e44bcdf4158c9dfe2c83cbc56d1 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -68,4 +68,4 @@
 | K18 | `run-tests.mjs --results <file>`은 run의 counts에 `cases: [{id, status, elapsedMs}]`, `tool`, `inputs`, `elapsedMs`를 붙여 임시 파일과 rename으로 쓴다. `inputs`는 paths 아래의 추적 파일과 무시되지 않은 파일의 `inputsDigest(root, paths)`다 | `scripts/kit/run-tests.mjs, test-progress.mjs, tracked-files.mjs, tests/kit/run-tests.test.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
 | K19 | `check-commits.mjs`: tracker 항목을 done 상태로 옮기는 commit은 `config/commits.json`의 changelog(영문·한글)도 바꾸고, commit 하나는 항목 하나의 상태만 바꾼다. 그 commit이 추가한 행은 상태 변경이 아니다 | `scripts/kit/check-commits.mjs, schema/commits.schema.json, schema/checklist.schema.json, tests/kit/commits.test.mjs` | `node --test tests/kit/commits.test.mjs` | [o] release 0.0.14가 이것을 내보낸다. |
 | K20 | `kit-sync.mjs`는 `--repository`가 있을 때만 읽는다: 없으면 `indexOf`가 -1을 돌려 `option('--repository')`가 `args[0]`(`--tag`)을 저장소로 읽고 clone이 실패한다. 값 없는 option은 사용법과 함께 실패한다 | `scripts/kit/kit-sync.mjs, tests/kit/kit-sync.test.mjs` | `node --test tests/kit/kit-sync.test.mjs` | [o] 다음 release가 이것을 내보낸다. |
-| K21 | `node-reporter.mjs`는 test 파일을 checkout root 기준으로 부르지만 node는 작업 디렉터리 기준으로 부른다: `run-tests --cwd <dir>`이면 파일 그룹이 맞지 않아 test case로 세어진다. 두 경로를 작업 디렉터리 기준으로 풀어서 비교한다 | `scripts/kit/node-reporter.mjs, tests/kit/run-tests.test.mjs` | `node --test tests/kit/run-tests.test.mjs` | [ ] |
+| K21 | `node-reporter.mjs`는 test 파일을 checkout root 기준으로 부르지만 node는 작업 디렉터리 기준으로 부른다: `run-tests --cwd <dir>`이면 파일 그룹이 맞지 않아 test case로 세어진다. 두 경로를 작업 디렉터리 기준으로 풀어서 비교한다 | `scripts/kit/node-reporter.mjs, tests/kit/run-tests.test.mjs` | `node --test tests/kit/run-tests.test.mjs` | [o] 다음 release가 이것을 내보낸다. |
