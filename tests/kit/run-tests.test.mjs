@@ -387,3 +387,13 @@ test('--results records the cases of node tests, which the reporter counts in it
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/a.test.mjs › adds', 'pass'], ['tests/a.test.mjs › later', 'skip']]);
   assert.equal(record.tool, 'node');
 });
+
+test('under --cwd a node file group is not a test case, and its ids name the file from the checkout root', (t) => {
+  const root = checkout(t, { 'pkg/tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('subtracts', () => {});\n` });
+  const result = runner(root, ['node', '--cwd', 'pkg', '--results', '.results/node.json', '--', 'tests']);
+  assert.equal(result.status, 0, output(result));
+  assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 timed out, 0 skipped/);
+  assert.match(result.stdout, /✔ pkg\/tests\/a\.test\.mjs › adds/);
+  const record = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['pkg/tests/a.test.mjs › adds', 'pass'], ['pkg/tests/a.test.mjs › subtracts', 'pass']]);
+});
