@@ -1,10 +1,11 @@
 // Helpers of the dependency tests: a copy of tests/kit/fixture with the tools, as a Git repository of a temporary
 // directory, so that each tool reads its own checkout, and the commands that run the gate and the review in it.
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { removeSandbox } from './sandbox-cleanup.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -13,7 +14,7 @@ const FIXTURE = path.join(HERE, 'fixture');
 /** A copy of the fixture with scripts/kit, removed with `t.after`. */
 export function fixtureCheckout(t) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-checkout-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => removeSandbox(directory));
   cpSync(FIXTURE, directory, { recursive: true });
   cpSync(path.join(ROOT, 'scripts/kit'), path.join(directory, 'scripts/kit'), { recursive: true });
   // The tools list the files of a checkout through Git, so the copy is a repository.
