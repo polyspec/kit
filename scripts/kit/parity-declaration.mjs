@@ -3,6 +3,7 @@
 // implementation or profile, or a stale entry is a finding of the rule `declaration`, and the other rules do not run on it.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { matchesAny } from './glob.mjs';
 import { readConfig } from './schema-validate.mjs';
 
 export const DECLARATION = 'config/parity.json';
@@ -76,6 +77,31 @@ export const within = (root, file) => file.startsWith(`${root.replace(/\/+$/, ''
 /** Whether the directory `root` is the whole repository. */
 const wholeRepository = root => /^(?:\.?\/*|\.\/+\.?)$/.test(root);
 
+// A reference to the invoking environment in a runner value is ${NAME}; any other ${ form, such as a default, is no reference.
+const REFERENCE = /\$\{([^}]*)(\}?)/g;
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** `value` with each ${NAME} replaced by its value in `env`; a form that is no reference or an unset name is an error of `where`. */
+function expand(value, env, where, fail) {
+  return value.replace(REFERENCE, (whole, name, close) => {
+    if (!close || !NAME.test(name)) fail(`${where} holds ${whole}, which is no reference; a reference is \${NAME} and has no default`);
+    else if (env[name] === undefined) fail(`${where} references ${whole}, which the environment does not set`);
+    else return env[name];
+    return whole;
+  });
+}
+
+/** The implementation with the references of its command, args and env values expanded from `env`. */
+function expanded(entry, env, fail) {
+  const where = `implementation ${entry.name}:`;
+  return {
+    ...entry,
+    ...(entry.command === undefined ? {} : { command: expand(entry.command, env, `${where} command`, fail) }),
+    ...(entry.args === undefined ? {} : { args: entry.args.map(arg => expand(arg, env, `${where} args`, fail)) }),
+    ...(entry.env === undefined ? {} : { env: entry.env.map(variable => ({ ...variable, value: expand(variable.value, env, `${where} env ${variable.name}`, fail) })) }),
+  };
+}
+
 /** The JSON value of a tracked file, or an error of the declaration. */
 function readTrackedJson(root, files, file, where, errors) {
   if (!files.has(file)) {
@@ -105,11 +131,12 @@ function snapshotOf(value, file, errors) {
 }
 
 /**
- * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
- * implementations and profiles by name, the case names of each suite unit, the symbols of each snapshot, and `members(unit)`,
- * the implementations of the unit's profile, and `exclusion(unit, implementation)`.
+ * The declaration of `root` resolved against `files` (the checked files) and the invoking environment `env`: `{ errors, model }`.
+ * The model holds the config, the implementations (their runner values expanded from `env`) and profiles by name, the case
+ * names of each suite unit, the symbols of each snapshot, and `members(unit)`, the implementations of the unit's profile, and
+ * `exclusion(unit, implementation)`.
  */
-export function readDeclaration(root, files) {
+export function readDeclaration(root, files, env) {
   if (!existsSync(path.join(root, DECLARATION))) return { errors: [finding('declaration', `${DECLARATION} does not exist; declare the implementations and units there (scripts/kit/schema/parity.schema.json)`)] };
   let read;
   try {
@@ -124,7 +151,7 @@ export function readDeclaration(root, files) {
   const implementations = new Map();
   for (const entry of config.implementations) {
     if (implementations.has(entry.name)) fail(`the implementation ${entry.name} is declared twice`);
-    implementations.set(entry.name, entry);
+    implementations.set(entry.name, expanded(entry, env, fail));
   }
   const profiles = new Map();
   for (const profile of config.profiles) {
@@ -159,6 +186,13 @@ export function readDeclaration(root, files) {
     }
     if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
   }
+  // A support glob names files that a test glob selects and that hold no test; one that selects none is stale.
+  for (const entry of config.implementations) {
+    const testGlobs = [...entry.tests, ...config.testPatterns.filter(pattern => pattern.runner === entry.runner).flatMap(pattern => pattern.globs)];
+    for (const glob of entry.support ?? []) {
+      if (![...files].some(file => matchesAny([glob], file) && matchesAny(testGlobs, file))) fail(`implementation ${entry.name}: the support glob ${glob} selects no test file; remove it`);
+    }
+  }
   const patterns = [
     ...config.implementations.filter(entry => entry.errors).map(entry => [`implementation ${entry.name}`, entry.errors.pattern]),
     ...(config.errors ? [['errors catalog', config.errors.catalog.pattern]] : []),
@@ -191,6 +225,7 @@ export function readDeclaration(root, files) {
     for (const key of ['file', 'cases', 'bindings']) if (!(key in unit)) fail(`${where}: a unit of kind suite needs ${key}`);
     for (const entry of unit.bindings ?? []) {
       if (!files.has(entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} does not exist`);
+      if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
       const runner = implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
       else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);

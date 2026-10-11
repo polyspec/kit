@@ -39,7 +39,7 @@ import { checkedFiles } from './tracked-files.mjs';
 export function checkParity(root, { execute = true, env = process.env, say = () => {} } = {}) {
   const files = new Set(checkedFiles(root));
   say(`read ${DECLARATION}`);
-  const declaration = readDeclaration(root, files);
+  const declaration = readDeclaration(root, files, env);
   const model = declaration.model;
   const ledger = { runs: [], cases: [] };
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
