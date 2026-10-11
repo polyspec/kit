@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0dd5043e546954056d7625fa61ba2f338fdb238f40706d2a8f71c1dbb5f36aa3 -->
+<!-- source-sha256: 023ef1fd2422f25c5447a1c1b8e28e5c81ff822bc2bb7dc13f013f3ad54ecc28 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -115,7 +115,10 @@ lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합
 ### 정책
 
 tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. 대기 `[ ]`, 완료
-`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. 전체 실행의 guard는
+`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mjs`, `config/commits.json`)의
+규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
+0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
+각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
 항목이 active 상태인 동안, 추적하는 파일에 변경이 있는 동안, 현재 tree의 전체 실행 기록이 있을 때 거부합니다. 이 정책에는 pull
 request, merge queue, ruleset이 없습니다.
 
