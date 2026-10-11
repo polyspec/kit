@@ -13,14 +13,18 @@
 //   R1 missing-implementation  an API unit has no exported symbol in an implementation of its profile
 //   R2 missing-binding         a suite has no binding of an implementation of its profile
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
-//                              or its second run gives another status, case or result than its first
+//                              or its second run gives another status, case or result than its first; a run whose
+//                              environment reference is unset or empty cannot start
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit
-//   R5 undeclared-test         a test file of an implementation is the test of no binding
-//   R6 misplaced-test          the test of a binding lies outside the roots of its implementation
+//   R5 undeclared-test         a test file of an implementation, other than a support file, is the test of no binding, or
+//                              a node, php or python support file reports a case when it runs
+//   R6 misplaced-test          the test of a binding lies outside the roots of its implementation, or a file of the test
+//                              patterns of a runner, other than a support file of that runner, lies outside its roots
 //   R7 error-catalog           the codes of an implementation differ from the catalog, or it declares none
 //   R8 exclusion               an exclusion: it never counts as holding the unit
 //   R9 language-set-drift      a declared list of implementation names in another file differs from its profile
-//   R10 docs-count             a document counts or lists the implementations unlike every profile
+//   R10 docs-count             a document counts implementations that no profile of that count holds, or lists
+//                              implementations in a sentence whose names are no profile
 //   R11 undeclared-public      an exported symbol that no API unit and no native-only entry declares
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 import { parseArgs } from 'node:util';
