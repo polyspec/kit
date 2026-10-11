@@ -27,3 +27,6 @@ jobs:
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         run: make kit-test
+      # The kit's own tests (tests/source) build the wheel with the Python and backend of install-tools; kit-sync does not vendor them.
+      - name: source tests
+        run: make source-test
