@@ -96,7 +96,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	node scripts/kit/check-commits.mjs $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mjs, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-verify release-versions release-assets release-publish release-coverage release-go-tags
+.PHONY: release-verify release-versions release-assets release-publish release-coverage release-go-tags release-backend
 
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
@@ -120,6 +120,9 @@ release-coverage: ## Require every package file of the checkout to be classified
 release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
 	@test -n "$$TAG" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
 	node scripts/kit/release.mjs go-tags "$$TAG"
+
+release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
+	$(ONLINE) node scripts/kit/release-backend.mjs
 
 # --- lint-python: ruff check and ruff format --check of the Python package that config/toolchain.json ruff.pyproject names.
 .PHONY: lint-python

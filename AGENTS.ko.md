@@ -42,3 +42,11 @@ kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
 이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
+
+kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
+이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의
+`buildBackend`가 정확한 requirement와 wheel의 sha256으로 고정합니다. `make release-backend`는 그 wheel을 digest를 확인하며
+`var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. `Requires-Dist`가 plain `name==version`이 아닌 wheel(URL, git source,
+범위, marker)은 거부합니다. 같은 형식의 npm 또는 Composer manifest를 거부하는 것과 같습니다. `release-consumer`는 wheel을
+`pip install --no-index --require-hashes --no-deps`로 깨끗한 virtual environment에 설치하고 그 smoke command를 실행합니다.
+Python package는 git tag로 릴리스하지 않습니다.

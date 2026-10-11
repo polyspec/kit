@@ -14,6 +14,7 @@ import path from 'node:path';
 import * as release from '../../scripts/kit/release.mjs';
 import * as consumer from '../../scripts/kit/release-consumer.mjs';
 import { releaseSandbox } from './release-sandbox.mjs';
+import { PIP_FUNCTIONS } from './wheel-stubs.mjs';
 
 // The start of every stub: the state, the call log and a function that saves both and exits.
 const PRELUDE = `#!/usr/bin/env node
@@ -108,12 +109,21 @@ if (args[1] === 'view') {
 
 // The interpreter of a virtual environment: it answers pip and the smoke command from the state.
 const VENV_PYTHON = `${PRELUDE}
-if (args[0] === '-m' && args[1] === 'pip') finish(mode === 'pip-fail' ? 1 : 0, mode === 'pip-fail' ? 'pip stub: no matching distribution' : '');
+if (args[0] === '-m' && args[1] === 'pip' && args[2] === 'show') {
+  console.log('Name: ' + args[3] + '\\nVersion: ' + state.version);
+  finish();
+}
+if (args[0] === '-m' && args[1] === 'pip') {
+  call.requirements = args.includes('-r') ? fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8') : null;
+  finish(mode === 'pip-fail' ? 1 : 0, mode === 'pip-fail' ? 'pip stub: no matching distribution' : '');
+}
 finish(mode === 'smoke-fail' ? 1 : 0, mode === 'smoke-fail' ? 'python stub: ModuleNotFoundError' : '');
 `;
 
 const PYTHON3 = `${PRELUDE}
-if (args[0] === '-m' && args[1] === 'venv') {
+${PIP_FUNCTIONS}
+if (args[0] === '-m' && args[1] === 'pip') finish(pipStub(args));
+else if (args[0] === '-m' && args[1] === 'venv') {
   const bin = path.join(args[2], 'bin');
   fs.mkdirSync(bin, { recursive: true });
   for (const name of ['python']) fs.writeFileSync(path.join(bin, name), state.venvPython, { mode: 0o755 });
@@ -154,7 +164,7 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
   mkdirSync(path.dirname(python), { recursive: true });
   writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
   chmodSync(python, 0o755);
-  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON }));
+  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON, version }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
   const env = {

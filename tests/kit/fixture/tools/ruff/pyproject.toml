@@ -1,0 +1,6 @@
+[project]
+name = "kit-fixture-tools"
+version = "0.0.0"
+
+[project.optional-dependencies]
+dev = ["ruff==0.16.10"]

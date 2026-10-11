@@ -5,7 +5,7 @@
   "python": "3.14",
   "composer": { "version": "2.10.3" },
   "go": { "mod": "packages/fixture-go/go.mod" },
-  "ruff": { "pyproject": "packages/fixture-python/pyproject.toml" },
+  "ruff": { "pyproject": "tools/ruff/pyproject.toml" },
   "cargoAudit": "0.22.2",
   "govulncheck": "1.1.4",
   "node": {

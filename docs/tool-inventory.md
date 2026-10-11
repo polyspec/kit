@@ -505,7 +505,6 @@ the reader of the document check (K7.1). Both read the same documents (table row
   recognized by their position and by the cell `ID`.
 - `ci-targets.mjs` holds its report with `holder-lock.mjs`; its own lock function is removed.
 
-
 ## Shared modules (K11)
 
 Several tools of `scripts/kit` held their own copy of the same helper. Each helper now lives in one module that its users
@@ -668,10 +667,9 @@ For a tag `vX.Y.Z`:
    Composer projects with the committed manifests and locks of the checkout and runs the smoke commands of `consumers` (run it
    in a checkout of the tag, whose consumer projects name the archives of the version).
 3. Each manifest with the mode `git-tag` installs from the tag in a temporary directory, with the command of
-   `proof.gitTag`: a Python package with `pip install "<name> @ git+<repositoryUrl>@TAG#subdirectory=<directory>"` into a new
-   virtual environment (no subdirectory for a manifest at the root) and the smoke command with that environment first on `PATH`;
-   a Rust crate as the git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }` of a temporary crate with its own
-   target directory and the smoke command (for example `cargo check`) in that crate.
+   `proof.gitTag`: a Rust crate as the git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }` of a temporary crate
+   with its own target directory and the smoke command (for example `cargo check`) in that crate. A Python package is not a
+   git-tag manifest: it is a `wheel` package whose wheel is an archive of step 2 (K29).
 4. Each Go module of `goModules` has the tag `<directory>/vX.Y.Z` (the module at the root `vX.Y.Z`) on the remote
    (`git ls-remote --tags <repositoryUrl>`) and `go list -m <module>@vX.Y.Z` with `GOFLAGS=-mod=mod`, `GOPROXY=direct` and an empty
    `GOPATH` prints `<module> vX.Y.Z`.
@@ -683,14 +681,13 @@ A tag `<directory>/vX.Y.Z` releases that Go module alone: the release must list 
 ```json
 "proof": {
   "gitTag": {
-    "python/pyproject.toml": { "kind": "python", "name": "name", "smoke": ["python", "-c", "import name"] },
     "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
   }
 }
 ```
 
 Every manifest with the mode `git-tag` in `manifests` needs an entry when `proof` exists, and `release-proof` fails without one.
-`kind` is `python` for a `pyproject.toml` and `rust` for a `Cargo.toml`. `smoke` is an array of strings that runs without a
+`kind` is `rust` for a `Cargo.toml`; a `pyproject.toml` with `kind` `python` is refused. `smoke` is an array of strings that runs without a
 shell. The smoke commands of the archives are `consumers` of K5.4.
 
 ### Limitations
@@ -700,3 +697,32 @@ shell. The smoke commands of the archives are `consumers` of K5.4.
   directory are new. The Go step uses a new `GOPATH`, so it downloads the module.
 - The install of the archives reads the manifests and locks of the checkout; a checkout of another version fails at the first
   difference, naming `make release-consumer-lock`.
+
+## Wheel packages (K29)
+
+A package of kind `wheel` is a Python package, declared in `packages` with its directory and its project name (`name`), and its
+`pyproject.toml` is an `archive` manifest. Its archive is the PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`; the
+distribution escapes each run of characters other than word characters and dots as `_`, so `kit-fixture` at `0.0.1` is
+`kit_fixture-0.0.1-py3-none-any.whl`, the name pip parses.
+
+- `release-assets` builds the wheel from a copy of the directory at the tagged commit (`git archive`) with
+  `var/tools/bin/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`,
+  with `SOURCE_DATE_EPOCH` set to the time of the commit. `--no-index` makes the directory the only source, so no build reads the network.
+- The build backend is pinned in `buildBackend` of `config/release.json`: `requirement` is the exact requirement of the backend
+  (`setuptools==84.0.0`, which the `[build-system] requires` of the pyproject must equal) and `sha256` is the digest of its wheel
+  from the PyPI release. `make release-backend` (ONLINE) downloads it with
+  `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
+  `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
+  wheel package, and it runs before a release.
+- `release-assets` refuses a wheel whose `Requires-Dist` is not a plain `name==version`: a URL, a git source, a range or a marker
+  (`; extra == ...` or `; python_version ...`) fails with the line and its form. `release-versions` requires the `version` of
+  `[project]` in the pyproject.toml, as for every archive manifest.
+- `release-consumer` installs the wheel into a clean virtual environment of `var/tools/bin/python3` with
+  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`; the requirement file
+  names the wheel of the run with the sha256 of its file. It checks the version that `pip show` prints and runs the smoke command of
+  `consumers.wheel`. A wheel has no committed lock.
+
+```json
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
+"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
+```
