@@ -78,7 +78,9 @@ checked.
   with `.php-version` (ordered-json, orm) and the list of crudui and template; a file that is not in the list fails.
 - Python: `pythonBuild` names a python-build-standalone release (its date as `release`, the exact `version`) and the SHA-256 of the
   `install_only` archive of each platform (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools` downloads the
-  archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build`; the wrapper
+  archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build`. Each symbolic
+  link of the archive (such as `bin/python3`) is replaced by a regular copy of its target, a directory link by a copied directory;
+  a link to a missing file or outside the archive fails the install. The installed tree holds no link; the wrapper
   `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH.
 - ruff: the virtual environment of template is made with `--copies` from `var/tools/bin/python3`, so it holds no link to the interpreter.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
