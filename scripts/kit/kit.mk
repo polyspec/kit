@@ -160,3 +160,11 @@ dependency-policy-mutation-check: ## Check that the dependency gate rejects each
 
 dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; ONLINE
 	$(ONLINE) node scripts/kit/dependency-review.mjs $(if $(RECORD),--record) $(if $(UPDATE),--update)
+
+# --- language parity: config/parity.json declares the implementations and the units that each of them holds.
+.PHONY: parity-check parity-declarations-check
+parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; offline
+	node scripts/kit/parity.mjs
+
+parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; offline
+	node scripts/kit/parity.mjs --declarations

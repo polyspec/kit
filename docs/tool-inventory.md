@@ -730,3 +730,118 @@ distribution escapes each run of characters other than word characters and dots 
 "consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
 "buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
+
+## Language parity (K33)
+
+`scripts/kit/parity.mjs` checks that every implementation of a repository holds the same units. `config/parity.json` declares
+the implementations, which is the one source of the language set of the repository, the profiles that group them, and the
+units. The declaration holds no state such as done or planned: the checker takes every fact from the tree.
+
+- It runs the binding of each suite in each implementation itself and keeps an in-memory ledger of the runs and of the cases
+  that each run reported. It reads no saved report.
+- It reads the exported symbols from the extractor snapshot of each implementation.
+- It reads the error codes from the generated artifact of each implementation.
+
+Make targets: `parity-check` runs the bindings and checks every rule. `parity-declarations-check` checks every rule except R3
+and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
+
+| Module | Concern |
+|---|---|
+| `parity.mjs` | the command, and the order of the rules |
+| `parity-declaration.mjs` | the schema, the references of the declaration, and the finding |
+| `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-ledger.mjs` | R3: the runs of the bindings and the ledger |
+| `parity-runners.mjs` | the native command of each runner and the cases of its output |
+| `parity-errors.mjs` | R7 |
+| `parity-text.mjs` | R9, R10 |
+
+### Rules
+
+Every finding fails the check. A finding names its rule, unit, implementation and place (a file, or file:line).
+
+| Rule | Finding |
+|---|---|
+| `declaration` | The declaration breaks `scripts/kit/schema/parity.schema.json`, or it names a missing file, an unknown implementation or profile, a binding of an implementation outside the unit's profile, a go or cargo binding without `symbol`, a duplicate case, a `nativeOnly` symbol that is not exported, an exclusion of a pair that the unit binds, or a pattern without a group. No other rule runs on such a declaration. |
+| R1 missing-implementation | An API unit has no symbol of an implementation of its profile, the symbol is not in the snapshot, or the symbol is not exported. |
+| R2 missing-binding | A suite unit has no binding of an implementation of its profile. |
+| R3 not-executed | The binding cannot start, exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. The finding lists the failed, skipped, missing and extra cases. |
+| R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit. |
+| R5 undeclared-test | A file of the `tests` globs of an implementation is the test of no binding of that implementation. |
+| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation. |
+| R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
+| R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
+| R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
+| R10 docs-count | A document of `documents` counts the implementations with a number that no profile has, or lists three or more implementation names that are no profile. |
+| R11 undeclared-public | An exported symbol of a snapshot is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. |
+
+### Runners
+
+| Runner | Command | Cases |
+|---|---|---|
+| `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` |
+| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --exact <symbol> --nocapture --test-threads=1` | the harness lines |
+| `node`, `php`, `python` | `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` in the root of the checkout | the harness lines |
+
+A harness line is `PASS <unit>/<case>` or `FAIL <unit>/<case>`, optionally followed by a space and other text. This is the format
+of the shared test harness of each language. A `FAIL` line of a case counts over a `PASS` line. A case name holds no whitespace,
+and in Go it holds no `/`, because Go rewrites spaces and nests the names of subtests.
+
+### Declaration
+
+`config/parity.json`, validated against `scripts/kit/schema/parity.schema.json` (`make kit-check` validates it too):
+
+| Key | Content |
+|---|---|
+| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (directories, `.` is the whole repository), `tests` (globs of its test files), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
+| `profiles` | `name` and the `implementations` that it groups |
+| `suites` | globs of the shared vector files |
+| `units` | `id`, `kind` (`suite` or `api`) and `profile`. A suite has `file`, `cases` (a path of `$` followed by `.<key>` and `[*]` steps) and `bindings` (`implementation`, `test`, `symbol`). An API unit has `symbols` (`implementation`, `symbol`). |
+| `nativeOnly` | `implementation`, `symbol` and `reason` of an exported symbol that only one implementation has |
+| `exclusions` | `unit`, `implementation`, `reason` and `item`, the checklist item that removes the exclusion |
+| `errors` | `profile` and `catalog` (`file`, `pattern`) |
+| `languageLists` | `file`, `pattern` (its first group holds the list; the words of the group are the names) and `profile` |
+| `documents` | `globs` and `nouns`, the words that a count precedes (`languages`, `언어`) |
+
+A pattern is a regular expression that is applied to each line (flags `gm`), and its first group is the value. A count is digits,
+an English number word up to twelve, or a Korean native numeral up to 열, followed by one of the nouns. A list is three or more
+implementation names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The snapshot of an implementation is a
+JSON object that maps each symbol id to an object with a boolean `exported`.
+
+### Wiring a repository
+
+1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, the profiles, a suite unit for each vector
+   file, an API unit for each public concept, and an exclusion with its checklist item for each unit that an implementation does not
+   hold yet.
+2. Make each language harness print `PASS <unit>/<case>` for each case of a suite. In Go, run each case as the subtest
+   `<symbol>/<case>`.
+3. Make the extractor of each implementation write its snapshot with `exported`, and generate the error codes of each
+   implementation from the catalog.
+4. Add `parity-declarations-check` and `parity-check` to the checks of the repository. The `make kit-sync` copy already holds the
+   targets.
+
+```json
+{
+  "schema": 1,
+  "implementations": [
+    { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
+      "symbols": "contracts/symbols/go.json", "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
+    { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
+      "symbols": "contracts/symbols/python.json", "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+  ],
+  "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
+  "suites": ["tests/**/vectors.json"],
+  "units": [
+    { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
+      "bindings": [
+        { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
+        { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
+      ] },
+    { "id": "host-decode", "kind": "api", "profile": "client", "symbols": [
+        { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
+        { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
+      ] }
+  ],
+  "exclusions": [],
+  "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
+}
+```

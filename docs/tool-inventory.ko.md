@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 429fb338be57c715ed45a6b73cd89f357cf332b18cdb1b3a8d9ce43b16c9f4da -->
+<!-- source-sha256: b9146928fb9176ab162c39e91ada7bc189419e8325808739944b9864f31fcb5d -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -678,4 +678,115 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 ```json
 "consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
 "buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
+```
+
+## Language parity (K33)
+
+`scripts/kit/parity.mjs`는 repository의 모든 implementation이 같은 unit을 갖추는지 검사합니다. `config/parity.json`은
+implementation(repository의 language 집합의 유일한 원천), 그것을 묶는 profile, unit을 선언합니다. 선언은 완료나 예정 같은 상태를
+담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
+
+- 각 implementation에서 각 suite의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case의 ledger를 memory에 둡니다. 저장된
+  report는 읽지 않습니다.
+- 각 implementation의 extractor snapshot에서 export된 symbol을 읽습니다.
+- 각 implementation의 생성물에서 error code를 읽습니다.
+
+Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는 R3를 뺀 모든 rule을
+검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
+
+| Module | 담당 |
+|---|---|
+| `parity.mjs` | 명령과 rule의 순서 |
+| `parity-declaration.mjs` | schema, 선언의 참조, finding |
+| `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-ledger.mjs` | R3: binding 실행과 ledger |
+| `parity-runners.mjs` | runner마다의 native 명령과 그 출력의 case |
+| `parity-errors.mjs` | R7 |
+| `parity-text.mjs` | R9, R10 |
+
+### Rule
+
+모든 finding은 검사를 실패시킵니다. finding은 rule, unit, implementation, 위치(파일 또는 file:line)를 적습니다.
+
+| Rule | Finding |
+|---|---|
+| `declaration` | 선언이 `scripts/kit/schema/parity.schema.json`을 어기거나, 없는 파일, 모르는 implementation이나 profile, unit의 profile 밖 implementation의 binding, `symbol` 없는 go 또는 cargo binding, 중복 case, export되지 않은 `nativeOnly` symbol, unit이 binding한 쌍의 exclusion, group 없는 pattern을 적습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. |
+| R1 missing-implementation | API unit에 profile의 한 implementation의 symbol이 없거나, symbol이 snapshot에 없거나, export되지 않았습니다. |
+| R2 missing-binding | suite unit에 profile의 한 implementation의 binding이 없습니다. |
+| R3 not-executed | binding이 시작하지 못하거나, 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. finding은 실패, skip, 누락, 초과 case를 나열합니다. |
+| R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아닙니다. |
+| R5 undeclared-test | implementation의 `tests` glob 파일이 그 implementation의 어떤 binding의 test도 아닙니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖에 있습니다. |
+| R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
+| R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
+| R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
+| R10 docs-count | `documents`의 문서가 어떤 profile에도 없는 수로 implementation을 세거나, 어떤 profile도 아닌 implementation 이름 세 개 이상을 나열합니다. |
+| R11 undeclared-public | snapshot의 export된 symbol을 API unit도 그 implementation의 `nativeOnly` 항목도 선언하지 않습니다. |
+
+### Runner
+
+| Runner | 명령 | Case |
+|---|---|---|
+| `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>` | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event |
+| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --exact <symbol> --nocapture --test-threads=1` | harness 줄 |
+| `node`, `php`, `python` | checkout root에서 `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` | harness 줄 |
+
+harness 줄은 `PASS <unit>/<case>` 또는 `FAIL <unit>/<case>`이며, 뒤에 공백과 다른 글이 올 수 있습니다. 각 언어의 공유 test
+harness가 쓰는 형식입니다. case의 `FAIL` 줄은 `PASS` 줄보다 우선합니다. case 이름에는 공백이 없고, Go에서는 `/`도 없습니다.
+Go가 subtest 이름의 공백을 바꾸고 `/`로 중첩하기 때문입니다.
+
+### 선언
+
+`config/parity.json`은 `scripts/kit/schema/parity.schema.json`으로 검증합니다(`make kit-check`도 검증합니다):
+
+| Key | 내용 |
+|---|---|
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `roots`(directory, `.`은 repository 전체), `tests`(test 파일의 glob), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
+| `profiles` | `name`과 묶는 `implementations` |
+| `suites` | 공유 vector 파일의 glob |
+| `units` | `id`, `kind`(`suite` 또는 `api`), `profile`. suite는 `file`, `cases`(`$` 뒤에 `.<key>`와 `[*]` 단계가 오는 path), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
+| `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
+| `errors` | `profile`과 `catalog`(`file`, `pattern`) |
+| `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름), `profile` |
+| `documents` | `globs`와 수 뒤에 오는 단어인 `nouns`(`languages`, `언어`) |
+
+pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어, 또는 열까지의 한국어
+고유어 수사이고 뒤에 noun 하나가 옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개
+이상입니다. implementation의 snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
+
+### Repository 연결
+
+1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, profile, vector 파일마다 suite unit, 공개 개념마다
+   API unit, 그리고 implementation이 아직 갖추지 못한 unit마다 checklist item을 적은 exclusion을 선언합니다.
+2. 각 언어 harness가 suite의 case마다 `PASS <unit>/<case>`를 출력하게 합니다. Go에서는 각 case를 subtest `<symbol>/<case>`로
+   실행합니다.
+3. 각 implementation의 extractor가 `exported`를 담은 snapshot을 쓰게 하고, 각 implementation의 error code를 catalog에서 생성합니다.
+4. `parity-declarations-check`와 `parity-check`를 repository의 검사에 추가합니다. `make kit-sync`의 복사본에 target이 이미 있습니다.
+
+```json
+{
+  "schema": 1,
+  "implementations": [
+    { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
+      "symbols": "contracts/symbols/go.json", "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
+    { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
+      "symbols": "contracts/symbols/python.json", "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+  ],
+  "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
+  "suites": ["tests/**/vectors.json"],
+  "units": [
+    { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
+      "bindings": [
+        { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
+        { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
+      ] },
+    { "id": "host-decode", "kind": "api", "profile": "client", "symbols": [
+        { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
+        { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
+      ] }
+  ],
+  "exclusions": [],
+  "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
+}
 ```
