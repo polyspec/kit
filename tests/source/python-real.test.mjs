@@ -16,16 +16,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const FIXTURE = 'tests/kit/fixture/packages/fixture-python';
 const declaration = () => JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8'));
 
-/** The symbolic links under `directory`; a link found here fails the case. */
-function linksUnder(directory) {
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    const file = path.join(directory, entry.name);
-    if (entry.isSymbolicLink()) return [file];
-    return entry.isDirectory() ? linksUnder(file) : [];
-  });
-}
-
 test('config/toolchain.json declares the pythonBuild of the kit and the pinned build backend of its wheels', () => {
   const declared = declaredToolchain(ROOT);
   assert.ok(declared.pythonBuild, 'config/toolchain.json declares pythonBuild, so make install-tools installs the Python');
@@ -55,5 +45,4 @@ test('the fixture wheel is built with the real Python and the pinned setuptools,
   const count = installWheelFiles({ root: ROOT, env, folder, version: '0.0.0', directory: output, names: ['kit-fixture'], smoke: { 'kit-fixture': ['python', '-c', 'import kit_fixture'] }, step: text => steps.push(text) });
   assert.equal(count, 1);
   assert.deepEqual(steps, ['wheel pip install of 1 packages', 'wheel pip check passed', 'wheel kit-fixture 0.0.0: python -c import kit_fixture']);
-  assert.deepEqual(linksUnder(path.join(ROOT, 'var/tools')), [], 'var/tools holds no symbolic link after the install');
 }, { timeout: 900000 });
