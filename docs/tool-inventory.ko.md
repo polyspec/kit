@@ -673,5 +673,5 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 
 ```json
 "consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
-"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<setuptools-84.0.0-py3-none-any.whl의 sha256>" }
+"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
