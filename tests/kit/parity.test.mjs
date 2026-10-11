@@ -213,11 +213,13 @@ const keys = findings => findings.map(finding => [finding.rule, finding.unit ?? 
 
 const binding = (config, unit, implementation) => config.units.find(entry => entry.id === unit).bindings.find(entry => entry.implementation === implementation);
 
-test('the declaration of five implementations passes, with every case of every suite executed', TIMEOUT, (t) => {
+test('the declaration of five implementations passes, with every case of every suite executed twice alike', TIMEOUT, (t) => {
   const { findings, ledger } = check(t);
   assert.deepEqual(findings, []);
-  assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.status}`), [
-    'codec go 0', 'codec rust 0', 'codec ts 0', 'codec php 0', 'codec python 0', 'width go 0', 'width rust 0', 'size go 0', 'size rust 0',
+  assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.attempt} ${run.status}`), [
+    'codec go 1 0', 'codec go 2 0', 'codec rust 1 0', 'codec rust 2 0', 'codec ts 1 0', 'codec ts 2 0', 'codec php 1 0', 'codec php 2 0',
+    'codec python 1 0', 'codec python 2 0', 'width go 1 0', 'width go 2 0', 'width rust 1 0', 'width rust 2 0', 'size go 1 0', 'size go 2 0',
+    'size rust 1 0', 'size rust 2 0',
   ]);
   assert.deepEqual(ledger.cases.map(entry => `${entry.unit} ${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'codec go empty pass', 'codec go ascii pass', 'codec rust empty pass', 'codec rust ascii pass',
@@ -338,6 +340,24 @@ test('R3: a binding that fails, misses a case, adds a case or exits with an erro
   assert.match(findings[2].message, /exited with 2/);
   assert.match(findings[3].message, /not executed: ascii/);
   assert.ok(ledger.cases.some(entry => entry.implementation === 'go' && entry.case === 'ascii' && entry.outcome === 'fail'));
+});
+
+test('R3: a binding whose second run executes other cases or other results than the first fails, naming the cases', TIMEOUT, (t) => {
+  // The test counts its runs in var/ (ignored): the first run passes ascii, the second fails it and adds latin1.
+  const flaky = [
+    "import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';",
+    'let runs = 0;',
+    "try { runs = Number(readFileSync('var/ts-runs', 'utf8')); } catch {}",
+    "mkdirSync('var', { recursive: true });",
+    "writeFileSync('var/ts-runs', String(runs + 1));",
+    "console.log('PASS codec/empty');",
+    "console.log(runs ? 'FAIL codec/ascii' : 'PASS codec/ascii');",
+    "if (runs) console.log('PASS codec/latin1');",
+  ].join('\n');
+  const { findings, ledger } = check(t, { files: { 'ts/tests/codec.mjs': `${flaky}\n` } });
+  assert.deepEqual(keys(findings), ['R3 codec ts']);
+  assert.equal(findings[0].message, 'the second run differs from the first: ascii pass then fail; latin1 only in the second run');
+  assert.deepEqual(ledger.runs.filter(run => run.implementation === 'ts').map(run => run.attempt), [1, 2]);
 });
 
 test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
@@ -511,7 +531,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   const make = target => spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', target], { cwd: root, env: ENV, encoding: 'utf8' });
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
-  assert.match(passed.stdout, /\[parity\] run codec go: go test -json -count=1 -run \^TestCodec\$ \.\//);
+  assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
   assert.match(passed.stdout, /\[parity\] every unit holds in every implementation/);
   writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS codec/empty\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
