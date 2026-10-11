@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 023ef1fd2422f25c5447a1c1b8e28e5c81ff822bc2bb7dc13f013f3ad54ecc28 -->
+<!-- source-sha256: 505812932464529eba66e5ee9cfe71a116fc78e152fbca6097ddfb477c53d26e -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -163,7 +163,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
 | `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
 | lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mjs`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
-| 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
+| 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | `clear`라는 이름으로, flowmark spec 40의 claim과 함께(K28): `clear`는 lock을 `<lock>.<record의 SHA-256 앞 hex 32자리>.clearing`으로 link하고(claim이 이미 있으면 거부), 확인한 record를 아직 담은 lock만 지우며, 실행 중인 holder의 lock은 결코 옮기지 않음. 옆으로 rename하는 방식은 두 clear가 동시에 돌면 holder를 둘로 남겼음 |
+| process 시작 시각: Linux에서는 `/proc/<pid>/stat` field 22와 `btime`, 그 밖에서는 `ps -o lstart=` | crudui | K28: Linux에서는 field 22와 `/proc/sys/kernel/random/boot_id`의 boot ID, `btime`은 벽시계를 따르기 때문. 읽을 수 없는 `/proc/<pid>/stat`(`hidepid`)은 kill(pid, 0)을 다시 묻고 ESRCH가 아니면 실행 중으로 셈. Windows에서는 `powershell.exe -NoProfile -NonInteractive -Command`와 `(Get-Process -Id <pid>).StartTime.ToFileTimeUtc()`: Node는 native addon 없이 creation time을 읽지 못하고, .NET은 `GetProcessTimes`로 읽으며, Windows PowerShell 5.1은 지원되는 모든 Windows에 들어 있고, `wmic`은 deprecated임. macOS에서는 `ps`를 유지: sysctl `kern.proc.pid`와 `proc_pidinfo`는 native addon이 필요하고 macOS에는 `/proc`이 없음 |
 | process 종료와 SIGINT, SIGTERM, SIGHUP(종료 상태 128 + n)에서 release | template | 유지, process 안의 holder의 기본값, `run`은 신호를 command에 전달 |
 | `run <lock> -- <command>`는 command의 상태로 종료, 신호는 128 + n, 시작하지 못하면 127 | crudui(`hold`), template, hyper | `run`이라는 이름으로 유지 |
 | token이 다르면 release 실패 | template, crudui, hyper는 메시지만 출력 | 실패 |
