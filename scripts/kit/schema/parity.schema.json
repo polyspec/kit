@@ -40,7 +40,8 @@
         "additionalProperties": false,
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "implementations": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          "implementations": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "reason": { "description": "Why the profile omits implementations; a profile narrower than every implementation needs it, and every run prints it.", "type": "string" }
         }
       }
     },

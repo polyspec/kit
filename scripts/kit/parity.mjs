@@ -41,6 +41,7 @@ export function checkParity(root, { execute = true, env = process.env, say = () 
   const { errors, model } = readDeclaration(root, files);
   const ledger = { runs: [], cases: [] };
   if (errors.length) return { findings: errors, ledger };
+  for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
   const executed = execute ? runBindings(model, root, { env, say }) : { ledger, findings: [] };
   say('check the units against the tree');
   const findings = [

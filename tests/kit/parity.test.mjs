@@ -81,6 +81,9 @@ const FILES = {
   'go/codec.go': 'package codec\n',
   'go/codec_test.go': 'PASS TestCodec/empty\nPASS TestCodec/ascii\n',
   'go/width_test.go': 'PASS TestWidth/narrow\nPASS TestWidth/wide\n',
+  'tests/vectors/size.json': JSON.stringify(['small']),
+  'go/size_test.go': 'PASS TestSize/small\n',
+  'rust/tests/size.rs': 'PASS size/small\n',
   'go/codes.go': 'package codec\n\nconst (\n\tCodeConfig = "CONFIG"\n\tCodeDecode = "CODEC_DECODE"\n)\n',
   'rust/Cargo.toml': '[package]\nname = "codec"\n',
   'rust/src/lib.rs': 'PASS width/narrow\nPASS width/wide\n',
@@ -116,7 +119,7 @@ const CONFIG = {
   ],
   profiles: [
     { name: 'all', implementations: ['go', 'rust', 'ts', 'php', 'python'] },
-    { name: 'compiled', implementations: ['go', 'rust'] },
+    { name: 'compiled', implementations: ['go', 'rust'], reason: 'the width tables exist only in the compiled implementations' },
   ],
   suites: ['tests/vectors/*.json'],
   units: [
@@ -135,6 +138,13 @@ const CONFIG = {
       bindings: [
         { implementation: 'go', test: 'go/width_test.go', symbol: 'TestWidth' },
         { implementation: 'rust', test: 'rust/src/lib.rs', symbol: 'width::tests::vectors' },
+      ],
+    },
+    {
+      id: 'size', kind: 'suite', profile: 'compiled', file: 'tests/vectors/size.json', cases: '$[*]',
+      bindings: [
+        { implementation: 'go', test: 'go/size_test.go', symbol: 'TestSize' },
+        { implementation: 'rust', test: 'rust/tests/size.rs', symbol: 'vectors' },
       ],
     },
     {
@@ -177,13 +187,37 @@ test('the declaration of five implementations passes, with every case of every s
   const { findings, ledger } = check(t);
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.status}`), [
-    'codec go 0', 'codec rust 0', 'codec ts 0', 'codec php 0', 'codec python 0', 'width go 0', 'width rust 0',
+    'codec go 0', 'codec rust 0', 'codec ts 0', 'codec php 0', 'codec python 0', 'width go 0', 'width rust 0', 'size go 0', 'size rust 0',
   ]);
   assert.deepEqual(ledger.cases.map(entry => `${entry.unit} ${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'codec go empty pass', 'codec go ascii pass', 'codec rust empty pass', 'codec rust ascii pass',
     'codec ts empty pass', 'codec ts ascii pass', 'codec php empty pass', 'codec php ascii pass',
     'codec python empty pass', 'codec python ascii pass',
     'width go narrow pass', 'width go wide pass', 'width rust narrow pass', 'width rust wide pass',
+    'size go small pass', 'size rust small pass',
+  ]);
+});
+
+test('a profile narrower than every implementation is printed on every run with what it omits and why', TIMEOUT, (t) => {
+  const lines = [];
+  const { findings } = checkParity(repository(t), { execute: false, env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(findings, []);
+  assert.ok(lines.includes('profile compiled omits ts, php, python: the width tables exist only in the compiled implementations'), lines.join('\n'));
+});
+
+test('a narrower profile without a reason or with one unit, and an implementation in no profile, fail the declaration', TIMEOUT, (t) => {
+  const messages = change => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ edit: (config) => { delete config.profiles[1].reason; return config; } }), [
+    'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
+  ]);
+  assert.deepEqual(messages({ edit: (config) => { config.profiles[1].reason = ' '; return config; } }), [
+    'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
+  ]);
+  assert.deepEqual(messages({ files: { 'go/size_test.go': null, 'rust/tests/size.rs': null, 'tests/vectors/size.json': null }, edit: (config) => { config.units = config.units.filter(unit => unit.id !== 'size'); return config; } }), [
+    'declaration: profile compiled omits implementations and only the unit width uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks',
+  ]);
+  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); config.profiles[0].reason = 'kotlin starts later'; return config; } }), [
+    'declaration: the implementation kotlin is in no profile, so no unit applies to it',
   ]);
 });
 
