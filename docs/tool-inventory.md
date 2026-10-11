@@ -81,7 +81,7 @@ checked.
   archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build`. Each symbolic
   link of the archive (such as `bin/python3`) is replaced by a regular copy of its target, a directory link by a copied directory;
   a link to a missing file or outside the archive fails the install. The installed tree holds no link; the wrapper
-  `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH.
+  `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg` names `var/tools/python-build/python/bin` as its `home` and the environment holds no symbolic link; it refuses any other environment before the tool starts, with the fix `var/tools/bin/python3 -m venv --copies --without-pip <directory>` and an install with `--link-mode copy`. Measured with uv 0.12.11: `uv venv` and `uv sync` write `bin/python*` as links and have no copy mode, while `uv pip install --python <directory>/bin/python --link-mode copy` into a `--copies` environment keeps it free of links.
 - ruff: the virtual environment of template is made with `--copies` from `var/tools/bin/python3`, so it holds no link to the interpreter.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
   PHP and Python by minor release (crudui, ordered-json, hyper), exact release for the other tools, `GOTOOLCHAIN=local` and

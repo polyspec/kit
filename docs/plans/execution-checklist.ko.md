@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: e5e909336118006bd8b79a71cc02e0e939518a2e4f0b8d3b27610956662cfb68 -->
+<!-- source-sha256: 3f63228f69e9e82a73fca76fdada3a8a040b8df5eb14165ac7ef430bfe0183ec -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -88,3 +88,4 @@
 | K34-3-2 | `full-run.test.mjs`의 두 test가 살아 있는 대상 process로 `sleep 60` 대신, 닫히지 않은 stdin에서 막힌 node child를 씁니다. child는 test가 끝낼 때까지 끝나지 않으며, 부하와 무관하게 결과가 같습니다 | `tests/kit/full-run.test.mjs` | `node --test tests/kit/full-run.test.mjs` | [o] 릴리스 0.0.20이 이를 공개합니다. |
 | K33 | 한 spec을 여러 구현으로 가진 저장소가 언어 집합과 parity 단위(공유 vector suite, 오류 code, 공개 API 단위)를 한 번 선언하고, `parity-check`가 다음 경우에 실패합니다: 단위가 없는 구현, test가 없는 단위, 어떤 실행도 수행하지 않은 선언된 suite나 case, 선언되지 않은 suite, test, 공개 symbol, package 밖의 기능 test, 다른 오류 catalog, 어긋난 언어 집합, 다른 수를 적은 문서. 검사기는 native test를 직접 실행하고, 손으로 쓴 표시가 아니라 실행된 case로 판정합니다. 원인: polyspec/orm은 여섯 구현의 parity를 손으로 유지했고, 어떤 검사도 보고하지 않은 불일치 여덟 건을 사람의 검색이 찾았습니다 | `scripts/kit/parity*.mjs`, `scripts/kit/schema/parity.schema.json`, `scripts/kit/kit.mk`, `tests/kit/parity.test.mjs`, 도구 문서 | `make kit-test` | [o] The release 0.0.21 publishes it. |
 | K35 | AGENTS가 설계 원칙을 모두 적습니다. 오래된 경로는 호환 layer, fallback, migration 뒤에 남기지 않고 지웁니다. 현재 요구사항을 완전히 충족하는 가장 단순한 구현을 고르고, 불확실한 미래를 위한 추상화, 설정, 간접 계층을 두지 않습니다. component는 관심사를 분리한 module로 나눕니다. architecture는 장기적으로 정하며 임시방편을 두지 않습니다. 원인: AGENTS는 앞의 두 원칙만 적었습니다 | `AGENTS.md`, `AGENTS.ko.md` | `make documents-check` | [o] The release 0.0.21 publishes it. |
+| K37 | run-tests가 package의 python 테스트를 그 package의 virtual environment로 실행합니다: `--venv <directory>`는 환경이 checkout Python에서 만들어졌고(`pyvenv.cfg` home `var/tools/python-build/python/bin`) symbolic link가 없을 때 `<directory>/bin/python`을 시작하며, 다른 환경은 고침과 함께 거부합니다. K25부터 python tool은 `var/tools/bin/python3`만 실행해서 package의 테스트가 설치된 의존성을 import할 수 없었습니다(fsm이 0.0.20 동기화 뒤 발견) | `scripts/kit/run-tests.mjs`, `tests/kit/run-tests.test.mjs`, `docs/tool-inventory.md(.ko)` | `node --test tests/kit/run-tests.test.mjs` | [o] The release 0.0.22 publishes it. |
