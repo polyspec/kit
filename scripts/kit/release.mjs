@@ -58,6 +58,8 @@ const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^(?:(?<directory>[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\/)?v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
+/** The manifest of a package of `kind` in `directory`, relative to the repository root; the directory `.` is the root. */
+export const manifestFile = (directory, kind) => path.posix.join(directory, MANIFEST_OF[kind]);
 // The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
 const ARCHIVE_FORMAT = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
@@ -92,15 +94,16 @@ export function loadConfig(root) {
     if (!shape.test(name)) problems.push(`${CONFIG}: the ${kind} package ${name} is not a ${form}`);
     if (names.has(`${kind}:${name}`)) problems.push(`${CONFIG}: the ${kind} package ${name} is listed twice`);
     if (directories.has(directory)) problems.push(`${CONFIG}: the directory ${directory} holds two packages`);
+    if (directory !== '.' && directory.split('/').some(segment => segment === '.' || segment === '..')) problems.push(`${CONFIG}: the directory ${directory} of the package ${name} has a . or .. segment; a package directory is . or a path below the root`);
     names.add(`${kind}:${name}`);
     directories.add(directory);
-    const manifest = `${directory}/${MANIFEST_OF[kind]}`;
+    const manifest = manifestFile(directory, kind);
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
   }
   const wheels = config.packages.filter(item => item.kind === 'wheel').map(({ name }) => name);
   if (wheels.length && !config.buildBackend) problems.push(`${CONFIG}: buildBackend is missing; the wheel packages [${wheels.join(', ')}] need a pinned build backend`);
   if (!wheels.length && config.buildBackend) problems.push(`${CONFIG}: buildBackend is declared but no package is a wheel`);
-  const archived = new Set(config.packages.map(({ directory, kind }) => `${directory}/${MANIFEST_OF[kind]}`));
+  const archived = new Set(config.packages.map(({ directory, kind }) => manifestFile(directory, kind)));
   for (const [key, value] of Object.entries(config.manifests)) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
@@ -366,11 +369,11 @@ export function assets(ctx, tag) {
   }
   const commit = taggedCommit(ctx, tag);
   const names = assetNames(config, version);
-  const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${folder}/${MANIFEST_OF[kind]}`], at(ctx)));
+  const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${manifestFile(folder, kind)}`], at(ctx)));
   // The lock of each wheel package is read from the tagged commit, as its manifest is.
   const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: config.consumers.wheel.lock[name], text: run('git', ['show', `${commit}:${config.consumers.wheel.lock[name]}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
-    const file = `${folder}/${MANIFEST_OF[kind]}`;
+    const file = manifestFile(folder, kind);
     if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend.requirement }), ...lockProblems(locks[index].text, locks[index].file)];
     const manifest = JSON.parse(sources[index]);
     return [
@@ -414,7 +417,7 @@ export function assets(ctx, tag) {
       const file = MANIFEST_OF[kind];
       const packed = packedManifest(ctx, path.join(next, names[index]));
       return [
-        ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${folder}/${file} of the commit ${commit}`]),
+        ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${manifestFile(folder, kind)} of the commit ${commit}`]),
         ...manifestProblems(config, kind, JSON.parse(packed), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });

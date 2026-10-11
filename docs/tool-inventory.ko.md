@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e8c1bfeefd46ea25c3b8cd417228379595a9459ebbef1b0d6d080ab832e0771b -->
+<!-- source-sha256: e8c8f71811d025d51342fd969b497d2524e19d1d475899a28ce1807d7581f622 -->
 
 # 도구 목록
 
@@ -646,6 +646,18 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 `scripts/kit/release-proof.mjs TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
 release workflow(`workflows/release.yml`)가 `release-publish` 뒤 같은 job에서 draft에 대해 실행합니다. 증명이 실패하면 그 run이 실패하고 release는 draft로 남습니다.
 developer도 어떤 released tag에든 실행할 수 있습니다. offline check가 아닙니다.
+
+### kit의 npm package (K55)
+
+kit은 같은 release 형식으로 스스로를 릴리스합니다. config/release.json은 저장소 root의 npm package `@polyspec/kit`을 선언합니다. package
+`directory`는 root인 `.`이거나 그 아래의 경로입니다. `.`이나 `..` segment를 가진 directory는 거부하며, root package의 manifest는
+`package.json`입니다(release.mjs의 `manifestFile`). package.json은 `scripts/kit/`을 pack하고(npm이 README.md와 README.ko.md를 더합니다)
+`./*.mjs`를 `./scripts/kit/*.mjs`로 연결하며, `packageManager`가 release의 npm을 선언합니다. `tests/release-consumer/npm`의 smoke
+command는 설치된 package에서 이름을 export하는 모든 module을 exports를 거쳐 import합니다. 두 module은 아무것도 export하지 않고 load될 때
+실행됩니다: import될 때 검사를 실행하는 command인 `check-dependency-policy-mutation.mjs`와 run-tests의 preload인 `test-load-check.mjs`입니다.
+모든 module은 `node:` built-in과 scripts/kit의 file만 import합니다. 하나뿐인 `import()`는 test-load-check.mjs에 있으며 node --test가 실행하는
+test file을 import합니다. `tests/source/npm-package.test.mjs`는 import, 설정, kit.json의 version, vendor된 workflow를 검사하고, 실제 npm으로
+checkout을 pack해 그 archive를 consumer project에 smoke command와 함께 설치합니다.
 
 ### Release workflow, tool과 draft (K38)
 
