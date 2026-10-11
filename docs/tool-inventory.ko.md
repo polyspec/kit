@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e1d401856ba0977e21bcca417a6b2684522561a8e2b3cf1c1f3776cc7b01c31f -->
+<!-- source-sha256: 665e7d43123b38918123d5df4d9c824e28c8f493cab90b46472b04110e353ff9 -->
 
 # 도구 목록
 
@@ -735,17 +735,17 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 
 | Rule | Finding |
 |---|---|
-| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, 그 profile을 unit 하나만 씁니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` symbol이 export되지 않았습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 `tests`나 그 runner의 `testPatterns`가 고르는 파일을 하나도 고르지 않거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`을 참조하는데 실행 environment에 NAME이 없거나, 다른 `${` 형식을 담습니다. |
+| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, 그 profile을 unit 하나만 씁니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` symbol이 export되지 않았습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 `tests`나 그 runner의 `testPatterns`가 고르는 파일을 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`이 아닌 `${` 형식을 담습니다. |
 | R1 missing-implementation | API unit에 profile의 한 implementation의 symbol이 없거나, symbol이 snapshot에 없거나, export되지 않았습니다. |
 | R2 missing-binding | suite unit에 profile의 한 implementation의 binding이 없습니다. |
-| R3 not-executed | binding이 시작하지 못하거나, 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
+| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었음), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아닙니다. |
-| R5 undeclared-test | implementation의 `tests` glob 파일 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 `support` 파일이 아닌 runner의 `testPatterns` 파일이 그 runner의 모든 implementation의 root 밖이고 `comparators` 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
+| R5 undeclared-test | implementation의 `tests` glob 파일 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 harness 줄을 출력합니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 그 runner의 implementation의 `support` 파일이 아닌 runner의 `testPatterns` 파일이 그 runner의 모든 implementation의 root 밖이고 `comparators` 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
-| R10 docs-count | `documents`의 문서가 어떤 profile에도 없는 셋 이상의 수로 implementation을 세거나, implementation 이름을 모두 모아도 어떤 profile도 아닌 passage에서 implementation 이름 세 개 이상을 나열합니다. |
+| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, implementation N개의 어떤 profile도 그 문장이 적은 implementation을 모두 담지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 profile이면 예외입니다. 또는 implementation 이름을 모두 모아도 어떤 profile도 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. |
 | R11 undeclared-public | snapshot의 export된 symbol을 API unit도 그 implementation의 `nativeOnly` 항목도 선언하지 않습니다. |
 
 ### Runner
@@ -763,18 +763,30 @@ harness가 쓰는 형식입니다. case의 `FAIL` 줄은 `PASS` 줄보다 우선
 `--nocapture`일 때 libtest는 `test <name> ... `을 줄바꿈 없이 출력합니다. Rust test가 출력하는 첫 줄이 그 줄에 이어지므로,
 cargo runner는 이 prefix 뒤의 harness 줄을 읽습니다.
 
-implementation은 `command`로 runner의 program을 바꿀 수 있습니다. `/`를 담은 command는 virtual environment의 Python처럼
-checkout root에 대한 상대 경로이거나 절대 경로이고, 아니면 PATH의 이름입니다. `args`는 go와 cargo에서는 `test` 뒤에, node, php,
-python에서는 test 파일 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의
-environment 위에 그 implementation의 실행에만 변수를 설정합니다.
+implementation은 비어 있지 않은 `command`로 runner의 program을 바꿀 수 있습니다. `/`를 담은 command는 virtual environment의
+Python처럼 checkout root를 기준으로 푸는 경로입니다. 절대 경로는 그대로 절대 경로이고, `..`을 담은 경로는 절대 경로처럼 풀리며
+root 위로 올라가면 checkout 밖을 가리킵니다. 아니면 PATH의 이름입니다. `args`는 go와 cargo에서는 `test` 뒤에, node, php, python에서는
+test 파일 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의 environment 위에
+그 implementation의 실행에만 변수를 설정합니다.
 
 `command`, `args`, `env` 값은 이웃 repository의 checkout이나 Makefile이 build하는 library처럼 실행 environment를 `${NAME}`으로
-참조할 수 있습니다. 검사는 그것을 NAME의 값으로 바꿉니다. NAME이 설정되지 않았으면 그 이름을 적은 선언 finding이고, 다른 `${`
-형식도 마찬가지입니다. 기본값 형식은 없습니다. 중괄호 없는 `$NAME`은 그냥 글입니다.
+참조할 수 있습니다. `parity-declarations-check`는 environment를 읽지 않고 `${NAME}`이 아닌 `${` 형식에서만 실패합니다. 그래서 기본값
+형식은 없고, 중괄호 없는 `$NAME`은 그냥 글입니다. `parity-check`는 binding을 실행할 때 각 참조를 NAME의 값으로 바꿉니다. NAME이
+설정되지 않았거나 비었으면 그 implementation의 모든 binding이 그 값과 NAME을 적은, 시작하지 못하는 R3 finding이고, 다른 rule은
+계속 실행됩니다. 단계 줄은 command와 argument를 선언한 그대로, 값이 아니라 참조로 출력합니다.
 
-implementation은 test 보조 파일을 `support` glob으로 선언합니다. 그 `tests`나 그 runner의 `testPatterns`가 고르지만 test를 담지
-않는 파일로, 이름이 `_test.go`로 끝나야 하는 Go helper가 그 예입니다. 보조 파일은 test가 아니므로 R5와 R6가 건너뜁니다. 각 glob은
-그런 파일을 하나 이상 골라야 하므로, 낡은 glob은 선언 finding입니다.
+implementation은 test 보조 파일을 `support` glob으로 선언합니다. 그 `roots` 안에서 그 `tests`나 그 runner의 `testPatterns`가
+고르지만 test를 담지 않는 파일로, 이름이 `_test.go`로 끝나야 하는 Go helper가 그 예입니다. 보조 파일은 binding의 test가 아니므로
+R5가 건너뛰고, R6는 그 implementation의 runner의 pattern에 대해서만 건너뜁니다. 보조 파일은 그 runner가 실행할 test를 담지
+않습니다:
+
+- Go 보조 파일은 `go test`가 실행하는 top-level 함수를 선언하지 않습니다. 소문자가 뒤따르지 않는 `Test`, `Benchmark`, `Fuzz`, 그리고
+  `Example`입니다.
+- cargo 보조 파일은 test attribute를 담지 않습니다. `#[test]`, `#[bench]`, `#[test_case]`, `#[rstest]`, 또는 `#[tokio::test]`처럼
+  path가 붙은 그것들입니다.
+- `parity-check`는 node, php, python 보조 파일을 그 implementation의 runner로 한 번씩 실행하고, 출력의 harness 줄은 R5 finding입니다.
+
+각 glob은 그런 파일을 하나 이상 골라야 하므로, 낡은 glob은 선언 finding입니다.
 
 ### 선언
 
@@ -794,16 +806,22 @@ implementation은 test 보조 파일을 `support` glob으로 선언합니다. �
 | `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름), `profile` |
 | `documents` | `globs`와 수 뒤에 오는 단어인 `nouns`(`languages`, `언어`) |
 
-pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어, 또는 열까지의 한국어
-고유어 수사이고 뒤에 noun 하나가 옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개
-이상입니다. implementation의 snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
+pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어나 `both`, 또는 열까지의
+한국어 고유어 수사이고, 공백, hyphen(`four-client`), 또는 한국어 단위(`6개 언어`, `여섯 개 언어`, `세 가지 언어`) 뒤에 noun 하나가
+옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개 이상입니다. implementation의
+snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
 
-R10은 문서를 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한 문단이나 list item, 또는 heading, table row, fenced block의
-줄 하나입니다. 수와 목록은 passage의 여러 줄에 걸칠 수 있습니다. 하나나 둘의 수는 implementation 집합이 아니라 한 항목이나 한
-쌍(one client, a pair of two clients, 한 언어)을 가리키고, 이름 둘이 목록이 아닌 것과 같으므로 R10은 셋부터 수를 읽습니다. 목록은
-그 passage의 모든 implementation 이름과 함께 판단합니다. implementation 일부에 대해 말하는 passage는 나머지가 대신 하는 일도
-적습니다("Go, Rust and TypeScript generate the methods; PHP and Python resolve them at call time"). passage가 profile로 채우지
-않는 목록은 다른 집합을 두고 쓴 것입니다.
+R10은 `scripts/kit/markdown.mjs`의 Markdown reader 위에서 문서의 산문을 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한
+문단이나 list item, marker를 뺀 block quote, ATX heading(`#`부터 `######`와 공백), 또는 table row입니다. fenced block, 들여쓴 code
+block, setext 밑줄은 산문이 아니며, setext 밑줄은 그 문단을 끝냅니다. inline code, link 목적지, autolink, 그냥 쓴 URL, link 정의,
+HTML tag와 주석은 비우므로 산문만 implementation을 적습니다. 이름 뒤의 code span은 그 이름을 목록에 남깁니다
+(``Go `x`, PHP `y`, Rust `z`, and TypeScript `w` ``). 문장은 공백 앞의 `.`, `!`, `?`에서 끝나고, table cell은 따로 한 문장입니다.
+
+N의 수는 implementation N개의 profile이 그 문장이 적은 implementation을 모두 담거나("five clients: Go, PHP, Rust, TypeScript and
+Python"), 문장이 정확히 N개의 implementation을 적고 passage의 이름을 모두 모은 것이 profile일 때 맞습니다. 그래서 다른 것을 하나나
+둘 세는 수도 다른 수와 똑같이 실패하며, 문서는 그런 문장을 수사 없이 씁니다. 목록은 그 문장의 implementation 이름을 모두 모은 것이
+profile일 때 맞습니다. implementation 일부에 대해 말하는 문장은 같은 문장에서 나머지도 적습니다("Go, Rust and TypeScript generate
+the methods; PHP and Python resolve them at call time").
 
 catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하는 줄)도 아닌 각 줄에 적용합니다. 그런 줄 모두에 맞아야 하므로
 어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
