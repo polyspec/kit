@@ -557,6 +557,34 @@ test('R10: a document that counts or lists the implementations unlike every prof
   assert.match(findings[2].message, /go, php, rust, ts/);
 });
 
+test('R10: a count of one or two and a part named beside the rest of its passage are no drift; a wrapped list is one list', TIMEOUT, (t) => {
+  const { findings } = check(t, {
+    files: {
+      'docs/index.md': [
+        '# Codec',
+        '',
+        'Five languages share the codec: Go, Rust, TS, PHP and Python.',
+        '',
+        '`--language` limits the check to one language, and every ordered pair of two languages runs the vectors.',
+        '',
+        'Go, Rust and TS compile the codec ahead of time; PHP and Python resolve it at run time.',
+        '',
+        'Every vector is the same chain written in Go,',
+        'Rust, TS and PHP.',
+        '',
+        'Go, Rust and TS share one contract.',
+        '- PHP and Python read the stub.',
+        '',
+      ].join('\n'),
+      'docs/index.ko.md': '# Codec\n\n다섯 언어가 codec을 공유한다: Go, Rust, TS, PHP와 Python.\n검사를 한 언어에서 실행하거나 두 언어의 쌍으로 실행한다.\n',
+    },
+  }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`), [
+    'R10 docs/index.md:9: the list go, rust, ts, php names go, rust, ts, php with the other implementations of its passage, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+    'R10 docs/index.md:12: the list go, rust, ts names go, rust, ts with the other implementations of its passage, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+  ]);
+});
+
 test('R11: an exported symbol that no API unit and no native-only entry declares fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'contracts/symbols/ts.json': snapshot([['ts/src/index.ts::encode', true], ['ts/src/index.ts::orderedJsonOutput', true], ['ts/src/index.ts::hidden', false]]) },

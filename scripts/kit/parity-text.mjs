@@ -29,48 +29,87 @@ const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // The text between two names of one list: a comma, and, or, /, 및, or a Korean particle 와 or 과 after the name.
 const SEPARATOR = /^(?:\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과)\s+|\s*\/\s*)$/i;
 
-/** The counts of `line`: each number followed by one of `nouns`, as `{ text, count }`. */
-function countsOf(line, nouns) {
+// A count or a list of fewer than three names an item or a pair of the implementations (one client, a pair of two clients),
+// not their set, so R10 reads a count from three and a list of three names or more.
+const SET = 3;
+
+/** The counts of `text` from three: each number followed by one of `nouns`, as `{ text, count, index }`. */
+function countsOf(text, nouns) {
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(\\d+|${Object.keys(NUMBERS).join('|')})\\s+(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
-  return [...line.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]) ? Number(match[1]) : NUMBERS[match[1].toLowerCase()] }));
+  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]) ? Number(match[1]) : NUMBERS[match[1].toLowerCase()], index: match.index }))
+    .filter(count => count.count >= SET);
 }
 
-/** The lists of `line`: each run of three or more implementation names joined by separators, in the order of the text. */
-function listsOf(line, names) {
+/** The implementation names of `text` in the order of the text, as `{ name, index, end }`. */
+function namesOf(text, names) {
   const pattern = new RegExp(`(?<![A-Za-z0-9_-])(?:${[...names].sort((a, b) => b.length - a.length).map(escape).join('|')})(?![A-Za-z0-9_-])`, 'gi');
-  const lists = [];
-  let current = [];
-  let end = -1;
-  for (const match of line.matchAll(pattern)) {
-    if (current.length && !SEPARATOR.test(line.slice(end, match.index))) {
-      lists.push(current);
-      current = [];
-    }
-    current.push(match[0].toLowerCase());
-    end = match.index + match[0].length;
-  }
-  lists.push(current);
-  return lists.map(list => [...new Set(list)]).filter(list => list.length >= 3);
+  return [...text.matchAll(pattern)].map(match => ({ name: match[0].toLowerCase(), index: match.index, end: match.index + match[0].length }));
 }
 
-/** R10: the counts and lists of implementations in the declared documents, each equal to some profile. */
+/** The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. */
+function listsOf(text, found) {
+  const lists = [];
+  for (const match of found) {
+    const last = lists.at(-1);
+    if (last && SEPARATOR.test(text.slice(last.end, match.index))) Object.assign(last, { names: [...last.names, match.name], end: match.end });
+    else lists.push({ names: [match.name], index: match.index, end: match.end });
+  }
+  return lists.map(list => ({ names: [...new Set(list.names)], index: list.index })).filter(list => list.names.length >= SET);
+}
+
+// A passage is what a statement about the implementations is written in: a paragraph or a list item with the lines that
+// continue it, or one heading, table row or line of a fenced block.
+const ALONE = /^\s*(?:#|\|)/;
+const STARTS = /^\s*(?:[-*+]\s|>|\d+[.)]\s)/;
+const FENCE = /^\s*(?:```|~~~)/;
+
+/** The passages of `text`, each `{ text, line }` with the number of its first line. */
+function passagesOf(text) {
+  const passages = [];
+  let current;
+  let fenced = false;
+  text.split('\n').forEach((line, index) => {
+    const fence = FENCE.test(line);
+    const alone = fenced || fence || ALONE.test(line);
+    if (fence) fenced = !fenced;
+    if (!line.trim()) current = undefined;
+    else if (current && !alone && !STARTS.test(line)) current.text += `\n${line}`;
+    else {
+      current = { text: line, line: index + 1 };
+      passages.push(current);
+      if (alone) current = undefined;
+    }
+  });
+  return passages;
+}
+
+/**
+ * R10: the counts and lists of implementations in the declared documents, each equal to some profile. A count is a number
+ * from three before a noun of `documents`. A list is three names or more, and it is judged with every implementation that its
+ * passage names: a passage that states something of a part of the implementations names the others with what they do
+ * instead, so a list that its passage does not complete to a profile was written for another set.
+ */
 export function documentCounts(model, root, files) {
   const documents = model.config.documents;
   if (!documents) return [];
   const profiles = [...model.profiles].map(([name, members]) => ({ name, members }));
   const known = profiles.map(profile => `${profile.name} ${profile.members.length}`).join(', ');
-  const sameSet = (list, members) => list.length === members.length && list.every(name => members.includes(name));
+  const listed = profiles.map(profile => `${profile.name}: ${profile.members.join(', ')}`).join('; ');
+  const sameSet = (names, members) => names.length === members.length && names.every(name => members.includes(name));
   const found = [];
   for (const file of [...files].filter(name => matchesAny(documents.globs, name)).sort()) {
-    readFileSync(path.join(root, file), 'utf8').split('\n').forEach((line, index) => {
-      const place = `${file}:${index + 1}`;
-      for (const count of countsOf(line, documents.nouns)) {
-        if (!profiles.some(profile => profile.members.length === count.count)) found.push(finding('R10', `"${count.text}" counts ${count.count}, and no profile has ${count.count} implementations (${known})`, { place }));
+    for (const passage of passagesOf(readFileSync(path.join(root, file), 'utf8'))) {
+      const place = index => `${file}:${passage.line + passage.text.slice(0, index).split('\n').length - 1}`;
+      for (const count of countsOf(passage.text, documents.nouns)) {
+        if (!profiles.some(profile => profile.members.length === count.count)) found.push(finding('R10', `"${count.text}" counts ${count.count}, and no profile has ${count.count} implementations (${known})`, { place: place(count.index) }));
       }
-      for (const list of listsOf(line, model.implementations.keys())) {
-        if (!profiles.some(profile => sameSet(list, profile.members))) found.push(finding('R10', `the list ${list.join(', ')} is no profile (${profiles.map(profile => `${profile.name}: ${profile.members.join(', ')}`).join('; ')})`, { place }));
+      const names = namesOf(passage.text, model.implementations.keys());
+      const named = [...new Set(names.map(match => match.name))];
+      if (profiles.some(profile => sameSet(named, profile.members))) continue;
+      for (const list of listsOf(passage.text, names)) {
+        found.push(finding('R10', `the list ${list.names.join(', ')} names ${named.join(', ')} with the other implementations of its passage, which is no profile (${listed})`, { place: place(list.index) }));
       }
-    });
+    }
   }
   return found;
 }
