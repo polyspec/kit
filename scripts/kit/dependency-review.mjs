@@ -20,7 +20,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { POLICY, RECORD, UPDATE, dependencyKey, lockEcosystem, readState } from './dependency-state.mjs';
+import { POLICY, RECORD, TOOLCHAIN, UPDATE, dependencyKey, lockEcosystem, readState } from './dependency-state.mjs';
 import { cargoAuditCommand } from './install-cargo-audit.mjs';
 import { govulncheckCommand } from './install-govulncheck.mjs';
 import { isMain, ROOT } from './paths.mjs';
@@ -264,7 +264,7 @@ export function review(root) {
     if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${exceptions.get(key).reason}`);
     else if (outdated) {
       newer.push({ ...dependency, latest: answer.latest });
-      lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${UPDATE}`);
+      lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(dependency)}`);
     } else if (exceptions.has(key)) lines.push(`${subject} ${dependency.version}: the exception of ${POLICY} is stale, ${answer.latest} is the latest stable release. Fix: remove the exception from ${POLICY}`);
   }
   for (const lock of state.locks) {
@@ -289,6 +289,10 @@ export function review(root) {
   return { lines, notes, newer, advisories: found, record, complete };
 }
 
+// The fix of a newer release: the ruff pin of config/toolchain.json is set by hand, with the sha256 of its wheels, because
+// the sha256 is read from the registry of each platform; every other manifest is updated by `make dependency-review UPDATE=1`.
+export const fixOf = dependency => (dependency.manifest === TOOLCHAIN ? `set ruff in ${TOOLCHAIN} to ${dependency.latest} with the sha256 of each wheel, then make install-tools` : UPDATE);
+
 /** The range operator of a manifest constraint: `^`, `~` or none for an exact version. */
 const operator = spec => (/^[\^~]/.test(spec) ? spec[0] : '');
 
@@ -296,6 +300,7 @@ const operator = spec => (/^[\^~]/.test(spec) ? spec[0] : '');
 export function updatePlan({ newer, advisories: found }) {
   const plan = [];
   for (const dependency of newer) {
+    if (dependency.manifest === TOOLCHAIN) continue;
     const version = String(dependency.latest).replace(/^v/, '');
     const range = operator(dependency.spec);
     if (dependency.ecosystem === 'npm') {

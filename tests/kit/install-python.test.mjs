@@ -69,8 +69,7 @@ test('pythonBuild of another minor release or a malformed digest is refused befo
 
 test('ruff without pythonBuild names the declaration and the install of the Python', (t) => {
   const root = toolchainCheckout(t, {
-    'config/toolchain.json': config({ python: '3.14', ruff: { pyproject: 'pyproject.toml' } }),
-    'pyproject.toml': 'dev = ["ruff==0.16.10"]\n',
+    'config/toolchain.json': config({ python: '3.14', ruff: { version: '0.16.10', sha256: { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a' } } }),
   });
   const result = install(root, toolchainStubs(t).env, 'ruff');
   assert.equal(result.status, 1);

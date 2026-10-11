@@ -46,18 +46,26 @@ if (args[0] === 'mod') {
 }
 `;
 
-// The python of the virtual environment: pip installs ruff, whose command prints the version of the request.
+// The python of the virtual environment: pip installs the ruff wheel, whose command prints the version of the wheel's name.
 const VENV_PYTHON = `const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.STUB_LOG, 'venv-python ' + args.join(' ') + '\\n');
-const shown = process.env.STUB_RUFF_SHOWS ?? args.at(-1).slice('ruff=='.length);
+const shown = process.env.STUB_RUFF_SHOWS ?? /ruff-(\\d+\\.\\d+\\.\\d+)-/.exec(args.at(-1))[1];
 fs.writeFileSync(path.join(path.dirname(process.argv[1]), 'ruff'), '#!/usr/bin/env node\\nconsole.log("ruff ' + shown + '");', { mode: 0o755 });
 `;
 
-// The Python of the archive of pythonBuild: it prints STUB_PYTHON_SHOWS (3.14.8) and makes a virtual environment whose python runs ruff.
+// The bytes of the ruff wheel of a release: `pip download` of ruff writes them under the name of the wheel of the requirement.
+export const ruffWheel = version => `ruff ${version} wheel stand-in\n`;
+
+// The Python of the archive of pythonBuild: it prints STUB_PYTHON_SHOWS (3.14.8), downloads the ruff wheel of the requirement
+// file of `pip download` and makes a virtual environment whose python runs ruff.
 const PYTHON = `${HEADER}
 if (args[0] === '--version') console.log('Python ' + (process.env.STUB_PYTHON_SHOWS ?? '3.14.8'));
+else if (args[1] === 'pip' && args[2] === 'download') {
+  const version = /^ruff==(\\d+\\.\\d+\\.\\d+)/.exec(fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8'))[1];
+  fs.writeFileSync(path.join(args[args.indexOf('-d') + 1], 'ruff-' + version + '-py3-none-any.whl'), 'ruff ' + version + ' wheel stand-in\\n');
+}
 else script(path.join(args.at(-1), 'bin/python'), ${JSON.stringify(VENV_PYTHON)});
 `;
 

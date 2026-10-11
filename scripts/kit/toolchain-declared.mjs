@@ -9,7 +9,7 @@
 //   pythonBuild  config/toolchain.json pythonBuild: the exact Python release of the python minor, its release and its sha256 by platform
 //   pythonBackend config/toolchain.json pythonBackend: the requirement name==version of the build backend of the Python wheels and its sha256
 //   composer     config/toolchain.json composer
-//   ruff         the ruff==<version> pin of the pyproject.toml that config/toolchain.json ruff names
+//   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
 // A tool is declared when its file exists (node, rust) or its config key is present; an undeclared tool is absent from the
@@ -70,6 +70,18 @@ function pythonBuild(value, minor) {
   return { version, release: value.release, sha256: digests, source: file };
 }
 
+// The ruff release: its exact version and the sha256 of the wheel of each platform key, each read as 64 hexadecimal digits.
+function ruff(value) {
+  const file = 'config/toolchain.json ruff';
+  if (!/^\d+\.\d+\.\d+$/.test(value.version ?? '')) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(value.version)}`);
+  const digests = value.sha256 ?? {};
+  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ruff wheel of each platform, for example linux-x64; it records none`);
+  for (const [platform, digest] of Object.entries(digests)) {
+    if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+  }
+  return { version: value.version, sha256: digests, source: file };
+}
+
 // The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.
 function pythonBackend(value) {
   const file = 'config/toolchain.json pythonBackend';
@@ -121,11 +133,7 @@ export function declaredToolchain(root) {
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };
   }
-  if (config.ruff) {
-    const pins = new Set([...read(root, config.ruff.pyproject).matchAll(/"ruff==(\d+\.\d+\.\d+)"/g)].map(match => match[1]));
-    if (pins.size !== 1) throw new Error(`${config.ruff.pyproject} must pin one ruff==<major>.<minor>.<patch>; it pins ${pins.size === 0 ? 'none' : [...pins].join(', ')}`);
-    declared.ruff = { version: [...pins][0], source: `${config.ruff.pyproject} ruff pin` };
-  }
+  if (config.ruff) declared.ruff = ruff(config.ruff);
   for (const key of ['cargoAudit', 'govulncheck']) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }

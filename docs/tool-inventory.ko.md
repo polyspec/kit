@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d4bcc24e873ef7eda2c31f7d159360b09652d438e0c382a4f3251ebe41695572 -->
+<!-- source-sha256: 429fb338be57c715ed45a6b73cd89f357cf332b18cdb1b3a8d9ce43b16c9f4da -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -51,11 +51,11 @@
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
-| ruff | `ruff.pyproject`가 가리키는 `pyproject.toml`의 `ruff==X.Y.Z` pin; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
+| ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`pyproject`), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
+목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
 `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
@@ -527,9 +527,13 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 ## Python lint (K8.4)
 
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
-`scripts/kit/lint-python.mjs`와 `make lint-python`으로 가져옵니다. package는 `config/toolchain.json`이 가리키는 `ruff.pyproject`의
-디렉터리이고, ruff는 `var/tools/bin`의 것이며, 규칙은 그 `pyproject.toml`의 `[tool.ruff]` table이므로 결과가 머신의 ruff 설정에 의존하지
-않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지 않았으면 고치는 방법과 함께 실패합니다.
+`scripts/kit/lint-python.mjs`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션을 주고 실행하며, `var/tools/bin`의
+ruff이고 버전은 config/toolchain.json의 `ruff` `version`입니다. 규칙은 checkout의 pyproject.toml 파일들의 `[tool.ruff]` table이므로
+결과가 머신의 ruff 설정에 의존하지 않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지
+않았으면 고치는 방법과 함께 실패합니다.
+
+ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이브러리는 `Requires-Dist`에 ruff를 두지 않으며, dependency review는
+config/toolchain.json의 pin을 PyPI dependency로 읽습니다. 새 ruff는 wheel의 sha256과 함께 손으로 설정합니다.
 ## Release archive의 consumer 설치 (K5.4)
 
 `scripts/kit/release-consumer.mjs install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다

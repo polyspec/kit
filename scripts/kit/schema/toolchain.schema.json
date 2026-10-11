@@ -109,16 +109,21 @@
       }
     },
     "ruff": {
-      "description": "The pyproject.toml whose dev extra pins ruff==<version>; install-tools installs that release into a virtual environment of var/tools.",
+      "description": "The ruff release that install-tools installs into a virtual environment of var/tools: the exact version, and the sha256 of the wheel of each platform key (process.platform-process.arch) that the install downloads, the digest read as 64 lowercase hexadecimal digits.",
       "type": "object",
       "required": [
-        "pyproject"
+        "version",
+        "sha256"
       ],
       "additionalProperties": false,
       "properties": {
-        "pyproject": {
+        "version": {
           "type": "string",
-          "pattern": "^([^/\\\\][^\\\\]*/)?pyproject\\.toml$"
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "sha256": {
+          "type": "object",
+          "description": "The sha256 of the ruff wheel of each platform key; the install accepts a wheel of any listed digest and names the platform key of none."
         }
       }
     },

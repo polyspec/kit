@@ -21,10 +21,12 @@ import path from 'node:path';
 
 import { checkedFiles } from './tracked-files.mjs';
 import { readJson } from './files.mjs';
+import { toolchainConfig } from './toolchain-declared.mjs';
 
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
 export const NPM_MANIFEST = 'package.json';
+export const TOOLCHAIN = 'config/toolchain.json';
 
 const LOCAL_SPEC = /^(file|link|workspace):/;
 // A lock entry that npm installed as a copy (`install-links=true`) has `resolved: file:<directory>` and no `link`.
@@ -192,6 +194,9 @@ export function readState(root, policy) {
       dependencies.push({ ecosystem: 'pypi', manifest: manifestPath, ...requirement, lock: null });
     }
   }
+  // The ruff pin of config/toolchain.json is a PyPI release that the review checks like a requirement of a manifest.
+  const ruff = toolchainConfig(root).ruff;
+  if (ruff) dependencies.push({ ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: `==${ruff.version}`, version: ruff.version, lock: null });
   for (const manifestPath of goModules(root)) {
     const requirements = goRequirements(readFileSync(path.join(root, manifestPath), 'utf8'));
     if (requirements.length === 0) continue;
