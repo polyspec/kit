@@ -19,6 +19,12 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
   `config/<name>.json` with a schema in `scripts/kit/schema/`. The schema validator supports only the keywords it lists.
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
   `make kit-check` fails on a changed, missing or unexpected vendored file.
+- Do not rebuild what an existing outside tool or library already does. Use the standard tool of its ecosystem as it is
+  (for example uv for Python interpreters, environments and locks, Composer for PHP dependencies), and accept its own
+  behavior, such as the symbolic links that it creates; our rules govern what we create.
+- This repository creates no symbolic link and no relative path: not in its tracked files, configuration, scripts or
+  generated output. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
+  The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `tests/kit/duplication.test.mjs` fails when two files hold the same function of 6 lines or more.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
