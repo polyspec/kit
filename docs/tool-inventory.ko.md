@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 505812932464529eba66e5ee9cfe71a116fc78e152fbca6097ddfb477c53d26e -->
+<!-- source-sha256: d4bcc24e873ef7eda2c31f7d159360b09652d438e0c382a4f3251ebe41695572 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -163,8 +163,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
 | `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
 | lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mjs`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
-| 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | `clear`라는 이름으로, flowmark spec 40의 claim과 함께(K28): `clear`는 lock을 `<lock>.<record의 SHA-256 앞 hex 32자리>.clearing`으로 link하고(claim이 이미 있으면 거부), 확인한 record를 아직 담은 lock만 지우며, 실행 중인 holder의 lock은 결코 옮기지 않음. 옆으로 rename하는 방식은 두 clear가 동시에 돌면 holder를 둘로 남겼음 |
-| process 시작 시각: Linux에서는 `/proc/<pid>/stat` field 22와 `btime`, 그 밖에서는 `ps -o lstart=` | crudui | K28: Linux에서는 field 22와 `/proc/sys/kernel/random/boot_id`의 boot ID, `btime`은 벽시계를 따르기 때문. 읽을 수 없는 `/proc/<pid>/stat`(`hidepid`)은 kill(pid, 0)을 다시 묻고 ESRCH가 아니면 실행 중으로 셈. Windows에서는 `powershell.exe -NoProfile -NonInteractive -Command`와 `(Get-Process -Id <pid>).StartTime.ToFileTimeUtc()`: Node는 native addon 없이 creation time을 읽지 못하고, .NET은 `GetProcessTimes`로 읽으며, Windows PowerShell 5.1은 지원되는 모든 Windows에 들어 있고, `wmic`은 deprecated임. macOS에서는 `ps`를 유지: sysctl `kern.proc.pid`와 `proc_pidinfo`는 native addon이 필요하고 macOS에는 `/proc`이 없음 |
+| 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
 | process 종료와 SIGINT, SIGTERM, SIGHUP(종료 상태 128 + n)에서 release | template | 유지, process 안의 holder의 기본값, `run`은 신호를 command에 전달 |
 | `run <lock> -- <command>`는 command의 상태로 종료, 신호는 128 + n, 시작하지 못하면 127 | crudui(`hold`), template, hyper | `run`이라는 이름으로 유지 |
 | token이 다르면 release 실패 | template, crudui, hyper는 메시지만 출력 | 실패 |
@@ -472,7 +471,6 @@ finding 하나입니다.
   reader는 네 state만 받았음). 구분 줄과 header는 위치와 cell `ID`로 알아봅니다.
 - `ci-targets.mjs`는 `holder-lock.mjs`로 report를 잡고, 자체 lock 함수는 없앴습니다.
 
-
 ## 공유 module (K11)
 
 `scripts/kit`의 여러 도구가 같은 helper를 각자 가지고 있었습니다. 이제 각 helper는 module 하나에 있고 사용하는 쪽이 import하며,
@@ -622,10 +620,9 @@ tag `vX.Y.Z`에 대해:
    실패는 없는 이름과 예상하지 못한 이름을 적습니다.
 2. `gh release download`가 asset을 임시 directory에 쓰고, `installConsumers`가 checkout의 commit된 manifest와 lock으로 깨끗한 npm과 Composer project에
    설치한 뒤 `consumers`의 smoke command를 실행합니다(consumer project가 그 version의 archive를 가리키는 tag의 checkout에서 실행).
-3. `git-tag` mode의 각 manifest를 `proof.gitTag`의 command로 임시 directory에서 tag로 설치합니다. Python package는 새 virtual environment에
-   `pip install "<name> @ git+<repositoryUrl>@TAG#subdirectory=<directory>"`(root의 manifest는 subdirectory 없음)을 실행하고, 그 environment를 `PATH` 앞에 두고
-   smoke command를 실행합니다. Rust crate는 임시 crate의 git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }`로 두고, 자신의 target directory를
-   쓰는 그 crate에서 smoke command(예: `cargo check`)를 실행합니다.
+3. `git-tag` mode의 각 manifest를 `proof.gitTag`의 command로 임시 directory에서 tag로 설치합니다. Rust crate는 임시 crate의 git dependency
+   `<name> = { git = "<repositoryUrl>", tag = "TAG" }`로 두고, 자신의 target directory를 쓰는 그 crate에서 smoke command(예: `cargo check`)를
+   실행합니다. Python package는 git-tag manifest가 아닙니다. `wheel` package이며 그 wheel은 2단계의 archive입니다(K29).
 4. `goModules`의 각 Go module은 remote(`git ls-remote --tags <repositoryUrl>`)에 tag `<directory>/vX.Y.Z`(root의 module은 `vX.Y.Z`)가 있고,
    `GOFLAGS=-mod=mod`, `GOPROXY=direct`, 빈 `GOPATH`로 실행한 `go list -m <module>@vX.Y.Z`가 `<module> vX.Y.Z`를 출력합니다.
 
@@ -636,14 +633,13 @@ tag `<directory>/vX.Y.Z`는 그 Go module만 release하므로 release에는 arch
 ```json
 "proof": {
   "gitTag": {
-    "python/pyproject.toml": { "kind": "python", "name": "name", "smoke": ["python", "-c", "import name"] },
     "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
   }
 }
 ```
 
 `proof`가 있으면 `manifests`에서 mode가 `git-tag`인 모든 manifest에 entry가 필요하고, entry가 없으면 `release-proof`가 실패합니다. `kind`는
-`pyproject.toml`이면 `python`, `Cargo.toml`이면 `rust`입니다. `smoke`는 shell 없이 실행하는 문자열 배열입니다. archive의 smoke command는 K5.4의
+`Cargo.toml`이면 `rust`입니다. `pyproject.toml`에 `kind` `python`을 쓰면 거부합니다. `smoke`는 shell 없이 실행하는 문자열 배열입니다. archive의 smoke command는 K5.4의
 `consumers`입니다.
 
 ### 한계
@@ -652,3 +648,30 @@ tag `<directory>/vX.Y.Z`는 그 Go module만 release하므로 release에는 arch
 - Rust step은 crate가 필요로 하는 registry crate에 이 machine의 `CARGO_HOME`을 쓰고, 새로 만드는 것은 crate와 그 target directory뿐입니다. Go step은 새
   `GOPATH`를 쓰므로 module을 download합니다.
 - archive 설치는 checkout의 manifest와 lock을 읽으므로 다른 version의 checkout은 첫 차이에서 `make release-consumer-lock`을 적고 실패합니다.
+
+## Wheel package (K29)
+
+kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 선언하는 Python package이며, 그 `pyproject.toml`은
+`archive` manifest입니다. archive는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`입니다. distribution은 word 문자와 dot이
+아닌 문자의 각 연속을 `_`로 씁니다. 그래서 `0.0.1`의 `kit-fixture`는 pip이 파싱하는 `kit_fixture-0.0.1-py3-none-any.whl`입니다.
+
+- `release-assets`는 tag된 commit의 directory 복사본(`git archive`)에서 wheel을 만듭니다. 명령은
+  `var/tools/bin/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`이며,
+  `SOURCE_DATE_EPOCH`는 commit의 시각입니다. `--no-index`로 directory가 유일한 source가 되므로 build는 network를 읽지 않습니다.
+- build backend는 `config/release.json`의 `buildBackend`에 고정합니다. `requirement`는 backend의 정확한 requirement
+  (`setuptools==84.0.0`, pyproject의 `[build-system] requires`와 같아야 함)이고, `sha256`은 PyPI release의 그 wheel digest입니다.
+  `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
+  `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
+  파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
+- `release-assets`는 `Requires-Dist`가 plain `name==version`이 아닌 wheel을 거부합니다: URL, git source, 범위, marker
+  (`; extra == ...` 또는 `; python_version ...`)는 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이
+  pyproject.toml의 `[project]` `version`을 요구합니다.
+- `release-consumer`는 wheel을 `var/tools/bin/python3`의 깨끗한 virtual environment에
+  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 설치합니다. requirement
+  파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. `pip show`가 출력하는 version을 확인하고 `consumers.wheel`의 smoke command를
+  실행합니다. wheel에는 commit된 lock이 없습니다.
+
+```json
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
+"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<setuptools-84.0.0-py3-none-any.whl의 sha256>" }
+```

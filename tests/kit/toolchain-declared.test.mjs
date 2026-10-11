@@ -39,7 +39,7 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
     'rust-toolchain.toml': '[toolchain]\nchannel = "1.98.1"\nprofile = "minimal"\n',
     'packages/fixture-go/go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
-    'packages/fixture-python/pyproject.toml': '[project.optional-dependencies]\ndev = ["ruff==0.16.10"]\n',
+    'tools/ruff/pyproject.toml': '[project.optional-dependencies]\ndev = ["ruff==0.16.10"]\n',
   });
   assert.deepEqual(declaredToolchain(root), {
     node: { version: '26.8.1', source: '.node-version' },
@@ -49,7 +49,7 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.14', source: 'config/toolchain.json python' },
     composer: { version: '2.10.3', sha256: undefined, source: 'config/toolchain.json composer' },
-    ruff: { version: '0.16.10', source: 'packages/fixture-python/pyproject.toml ruff pin' },
+    ruff: { version: '0.16.10', source: 'tools/ruff/pyproject.toml ruff pin' },
     cargoAudit: { version: '0.22.2', source: 'config/toolchain.json cargoAudit' },
     govulncheck: { version: '1.1.4', source: 'config/toolchain.json govulncheck' },
   });

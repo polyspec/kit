@@ -45,3 +45,11 @@ tree. A repository adopts a release with `make kit-sync KIT_TAG=vX.Y.Z`.
 A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
 type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
 published tag is not moved; the check runs only on the tag being released.
+
+A package of kind `wheel` (a Python package with a `pyproject.toml`) is released as its PEP 427 wheel
+`<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with the
+build backend that `buildBackend` of config/release.json pins by its exact requirement and by the sha256 of its wheel;
+`make release-backend` downloads that wheel into `var/tools/wheels` with the digest checked, and no build reads the network. A
+wheel whose `Requires-Dist` is not a plain `name==version` (a URL, a git source, a range or a marker) is refused, as an npm or
+Composer manifest with the same form is. `release-consumer` installs the wheel with `pip install --no-index --require-hashes
+--no-deps` into a clean virtual environment and runs its smoke command. A Python package is not released as a git tag.

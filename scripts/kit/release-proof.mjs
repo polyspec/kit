@@ -9,15 +9,13 @@
 //   2. The release assets, downloaded into a temporary directory, install together in clean npm and Composer projects
 //      (release-consumer.mjs installConsumers, with the committed manifests and locks of the checkout) and the smoke command of
 //      each package passes. Run it in a checkout of the tag, whose consumer projects name the archives of the version.
-//   3. Each manifest with the mode `git-tag` installs from the tag in a clean temporary environment: a Python package with
-//      `pip install "<name> @ git+<repositoryUrl>@TAG#subdirectory=<directory>"` into a new virtual environment, a Rust crate
-//      as a git dependency of a temporary crate; the declared smoke command then runs in that environment.
+//   3. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
+//      the declared smoke command runs in that crate. A Python package is a `wheel` package: its wheel is an archive of step 2.
 //   4. Each Go module has its tag on the remote (`git ls-remote`) and `go list -m <module>@<tag>` resolves it with
 //      GOFLAGS=-mod=mod and GOPROXY=direct.
 // A tag `<Go module directory>/vX.Y.Z` releases that module alone: the release holds no archive and only step 4 runs for it.
 // Every command of a step comes from config/release.json: `consumers` (smoke commands of the archives) and `proof.gitTag`.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
-import { toolsPath } from './tool-wrappers.mjs';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -55,33 +53,20 @@ function proveInstall(ctx, tag, version, folder, step) {
 /** The smoke command of a git-tag manifest, run in `cwd`. */
 const smoke = (command, cwd, env) => run(command[0], command.slice(1), { cwd, env });
 
-/** Step 3: install each git-tag manifest from the tag in a clean environment of `folder`. */
+/** Step 3: install each git-tag manifest (a Rust crate) from the tag as a git dependency of a temporary crate. */
 function proveGitTag(ctx, tag, folder, step) {
   const { config } = ctx;
   const files = Object.entries(config.manifests).filter(([, mode]) => mode === 'git-tag').map(([file]) => file).sort();
   for (const file of files) {
     const entry = config.proof?.gitTag?.[file];
     if (!entry) throw new Stop(`config/release.json proof.gitTag lacks ${file}, which manifests releases by "git-tag"`);
-    const directory = path.posix.dirname(file);
     const work = path.join(folder, `git-tag-${files.indexOf(file)}`);
-    mkdirSync(work, { recursive: true });
-    if (entry.kind === 'python') {
-      const environment = path.join(work, 'venv');
-      run(toolsPath(ctx.root, 'bin', 'python3'), ['-m', 'venv', environment], { cwd: work, env: ctx.env });
-      const bin = path.join(environment, 'bin');
-      const env = { ...ctx.env, PATH: `${bin}${path.delimiter}${ctx.env.PATH}`, VIRTUAL_ENV: environment };
-      const spec = `${entry.name} @ git+${config.repositoryUrl}@${tag}${directory === '.' ? '' : `#subdirectory=${directory}`}`;
-      run(path.join(bin, 'python'), ['-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', spec], { cwd: work, env });
-      smoke(entry.smoke, work, env);
-      step(`${file}: pip installed ${entry.name} from ${tag} and ${entry.smoke.join(' ')} passed`);
-    } else {
-      const crate = path.join(work, 'crate');
-      mkdirSync(path.join(crate, 'src'), { recursive: true });
-      writeFileSync(path.join(crate, 'Cargo.toml'), `[package]\nname = "release-proof"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[dependencies]\n${entry.name} = { git = "${config.repositoryUrl}", tag = "${tag}" }\n`);
-      writeFileSync(path.join(crate, 'src/main.rs'), 'fn main() {}\n');
-      smoke(entry.smoke, crate, { ...ctx.env, CARGO_TARGET_DIR: path.join(work, 'target') });
-      step(`${file}: cargo resolved ${entry.name} from ${tag} and ${entry.smoke.join(' ')} passed`);
-    }
+    const crate = path.join(work, 'crate');
+    mkdirSync(path.join(crate, 'src'), { recursive: true });
+    writeFileSync(path.join(crate, 'Cargo.toml'), `[package]\nname = "release-proof"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[dependencies]\n${entry.name} = { git = "${config.repositoryUrl}", tag = "${tag}" }\n`);
+    writeFileSync(path.join(crate, 'src/main.rs'), 'fn main() {}\n');
+    smoke(entry.smoke, crate, { ...ctx.env, CARGO_TARGET_DIR: path.join(work, 'target') });
+    step(`${file}: cargo resolved ${entry.name} from ${tag} and ${entry.smoke.join(' ')} passed`);
   }
 }
 
