@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { cargoEvents, goEvents, parseArguments, phpunitEvents, pythonEvents, run, toolCommand } from '../../scripts/kit/run-tests.mjs';
+import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mjs';
+import { cargoEvents, goEvents, phpunitEvents, pythonEvents, tapEvents, toProgress } from '../../scripts/kit/test-output.mjs';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mjs';
 import { createProgress } from '../../scripts/kit/test-progress.mjs';
 import { put, tree } from './tree.mjs';
@@ -203,7 +204,7 @@ test('the go events print tests, show the output of a failing test, name build e
   const lines = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const build = [];
-  const feed = goEvents(progress, build);
+  const feed = goEvents(toProgress(progress), build);
   for (const event of [
     { Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0.5 },
     { Action: 'run', Package: 'p', Test: 'TestB' }, { Action: 'output', Package: 'p', Test: 'TestB', Output: '    b_test.go:9: want 1 got 2\n' }, { Action: 'output', Package: 'p', Test: 'TestB', Output: '--- FAIL: TestB (0.00s)\n' }, { Action: 'fail', Package: 'p', Test: 'TestB', Elapsed: 0.1 },
@@ -227,7 +228,7 @@ test('the go events print tests, show the output of a failing test, name build e
 test('the cargo events pair each test with its result and name the binary', () => {
   const lines = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
-  const events = cargoEvents(progress);
+  const events = cargoEvents(toProgress(progress));
   events.stderr('     Running unittests src/lib.rs (target/debug/deps/lib-1)');
   events.stdout('running 3 tests\ntest a ... ok\ntest b ... FAILED\ntest c ... ');
   events.stdout('ignored\n');
@@ -238,10 +239,49 @@ test('the cargo events pair each test with its result and name the binary', () =
   assert.equal(progress.close('cargo').ok, false);
 });
 
+// A sink that writes each call as `<method> <test id>`, so a test can read the outcome that a parser reports.
+function recording() {
+  const calls = [];
+  const note = method => (test) => calls.push(`${method} ${test?.id ?? ''}`.trim());
+  return { calls, sink: { start: note('start'), pass: note('pass'), fail: note('fail'), skip: note('skip'), todo: note('todo'), line: () => {}, raw: () => {} } };
+}
+
+test('the cargo events read a should_panic test by its name and result (K47)', () => {
+  const { calls, sink } = recording();
+  const events = cargoEvents(sink);
+  events.stderr('     Running tests/t.rs (target/debug/deps/t-1)');
+  events.stdout('running 2 tests\ntest sym::panics - should panic ... ok\ntest sym::fails - should panic ... FAILED\n');
+  assert.deepEqual(calls, ['start tests/t.rs › sym::panics', 'pass tests/t.rs › sym::panics', 'start tests/t.rs › sym::fails', 'fail tests/t.rs › sym::fails']);
+});
+
+test('the python events report an expected failure as todo, which is no pass (K47)', () => {
+  const { calls, sink } = recording();
+  pythonEvents(sink)('test_known (tests.test_x.T.test_known) ... expected failure\ntest_ok (tests.test_x.T.test_ok) ... ok\n');
+  assert.deepEqual(calls, ['start test_known (tests.test_x.T.test_known)', 'todo test_known (tests.test_x.T.test_known)', 'start test_ok (tests.test_x.T.test_ok)', 'pass test_ok (tests.test_x.T.test_ok)']);
+});
+
+test('the tap events report a TODO test as todo, which is no pass (K47)', () => {
+  const { calls, sink } = recording();
+  const feed = tapEvents(sink);
+  feed('not ok 1 - known # TODO not yet');
+  feed('ok 2 - plain');
+  assert.deepEqual(calls, ['todo known', 'pass plain']);
+});
+
+test('the phpunit events of a skipped test pass it as skipped only, as PHPUnit reports it (K47)', () => {
+  const { calls, sink } = recording();
+  const feed = phpunitEvents(sink);
+  // The TeamCity messages of PHPUnit 11.5 for a test that markTestSkipped: testIgnored, then testFinished.
+  feed("##teamcity[testStarted name='test_skipped' locationHint='php_qn://php/tests/codec.php::\\\\Codec::test_skipped' flowId='1']");
+  feed("##teamcity[testIgnored name='test_skipped' message='later' duration='1' flowId='1']");
+  feed("##teamcity[testFinished name='test_skipped' duration='1' flowId='1']");
+  assert.deepEqual(calls, ['start Codec::test_skipped', 'skip Codec::test_skipped']);
+});
+
 test('the phpunit events pair tests, join the failure messages and print other lines', () => {
   const lines = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
-  const feed = phpunitEvents(progress);
+  const feed = phpunitEvents(toProgress(progress));
   const message = (name, attributes) => `##teamcity[${name} ${Object.entries(attributes).map(([key, value]) => `${key}='${value}'`).join(' ')}]`;
   feed(message('testSuiteStarted', { name: 'all' }));
   feed(message('testStarted', { name: 'testOk', locationHint: 'php_qn://x/FooTest.php::\\Pkg\\FooTest::testOk' }));
@@ -262,7 +302,7 @@ test('the phpunit events pair tests, join the failure messages and print other l
 test('the python events pair each test with its outcome, keep the description id over a docstring line and print other lines', () => {
   const lines = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
-  const feed = pythonEvents(progress);
+  const feed = pythonEvents(toProgress(progress));
   feed('test_a (tests.test_x.T.test_a) ... ok\n');
   feed('test_b (tests.test_x.T.test_b) ... ');
   feed('FAIL\n');

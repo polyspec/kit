@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 89b6f9f8cc7290769c949fe286a4a6d6ecdce24922205d53ff12b8e5b6a7d512 -->
+<!-- source-sha256: 12b9b1e8e1f639f3d633f3a478e5f9da22c4d89571025b8733a7bbef73a9927e -->
 
 # 도구 목록
 
@@ -36,7 +36,7 @@
 
 `scripts/kit/install-tools.mjs`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mjs`는 실행 중인
 도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mjs`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`; cargo-audit와 govulncheck는 기존
+(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-phpunit.mjs`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mjs`, `install-govulncheck.mjs`를 씁니다). 모든 installer는 `install-tool.mjs`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
@@ -53,11 +53,12 @@
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
 | ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
+| PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | 선언된 Composer로 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
 목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
-`cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
+`phpunit`(`version`), `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
 ### 합친 동작
@@ -264,7 +265,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 ## 테스트 실행기 (K8.1-2)
 
 `scripts/kit/run-tests.mjs`는 template, crudui, hyper의 `run-tests.mjs`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
-`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이고, `test-load-check.mjs`는 각 node test 파일에 preload되며,
+`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mjs`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-load-check.mjs`는 각 node test 파일에 preload되며,
 `test-hooks.mjs`는 test의 `setup`과 `teardown` helper입니다.
 
 합친 동작:
@@ -764,9 +765,13 @@ implementation(repository의 language 집합의 유일한 원천), 그것을 묶
   이 검사는 `parity-check`보다 먼저 실행해야 합니다.
 - **생성된 error code 생성물.** repository의 생성기 검사가 catalog에서 생성물을 다시 만들고, 다르면 실패합니다. 이 검사도
   `parity-check`보다 먼저 실행해야 합니다. parity 검사는 commit된 생성물을 catalog와 비교하며, 다시 만들지 않습니다.
-- **harness가 스스로 출력하는 PASS 줄**(node, php, python, cargo). 검사기는 출력된 PASS와 통과한 case를 구별할 수 없습니다. 각
-  언어의 공유 test harness는 case가 통과한 뒤에만 그 줄을 출력하고, review가 각 binding을 그 harness 위에 둡니다. Go event는
-  `go test`가 직접 냅니다.
+- **각 native 도구의 출력**(node:test, go test, cargo test, unittest, PHPUnit). `test-output.mjs`가 이 출력을 읽습니다. binding의
+  test는 검사를 위해 아무것도 출력하지 않으며, 각 case의 결과는 그 test에 대한 도구 자신의 보고입니다. go와 node는 이벤트를
+  틀에 넣어 씁니다. go는 test의 출력을 JSON 이벤트의 `Output` 필드 안에 쓰고, node는 test의 console 출력을 TAP의 `# ` 줄로
+  씁니다. cargo, unittest, PHPUnit은 틀에 넣지 않으므로, test가 같은 stream에 결과처럼 읽히는 줄을 출력할 수 있습니다:
+  cargo의 표준 출력에 있는 `test <name> ... ok`, unittest의 표준 오류에 있는 `... ok` 줄, 또는 PHPUnit이 되풀이한
+  `##teamcity[` 메시지입니다. 이 셋에 대해 검사기는 도구가 자신의 결과만 출력한다고 신뢰하며, 리뷰가 이를 강제합니다. 출력을
+  검사하는 방법으로는 막을 수 없습니다.
 
 Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는 R3를 뺀 모든 rule을
 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
@@ -777,7 +782,8 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 | `parity-declaration.mjs` | schema, 선언의 참조, finding |
 | `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
 | `parity-ledger.mjs` | R3: binding 실행과 ledger |
-| `parity-runners.mjs` | runner마다의 native 명령과 그 출력의 case |
+| `parity-runners.mjs` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
+| `test-output.mjs` | node:test(TAP), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
 | `parity-errors.mjs` | R7 |
 | `parity-text.mjs` | R9, R10 |
 
@@ -787,12 +793,12 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 
 | Rule | Finding |
 |---|---|
-| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, 그 profile을 unit 하나만 씁니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` symbol이 export되지 않았습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 `tests`나 그 runner의 `testPatterns`가 고르는 파일을 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`이 아닌 `${` 형식을 담습니다. |
+| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, 그 profile을 unit 하나만 씁니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` symbol이 export되지 않았습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 `tests`나 그 runner의 `testPatterns`가 고르는 파일을 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`이 아닌 `${` 형식을 담습니다. <br>- `admit` key가 어떤 case 객체에도 없거나, 목록이 비었거나, implementation 이름을 두 번 적거나, profile의 implementation이 admit하는 case가 없습니다(K47). |
 | R1 missing-implementation | API unit에 profile의 한 implementation의 symbol이 없거나, symbol이 snapshot에 없거나, export되지 않았습니다. |
 | R2 missing-binding | suite unit에 profile의 한 implementation의 binding이 없습니다. |
-| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었음), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
+| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었음), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아닙니다. |
-| R5 undeclared-test | implementation의 `tests` glob 파일 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 harness 줄을 출력합니다. |
+| R5 undeclared-test | implementation의 `tests` glob 파일 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
 | R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 그 runner의 implementation의 `support` 파일이 아닌 runner의 `testPatterns` 파일이 그 runner의 모든 implementation의 root 밖이고 `comparators` 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
@@ -805,20 +811,25 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 | Runner | 명령 | Case |
 |---|---|---|
 | `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>` | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event |
-| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --exact <symbol> --nocapture --test-threads=1` | 표준 출력과 표준 오류의 harness 줄 |
-| `node`, `php`, `python` | checkout root에서 `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` | 표준 출력의 harness 줄 |
+| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --test-threads=1 <symbol>::` | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored` |
+| `node` | `node --test --test-reporter=tap <test>` | TAP 출력의 최상위 test: `ok`와 `not ok`는 통과와 실패, `# SKIP`은 건너뜀, `# TODO`는 todo입니다. 파일 자신의 줄은 case가 아닙니다 |
+| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다 | TeamCity 메시지의 test method `test_<case>` |
+| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` |
 
-harness 줄은 `PASS <unit>/<case>` 또는 `FAIL <unit>/<case>`이며, 뒤에 공백과 다른 글이 올 수 있습니다. 각 언어의 공유 test
-harness가 쓰는 형식입니다. case의 `FAIL` 줄은 `PASS` 줄보다 우선합니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는
-`/`도 없습니다. Go가 subtest 이름을 `/`에서 중첩하기 때문입니다.
+각 runner는 그 도구의 출력을 `test-output.mjs`의 parser로 읽습니다. run-tests가 실행을 읽는 parser와 같습니다(K47). todo는 도구가
+실패를 기대하는 test, 즉 node의 `# TODO`와 unittest의 `expected failure`입니다. 통과가 아니므로 그 case는 검사에서 실패하며, run-tests는
+todo를 통과 줄로 보여 줍니다. binding의 case가 아닌 test 이름은 무시하되, go subtest가 case 아래에 중첩되면 `/`를 유지하므로 suite가
+선언하지 않은 case로 R3가 잡습니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는 `/`도 없습니다. Go가 subtest 이름을
+`/`에서 중첩하기 때문입니다. node:test 실행은 `NODE_TEST_CONTEXT`를 뺀 environment로 시작합니다. node는 test 실행 밖에서만 TAP을
+출력하기 때문입니다.
 
-`--nocapture`일 때 libtest는 `test <name> ... `을 줄바꿈 없이 출력합니다. Rust test가 출력하는 첫 줄이 그 줄에 이어지므로,
-cargo runner는 이 prefix 뒤의 harness 줄을 읽습니다.
+PHPUnit은 작업 directory에서 설정을 읽습니다. 검사는 모든 runner의 작업 directory를 checkout root로 두어서 `command`, `args`와 경로가
+한 기준을 공유하므로, php binding은 자신의 package의 설정을 직접 적습니다. `--configuration`에 package의 `phpunit.xml`(없고
+`phpunit.xml.dist`만 있으면 그것)을 주며, 둘 다 없으면 `--no-configuration`을 줍니다. 다른 directory의 설정이 적용되지 않게 하기 위해서입니다.
 
 implementation은 비어 있지 않은 `command`로 runner의 program을 바꿀 수 있습니다. `/`를 담은 command는 virtual environment의
 Python처럼 checkout root를 기준으로 푸는 경로입니다. 절대 경로는 그대로 절대 경로이고, `..`을 담은 경로는 절대 경로처럼 풀리며
-root 위로 올라가면 checkout 밖을 가리킵니다. 아니면 PATH의 이름입니다. `args`는 go와 cargo에서는 `test` 뒤에, node, php, python에서는
-test 파일 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의 environment 위에
+root 위로 올라가면 checkout 밖을 가리킵니다. 아니면 PATH의 이름입니다. `args`는 go와 cargo에서는 `test` 뒤에, node에서는 test 파일 앞에, php에서는 PHPUnit 경로 앞에, python에서는 `-m unittest` 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의 environment 위에
 그 implementation의 실행에만 변수를 설정합니다.
 
 `command`, `args`, `env` 값은 이웃 repository의 checkout이나 Makefile이 build하는 library처럼 실행 environment를 `${NAME}`으로
@@ -836,9 +847,22 @@ R5가 건너뛰고, R6는 그 implementation의 runner의 pattern에 대해서�
   `Example`입니다.
 - cargo 보조 파일은 test attribute를 담지 않습니다. `#[test]`, `#[bench]`, `#[test_case]`, `#[rstest]`, 또는 `#[tokio::test]`처럼
   path가 붙은 그것들입니다.
-- `parity-check`는 node, php, python 보조 파일을 그 implementation의 runner로 한 번씩 실행하고, 출력의 harness 줄은 R5 finding입니다.
+- `parity-check`는 node, php, python 보조 파일을 그 implementation의 runner로 한 번씩 실행하고, 그 출력이 보고하는 case는 R5 finding입니다.
 
 각 glob은 그런 파일을 하나 이상 골라야 하므로, 낡은 glob은 선언 finding입니다.
+
+### case별 admission
+
+suite unit은 `admit`을 선언할 수 있습니다. `admit`은 `cases`에서 case 이름 옆에 있는 각 case 객체의 key이며, 그 case를 admit하는
+implementation의 목록을 담습니다(예: `kinds`). 이 key가 없는 case 객체는 profile의 모든 implementation이 admit합니다. 목록의 각
+이름은 profile의 implementation이어야 하며, key는 그런 이름의 배열이어야 합니다. 아니면 선언 finding입니다. 목록이 빼는 implementation은
+그 case를 실행하지 않습니다. 그 binding의 기대 case에서 빠지므로, 그 case의 native test는 R3 finding(`not in the suite`)이고, 모든
+실행은 `unit <unit> does not run <case> for <implementations>: <key> lists <implementations>` 줄을 출력합니다. `admit`은 suite unit에만
+둡니다.
+
+다음은 선언 finding입니다. 어떤 case 객체에도 없는 key, 빈 목록, 두 번 적힌 이름, 그리고 admit하는 case가 없는 profile의
+implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로 제외). 아무것도 admit하지 않는 implementation은 아무것도 실행하지
+않으므로, profile에서 빼거나 이유와 item을 적어 제외해야 합니다.
 
 ### 선언
 
@@ -886,8 +910,9 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 
 1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, profile, vector 파일마다 suite unit, 공개 개념마다
    API unit, 그리고 implementation이 아직 갖추지 못한 unit마다 checklist item을 적은 exclusion을 선언합니다.
-2. 각 언어 harness가 suite의 case마다 `PASS <unit>/<case>`를 출력하게 합니다. Go에서는 각 case를 subtest `<symbol>/<case>`로
-   실행합니다.
+2. 각 binding의 native test가 suite의 case마다 runner의 이름으로 그 case를 보고하게 합니다(Runner 표 참고). Go에서는 subtest
+   `<symbol>/<case>`, cargo에서는 test `<symbol>::<case>`, node:test에서는 이름이 `<case>`인 최상위 test, PHPUnit과 unittest에서는
+   test method `test_<case>`입니다. binding은 검사를 위한 줄을 출력하지 않습니다.
 3. 각 implementation의 extractor가 `exported`를 담은 snapshot을 쓰게 하고, 각 implementation의 error code를 catalog에서 생성합니다.
 4. `parity-declarations-check`를 repository의 검사 target에, `parity-check`를 CI에 추가해 둘 다 push가 반영되기 전에 실행되게
    합니다. symbol snapshot과 error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). `make kit-sync`의 복사본에 target이 이미 있습니다.

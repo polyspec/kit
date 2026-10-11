@@ -31,6 +31,7 @@ export function run(command, args, options, print) {
 export const RELEASE_OUTPUT = {
   python: { args: ['--version'], pattern: /^Python (\d+\.\d+\.\d+)$/m },
   ruff: { args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m },
+  phpunit: { args: ['--version'], pattern: /^PHPUnit (\d+\.\d+\.\d+) /m },
   cargoAudit: { args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m },
   govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },
 };

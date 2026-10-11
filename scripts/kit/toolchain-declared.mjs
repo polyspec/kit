@@ -9,6 +9,7 @@
 //   pythonBuild  config/toolchain.json pythonBuild: the exact Python release of the python minor, its release and its sha256 by platform
 //   pythonBackend config/toolchain.json pythonBackend: the requirement name==version of the build backend of the Python wheels and its sha256
 //   composer     config/toolchain.json composer
+//   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
@@ -82,6 +83,12 @@ function ruff(value) {
   return { version: value.version, sha256: digests, source: file };
 }
 
+// The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
+function phpunit(value) {
+  const file = 'config/toolchain.json phpunit';
+  return { version: exact(file, 'the PHPUnit release', value.version), manifest: 'config/phpunit/composer.json', source: file };
+}
+
 // The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.
 function pythonBackend(value) {
   const file = 'config/toolchain.json pythonBackend';
@@ -134,6 +141,7 @@ export function declaredToolchain(root) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };
   }
   if (config.ruff) declared.ruff = ruff(config.ruff);
+  if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   for (const key of ['cargoAudit', 'govulncheck']) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
