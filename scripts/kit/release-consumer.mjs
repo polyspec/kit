@@ -175,36 +175,40 @@ export function installConsumers(ctx, version, directory, step = () => {}) {
 }
 
 /**
- * Installs the wheels of `directory`, which holds the wheel of `version` of each wheel package, into a clean virtual environment
- * of `folder` made by var/tools/bin/python3: `pip install --no-index --require-hashes --no-deps` from a requirement file that names
- * each wheel with the sha256 of its file. Then each package must show `version`, and its smoke command runs in the environment.
- * Returns the number of packages.
+ * Installs the wheels of `names` at `version` from `directory` into a clean virtual environment of `folder` made by the Python
+ * of `root`: `pip install --no-index --require-hashes --no-deps` from a requirement file that names each wheel with the sha256 of
+ * its file. Then each package must show `version`, and its smoke command runs in the environment. Returns the number of packages.
  */
-function installWheels(ctx, version, directory, folder, env, step) {
-  const packages = ctx.config.packages.filter(item => item.kind === WHEEL_KIND);
-  if (packages.length === 0) return 0;
-  const consumer = ctx.config.consumers[WHEEL_KIND];
+export function installWheelFiles({ root, env, folder, version, directory, names, smoke, step = () => {} }) {
+  if (names.length === 0) return 0;
   const project = path.join(folder, WHEEL_KIND);
   const venv = path.join(project, 'venv');
   mkdirSync(project, { recursive: true });
-  run(toolsPath(ctx.root, 'bin', 'python3'), ['-m', 'venv', venv], { cwd: project, env });
+  run(toolsPath(root, 'bin', 'python3'), ['-m', 'venv', venv], { cwd: project, env });
   const bin = path.join(venv, 'bin');
   const venvEnv = { ...env, PATH: `${bin}${path.delimiter}${env.PATH}`, VIRTUAL_ENV: venv };
   const requirements = path.join(project, 'requirements.txt');
-  writeFileSync(requirements, packages.map(({ name }) => {
+  writeFileSync(requirements, names.map((name) => {
     const file = path.join(directory, wheelName(name, version));
     return `${file} --hash=sha256:${fileDigest(file)}\n`;
   }).join(''));
   run(path.join(bin, 'python'), ['-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', requirements], { cwd: project, env: venvEnv });
-  step(`wheel pip install of ${packages.length} packages from ${ASSETS}`);
-  for (const { name } of packages) {
+  step(`wheel pip install of ${names.length} packages`);
+  for (const name of names) {
     const shown = run(path.join(bin, 'python'), ['-m', 'pip', 'show', name], { cwd: project, env: venvEnv });
     const actual = /^Version: (.*)$/m.exec(shown)?.[1]?.trim() ?? null;
     if (actual !== version) throw new Stop(`wheel installed ${name} ${actual ?? 'none'}, expected ${version}`);
-    run(consumer.smoke[name][0], consumer.smoke[name].slice(1), { cwd: project, env: venvEnv });
-    step(`wheel ${name} ${version}: ${consumer.smoke[name].join(' ')}`);
+    run(smoke[name][0], smoke[name].slice(1), { cwd: project, env: venvEnv });
+    step(`wheel ${name} ${version}: ${smoke[name].join(' ')}`);
   }
-  return packages.length;
+  return names.length;
+}
+
+/** The wheel packages of the configuration, installed by installWheelFiles with the smoke commands of `consumers.wheel`. */
+function installWheels(ctx, version, directory, folder, env, step) {
+  const names = ctx.config.packages.filter(item => item.kind === WHEEL_KIND).map(({ name }) => name);
+  if (names.length === 0) return 0;
+  return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: ctx.config.consumers[WHEEL_KIND].smoke, step });
 }
 
 /** The lock without the hashes of the archives of this repository, which each run builds again. */

@@ -53,6 +53,25 @@
         }
       }
     },
+    "pythonBackend": {
+      "description": "The build backend of the Python wheels: the exact requirement of the wheel, and its sha256 from the PyPI release. install-tools downloads it into var/tools/wheels with the digest checked.",
+      "type": "object",
+      "required": [
+        "requirement",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requirement": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+==\\d+(\\.\\d+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
     "composer": {
       "description": "The Composer release. With sha256, install-tools installs composer.phar into var/tools; without it, the Composer of the machine is verified.",
       "type": "object",

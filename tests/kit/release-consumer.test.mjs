@@ -110,7 +110,7 @@ test('install runs npm ci and composer install in clean projects outside the rep
     "npm fixture-app 0.0.1: node -e require('fixture-app/package.json')",
     'composer install of 1 packages from tests/release-consumer/composer',
     "composer polyspec/kit-fixture 0.0.1: node -e require('./vendor/composer/installed.json')",
-    'wheel pip install of 1 packages from var/release/assets',
+    'wheel pip install of 1 packages',
     "wheel kit-fixture 0.0.1: python -c import kit_fixture",
   ]);
   const [ci] = box.calls('npm').slice(-1);

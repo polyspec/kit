@@ -16,11 +16,12 @@ import { installGo } from './install-go.mjs';
 import { installGovulncheck } from './install-govulncheck.mjs';
 import { installNpm } from './install-npm.mjs';
 import { installPython } from './install-python.mjs';
+import { installBackend } from './release-backend.mjs';
 import { installRuff } from './install-ruff.mjs';
 import { declaredToolchain } from './toolchain-declared.mjs';
 import { isMain, ROOT } from './paths.mjs';
 
-const TOOLS = ['python', 'npm', 'go', 'ruff', 'composer', 'cargoAudit', 'govulncheck'];
+const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'composer', 'cargoAudit', 'govulncheck'];
 
 /**
  * Installs the declared tools into var/tools of `root`, or only `tools` (names of TOOLS, each declared); returns the names of
@@ -29,7 +30,7 @@ const TOOLS = ['python', 'npm', 'go', 'ruff', 'composer', 'cargoAudit', 'govulnc
 export function installTools({ root = ROOT, tools = null, print = () => {} } = {}) {
   const declared = declaredToolchain(root);
   const present = {
-    python: declared.pythonBuild, npm: declared.npm, go: declared.go, ruff: declared.ruff, composer: declared.composer?.sha256, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck,
+    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: declared.go, ruff: declared.ruff, composer: declared.composer?.sha256, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck,
   };
   for (const name of tools ?? []) {
     if (!TOOLS.includes(name)) throw new Error(`unknown tool ${name}; the tools are ${TOOLS.join(', ')}`);
@@ -41,6 +42,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} } = {
   if (wanted('npm')) step('npm', () => installNpm({ root, declared: declared.npm, print }));
   if (wanted('go')) step('go', () => installGo({ root, declared: declared.go, print }));
   if (wanted('python')) step('python', () => installPython({ root, declared: declared.pythonBuild, print }));
+  if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend.requirement, sha256: declared.pythonBackend.sha256, source: declared.pythonBackend.source, print }); return { installed }; });
   if (wanted('ruff')) step('ruff', () => installRuff({ root, declared: declared.ruff, print }));
   if (wanted('composer')) step('composer', () => installComposer({ root, declared: declared.composer, print }));
   if (wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: declared.cargoAudit.version, print }));
