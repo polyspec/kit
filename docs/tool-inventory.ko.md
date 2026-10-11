@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c346319449a24911713c0d70877616e5a656ee3d7260ce1773a3d573a25436b4 -->
+<!-- source-sha256: 6364ccb86ce01d8f2306801e4e0b6efa71e51e3ea17e9a462ae7e6ef200495f6 -->
 
 # 도구 목록
 
@@ -40,6 +40,25 @@
 `install-cargo-audit.mjs`, `install-govulncheck.mjs`를 씁니다). 모든 installer는 `install-tool.mjs`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
+
+### Go 취약점 (K53)
+
+`make dependency-review`는 Go lock(`go.mod` 옆의 `go.sum`)마다 govulncheck에 취약점을 묻고, 그 module 디렉터리에서 실행합니다.
+조회는 `./...` 대신 module의 package를 명시합니다. 이유: `./...`은 module 아래의 모든 디렉터리를 걸으며, install-go가
+`var/tools` 아래에 두는 Go toolchain도 그중 하나입니다. govulncheck는 이를 거부하므로(`outside main module`) 모든 RECORD 실행이
+실패했습니다. `./...`은 디렉터리를 제외할 수 없으므로, `var/`를 포함한 module은 작업 디렉터리와 상관없이 그것을 걷습니다.
+
+- `goPackagePatterns`(`dependency-state.mjs`)는 module의 추적되거나 새로운 `.go` 파일마다 디렉터리를 `./...`의 규칙으로 고릅니다.
+  이름이 `.` 또는 `_`로 시작하는 디렉터리, `testdata`, `vendor`는 건너뛰며, 하위 nested module(자체 `go.mod`)의 디렉터리도
+  건너뜁니다. `checkedFiles`가 `var/`, `node_modules`, `.tools`를 제외하므로, 설치나 출력의 디렉터리는 명시되지 않습니다.
+- `goPackages`(`dependency-review.mjs`)는 그 패턴에 `go list -e`를 실행하고, 빌드 가능한 파일이 있는 package의 import path만
+  남깁니다. `./...`은 파일이 모두 build 제약으로 제외되는 디렉터리(예: `//go:build ignore` 생성기)를 건너뛰고, govulncheck는 그
+  패턴을 거부하므로 조회도 같은 방식으로 뺍니다. 빌드 가능한 package가 없는 module에는 취약점이 없습니다. 그 안의 코드가 취약한
+  함수를 호출하지 않기 때문입니다.
+- 이전과 같이 lock마다 취약점 결과 하나를 유지합니다. lock은 `go.sum`의 디렉터리로 module에 대응합니다.
+- 한계: module 디렉터리 밖을 가리키는 `replace` 지시문의 package는 명시되지 않으므로, 그 module에서는 스캔되지 않습니다(이전
+  `./...`도 스캔하지 않았습니다). `var`, `node_modules`, `.tools`라는 이름의 디렉터리 아래 Go package도 스캔되지 않습니다. kit의
+  어떤 검사도 그 디렉터리를 읽지 않기 때문입니다.
 
 ### 선언
 
