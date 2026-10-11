@@ -2,6 +2,7 @@
   "name": "@polyspec/kit",
   "version": "0.0.25",
   "description": "The shared tools of the polyspec repositories, imported as modules: import { makeVenv } from '@polyspec/kit/python-venv.mjs'.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/polyspec/kit.git"

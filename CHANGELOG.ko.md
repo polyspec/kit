@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d68f03bd34252479cb94b4871f8ec331a3a61b2aee7fde9914bf1c571c4be2e3 -->
+<!-- source-sha256: 679937b8a1710e82bd5d84a909c219e70426bfb66f486e69b743254e5bb9bd82 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@ kit의 release `vX.Y.Z`마다 `## X.Y.Z` section이 있습니다. 그 글은 Git
 
 ## Unreleased
 
+- kit이 `LICENSE`와 `@polyspec/kit`의 `package.json`에 MIT License를 선언합니다 (K59).
 - parity 검사가 한 실행이 두 번 보고한 case를 R3 finding으로 보고합니다. node:test, unittest, PHPUnit, cargo, go 출력의 parser가
   run-tests와 parity 검사가 공유하는 `test-output.mjs`로 옮겨지고, suite unit은 case마다 그것을 admit하는 구현인 `admit`을 선언합니다.
   phpunit은 install-tools tool이 됩니다(K47).
