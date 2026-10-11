@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 09ba07881342e65f363eef87004cac213d940a827b910dcf0e304e6d8293c26b -->
+<!-- source-sha256: 7d368435e6aba80d58d44bec7aae72f3e6ee671b4eca94eb56a71b0efd884227 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
