@@ -53,7 +53,7 @@ export function checkParity(root, { execute = true, env = process.env, say = () 
     ...executed.findings,
     ...undeclaredSuites(model, files),
     ...undeclaredTests(model, files),
-    ...misplacedTests(model),
+    ...misplacedTests(model, files),
     ...errorCatalog(model, codes),
     ...exclusions(model),
     ...languageLists(model, root),

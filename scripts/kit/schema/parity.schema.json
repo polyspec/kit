@@ -3,7 +3,7 @@
   "title": "config/parity.json",
   "description": "The language-parity declaration, read by scripts/kit/parity.mjs: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings, reads the symbol snapshots and the error-code artifacts.",
   "type": "object",
-  "required": ["schema", "implementations", "profiles", "units"],
+  "required": ["schema", "implementations", "profiles", "testPatterns", "units"],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -18,8 +18,8 @@
         "properties": {
           "name": { "description": "The name of the implementation, used by the profiles, bindings and documents.", "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
           "runner": { "description": "How a binding runs: go (go test -json), cargo (cargo test), node, php and python (var/tools/bin/python3) run the test file and read its PASS and FAIL lines.", "type": "string", "enum": ["go", "cargo", "node", "php", "python"] },
-          "roots": { "description": "The directories that hold the implementation and its tests; . is the whole repository.", "type": "array", "minItems": 1, "items": { "type": "string" } },
-          "tests": { "description": "Globs of the test files of the implementation; each one must be the test of a binding.", "type": "array", "items": { "type": "string" } },
+          "roots": { "description": "The directories that hold the implementation and its tests; the whole repository is no root.", "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "tests": { "description": "Globs of the test files of the implementation; each one must be the test of a binding.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "command": { "description": "The program of the runner: a path relative to the root of the checkout when it holds a /, else a name on PATH. Default: go, cargo, the running node, php, var/tools/bin/python3.", "type": "string" },
           "args": { "description": "Arguments of the program: after test for go and cargo, before the test file for node, php and python.", "type": "array", "items": { "type": "string" } },
           "env": {
@@ -58,6 +58,21 @@
       }
     },
     "suites": { "description": "Globs of the shared vector files; each one must be the file of a suite unit.", "type": "array", "items": { "type": "string" } },
+    "comparators": { "description": "The directories of the checks that compare the outputs of several implementations; a test there belongs to no implementation.", "type": "array", "items": { "type": "string" } },
+    "testPatterns": {
+      "description": "Globs of the test files of each runner across the repository; such a file lies in a root of an implementation of that runner or in a comparator root.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["runner", "globs"],
+        "additionalProperties": false,
+        "properties": {
+          "runner": { "type": "string", "enum": ["go", "cargo", "node", "php", "python"] },
+          "globs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
     "units": {
       "type": "array",
       "items": {

@@ -46,12 +46,31 @@ export function undeclaredTests(model, files) {
   });
 }
 
-/** R6: the test of each binding lies in a root of its implementation. */
-export function misplacedTests(model) {
-  return model.config.units.flatMap(unit => (unit.bindings ?? []).flatMap((entry) => {
+// The vendored tools and tests of kit, which test kit and belong to no implementation.
+const KIT_DIRECTORIES = ['scripts/kit', 'tests/kit'];
+
+/**
+ * R6: the test of each binding lies in a root of its implementation or in a comparator root, and every other file of the test
+ * patterns of a runner lies in a root of an implementation of that runner or in a comparator root.
+ */
+export function misplacedTests(model, files) {
+  const comparators = model.config.comparators ?? [];
+  const inComparator = file => comparators.some(root => within(root, file));
+  const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
+  const bindings = bound.flatMap(({ unit, entry }) => {
     const roots = model.implementations.get(entry.implementation).roots;
-    return roots.some(root => within(root, entry.test)) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
-  }));
+    return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
+  });
+  const tests = new Set(bound.map(({ entry }) => entry.test));
+  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !KIT_DIRECTORIES.some(root => within(root, file))).flatMap((file) => {
+    const runners = model.config.testPatterns.filter(pattern => matchesAny(pattern.globs, file)).map(pattern => pattern.runner);
+    return [...new Set(runners)].flatMap((runner) => {
+      const roots = model.config.implementations.filter(entry => entry.runner === runner).flatMap(entry => entry.roots);
+      if (roots.some(root => within(root, file))) return [];
+      return [finding('R6', `a ${runner} test outside ${roots.join(', ') || 'nothing'}, the roots of the ${runner} implementations, and outside ${comparators.join(', ') || 'nothing'}, the comparator roots; move it into the package of its implementation`, { place: file })];
+    });
+  });
+  return [...bindings, ...patterns];
 }
 
 /** R8: each exclusion, which never counts as holding the unit. */
