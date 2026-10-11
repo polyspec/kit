@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 0ccedfd118b80311ee05d263d40f921f0e6ff12e3e2842d7c1addf280b48f68d -->
+<!-- source-sha256: b08cccba5fe0c34311db5675c6accd3869af11ea6624863a7edd76d897b8bb60 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -74,4 +74,4 @@
 | K24 | `release-verify`는 annotated가 아닌 release tag를 거부한다: tag의 object 종류(`git cat-file -t <tag>`)는 `tag`여야 하며, 실패는 tag 이름과 그 종류(lightweight tag는 `commit`)를 적는다. release tag는 `git tag -a vX.Y.Z -m vX.Y.Z`로 만든다 | `scripts/kit/release.mjs, tests/kit/release.test.mjs, AGENTS.md(.ko)` | `node --test tests/kit/release.test.mjs` | [o] The release 0.0.16 publishes it. |
 | K25 | `install-tools`는 config/toolchain.json의 `pythonBuild`가 선언한 Python을 var/tools에 정확한 release로, sha256으로 검증한 download에서 멱등하게 설치한다. `check-toolchain`, run-tests, release-proof, ruff는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행한다 | `scripts/kit/install-python.mjs, install-tools.mjs, install-ruff.mjs, check-toolchain.mjs, run-tests.mjs, release-proof.mjs, toolchain-declared.mjs, schema/toolchain.schema.json, tests/kit/` | `make kit-test` | [o] The release 0.0.16 publishes it. |
 | K26 | `pythonBuild`의 Python은 symbolic link를 담지 않는다: `install-python`은 검증된 archive의 link마다 대상의 일반 복사본으로 바꾸고(directory link는 복사된 directory가 된다), 대상이 없거나 archive 밖이면 link와 대상을 적어 실패한다 | `scripts/kit/install-python.mjs, tests/kit/install-python.test.mjs` | `node --test tests/kit/install-python.test.mjs` | [o] The release 0.0.16 publishes it. |
-| K27 | pre-push hook은 push하는 commit의 message를 `make commits-check`의 규칙으로 검사한다: ref마다 원격 sha부터 로컬 sha까지의 commit을 보고(원격 sha가 0이면 어떤 원격 ref에도 없는 commit), 삭제하는 ref는 건너뛴다. 검사 결과가 있는 push는 거부하며 각 결과는 commit과 줄을 적는다 | `scripts/kit/push-gate.mjs, scripts/kit/check-commits.mjs, tests/kit/push-gate.test.mjs, tests/kit/gates-checkout.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/push-gate.test.mjs` | [ ] |
+| K27 | pre-push hook은 push하는 commit의 message를 `make commits-check`의 규칙으로 검사한다: ref마다 원격 sha부터 로컬 sha까지의 commit을 보고(원격 sha가 0이면 어떤 원격 ref에도 없는 commit), 삭제하는 ref는 건너뛴다. 검사 결과가 있는 push는 거부하며 각 결과는 commit과 줄을 적는다 | `scripts/kit/push-gate.mjs, scripts/kit/check-commits.mjs, tests/kit/push-gate.test.mjs, tests/kit/gates-checkout.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/push-gate.test.mjs` | [o] The next release publishes it. |
