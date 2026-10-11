@@ -767,7 +767,6 @@ units. The declaration holds no state such as done or planned: the checker takes
   that each run reported. It reads no saved report.
 - It reads the exported symbols from the extractor snapshot of each implementation.
 - It reads the error codes from the generated artifact of each implementation.
-
 ### Trust boundary
 
 The checker trusts three inputs that it does not produce itself. Other checks close each one:
@@ -800,17 +799,17 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 
 | Rule | Finding |
 |---|---|
-| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. |
+| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no file of the `tests` of its implementation or of the `testPatterns` of its runner, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value references `${NAME}` and the invoking environment does not set NAME, or holds another `${` form. |
 | R1 missing-implementation | An API unit has no symbol of an implementation of its profile, the symbol is not in the snapshot, or the symbol is not exported. |
 | R2 missing-binding | A suite unit has no binding of an implementation of its profile. |
 | R3 not-executed | The binding cannot start, exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit. |
-| R5 undeclared-test | A file of the `tests` globs of an implementation is the test of no binding of that implementation. |
-| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file of the `testPatterns` of a runner lies outside the roots of every implementation of that runner and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
+| R5 undeclared-test | A file of the `tests` globs of an implementation, other than its `support` files, is the test of no binding of that implementation. |
+| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file of the `testPatterns` of a runner, other than a `support` file, lies outside the roots of every implementation of that runner and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
 | R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
 | R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
 | R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
-| R10 docs-count | A document of `documents` counts the implementations with a number that no profile has, or lists three or more implementation names that are no profile. |
+| R10 docs-count | A document of `documents` counts the implementations with a number from three that no profile has, or lists three or more implementation names in a passage whose implementation names together are no profile. |
 | R11 undeclared-public | An exported symbol of a snapshot is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. |
 
 ### Runners
@@ -829,9 +828,17 @@ With `--nocapture`, libtest prints `test <name> ... ` without a line break. The 
 line, so the cargo runner reads a harness line after this prefix.
 
 An implementation can replace the program of its runner with `command`. A command that holds a `/` is a path relative to the root
-of the checkout, such as the Python of a virtual environment; otherwise it is a name on PATH. `args` go after `test` for go and
-cargo, and before the test file for node, php and python, such as `-d extension=<library>` for one PHP implementation. `env`
-sets variables for the runs of that implementation only, over the environment of the check.
+of the checkout, such as the Python of a virtual environment, or an absolute path; otherwise it is a name on PATH. `args` go after
+`test` for go and cargo, and before the test file for node, php and python, such as `-d extension=<library>` for one PHP
+implementation. `env` sets variables for the runs of that implementation only, over the environment of the check.
+
+A `command`, `args` or `env` value can reference the invoking environment as `${NAME}`, such as the checkout of a sibling
+repository or a library that the Makefile builds: the check replaces it with the value of NAME. An unset NAME fails the
+declaration with its name, and so does any other `${` form; there is no default form. `$NAME` without braces is plain text.
+
+An implementation declares its test-support files with `support` globs: a file that its `tests` or the `testPatterns` of its
+runner select but that holds no test, such as a Go helper that must end in `_test.go`. A support file is never a test, so R5
+and R6 skip it. Each glob selects at least one such file, so a stale glob fails the declaration.
 
 ### Declaration
 
@@ -839,7 +846,7 @@ sets variables for the runs of that implementation only, over the environment of
 
 | Key | Content |
 |---|---|
-| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
+| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
 | `profiles` | `name`, the `implementations` that it groups, and `reason`, which a profile narrower than every implementation needs |
 | `suites` | globs of the shared vector files |
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
@@ -855,6 +862,13 @@ A pattern is a regular expression that is applied to each line (flags `gm`), and
 an English number word up to twelve, or a Korean native numeral up to 열, followed by one of the nouns. A list is three or more
 implementation names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The snapshot of an implementation is a
 JSON object that maps each symbol id to an object with a boolean `exported`.
+
+R10 reads a document in passages: a paragraph or a list item with the lines that continue it, or one heading, table row or line
+of a fenced block. A count or a list can span the lines of a passage. A count of one or two names an item or a pair (one client,
+a pair of two clients, 한 언어), not the set of the implementations, as two names are no list, so R10 reads a count from three.
+A list is judged with every implementation name of its passage: a passage that states something of a part of the
+implementations names the others with what they do instead ("Go, Rust and TypeScript generate the methods; PHP and Python
+resolve them at call time"), while a list that its passage does not complete to a profile was written for another set.
 
 The catalog pattern applies to each line of the catalog that is not blank and is not a comment (a line that starts with `#` or
 `//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,
