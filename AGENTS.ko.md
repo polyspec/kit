@@ -38,3 +38,7 @@ subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`
 
 kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `kit.json`이 tree의 버전을 가집니다. 저장소는
 `make kit-sync KIT_TAG=vX.Y.Z`로 릴리스를 채택합니다.
+
+릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
+(`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
+이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.

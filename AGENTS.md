@@ -41,3 +41,7 @@ at most 50 characters, a body wrapped at 72 characters, and the types `feat`, `f
 
 kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci` success. `kit.json` holds the version of the
 tree. A repository adopts a release with `make kit-sync KIT_TAG=vX.Y.Z`.
+
+A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
+type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
+published tag is not moved; the check runs only on the tag being released.
