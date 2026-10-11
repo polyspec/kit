@@ -305,7 +305,7 @@ test('an implementation declares the command, the arguments and the environment 
   assert.match(missing[0].message, /exited with 3/);
 });
 
-test('a runner value references the invoking environment as ${NAME}, and an unset name or another form fails the declaration', TIMEOUT, (t) => {
+test('a runner value references the invoking environment as ${NAME}, resolved when the bindings run and never printed', TIMEOUT, (t) => {
   const declare = (config) => {
     const implementation = name => config.implementations.find(entry => entry.name === name);
     Object.assign(implementation('python'), { command: '${PARITY_VENV}/bin/python', args: ['-B'], env: [{ name: 'PYTHONPATH', value: '${PARITY_PYTHON}/src' }, { name: 'REQUIRE_PYTHONPATH', value: '1' }] });
@@ -316,35 +316,63 @@ test('a runner value references the invoking environment as ${NAME}, and an unse
   const root = repository(t, { files, edit: declare });
   chmodSync(path.join(root, 'python/.venv/bin/python'), 0o755);
   const env = { ...ENV, PARITY_VENV: path.join(root, 'python/.venv'), PARITY_PYTHON: 'python', PARITY_PHP: 'php/modules' };
-  const { findings, ledger } = checkParity(root, { execute: true, env, say: () => {} });
+  const lines = [];
+  const { findings, ledger } = checkParity(root, { execute: true, env, say: line => lines.push(line) });
   assert.deepEqual(findings, []);
   const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, [run.command, ...run.args]]));
   assert.deepEqual(commands['codec python'], [path.join(root, 'python/.venv/bin/python'), '-B', 'python/tests/test_codec.py']);
   assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/tests/codec.php']);
+  assert.ok(lines.includes('run codec php (1 of 2): php -d extension=${PARITY_PHP}/codec.so php/tests/codec.php (in .)'), lines.join('\n'));
+  assert.ok(!lines.some(line => line.includes('php/modules') || line.includes(env.PARITY_VENV)), lines.join('\n'));
+  const messages = environment => checkParity(root, { execute: true, env: environment, say: () => {} }).findings.map(finding => `${finding.rule} ${finding.unit} ${finding.implementation}: ${finding.message}`);
+  assert.deepEqual(checkParity(root, { execute: false, env: ENV, say: () => {} }).findings, [], 'the declarations do not read the environment');
   const unset = { ...env };
   delete unset.PARITY_PHP;
-  const messages = checkParity(root, { execute: true, env: unset, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages, ['declaration: implementation php: args references ${PARITY_PHP}, which the environment does not set']);
+  assert.deepEqual(messages(unset), ['R3 codec php: cannot start: args references ${PARITY_PHP}, which the environment does not set']);
+  assert.deepEqual(messages({ ...env, PARITY_VENV: '' }), ['R3 codec python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string']);
   const other = repository(t, { files, edit: (config) => { declare(config).implementations.find(entry => entry.name === 'python').env[0].value = '${PARITY_PYTHON:-python}/src'; return config; } });
   assert.deepEqual(checkParity(other, { execute: false, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: implementation python: env PYTHONPATH holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
   ]);
+  const empty = repository(t, { files, edit: (config) => { declare(config).implementations.find(entry => entry.name === 'python').command = ''; return config; } });
+  assert.deepEqual(checkParity(empty, { execute: true, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
+    'declaration: config/parity.json: $.implementations[4].command is "", the schema requires at least 1 characters',
+  ]);
 });
 
-test('a support file of an implementation is never a test, and a support glob that selects no test file fails', TIMEOUT, (t) => {
+test('a support file of an implementation is never a test: it lies in its roots and holds no test that its runner runs', TIMEOUT, (t) => {
   const support = { go: ['go/helpers_test.go'], php: ['php/tests/cases.php'], ts: ['ts/tests/case.mjs'] };
-  const declare = extra => (config) => {
-    for (const entry of config.implementations) if (support[entry.name]) entry.support = [...support[entry.name], ...(extra[entry.name] ?? [])];
+  const declare = (extra = {}) => (config) => {
+    for (const entry of config.implementations) {
+      const globs = [...(support[entry.name] ?? []), ...(extra[entry.name] ?? [])];
+      if (globs.length) entry.support = globs;
+    }
     return config;
   };
-  const files = { 'go/helpers_test.go': 'package codec\n', 'php/tests/cases.php': '<?php\n', 'ts/tests/case.mjs': 'export const cases = [];\n', 'tools/tests/case.mjs': 'export const cases = [];\n' };
-  assert.deepEqual(check(t, { files, edit: declare({ ts: ['tools/tests/case.mjs'] }) }, { execute: false }).findings, []);
-  const messages = check(t, { files, edit: (config) => { declare({ php: ['php/tests/gone.php'], go: ['go/codec.go'] })(config); config.implementations.find(entry => entry.name === 'python').support = ['python/tests/test_codec.py']; return config; } }, { execute: false })
-    .findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages, [
-    'declaration: implementation go: the support glob go/codec.go selects no test file; remove it',
-    'declaration: implementation php: the support glob php/tests/gone.php selects no test file; remove it',
+  const helpers = 'package codec\n\nfunc testHelper() {}\nfunc (s suite) TestMethod() {}\nfunc Testing() {}\n';
+  const files = { 'go/helpers_test.go': helpers, 'php/tests/cases.php': '<?php\n', 'ts/tests/case.mjs': 'export const cases = [];\n' };
+  assert.deepEqual(check(t, { files, edit: declare() }).findings, []);
+  const messages = change => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({
+    files: { ...files, 'go/helpers_test.go': 'package codec\n\nfunc TestHelper(t *testing.T) {}\nfunc Example() {}\n', 'rust/tests/support.rs': '#[tokio::test]\nasync fn helper() {}\n', 'tools/tests/case.mjs': 'export const cases = [];\n' },
+    edit: (config) => { declare({ rust: ['rust/tests/support.rs'], ts: ['tools/tests/case.mjs', 'ts/tests/gone.mjs'] })(config); config.implementations.find(entry => entry.name === 'python').support = ['python/tests/test_codec.py']; return config; },
+  }), [
+    'declaration: implementation go: the support file go/helpers_test.go declares func TestHelper, which go test runs; a support file holds no test',
+    'declaration: implementation go: the support file go/helpers_test.go declares func Example, which go test runs; a support file holds no test',
+    'declaration: implementation rust: the support file rust/tests/support.rs holds #[tokio::test], which cargo test runs; a support file holds no test',
+    'declaration: implementation ts: the support file tools/tests/case.mjs lies outside ts, the roots of ts',
+    'declaration: implementation ts: the support glob ts/tests/gone.mjs selects no test file; remove it',
     'declaration: unit codec: the test python/tests/test_codec.py of python matches its support globs',
+  ]);
+  // A support file exempts a file only from the pattern of the runner of its implementation.
+  assert.deepEqual(messages({ files, edit: (config) => { declare()(config); config.testPatterns.find(pattern => pattern.runner === 'node').globs.push('**/tests/**/*.php'); return config; } }), [
+    'R6: a node test outside ts, the roots of the node implementations, and outside tests/compare, the comparator roots; move it into the package of its implementation',
+  ]);
+  // parity-check runs each node, php and python support file once; a harness line in its output is a test that no binding declares.
+  const reporting = check(t, { files: { ...files, 'ts/tests/case.mjs': "console.log('PASS codec/empty');\n", 'php/tests/cases.php': 'FAIL codec/ascii\n' }, edit: declare() });
+  assert.deepEqual(reporting.findings.map(finding => `${finding.rule} ${finding.implementation} ${finding.place}: ${finding.message}`), [
+    'R5 ts ts/tests/case.mjs: the support file reports cases (PASS codec/empty); declare it as the test of a binding',
+    'R5 php php/tests/cases.php: the support file reports cases (FAIL codec/ascii); declare it as the test of a binding',
   ]);
 });
 
