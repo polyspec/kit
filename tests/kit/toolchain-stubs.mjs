@@ -46,25 +46,28 @@ if (args[0] === 'mod') {
 }
 `;
 
-// The python of the virtual environment: pip installs the ruff wheel, whose command prints the version of the wheel's name.
+// The python of the virtual environment: pip installs the ruff or uv wheel, whose command prints the version of the wheel's name.
 const VENV_PYTHON = `const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.STUB_LOG, 'venv-python ' + args.join(' ') + '\\n');
-const shown = process.env.STUB_RUFF_SHOWS ?? /ruff-(\\d+\\.\\d+\\.\\d+)-/.exec(args.at(-1))[1];
-fs.writeFileSync(path.join(path.dirname(process.argv[1]), 'ruff'), '#!/usr/bin/env node\\nconsole.log("ruff ' + shown + '");', { mode: 0o755 });
+const [, name, version] = /\\/(ruff|uv)-(\\d+\\.\\d+\\.\\d+)-/.exec(args.at(-1));
+const shown = process.env[name === 'ruff' ? 'STUB_RUFF_SHOWS' : 'STUB_UV_SHOWS'] ?? version;
+const suffix = name === 'uv' ? ' (stub 2026-01-01)' : '';
+fs.writeFileSync(path.join(path.dirname(process.argv[1]), name), '#!/usr/bin/env node\\nconsole.log("' + name + ' ' + shown + suffix + '");', { mode: 0o755 });
 `;
 
-// The bytes of the ruff wheel of a release: `pip download` of ruff writes them under the name of the wheel of the requirement.
+// The bytes of the ruff and uv wheels of a release: `pip download` writes them under the name of the wheel of the requirement.
 export const ruffWheel = version => `ruff ${version} wheel stand-in\n`;
+export const uvWheel = version => `uv ${version} wheel stand-in\n`;
 
 // The Python of the archive of pythonBuild: it prints STUB_PYTHON_SHOWS (3.14.8), downloads the ruff wheel of the requirement
 // file of `pip download` and makes a virtual environment whose python runs ruff.
 const PYTHON = `${HEADER}
 if (args[0] === '--version') console.log('Python ' + (process.env.STUB_PYTHON_SHOWS ?? '3.14.8'));
 else if (args[1] === 'pip' && args[2] === 'download') {
-  const version = /^ruff==(\\d+\\.\\d+\\.\\d+)/.exec(fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8'))[1];
-  fs.writeFileSync(path.join(args[args.indexOf('-d') + 1], 'ruff-' + version + '-py3-none-any.whl'), 'ruff ' + version + ' wheel stand-in\\n');
+  const [, name, version] = /^(ruff|uv)==(\\d+\\.\\d+\\.\\d+)/.exec(fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8'));
+  fs.writeFileSync(path.join(args[args.indexOf('-d') + 1], name + '-' + version + '-py3-none-any.whl'), name + ' ' + version + ' wheel stand-in\\n');
 }
 else script(path.join(args.at(-1), 'bin/python'), ${JSON.stringify(VENV_PYTHON)});
 `;

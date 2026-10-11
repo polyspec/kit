@@ -16,6 +16,15 @@
     "requirement": "setuptools==84.0.0",
     "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
   },
+  "uv": {
+    "version": "0.12.11",
+    "sha256": {
+      "darwin-arm64": "4d3337366d55b0fa44f559dad77039ba78699f3d964e597aedd7afa79da0630d",
+      "darwin-x64": "103900d5310e0d6979568b695c4782fb4cb0721db7bec70ddce70596acbf85fd",
+      "linux-arm64": "c6ff21a984039f3e5c78a432c9c5ecf28dd6282db6d46336d077188e0eed53e3",
+      "linux-x64": "2c0d529c347eccaebaeec1be0e2a7a0a7d814128595b2549649060d2f75d0df6"
+    }
+  },
   "composer": {
     "version": "2.10.3",
     "sha256": "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6"

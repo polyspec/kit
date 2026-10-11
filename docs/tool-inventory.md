@@ -35,7 +35,7 @@ repositories (lines).
 
 `scripts/kit/install-tools.mjs` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mjs`
 compares the running tools with the declarations. `scripts/kit/toolchain-declared.mjs` reads the declarations, and each
-installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-phpunit.mjs`;
+installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-uv.mjs`, `install-composer.mjs`, `install-phpunit.mjs`;
 cargo-audit and govulncheck keep `install-cargo-audit.mjs` and `install-govulncheck.mjs`). Every installer uses
 `install-tool.mjs`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
@@ -73,12 +73,13 @@ would walk it whatever the working directory.
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
 | ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made with `var/tools/bin/python3` | install |
+| uv | `uv` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; installed by pip into a virtual environment of `var/tools/bin/python3`, and the wrapper `var/tools/bin/uv` keeps its state under `var/tools` (K54) | install |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the declared Composer |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
-(`version`, `sha256` of each platform's wheel), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
+(`version`, `sha256` of each platform's wheel), `uv` (the same shape as `ruff`), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
 
@@ -560,7 +561,7 @@ more (the normalization is in the test). The base had no pair that long; the sho
 | `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
 | `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `toolchain-declared.mjs` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, cargo-audit and govulncheck that install-ruff, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
+| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, cargo-audit and govulncheck that install-ruff, install-uv, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
 | `dependency-state.mjs` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
 
 Other duplicates removed:
@@ -1135,11 +1136,159 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 - `created-by` is required. The fix of an outdated release or an advisory names the tool that wrote the lock: for uv,
   `uv lock --upgrade-package <name>` then the export again; for pip, `pip lock`. A lock with another or no `created-by`
   gets a fix that names the missing tool. The review never rewrites a lock itself (`UPDATE=1` skips these packages).
-- A consumer that adopts this release adds `"pythonLocks": [...]` to `config/dependency-policy.json` (a list, empty when it
-  has no lock). The field is required, with no compatibility path.
+- A consumer that adopts this release adds each lock to `pythonLocks` of `config/dependency-policy.json` as an object with its
+  `source` (K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. The field is
+  required, with no compatibility path.
 
 ### Limitations
 
 - The reader supports the lock writers' subset only; a lock that another writer produces with a construct outside it fails
   until the reader reads it.
 - A `directory` package is refused, not reviewed.
+
+## uv and the Python lock writer (K54)
+
+`uv` is an install-tools tool shaped as ruff is: `config/toolchain.json` `uv` declares the exact version and the sha256 of
+the wheel of each platform, `scripts/kit/install-uv.mjs` installs it into `var/tools/uv` and writes the wrapper
+`var/tools/bin/uv`. `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
+python-lock-check` (offline) compares each lock with its sources. The reason for the pin is that a lock written by an undeclared
+uv of PATH depends on the machine: `pip lock` (pip 26.2.1) is experimental and locked only the running platform (cryptography
+got only the macOS arm64 wheel), while uv's universal resolution writes the files of every platform with their markers and hashes.
+
+### uv: the install and its state
+
+- **Standalone binary or pinned Python:** the Python of `var/tools/bin/python3`. The wheel holds the binary in its data scripts;
+  reading that needs a zip reader, which kit does not have (kit imports Node built-ins only). Installing the wheel with pip
+  puts it in a virtual environment through the same hash-checked download that ruff uses, with `--no-deps`, and the environment
+  holds copies of the interpreter (`--copies`), not links. A standalone binary would need no Python at run time: measured below,
+  uv runs without an interpreter on PATH, so the Python is needed only to install uv.
+- **Wheels:** the digests of `manylinux_2_17_x86_64`, `manylinux_2_17_aarch64`, `macosx_11_0_arm64` and `macosx_10_12_x86_64`
+  (uv 0.12.11, PyPI JSON API; each digest was downloaded and its sha256 compared with the record). pip picks the wheel of the
+  platform among the listed digests. A platform without a listed wheel (musl, Windows) is not installed.
+- **State under `var/tools`, never the home:** the wrapper sets `UV_CACHE_DIR=var/tools/uv-cache`,
+  `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`, `UV_PYTHON_DOWNLOADS=never` (no interpreter is downloaded) and
+  `UV_NO_CONFIG=1` (no `uv.toml` of the home or of the system is read). The install sets `PIP_CACHE_DIR=var/tools/pip-cache`
+  and `--no-cache-dir`. The wrapper overrides a `UV_CACHE_DIR` of the caller (measured), so the cache of a checkout is always
+  its own.
+
+### Measured uv behaviour (uv 0.12.11, aarch64-apple-darwin, the Python 3.14.8 virtual environment of install-tools)
+
+| Case | Result |
+|---|---|
+| The output name | `-o` must be `pylock.toml` or `pylock.<name>.toml` with no dot in `<name>`; `-o lock.toml` exits 2 with that rule. |
+| The header | The first comment names the whole command line, the `-o` path and the source paths included, so the writer runs in a temporary directory with the source names. |
+| Files written | Online with a cold cache: the lock and nothing else in the working directory. |
+| Cache | Under `UV_CACHE_DIR` only: `interpreter-v4`, `sdists-v9`, `simple-v24`, `wheels-v6`, `archive-v0` (with a URL constraint), `.lock`, `CACHEDIR.TAG`, `.gitignore`; 904K for the six-package set below. |
+| Offline, cold cache (`--offline`) | Exit 1, "unsatisfiable"; no file is written. |
+| Offline, warm cache (`--offline`, the cache of the online run) | Exit 0; the body of the lock is byte-identical to the online lock, only the header line that names `--offline` differs. |
+| No Python on PATH (`env -i PATH=/bin`), cold cache | Exit 0: `--universal` needs no interpreter. |
+| A marker requirement `colorama==0.4.6; sys_platform == "win32"` | The package carries `marker = "sys_platform == 'win32'"`. |
+| A constraint `certifi @ <wheel URL>#sha256=<digest>` | The package is `archive = { url, hashes = { sha256 } }`, not a registry entry; the digest is the fragment's. |
+| Platforms | `charset-normalizer==3.5.2` has 86 wheel files; every one of the 97 files of the set has a sha256 (`--generate-hashes`). |
+| A `pyproject.toml` as the requirements, copied into the temporary directory under its name | uv reads `[project].dependencies` there; the project itself is not emitted, so the lock holds only its dependencies. In place was not measured under a lock name (the first attempt used `out-a.toml`, which uv refuses); the copy works, so the writer copies. |
+| `--no-index --find-links <dir>`, a relative or an absolute `<dir>` | Each local wheel is `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`: uv writes the realpath, not the relative input. The header names `--no-index` and omits `--find-links`, so no checkout path is in the header. |
+| `path = "<relative to the lock>"` (PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml` and pip 26.2.1 `install --dry-run --no-index -r pylock.toml` read the path relative to the lock directory: uv from two working directories, pip from the lock directory (measured on the two wheels of the set). |
+| The lower bound of `--universal` | Without `--python-version`, uv takes the lower Python bound of the universal resolution from an interpreter that it finds, not from `requires-python` (measured: with Python 3.11 on PATH it resolved for 3.11 and noted that a dependency requires 3.14). The writer therefore passes `--python-version` with the `python` minor of `config/toolchain.json`, and a toolchain without one is refused before uv runs. |
+| A `dependencies` entry in `[project].dynamic` | Not measured with uv: the writer and the check refuse it before uv runs. |
+
+The six-package set is `requests==2.34.2` with `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`,
+`urllib3==2.8.0` and, for the marker, `colorama==0.4.6`; every package is pinned, so no run chooses a version.
+
+### Declaration of a lock
+
+`config/dependency-policy.json` names each lock in `pythonLocks`, and its `source` names the files that the lock is written from
+(`scripts/kit/schema/dependency-policy.schema.json`):
+
+```json
+"pythonLocks": [
+  {
+    "lock": "packages/app-python/pylock.toml",
+    "source": {
+      "requirements": "packages/app-python/pyproject.toml",
+      "constraints": "packages/app-python/constraints.txt",
+      "findLinks": "packages/app-python/wheels"
+    }
+  }
+]
+```
+
+- `requirements`: the direct requirements, in one of two forms.
+  - A requirements file, one per line: `name`, `name==version`, a range such as `name>=2.30,<3` or `name~=2.34`, or `name @ url`.
+    A marker after `;` is kept by uv and not read for the pin, and extras are not read for the pin. An option or any other form
+    fails with its line.
+  - A `pyproject.toml`: its static `[project].dependencies` are the direct requirements. A wheel package names its own pyproject,
+    so its requirements have one copy. A pyproject that lists `dependencies` in `[project].dynamic` is refused, because the
+    requirements are then not in the file. The reader of kit reads single-line strings only, so a pyproject with a multi-line
+    string fails with its line.
+- `constraints`: a constraints file that pins every package, transitive ones too, one per line: `name==version`, or
+  `name @ https://...#sha256=<digest>` for a polyspec archive. Anything else (a range, a marker, an option, a hash) fails with its line.
+- `findLinks` (optional): a directory of the checkout, relative to the root, with the local wheels. The writer then runs uv with
+  `--no-index --find-links <directory>` and reads no index. A path outside the checkout, or a directory that does not exist, fails.
+  The directory lies inside the package of the lock (the directory of the lock): the lock names each local wheel by a path
+  relative to the lock, and that path may not leave the package. The writer refuses a findLinks outside it before uv runs, and
+  `python-lock-check` refuses a local path that leaves it (`..`), naming the package and the file.
+
+```text
+# packages/app-python/pyproject.toml
+[project]
+name = "app"
+version = "0.0.0"
+dependencies = ["requests==2.34.2", "colorama==0.4.6; sys_platform == 'win32'"]
+
+# packages/app-python/constraints.txt
+requests==2.34.2
+certifi==2026.7.22
+charset-normalizer==3.5.2
+colorama==0.4.6
+idna==3.20
+urllib3==2.8.0
+```
+
+### Writer (`make python-lock`, ONLINE unless findLinks is declared)
+
+`scripts/kit/python-lock.mjs write` runs `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+--generate-hashes --format pylock.toml -o pylock.toml` (`<python>` is the `python` minor of `config/toolchain.json`) in a directory of `var/tools` (`python-lock-<random>`) that holds the two sources under their
+own names. A `pyproject.toml` is copied under its name, and uv reads it there (measured below), so the pyproject does not have to
+stay in the checkout for uv. With findLinks it appends `--no-index --find-links <directory>`. The source is read and parsed first,
+so a malformed source stops before uv runs.
+
+uv writes a local wheel as `url = "file:///<checkout path>/<wheel>"`. The writer replaces each such URL with a `path` relative to the
+lock's directory (`path = "../links/<wheel>"`, PEP 751), and refuses any other file URL, so the lock holds no machine path. The
+written lock is checked against the sources (the same check as `python-lock-check`), then renamed to its place; a refused run leaves
+the lock it had and removes its directory. An unpinned transitive package is refused with its name: uv resolves it to a registry
+release, the check finds it in the lock and not in the constraints.
+
+### Check (`make python-lock-check`, offline)
+
+It never resolves. It fails, naming the file and the package with its fix, when:
+
+- a lock package has no pin in the constraints (a transitive one included), or a pin has no package in the lock;
+- a lock package is at another version than its pin, or is a git or directory package (the lock holds registry files and archives);
+- a constraint is not `name==version` or a direct reference with `#sha256`, or a line is an option or a hash;
+- a requirement has no pin, or its specifier is not satisfied by the pinned release (PEP 440 release order, `~=` as `>=` and `==prefix.*`);
+- a `pyproject.toml` source lists `dependencies` in `[project].dynamic`, or has no `[project]` table;
+- a registry file has no sha256, a lock is not PEP 751 1.0 or does not read (`readPylock`);
+- a local file of the lock (its `path`, relative to the lock) is missing, is an absolute path, or does not hold the sha256 of the lock:
+  the check reads the file, so the wheels of a findLinks lock must be in the checkout;
+- an archive's URL or sha256 differs from its constraint;
+- a source or the lock is missing.
+
+Each case has a test that fails for it (`tests/kit/python-lock-check.test.mjs`), and the writer's cases are in
+`tests/kit/python-lock-write.test.mjs` (a stub uv). `tests/source/python-lock-real.test.mjs` runs the real uv with no network: the
+wheels are the pinned setuptools wheel of `var/tools/wheels` and a pure-Python wheel built with the pinned Python from a source tree,
+both in a directory of the test under `var/`. The test writes a lock of a pyproject with findLinks, the offline check passes on it,
+a version drift (`0.0.1` to `0.0.2`) fails with `tinylib`, and a constraint set without `setuptools` fails with `setuptools`. The
+fixture policy of `tests/kit/fixture` declares sources that exist and agree with its lock, and a test runs the check on that fixture.
+
+### Limitations
+
+- The check reads the local files of a findLinks lock, so a checkout without its wheels fails the check until they are downloaded.
+- The check reads only `[project].dependencies` of a pyproject. uv also reads `[tool.uv]` (indexes, sources) when it writes the
+  lock; a source that uv resolves to git or a directory fails the check, and an extra index is not seen by the check.
+- The reader of kit reads single-line strings only, so a pyproject with a multi-line string fails with its line (the reader names
+  it; it is not silently skipped).
+- The check cannot compare a registry file's sha256 with the registry without the network, so a drift of one hex digit of a
+  registry hash passes it; the dependency review records the lock's sha256 and the gate fails on that change (K36).
+- The writer needs the network (PyPI through uv) unless findLinks is declared.
+- A requirement's extras and markers do not change which packages are pinned: every package of the lock must be in the constraints,
+  whatever the marker.

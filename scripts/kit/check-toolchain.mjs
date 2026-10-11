@@ -30,6 +30,7 @@ const probes = {
   python: { command: root => toolsPath(root, 'bin', 'python3'), args: ['--version'], pattern: /^Python (\d+\.\d+\.\d+)/m, fix: () => INSTALL },
   composer: { command: () => 'composer', args: ['--version', '--no-ansi'], pattern: /^Composer version (\d+\.\d+\.\d+) /m, fix: v => `install Composer ${v}, or declare its sha256 and run ${INSTALL}` },
   ruff: { command: () => 'ruff', ...RELEASE_OUTPUT.ruff, fix: () => INSTALL },
+  uv: { command: () => 'uv', ...RELEASE_OUTPUT.uv, fix: () => INSTALL },
   phpunit: { command: () => 'phpunit', ...RELEASE_OUTPUT.phpunit, fix: () => INSTALL },
   cargoAudit: { command: cargoAuditCommand, ...RELEASE_OUTPUT.cargoAudit, fix: () => 'make install-tools' },
   govulncheck: { command: govulncheckCommand, ...RELEASE_OUTPUT.govulncheck, fix: () => 'make install-tools' },
