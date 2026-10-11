@@ -20,6 +20,18 @@
           "runner": { "description": "How a binding runs: go (go test -json), cargo (cargo test), node, php and python (var/tools/bin/python3) run the test file and read its PASS and FAIL lines.", "type": "string", "enum": ["go", "cargo", "node", "php", "python"] },
           "roots": { "description": "The directories that hold the implementation and its tests; . is the whole repository.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "tests": { "description": "Globs of the test files of the implementation; each one must be the test of a binding.", "type": "array", "items": { "type": "string" } },
+          "command": { "description": "The program of the runner: a path relative to the root of the checkout when it holds a /, else a name on PATH. Default: go, cargo, the running node, php, var/tools/bin/python3.", "type": "string" },
+          "args": { "description": "Arguments of the program: after test for go and cargo, before the test file for node, php and python.", "type": "array", "items": { "type": "string" } },
+          "env": {
+            "description": "Variables set for the runs of this implementation only, over the environment of the check.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "value"],
+              "additionalProperties": false,
+              "properties": { "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "value": { "type": "string" } }
+            }
+          },
           "symbols": { "description": "The symbol snapshot of the extractor: a JSON object from each symbol id to an object with a boolean exported.", "type": "string" },
           "errors": {
             "description": "The generated error-code artifact of the implementation and the regular expression whose first group is a code.",

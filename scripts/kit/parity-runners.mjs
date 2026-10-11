@@ -47,28 +47,48 @@ function goCases(output, symbol) {
   return cases;
 }
 
+// Each runner: the program that it starts unless the implementation declares `command`, and the run of a binding, whose
+// `options` are the `args` of the implementation.
 const RUNNERS = {
-  go(root, binding) {
-    const module = nearest(root, binding.test, 'go.mod');
-    if (module === undefined) return { error: `no go.mod lies above ${binding.test}` };
-    const directory = path.posix.relative(module, path.posix.dirname(binding.test));
-    return { command: 'go', args: ['test', '-json', '-count=1', '-run', `^${binding.symbol}$`, `./${directory}`], cwd: module, cases: ({ stdout }) => goCases(stdout, binding.symbol) };
+  go: {
+    program: () => 'go',
+    run(root, binding, unit, options) {
+      const module = nearest(root, binding.test, 'go.mod');
+      if (module === undefined) return { error: `no go.mod lies above ${binding.test}` };
+      const directory = path.posix.relative(module, path.posix.dirname(binding.test));
+      return { args: ['test', ...options, '-json', '-count=1', '-run', `^${binding.symbol}$`, `./${directory}`], cwd: module, cases: ({ stdout }) => goCases(stdout, binding.symbol) };
+    },
   },
-  cargo(root, binding, unit) {
-    const crate = nearest(root, binding.test, 'Cargo.toml');
-    if (crate === undefined) return { error: `no Cargo.toml lies above ${binding.test}` };
-    const relative = path.posix.relative(crate, binding.test);
-    const target = /^tests\/[^/]+\.rs$/.test(relative) ? ['--test', path.posix.basename(relative, '.rs')] : ['--lib'];
-    // A Rust harness line reaches standard output (println!) or standard error (eprintln!); both are read.
-    return { command: 'cargo', args: ['test', '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, '--', '--exact', binding.symbol, '--nocapture', '--test-threads=1'], cwd: '.', cases: ({ stdout, stderr }) => harnessCases(`${stdout}\n${stderr}`, unit, LIBTEST_PREFIX) };
+  cargo: {
+    program: () => 'cargo',
+    run(root, binding, unit, options) {
+      const crate = nearest(root, binding.test, 'Cargo.toml');
+      if (crate === undefined) return { error: `no Cargo.toml lies above ${binding.test}` };
+      const relative = path.posix.relative(crate, binding.test);
+      const target = /^tests\/[^/]+\.rs$/.test(relative) ? ['--test', path.posix.basename(relative, '.rs')] : ['--lib'];
+      // A Rust harness line reaches standard output (println!) or standard error (eprintln!); both are read.
+      return { args: ['test', ...options, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, '--', '--exact', binding.symbol, '--nocapture', '--test-threads=1'], cwd: '.', cases: ({ stdout, stderr }) => harnessCases(`${stdout}\n${stderr}`, unit, LIBTEST_PREFIX) };
+    },
   },
-  node: (root, binding, unit) => ({ command: process.execPath, args: [binding.test], cwd: '.', cases: ({ stdout }) => harnessCases(stdout, unit) }),
-  php: (root, binding, unit) => ({ command: 'php', args: [binding.test], cwd: '.', cases: ({ stdout }) => harnessCases(stdout, unit) }),
-  python: (root, binding, unit) => ({ command: toolsPath(root, 'bin', 'python3'), args: [binding.test], cwd: '.', cases: ({ stdout }) => harnessCases(stdout, unit) }),
+  node: { program: () => process.execPath },
+  php: { program: () => 'php' },
+  python: { program: root => toolsPath(root, 'bin', 'python3') },
 };
 
+/** The run of a file runner (node, php, python): the program with the options and the test file, in the root of the checkout. */
+const fileRun = (root, binding, unit, options) => ({ args: [...options, binding.test], cwd: '.', cases: ({ stdout }) => harnessCases(stdout, unit) });
+
 /**
- * The run of the binding `binding` of the unit `unit` (its id) by the runner `runner`: `{ command, args, cwd, cases }` with
- * `cwd` relative to `root` and `cases({ stdout, stderr })` the outcome of each case that the output reports, or `{ error }`.
+ * The run of the binding `binding` of the unit `unit` (its id) in `implementation`: `{ command, args, cwd, env, cases }` with
+ * `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `cases({ stdout, stderr })` the outcome
+ * of each case that the output reports; or `{ error }`. A `command` with a / is a path relative to `root`.
  */
-export const runOf = (runner, root, binding, unit) => RUNNERS[runner](root, binding, unit);
+export function runOf(implementation, root, binding, unit, base) {
+  const runner = RUNNERS[implementation.runner];
+  const run = (runner.run ?? fileRun)(root, binding, unit, implementation.args ?? []);
+  if (run.error) return run;
+  const declared = implementation.command;
+  const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.join(root, declared) : declared;
+  const env = { ...base, ...Object.fromEntries((implementation.env ?? []).map(entry => [entry.name, entry.value])) };
+  return { ...run, command, env };
+}
