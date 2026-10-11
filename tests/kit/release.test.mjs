@@ -3,7 +3,7 @@
 // gh and npm on PATH; real git, tar and unzip run. No case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mjs';
@@ -561,32 +561,4 @@ test('undraft makes the draft public with one edit, a public release stays as it
   const edits = box.state().calls.filter(args => args[1] === 'edit').length;
   assert.equal(release.undraft(context(box), tag), false);
   assert.equal(box.state().calls.filter(args => args[1] === 'edit').length, edits, 'a public release is not edited again');
-});
-
-// K55: a repository releases the npm package at its root (directory `.`), as kit releases @polyspec/kit from its root package.json.
-const rootPackage = root => {
-  writeJson(root, 'package.json', { name: '@polyspec/kit-fixture', version: '0.0.1', exports: { './*.mjs': './lib/*.mjs' } });
-  edit(root, 'config/release.json', config => ({ ...config, packages: [...config.packages, { kind: 'npm', directory: '.', name: '@polyspec/kit-fixture' }], manifests: { ...config.manifests, 'package.json': 'archive' } }));
-};
-
-test('a package at the repository root (directory .) is packed from the root with its root manifest', (t) => {
-  const box = releaseSandbox(t, { mutate: rootPackage });
-  const ctx = context(box);
-  assert.deepEqual(release.coverage(ctx), [], 'package.json is the manifest of the root package');
-  const names = release.assets(ctx, box.tag('v0.0.1'));
-  assert.equal(names.at(-1), 'polyspec-kit-fixture-npm-0.0.1.tgz');
-  assert.deepEqual(box.npmCalls().map(call => call.cwd), [path.join(box.root, 'packages/fixture-lib'), path.join(box.root, 'packages/fixture-app'), box.root].map(dir => realpathSync(dir)));
-  assert.equal(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', names.at(-1))), readFileSync(path.join(box.root, 'package.json'), 'utf8'));
-});
-
-test('the root package needs manifests.package.json = "archive", and a directory that leaves the repository is refused', (t) => {
-  const box = releaseSandbox(t, { mutate: rootPackage });
-  const config = readJson(box.root, 'config/release.json');
-  assert.equal(release.loadConfig(box.root).packages.at(-1).directory, '.');
-  edit(box.root, 'config/release.json', value => ({ ...value, manifests: { ...value.manifests, 'package.json': 'version' } }));
-  stop(() => release.loadConfig(box.root), /the package @polyspec\/kit-fixture needs manifests\.package\.json = "archive", found "version"/);
-  for (const [directory, reason] of [['..', /the directory \.\. of the package @polyspec\/kit-fixture has a \. or \.\. segment/], ['../x', /the directory \.\.\/x of the package @polyspec\/kit-fixture has a \. or \.\. segment/], ['a/./b', /the directory a\/\.\/b of the package/], ['./', /packages/], ['/abs', /packages/]]) {
-    writeJson(box.root, 'config/release.json', { ...config, packages: [...config.packages.slice(0, -1), { kind: 'npm', directory, name: '@polyspec/kit-fixture' }] });
-    stop(() => release.loadConfig(box.root), reason);
-  }
 });

@@ -53,15 +53,6 @@ at most 50 characters, a body wrapped at 72 characters, and the types `feat`, `f
 kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci` success. `kit.json` holds the version of the
 tree. A repository adopts a release with `make kit-sync KIT_TAG=vX.Y.Z`.
 
-kit releases itself with its own release form: `.github/workflows/release.yml` is the release workflow that kit vendors, and
-config/release.json declares one package, the npm package `@polyspec/kit` at the repository root. Each tag publishes its asset
-`polyspec-kit-npm-<version>.tgz`, which holds `scripts/kit`; the exports map of package.json maps `./*.mjs` to
-`./scripts/kit/*.mjs`, so a consumer that takes kit as a library imports a module as
-`import { makeVenv } from '@polyspec/kit/python-venv.mjs'` and passes explicit paths to its functions. package.json and kit.json hold
-the same version, CHANGELOG.md and CHANGELOG.ko.md hold the section `## X.Y.Z` of the release, and the consumer project
-`tests/release-consumer/npm` names the archive of the version (`make release-consumer-lock TAG=vX.Y.Z` writes it on the release
-commit). The release proof installs the asset there, and its smoke command imports every module that exports a name.
-
 A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
 type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
 published tag is not moved; the check runs only on the tag being released.
