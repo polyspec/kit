@@ -1,0 +1,50 @@
+# Release workflow that a repository adopting kit copies to .github/workflows/release.yml. A tag push creates the GitHub
+# Release of the tag. The steps run in order and stop at the first failure; each step runs one make target of
+# scripts/kit/kit.mk, with TAG from the environment:
+#   release-verify   the tagged commit is on origin/main and its check runs concluded success, without running the tests again
+#   release-versions every manifest has the version of the tag and the changelog has its section
+#   release-assets  builds the archive of every package into var/release/assets
+#   release-publish creates the GitHub Release of the tag with its notes and archives
+#   release-proof   proves the published release from outside the checkout: its assets, its consumer installs, its git-tag
+#                   installs and its Go module tags. A failed proof fails this run, so a release that cannot be installed is
+#                   reported when it is published.
+# The runner image and each action are exact releases. The tools of the steps come from install-tools, which reads
+# config/toolchain.json; a repository whose proof installs another toolchain declares it in TOOLS.
+name: release
+
+on:
+  push:
+    tags: ['v*', '**/v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # actions/checkout v6.1.0: the whole history and every branch, so origin/main is there for the ancestry check.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      # actions/setup-node v6.5.0: the Node.js of .node-version runs the tools of scripts/kit. The repository installs no npm
+      # package, so the cache of setup-node is off.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: make install-tools
+        run: make install-tools TOOLS="npm python pythonBackend"
+      - name: verify the tagged commit
+        run: make release-verify
+      - name: check the versions
+        run: make release-versions
+      - name: build the assets
+        run: make release-assets
+      - name: create the release
+        run: make release-publish
+      - name: prove the release
+        run: make release-proof TAG="$TAG"

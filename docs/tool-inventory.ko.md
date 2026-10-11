@@ -616,7 +616,8 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 ## Release proof (K5.5)
 
 `scripts/kit/release-proof.mjs TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
-developer 또는 CI command로 실행하며 어떤 offline check에도 속하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
+`templates/release.yml`의 release workflow가 `release-publish` 뒤 같은 job에서 실행하므로, 증명이 실패하면 그 run이 실패합니다.
+developer도 어떤 released tag에든 실행할 수 있습니다. offline check가 아닙니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
 또는 기대값과 실제 값을 적습니다.
 

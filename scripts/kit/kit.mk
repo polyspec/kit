@@ -142,7 +142,7 @@ lint-python: ## Lint and format-check the Python of the checkout with the ruff o
 # smoke command for each package. A lock pins registry packages by version and integrity, so the install downloads them: that is
 # installation, and the target is no offline check. release-consumer-lock resolves versions and runs ONLINE.
 # scripts/kit/release-proof.mjs proves a released TAG from outside the repository (GitHub Release, consumer installs, git-tag
-# installs, Go modules); it runs after the release exists and belongs to no check.
+# installs, Go modules); the release workflow of templates/release.yml runs it after release-publish, and a developer may run it.
 .PHONY: release-consumer release-consumer-lock release-proof
 
 release-consumer: ## Install the archives of TAG in var/release/assets in clean npm and Composer projects and run the smoke commands

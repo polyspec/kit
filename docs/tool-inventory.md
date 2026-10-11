@@ -670,7 +670,8 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 ## Release proof (K5.5)
 
 `scripts/kit/release-proof.mjs TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
-repository. It runs after the release exists, as a developer or CI command, and belongs to no offline check. No tool of the five
+repository. The release workflow of `templates/release.yml` runs it after `release-publish` in the same job, so a failed proof fails that run;
+a developer may run it for any released tag. It is no offline check. No tool of the five
 repositories had a counterpart; the install of the archives is `installConsumers` of K5.4. It stops at the first failed step and
 prints `✔ <what>` for each step that passed. A failure names the command with its status and error, or the expected and the
 actual value.

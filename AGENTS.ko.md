@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: dc059fb4df1a23ce8954c675f49e905c76a170320adca1bace2d5dd83bcb354c -->
+<!-- source-sha256: 52749ca88c115d940543997ab8095c4d2c40e069102adf5d1260b4fb0f9a3f8b -->
 # 개발
 
 [English](AGENTS.md)
@@ -49,6 +49,9 @@ kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
 이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
+
+`templates/release.yml`에서 저장소가 복사하는 release workflow는 `release-publish` 뒤 같은 job에서 `make release-proof TAG=<tag>`를 실행합니다.
+증명이 실패하면 run이 실패하므로, 자산이나 설치가 실패한 release는 게시할 때 보고됩니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의

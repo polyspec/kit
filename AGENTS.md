@@ -54,6 +54,9 @@ A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `r
 type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
 published tag is not moved; the check runs only on the tag being released.
 
+The release workflow that a repository copies from `templates/release.yml` runs `make release-proof TAG=<tag>` after
+`make release-publish`, in the same job. A failed proof fails the run, so a release whose assets or installs fail is reported when it is published.
+
 A package of kind `wheel` (a Python package with a `pyproject.toml`) is released as its PEP 427 wheel
 `<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with the
 build backend that `buildBackend` of config/release.json pins by its exact requirement and by the sha256 of its wheel;
