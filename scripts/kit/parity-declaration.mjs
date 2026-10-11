@@ -70,8 +70,11 @@ export function casesOf(value, cases) {
   return { names: selected.map(entry => entry.value).filter(name => typeof name === 'string' && name), errors };
 }
 
-/** Whether `file` lies in the directory `root` (. is the whole repository). */
-export const within = (root, file) => root === '.' || file.startsWith(`${root.replace(/\/+$/, '')}/`);
+/** Whether `file` lies in the directory `root`. */
+export const within = (root, file) => file.startsWith(`${root.replace(/\/+$/, '')}/`);
+
+/** Whether the directory `root` is the whole repository. */
+const wholeRepository = root => /^(?:\.?\/*|\.\/+\.?)$/.test(root);
 
 /** The JSON value of a tracked file, or an error of the declaration. */
 function readTrackedJson(root, files, file, where, errors) {
@@ -142,6 +145,11 @@ export function readDeclaration(root, files) {
   for (const entry of config.implementations) {
     if (!config.profiles.some(profile => profile.implementations.includes(entry.name))) fail(`the implementation ${entry.name} is in no profile, so no unit applies to it`);
   }
+  // A root of the whole repository would hold every test of every runner, so no test could lie outside it.
+  for (const entry of config.implementations) {
+    for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
+  }
+  for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
   const knownProfile = (name, where) => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
   const snapshots = new Map();
   for (const entry of config.implementations) {

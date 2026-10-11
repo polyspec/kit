@@ -144,6 +144,14 @@ const CONFIG = {
     { name: 'compiled', implementations: ['go', 'rust'], reason: 'the width tables exist only in the compiled implementations' },
   ],
   suites: ['tests/vectors/*.json'],
+  comparators: ['tests/compare'],
+  testPatterns: [
+    { runner: 'go', globs: ['**/*_test.go'] },
+    { runner: 'cargo', globs: ['**/tests/**/*.rs'] },
+    { runner: 'node', globs: ['**/tests/**/*.mjs'] },
+    { runner: 'php', globs: ['**/tests/**/*.php'] },
+    { runner: 'python', globs: ['**/tests/**/test_*.py'] },
+  ],
   units: [
     {
       id: 'codec', kind: 'suite', profile: 'all', file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
@@ -362,6 +370,32 @@ test('R6: a binding whose test lies outside the roots of its implementation fail
   });
   assert.deepEqual(keys(findings), ['R6 codec php']);
   assert.match(findings[0].message, /outside php/);
+});
+
+test('R6: a test of a runner outside the roots of every implementation of that runner and every comparator root fails', TIMEOUT, (t) => {
+  const { findings } = check(t, {
+    files: {
+      'tools/extra_test.go': 'package tools\n',
+      'php/tests/codec_test.go': 'package php\n',
+      'tests/compare/all_test.go': 'package compare\n',
+      'tests/compare/codec.php': FILES['php/tests/codec.php'],
+      'php/tests/codec.php': null,
+    },
+    edit: (config) => { binding(config, 'codec', 'php').test = 'tests/compare/codec.php'; return config; },
+  });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.place}`), ['R6 php/tests/codec_test.go', 'R6 tools/extra_test.go']);
+  assert.match(findings[1].message, /a go test outside go, the roots of the go implementations, and outside tests\/compare, the comparator roots/);
+});
+
+test('the whole repository is no root, and an implementation has test globs', TIMEOUT, (t) => {
+  const messages = change => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ edit: (config) => { config.implementations[0].roots = ['.']; config.comparators = ['./']; return config; } }), [
+    'declaration: implementation go: the root . is the whole repository; name the directories of the implementation',
+    'declaration: comparators: the root ./ is the whole repository; name the directories of the comparators',
+  ]);
+  assert.deepEqual(messages({ edit: (config) => { config.implementations[0].tests = []; return config; } }), [
+    'declaration: config/parity.json: $.implementations[0].tests has 0 items, the schema requires at least 1',
+  ]);
 });
 
 test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {
