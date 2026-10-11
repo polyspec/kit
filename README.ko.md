@@ -29,7 +29,7 @@
 ```sh
 make kit-sync KIT_TAG=v0.0.4   # tag의 vendored 파일을 복사하고 .kit/kit.lock.json을 씁니다(온라인)
 make kit-check                 # 파일을 lock과, 설정을 schema와 비교합니다(오프라인)
-make kit-test                  # vendored 테스트를 실행합니다(오프라인)
+make kit-test                  # vendored 테스트를 run-tests.mjs로 실행합니다(오프라인)
 ```
 
 같은 tag로 `kit-sync`를 다시 실행하면 바뀌는 것이 없습니다. vendored 파일은 kit에서 고쳐 다시 복사하며, 저장소에서 직접 고치지 않습니다.
