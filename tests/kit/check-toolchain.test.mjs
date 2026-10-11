@@ -29,11 +29,16 @@ const OUTPUTS = {
   ruff: 'ruff 0.16.10',
 };
 const check = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mjs', ...tools], { cwd: root, env, encoding: 'utf8' });
+// The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mjs writes; here it runs the stub.
 const setup = (t, outputs = OUTPUTS, files = FILES) => {
   const root = toolchainCheckout(t, files);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  return { root, stubs: versionStubs(t, outputs) };
+  const stubs = versionStubs(t, outputs);
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/python3'), `#!/bin/sh\nexec '${path.join(stubs.directory, 'bin', 'python3')}' "$@"\n`);
+  chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
+  return { root, stubs };
 };
 
 test('every declared tool at its declared version passes, offline, and the run prints the running releases', (t) => {
@@ -57,7 +62,7 @@ test('every tool that differs is named with the declaring file, the expected and
     '[check-toolchain] go: 1.26.0 runs here and go.mod go directive declares 1.27.1; fix: make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares 1.98.1; fix: rustup toolchain install --no-self-update, in the checkout',
     '[check-toolchain] php: 8.4.9 runs here and config/toolchain.json php declares 8.2 or 8.5; fix: install PHP 8.2 or 8.5',
-    '[check-toolchain] python: 3.13.2 runs here and config/toolchain.json python declares 3.14; fix: install Python 3.14',
+    '[check-toolchain] python: 3.13.2 runs here and config/toolchain.json python declares 3.14; fix: make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] composer: 2.9.0 runs here and config/toolchain.json composer declares 2.10.3; fix: install Composer 2.10.3, or declare its sha256 and run make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] ruff: 0.15.0 runs here and pyproject.toml ruff pin declares 0.16.10; fix: make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] 7 of 10 tools differ from the declared versions',

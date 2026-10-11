@@ -22,6 +22,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mjs';
+import { toolsPath } from './tool-wrappers.mjs';
 import { writeJson } from './files.mjs';
 import { isMain, ROOT } from './paths.mjs';
 import { inputsDigest } from './tracked-files.mjs';
@@ -41,7 +42,7 @@ const INSTALL = {
   go: () => 'run make install-tools, which installs Go into var/tools',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
   phpunit: ({ cwd }) => `run composer install in ${path.relative(ROOT, cwd) || '.'}`,
-  python: () => 'install the Python release of config/toolchain.json python or .python-version',
+  python: () => 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python, which installs var/tools/bin/python3',
 };
 
 export function parseArguments(argv, root = ROOT) {
@@ -110,7 +111,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension }, r
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
       // `discover` argument unittest would read `discover` as a test name.
-      return { command: 'python3', args: ['-m', 'unittest', ...args, '-v'] };
+      return { command: toolsPath(root, 'bin', 'python3'), args: ['-m', 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }

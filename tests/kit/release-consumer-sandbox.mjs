@@ -9,7 +9,7 @@
 //   cargo, go answer from the state
 // No test reaches a registry, GitHub or a network.
 import { spawnSync } from 'node:child_process';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as release from '../../scripts/kit/release.mjs';
 import * as consumer from '../../scripts/kit/release-consumer.mjs';
@@ -149,6 +149,11 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
+  // The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mjs writes: it runs the stub.
+  const python = path.join(box.root, 'var/tools/bin/python3');
+  mkdirSync(path.dirname(python), { recursive: true });
+  writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
+  chmodSync(python, 0o755);
   writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));

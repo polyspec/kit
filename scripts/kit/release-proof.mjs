@@ -17,6 +17,7 @@
 // A tag `<Go module directory>/vX.Y.Z` releases that module alone: the release holds no archive and only step 4 runs for it.
 // Every command of a step comes from config/release.json: `consumers` (smoke commands of the archives) and `proof.gitTag`.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
+import { toolsPath } from './tool-wrappers.mjs';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -66,7 +67,7 @@ function proveGitTag(ctx, tag, folder, step) {
     mkdirSync(work, { recursive: true });
     if (entry.kind === 'python') {
       const environment = path.join(work, 'venv');
-      run('python3', ['-m', 'venv', environment], { cwd: work, env: ctx.env });
+      run(toolsPath(ctx.root, 'bin', 'python3'), ['-m', 'venv', environment], { cwd: work, env: ctx.env });
       const bin = path.join(environment, 'bin');
       const env = { ...ctx.env, PATH: `${bin}${path.delimiter}${ctx.env.PATH}`, VIRTUAL_ENV: environment };
       const spec = `${entry.name} @ git+${config.repositoryUrl}@${tag}${directory === '.' ? '' : `#subdirectory=${directory}`}`;

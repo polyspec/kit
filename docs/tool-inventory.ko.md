@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 86bace4d9ee6848ffb99970cd1f16ed21993d8a2b2e5c8e5008856bd0ca2f774 -->
+<!-- source-sha256: a732fea2e74ffdcedb63599cad3a3763dfdd5c36593615e749e4952a4375251b -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -35,7 +35,7 @@
 
 `scripts/kit/install-tools.mjs`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mjs`는 실행 중인
 도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mjs`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`; cargo-audit와 govulncheck는 기존
+(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mjs`, `install-govulncheck.mjs`를 씁니다). 모든 installer는 `install-tool.mjs`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
@@ -49,13 +49,13 @@
 | Go | `config/toolchain.json`의 `go`: `versionFile`, 없으면 `go.mod`의 `toolchain` 줄, 없으면 `go` directive | 설치 |
 | Rust | `rust-toolchain.toml`의 `channel`(정확한 version) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
-| Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함 | 검증, 그리고 ruff 환경의 minor |
+| Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
-| ruff | `ruff.pyproject`가 가리키는 `pyproject.toml`의 `ruff==X.Y.Z` pin | 설치 |
+| ruff | `ruff.pyproject`가 가리키는 `pyproject.toml`의 `ruff==X.Y.Z` pin; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`pyproject`),
+목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`pyproject`), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
 `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
@@ -74,7 +74,8 @@
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
   읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
-- ruff: template의 virtual environment는 `--copies`로 만들어 interpreter로의 link가 없습니다.
+- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다; wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다.
+- ruff: template의 virtual environment는 `var/tools/bin/python3`으로 `--copies`를 써서 만들어 interpreter로의 link가 없습니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
   (ordered-json), 증거 함수 `toolchainVersions`(crudui)입니다. 검증은 ruff, cargo-audit, govulncheck도 포함하고, 도구를 하나도

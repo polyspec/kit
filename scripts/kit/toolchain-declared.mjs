@@ -6,6 +6,7 @@
 //   rust         channel of rust-toolchain.toml
 //   php          config/toolchain.json php (minor releases), else .php-version
 //   python       config/toolchain.json python (minor release), else .python-version
+//   pythonBuild  config/toolchain.json pythonBuild: the exact Python release of the python minor, its release and its sha256 by platform
 //   composer     config/toolchain.json composer
 //   ruff         the ruff==<version> pin of the pyproject.toml that config/toolchain.json ruff names
 //   cargoAudit   config/toolchain.json cargoAudit
@@ -54,6 +55,20 @@ function goVersion(root, go) {
 /** The exact release that config/toolchain.json of `root` records for `key`; an error names the expected form when it is missing or not exact. */
 export const recordedRelease = (root, key) => exact('config/toolchain.json', key, toolchainConfig(root)[key]);
 
+// The exact Python release of pythonBuild, which must be a release of the declared python minor: { version, release, sha256 }.
+function pythonBuild(value, minor) {
+  const file = 'config/toolchain.json pythonBuild';
+  if (!minor) throw new Error(`${file} needs python, the minor release of the checks; declare python in config/toolchain.json or write .python-version`);
+  const version = exact(file, 'the Python release', value.version);
+  if (version.split('.').slice(0, 2).join('.') !== minor) throw new Error(`${file} declares ${version}, but python declares ${minor}; declare a release of ${minor}`);
+  if (!/^\d{8}$/.test(value.release ?? '')) throw new Error(`${file} must record pythonBuild.release as the eight-digit date of the python-build-standalone release; it records ${JSON.stringify(value.release)}`);
+  const digests = value.sha256 ?? {};
+  for (const [platform, digest] of Object.entries(digests)) {
+    if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+  }
+  return { version, release: value.release, sha256: digests, source: file };
+}
+
 /** The declared toolchains of the checkout at `root`. */
 export function declaredToolchain(root) {
   const config = toolchainConfig(root);
@@ -87,6 +102,9 @@ export function declaredToolchain(root) {
     declared.python = { minor: config.python, source: 'config/toolchain.json python' };
   } else if (pythonFile) {
     declared.python = { minor: pythonFile, source: '.python-version' };
+  }
+  if (config.pythonBuild) {
+    declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor);
   }
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };
