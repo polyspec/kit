@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3a33765593d08e25f69ddda6ec5868856b7513bd6a810cf138c3c3bfd759d4d4 -->
+<!-- source-sha256: 685984a506b958961bae3decae540203b739b5489045c7b39b2cdddb6f4713c4 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -75,3 +75,4 @@
 | K25 | `install-tools`는 config/toolchain.json의 `pythonBuild`가 선언한 Python을 var/tools에 정확한 release로, sha256으로 검증한 download에서 멱등하게 설치한다. `check-toolchain`, run-tests, release-proof, ruff는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행한다 | `scripts/kit/install-python.mjs, install-tools.mjs, install-ruff.mjs, check-toolchain.mjs, run-tests.mjs, release-proof.mjs, toolchain-declared.mjs, schema/toolchain.schema.json, tests/kit/` | `make kit-test` | [o] The release 0.0.16 publishes it. |
 | K26 | `pythonBuild`의 Python은 symbolic link를 담지 않는다: `install-python`은 검증된 archive의 link마다 대상의 일반 복사본으로 바꾸고(directory link는 복사된 directory가 된다), 대상이 없거나 archive 밖이면 link와 대상을 적어 실패한다 | `scripts/kit/install-python.mjs, tests/kit/install-python.test.mjs` | `node --test tests/kit/install-python.test.mjs` | [o] The release 0.0.16 publishes it. |
 | K27 | pre-push hook은 push하는 commit의 message를 `make commits-check`의 규칙으로 검사한다: ref마다 원격 sha부터 로컬 sha까지의 commit을 보고(원격 sha가 0이면 어떤 원격 ref에도 없는 commit), 삭제하는 ref는 건너뛴다. 검사 결과가 있는 push는 거부하며 각 결과는 commit과 줄을 적는다 | `scripts/kit/push-gate.mjs, scripts/kit/check-commits.mjs, tests/kit/push-gate.test.mjs, tests/kit/gates-checkout.mjs, docs/tool-inventory.md(.ko)` | `node --test tests/kit/push-gate.test.mjs` | [o] The release 0.0.17 publishes it. |
+| K28 | holder lock이 모든 플랫폼에서, 그리고 flowmark가 자기 lock을 검증하며 찾아낸 모든 경쟁에서 안전하다. 원인: (1) `removeDeadLock`은 죽은 holder의 lock을 옆으로 옮겼다가 새 holder가 잡았으면 되돌리는데, 두 clear가 동시에 돌면 holder가 둘이 될 수 있다. 한 clear가 죽은 lock을 지우고, 새 holder X가 잡고, 다른 clear가 X의 lock을 옆으로 옮기고, X의 lock이 돌아오기 전에 holder Y가 잡으면 되돌리기가 실패하여 X와 Y가 함께 잡는다. (2) `processStart`는 `ps`를 실행해 시작 시각을 읽는데 Windows에는 `ps`가 없다. (3) Linux에서는 벽시계를 따라 흐르는 `btime`에서 시작 시각을 얻으므로, 실행 중인 holder가 끝난 것으로 읽힐 수 있다. 완료 기준: clear는 지우기 전에 hard link `<lock>.<record hash>.clearing`로 lock을 차지하며 실행 중인 holder의 lock을 결코 옮기지 않는다(flowmark가 spec 40에 적는 절차). 시작 시각은 Windows에서는 `ps` 없이(`GetProcessTimes`), Linux에서는 boot ID와 process의 시작 tick으로 읽는다. 결함마다 red 다음 green test가 있다 | `scripts/kit/holder-lock.mjs, tests/kit/holder-lock.test.mjs` | `node --test tests/kit/holder-lock.test.mjs` | [ ] |
