@@ -3,7 +3,7 @@
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -427,20 +427,26 @@ test('--venv runs the python tests with the interpreter of a virtual environment
   assert.match(passed.text, /✔ python \. tests: 1 passed/);
 });
 
-test('--venv refuses an environment that is not one, comes from another Python or holds a symbolic link (K37)', async (t) => {
+test('--venv refuses an environment that is not one or comes from another Python (K37)', async (t) => {
   const missing = tree(t);
   const none = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: missing });
   assert.equal(none.status, 1, none.text);
-  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it with make python-venv DIR=pkg\/\.venv, and install into it with --link-mode copy/);
+  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or uv venv --python var\/tools\/bin\/python3 pkg\/\.venv/);
   const other = venvRoot(t, { home: '/usr/bin' });
   const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
   assert.equal(foreign.status, 1, foreign.text);
   assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from the Python of this checkout \(var\/tools\/python-build\/python\/bin\)/);
+});
+
+// The links of an environment are the behavior of the tool that made it, such as uv's bin/python3 -> python (K63): run-tests
+// accepts them and leaves them as they are.
+test('--venv accepts an environment with the symbolic links of the tool that made it, and keeps them (K63)', async (t) => {
   const linked = venvRoot(t);
-  symlinkSync(path.join(linked, 'pkg/.venv/bin/python'), path.join(linked, 'pkg/.venv/bin/python3'));
+  symlinkSync('python', path.join(linked, 'pkg/.venv/bin/python3'));
   const withLink = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: linked });
-  assert.equal(withLink.status, 1, withLink.text);
-  assert.match(withLink.text, /pkg\/\.venv holds symbolic links \(bin\/python3\); make it with make python-venv DIR=pkg\/\.venv/);
+  assert.equal(withLink.status, 0, withLink.text);
+  assert.match(withLink.text, /✔ python \. tests: 1 passed/);
+  assert.equal(readlinkSync(path.join(linked, 'pkg/.venv/bin/python3')), 'python', 'the link is kept as it was made');
 });
 
 test('a var/tools/bin/python3 that cannot start fails with the fix', async (t) => {

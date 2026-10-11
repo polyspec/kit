@@ -12,8 +12,9 @@
 //
 // --venv runs the python tool with the interpreter of a virtual environment, so a package's tests import its own installed
 // dependencies. The environment must come from the Python of the checkout: its pyvenv.cfg names var/tools/python-build/python/bin
-// as its home (install-tools installs that Python), and it holds no symbolic link (`python -m venv --copies`). Any other
-// environment is refused before the tool starts. python-venv.mjs makes such an environment (make python-venv DIR=<directory>).
+// as its home (install-tools installs that Python). Any other environment is refused before the tool starts. Its symbolic links
+// are accepted as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mjs) or `uv venv --python
+// var/tools/bin/python3 <directory>` makes such an environment.
 //
 // Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
