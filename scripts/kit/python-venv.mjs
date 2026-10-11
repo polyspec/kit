@@ -6,16 +6,20 @@
 //
 //   node scripts/kit/python-venv.mjs <directory>
 //
-// The run is idempotent: an existing directory that already is a venv of the checkout Python (run-tests' rule, the same Python
+// The caller names the interpreter that makes the venv and its home, the directory that pyvenv.cfg must name, as absolute paths;
+// the command and kit's own targets pass checkoutPython of tool-wrappers.mjs (var/tools/bin/python3 and
+// var/tools/python-build/python/bin), and a consumer that takes kit as a library passes its own.
+//
+// The run is idempotent: an existing directory that already is a venv of the interpreter (run-tests' rule, the same Python
 // version, platlibdir lib, no lib64 in sys.path) is accepted unchanged; any other existing directory is an error with its reason
-// and is neither removed nor repaired. An absent directory is made with var/tools/bin/python3 (install-tools installs it), its link is
-// removed, and the environment is checked: no sys.path entry names lib64, and venvProblem accepts it. A failure removes the
-// directory that this run made, so no partial environment is left behind.
+// and is neither removed nor repaired. An absent directory is made with the interpreter (install-tools installs the one of the
+// checkout), its link is removed, and the environment is checked: no sys.path entry names lib64, and venvProblem accepts it. A
+// failure removes the directory that this run made, so no partial environment is left behind.
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mjs';
-import { run, toolsPath } from './tool-wrappers.mjs';
+import { checkoutPython, requireAbsolute, run } from './tool-wrappers.mjs';
 
 const MAKE = (directory) => `make it with make python-venv DIR=${directory}, and install into it with --link-mode copy`;
 
@@ -30,17 +34,20 @@ function symbolicLinks(directory, relative = '') {
   return found;
 }
 
-/** Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may. */
-export function venvProblem(venv, root = ROOT) {
+/**
+ * Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may: its pyvenv.cfg names `home`,
+ * the absolute bin directory of the interpreter that made it, and it holds no symbolic link.
+ */
+export function venvProblem(venv, { root, home }) {
+  requireAbsolute('the interpreter home', home);
   const config = path.join(venv, 'pyvenv.cfg');
   const relative = path.relative(root, venv);
   const make = MAKE(relative);
   if (!existsSync(config)) return `${relative} is not a virtual environment (no pyvenv.cfg); ${make}`;
-  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1].trim();
-  const expected = toolsPath(root, 'python-build', 'python', 'bin');
+  const named = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1].trim();
   const resolved = target => (existsSync(target) ? realpathSync(target) : target);
-  if (!home || resolved(home) !== resolved(expected)) {
-    return `${relative} was made from ${home ?? 'no home'}, not from the Python of this checkout (${path.relative(root, expected)}); ${make}`;
+  if (!named || resolved(named) !== resolved(home)) {
+    return `${relative} was made from ${named ?? 'no home'}, not from the interpreter home ${path.relative(root, home)}; ${make}`;
   }
   const links = symbolicLinks(venv);
   if (links.length > 0) return `${relative} holds symbolic links (${links.slice(0, 3).join(', ')}${links.length > 3 ? ', …' : ''}); ${make}`;
@@ -80,19 +87,19 @@ function interpreterFacts(python, env = process.env) {
 }
 
 /**
- * Why the existing virtual environment `directory` is not a venv of the checkout Python as this tool makes it, or undefined:
- * the rule of run-tests (pyvenv.cfg home, no symbolic link), the version of the checkout Python, platlibdir lib and no lib64 in
+ * Why the existing virtual environment `directory` is not a venv of the interpreter `python` as this tool makes it, or undefined:
+ * the rule of run-tests (pyvenv.cfg names `home`, no symbolic link), the version of `python`, platlibdir lib and no lib64 in
  * sys.path.
  */
-export function existingVenvProblem(directory, root = ROOT, env = process.env) {
+export function existingVenvProblem(directory, { root, python, home, env = process.env }) {
   const relative = path.relative(root, directory);
-  const problem = venvProblem(directory, root);
+  const problem = venvProblem(directory, { root, home });
   if (problem) return problem;
   const interpreter = path.join(directory, 'bin/python');
   if (!existsSync(interpreter)) return `${relative} has no bin/python`;
   const venv = interpreterFacts(interpreter, env);
-  const checkout = interpreterFacts(toolsPath(root, 'bin', 'python3'), env);
-  if (venv.version !== checkout.version) return `${relative} runs Python ${venv.version}, the checkout Python is ${checkout.version}`;
+  const maker = interpreterFacts(python, env);
+  if (venv.version !== maker.version) return `${relative} runs Python ${venv.version}, the interpreter ${path.relative(root, python)} is ${maker.version}`;
   if (venv.platlibdir !== 'lib') return `${relative} has the platlibdir ${venv.platlibdir}, not lib`;
   const named = venv.paths.filter(entry => entry.includes('lib64'));
   if (named.length > 0) return `${relative} has sys.path entries that name lib64 (${named.join(', ')})`;
@@ -100,26 +107,28 @@ export function existingVenvProblem(directory, root = ROOT, env = process.env) {
 }
 
 /**
- * Makes the virtual environment `directory` from the checkout Python, or accepts it unchanged when it already is one: the run
- * is idempotent. An existing directory that is not such a venv is an error with its reason; it is neither removed nor repaired.
+ * Makes the virtual environment `directory` with the interpreter `python`, whose home is `home`, or accepts it unchanged when it
+ * already is one: the run is idempotent. An existing directory that is not such a venv is an error with its reason; it is neither
+ * removed nor repaired. `python` and `home` are absolute paths that the caller names.
  */
-export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }) {
+export function makeVenv({ root, directory, python, home, env = process.env, print = () => {} }) {
+  requireAbsolute('the interpreter', python);
+  requireAbsolute('the interpreter home', home);
   const relative = path.relative(root, directory);
-  const python = toolsPath(root, 'bin', 'python3');
   if (!existsSync(python)) {
     throw new Error(`${path.relative(root, python)} is missing; declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python`);
   }
   if (lstatSync(directory, { throwIfNoEntry: false }) !== undefined) {
-    const problem = existingVenvProblem(directory, root, env);
-    if (problem) throw new Error(`${relative} exists and is not a venv of the checkout Python: ${problem}; it is neither removed nor repaired`);
-    print(`${relative} unchanged: a venv of the checkout Python with no symbolic link`);
+    const problem = existingVenvProblem(directory, { root, python, home, env });
+    if (problem) throw new Error(`${relative} exists and is not a venv of the interpreter ${path.relative(root, python)}: ${problem}; it is neither removed nor repaired`);
+    print(`${relative} unchanged: a venv of the interpreter ${path.relative(root, python)} with no symbolic link`);
     return;
   }
   run(python, ['-m', 'venv', '--copies', '--without-pip', directory], { cwd: root, env }, print);
   try {
     const { platlibdir } = interpreterFacts(path.join(directory, 'bin/python'), env);
     finishVenv(directory, { platlibdir, root });
-    const problem = existingVenvProblem(directory, root, env);
+    const problem = existingVenvProblem(directory, { root, python, home, env });
     if (problem) throw new Error(problem);
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });
@@ -132,7 +141,8 @@ if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   try {
     if (args.length !== 1) throw new Error('Usage: node scripts/kit/python-venv.mjs <directory>');
-    makeVenv({ directory: path.resolve(ROOT, args[0]), print: text => process.stdout.write(`${text}\n`) });
+    const { wrapper, home } = checkoutPython(ROOT);
+    makeVenv({ root: ROOT, directory: path.resolve(ROOT, args[0]), python: wrapper, home, print: text => process.stdout.write(`${text}\n`) });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exitCode = 1;
