@@ -7,6 +7,7 @@
 //   php          config/toolchain.json php (minor releases), else .php-version
 //   python       config/toolchain.json python (minor release), else .python-version
 //   pythonBuild  config/toolchain.json pythonBuild: the exact Python release of the python minor, its release and its sha256 by platform
+//   pythonBackend config/toolchain.json pythonBackend: the requirement name==version of the build backend of the Python wheels and its sha256
 //   composer     config/toolchain.json composer
 //   ruff         the ruff==<version> pin of the pyproject.toml that config/toolchain.json ruff names
 //   cargoAudit   config/toolchain.json cargoAudit
@@ -69,6 +70,14 @@ function pythonBuild(value, minor) {
   return { version, release: value.release, sha256: digests, source: file };
 }
 
+// The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.
+function pythonBackend(value) {
+  const file = 'config/toolchain.json pythonBackend';
+  if (!/^[A-Za-z0-9._-]+==\d+(\.\d+)*$/.test(value.requirement ?? '')) throw new Error(`${file} must record requirement as name==version; it records ${JSON.stringify(value.requirement)}`);
+  if (!/^[0-9a-f]{64}$/.test(value.sha256 ?? '')) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(value.sha256)}`);
+  return { requirement: value.requirement, sha256: value.sha256, source: file };
+}
+
 /** The declared toolchains of the checkout at `root`. */
 export function declaredToolchain(root) {
   const config = toolchainConfig(root);
@@ -105,6 +114,9 @@ export function declaredToolchain(root) {
   }
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor);
+  }
+  if (config.pythonBackend) {
+    declared.pythonBackend = pythonBackend(config.pythonBackend);
   }
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };

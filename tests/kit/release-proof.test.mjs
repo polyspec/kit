@@ -39,7 +39,7 @@ test('a released tag is proven in four steps and each step runs the commands of 
     "npm fixture-app 0.0.1: node -e require('fixture-app/package.json')",
     'composer install of 1 packages from tests/release-consumer/composer',
     "composer polyspec/kit-fixture 0.0.1: node -e require('./vendor/composer/installed.json')",
-    'wheel pip install of 1 packages from var/release/assets',
+    'wheel pip install of 1 packages',
     'wheel kit-fixture 0.0.1: python -c import kit_fixture',
     'installed and checked 4 packages from the release assets',
     'packages/fixture-rust/Cargo.toml: cargo resolved kit-fixture-rust from v0.0.1 and cargo check passed',
