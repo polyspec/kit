@@ -43,17 +43,36 @@ console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Test: symbol }));
 process.exit(exit);
 `;
 
-// The stub of php, cargo and python3: it prints the PASS and FAIL lines of the test file and exits with its EXIT line. cargo
-// reads tests/<name>.rs of the crate for --test <name> and src/lib.rs for --lib.
-const LINE_STUB = `#!/usr/bin/env node
+// The stub of cargo: `cargo test --manifest-path <crate>/Cargo.toml (--test <name> | --lib) -- --exact <symbol> --nocapture`
+// reads tests/<name>.rs or src/lib.rs of the crate. It writes what cargo 1.98 writes, observed with a real crate: the build
+// lines on standard error; on standard output `running 1 test`, then `test <symbol> ... ` without a line break, so the first
+// line that the test prints with println! continues that line; the lines of eprintln! (`STDERR <line>` in the file) on
+// standard error; then the result lines.
+const CARGO_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
-let file = args[0];
-if (path.basename(process.argv[1]) === 'cargo') {
-  const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
-  file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : path.join(crate, 'tests', args[args.indexOf('--test') + 1] + '.rs');
+const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
+const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : path.join(crate, 'tests', args[args.indexOf('--test') + 1] + '.rs');
+const symbol = args[args.indexOf('--exact') + 1];
+process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
+process.stdout.write('\\nrunning 1 test\\ntest ' + symbol + ' ... ');
+let exit = 0;
+for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
+  if (/^(PASS|FAIL) /.test(line)) process.stdout.write(line + '\\n');
+  if (/^STDERR /.test(line)) process.stderr.write(line.slice('STDERR '.length) + '\\n');
+  const status = /^EXIT (\\d+)$/.exec(line);
+  if (status) exit = Number(status[1]);
 }
+process.stdout.write(exit ? 'FAILED\\n' : 'ok\\n\\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\\n\\n');
+process.exit(exit ? 101 : 0);
+`;
+
+// The stub of php and python3: it prints the PASS and FAIL lines of the test file and exits with its EXIT line.
+const LINE_STUB = `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const file = args[0];
 let exit = 0;
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
   if (/^(PASS|FAIL) /.test(line)) console.log(line);
@@ -64,7 +83,7 @@ process.exit(exit);
 `;
 
 const STUBS = mkdtempSync(path.join(tmpdir(), 'kit-parity-stubs-'));
-for (const [name, text] of [['go', GO_STUB], ['cargo', LINE_STUB], ['php', LINE_STUB]]) {
+for (const [name, text] of [['go', GO_STUB], ['cargo', CARGO_STUB], ['php', LINE_STUB]]) {
   writeFileSync(path.join(STUBS, name), text);
   chmodSync(path.join(STUBS, name), 0o755);
 }
@@ -88,7 +107,8 @@ const FILES = {
   'rust/Cargo.toml': '[package]\nname = "codec"\n',
   'rust/src/lib.rs': 'PASS width/narrow\nPASS width/wide\n',
   'rust/src/codes.rs': 'pub const CONFIG: &str = "CONFIG";\npub const CODEC_DECODE: &str = "CODEC_DECODE";\n',
-  'rust/tests/codec.rs': 'PASS codec/empty\nPASS codec/ascii\n',
+  // The first line continues `test vectors ... ` of libtest; the second goes to standard error.
+  'rust/tests/codec.rs': 'PASS codec/empty elapsed=1ms\nSTDERR PASS codec/ascii elapsed=1ms\n',
   'ts/src/index.ts': 'export const encode = () => 1;\n',
   'ts/src/codes.ts': "export const CONFIG = 'CONFIG';\nexport const CODEC_DECODE = 'CODEC_DECODE';\n",
   'ts/tests/codec.mjs': "console.log('RUN codec/empty deadline=1m0s');\nconsole.log('PASS codec/empty elapsed=1ms');\nconsole.log('PASS codec/ascii elapsed=1ms');\n",
