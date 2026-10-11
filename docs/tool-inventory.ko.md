@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e8c8f71811d025d51342fd969b497d2524e19d1d475899a28ce1807d7581f622 -->
+<!-- source-sha256: 7b552377cc88df219f6747483d35bd756b54e19de03293d96214f966f9dfffdc -->
 
 # 도구 목록
 
@@ -652,9 +652,11 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 kit은 같은 release 형식으로 스스로를 릴리스합니다. config/release.json은 저장소 root의 npm package `@polyspec/kit`을 선언합니다. package
 `directory`는 root인 `.`이거나 그 아래의 경로입니다. `.`이나 `..` segment를 가진 directory는 거부하며, root package의 manifest는
 `package.json`입니다(release.mjs의 `manifestFile`). package.json은 `scripts/kit/`을 pack하고(npm이 README.md와 README.ko.md를 더합니다)
-`./*.mjs`를 `./scripts/kit/*.mjs`로 연결하며, `packageManager`가 release의 npm을 선언합니다. `tests/release-consumer/npm`의 smoke
-command는 설치된 package에서 이름을 export하는 모든 module을 exports를 거쳐 import합니다. 두 module은 아무것도 export하지 않고 load될 때
-실행됩니다: import될 때 검사를 실행하는 command인 `check-dependency-policy-mutation.mjs`와 run-tests의 preload인 `test-load-check.mjs`입니다.
+`./*.mjs`를 `./scripts/kit/*.mjs`로 연결하며, `packageManager`가 release의 npm을 선언합니다. exports는 `./test-load-check.mjs`를 null로
+연결합니다(K58): run-tests가 그 경로를 `node --import`에 넘기므로 run-tests의 preload는 package에 남고, consumer는 그것을 import할 수
+없습니다. 어떤 module도 import될 때 동작하지 않습니다: `check-dependency-policy-mutation.mjs`는 다른 command처럼 command로 실행될 때만
+(`isMain`) 검사를 실행합니다. `tests/release-consumer/npm`의 smoke command는 설치된 package의 다른 모든 module을 exports를 거쳐
+import하고, preload의 import가 `ERR_PACKAGE_PATH_NOT_EXPORTED`로 실패하기를 요구합니다.
 모든 module은 `node:` built-in과 scripts/kit의 file만 import합니다. 하나뿐인 `import()`는 test-load-check.mjs에 있으며 node --test가 실행하는
 test file을 import합니다. `tests/source/npm-package.test.mjs`는 import, 설정, kit.json의 version, vendor된 workflow를 검사하고, 실제 npm으로
 checkout을 pack해 그 archive를 consumer project에 smoke command와 함께 설치합니다.

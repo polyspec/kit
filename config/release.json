@@ -31,7 +31,7 @@
           "node",
           "--input-type=module",
           "-e",
-          "import { readdirSync, readFileSync } from 'node:fs'; const dir = 'node_modules/@polyspec/kit/scripts/kit/'; const modules = readdirSync(dir).filter(name => name.endsWith('.mjs') && /^export /m.test(readFileSync(dir + name, 'utf8'))); for (const name of modules) await import('@polyspec/kit/' + name); const { makeVenv } = await import('@polyspec/kit/python-venv.mjs'); if (typeof makeVenv !== 'function') throw new Error('@polyspec/kit/python-venv.mjs exports no makeVenv'); console.log('imported ' + modules.length + ' modules of @polyspec/kit');"
+          "import { readdirSync } from 'node:fs'; const preload = 'test-load-check.mjs'; const modules = readdirSync('node_modules/@polyspec/kit/scripts/kit/').filter(name => name.endsWith('.mjs') && name !== preload); for (const name of modules) await import('@polyspec/kit/' + name); const refused = await import('@polyspec/kit/' + preload).then(() => null, error => error.code); if (refused !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw new Error('the run-tests preload ' + preload + ' is importable through the package'); const { makeVenv } = await import('@polyspec/kit/python-venv.mjs'); if (typeof makeVenv !== 'function') throw new Error('@polyspec/kit/python-venv.mjs exports no makeVenv'); console.log('imported ' + modules.length + ' modules of @polyspec/kit; the preload ' + preload + ' is not exported');"
         ]
       }
     }

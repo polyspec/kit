@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3a3f88d132a904d27f516b300f179540885036dd0e0408ffdc806cb20ad52ca7 -->
+<!-- source-sha256: d68f03bd34252479cb94b4871f8ec331a3a61b2aee7fde9914bf1c571c4be2e3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -23,3 +23,5 @@ kit의 release `vX.Y.Z`마다 `## X.Y.Z` section이 있습니다. 그 글은 Git
   자신의 target은 `checkoutPython(root)`를 넘깁니다(K56).
 - `lockRequirements`가 lock entry의 archive URL에서 local file로 가는 map을 선택적으로 받아, polyspec archive마다
   `name @ file:///<path> --hash=sha256:<hex>`를 render하고 lock의 sha256과 대조합니다(K57).
+- package의 어떤 module도 import될 때 동작하지 않습니다: `check-dependency-policy-mutation.mjs`는 command로 실행될 때만 검사를 실행하고,
+  exports는 package가 run-tests를 위해 담는 run-tests preload `test-load-check.mjs`를 거부합니다(K58).

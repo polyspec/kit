@@ -32,7 +32,8 @@ test('package.json holds scripts/kit, maps ./*.mjs to its modules and has the ve
   assert.equal(name, '@polyspec/kit');
   assert.equal(version, json('kit.json').version, 'package.json and kit.json hold one version');
   assert.deepEqual(files, ['scripts/kit/']);
-  assert.deepEqual(exports, { './*.mjs': './scripts/kit/*.mjs', './package.json': './package.json' });
+  // The run-tests preload stays in the package, since run-tests passes its path to node --import, and is not importable (K58).
+  assert.deepEqual(exports, { './*.mjs': './scripts/kit/*.mjs', './test-load-check.mjs': null, './package.json': './package.json' });
   assert.deepEqual(Object.keys(rest).sort(), ['description', 'packageManager', 'repository'], 'no dependency and no script');
 });
 
