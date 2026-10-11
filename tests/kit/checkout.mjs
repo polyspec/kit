@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mjs';
+import { initRepository } from './sandbox-repository.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -18,7 +19,7 @@ export function fixtureCheckout(t) {
   cpSync(FIXTURE, directory, { recursive: true });
   cpSync(path.join(ROOT, 'scripts/kit'), path.join(directory, 'scripts/kit'), { recursive: true });
   // The tools list the files of a checkout through Git, so the copy is a repository.
-  spawnSync('git', ['init', '--quiet'], { cwd: directory });
+  initRepository(directory);
   return directory;
 }
 

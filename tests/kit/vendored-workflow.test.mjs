@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { check, LOCK } from '../../scripts/kit/kit-check.mjs';
 import { sync } from '../../scripts/kit/kit-sync.mjs';
+import { initRepository } from './sandbox-repository.mjs';
 
 const GIT = ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com'];
 const git = (args, cwd) => {
@@ -26,7 +27,7 @@ const WORKFLOW = 'on: push\njobs:\n  release:\n    steps:\n      - run: make rel
 function kitRepository(t) {
   const repository = mkdtempSync(path.join(tmpdir(), 'kit-source-'));
   t.after(() => rmSync(repository, { recursive: true, force: true }));
-  git(['init', '--quiet', '-b', 'main'], repository);
+  initRepository(repository, '-b', 'main');
   write(repository, 'kit.json', JSON.stringify({ schema: 1, vendored: ['scripts/kit'], vendoredFiles: { '.github/workflows/release.yml': 'workflows/release.yml' } }) + '\n');
   write(repository, 'scripts/kit/tool.mjs', 'export const v = 1;\n');
   write(repository, 'workflows/release.yml', WORKFLOW);
