@@ -40,6 +40,27 @@ cargo-audit and govulncheck keep `install-cargo-audit.mjs` and `install-govulnch
 `install-tool.mjs`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
 
+### Go advisories (K53)
+
+`make dependency-review` asks govulncheck for the advisories of each Go lock (a `go.sum`, beside its `go.mod`), run in the
+module directory of the lock. The query names the packages of that module instead of `./...`. The reason: `./...` walks every
+directory below the module, and a Go toolchain that install-go puts under `var/tools` is one of them; govulncheck refuses it
+(`outside main module`), so every RECORD run failed. `./...` cannot exclude a directory, so a module that contains `var/`
+would walk it whatever the working directory.
+
+- `goPackagePatterns` (`dependency-state.mjs`) names the directory of each tracked or new `.go` file of the module, under the
+  rules of `./...`: a directory whose name begins with `.` or `_`, `testdata` and `vendor` are skipped, and so is a directory
+  below a nested module (a `go.mod` of its own). `checkedFiles` excludes `var/`, `node_modules` and `.tools`, so no directory
+  of an install or an output is named.
+- `goPackages` (`dependency-review.mjs`) runs `go list -e` on those patterns and keeps the import paths of the packages with a
+  buildable file. `./...` skips a directory whose files a build constraint excludes (a `//go:build ignore` generator, for
+  one), and govulncheck refuses such a pattern, so the query drops it the same way. A module with no buildable package has no
+  advisory, since no code of it calls a vulnerable function.
+- One advisory result is kept per lock, as before. A lock maps to its module by the directory of its `go.sum`.
+- Limits: a package of a `replace` directive that points outside the module directory is not named, so it is not scanned from
+  that module, as `./...` did not scan it. A Go package under a directory named `var`, `node_modules` or `.tools` is not
+  scanned, as no kit check reads those directories.
+
 ### Declarations
 
 | Tool | Declared in | Install or verify |
