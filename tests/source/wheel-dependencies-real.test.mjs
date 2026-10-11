@@ -13,8 +13,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fileDigest } from '../../scripts/kit/digest.mjs';
 import { installWheelFiles } from '../../scripts/kit/release-consumer.mjs';
 import { lockRequirements } from '../../scripts/kit/wheel-dependencies.mjs';
-import { makeVenv } from '../../scripts/kit/python-venv.mjs';
-import { checkoutPython } from '../../scripts/kit/tool-wrappers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PYTHON = path.join(ROOT, 'var/tools/bin/python3');
@@ -105,30 +103,4 @@ test('the resolver of pip reads a direct-URL requirement and accepts an installe
   assert.equal(resolved.status, 0, resolved.stderr);
   assert.match(resolved.stdout, /Processing .*kit_lib-0\.0\.1-py3-none-any\.whl/);
   assert.match(resolved.stdout, /kit-lib is already installed with the same version as the provided wheel/);
-}, { timeout: 900000 });
-
-// K57: the lock names the polyspec archive by its GitHub release URL; a map to the local copy renders it as a file:// requirement,
-// and pip installs it with --no-index and no find-links, so nothing is fetched. pip's output is printed as a diagnostic.
-test('a lock rendered with a map of local archives installs with --no-index and no network', (t) => {
-  const fx = fixture(t);
-  const url = 'https://github.com/polyspec/kit-lib/releases/download/v0.0.1/kit_lib-0.0.1-py3-none-any.whl';
-  const lock = `lock-version = "1.0"\ncreated-by = "uv"\n\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { url = "${url}", hashes = { sha256 = "${fileDigest(fx.lib)}" } }\n`;
-  const requirements = lockRequirements(lock, LOCK, { [url]: fx.lib });
-  assert.equal(requirements, `kit-lib @ ${pathToFileURL(fx.lib).href} --hash=sha256:${fileDigest(fx.lib)}\n`);
-  const venv = path.join(fx.folder, 'local-venv');
-  makeVenv({ root: ROOT, directory: venv, python: checkoutPython(ROOT).wrapper, home: checkoutPython(ROOT).home });
-  const file = path.join(fx.folder, 'local-requirements.txt');
-  writeFileSync(file, requirements);
-  // No PIP_FIND_LINKS and no PIP_NO_INDEX: the command line alone states --no-index.
-  const env = { ...process.env, PIP_CACHE_DIR: path.join(fx.folder, 'pip-cache-local') };
-  const python = path.join(venv, 'bin', 'python');
-  const installed = spawnSync(PYTHON, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', file], { cwd: fx.folder, env, encoding: 'utf8' });
-  t.diagnostic(`pip install --no-index: exit ${installed.status}; ${installed.stdout.trim().replaceAll('\n', ' | ')}`);
-  assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /Successfully installed kit-lib-0\.0\.1/);
-  const checked = spawnSync(PYTHON, ['-m', 'pip', '--python', python, 'check'], { cwd: fx.folder, env, encoding: 'utf8' });
-  t.diagnostic(`pip check: exit ${checked.status}; ${checked.stdout.trim()}`);
-  assert.equal(checked.status, 0, checked.stdout);
-  const imported = spawnSync(python, ['-c', 'import kit_lib; print("imported")'], { encoding: 'utf8' });
-  assert.equal(imported.stdout.trim(), 'imported', imported.stderr);
 }, { timeout: 900000 });

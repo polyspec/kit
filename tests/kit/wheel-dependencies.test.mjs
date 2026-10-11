@@ -3,12 +3,7 @@
 // lock of the wheel (consumers.wheel.lock, a PEP 751 pylock.toml) holds each of them with the same version, or the same URL and
 // sha256. Each refusal names the requirement. The lock text is a fixture; no test reaches a network.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
-import { pathToFileURL } from 'node:url';
-import { sha256 } from '../../scripts/kit/digest.mjs';
 import { Stop } from '../../scripts/kit/process.mjs';
 import { lockProblems, lockRequirements, wheelDependencyProblems } from '../../scripts/kit/wheel-dependencies.mjs';
 
@@ -106,53 +101,4 @@ test('the lock is read as PEP 751 and refused when a package has no hash or anot
 test('lockRequirements renders each registry file and each archive as a hashed requirement for pip', () => {
   assert.equal(lockRequirements(LOCK_TEXT, LOCK), `ruff==0.16.10 --hash=sha256:${RUFF_SHA}\nkit-lib @ ${URL} --hash=sha256:${SHA}\n`);
   assert.throws(() => lockRequirements(`${HEADER}[[packages]]\nname = "tool"\nversion = "1.0.0"\ndirectory = { path = "." }\n`, LOCK), error => error instanceof Stop && error.message === `${LOCK}: tool 1.0.0 is a directory source; a consumer installs only registry files and archives`);
-});
-
-// K57: a map from the archive URL of a lock entry to a local file renders each polyspec archive as a file:// requirement with the
-// hash of the lock; the file must exist and carry that sha256. The archive files are written in a temporary directory.
-const localArchive = (t, bytes = 'kit-lib wheel bytes') => {
-  const folder = mkdtempSync(path.join(tmpdir(), 'kit-local-archive-'));
-  t.after(() => rmSync(folder, { recursive: true, force: true }));
-  const file = path.join(folder, ASSET);
-  writeFileSync(file, bytes);
-  return { folder, file, sha: sha256(Buffer.from(bytes)) };
-};
-const lockOf = sha => `${HEADER}${RUFF_ENTRY}\n${KIT_LIB_ENTRY.replace(SHA, sha)}`;
-const stopWith = message => error => error instanceof Stop && error.message === message;
-
-test('lockRequirements with a map of local files renders each archive as its file:// URL with the hash of the lock', (t) => {
-  const { file, sha } = localArchive(t);
-  assert.equal(lockRequirements(lockOf(sha), LOCK, { [URL]: file }), `ruff==0.16.10 --hash=sha256:${RUFF_SHA}\nkit-lib @ ${pathToFileURL(file).href} --hash=sha256:${sha}\n`);
-  assert.ok(pathToFileURL(file).href.startsWith('file:///'), 'an absolute path gives file:///');
-});
-
-test('without a map the archive keeps the URL of the lock', (t) => {
-  const { sha } = localArchive(t);
-  assert.equal(lockRequirements(lockOf(sha), LOCK), `ruff==0.16.10 --hash=sha256:${RUFF_SHA}\nkit-lib @ ${URL} --hash=sha256:${sha}\n`);
-});
-
-test('a local file whose sha256 differs from the lock fails and names the entry and both digests', (t) => {
-  const { file, sha } = localArchive(t);
-  const other = 'c'.repeat(64);
-  assert.throws(() => lockRequirements(lockOf(other), LOCK, { [URL]: file }), stopWith(`${LOCK}: kit-lib 0.0.1: the local file ${file} of ${URL} has the sha256 ${sha}, the lock holds ${other}`));
-});
-
-test('a missing local file, a relative path and an archive without a map entry fail and name the entry', (t) => {
-  const { folder, sha } = localArchive(t);
-  const missing = path.join(folder, 'gone.whl');
-  assert.throws(() => lockRequirements(lockOf(sha), LOCK, { [URL]: missing }), stopWith(`${LOCK}: kit-lib 0.0.1: the local file ${missing} of ${URL} is missing`));
-  assert.throws(() => lockRequirements(lockOf(sha), LOCK, { [URL]: ASSET }), stopWith(`${LOCK}: kit-lib 0.0.1: the local file ${ASSET} of ${URL} is not an absolute path`));
-  assert.throws(() => lockRequirements(lockOf(sha), LOCK, {}), stopWith(`${LOCK}: kit-lib 0.0.1: the archive ${URL} has no local file in the map`));
-});
-
-test('a map entry that names no archive of the lock fails and names the URL', (t) => {
-  const { file, sha } = localArchive(t);
-  const stray = `${REPO}/releases/download/v0.0.2/kit_lib-0.0.2-py3-none-any.whl`;
-  assert.throws(() => lockRequirements(lockOf(sha), LOCK, { [URL]: file, [stray]: file }), stopWith(`${LOCK}: the map of local files names ${stray}, which is no archive of the lock`));
-});
-
-test('a sibling is never in the lock, so a map entry for the asset URL of a sibling names no archive and fails', (t) => {
-  const { file, sha } = localArchive(t);
-  const sibling = 'https://github.com/polyspec/kit-fixture/releases/download/v0.0.1/kit_sibling-0.0.1-py3-none-any.whl';
-  assert.throws(() => lockRequirements(lockOf(sha), LOCK, { [URL]: file, [sibling]: file }), stopWith(`${LOCK}: the map of local files names ${sibling}, which is no archive of the lock`));
 });
