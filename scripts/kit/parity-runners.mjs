@@ -47,6 +47,16 @@ function goCases(output, symbol) {
   return cases;
 }
 
+/** The compiler output of a Go package that did not build: the lines of its `build-output` events and of standard error. */
+function goBuildOutput({ stdout, stderr }) {
+  const lines = stdout.split('\n').flatMap((line) => {
+    let event;
+    try { event = JSON.parse(line); } catch { return []; }
+    return event.Action === 'build-output' ? String(event.Output ?? '').split('\n') : [];
+  });
+  return [...lines, ...stderr.split('\n')].map(line => line.trim()).filter(Boolean);
+}
+
 // Each runner: the program that it starts unless the implementation declares `command`, and the run of a binding, whose
 // `options` are the `args` of the implementation.
 const RUNNERS = {
@@ -56,7 +66,7 @@ const RUNNERS = {
       const module = nearest(root, binding.test, 'go.mod');
       if (module === undefined) return { error: `no go.mod lies above ${binding.test}` };
       const directory = path.posix.relative(module, path.posix.dirname(binding.test));
-      return { args: ['test', ...options, '-json', '-count=1', '-run', `^${binding.symbol}$`, `./${directory}`], cwd: module, cases: ({ stdout }) => goCases(stdout, binding.symbol) };
+      return { args: ['test', ...options, '-json', '-count=1', '-run', `^${binding.symbol}$`, `./${directory}`], cwd: module, cases: ({ stdout }) => goCases(stdout, binding.symbol), detail: goBuildOutput };
     },
   },
   cargo: {
@@ -80,8 +90,9 @@ const fileRun = (root, binding, unit, options) => ({ args: [...options, binding.
 
 /**
  * The run of the binding `binding` of the unit `unit` (its id) in `implementation`: `{ command, args, cwd, env, cases }` with
- * `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `cases({ stdout, stderr })` the outcome
- * of each case that the output reports; or `{ error }`. A `command` with a / is a path relative to `root`.
+ * `cwd` relative to `root`, `env` the variables of the implementation over `base`, `cases({ stdout, stderr })` the outcome of
+ * each case that the output reports, and `detail({ stdout, stderr })` the lines that explain a failed run (the last three lines
+ * of standard error; for go the whole compiler output); or `{ error }`. A `command` with a / is a path relative to `root`.
  */
 export function runOf(implementation, root, binding, unit, base) {
   const runner = RUNNERS[implementation.runner];
@@ -90,5 +101,5 @@ export function runOf(implementation, root, binding, unit, base) {
   const declared = implementation.command;
   const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.join(root, declared) : declared;
   const env = { ...base, ...Object.fromEntries((implementation.env ?? []).map(entry => [entry.name, entry.value])) };
-  return { ...run, command, env };
+  return { detail: ({ stderr }) => stderr.trim().split('\n').slice(-3).filter(Boolean), ...run, command, env };
 }
