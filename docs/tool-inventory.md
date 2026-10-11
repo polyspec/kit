@@ -880,3 +880,39 @@ profile with what it omits and its reason. At least two units use it; a one-unit
   "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
 }
 ```
+
+## Python locks: PEP 751 pylock.toml (K36)
+
+The dependency gate reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
+`pylock.toml` or `pylock.<name>.toml`, named in `pythonLocks` of `config/dependency-policy.json`. uv.lock is not read: it is
+uv's own format, and a repository that releases a wheel needs a lock that every installer reads.
+
+Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml --frozen --no-emit-project -o <lock>` and
+`pip lock`. uv installs from the file with hash checks; pip refuses a `vcs` entry in it. Both set `created-by`.
+
+### Rules
+
+- The file is read by `scripts/kit/pylock.mjs` (`readPylock`), a reader for the TOML subset that these writers produce. Node has
+  no TOML reader and kit imports only Node built-ins, so no TOML library is reused; a construct outside the subset (a multi-line
+  string, an unknown escape, a duplicate key) fails with its line.
+- `lock-version` is `"1.0"`; another version fails the gate.
+- Each lock's sha256 is recorded in `config/dependency-review.json`, as a lock of any other ecosystem is.
+- A registry package (`sdist` or `wheels`) is a dependency of the lock: its name and version are recorded, its latest stable
+  release is queried from PyPI, and its advisories are read from the PyPI release JSON (`vulnerabilities`) of its locked
+  version. Every `sdist`, `wheels` and `archive` file carries a `sha256`, and the gate fails when one does not.
+- A `vcs` package (git) is pinned by its `commit-id`, which must be 40 hexadecimal digits. The record holds its URL,
+  `requested-revision` and `commit-id`, and the gate fails when the lock and the record name another commit. A git package is
+  not queried for advisories or releases.
+- A package with no source table, or a `directory` package, fails the gate: a consumer exports the lock with
+  `--no-emit-project`, so a local package has no release to review.
+- `created-by` is required. The fix of an outdated release or an advisory names the tool that wrote the lock: for uv,
+  `uv lock --upgrade-package <name>` then the export again; for pip, `pip lock`. A lock with another or no `created-by`
+  gets a fix that names the missing tool. The review never rewrites a lock itself (`UPDATE=1` skips these packages).
+- A consumer that adopts this release adds `"pythonLocks": [...]` to `config/dependency-policy.json` (a list, empty when it
+  has no lock). The field is required, with no compatibility path.
+
+### Limitations
+
+- The reader supports the lock writers' subset only; a lock that another writer produces with a construct outside it fails
+  until the reader reads it.
+- A `directory` package is refused, not reviewed.

@@ -1,5 +1,6 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 70f08e3270ab3aef5d334ae12ab25ad231c41ad1c9b7d0725dda115328148ec4 -->
+<!-- source-sha256: 8a5272472be391329d68fc7488024361b3a6734e96d2cebab81139b1d757f061 -->
+
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -825,3 +826,32 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
   "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
 }
 ```
+
+## Python lock: PEP 751 pylock.toml (K36)
+
+의존성 gate는 Python lock을 PEP 751의 표준 형식(상태 Final, resolution 2025년 3월 31일)인 `pylock.toml` 또는 `pylock.<name>.toml`로만 읽으며,
+이 파일은 `config/dependency-policy.json`의 `pythonLocks`에 적습니다. uv.lock은 읽지 않습니다. uv 고유의 형식이고, wheel을 배포하는 저장소에는
+모든 installer가 읽는 lock이 필요합니다.
+
+쓰는 도구는 uv 0.12.11과 pip 26.2.1로 측정했습니다: `uv export --format pylock.toml --frozen --no-emit-project -o <lock>`과 `pip lock`.
+uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs` 항목을 거부합니다. 두 도구 모두 `created-by`를 씁니다.
+
+### 규칙
+
+- 파일은 `scripts/kit/pylock.mjs`(`readPylock`)가 읽습니다. 이 도구들이 쓰는 TOML 부분집합을 읽는 reader입니다. Node에는 TOML reader가 없고 kit은
+  Node built-in만 import하므로 TOML 라이브러리를 재사용하지 않습니다. 부분집합 밖의 구문(여러 줄 문자열, 알 수 없는 escape, 중복 key)은 줄 번호와 함께 실패합니다.
+- `lock-version`은 `"1.0"`이어야 하며, 다른 값이면 gate가 실패합니다.
+- 각 lock의 sha256은 다른 생태계의 lock과 같이 `config/dependency-review.json`에 기록합니다.
+- registry package(`sdist` 또는 `wheels`)는 lock의 의존성입니다. 이름과 버전을 기록하고, 최신 stable release를 PyPI에 질의하며, 고정된 버전의
+  advisory를 PyPI release JSON(`vulnerabilities`)에서 읽습니다. 모든 `sdist`, `wheels`, `archive` 파일은 `sha256`을 가져야 하며, 없으면 gate가 실패합니다.
+- `vcs` package(git)는 `commit-id`로 고정하며, 값은 40자리 16진수여야 합니다. 기록에는 URL, `requested-revision`, `commit-id`를 둡니다. lock과 기록이
+  다른 commit을 가리키면 gate가 실패합니다. git package는 advisory나 release를 질의하지 않습니다.
+- source table이 없는 package나 `directory` package는 gate가 실패시킵니다. 소비자는 `--no-emit-project`로 lock을 내보내므로 로컬 package에는 검토할 release가 없습니다.
+- `created-by`는 필수입니다. 오래된 release나 advisory의 fix는 lock을 쓴 도구를 이름으로 지정합니다. uv는 `uv lock --upgrade-package <name>` 뒤에 export를 다시 실행하고,
+  pip는 `pip lock`입니다. 다른 값이거나 없는 `created-by`의 lock은 빠진 도구를 이름으로 지정하는 fix를 받습니다. 검토는 lock을 직접 다시 쓰지 않으며(`UPDATE=1`은 이 package를 건너뜁니다).
+- 이 릴리스를 도입하는 소비자는 `config/dependency-policy.json`에 `"pythonLocks": [...]`를 추가합니다(lock이 없으면 빈 목록). 이 필드는 필수이며 호환 경로는 없습니다.
+
+### 한계
+
+- reader는 lock을 쓰는 도구의 부분집합만 읽습니다. 그 밖의 구문을 쓰는 다른 도구의 lock은 reader가 읽도록 확장될 때까지 실패합니다.
+- `directory` package는 검토하지 않고 거부합니다.
