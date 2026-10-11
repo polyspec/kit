@@ -158,6 +158,9 @@ export function verify(ctx, tag) {
   if (!repository) throw new Stop('GITHUB_REPOSITORY is not set; it names the repository <owner>/<name> whose check runs are read');
   const commit = taggedCommit(ctx, tag);
   const problems = [];
+  // A release tag is annotated: its object is a tag object that records the tagger and the time, not the commit itself.
+  const kind = run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim();
+  if (kind !== 'tag') problems.push(`the tag ${tag} has the object type ${kind}, not tag; a release tag is annotated, so create it with git tag -a ${tag} -m ${tag}`);
   const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, MAIN], at(ctx));
   if (ancestry.status === 1) problems.push(`the commit is not on ${MAIN}; a release tags a commit of main`);
   else if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);

@@ -92,6 +92,14 @@ test('a commit of main whose checks succeeded is verified, and the check runs ar
   assert.ok(lines.some(line => line.includes(`reading the check runs of ${box.commit}`)), lines.join('\n'));
 });
 
+test('a release tag is annotated: a lightweight tag fails and names the tag and its kind, an annotated tag passes', (t) => {
+  const box = releaseSandbox(t);
+  git(box.root, 'tag', 'v0.0.1', box.commit);
+  stop(() => release.verify(context(box), 'v0.0.1'), /v0\.0\.1: the commit [0-9a-f]{40}: the tag v0\.0\.1 has the object type commit, not tag; a release tag is annotated, so create it with git tag -a v0\.0\.1 -m v0\.0\.1/);
+  git(box.root, 'tag', '-d', 'v0.0.1');
+  assert.equal(release.verify(context(box), box.release('0.0.1')).commit, box.commit);
+});
+
 test('a commit that is not an ancestor of origin/main fails and names the commit', (t) => {
   const box = releaseSandbox(t);
   writeFileSync(path.join(box.root, 'later.txt'), 'later');
