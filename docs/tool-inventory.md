@@ -670,8 +670,19 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 ## Release proof (K5.5)
 
 `scripts/kit/release-proof.mjs TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
-repository. The release workflow of `templates/release.yml` runs it after `release-publish` in the same job, so a failed proof fails that run;
-a developer may run it for any released tag. It is no offline check. No tool of the five
+repository. The release workflow (`workflows/release.yml`) runs it on the draft after `release-publish` in the same job; a failed proof
+fails that run and the release stays a draft. A developer may run it for any released tag. It is no offline check.
+
+### Release workflow, tools and draft (K38)
+
+- `workflows/release.yml` is the source of `vendoredFiles` in kit.json, which maps it to `.github/workflows/release.yml`: `make kit-sync`
+  copies it and records its sha256 in the lock, and `make kit-check` fails on a difference.
+- `make release-tools` (`scripts/kit/release-tools.mjs`) derives the install-tools names from config/release.json: npm for an npm package or
+  consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs cargo, which install-tools does not
+  install; release-tools checks it on PATH and fails with the fix.
+- `release-publish` creates the release as a draft. `release-proof` reads the releases of the repository through the API, drafts included,
+  and downloads each asset by its id. `release-undraft` makes the release public and changes nothing for a public release. A draft of an
+  earlier run is replaced; a public release is never replaced. No tool of the five
 repositories had a counterpart; the install of the archives is `installConsumers` of K5.4. It stops at the first failed step and
 prints `✔ <what>` for each step that passed. A failure names the command with its status and error, or the expected and the
 actual value.
