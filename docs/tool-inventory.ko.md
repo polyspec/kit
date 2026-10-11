@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 665e7d43123b38918123d5df4d9c824e28c8f493cab90b46472b04110e353ff9 -->
+<!-- source-sha256: 89b6f9f8cc7290769c949fe286a4a6d6ecdce24922205d53ff12b8e5b6a7d512 -->
 
 # 도구 목록
 
@@ -677,18 +677,70 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
   `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
   `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
   파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
-- `release-assets`는 `Requires-Dist`가 plain `name==version`이 아닌 wheel을 거부합니다: URL, git source, 범위, marker
-  (`; extra == ...` 또는 `; python_version ...`)는 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이
-  pyproject.toml의 `[project]` `version`을 요구합니다.
-- `release-consumer`는 wheel을 `var/tools/bin/python3`의 깨끗한 virtual environment에
-  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 설치합니다. requirement
-  파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. `pip show`가 출력하는 version을 확인하고 `consumers.wheel`의 smoke command를
-  실행합니다. wheel에는 commit된 lock이 없습니다.
+- `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version` 또는 polyspec release 참조만
+  받으며, 다른 형식은 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]`
+  `version`을 요구합니다.
+- `release-consumer`는 wheel을 `var/tools/bin/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 lock(K49), 그다음
+  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 wheel을 설치합니다.
+  requirement 파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. 그다음 `pip check`가 통과해야 하며, `pip show`가 출력하는
+  version을 확인하고 `consumers.wheel`의 smoke command를 실행합니다.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } },
 "buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
+
+## Wheel dependencies (K49)
+
+wheel의 `Requires-Dist`는 정확히 두 형식입니다. registry package는 `name==version`으로 고정합니다. polyspec package는 release asset의
+PEP 508 직접 참조이며, fragment로 그 asset의 sha256을 붙입니다:
+
+    name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
+
+`<file>`은 `<version>`의 `name` wheel의 PEP 427 이름이고, URL의 name과 version은 requirement의 것과 같아야 합니다. 저장소는 이름에서
+추정하지 않고 config/release.json의 `consumers.wheel.polyspec`(distribution 이름에서 저장소 URL로 가는 map)에서 가져옵니다. 다른 모든
+형식(다른 host, git URL, branch, extra, 범위, marker)은 거부하며, 거부 문구는 requirement를 적습니다. `consumers.wheel.polyspec`이
+선언하지 않은 이름도 거부합니다.
+
+wheel package마다 PEP 751 lock 하나를 `consumers.wheel.lock`(`pylock.toml` 또는 `pylock.<name>.toml`)으로 선언합니다. lock은 superset이며
+transitive dependency를 포함한 모든 dependency를 담습니다. registry package는 version과 파일의 sha256을 가지고, polyspec package는 참조와
+같은 URL과 sha256을 가진 `archive` 항목입니다. `release-assets`는 tag된 commit에서 오프라인으로 검사합니다: lock은 K36 reader가 읽고,
+registry와 archive가 아닌 source는 거부하며, 각 `Requires-Dist`는 같은 version(registry) 또는 같은 URL과 sha256(polyspec)으로 lock에
+있어야 하고, fragment는 lock의 sha256과 같아야 하며, 각 archive는 선언된 저장소의 그 version release asset이어야 합니다. 여기서는 network를
+읽지 않습니다.
+
+`release-consumer install`은 `lockRequirements`(`scripts/kit/wheel-dependencies.mjs`)로 lock을 hash가 든 requirement 파일로 바꾸고,
+checkout의 pip가 `makeVenv`의 venv에 설치합니다: registry 파일마다 `name==version --hash=sha256:…`, archive마다 `name @ <url>
+--hash=sha256:…`입니다.
+
+    var/tools/bin/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
+
+이어서 wheel을 `--no-index --require-hashes --no-deps`로 설치하고, `pip --python <venv>/bin/python check`가 0으로 끝나야 합니다(불완전한
+lock은 여기서 실패합니다). 그다음 smoke command를 실행합니다. pip 자체의 `pylock.toml` 읽기는 쓰지 않습니다(발견 사항 참조). 설치는 PyPI와
+release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다. `release-proof`의 2단계는 각 polyspec archive를 선언된 저장소의 그
+version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야 합니다.
+
+발견 사항, pip 26.2.1과 고정된 Python 3.14.8로 측정했습니다(`tests/source/wheel-dependencies-real.test.mjs`가 이 사례를 반복합니다):
+
+- `pip install -r pylock.toml`은 lock을 requirement source로 읽고 `WARNING: Using pylock.toml as a requirements source is an experimental
+  feature. It may be removed/changed in a future release without prior warning.`를 출력합니다. 그래서 lock을 requirement로 바꿉니다.
+- `pip --python <venv>/bin/python check`는 pip가 없는 venv에서 동작합니다. dependency가 없으면 `kit-app 0.0.1 requires six, which is not
+  installed.`를 출력하고 1로 끝나며, version이 다르면 `kit-app 0.0.1 has requirement kit-reg==1.0.0, but you have kit-reg 0.0.1.`를 출력하고
+  1로 끝납니다. 완전한 설치는 `No broken requirements found.`를 출력하고 0으로 끝납니다.
+- 로컬 복사(limepie가 내려받은 파일로 dependency wheel을 설치하는 경우): 같은 바이트의 로컬 파일로 dependency wheel을 설치하고
+  (`--require-hashes --no-deps`), 이어서 wheel을 `--no-deps`로 설치한 뒤 `pip check`를 실행했더니 `No broken requirements found.`를
+  출력하고 0으로 끝났습니다. `pip check`는 version만 비교하므로 로컬 파일이 만족하는 직접 URL requirement를 거부하지 않습니다.
+- resolver는 설치에 쓰지 않습니다(`--no-deps`). dependency와 함께 resolve하면 pip는 설치된 복사본을 받아들이기 전에 직접 URL requirement를
+  읽습니다. 같은 version의 `file:` URL에는 `Processing .../kit_lib-0.0.1-py3-none-any.whl`을 출력하고,
+  `kit-lib is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of the wheel.`를
+  출력한 뒤 0으로 끝났습니다. 원격 URL에는 먼저 가져오며(`Collecting kit-lib @ https://...`), 응답하지 않는 URL은
+  `ERROR: HTTP error 404 while getting https://...`로 실패합니다. 따라서 dependency를 resolve하는 consumer는 polyspec archive를 다시
+  내려받습니다.
+
+테스트: `tests/kit/wheel-dependencies.test.mjs`(형식, 문구와 함께 거부하는 사례, lock 형식, 렌더링된 requirement),
+`tests/kit/release-wheel.test.mjs`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mjs`(polyspec archive의
+digest), `tests/source/wheel-dependencies-real.test.mjs`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
+로컬 복사, resolver)입니다.
 
 ## Language parity (K33)
 

@@ -221,7 +221,12 @@ function sourceOf(entry, lock, name) {
 
 /** Reads a PEP 751 lock: { lockVersion, createdBy, packages: [{ name, version, kind, vcs, files: [{ url, sha256 }] }] }. */
 export function readPylock(text, lock) {
-  const data = parseToml(text);
+  let data;
+  try {
+    data = parseToml(text);
+  } catch (error) {
+    throw new Error(`${lock}: ${error.message}`);
+  }
   if (data['lock-version'] !== '1.0') throw new Error(`${lock}: lock-version is ${JSON.stringify(data['lock-version'])}, PEP 751 requires "1.0"`);
   const createdBy = typeof data['created-by'] === 'string' ? data['created-by'] : null;
   const packages = (data.packages ?? []).map((entry) => {

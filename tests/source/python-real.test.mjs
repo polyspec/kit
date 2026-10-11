@@ -54,6 +54,6 @@ test('the fixture wheel is built with the real Python and the pinned setuptools,
   const steps = [];
   const count = installWheelFiles({ root: ROOT, env, folder, version: '0.0.0', directory: output, names: ['kit-fixture'], smoke: { 'kit-fixture': ['python', '-c', 'import kit_fixture'] }, step: text => steps.push(text) });
   assert.equal(count, 1);
-  assert.deepEqual(steps, ['wheel pip install of 1 packages', 'wheel kit-fixture 0.0.0: python -c import kit_fixture']);
+  assert.deepEqual(steps, ['wheel pip install of 1 packages', 'wheel pip check passed', 'wheel kit-fixture 0.0.0: python -c import kit_fixture']);
   assert.deepEqual(linksUnder(path.join(ROOT, 'var/tools')), [], 'var/tools holds no symbolic link after the install');
 }, { timeout: 900000 });

@@ -30,7 +30,8 @@
 // create TAG --verify-tag --title TAG --notes-file <notes>` with the archives; the notes are the section X.Y.Z, or one
 // line that links the section when it is longer than NOTES_LIMIT characters, the limit of a release body.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with the build
-// backend of buildBackend (release-wheel.mjs); its metadata may hold only plain `name==version` Requires-Dist lines.
+// backend of buildBackend (release-wheel.mjs); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
+// its lock of consumers.wheel.lock holds (wheel-dependencies.mjs).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,6 +39,7 @@ import path from 'node:path';
 import { releaseOf } from './github-release.mjs';
 import { consumerConfigProblems } from './release-consumer-config.mjs';
 import { buildWheel, metadataProblems, sourceProblems, tomlString, wheelMetadata, wheelName } from './release-wheel.mjs';
+import { lockProblems, wheelDependencyProblems } from './wheel-dependencies.mjs';
 import { readConfig } from './schema-validate.mjs';
 import { checkedFiles } from './tracked-files.mjs';
 import { isMain, ROOT } from './paths.mjs';
@@ -365,9 +367,11 @@ export function assets(ctx, tag) {
   const commit = taggedCommit(ctx, tag);
   const names = assetNames(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${folder}/${MANIFEST_OF[kind]}`], at(ctx)));
+  // The lock of each wheel package is read from the tagged commit, as its manifest is.
+  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: config.consumers.wheel.lock[name], text: run('git', ['show', `${commit}:${config.consumers.wheel.lock[name]}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = `${folder}/${MANIFEST_OF[kind]}`;
-    if (kind === 'wheel') return sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend.requirement });
+    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend.requirement }), ...lockProblems(locks[index].text, locks[index].file)];
     const manifest = JSON.parse(sources[index]);
     return [
       ...(manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`]),
@@ -400,7 +404,13 @@ export function assets(ctx, tag) {
     const present = readdirSync(next).sort();
     if (JSON.stringify(present) !== JSON.stringify([...names].sort())) throw new Stop(`${ASSETS} holds [${present.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
     const failures = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
-      if (kind === 'wheel') return metadataProblems(wheelMetadata(root, path.join(next, names[index]), ctx.env), name, version).map(problem => `${names[index]}: ${problem}`);
+      if (kind === 'wheel') {
+        const metadata = wheelMetadata(root, path.join(next, names[index]), ctx.env);
+        return [
+          ...metadataProblems(metadata, name, version),
+          ...wheelDependencyProblems({ metadata, version, polyspec: config.consumers.wheel.polyspec, lockFile: locks[index].file, lockText: locks[index].text }),
+        ].map(problem => `${names[index]}: ${problem}`);
+      }
       const file = MANIFEST_OF[kind];
       const packed = packedManifest(ctx, path.join(next, names[index]));
       return [

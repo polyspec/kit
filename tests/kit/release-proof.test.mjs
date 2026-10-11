@@ -3,10 +3,11 @@
 // (release-consumer-sandbox.mjs); git runs for real against the sandbox, which stands in for the remote of the repository URL.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import * as release from '../../scripts/kit/release.mjs';
+import { sha256 } from '../../scripts/kit/digest.mjs';
 import { Stop, run } from '../../scripts/kit/process.mjs';
 import * as proof from '../../scripts/kit/release-proof.mjs';
 import { git, readJson, writeJson } from './release-sandbox.mjs';
@@ -39,7 +40,9 @@ test('a released tag is proven in four steps and each step runs the commands of 
     "npm fixture-app 0.0.1: node -e require('fixture-app/package.json')",
     'composer install of 1 packages from tests/release-consumer/composer',
     "composer polyspec/kit-fixture 0.0.1: node -e require('./vendor/composer/installed.json')",
+    'wheel dependencies pip install of 1 requirements',
     'wheel pip install of 1 packages',
+    'wheel pip check passed',
     'wheel kit-fixture 0.0.1: python -c import kit_fixture',
     'installed and checked 4 packages from the release assets',
     'packages/fixture-rust/Cargo.toml: cargo resolved kit-fixture-rust from v0.0.1 and cargo check passed',
@@ -52,8 +55,12 @@ test('a released tag is proven in four steps and each step runs the commands of 
   const [venvCall] = box.calls('checkout-python3').filter(call => call.args[1] === 'venv');
   assert.deepEqual(venvCall.args.slice(0, 4), ['-m', 'venv', '--copies', '--without-pip']);
   const venv = { args: [null, null, venvCall.args[4]] };
-  const install = box.calls('checkout-python3').find(call => call.args.includes('--require-hashes'));
-  assert.deepEqual(install.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
+  const [dependencies, install] = box.calls('checkout-python3').filter(call => call.args.includes('--require-hashes'));
+  assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
+  assert.ok(dependencies.args.includes('--no-deps') && dependencies.args.includes('--only-binary'), 'the dependencies install with no dependency of their own and binary files only');
+  assert.equal(dependencies.requirements, 'ruff==0.16.10 --hash=sha256:' + '1'.repeat(64) + '\n', 'the lock of the wheel is installed first');
+  assert.ok(install.args.includes('--no-index'), 'the wheel itself is installed from its file, with no index');
+  assert.ok(box.calls('checkout-python3').some(call => call.args.at(-1) === 'check'), 'pip check runs in the venv');
   const python = box.calls('python');
   assert.deepEqual(python.at(-1).args, ['-c', 'import kit_fixture']);
   assert.equal(python.at(-1).env.VIRTUAL_ENV, venv.args[2], 'the smoke command runs in the virtual environment');
@@ -108,7 +115,7 @@ test('the proof fails when a smoke command of an archive fails', (t) => {
 test('the proof fails when pip cannot install the tag, when the venv cannot be made and when the smoke command fails', (t) => {
   const box = locked(t);
   box.stub({ modes: { 'checkout-python3': 'pip-fail' } });
-  stop(() => prove(box), /python3 -m pip --python \S+ install .* --require-hashes --no-deps -r .* exited with 1: pip stub: no matching distribution/);
+  stop(() => prove(box), /python3 -m pip --python \S+ install .*--require-hashes --no-deps .*-r .* exited with 1: pip stub: no matching distribution/);
   box.stub({ modes: { 'checkout-python3': '', python: 'smoke-fail' } });
   stop(() => prove(box), /python -c import kit_fixture exited with 1: python stub: ModuleNotFoundError/);
   box.stub({ modes: { 'checkout-python3': 'venv-fail', python: '' } });
@@ -181,7 +188,7 @@ test('the command line prints one line for each step and the exit status', (t) =
   const run = argv => proof.main(argv, { root: box.root, env: box.env, print: line => lines.push(line), error: line => errors.push(line) });
   assert.equal(run(['v0.0.1']), 0);
   assert.ok(lines.every(line => line.startsWith('✔ ')), lines.join('\n'));
-  assert.equal(lines.length, 13);
+  assert.equal(lines.length, 15);
   assert.equal(lines.at(-1), '✔ v0.0.1 is proven from outside the repository');
   box.stub({ modes: { go: 'fail' } });
   assert.equal(run(['v0.0.1']), 1);
@@ -201,4 +208,33 @@ test('make release-proof takes the tag of the environment', (t) => {
   const result = make('release-proof', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /✔ v0\.0\.1 is proven from outside the repository/);
+});
+
+test('the proof downloads each polyspec archive of a wheel lock and names a digest that differs from the lock', (t) => {
+  const bytes = 'kit-lib release asset stand-in\n';
+  const file = 'kit_lib-0.0.1-py3-none-any.whl';
+  const repo = 'https://github.com/polyspec/kit-lib';
+  const url = `${repo}/releases/download/v0.0.1/${file}`;
+  const digest = sha256(bytes);
+  const lockWith = sha => (root) => {
+    const config = readJson(root, 'config/release.json');
+    writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': repo } } } });
+    const lock = readFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), 'utf8');
+    writeFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), `${lock}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { url = "${url}", hashes = { sha256 = "${sha}" } }\n`);
+  };
+  const box = locked(t, { mutate: lockWith(digest) });
+  const source = path.join(box.root, 'stand-in');
+  mkdirSync(source);
+  writeFileSync(path.join(source, file), bytes);
+  box.stub({ dependencies: [{ repo: 'polyspec/kit-lib', tag: 'v0.0.1', file, source }] });
+  const steps = prove(box);
+  assert.ok(steps.includes(`polyspec kit-lib 0.0.1: ${file} of ${repo} has the sha256 that packages/fixture-python/pylock.wheel.toml holds`), steps.join('\n'));
+  assert.ok(box.calls('gh').some(call => call.args.at(-1) === 'repos/polyspec/kit-lib/releases/assets/1000'), 'the polyspec asset is downloaded from its own repository');
+
+  const wrong = locked(t, { mutate: lockWith('2'.repeat(64)) });
+  const wrongSource = path.join(wrong.root, 'stand-in');
+  mkdirSync(wrongSource);
+  writeFileSync(path.join(wrongSource, file), bytes);
+  wrong.stub({ dependencies: [{ repo: 'polyspec/kit-lib', tag: 'v0.0.1', file, source: wrongSource }] });
+  stop(() => prove(wrong), new RegExp(`${file} of ${repo} v0\\.0\\.1 has the sha256 ${digest}, packages/fixture-python/pylock\\.wheel\\.toml holds ${'2'.repeat(64)} for kit-lib`));
 });
