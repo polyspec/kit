@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b7f27e430c57f73ca8a7f5cd531e5cbfe7397aee15b082d177e9883047038f31 -->
+<!-- source-sha256: b385b495a336b66e457f521fa47e1a0db961e6690782855491e2efdc40159e64 -->
 # 개발
 
 [English](AGENTS.md)
@@ -27,6 +27,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   배포하는 consumer는 `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
   Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
   `make kit-test` 뒤에 실행합니다.
+- 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
+  target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 `dependency-review`, `kit-sync`, 설치 도구만 하고, 결과는 commit된 기록입니다.
 - 하위 호환성은 유지하지 않습니다: 호환 layer, fallback, migration을 더하지 않고 옛 경로를 제거합니다.

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a2a57456bb2ad9c747319000cbdca70329c337582af8b8bb6d9aded46c8e6a13 -->
+<!-- source-sha256: e1d401856ba0977e21bcca417a6b2684522561a8e2b3cf1c1f3776cc7b01c31f -->
 
 # 도구 목록
 
@@ -701,6 +701,9 @@ implementation(repository의 language 집합의 유일한 원천), 그것을 묶
 - 각 implementation의 extractor snapshot에서 export된 symbol을 읽습니다.
 - 각 implementation의 생성물에서 error code를 읽습니다.
 
+한 spec을 여러 implementation으로 가진 repository는 `config/parity.json`을 선언하고, `parity-declarations-check`를 검사 target에서,
+`parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다.
+
 ### 신뢰 경계
 
 검사기는 스스로 만들지 않는 입력 세 가지를 신뢰합니다. 각각은 다른 검사가 막습니다:
@@ -816,8 +819,8 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 2. 각 언어 harness가 suite의 case마다 `PASS <unit>/<case>`를 출력하게 합니다. Go에서는 각 case를 subtest `<symbol>/<case>`로
    실행합니다.
 3. 각 implementation의 extractor가 `exported`를 담은 snapshot을 쓰게 하고, 각 implementation의 error code를 catalog에서 생성합니다.
-4. `parity-declarations-check`와 `parity-check`를 repository의 검사에 추가합니다. symbol snapshot과 error code 생성물을 다시 만드는
-   검사 뒤에 실행합니다(신뢰 경계). `make kit-sync`의 복사본에 target이 이미 있습니다.
+4. `parity-declarations-check`를 repository의 검사 target에, `parity-check`를 CI에 추가해 둘 다 push가 반영되기 전에 실행되게
+   합니다. symbol snapshot과 error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). `make kit-sync`의 복사본에 target이 이미 있습니다.
 
 ```json
 {
