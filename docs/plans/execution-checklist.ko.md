@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 0ff19b6b1d00e9239da1c0394c325a45cf9be0b8c213f56c9695629ec1b2e489 -->
+<!-- source-sha256: 99be829bdfee2c7d499b92bedcd54d648e5588adfdd0f1d92e2a9e95c64da7c3 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -71,5 +71,5 @@
 | K21 | `node-reporter.mjs`는 test 파일을 checkout root 기준으로 부르지만 node는 작업 디렉터리 기준으로 부른다: `run-tests --cwd <dir>`이면 파일 그룹이 맞지 않아 test case로 세어진다. 두 경로를 작업 디렉터리 기준으로 풀어서 비교한다 | `scripts/kit/node-reporter.mjs, tests/kit/run-tests.test.mjs` | `node --test tests/kit/run-tests.test.mjs` | [o] release 0.0.15가 이것을 내보낸다. |
 | K23 | run-tests node는 부하에서 test event를 잃는다: test 파일의 process가 결과를 stdout pipe에 아직 남긴 채 끝나고, process.exit이 그것을 버려서 통과한 test가 "the test did not finish"로 보고된다 | scripts/kit/test-load-check.mjs, tests/kit/run-tests.test.mjs | node --test tests/kit/run-tests.test.mjs | [o] release 0.0.15가 이것을 내보낸다. |
 | K22 | run-tests python은 unittest를 NO_COLOR=1과 PYTHON_COLORS=0으로 실행한다: parser가 색 없는 줄을 읽고, FORCE_COLOR가 설정되면 Python 3.14가 unittest 출력에 색을 넣기 때문이다 | scripts/kit/run-tests.mjs, tests/kit/run-tests.test.mjs | node --test tests/kit/run-tests.test.mjs | [o] release 0.0.15가 이것을 내보낸다. |
-| K24 | `release-verify`는 annotated가 아닌 release tag를 거부한다: tag의 object 종류(`git cat-file -t <tag>`)는 `tag`여야 하며, 실패는 tag 이름과 그 종류(lightweight tag는 `commit`)를 적는다. release tag는 `git tag -a vX.Y.Z -m vX.Y.Z`로 만든다 | `scripts/kit/release.mjs, tests/kit/release.test.mjs, AGENTS.md(.ko)` | `node --test tests/kit/release.test.mjs` | [ ] |
+| K24 | `release-verify`는 annotated가 아닌 release tag를 거부한다: tag의 object 종류(`git cat-file -t <tag>`)는 `tag`여야 하며, 실패는 tag 이름과 그 종류(lightweight tag는 `commit`)를 적는다. release tag는 `git tag -a vX.Y.Z -m vX.Y.Z`로 만든다 | `scripts/kit/release.mjs, tests/kit/release.test.mjs, AGENTS.md(.ko)` | `node --test tests/kit/release.test.mjs` | [o] The next release publishes it. |
 | K25 | `install-tools`는 config/toolchain.json의 `pythonBuild`가 선언한 Python을 var/tools에 정확한 release로, sha256으로 검증한 download에서 멱등하게 설치한다. `check-toolchain`, run-tests, release-proof, ruff는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행한다 | `scripts/kit/install-python.mjs, install-tools.mjs, install-ruff.mjs, check-toolchain.mjs, run-tests.mjs, release-proof.mjs, toolchain-declared.mjs, schema/toolchain.schema.json, tests/kit/` | `make kit-test` | [ ] |
