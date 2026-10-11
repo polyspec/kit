@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a4da629ac72b2fce41fe6b041ad39f629b13208465ab48fe961cc18199afa14b -->
+<!-- source-sha256: 70f08e3270ab3aef5d334ae12ab25ad231c41ad1c9b7d0725dda115328148ec4 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -74,7 +74,7 @@
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
   읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
-- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다. archive의 symbolic link(예: `bin/python3`)는 대상의 일반 복사본으로 바꾸며, directory link는 복사된 directory가 됩니다. 없는 파일이나 archive 밖을 가리키는 link는 설치를 실패시킵니다. 설치된 tree에는 link가 없습니다. wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다.
+- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다. archive의 symbolic link(예: `bin/python3`)는 대상의 일반 복사본으로 바꾸며, directory link는 복사된 directory가 됩니다. 없는 파일이나 archive 밖을 가리키는 link는 설치를 실패시킵니다. 설치된 tree에는 link가 없습니다. wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/python-build/python/bin`이고 환경에 symbolic link가 없을 때만 `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `var/tools/bin/python3 -m venv --copies --without-pip <directory>`와 `--link-mode copy` 설치라는 고침과 함께 거부합니다. uv 0.12.11로 측정한 결과 `uv venv`와 `uv sync`는 `bin/python*`을 link로 쓰고 copy mode가 없으며, `--copies` 환경에 `uv pip install --python <directory>/bin/python --link-mode copy`로 설치하면 link가 생기지 않습니다.
 - ruff: template의 virtual environment는 `var/tools/bin/python3`으로 `--copies`를 써서 만들어 interpreter로의 link가 없습니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
