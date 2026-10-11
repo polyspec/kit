@@ -134,9 +134,13 @@ test('release-consumer installs the wheel with --no-index and --require-hashes i
   const box = consumerSandbox(t);
   box.lock();
   assert.equal(consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), 4);
-  const install = box.calls('python').find(call => call.args.includes('--require-hashes'));
+  const [venvCall] = box.calls('checkout-python3').filter(call => call.args[1] === 'venv');
+  assert.deepEqual(venvCall.args.slice(0, 4), ['-m', 'venv', '--copies', '--without-pip'], 'the venv is made through makeVenv: a copy of the checkout Python with no pip');
+  const venv = venvCall.args[4];
+  const install = box.calls('checkout-python3').find(call => call.args.includes('--require-hashes'));
   assert.ok(install, 'pip install ran');
-  assert.deepEqual(install.args.slice(0, 8), ['-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps']);
+  assert.deepEqual(install.args.slice(0, 9), ['-m', 'pip', '--python', path.join(venv, 'bin', 'python'), 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes']);
+  assert.ok(install.args.includes('--no-deps'));
   assert.equal(install.requirements, `${path.join(box.root, release.ASSETS, WHEEL)} --hash=sha256:${fileDigest(path.join(box.root, release.ASSETS, WHEEL))}\n`);
   assert.ok(box.calls('python').some(call => call.args.join(' ') === '-c import kit_fixture'), 'the smoke import ran');
 });

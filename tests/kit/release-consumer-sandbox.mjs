@@ -16,6 +16,9 @@ import * as consumer from '../../scripts/kit/release-consumer.mjs';
 import { releaseSandbox } from './release-sandbox.mjs';
 import { PIP_FUNCTIONS } from './wheel-stubs.mjs';
 
+// The release of the checkout Python (var/tools/bin/python3) that the stubs report.
+const CHECKOUT_VERSION = '3.14.8';
+
 // The start of every stub: the state, the call log and a function that saves both and exits.
 const PRELUDE = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -108,28 +111,44 @@ if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
 } else finish(1, 'gh stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
-// The interpreter of a virtual environment: it answers pip and the smoke command from the state.
+// The interpreter of a virtual environment: it answers the interpreter facts and the smoke command from the state.
 const VENV_PYTHON = `${PRELUDE}
-if (args[0] === '-m' && args[1] === 'pip' && args[2] === 'show') {
-  console.log('Name: ' + args[3] + '\\nVersion: ' + state.version);
+if (args[0] === '-c' && args[1].includes('platlibdir')) {
+  console.log(JSON.stringify([${JSON.stringify(CHECKOUT_VERSION)}, 'lib', []]));
   finish();
-}
-if (args[0] === '-m' && args[1] === 'pip') {
-  call.requirements = args.includes('-r') ? fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8') : null;
-  finish(mode === 'pip-fail' ? 1 : 0, mode === 'pip-fail' ? 'pip stub: no matching distribution' : '');
 }
 finish(mode === 'smoke-fail' ? 1 : 0, mode === 'smoke-fail' ? 'python stub: ModuleNotFoundError' : '');
 `;
 
+// The checkout Python, var/tools/bin/python3: it makes the venv (with home in the checkout), answers the facts of the checkout
+// Python, and runs pip with --python into a venv. The venv's pip calls are logged with the call.
 const PYTHON3 = `${PRELUDE}
 ${PIP_FUNCTIONS}
-if (args[0] === '-m' && args[1] === 'pip') finish(pipStub(args));
-else if (args[0] === '-m' && args[1] === 'venv') {
-  const bin = path.join(args[2], 'bin');
-  fs.mkdirSync(bin, { recursive: true });
-  for (const name of ['python']) fs.writeFileSync(path.join(bin, name), state.venvPython, { mode: 0o755 });
+const CHECKOUT_BIN = path.join(process.cwd(), 'var/tools/python-build/python/bin');
+if (args[0] === '-c' && args[1].includes('platlibdir')) {
+  console.log(JSON.stringify([${JSON.stringify(CHECKOUT_VERSION)}, 'lib', []]));
+  finish();
+} else if (args[0] === '-m' && args[1] === 'venv') {
+  if (!args.includes('--copies') || !args.includes('--without-pip')) finish(1, 'python3 stub: a venv is made with --copies --without-pip, got ' + JSON.stringify(args));
+  const directory = args.at(-1);
+  fs.mkdirSync(path.join(directory, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(directory, 'bin', 'python'), state.venvPython, { mode: 0o755 });
+  fs.writeFileSync(path.join(directory, 'pyvenv.cfg'), 'home = ' + CHECKOUT_BIN + '\\n');
   finish(mode === 'venv-fail' ? 1 : 0, mode === 'venv-fail' ? 'python3 stub: venv failed' : '');
-} else finish(1, 'python3 stub: unexpected arguments ' + JSON.stringify(args));
+} else if (args[0] === '-m' && args[1] === 'pip' && args[2] === '--python') {
+  if (args[4] === 'show') {
+    console.log('Name: ' + args[5] + '\\nVersion: ' + state.version);
+    finish();
+  }
+  call.requirements = args.includes('-r') ? fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8') : null;
+  finish(mode === 'pip-fail' ? 1 : 0, mode === 'pip-fail' ? 'pip stub: no matching distribution' : '');
+} else if (args[0] === '-m' && args[1] === 'pip') finish(pipStub(args));
+else finish(1, 'python3 stub: unexpected arguments ' + JSON.stringify(args));
+`;
+
+// The python3 on PATH: the checkout's Python never reaches it, so any call here is a failure of the release tools.
+const PATH_PYTHON3 = `${PRELUDE}
+finish(1, 'python3 stub: a python3 of PATH ran with ' + JSON.stringify(args) + '; the release uses var/tools/bin/python3');
 `;
 
 const CARGO = `${PRELUDE}
@@ -146,7 +165,7 @@ if (args[0] === 'list' && args[1] === '-m') {
 } else finish(1, 'go stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
-const STUBS = { npm: NPM, composer: COMPOSER, gh: GH, python3: PYTHON3, cargo: CARGO, go: GO };
+const STUBS = { npm: NPM, composer: COMPOSER, gh: GH, python3: PATH_PYTHON3, 'checkout-python3': PYTHON3, cargo: CARGO, go: GO };
 
 /** The sandbox at `version` with its release tags, the archives of the tag in var/release/assets and the stubs of the tools. */
 export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
@@ -163,7 +182,9 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
   // The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mjs writes: it runs the stub.
   const python = path.join(box.root, 'var/tools/bin/python3');
   mkdirSync(path.dirname(python), { recursive: true });
-  writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
+  // The Python of the checkout exists as a directory, so its home compares by its real path, as on macOS (/var is /private/var).
+  mkdirSync(path.join(box.root, 'var/tools/python-build/python/bin'), { recursive: true });
+  writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'checkout-python3')}' "$@"\n`);
   chmodSync(python, 0o755);
   writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON, version }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.

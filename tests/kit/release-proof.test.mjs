@@ -49,12 +49,15 @@ test('a released tag is proven in four steps and each step runs the commands of 
   assert.deepEqual(list.args, ['api', '--hostname', 'example.com', '--paginate', 'repos/polyspec/kit-fixture/releases', '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {id, name}]} | @json']);
   assert.deepEqual(downloads.map(call => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
-  const venv = box.calls('python3')[0];
-  assert.deepEqual(venv.args.slice(0, 2), ['-m', 'venv']);
+  const [venvCall] = box.calls('checkout-python3').filter(call => call.args[1] === 'venv');
+  assert.deepEqual(venvCall.args.slice(0, 4), ['-m', 'venv', '--copies', '--without-pip']);
+  const venv = { args: [null, null, venvCall.args[4]] };
+  const install = box.calls('checkout-python3').find(call => call.args.includes('--require-hashes'));
+  assert.deepEqual(install.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
   const python = box.calls('python');
-  assert.deepEqual(python[0].args.slice(0, 8), ['-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps']);
   assert.deepEqual(python.at(-1).args, ['-c', 'import kit_fixture']);
   assert.equal(python.at(-1).env.VIRTUAL_ENV, venv.args[2], 'the smoke command runs in the virtual environment');
+  assert.equal(box.calls('python3').length, 0, 'no python3 of PATH runs');
   const [cargo] = box.calls('cargo');
   assert.deepEqual(cargo.args, ['check']);
   assert.match(cargo.manifest, new RegExp(`\\[dependencies\\]\\nkit-fixture-rust = \\{ git = "${URL}", tag = "v0\\.0\\.1" \\}\\n$`));
@@ -104,12 +107,12 @@ test('the proof fails when a smoke command of an archive fails', (t) => {
 
 test('the proof fails when pip cannot install the tag, when the venv cannot be made and when the smoke command fails', (t) => {
   const box = locked(t);
-  box.stub({ modes: { python: 'pip-fail' } });
-  stop(() => prove(box), /python -m pip install .* --require-hashes --no-deps -r .* exited with 1: pip stub: no matching distribution/);
-  box.stub({ modes: { python: 'smoke-fail' } });
+  box.stub({ modes: { 'checkout-python3': 'pip-fail' } });
+  stop(() => prove(box), /python3 -m pip --python \S+ install .* --require-hashes --no-deps -r .* exited with 1: pip stub: no matching distribution/);
+  box.stub({ modes: { 'checkout-python3': '', python: 'smoke-fail' } });
   stop(() => prove(box), /python -c import kit_fixture exited with 1: python stub: ModuleNotFoundError/);
-  box.stub({ modes: { python3: 'venv-fail', python: '' } });
-  stop(() => prove(box), /python3 -m venv .* exited with 1: python3 stub: venv failed/);
+  box.stub({ modes: { 'checkout-python3': 'venv-fail', python: '' } });
+  stop(() => prove(box), /python3 -m venv --copies --without-pip .* ended with exit status 1/);
 });
 
 test('the proof fails when cargo cannot resolve the tag', (t) => {
@@ -166,7 +169,7 @@ test('the proof removes its temporary directory and changes nothing in the check
   const before = git(box.root, 'status', '--porcelain', '--ignored');
   prove(box);
   assert.equal(git(box.root, 'status', '--porcelain', '--ignored'), before);
-  const folder = path.dirname(path.dirname(box.calls('python3')[0].args[2]));
+  const folder = path.dirname(path.dirname(box.calls('checkout-python3').find(call => call.args[1] === 'venv').args[4]));
   assert.match(path.basename(folder), /^kit-release-consumer-/);
   assert.equal(existsSync(folder), false);
 });
