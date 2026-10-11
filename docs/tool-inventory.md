@@ -81,7 +81,19 @@ checked.
   archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build`. Each symbolic
   link of the archive (such as `bin/python3`) is replaced by a regular copy of its target, a directory link by a copied directory;
   a link to a missing file or outside the archive fails the install. The installed tree holds no link; the wrapper
-  `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg` names `var/tools/python-build/python/bin` as its `home` and the environment holds no symbolic link; it refuses any other environment before the tool starts, with the fix `var/tools/bin/python3 -m venv --copies --without-pip <directory>` and an install with `--link-mode copy`. Measured with uv 0.12.11: `uv venv` and `uv sync` write `bin/python*` as links and have no copy mode, while `uv pip install --python <directory>/bin/python --link-mode copy` into a `--copies` environment keeps it free of links.
+  `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg` names `var/tools/python-build/python/bin` as its `home` and the environment holds no symbolic link; it refuses any other environment before the tool starts, with the fix `make python-venv DIR=<directory>` (K44) and an install with `--link-mode copy`. Measured with uv 0.12.11: `uv venv` and `uv sync` write `bin/python*` as links and have no copy mode, while `uv pip install --python <directory>/bin/python --link-mode copy` into a `--copies` environment keeps it free of links.
+- Python venv (K44): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mjs`) is the way a consumer makes a virtual
+  environment of the checkout Python; consumers call it instead of `-m venv`. It runs `var/tools/bin/python3 -m venv --copies
+  --without-pip <directory>` and then removes the link `lib64 -> lib`. The run is idempotent: an existing `<directory>` that is
+  already a venv of the checkout Python (run-tests' rule, the same Python version, platlibdir `lib`, no `lib64` in `sys.path`) is
+  accepted unchanged and reported as such; any other existing `<directory>` is an error with its reason and is neither removed nor
+  repaired. Evidence: CPython makes
+  that link on 64-bit posix systems other than macOS, and fsm's CI on ubuntu-24.04 refused a `run-tests --venv` environment with
+  `holds symbolic links (lib64)`. The removal happens only when `lib64` is exactly that link and the interpreter's `sys.platlibdir`
+  is `lib`. Any other symbolic link, any other `lib64` or another platlibdir is refused, naming the path, and nothing is changed.
+  The result is checked: no `sys.path` entry names `lib64`, and the rule of run-tests (`venvProblem`, in the same module) accepts
+  it. A failed run removes the directory it made. The rule of no symbolic link is
+  unchanged; the tool only performs the step that CPython's venv adds.
 - ruff: the virtual environment of template is made with `--copies` from `var/tools/bin/python3`, so it holds no link to the interpreter.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
   PHP and Python by minor release (crudui, ordered-json, hyper), exact release for the other tools, `GOTOOLCHAIN=local` and
