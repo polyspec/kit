@@ -124,7 +124,10 @@ Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lo
 
 A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
 tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
-gate. The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
+gate. It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mjs`, `config/commits.json`),
+because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
+the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
+refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
 record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
