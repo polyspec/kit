@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 146d9cbb7e860d44b272d30b0c825d5f7f2e48ac3a5d1594ee83148844ace8e3 -->
+<!-- source-sha256: 3ce3a7f8cb70ee4dd8446d2a541fd2f38a8e6f67f11a5d783033a157a30e4cd6 -->
 # 개발
 
 [English](AGENTS.md)
@@ -29,8 +29,11 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   `make kit-test` 뒤에 실행합니다.
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 `dependency-review`, `kit-sync`, 설치 도구만 하고, 결과는 commit된 기록입니다.
-- 하위 호환성은 유지하지 않습니다. 현재 요구를 충족하는 가장 단순한 구현을 씁니다. 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인
-  표현으로 씁니다.
+- 하위 호환성은 유지하지 않습니다: 호환 layer, fallback, migration을 더하지 않고 옛 경로를 제거합니다.
+- 현재 요구를 완전히 충족하는 가장 단순한 구현을 씁니다. 불확실한 미래를 위한 추상화, 설정, 간접 계층을 두지 않습니다.
+- 각 관심사를 자기 module에 분명히 분리한 modular component로 만듭니다.
+- architecture는 장기적으로 정합니다: 지금은 동작하지만 나중에 교체해야 하는 임시방편은 받아들이지 않습니다.
+- 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인 표현으로 씁니다.
 
 ## 체크리스트
 

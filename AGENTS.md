@@ -30,8 +30,12 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   `dependency-review`, `kit-sync` and the install tools, and its result is a committed record.
-- Do not keep backward compatibility. Use the simplest implementation that meets the current requirement. Write comments,
-  documents and commit messages in direct language: name the action and its object.
+- Do not keep backward compatibility: remove an old path instead of adding a compatibility layer, a fallback or a migration.
+- Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection for
+  an uncertain future.
+- Build modular components, each concern clearly separated in its own module.
+- Decide the architecture for the long term: a stopgap that works now and must be replaced later is not accepted.
+- Write comments, documents and commit messages in direct language: name the action and its object.
 
 ## Checklist
 
