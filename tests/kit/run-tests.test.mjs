@@ -404,14 +404,14 @@ test('python tests run through var/tools/bin/python3, pass, fail and stop at the
   assert.match(none.text, /no test ran/);
 });
 
-// A virtual environment of the checkout's Python (K37): pyvenv.cfg names var/tools/python-build/python/bin as its home and
+// A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/uv-python as its home and
 // bin/python is a stub that prints unittest output; `home` overrides the named home.
 function venvRoot(t, { home } = {}) {
   const root = tree(t);
-  mkdirSync(path.join(root, 'var/tools/python-build/python/bin'), { recursive: true });
+  mkdirSync(path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin'), { recursive: true });
   const venv = path.join(root, 'pkg/.venv');
   mkdirSync(path.join(venv, 'bin'), { recursive: true });
-  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home ?? path.join(root, 'var/tools/python-build/python/bin')}\nversion = 3.14.8\n`);
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home ?? path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin')}\nversion = 3.14.8\n`);
   writeFileSync(path.join(venv, 'bin/python'), `#!/usr/bin/env node\nprocess.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');\n`);
   chmodSync(path.join(venv, 'bin/python'), 0o755);
   return root;
@@ -431,11 +431,11 @@ test('--venv refuses an environment that is not one or comes from another Python
   const missing = tree(t);
   const none = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: missing });
   assert.equal(none.status, 1, none.text);
-  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or uv venv --python var\/tools\/bin\/python3 pkg\/\.venv/);
+  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/bin\/uv venv --python var\/tools\/bin\/python3 pkg\/\.venv/);
   const other = venvRoot(t, { home: '/usr/bin' });
   const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
   assert.equal(foreign.status, 1, foreign.text);
-  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from the Python of this checkout \(var\/tools\/python-build\/python\/bin\)/);
+  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/uv-python\)/);
 });
 
 // The links of an environment are the behavior of the tool that made it, such as uv's bin/python3 -> python (K63): run-tests

@@ -191,7 +191,7 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   const project = path.join(folder, WHEEL_KIND);
   const venv = path.join(project, 'venv');
   mkdirSync(project, { recursive: true });
-  // The venv is a copy of the checkout Python with no pip and no symbolic link (python-venv.mjs); pip of the checkout installs into it.
+  // uv venv makes the venv from the checkout Python with no pip (python-venv.mjs); pip of the checkout installs into it.
   try {
     makeVenv({ root, directory: venv, env });
   } catch (error) {

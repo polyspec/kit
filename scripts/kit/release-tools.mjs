@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json:
 //
-//   npm, composer, python, pythonBackend, go   install-tools installs them into var/tools: a package or consumer of that kind,
-//                                              a wheel (python and its build backend) or a Go module
+//   npm, composer, uv, python, pythonBackend, go   install-tools installs them into var/tools: a package or consumer of that
+//                                                  kind, a wheel (uv, the python that uv installs and its build backend) or a Go module
 //   rust                                       a git-tag manifest of the proof: the channel of rust-toolchain.toml is installed
 //                                              with rustup, as make install does, and check-toolchain checks rustc against it
 //
@@ -24,11 +24,12 @@ export function toolsFor(config) {
   if (kinds.has('npm') || config.consumers?.npm) needed.add('npm');
   if (kinds.has('composer') || config.consumers?.composer) needed.add('composer');
   if (kinds.has('wheel') || config.consumers?.wheel) {
+    needed.add('uv');
     needed.add('python');
     needed.add('pythonBackend');
   }
   if (Object.keys(config.goModules ?? {}).length) needed.add('go');
-  const order = ['npm', 'composer', 'python', 'pythonBackend', 'go'];
+  const order = ['npm', 'composer', 'uv', 'python', 'pythonBackend', 'go'];
   return { install: order.filter(name => needed.has(name)), rust: Object.keys(config.proof?.gitTag ?? {}).length > 0 };
 }
 

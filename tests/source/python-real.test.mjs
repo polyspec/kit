@@ -1,5 +1,5 @@
-// The real Python of this checkout: var/tools/bin/python3, installed by `make install-tools` from the pythonBuild of
-// config/toolchain.json, and the build backend that install-tools fetches from its pythonBackend declaration. The fixture
+// The real Python of this checkout: var/tools/bin/python3, installed by `make install-tools` with the declared uv from the
+// pythonBuild of config/toolchain.json, and the build backend that install-tools fetches from its pythonBackend declaration. The fixture
 // wheel is built with that Python and that backend, installed into a clean virtual environment with --no-index
 // --require-hashes --no-deps, and its smoke import runs. Nothing here is stubbed; a missing install fails the case.
 import assert from 'node:assert/strict';
@@ -19,9 +19,9 @@ const declaration = () => JSON.parse(readFileSync(path.join(ROOT, 'config/toolch
 test('config/toolchain.json declares the pythonBuild of the kit and the pinned build backend of its wheels', () => {
   const declared = declaredToolchain(ROOT);
   assert.ok(declared.pythonBuild, 'config/toolchain.json declares pythonBuild, so make install-tools installs the Python');
-  assert.equal(declared.pythonBuild.version, '3.14.8');
-  assert.equal(declared.pythonBuild.release, '20261009');
-  assert.deepEqual(Object.keys(declared.pythonBuild.sha256).sort(), ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']);
+  assert.deepEqual(declaration().pythonBuild, { version: '3.14.8' });
+  assert.ok(declared.uv, 'config/toolchain.json declares uv, which installs the Python');
+  assert.deepEqual(Object.keys(declared.uv.sha256).sort(), ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']);
   assert.deepEqual(declaration().pythonBackend, {
     requirement: 'setuptools==84.0.0',
     sha256: '51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670',

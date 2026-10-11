@@ -55,8 +55,8 @@ test('a released tag is proven in four steps and each step runs the commands of 
   assert.deepEqual(list.args, ['api', '--hostname', 'example.com', '--paginate', 'repos/polyspec/kit-fixture/releases', '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]} | @json']);
   assert.deepEqual(downloads.map(call => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
-  const [venvCall] = box.calls('checkout-python3').filter(call => call.args[1] === 'venv');
-  assert.deepEqual(venvCall.args.slice(0, 4), ['-m', 'venv', '--copies', '--without-pip']);
+  const [venvCall] = box.calls('checkout-uv').filter(call => call.args[0] === 'venv');
+  assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/bin/python3')]);
   const venv = { args: [null, null, venvCall.args[4]] };
   const [dependencies, install] = box.calls('checkout-python3').filter(call => call.args.includes('--require-hashes'));
   assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
@@ -121,8 +121,8 @@ test('the proof fails when pip cannot install the tag, when the venv cannot be m
   stop(() => prove(box), /python3 -m pip --python \S+ install .*--require-hashes --no-deps .*-r .* exited with 1: pip stub: no matching distribution/);
   box.stub({ modes: { 'checkout-python3': '', python: 'smoke-fail' } });
   stop(() => prove(box), /python -c import kit_fixture exited with 1: python stub: ModuleNotFoundError/);
-  box.stub({ modes: { 'checkout-python3': 'venv-fail', python: '' } });
-  stop(() => prove(box), /python3 -m venv --copies --without-pip .* ended with exit status 1/);
+  box.stub({ modes: { 'checkout-uv': 'venv-fail', python: '' } });
+  stop(() => prove(box), /uv venv --quiet --python .* ended with exit status 1/);
 });
 
 test('the proof fails when cargo cannot resolve the tag', (t) => {
@@ -179,7 +179,7 @@ test('the proof removes its temporary directory and changes nothing in the check
   const before = git(box.root, 'status', '--porcelain', '--ignored');
   prove(box);
   assert.equal(git(box.root, 'status', '--porcelain', '--ignored'), before);
-  const folder = path.dirname(path.dirname(box.calls('checkout-python3').find(call => call.args[1] === 'venv').args[4]));
+  const folder = path.dirname(path.dirname(box.calls('checkout-uv').find(call => call.args[0] === 'venv').args[4]));
   assert.match(path.basename(folder), /^kit-release-consumer-/);
   assert.equal(existsSync(folder), false);
 });

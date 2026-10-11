@@ -1,28 +1,21 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself. install-tools installs the Python of pythonBuild and the build backend of the Python wheels (pythonBackend); the digests are the install_only archives and the wheel of each release.",
+  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); the digests are the uv archives of each platform and the backend wheel.",
   "python": "3.14",
   "pythonBuild": {
-    "version": "3.14.8",
-    "release": "20261009",
-    "sha256": {
-      "darwin-arm64": "ff8e1ddc02a9df3190b62d5af475cb642a02cfc77901ef780f9826cc23b51934",
-      "darwin-x64": "9694bf8c8c1fb1250dd6f05e7914ebbbe7180e0f11b7feaf5edb2f6acebe4153",
-      "linux-arm64": "2a99838d2ba71c91d9c72929ee73cdfad2ccd093d7746a14094f50e583989ec3",
-      "linux-x64": "83f9cb480b702548c592443f86209cf0fc03448d90692df257f095c01791dccc"
-    }
+    "version": "3.14.8"
   },
   "pythonBackend": {
     "requirement": "setuptools==84.0.0",
     "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
   },
   "uv": {
-    "version": "0.12.11",
+    "version": "0.12.24",
     "sha256": {
-      "darwin-arm64": "4d3337366d55b0fa44f559dad77039ba78699f3d964e597aedd7afa79da0630d",
-      "darwin-x64": "103900d5310e0d6979568b695c4782fb4cb0721db7bec70ddce70596acbf85fd",
-      "linux-arm64": "c6ff21a984039f3e5c78a432c9c5ecf28dd6282db6d46336d077188e0eed53e3",
-      "linux-x64": "2c0d529c347eccaebaeec1be0e2a7a0a7d814128595b2549649060d2f75d0df6"
+      "darwin-arm64": "0c4346de7abdb49495b393b9ec809fe387aa43e586be20fecb972216c1e71732",
+      "darwin-x64": "4fa82e37cb94767661f532b001e470b67a186c7260e305bd84ddb78fd545c0b6",
+      "linux-arm64": "5231be65f496304623895dacdbf1de8504fec90303684bdf05805aa34414dd21",
+      "linux-x64": "b4dfaef47d491a7296981f8374a4595f55dbf84e8937c8ecd2983574d8bb3da6"
     }
   },
   "composer": {

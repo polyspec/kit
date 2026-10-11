@@ -183,8 +183,8 @@ test('release-consumer installs the wheel with --no-index and --require-hashes i
   const box = consumerSandbox(t);
   box.lock();
   assert.equal(consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), 4);
-  const [venvCall] = box.calls('checkout-python3').filter(call => call.args[1] === 'venv');
-  assert.deepEqual(venvCall.args.slice(0, 4), ['-m', 'venv', '--copies', '--without-pip'], 'the venv is made through makeVenv: a copy of the checkout Python with no pip');
+  const [venvCall] = box.calls('checkout-uv').filter(call => call.args[0] === 'venv');
+  assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/bin/python3')], 'the venv is made through makeVenv: uv venv from the checkout Python, with no pip');
   const venv = venvCall.args[4];
   const dependencies = box.calls('checkout-python3').find(call => call.args.includes('--only-binary'));
   assert.equal(dependencies.requirements, `ruff==0.16.10 --hash=sha256:${'1'.repeat(64)}\n`, 'the lock of the wheel is installed with its hashes first');

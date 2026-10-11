@@ -20,8 +20,8 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
-      # install-tools installs the Python of config/toolchain.json pythonBuild and its pythonBackend into var/tools; the wheel
-      # test runs that Python.
+      # install-tools installs the uv of config/toolchain.json, the Python of pythonBuild with that uv and the pythonBackend into
+      # var/tools; the wheel and venv tests run that uv and that Python.
       - name: install tools
         run: make install-tools
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
