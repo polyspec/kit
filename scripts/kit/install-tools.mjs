@@ -42,7 +42,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} } = {
   if (wanted('npm')) step('npm', () => installNpm({ root, declared: declared.npm, print }));
   if (wanted('go')) step('go', () => installGo({ root, declared: declared.go, print }));
   if (wanted('python')) step('python', () => installPython({ root, declared: declared.pythonBuild, print }));
-  if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend.requirement, sha256: declared.pythonBackend.sha256, source: declared.pythonBackend.source, print }); return { installed }; });
+  if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend.requirement, digests: [declared.pythonBackend.sha256], source: declared.pythonBackend.source, print }); return { installed }; });
   if (wanted('ruff')) step('ruff', () => installRuff({ root, declared: declared.ruff, print }));
   if (wanted('composer')) step('composer', () => installComposer({ root, declared: declared.composer, print }));
   if (wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: declared.cargoAudit.version, print }));

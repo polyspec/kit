@@ -22,7 +22,7 @@ cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the r
 
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 	$(ONLINE) node scripts/kit/check-cargo-downloads.mjs --fetch
-# Toolchains (K8.2): install-tools installs the declared npm, Go, ruff, Composer (with a sha256), cargo-audit and
+# Toolchains (K8.2): install-tools installs the declared npm, Go, ruff (with the sha256 of its wheels), Composer (with a sha256), cargo-audit and
 # govulncheck into var/tools; ONLINE, because it downloads. Nothing on the machine changes. Put var/tools/bin first on PATH.
 # toolchain-check compares the running tools with the declarations and fails with the expected and the running version.
 .PHONY: install-tools toolchain-check
@@ -124,9 +124,9 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
 	$(ONLINE) node scripts/kit/release-backend.mjs
 
-# --- lint-python: ruff check and ruff format --check of the Python package that config/toolchain.json ruff.pyproject names.
+# --- lint-python: ruff check and ruff format --check of the Python of the checkout, with the ruff that config/toolchain.json declares.
 .PHONY: lint-python
-lint-python: ## Lint and format-check the Python package with the ruff of var/tools; offline
+lint-python: ## Lint and format-check the Python of the checkout with the ruff of var/tools; offline
 	node scripts/kit/lint-python.mjs
 # ---- Consumer install of the release archives (K5.4) ------------------------------------------------------------
 # ---- Consumer install and proof of a release (K5.4, K5.5) ------------------------------------------------------------

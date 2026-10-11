@@ -16,8 +16,7 @@ const FILES = {
   'package.json': '{ "packageManager": "npm@12.2.0" }',
   'rust-toolchain.toml': '[toolchain]\nchannel = "1.98.1"\n',
   'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
-  'pyproject.toml': 'dev = ["ruff==0.16.10"]\n',
-  'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.2', '8.5'], python: '3.14', composer: { version: '2.10.3' }, go: { mod: 'go.mod' }, ruff: { pyproject: 'pyproject.toml' }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
+  'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.2', '8.5'], python: '3.14', composer: { version: '2.10.3' }, go: { mod: 'go.mod' }, ruff: { version: '0.16.10', sha256: { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a' } }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
 };
 const OUTPUTS = {
   npm: '12.2.0',
@@ -64,7 +63,7 @@ test('every tool that differs is named with the declaring file, the expected and
     '[check-toolchain] php: 8.4.9 runs here and config/toolchain.json php declares 8.2 or 8.5; fix: install PHP 8.2 or 8.5',
     '[check-toolchain] python: 3.13.2 runs here and config/toolchain.json python declares 3.14; fix: make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] composer: 2.9.0 runs here and config/toolchain.json composer declares 2.10.3; fix: install Composer 2.10.3, or declare its sha256 and run make install-tools, and var/tools/bin first on PATH',
-    '[check-toolchain] ruff: 0.15.0 runs here and pyproject.toml ruff pin declares 0.16.10; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] ruff: 0.15.0 runs here and config/toolchain.json ruff declares 0.16.10; fix: make install-tools, and var/tools/bin first on PATH',
     '[check-toolchain] 7 of 10 tools differ from the declared versions',
   ]);
 });

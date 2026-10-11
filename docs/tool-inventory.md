@@ -51,12 +51,12 @@ Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (o
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
-| ruff | the `ruff==X.Y.Z` pin of the `pyproject.toml` named by `ruff.pyproject`; its environment is made with `var/tools/bin/python3` | install |
+| ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made with `var/tools/bin/python3` | install |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
-(`pyproject`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
+(`version`, `sha256` of each platform's wheel), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
 
@@ -564,10 +564,14 @@ Left as it is, with the reason:
 ## Python lint (K8.4)
 
 The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
-`scripts/kit/lint-python.mjs` and `make lint-python`: the package is the directory of the `ruff.pyproject` that
-`config/toolchain.json` names, ruff is the one of `var/tools/bin`, and the rules are the `[tool.ruff]` tables of that
-`pyproject.toml`, so the result does not depend on the ruff configuration of a machine. Both steps run after a failure of the
-first. An undeclared ruff and a missing ruff fail with their fix.
+`scripts/kit/lint-python.mjs` and `make lint-python`: ruff runs on the checkout root with `var` excluded, ruff is the one of
+`var/tools/bin` at the version `ruff` of `config/toolchain.json` declares, and the rules are the `[tool.ruff]` tables of the
+pyproject.toml files of the checkout, so the result does not depend on the ruff configuration of a machine. Both steps run after
+a failure of the first. An undeclared ruff and a missing ruff fail with their fix.
+
+The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff, and the
+dependency review reads the pin of `config/toolchain.json` as a PyPI dependency; a newer ruff is set by hand with the sha256 of its
+wheels.
 ## Consumer install of the release archives (K5.4)
 
 `scripts/kit/release-consumer.mjs install TAG` installs all archives of a tag together in clean consumer projects outside the
