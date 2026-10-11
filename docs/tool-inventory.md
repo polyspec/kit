@@ -678,8 +678,9 @@ fails that run and the release stays a draft. A developer may run it for any rel
 - `workflows/release.yml` is the source of `vendoredFiles` in kit.json, which maps it to `.github/workflows/release.yml`: `make kit-sync`
   copies it and records its sha256 in the lock, and `make kit-check` fails on a difference.
 - `make release-tools` (`scripts/kit/release-tools.mjs`) derives the install-tools names from config/release.json: npm for an npm package or
-  consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs cargo, which install-tools does not
-  install; release-tools checks it on PATH and fails with the fix.
+  consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
+  `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
+  `check-toolchain rust` checks rustc against that channel. A git-tag proof without rust-toolchain.toml fails with the file name.
 - `release-publish` creates the release as a draft. `release-proof` reads the releases of the repository through the API, drafts included,
   and downloads each asset by its id. `release-undraft` makes the release public and changes nothing for a public release. A draft of an
   earlier run is replaced; a public release is never replaced. No tool of the five

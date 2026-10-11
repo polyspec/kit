@@ -622,7 +622,7 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 ### Release workflow, tool과 draft (K38)
 
 - `workflows/release.yml`은 kit.json의 `vendoredFiles`가 `.github/workflows/release.yml`로 대응시키는 원본입니다. `make kit-sync`가 이를 복사하고 sha256을 lock에 기록하며, `make kit-check`가 차이를 실패시킵니다.
-- `make release-tools`(`scripts/kit/release-tools.mjs`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 cargo가 필요하며 install-tools가 설치하지 않으므로 release-tools가 PATH에서 확인하고 해결 방법과 함께 실패합니다.
+- `make release-tools`(`scripts/kit/release-tools.mjs`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
 - `release-publish`는 release를 draft로 만듭니다. `release-proof`는 저장소의 release를 API로 읽으며 draft를 포함하고, 각 자산을 id로 내려받습니다. `release-undraft`는 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
 또는 기대값과 실제 값을 적습니다.
