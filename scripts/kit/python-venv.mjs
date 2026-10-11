@@ -73,9 +73,9 @@ export function finishVenv(directory, { platlibdir, root = ROOT }) {
 }
 
 /** The sys values of the interpreter `python`: its version, its platlibdir and its sys.path. */
-function interpreterFacts(python) {
+function interpreterFacts(python, env = process.env) {
   const code = 'import json, platform, sys; print(json.dumps([platform.python_version(), sys.platlibdir, sys.path]))';
-  const [version, platlibdir, paths] = JSON.parse(execFileSync(python, ['-c', code], { encoding: 'utf8' }));
+  const [version, platlibdir, paths] = JSON.parse(execFileSync(python, ['-c', code], { encoding: 'utf8', env }));
   return { version, platlibdir, paths };
 }
 
@@ -84,14 +84,14 @@ function interpreterFacts(python) {
  * the rule of run-tests (pyvenv.cfg home, no symbolic link), the version of the checkout Python, platlibdir lib and no lib64 in
  * sys.path.
  */
-export function existingVenvProblem(directory, root = ROOT) {
+export function existingVenvProblem(directory, root = ROOT, env = process.env) {
   const relative = path.relative(root, directory);
   const problem = venvProblem(directory, root);
   if (problem) return problem;
   const interpreter = path.join(directory, 'bin/python');
   if (!existsSync(interpreter)) return `${relative} has no bin/python`;
-  const venv = interpreterFacts(interpreter);
-  const checkout = interpreterFacts(toolsPath(root, 'bin', 'python3'));
+  const venv = interpreterFacts(interpreter, env);
+  const checkout = interpreterFacts(toolsPath(root, 'bin', 'python3'), env);
   if (venv.version !== checkout.version) return `${relative} runs Python ${venv.version}, the checkout Python is ${checkout.version}`;
   if (venv.platlibdir !== 'lib') return `${relative} has the platlibdir ${venv.platlibdir}, not lib`;
   const named = venv.paths.filter(entry => entry.includes('lib64'));
@@ -103,23 +103,23 @@ export function existingVenvProblem(directory, root = ROOT) {
  * Makes the virtual environment `directory` from the checkout Python, or accepts it unchanged when it already is one: the run
  * is idempotent. An existing directory that is not such a venv is an error with its reason; it is neither removed nor repaired.
  */
-export function makeVenv({ root = ROOT, directory, print = () => {} }) {
+export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }) {
   const relative = path.relative(root, directory);
   const python = toolsPath(root, 'bin', 'python3');
   if (!existsSync(python)) {
     throw new Error(`${path.relative(root, python)} is missing; declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python`);
   }
   if (lstatSync(directory, { throwIfNoEntry: false }) !== undefined) {
-    const problem = existingVenvProblem(directory, root);
+    const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(`${relative} exists and is not a venv of the checkout Python: ${problem}; it is neither removed nor repaired`);
     print(`${relative} unchanged: a venv of the checkout Python with no symbolic link`);
     return;
   }
-  run(python, ['-m', 'venv', '--copies', '--without-pip', directory], { cwd: root }, print);
+  run(python, ['-m', 'venv', '--copies', '--without-pip', directory], { cwd: root, env }, print);
   try {
-    const { platlibdir } = interpreterFacts(path.join(directory, 'bin/python'));
+    const { platlibdir } = interpreterFacts(path.join(directory, 'bin/python'), env);
     finishVenv(directory, { platlibdir, root });
-    const problem = existingVenvProblem(directory, root);
+    const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(problem);
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

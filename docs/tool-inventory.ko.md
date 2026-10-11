@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 3b9e1021d110deea1169fc246b2a0e29bc3ee76629f237d82ae31f14e0428a4f -->
+<!-- source-sha256: e93451f7f271701142ecbe146beaf70646d5f25b43388770170faa04e2b51ad0 -->
 
 # 도구 목록
 
@@ -76,6 +76,7 @@
   읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
 - Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다. archive의 symbolic link(예: `bin/python3`)는 대상의 일반 복사본으로 바꾸며, directory link는 복사된 directory가 됩니다. 없는 파일이나 archive 밖을 가리키는 link는 설치를 실패시킵니다. 설치된 tree에는 link가 없습니다. wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/python-build/python/bin`이고 환경에 symbolic link가 없을 때만 `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44)와 `--link-mode copy` 설치라는 고침과 함께 거부합니다. uv 0.12.11로 측정한 결과 `uv venv`와 `uv sync`는 `bin/python*`을 link로 쓰고 copy mode가 없으며, `--copies` 환경에 `uv pip install --python <directory>/bin/python --link-mode copy`로 설치하면 link가 생기지 않습니다.
+- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(pip과 link가 없는 checkout Python의 복사본). wheel은 checkout의 pip로 설치합니다: `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, 버전은 `show`로 읽습니다. venv에는 자체 pip가 없고, PATH의 python3는 실행되지 않습니다.
 - Python venv (K44): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mjs`)가 consumer가 checkout Python의 virtual environment를 만드는 방법입니다. consumer는 `-m venv` 대신 이것을 호출합니다. `var/tools/bin/python3 -m venv --copies --without-pip <directory>`를 실행하고, 그 뒤 link `lib64 -> lib`를 지웁니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전, platlibdir `lib`, `sys.path`에 `lib64` 없음)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 근거: CPython은 macOS가 아닌 64-bit posix system에서 이 link를 만들고, fsm의 ubuntu-24.04 CI는 `run-tests --venv` 환경을 `holds symbolic links (lib64)`로 거부했습니다. 지우는 일은 `lib64`가 정확히 그 link이고 interpreter의 `sys.platlibdir`가 `lib`일 때만 일어납니다. 다른 symbolic link, 다른 `lib64`, 다른 platlibdir는 경로를 밝히며 거부하고 아무것도 바꾸지 않습니다. 결과는 검사합니다: `sys.path` 항목 중 `lib64`를 이름으로 가진 것이 없고, run-tests의 규칙(같은 module의 `venvProblem`)이 받아들여야 합니다. 실패한 실행은 그것이 만든 directory를 지웁니다. symbolic link가 없어야 한다는 규칙은 바뀌지 않습니다. 이 tool은 CPython venv가 더하는 단계만 수행합니다.
 - ruff: template의 virtual environment는 `var/tools/bin/python3`으로 `--copies`를 써서 만들어 interpreter로의 link가 없습니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와

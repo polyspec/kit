@@ -29,6 +29,7 @@ import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from '.
 import { fileDigest } from './digest.mjs';
 import { wheelName } from './release-wheel.mjs';
 import { toolsPath } from './tool-wrappers.mjs';
+import { makeVenv } from './python-venv.mjs';
 import { readJson, writeAtomic } from './files.mjs';
 import { run, Stop } from './process.mjs';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mjs';
@@ -184,18 +185,25 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   const project = path.join(folder, WHEEL_KIND);
   const venv = path.join(project, 'venv');
   mkdirSync(project, { recursive: true });
-  run(toolsPath(root, 'bin', 'python3'), ['-m', 'venv', venv], { cwd: project, env });
+  // The venv is a copy of the checkout Python with no pip and no symbolic link (python-venv.mjs); pip of the checkout installs into it.
+  try {
+    makeVenv({ root, directory: venv, env });
+  } catch (error) {
+    throw new Stop(error.message);
+  }
   const bin = path.join(venv, 'bin');
+  const python = path.join(bin, 'python');
+  const checkoutPython = toolsPath(root, 'bin', 'python3');
   const venvEnv = { ...env, PATH: `${bin}${path.delimiter}${env.PATH}`, VIRTUAL_ENV: venv };
   const requirements = path.join(project, 'requirements.txt');
   writeFileSync(requirements, names.map((name) => {
     const file = path.join(directory, wheelName(name, version));
     return `${file} --hash=sha256:${fileDigest(file)}\n`;
   }).join(''));
-  run(path.join(bin, 'python'), ['-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', requirements], { cwd: project, env: venvEnv });
+  run(checkoutPython, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', requirements], { cwd: project, env });
   step(`wheel pip install of ${names.length} packages`);
   for (const name of names) {
-    const shown = run(path.join(bin, 'python'), ['-m', 'pip', 'show', name], { cwd: project, env: venvEnv });
+    const shown = run(checkoutPython, ['-m', 'pip', '--python', python, 'show', name], { cwd: project, env });
     const actual = /^Version: (.*)$/m.exec(shown)?.[1]?.trim() ?? null;
     if (actual !== version) throw new Stop(`wheel installed ${name} ${actual ?? 'none'}, expected ${version}`);
     run(smoke[name][0], smoke[name].slice(1), { cwd: project, env: venvEnv });
