@@ -343,17 +343,76 @@ test('run is refused while another holder has the lock and runs nothing', { time
   assert.match(tool('frobnicate', lock).stderr, /usage: node scripts\/kit\/holder-lock\.mjs run <lock> -- <command>/);
 });
 
+// Starts `count` racers that take the lock at once and returns the result of each: 'won' for the one that holds the lock,
+// the error name for the others. A winner holds the lock until its standard input closes, and the parent closes it only
+// after every racer has reported, so no racer starts after the hold has ended.
+function race(lock, count) {
+  const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); try { acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'racer' }); process.stdout.write('won\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0)); } catch (error) { process.stdout.write(error.name + '\\n'); }`;
+  const racers = Array.from({ length: count }, () => spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'inherit'] }));
+  const reports = racers.map(child => new Promise((resolve) => {
+    let output = '';
+    // A racer reports one line and then waits, so the report resolves on the line, not on the close of the racer.
+    child.stdout.on('data', (data) => { output += data; if (output.endsWith('\n')) resolve(output.trim()); });
+  }));
+  const exits = racers.map(child => new Promise(resolve => child.once('close', resolve)));
+  return { racers, reports, exits };
+}
+
 test('only one of several processes that take the lock at once holds it', { timeout: 30_000 }, async (t) => {
   const lock = path.join(workspace(t), 'resource.lock');
-  const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); try { acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'racer' }); process.stdout.write('won\\n'); await new Promise(resolve => setTimeout(resolve, 400)); } catch (error) { process.stdout.write(error.name + '\\n'); }`;
-  const racers = Array.from({ length: 6 }, () => new Promise((resolve) => {
-    const child = spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['ignore', 'pipe', 'inherit'] });
-    let output = '';
-    child.stdout.on('data', (data) => { output += data; });
-    child.once('exit', () => resolve(output.trim()));
-  }));
-  const results = await Promise.all(racers);
+  const { racers, reports, exits } = race(lock, 6);
+  // The winner is the racer whose report is 'won'; its input closes once all six reports are in, which is the event that ends its hold.
+  const results = await Promise.all(reports);
+  for (const [index, result] of results.entries()) if (result === 'won') racers[index].stdin.end();
+  await Promise.all(exits);
   assert.equal(results.filter(result => result === 'won').length, 1, results.join(', '));
   assert.deepEqual(results.filter(result => result !== 'won'), Array(5).fill('HolderLockRefused'));
   assert.equal(existsSync(lock), false);
+});
+
+test('a clear that checked an ended holder cannot remove the lock that a new holder took after the check', (t) => {
+  const directory = workspace(t);
+  const lock = path.join(directory, 'resource.lock');
+  endedLock(lock);
+  let holder;
+  onEnd(t, () => holder?.release());
+  assert.throws(() => removeDeadLock(lock, {
+    // The other clear removes the ended holder's record, and a holder X takes the lock after this clear checked the record.
+    afterCheck: () => {
+      removeDeadLock(lock);
+      holder = acquireHolderLock(lock, { command: 'X' });
+    },
+  }), (error) => {
+    assert.equal(error.name, 'HolderLockRefused');
+    assert.match(error.message, /for "X"; the holder releases it/);
+    return true;
+  });
+  assert.equal(readLockRecord(lock).token, holder.record.token, 'the live holder keeps its lock');
+  assert.deepEqual(readdirSync(directory), ['resource.lock'], 'no claim stays beside the lock');
+});
+
+test('a clear that holds the claim of an ended holder refuses a second clear and a new holder, and removes the lock once', (t) => {
+  const directory = workspace(t);
+  const lock = path.join(directory, 'resource.lock');
+  endedLock(lock);
+  let refusedHolder;
+  let refusedClear;
+  const removed = removeDeadLock(lock, {
+    afterClaim: () => {
+      try {
+        acquireHolderLock(lock, { command: 'X' });
+      } catch (error) {
+        refusedHolder = error;
+      }
+      try {
+        removeDeadLock(lock);
+      } catch (error) {
+        refusedClear = error;
+      }
+    },
+  });
+  assert.equal(removed.command, 'old');
+  assert.equal(refusedHolder?.name, 'HolderLockRefused');
+  assert.match(refusedClear?.message ?? '', /exists: another clear of this holder is running or was interrupted/);
+  assert.deepEqual(readdirSync(directory), [], 'the lock and its claim are removed, and the pending file of the refused holder is too');
 });
