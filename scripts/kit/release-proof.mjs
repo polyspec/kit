@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Proves a released tag from outside the repository. It runs after the release exists, online, as a developer or CI command;
-// no offline check runs it.
+// Proves a released tag from outside the repository, online. The release workflow (templates/release.yml) runs it after
+// make release-publish, in the same job, so a failed proof fails that run; a developer runs it for any released tag.
 //
 //   node scripts/kit/release-proof.mjs TAG
 //
