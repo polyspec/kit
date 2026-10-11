@@ -39,14 +39,14 @@ import { checkedFiles } from './tracked-files.mjs';
 export function checkParity(root, { execute = true, env = process.env, say = () => {} } = {}) {
   const files = new Set(checkedFiles(root));
   say(`read ${DECLARATION}`);
-  const declaration = readDeclaration(root, files, env);
+  const declaration = readDeclaration(root, files);
   const model = declaration.model;
   const ledger = { runs: [], cases: [] };
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
-  const executed = execute ? runBindings(model, root, { env, say }) : { ledger, findings: [] };
+  const executed = execute ? runBindings(model, root, { env, files, say }) : { ledger, findings: [] };
   say('check the units against the tree');
   const findings = [
     ...missingImplementations(model),
