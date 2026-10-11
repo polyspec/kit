@@ -3,6 +3,11 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-fixture-record
+.PHONY: kit-fixture-record source-test
+
+# The kit's own tests (tests/source) check the kit's real Python and wheel path. kit-sync does not vendor them, so a consumer never runs them.
+source-test: ## Run the kit's own tests (tests/source) through the test runner, with the pythonBuild and pythonBackend of config/toolchain.json; offline after make install-tools
+	node scripts/kit/run-tests.mjs node -- tests/source
+
 kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
 	node tests/kit/record-fixture.mjs

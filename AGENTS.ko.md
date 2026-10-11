@@ -23,6 +23,10 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   6줄 이상의 같은 함수를 가지면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
+- Python을 실행하는 consumer는 config/toolchain.json에 `pythonBuild`를 선언하고 `make install-tools`로 Python을 설치합니다. wheel을
+  배포하는 consumer는 `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
+  Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
+  `make kit-test` 뒤에 실행합니다.
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 `dependency-review`, `kit-sync`, 설치 도구만 하고, 결과는 commit된 기록입니다.
 - 하위 호환성은 유지하지 않습니다. 현재 요구를 충족하는 가장 단순한 구현을 씁니다. 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인
