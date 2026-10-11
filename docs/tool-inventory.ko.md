@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a732fea2e74ffdcedb63599cad3a3763dfdd5c36593615e749e4952a4375251b -->
+<!-- source-sha256: 0dd5043e546954056d7625fa61ba2f338fdb238f40706d2a8f71c1dbb5f36aa3 -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -74,7 +74,7 @@
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
   읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
-- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다; wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다.
+- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 풉니다. archive의 symbolic link(예: `bin/python3`)는 대상의 일반 복사본으로 바꾸며, directory link는 복사된 directory가 됩니다. 없는 파일이나 archive 밖을 가리키는 link는 설치를 실패시킵니다. 설치된 tree에는 link가 없습니다. wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다.
 - ruff: template의 virtual environment는 `var/tools/bin/python3`으로 `--copies`를 써서 만들어 interpreter로의 link가 없습니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
