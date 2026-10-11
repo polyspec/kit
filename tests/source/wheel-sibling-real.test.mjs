@@ -68,7 +68,8 @@ test('with the dependencies resolved, pip reads the sibling reference and does n
   const result = spawnSync(PYTHON, ['-m', 'pip', 'install', '--dry-run', '--no-index', '--no-input', '--disable-pip-version-check', '--no-cache-dir', path.join(fx.wheels, fx.gen), path.join(fx.wheels, fx.val)], { cwd: fx.folder, env: fx.env, encoding: 'utf8' });
   const output = `${result.stdout}${result.stderr}`;
   assert.notEqual(result.status, 0, output);
-  // The requirement of kit-gen is read from the reference: pip processes the file that the reference names, though the local wheel
-  // of the same name is given in the same command.
-  assert.ok(output.includes(`Processing ${fileURLToPath(fx.reference)} (from ${GEN}==${VERSION})`), output);
+  // The requirement of kit-gen is read from the reference: pip goes for the file that the reference names, though the local wheel
+  // of the same name is given in the same command. pip names that file in either form it prints: `Processing <file> (from ...)`
+  // (macOS) or `No such file or directory: '<file>'` (Linux, pip 26.2.1).
+  assert.ok(output.includes(fileURLToPath(fx.reference)), output);
 }, { timeout: 900000 });
