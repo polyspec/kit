@@ -11,6 +11,7 @@
 //   composer     config/toolchain.json composer
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
+//   uv           config/toolchain.json uv: the exact version and the sha256 of the wheel of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
 // A tool is declared when its file exists (node, rust) or its config key is present; an undeclared tool is absent from the
@@ -71,12 +72,13 @@ function pythonBuild(value, minor) {
   return { version, release: value.release, sha256: digests, source: file };
 }
 
-// The ruff release: its exact version and the sha256 of the wheel of each platform key, each read as 64 hexadecimal digits.
-function ruff(value) {
-  const file = 'config/toolchain.json ruff';
+// A wheel release of the tools that install-tools installs into a virtual environment (ruff, uv): its exact version and the
+// sha256 of the wheel of each platform key, each read as 64 hexadecimal digits.
+function wheel(key, value) {
+  const file = `config/toolchain.json ${key}`;
   if (!/^\d+\.\d+\.\d+$/.test(value.version ?? '')) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(value.version)}`);
   const digests = value.sha256 ?? {};
-  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ruff wheel of each platform, for example linux-x64; it records none`);
+  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} wheel of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
     if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
@@ -140,7 +142,8 @@ export function declaredToolchain(root) {
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };
   }
-  if (config.ruff) declared.ruff = ruff(config.ruff);
+  if (config.ruff) declared.ruff = wheel('ruff', config.ruff);
+  if (config.uv) declared.uv = wheel('uv', config.uv);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   for (const key of ['cargoAudit', 'govulncheck']) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };

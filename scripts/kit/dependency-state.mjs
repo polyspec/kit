@@ -233,7 +233,7 @@ export function readState(root, policy) {
   // Each Python lock named by the policy is recorded with its sha256; its packages are read by the lock format (K36).
   // Each PEP 751 lock of the policy: its registry packages are dependencies of the lock (kind `lock`), its git packages are pinned
   // by their commit and recorded with it. A lock whose packages are not read fails in readPylock with the line of the construct.
-  for (const lockPath of policy.pythonLocks ?? []) {
+  for (const { lock: lockPath } of policy.pythonLocks ?? []) {
     locks.push(lockPath);
     const lock = readPylock(readFileSync(path.join(root, lockPath), 'utf8'), lockPath);
     pythonLocks.push({ lock: lockPath, createdBy: lock.createdBy, packages: lock.packages });

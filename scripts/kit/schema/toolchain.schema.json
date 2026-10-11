@@ -141,6 +141,25 @@
         }
       }
     },
+    "uv": {
+      "description": "The uv release that install-tools installs into a virtual environment of var/tools: the exact version, and the sha256 of the wheel of each platform key (process.platform-process.arch) that the install downloads, the digest read as 64 lowercase hexadecimal digits.",
+      "type": "object",
+      "required": [
+        "version",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "sha256": {
+          "type": "object",
+          "description": "The sha256 of the uv wheel of each platform key; the install accepts a wheel of any listed digest and names the platform key of none."
+        }
+      }
+    },
     "cargoAudit": {
       "description": "The cargo-audit release that install-tools builds into var/tools/cargo-audit.",
       "type": "string",

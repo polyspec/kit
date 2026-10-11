@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5d0308b0a6788394abff11003565d402e75382ee78d8a115686541aef7d7f228 -->
+<!-- source-sha256: 9072194a797becb52208f04adf2f643fe720ef2b4f456395e932217822f6c8c8 -->
 
 # 도구 목록
 
@@ -36,7 +36,7 @@
 
 `scripts/kit/install-tools.mjs`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mjs`는 실행 중인
 도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mjs`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-phpunit.mjs`; cargo-audit와 govulncheck는 기존
+(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-uv.mjs`, `install-composer.mjs`, `install-phpunit.mjs`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mjs`, `install-govulncheck.mjs`를 씁니다). 모든 installer는 `install-tool.mjs`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
@@ -72,11 +72,12 @@
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
 | ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
+| uv | `config/toolchain.json`의 `uv`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; `var/tools/bin/python3`의 virtual environment에 pip로 설치하고, wrapper `var/tools/bin/uv`는 state를 `var/tools` 아래에 둠(K54) | 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | 선언된 Composer로 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
+목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
 `phpunit`(`version`), `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
@@ -515,7 +516,7 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 | `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `toolchain-declared.mjs` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
+| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
 | `dependency-state.mjs` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
 
 그 밖에 없앤 중복:
@@ -1047,9 +1048,150 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 - source table이 없는 package나 `directory` package는 gate가 실패시킵니다. 소비자는 `--no-emit-project`로 lock을 내보내므로 로컬 package에는 검토할 release가 없습니다.
 - `created-by`는 필수입니다. 오래된 release나 advisory의 fix는 lock을 쓴 도구를 이름으로 지정합니다. uv는 `uv lock --upgrade-package <name>` 뒤에 export를 다시 실행하고,
   pip는 `pip lock`입니다. 다른 값이거나 없는 `created-by`의 lock은 빠진 도구를 이름으로 지정하는 fix를 받습니다. 검토는 lock을 직접 다시 쓰지 않으며(`UPDATE=1`은 이 package를 건너뜁니다).
-- 이 릴리스를 도입하는 소비자는 `config/dependency-policy.json`에 `"pythonLocks": [...]`를 추가합니다(lock이 없으면 빈 목록). 이 필드는 필수이며 호환 경로는 없습니다.
+- 이 릴리스를 도입하는 소비자는 각 lock을 `config/dependency-policy.json`의 `pythonLocks`에 `source`를 가진 object로 추가합니다(K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. 이 필드는 필수이며 호환 경로는 없습니다.
 
 ### 한계
 
 - reader는 lock을 쓰는 도구의 부분집합만 읽습니다. 그 밖의 구문을 쓰는 다른 도구의 lock은 reader가 읽도록 확장될 때까지 실패합니다.
 - `directory` package는 검토하지 않고 거부합니다.
+
+## uv와 Python lock writer (K54)
+
+`uv`는 ruff와 같은 형태의 install-tools 도구입니다. `config/toolchain.json`의 `uv`가 정확한 version과 플랫폼별 wheel의 sha256을 선언하고,
+`scripts/kit/install-uv.mjs`가 `var/tools/uv`에 설치하며 wrapper `var/tools/bin/uv`를 씁니다. `make python-lock`(ONLINE)은 그 uv로
+`pythonLocks`의 각 Python lock을 쓰고, `make python-lock-check`(offline)은 각 lock을 source와 비교합니다. 고정하는 이유는, PATH의 선언되지 않은
+uv로 쓴 lock이 기계에 따라 달라지기 때문입니다. `pip lock`(pip 26.2.1)은 experimental이며 실행 중인 platform 하나만 lock했습니다(cryptography가
+macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platform의 파일을 marker와 hash와 함께 씁니다.
+
+### uv: 설치와 state
+
+- **독립 binary인가, 고정된 Python인가:** 고정된 `var/tools/bin/python3`입니다. wheel은 binary를 data scripts에 담고 있는데, 그것을 읽으려면
+  zip reader가 필요하며 kit에는 없습니다(kit은 Node built-in만 import합니다). wheel을 pip로 설치하면 ruff와 같은 hash 확인 다운로드를 거치고
+  `--no-deps`로 virtual environment에 들어갑니다. 이 environment는 interpreter의 link가 아니라 복사본(`--copies`)을 가집니다. 독립 binary는
+  실행에 Python이 필요 없지만, 측정한 대로 uv는 PATH에 interpreter가 없어도 실행되므로 Python은 uv를 설치할 때만 필요합니다.
+- **Wheel:** `manylinux_2_17_x86_64`, `manylinux_2_17_aarch64`, `macosx_11_0_arm64`, `macosx_10_12_x86_64`의 digest입니다(uv 0.12.11,
+  PyPI JSON API. 각 digest는 파일을 내려받아 sha256을 비교해 확인했습니다). pip는 나열된 digest 중에서 이 platform의 wheel을 고릅니다.
+  나열되지 않은 platform(musl, Windows)은 설치하지 않습니다.
+- **state는 `var/tools` 아래, home에는 쓰지 않음:** wrapper는 `UV_CACHE_DIR=var/tools/uv-cache`, `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`,
+  `UV_PYTHON_DOWNLOADS=never`(interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나 system의 `uv.toml`을 읽지 않음)을 설정합니다.
+  설치는 `PIP_CACHE_DIR=var/tools/pip-cache`와 `--no-cache-dir`를 씁니다. wrapper는 호출자의 `UV_CACHE_DIR`를 덮어씁니다(측정함). 그래서
+  checkout의 cache는 항상 자기 것입니다.
+
+### 측정한 uv 동작 (uv 0.12.11, aarch64-apple-darwin, install-tools의 Python 3.14.8 virtual environment)
+
+| 경우 | 결과 |
+|---|---|
+| 출력 이름 | `-o`는 `pylock.toml` 또는 `<name>`에 점이 없는 `pylock.<name>.toml`이어야 합니다. `-o lock.toml`은 그 규칙으로 exit 2입니다. |
+| header | 첫 주석은 `-o` 경로와 source 경로를 포함한 명령 줄 전체를 적습니다. 그래서 writer는 source 이름으로 임시 directory에서 실행합니다. |
+| 쓰는 파일 | cache가 비어 있는 online 실행은 lock 하나만 씁니다. working directory의 다른 파일은 없습니다. |
+| cache | `UV_CACHE_DIR` 아래에만 있습니다: `interpreter-v4`, `sdists-v9`, `simple-v24`, `wheels-v6`, `archive-v0`(URL constraint가 있을 때), `.lock`, `CACHEDIR.TAG`, `.gitignore`. 아래 여섯 package 집합은 904K입니다. |
+| offline, cache 비어 있음(`--offline`) | exit 1, "unsatisfiable"이며 파일을 쓰지 않습니다. |
+| offline, cache 있음(online 실행의 cache) | exit 0입니다. lock의 본문은 online과 byte 단위로 같고, `--offline`을 적은 header 줄만 다릅니다. |
+| PATH에 Python 없음(`env -i PATH=/bin`), cache 비어 있음 | exit 0입니다. `--universal`은 interpreter가 필요 없습니다. |
+| marker 요구 `colorama==0.4.6; sys_platform == "win32"` | 해당 package가 `marker = "sys_platform == 'win32'"`를 가집니다. |
+| constraint `certifi @ <wheel URL>#sha256=<digest>` | 해당 package는 registry 항목이 아니라 `archive = { url, hashes = { sha256 } }`입니다. digest는 fragment의 값입니다. |
+| platform | `charset-normalizer==3.5.2`는 wheel 파일이 86개입니다. 집합의 97개 파일은 모두 sha256을 가집니다(`--generate-hashes`). |
+| `pyproject.toml`을 requirements로 쓰고 임시 directory에 그 이름으로 복사 | uv는 거기서 `[project].dependencies`를 읽습니다. project 자신은 출력되지 않으므로 lock에는 의존성만 있습니다. lock 이름 아래 제자리 실행은 측정하지 않았습니다(첫 시도는 uv가 거부하는 `out-a.toml`을 썼습니다). 복사는 동작하므로 writer는 복사합니다. |
+| `--no-index --find-links <dir>`, `<dir>`은 상대 또는 절대 경로 | local wheel마다 `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`입니다. uv는 상대 입력이 아니라 realpath를 적습니다. header에는 `--no-index`가 있고 `--find-links`는 없으므로 header에 checkout 경로가 없습니다. |
+| `path = "<lock 기준 상대 경로>"`(PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml`과 pip 26.2.1의 `install --dry-run --no-index -r pylock.toml`은 lock의 directory 기준으로 path를 읽습니다. uv는 두 working directory에서, pip은 lock directory에서 측정했습니다(집합의 wheel 두 개). |
+| `--universal`의 하한 | `--python-version`이 없으면 uv는 universal resolution의 Python 하한을 `requires-python`이 아니라 찾은 interpreter에서 정합니다(측정함: PATH에 Python 3.11이 있으면 3.11로 풀고 의존성 하나가 3.14를 요구한다고 알렸습니다). 그래서 writer는 `config/toolchain.json`의 `python` minor를 `--python-version`으로 넘기고, 그것이 없는 toolchain은 uv 실행 전에 거부합니다. |
+| `[project].dynamic`의 `dependencies` 항목 | uv로는 측정하지 않았습니다. writer와 검사는 uv 실행 전에 거부합니다. |
+
+여섯 package 집합은 `requests==2.34.2`, `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`, `urllib3==2.8.0`, 그리고 marker를 위한
+`colorama==0.4.6`입니다. 모든 package가 고정되어 있어 어떤 실행도 version을 고르지 않습니다.
+
+### lock 선언
+
+`config/dependency-policy.json`은 `pythonLocks`에서 lock마다 항목을 두며, 그 `source`는 lock을 쓰는 파일을 적습니다
+(`scripts/kit/schema/dependency-policy.schema.json`):
+
+```json
+"pythonLocks": [
+  {
+    "lock": "packages/app-python/pylock.toml",
+    "source": {
+      "requirements": "packages/app-python/pyproject.toml",
+      "constraints": "packages/app-python/constraints.txt",
+      "findLinks": "packages/app-python/wheels"
+    }
+  }
+]
+```
+
+- `requirements`: 직접 요구사항이며, 두 형태 중 하나입니다.
+  - requirements 파일, 한 줄에 하나: `name`, `name==version`, `name>=2.30,<3` 또는 `name~=2.34` 같은 범위, 또는 `name @ url`.
+    `;` 뒤의 marker는 uv가 유지하며 pin을 읽지 않고, extra도 pin을 읽지 않습니다. option이나 다른 형태는 그 줄과 함께 실패합니다.
+  - `pyproject.toml`: 정적 `[project].dependencies`가 직접 요구사항입니다. wheel package는 자기 pyproject를 가리키므로 요구사항의
+    사본이 하나뿐입니다. `[project].dynamic`에 `dependencies`가 있는 pyproject는 거부합니다. 요구사항이 파일에 없기 때문입니다.
+    kit의 reader는 한 줄 문자열만 읽으므로, 여러 줄 문자열이 있는 pyproject는 그 줄과 함께 실패합니다.
+- `constraints`: 모든 package를 고정하는 constraints 파일입니다(전이 의존성 포함). 한 줄에 하나씩 `name==version` 또는
+  polyspec archive의 `name @ https://...#sha256=<digest>`입니다. 그 밖의 형태(범위, marker, option, hash)는 그 줄과 함께 실패합니다.
+- `findLinks`(선택): checkout 안의 directory이며 root 기준 상대 경로이고 local wheel을 담습니다. writer는 uv를
+  `--no-index --find-links <directory>`로 실행하여 index를 읽지 않습니다. checkout 밖의 경로나 없는 directory는 실패합니다.
+  directory는 lock의 package(lock의 directory) 안에 있습니다. lock은 local wheel마다 lock 기준 상대 경로를 적고, 그 경로는
+  package를 벗어날 수 없습니다. writer는 package 밖의 findLinks를 uv 실행 전에 거부하고, `python-lock-check`는 package를
+  벗어나는(`..`) local 경로를 package와 file을 밝히며 거부합니다.
+
+```text
+# packages/app-python/pyproject.toml
+[project]
+name = "app"
+version = "0.0.0"
+dependencies = ["requests==2.34.2", "colorama==0.4.6; sys_platform == 'win32'"]
+
+# packages/app-python/constraints.txt
+requests==2.34.2
+certifi==2026.7.22
+charset-normalizer==3.5.2
+colorama==0.4.6
+idna==3.20
+urllib3==2.8.0
+```
+
+### writer (`make python-lock`, findLinks를 선언하지 않으면 ONLINE)
+
+`scripts/kit/python-lock.mjs write`는 `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+--generate-hashes --format pylock.toml -o pylock.toml`(`<python>`은 `config/toolchain.json`의 `python` minor)을 `var/tools`의 directory(`python-lock-<random>`)에서 실행합니다. 이 directory에는 두 source가
+각자의 이름으로 있습니다. `pyproject.toml`은 그 이름으로 복사되며, uv는 거기서 읽습니다(아래 측정). 그래서 uv를 위해 pyproject가
+checkout에 그대로 있을 필요는 없습니다. findLinks가 있으면 `--no-index --find-links <directory>`를 덧붙입니다. source는 먼저 읽고
+파싱하므로, 잘못된 source는 uv 실행 전에 멈춥니다.
+
+uv는 local wheel을 `url = "file:///<checkout 경로>/<wheel>"`로 적습니다. writer는 이 URL을 lock의 directory 기준 상대 `path`
+(`path = "../links/<wheel>"`, PEP 751)로 바꾸고, 그 밖의 file URL은 거부하므로 lock에는 기계 경로가 남지 않습니다. 쓰인 lock은
+sources와 대조한 뒤(`python-lock-check`와 같은 검사) 제자리로 이름이 바뀝니다. 거부된 실행은 이전 lock을 그대로 두고 directory를
+지웁니다. 전이 의존성이 고정되지 않았으면 writer는 그 package 이름과 함께 거부합니다. uv가 registry release로 해석했지만 constraints에는
+없고, 검사가 그것을 lock에서 찾기 때문입니다.
+
+### 검사 (`make python-lock-check`, offline)
+
+resolve하지 않습니다. 다음 경우 파일과 package 이름, 그리고 고치는 방법을 적고 실패합니다.
+
+- lock의 package에 constraints의 pin이 없거나(전이 의존성 포함), pin에 대응하는 lock package가 없습니다.
+- lock package의 version이 pin과 다르거나, git 또는 directory package입니다(lock은 registry 파일과 archive만 담습니다).
+- constraint가 `name==version`이나 `#sha256`이 붙은 직접 참조가 아니거나, 줄이 option 또는 hash입니다.
+- requirement에 pin이 없거나, 고정된 release가 그 specifier를 만족하지 않습니다(PEP 440 release 순서, `~=`는 `>=`와 `==prefix.*`).
+- `pyproject.toml` source가 `[project].dynamic`에 `dependencies`를 나열하거나 `[project]` table이 없습니다.
+- registry 파일에 sha256이 없거나, lock이 PEP 751 1.0이 아니거나 읽히지 않습니다(`readPylock`).
+- lock의 local 파일(lock 기준 상대 `path`)이 없거나, 절대 경로이거나, lock의 sha256을 갖지 않습니다. 검사는 파일을 읽으므로
+  findLinks lock의 wheel은 checkout에 있어야 합니다.
+- archive의 URL이나 sha256이 constraint와 다릅니다.
+- source 또는 lock이 없습니다.
+
+각 경우에는 그 경우에서만 실패하는 test가 있습니다(`tests/kit/python-lock-check.test.mjs`). writer의 경우는
+`tests/kit/python-lock-write.test.mjs`에 있으며 uv는 stub입니다. `tests/source/python-lock-real.test.mjs`는 network 없이 실제 uv를
+실행합니다. wheel은 `var/tools/wheels`의 고정된 setuptools wheel과, 고정된 Python으로 source tree에서 만든 순수 Python wheel이며,
+둘 다 test의 directory(`var/` 아래)에 있습니다. 이 test는 findLinks로 pyproject의 lock을 쓰고, offline 검사가 그 lock을 통과시키며,
+version drift(`0.0.1`에서 `0.0.2`)는 `tinylib`과 함께, `setuptools`가 빠진 constraints는 `setuptools`와 함께 실패하는지 봅니다.
+`tests/kit/fixture`의 fixture policy는 존재하고 lock과 일치하는 source를 선언하며, test가 그 fixture에서 검사를 실행합니다.
+
+### 한계
+
+- findLinks lock의 local 파일을 검사가 읽으므로, wheel이 없는 checkout은 내려받기 전까지 검사에 실패합니다.
+- 검사는 pyproject의 `[project].dependencies`만 읽습니다. uv는 lock을 쓸 때 `[tool.uv]`(index, source)도 읽습니다. uv가 git이나
+  directory로 해석하는 source는 검사에 실패하며, 추가 index는 검사가 보지 않습니다.
+- kit의 reader는 한 줄 문자열만 읽으므로, 여러 줄 문자열이 있는 pyproject는 그 줄과 함께 실패합니다(reader가 이름을 적으며, 조용히
+  건너뛰지 않습니다).
+- 검사는 registry 파일의 sha256을 network 없이 registry와 비교할 수 없으므로, registry hash의 16진수 한 자리 차이는 통과합니다. dependency
+  review는 lock의 sha256을 기록하고 그 변경에서 gate가 실패합니다(K36).
+- findLinks를 선언하지 않으면 writer는 network(uv를 통한 PyPI)가 필요합니다.
+- requirement의 extra와 marker는 고정되는 package를 바꾸지 않습니다. lock의 모든 package는 marker와 관계없이 constraints에 있어야 합니다.
