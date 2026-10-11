@@ -130,6 +130,18 @@ export function readDeclaration(root, files) {
     for (const name of profile.implementations) if (!implementations.has(name)) fail(`profile ${profile.name} names ${name}, which is no implementation`);
     if (new Set(profile.implementations).size !== profile.implementations.length) fail(`profile ${profile.name} names an implementation twice`);
   }
+  // A profile narrower than every implementation removes the omitted ones from its units, so it states why, every run prints
+  // it, and it groups at least two units: a profile of one unit would be an exclusion that never fails.
+  const narrow = config.profiles.map(profile => ({ name: profile.name, omitted: config.implementations.map(entry => entry.name).filter(name => !profile.implementations.includes(name)), reason: profile.reason?.trim() ?? '' }))
+    .filter(profile => profile.omitted.length);
+  for (const profile of narrow) {
+    if (!profile.reason) fail(`profile ${profile.name} omits ${profile.omitted.join(', ')} and gives no reason; write the reason in reason`);
+    const users = config.units.filter(unit => unit.profile === profile.name);
+    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${users[0].id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
+  }
+  for (const entry of config.implementations) {
+    if (!config.profiles.some(profile => profile.implementations.includes(entry.name))) fail(`the implementation ${entry.name} is in no profile, so no unit applies to it`);
+  }
   const knownProfile = (name, where) => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
   const snapshots = new Map();
   for (const entry of config.implementations) {
@@ -210,6 +222,7 @@ export function readDeclaration(root, files) {
     config,
     implementations,
     profiles,
+    narrow,
     cases,
     snapshots,
     members: unit => (profiles.get(unit.profile) ?? []).filter(name => implementations.has(name)),
