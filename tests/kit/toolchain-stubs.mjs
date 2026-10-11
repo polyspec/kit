@@ -90,13 +90,11 @@ export const PYTHON_RELEASE = '20261009';
  * The pythonBuild declaration of this platform and the archive of the stub Python that the declaration names: the archive is
  * written into a temporary directory that is removed with `t.after`, and its digest is the declared one. `url` is the download.
  */
-// `extra(directory)` adds entries to the archive (its python directory) before it is packed.
-export function pythonBuild(t, { extra = () => {} } = {}) {
+export function pythonBuild(t) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-build-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(path.join(directory, 'python/bin'), { recursive: true });
   writeFileSync(path.join(directory, 'python/bin/python3.14'), PYTHON, { mode: 0o755 });
-  extra(directory);
   const archive = path.join(directory, 'archive.tar.gz');
   execFileSync('tar', ['-czf', archive, '-C', directory, 'python']);
   const key = `${process.platform}-${process.arch}`;

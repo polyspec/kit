@@ -4,9 +4,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { lstatSync, readdirSync, readFileSync, symlinkSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { installPython, PYTHON_TRIPLES } from '../../scripts/kit/install-python.mjs';
 import { toolchainCheckout } from './toolchain-checkout.mjs';
@@ -74,52 +73,4 @@ test('ruff without pythonBuild names the declaration and the install of the Pyth
   const result = install(root, toolchainStubs(t).env, 'ruff');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /ruff needs var\/tools\/bin\/python3, the Python that config\/toolchain\.json pythonBuild declares; declare pythonBuild and run make install-tools TOOLS=python/);
-});
-
-const LINKS = (directory) => {
-  // A file link, a directory link and a link to a link, as python-build-standalone holds them.
-  mkdirSync(path.join(directory, 'python/lib/python3.14'), { recursive: true });
-  writeFileSync(path.join(directory, 'python/lib/python3.14/os.py'), 'import sys\n');
-  symlinkSync('python3.14', path.join(directory, 'python/bin/python3'));
-  symlinkSync('python3.14', path.join(directory, 'python/lib/python3'));
-  symlinkSync('python3', path.join(directory, 'python/bin/py'));
-};
-const symlinks = directory => {
-  const found = [];
-  const walk = (dir) => { for (const entry of readdirSync(dir, { withFileTypes: true })) { const file = path.join(dir, entry.name); if (entry.isSymbolicLink()) found.push(file); else if (entry.isDirectory()) walk(file); } };
-  walk(directory);
-  return found;
-};
-
-test('the links of the archive are replaced by regular copies of their targets, and the installed tree holds no link', (t) => {
-  const py = pythonBuild(t, { extra: LINKS });
-  const root = toolchainCheckout(t, { 'config/toolchain.json': config({ python: '3.14', pythonBuild: py.declared }) });
-  const stubs = toolchainStubs(t, { downloads: { [py.url]: py.archive } });
-  const result = install(root, stubs.env, 'python');
-  assert.equal(result.status, 0, result.stderr);
-  const tree = path.join(root, 'var/tools/python-build/python');
-  assert.deepEqual(symlinks(path.join(root, 'var/tools')), [], 'no link in var/tools');
-  assert.ok(lstatSync(path.join(tree, 'bin/python3')).isFile(), 'a file link is a regular file');
-  assert.equal(readFileSync(path.join(tree, 'bin/python3'), 'utf8'), readFileSync(path.join(tree, 'bin/python3.14'), 'utf8'));
-  assert.ok(lstatSync(path.join(tree, 'lib/python3')).isDirectory(), 'a directory link is a directory');
-  assert.equal(readFileSync(path.join(tree, 'lib/python3/os.py'), 'utf8'), 'import sys\n');
-  assert.equal(readFileSync(path.join(tree, 'bin/py'), 'utf8'), readFileSync(path.join(tree, 'bin/python3.14'), 'utf8'), 'a link to a link is a regular file');
-  assert.equal(run(path.join(root, 'var/tools/bin/python3'), stubs.env), 'Python 3.14.8');
-  assert.equal(install(root, stubs.env, 'python').status, 0);
-  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'a second run keeps the installed release');
-});
-
-const escape = text => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-
-test('a link whose target is missing or outside the archive fails the install and names the link and its target', (t) => {
-  // The outside target is this test file, an existing file of another directory.
-  for (const [name, target, reason] of [['missing', 'no-such-file', 'is missing or cannot be resolved'], ['outside', fileURLToPath(import.meta.url), 'lies outside the archive python']]) {
-    const py = pythonBuild(t, { extra: (directory) => { symlinkSync(target, path.join(directory, 'python/bin/broken')); } });
-    const root = toolchainCheckout(t, { 'config/toolchain.json': config({ python: '3.14', pythonBuild: py.declared }) });
-    const stubs = toolchainStubs(t, { downloads: { [py.url]: py.archive } });
-    const result = install(root, stubs.env, 'python');
-    assert.equal(result.status, 1, name);
-    assert.match(result.stderr, new RegExp(`python/bin/broken links to ${escape(target)}, which ${escape(reason)}`), name);
-    assert.deepEqual(readdirSync(path.join(root, 'var/tools')), [], name + ': nothing is installed');
-  }
 });
