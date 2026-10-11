@@ -326,6 +326,23 @@ test('R7: an implementation whose error codes differ from the catalog, or that d
   assert.match(findings[1].message, /not in the catalog: EXTRA/);
 });
 
+test('the catalog pattern reads every line of the catalog that is not blank or a comment, and reads at least one code', TIMEOUT, (t) => {
+  const messages = change => check(t, change, { execute: false }).findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`);
+  assert.deepEqual(messages({ files: { 'docs/errors.yaml': '# The codes.\n\n- code: CONFIG # a missing secret\n- code: CODEC_DECODE\n' } }), [
+    'declaration docs/errors.yaml:3: the catalog pattern ^- code: (\\w+)$ does not read the line "- code: CONFIG # a missing secret"; write a pattern that reads every line of the catalog',
+  ]);
+  assert.deepEqual(messages({ files: { 'docs/errors.yaml': '# The codes.\n// none yet\n' } }), [
+    'declaration docs/errors.yaml: the catalog pattern ^- code: (\\w+)$ reads no code',
+  ]);
+  assert.deepEqual(messages({ files: { 'python/codes.py': '# generated\n' } }), [
+    'declaration python/codes.py: the pattern ^\\w+ = "(\\w+)"$ of python reads no code',
+  ]);
+  assert.deepEqual(messages({
+    files: { 'docs/errors.yaml': 'codes:\n  - code: CONFIG\n    meaning: a missing secret\n  - code: CODEC_DECODE\n' },
+    edit: (config) => { config.errors.catalog.pattern = '^  - code: (\\w+)$|^codes:$|^    \\w+: .*$'; return config; },
+  }), [], 'a line that the pattern matches without its group holds no code');
+});
+
 test('R8: an exclusion is always a finding, with its reason and item', TIMEOUT, (t) => {
   const change = {
     files: { 'python/tests/test_codec.py': null },

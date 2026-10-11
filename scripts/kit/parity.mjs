@@ -24,7 +24,7 @@
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 import { parseArgs } from 'node:util';
 import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.mjs';
-import { errorCatalog } from './parity-errors.mjs';
+import { errorCatalog, readCodes } from './parity-errors.mjs';
 import { runBindings } from './parity-ledger.mjs';
 import { documentCounts, languageLists } from './parity-text.mjs';
 import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mjs';
@@ -38,9 +38,12 @@ import { checkedFiles } from './tracked-files.mjs';
 export function checkParity(root, { execute = true, env = process.env, say = () => {} } = {}) {
   const files = new Set(checkedFiles(root));
   say(`read ${DECLARATION}`);
-  const { errors, model } = readDeclaration(root, files);
+  const declaration = readDeclaration(root, files);
+  const model = declaration.model;
   const ledger = { runs: [], cases: [] };
-  if (errors.length) return { findings: errors, ledger };
+  if (declaration.errors.length) return { findings: declaration.errors, ledger };
+  const { codes, findings: unreadable } = readCodes(model, root);
+  if (unreadable.length) return { findings: unreadable, ledger };
   for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
   const executed = execute ? runBindings(model, root, { env, say }) : { ledger, findings: [] };
   say('check the units against the tree');
@@ -51,7 +54,7 @@ export function checkParity(root, { execute = true, env = process.env, say = () 
     ...undeclaredSuites(model, files),
     ...undeclaredTests(model, files),
     ...misplacedTests(model),
-    ...errorCatalog(model, root),
+    ...errorCatalog(model, codes),
     ...exclusions(model),
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
