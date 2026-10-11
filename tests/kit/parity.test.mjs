@@ -26,6 +26,19 @@ const args = process.argv.slice(2);
 const symbol = args[args.indexOf('-run') + 1].replace(/^\\^|\\$$/g, '');
 const directory = args[args.length - 1];
 let exit = 0;
+// A line \`BUILD <message>\` makes the package fail to build, with the events that go 1.27 writes, observed with a real module.
+const build = fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()
+  .flatMap(file => fs.readFileSync(path.join(directory, file), 'utf8').split('\\n').filter(line => line.startsWith('BUILD ')).map(line => line.slice(6)));
+if (build.length) {
+  const id = 'example.com/codec [example.com/codec.test]';
+  console.log(JSON.stringify({ ImportPath: id, Action: 'build-output', Output: '# ' + id + '\\n' }));
+  for (const message of build) console.log(JSON.stringify({ ImportPath: id, Action: 'build-output', Output: message + '\\n' }));
+  console.log(JSON.stringify({ ImportPath: id, Action: 'build-fail' }));
+  console.log(JSON.stringify({ Action: 'start', Package: 'example.com/codec' }));
+  console.log(JSON.stringify({ Action: 'output', Package: 'example.com/codec', Output: 'FAIL\\texample.com/codec [build failed]\\n', OutputType: 'frame' }));
+  console.log(JSON.stringify({ Action: 'fail', Package: 'example.com/codec', Elapsed: 0.003, FailedBuild: id }));
+  process.exit(1);
+}
 console.log(JSON.stringify({ Action: 'start', Package: 'example' }));
 for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()) {
   for (const line of fs.readFileSync(path.join(directory, file), 'utf8').split('\\n')) {
@@ -369,6 +382,25 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);
   assert.deepEqual(declarations.ledger.runs, []);
+});
+
+test('R3: a Go package that does not build names the compiler output', TIMEOUT, (t) => {
+  const { findings } = check(t, { files: { 'go/codec_test.go': 'BUILD ./codec_test.go:7:2: undefined: undefinedThing\n' } });
+  assert.deepEqual(keys(findings), ['R3 codec go', 'R3 width go', 'R3 size go']);
+  assert.equal(findings[0].message, 'exited with 1: # example.com/codec [example.com/codec.test] | ./codec_test.go:7:2: undefined: undefinedThing; not executed: empty, ascii');
+});
+
+test('a case name that a runner cannot report, and a Go symbol that is no test function, fail the declaration', TIMEOUT, (t) => {
+  const messages = change => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ files: { 'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'two words' }, { name: 'a/b' }] }) } }), [
+    'declaration: unit codec: tests/vectors/codec.json: the case "two words" holds whitespace, which no harness line can report',
+    'declaration: unit codec: tests/vectors/codec.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
+  ]);
+  assert.deepEqual(messages({ files: { 'tests/vectors/width.json': JSON.stringify(['a/b']) }, edit: (config) => { binding(config, 'width', 'go').symbol = 'Width'; return config; } }), [
+    'declaration: unit width: the go binding names Width, which is no test function (^Test\\w*$)',
+    'declaration: unit width: tests/vectors/width.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
+  ]);
+  assert.deepEqual(messages({ files: { 'tests/vectors/size.json': JSON.stringify(['a/b']) }, edit: (config) => { config.units.find(unit => unit.id === 'size').bindings.shift(); config.exclusions.push({ unit: 'size', implementation: 'go', reason: 'r', item: 'T1' }); return config; } }).filter(message => message.startsWith('declaration')), [], 'without a go binding, a harness line reports a case with /');
 });
 
 test('R4: a suite file that no unit declares fails', TIMEOUT, (t) => {

@@ -193,7 +193,9 @@ export function readDeclaration(root, files) {
       if (!files.has(entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} does not exist`);
       const runner = implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
+      else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
     }
+    const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
     if (!unit.file || !unit.cases) continue;
     const value = readTrackedJson(root, files, unit.file, where, errors);
     if (value === undefined) continue;
@@ -202,6 +204,11 @@ export function readDeclaration(root, files) {
     if (!found.errors.length && !found.names.length) fail(`${where}: ${unit.cases} selects no case in ${unit.file}`);
     const repeated = found.names.filter((name, index) => found.names.indexOf(name) !== index);
     for (const name of new Set(repeated)) fail(`${where}: ${unit.file} repeats the case ${name}`);
+    // A harness line ends its case name at whitespace, and Go nests a subtest at each /.
+    for (const name of found.names) {
+      if (/\s/.test(name)) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds whitespace, which no harness line can report`);
+      if (goBound && name.includes('/')) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds /, which Go nests as a subtest; the unit has a go binding`);
+    }
     cases.set(unit.id, found.names);
   }
   for (const entry of config.nativeOnly ?? []) {

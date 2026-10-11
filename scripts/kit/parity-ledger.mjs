@@ -51,7 +51,7 @@ export function runBindings(model, root, { env, say }) {
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
     const problems = [
       result.error && `${run.command} could not start: ${result.error.message}`,
-      !result.error && status !== 0 && `exited with ${status ?? result.signal}${result.stderr.trim() ? `: ${result.stderr.trim().split('\n').slice(-3).join(' | ')}` : ''}`,
+      !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
       named(cases, 'fail').length && `failed: ${named(cases, 'fail').join(', ')}`,
       named(cases, 'skip').length && `skipped: ${named(cases, 'skip').join(', ')}`,
       `not executed: ${expected.filter(name => !cases.has(name)).join(', ')}`,
