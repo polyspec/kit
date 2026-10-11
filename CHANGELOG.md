@@ -22,5 +22,3 @@ Each release `vX.Y.Z` of kit has a section `## X.Y.Z`; its text is the notes of 
   as absolute paths; kit's own targets pass `checkoutPython(root)` (K56).
 - `lockRequirements` takes an optional map from the archive URL of a lock entry to a local file and renders each polyspec archive as
   `name @ file:///<path> --hash=sha256:<hex>`, checked against the sha256 of the lock (K57).
-- No module of the package acts when it is imported: `check-dependency-policy-mutation.mjs` runs its check only as the command, and
-  the exports map refuses the run-tests preload `test-load-check.mjs`, which the package holds for run-tests (K58).

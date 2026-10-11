@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // The mutation gate of the dependency policy (T18.10): on a copy of the dependency files of the repository, each
 // mutation must make scripts/check-dependency-policy.mjs report its finding. It reports every mutation that the check
-// accepts and fails when there is one. The check runs only as the command (`make dependency-policy-mutation-check`); importing the
-// module runs nothing.
+// accepts and fails when there is one.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { check } from './check-dependency-policy.mjs';
 import { POLICY, RECORD } from './dependency-state.mjs';
 import { readJson, writeJson } from './files.mjs';
-import { isMain, ROOT } from './paths.mjs';
+import { ROOT } from './paths.mjs';
 import { checkedFiles } from './tracked-files.mjs';
 
 
@@ -70,28 +69,21 @@ const MUTATIONS = [
     apply: root => editJson(root, RECORD, (record) => { record.locks[0].advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
     expect: finding => finding.rule === 'advisory',
   },
-];
+].filter(mutation => !mutation.applies || mutation.applies(ROOT));
 
-/** Applies each mutation that the repository at ROOT has to a copy of its dependency files; the exit status of the command. */
-function run() {
-  const mutations = MUTATIONS.filter(mutation => !mutation.applies || mutation.applies(ROOT));
-  const accepted = [];
-  for (const mutation of mutations) {
-    const directory = mkdtempSync(join(tmpdir(), 'kit-dependency-policy-'));
-    try {
-      copy(directory);
-      mutation.apply(directory);
-      if (!check(directory).some(mutation.expect)) accepted.push(mutation.name);
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
+const accepted = [];
+for (const mutation of MUTATIONS) {
+  const directory = mkdtempSync(join(tmpdir(), 'kit-dependency-policy-'));
+  try {
+    copy(directory);
+    mutation.apply(directory);
+    if (!check(directory).some(mutation.expect)) accepted.push(mutation.name);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
-  if (accepted.length) {
-    for (const name of accepted) console.error(`[dependency-policy] the check accepted the mutation: ${name}`);
-    return 1;
-  }
-  console.log(`[dependency-policy] ${mutations.length} mutations rejected: ${mutations.map(mutation => mutation.name).join('; ')}`);
-  return 0;
 }
-
-if (isMain(import.meta.url)) process.exitCode = run();
+if (accepted.length) {
+  for (const name of accepted) console.error(`[dependency-policy] the check accepted the mutation: ${name}`);
+  process.exit(1);
+}
+console.log(`[dependency-policy] ${MUTATIONS.length} mutations rejected: ${MUTATIONS.map(mutation => mutation.name).join('; ')}`);
