@@ -28,7 +28,7 @@ export function runBindings(model, root, { env, say }) {
     const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env });
     const status = result.error ? null : result.status;
     ledger.runs.push({ unit: unit.id, implementation: implementation.name, command: run.command, args: run.args, cwd: run.cwd, status });
-    const cases = result.error ? new Map() : run.cases(result.stdout);
+    const cases = result.error ? new Map() : run.cases(result);
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
     const expected = model.cases.get(unit.id);
     const problems = [
