@@ -746,8 +746,8 @@ distribution escapes each run of characters other than word characters and dots 
   `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
   `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
   wheel package, and it runs before a release.
-- `release-assets` checks each `Requires-Dist` of a wheel against its lock (K49): a plain `name==version` or a polyspec release
-  reference; any other form fails with the line and its form. `release-versions` requires the `version` of
+- `release-assets` checks each `Requires-Dist` of a wheel against its lock (K49): a plain `name==version`, a polyspec release
+  reference or a sibling of the release (K52); any other form fails with the line and its form. `release-versions` requires the `version` of
   `[project]` in the pyproject.toml, as for every archive manifest.
 - `release-consumer` installs a wheel into a clean virtual environment of `var/tools/bin/python3`: first its lock (K49), then the
   wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
@@ -761,8 +761,9 @@ distribution escapes each run of characters other than word characters and dots 
 
 ## Wheel dependencies (K49)
 
-A wheel's `Requires-Dist` takes exactly two forms. A registry package is pinned as `name==version`. A polyspec package is a PEP 508
-direct reference to its release asset, with the sha256 of that asset as the fragment:
+A wheel's `Requires-Dist` takes one of three forms: a registry pin, a polyspec reference and a sibling (K52, below). A registry
+package is pinned as `name==version`. A polyspec package is a PEP 508 direct reference to its release asset, with the sha256 of that
+asset as the fragment:
 
     name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
 
@@ -810,6 +811,65 @@ The tests: `tests/kit/wheel-dependencies.test.mjs` (the forms, the refusals with
 requirements), `tests/kit/release-wheel.test.mjs` (the same checks through `release-assets`, the consumer declaration),
 `tests/kit/release-proof.test.mjs` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mjs` (the real
 pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy and the resolver).
+
+## Sibling wheels (K52)
+
+A sibling is another wheel package of the same config/release.json. A wheel's `Requires-Dist` may name a sibling by a direct
+reference to the sibling's asset of the same release, without a hash fragment:
+
+    name @ <repositoryUrl>/releases/download/v<version>/<file>
+
+The reference is accepted only when every condition holds: `name` is a sibling; the URL is under `<repositoryUrl>/releases/download/v<version>/`
+of config/release.json; `<version>` is the version of the release that is checked; and `<file>` is `wheelName(name, version)`, the PEP 427
+name of the sibling's wheel. Each failure has its own message, and the refusals are: a sibling with a `#sha256` fragment, a sibling named
+`name==version`, a sibling at another version, a sibling URL under another repository, a file that is not the wheel name of its version,
+and a lock of the wheel that holds a sibling (the lock never holds one, whatever its form). Every other polyspec reference still needs its
+sha256 fragment (K49).
+
+The siblings are derived from `packages` (`siblingsOf`, scripts/kit/wheel-dependencies.mjs): the other wheel packages of the configuration,
+not a second declaration. Reason: the wheel packages of one config/release.json are released by one tag from one repository, so a second
+list of them could only disagree with `packages`. `consumers.wheel.polyspec` names repositories of other repositories, so it refuses a
+wheel package of this configuration (`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
+
+A sibling's sha256 is known only after the release builds it: SOURCE_DATE_EPOCH is the time of the release commit, so the sha256 of a
+wheel is not in the tree before the build. For this reason the lock of the wheel never holds a sibling, and the reference has no hash.
+
+`release-proof` step 3 proves the sibling online, from the release that GitHub publishes (scripts/kit/release-proof.mjs, `proveWheels`):
+1. the file of each wheel of the release, downloaded, has the sha256 that GitHub lists for its asset (the `digest` of the release
+   listing, `sha256:<hex>`); a release that lists no digest for a wheel fails the proof;
+2. each sibling that a wheel's METADATA names is exactly the URL of the published asset of that sibling (`browser_download_url`),
+   and the release lists that asset.
+
+Then the wheels of the release install together in one `pip install --no-index --require-hashes --no-deps` command from their files
+(`installWheelFiles` of release-consumer.mjs, which already installs every wheel package of the configuration together). `pip check`
+passes and each smoke command runs. The archives keep their own checks: the digest check is added for wheels, because a release that
+was published before the listing carried a digest must still prove.
+
+A consumer installs a sibling as it installs any polyspec wheel (K49): its own lock names the sibling as an `archive` entry with its URL and
+its sha256, which is the hash of the published asset. The lock of the wheel that requires the sibling does not name it.
+
+Findings for the sibling reference, measured with the pip of the checkout (`var/tools/python-build`, pip 26.2.1, Python 3.14.8) on two
+hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/wheel-sibling-real.test.mjs` repeats the file case):
+
+- `pip install --no-deps` of both wheels from their local files, with the hashes, installs them and `pip check` prints
+  `No broken requirements found.` and exits 0. pip never reads `Requires-Dist` with `--no-deps`.
+- With dependencies resolved and `kit-val` also given as a local file in the same command, pip does not take the local file for the
+  reference. It prints `Collecting kit-val @ <URL>` and fetches the URL; when the URL serves the same bytes, pip prints
+  `ERROR: Cannot install kit-val 0.0.1 (from <local file>) and kit-gen==0.0.1 because these package versions have conflicting
+  dependencies` and exits 1. The local file and the reference are two candidates, and the resolver reports a conflict, not a choice.
+- With dependencies resolved and `kit-val` not given, pip fetches the URL and installs from what it downloads (exit 0 when the URL serves
+  the file). When the URL does not answer, the fetch fails with `connection-failed` after its retries (exit 1). When the reference names a
+  file that does not exist, pip prints `Processing <path> (from kit-gen==0.0.1)` and fails with `No such file or directory` (exit 1).
+- An installed copy from a local file does not satisfy the reference: after `kit-val` was installed from its file, a resolution of `kit-gen`
+  with dependencies fetched the URL again.
+
+The consequence is the design above: the proof installs with `--no-deps` from the local files, and it proves that the reference equals the
+published URL, so a consumer that resolves dependencies fetches the asset that the release publishes.
+
+The tests: `tests/kit/wheel-sibling.test.mjs` (the sibling forms and refusals, the lock, the consumer declaration, `siblingLinks`),
+`tests/kit/release-wheel.test.mjs` (the same refusals through `release-assets`), `tests/kit/release-proof.test.mjs` (the wheel digest, the
+sibling URL, one install of the wheels), and `tests/source/wheel-sibling-real.test.mjs` (the real pip: the `--no-deps` install with pip
+check, and the resolution that reads the reference and not the local wheel).
 
 ## Language parity (K33)
 
