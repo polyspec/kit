@@ -29,7 +29,8 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
   `tests/kit/duplication.test.mjs` fails when two files hold the same function of 6 lines or more.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
-- A consumer that runs Python declares `pythonBuild` in config/toolchain.json and installs its Python with `make install-tools`;
+- A consumer that runs Python declares `pythonBuild` and `uv` in config/toolchain.json and installs its Python with `make install-tools`,
+  which installs uv and then the Python with `uv python install`;
   a consumer that publishes a wheel also declares `pythonBackend`. A vendored test checks a consumer's declaration only against
   this rule. The kit's own tests of its real Python and wheel path are in `tests/source`: kit-sync does not vendor them, `make
   source-test` runs them, and CI runs them after `make kit-test`.

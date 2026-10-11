@@ -1,6 +1,6 @@
-// The real venv of this checkout: make python-venv (scripts/kit/python-venv.mjs) makes a virtual environment from
-// var/tools/bin/python3, installed by `make install-tools`, and the environment holds no symbolic link on any platform
-// (CPython links lib64 to lib on 64-bit posix other than macOS; the tool removes that link). Nothing is stubbed.
+// The real venv of this checkout: make python-venv (scripts/kit/python-venv.mjs) makes a virtual environment with
+// var/tools/bin/uv from var/tools/bin/python3, both installed by `make install-tools`, and leaves it as uv makes it, its links
+// included. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,7 +12,7 @@ import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The symbolic links under `directory`; a link found here fails the case. */
+/** The symbolic links under `directory`. */
 function linksUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const file = path.join(directory, entry.name);
@@ -21,22 +21,20 @@ function linksUnder(directory) {
   });
 }
 
-test('make python-venv makes a venv from the checkout Python with no symbolic link, and run-tests accepts it', (t) => {
+test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', (t) => {
   const python = path.join(ROOT, 'var/tools/bin/python3');
-  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
+  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS="uv python" installs the Python of pythonBuild`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-real-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
   const steps = [];
   makeVenv({ root: ROOT, directory, print: text => steps.push(text) });
+  assert.ok(steps[0].includes(' venv '), `the venv is made by uv venv: ${steps.join('\n')}`);
   assert.equal(venvProblem(directory, ROOT), undefined, 'run-tests accepts the environment');
-  assert.equal(existsSync(path.join(directory, 'lib64')), false, 'no lib64 link is left on any platform');
-  assert.deepEqual(linksUnder(directory), [], 'the environment holds no symbolic link');
-  const probe = spawnSync(path.join(directory, 'bin/python'), ['-c', 'import sys, json; print(json.dumps([sys.prefix, sys.path]))'], { encoding: 'utf8' });
+  assert.ok(lstatSync(path.join(directory, 'bin/python')).isSymbolicLink(), 'bin/python is the link that uv makes');
+  const probe = spawnSync(path.join(directory, 'bin/python'), ['-c', 'import sys, json; print(json.dumps(sys.prefix))'], { encoding: 'utf8' });
   assert.equal(probe.status, 0, probe.stderr);
-  const [prefix, paths] = JSON.parse(probe.stdout);
-  assert.equal(prefix, directory, 'the interpreter runs with the environment as its prefix');
-  assert.ok(!paths.some(entry => entry.includes('lib64')), 'no sys.path entry names lib64');
+  assert.equal(JSON.parse(probe.stdout), directory, 'the interpreter runs with the environment as its prefix');
   assert.ok(lstatSync(path.join(directory, 'pyvenv.cfg')).isFile());
 }, { timeout: 300000 });
 

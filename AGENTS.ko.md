@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: a1ffdf19065245bec0633534a5202c155145093ff96fa73154bc0432178df06a -->
+<!-- source-sha256: 26e76085392750eed8d787984a56f9e80663a80a16ada79d059fcc755da83ef4 -->
 # 개발
 
 [English](AGENTS.md)
@@ -28,7 +28,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   6줄 이상의 같은 함수를 가지면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
-- Python을 실행하는 consumer는 config/toolchain.json에 `pythonBuild`를 선언하고 `make install-tools`로 Python을 설치합니다. wheel을
+- Python을 실행하는 consumer는 config/toolchain.json에 `pythonBuild`와 `uv`를 선언하고 `make install-tools`로 Python을 설치합니다.
+  `make install-tools`는 uv를 설치한 뒤 `uv python install`로 Python을 설치합니다. wheel을
   배포하는 consumer는 `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
   Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
   `make kit-test` 뒤에 실행합니다.

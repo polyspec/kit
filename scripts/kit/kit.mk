@@ -132,10 +132,10 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
 	$(ONLINE) node scripts/kit/release-backend.mjs
 
-# --- python-venv: a virtual environment of the checkout Python with no symbolic link (scripts/kit/python-venv.mjs). Consumers
-# make their environments with it: CPython's `-m venv` links lib64 to lib on 64-bit posix systems other than macOS.
+# --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
+# (scripts/kit/python-venv.mjs); an existing venv of the checkout Python is kept.
 .PHONY: python-venv
-python-venv: ## Make the virtual environment DIR (which must not exist) from var/tools/bin/python3, with no symbolic link; offline
+python-venv: ## Make the virtual environment DIR from var/tools/bin/python3 with var/tools/bin/uv venv; offline
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	node scripts/kit/python-venv.mjs $(DIR)
 

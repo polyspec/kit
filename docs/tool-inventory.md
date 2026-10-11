@@ -72,8 +72,8 @@ would walk it whatever the working directory.
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
-| ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made with `var/tools/bin/python3` | install |
-| uv | `uv` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; installed by pip into a virtual environment of `var/tools/bin/python3`, and the wrapper `var/tools/bin/uv` keeps its state under `var/tools` (K54) | install |
+| ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made by `var/tools/bin/uv venv` from `var/tools/bin/python3` and the wheel is installed by `uv pip install` | install |
+| uv | `uv` of `config/toolchain.json`: the exact `version` and the `sha256` of the release archive `uv-<target>.tar.gz` of each platform, downloaded with the digest checked and unpacked into `var/tools/uv`; the wrapper `var/tools/bin/uv` keeps its state under `var/tools` (K54, K64) | install |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the declared Composer |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
@@ -99,24 +99,31 @@ checked.
 - Python: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`. The
   merged tool takes the configuration, else the file, and fails when both exist and differ. PHP is handled the same way
   with `.php-version` (ordered-json, orm) and the list of crudui and template; a file that is not in the list fails.
-- Python: `pythonBuild` names a python-build-standalone release (its date as `release`, the exact `version`) and the SHA-256 of the
-  `install_only` archive of each platform (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools` downloads the
-  archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build` as it
-  is, with the symbolic links of the archive; the wrapper `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg` names `var/tools/python-build/python/bin` as its `home`; it refuses any other environment before the tool starts, with the fix `make python-venv DIR=<directory>` (K44) or `uv venv --python var/tools/bin/python3 <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them (K63): `uv venv` 0.12.11 links `bin/python` to the interpreter and `bin/python3` and `bin/python3.14` to `bin/python`, and run-tests runs such an environment without copying, removing or rewriting a link.
-- Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (the same copy of the checkout Python with no pip and no link) and installs the wheel with the pip of the checkout, `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, which reads the version with `show`. The venv has no pip of its own, and no python3 of PATH runs.
-- Python venv (K44): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mjs`) is the way a consumer makes a virtual
-  environment of the checkout Python; consumers call it instead of `-m venv`. It runs `var/tools/bin/python3 -m venv --copies
-  --without-pip <directory>` and then removes the link `lib64 -> lib`. The run is idempotent: an existing `<directory>` that is
-  already a venv of the checkout Python (run-tests' rule, the same Python version, platlibdir `lib`, no `lib64` in `sys.path`) is
-  accepted unchanged and reported as such; any other existing `<directory>` is an error with its reason and is neither removed nor
-  repaired. Evidence: CPython makes
-  that link on 64-bit posix systems other than macOS, and fsm's CI on ubuntu-24.04 refused a `run-tests --venv` environment with
-  `holds symbolic links (lib64)`. The removal happens only when `lib64` is exactly that link and the interpreter's `sys.platlibdir`
-  is `lib`. Any other symbolic link, any other `lib64` or another platlibdir is refused, naming the path, and nothing is changed.
-  The result is checked: no `sys.path` entry names `lib64`, and the rule of run-tests (`venvProblem`, in the same module) accepts
-  it. A failed run removes the directory it made. The rule of no symbolic link is
-  unchanged; the tool only performs the step that CPython's venv adds.
-- ruff: the virtual environment of template is made with `--copies` from `var/tools/bin/python3`, so it holds no link to the interpreter.
+- Python (K64): `pythonBuild` names the exact `version` of the `python` minor, and `config/toolchain.json` `uv` must be declared:
+  uv installs the Python. `install-tools` installs uv first and then runs `var/tools/bin/uv python install --no-bin <version>`;
+  uv downloads the python-build-standalone build that its pinned release names for the version (uv 0.12.24 names 3.14.8 of
+  20261003), checks the sha256 that uv records for it and installs it into `var/tools/uv-python` as uv lays it out, its links
+  included (the minor directory `cpython-3.14-<platform>` is a link of uv to the patch directory). `--no-bin` writes no command
+  outside that directory. `uv python find --managed-python --no-project <version>` names the interpreter, and the wrapper
+  `var/tools/bin/python3` runs it by that absolute path; a second run finds it and installs nothing. uv marks its Python as
+  externally managed (PEP 668), so pip installs only into a venv of it. `check-toolchain`, run-tests and release-proof run
+  `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
+  `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
+  names as its `home` a directory under `var/tools/uv-python` (read through links); it refuses any other environment before the
+  tool starts, with the fix `make python-venv DIR=<directory>` (K44) or `var/tools/bin/uv venv --python var/tools/bin/python3
+  <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
+  (K63): `uv venv` links `bin/python` to the interpreter and `bin/python3` and `bin/python3.14` to `bin/python`, and run-tests
+  runs such an environment without copying, removing or rewriting a link.
+- Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (`uv venv`, no pip) and installs the wheel with
+  the pip of the checkout, `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, which reads the version with
+  `show`. The venv has no pip of its own, and no python3 of PATH runs.
+- Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mjs`) makes a virtual environment of the
+  checkout Python with `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>` and leaves it as uv makes it, its
+  links included. The run is idempotent: an existing `<directory>` that is already a venv of the checkout Python (run-tests'
+  rule and the same Python version) is accepted unchanged and reported as such; any other existing `<directory>` is an error
+  with its reason and is neither removed nor repaired. A failed run removes the directory it made.
+- ruff: the virtual environment of ruff is made by `uv venv` from `var/tools/bin/python3`, and `uv pip install --no-index
+  --no-deps` installs the checked wheel into it.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
   PHP and Python by minor release (crudui, ordered-json, hyper), exact release for the other tools, `GOTOOLCHAIN=local` and
   `RUSTUP_AUTO_INSTALL=0` (ordered-json), the evidence function `toolchainVersions` (crudui). The check also covers ruff,
@@ -1148,8 +1155,8 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 ## uv and the Python lock writer (K54)
 
-`uv` is an install-tools tool shaped as ruff is: `config/toolchain.json` `uv` declares the exact version and the sha256 of
-the wheel of each platform, `scripts/kit/install-uv.mjs` installs it into `var/tools/uv` and writes the wrapper
+`uv` is an install-tools tool: `config/toolchain.json` `uv` declares the exact version and the sha256 of
+the release archive of each platform, `scripts/kit/install-uv.mjs` installs it into `var/tools/uv` and writes the wrapper
 `var/tools/bin/uv`. `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
 python-lock-check` (offline) compares each lock with its sources. The reason for the pin is that a lock written by an undeclared
 uv of PATH depends on the machine: `pip lock` (pip 26.2.1) is experimental and locked only the running platform (cryptography
@@ -1157,18 +1164,14 @@ got only the macOS arm64 wheel), while uv's universal resolution writes the file
 
 ### uv: the install and its state
 
-- **Standalone binary or pinned Python:** the Python of `var/tools/bin/python3`. The wheel holds the binary in its data scripts;
-  reading that needs a zip reader, which kit does not have (kit imports Node built-ins only). Installing the wheel with pip
-  puts it in a virtual environment through the same hash-checked download that ruff uses, with `--no-deps`, and the environment
-  holds copies of the interpreter (`--copies`), not links. A standalone binary would need no Python at run time: measured below,
-  uv runs without an interpreter on PATH, so the Python is needed only to install uv.
-- **Wheels:** the digests of `manylinux_2_17_x86_64`, `manylinux_2_17_aarch64`, `macosx_11_0_arm64` and `macosx_10_12_x86_64`
-  (uv 0.12.11, PyPI JSON API; each digest was downloaded and its sha256 compared with the record). pip picks the wheel of the
-  platform among the listed digests. A platform without a listed wheel (musl, Windows) is not installed.
+- **Release archive (K64):** uv is installed from its release archive `uv-<target>.tar.gz` of
+  `https://github.com/astral-sh/uv/releases/download/<version>/`, with the sha256 of each platform from the `.sha256` file of
+  the release (uv 0.12.24: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu`,
+  `x86_64-unknown-linux-gnu`); `tar` unpacks it as it is. uv needs no Python to run, so it is installed before the Python,
+  which it then installs. A platform without a listed digest (musl, Windows) is not installed.
 - **State under `var/tools`, never the home:** the wrapper sets `UV_CACHE_DIR=var/tools/uv-cache`,
-  `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`, `UV_PYTHON_DOWNLOADS=never` (no interpreter is downloaded) and
-  `UV_NO_CONFIG=1` (no `uv.toml` of the home or of the system is read). The install sets `PIP_CACHE_DIR=var/tools/pip-cache`
-  and `--no-cache-dir`. The wrapper overrides a `UV_CACHE_DIR` of the caller (measured), so the cache of a checkout is always
+  `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`, `UV_PYTHON_DOWNLOADS=manual` (an interpreter is downloaded only by `uv python
+  install`) and `UV_NO_CONFIG=1` (no `uv.toml` of the home or of the system is read). The wrapper overrides a `UV_CACHE_DIR` of the caller (measured), so the cache of a checkout is always
   its own.
 
 ### Measured uv behaviour (uv 0.12.11, aarch64-apple-darwin, the Python 3.14.8 virtual environment of install-tools)

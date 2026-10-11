@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: cf12e9de2ca82505180349b8e31a12d32b420ac6dddc74cb12a1a2c2eddfcc0f -->
+<!-- source-sha256: d55194f063fdda2709d0afe3d0e1cd008ae1ae36fb30450dafd6844dcaea0c4f -->
 
 # 도구 목록
 
@@ -71,8 +71,8 @@
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
-| ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 만듦 | 설치 |
-| uv | `config/toolchain.json`의 `uv`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; `var/tools/bin/python3`의 virtual environment에 pip로 설치하고, wrapper `var/tools/bin/uv`는 state를 `var/tools` 아래에 둠(K54) | 설치 |
+| ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 `var/tools/bin/uv venv`가 만들고 wheel은 `uv pip install`로 설치함 | 설치 |
+| uv | `config/toolchain.json`의 `uv`: 정확한 `version`과 플랫폼별 release archive `uv-<target>.tar.gz`의 `sha256`, digest를 확인하며 내려받아 `var/tools/uv`에 풂; wrapper `var/tools/bin/uv`는 state를 `var/tools` 아래에 둠(K54, K64) | 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | 선언된 Composer로 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
@@ -96,10 +96,10 @@
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
   읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
-- Python: `pythonBuild`는 python-build-standalone release(날짜 `release`, 정확한 `version`)와 플랫폼별 `install_only` archive의 SHA-256을 가리킵니다(`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools`는 이 플랫폼의 archive를 그 release에서 내려받아 다른 digest를 거부하고 `var/tools/python-build`에 archive의 symbolic link와 함께 그대로 풉니다. wrapper `var/tools/bin/python3`이 그것을 실행합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/python-build/python/bin`일 때만 `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `uv venv --python var/tools/bin/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv` 0.12.11은 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
-- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(pip과 link가 없는 checkout Python의 복사본). wheel은 checkout의 pip로 설치합니다: `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, 버전은 `show`로 읽습니다. venv에는 자체 pip가 없고, PATH의 python3는 실행되지 않습니다.
-- Python venv (K44): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mjs`)가 consumer가 checkout Python의 virtual environment를 만드는 방법입니다. consumer는 `-m venv` 대신 이것을 호출합니다. `var/tools/bin/python3 -m venv --copies --without-pip <directory>`를 실행하고, 그 뒤 link `lib64 -> lib`를 지웁니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전, platlibdir `lib`, `sys.path`에 `lib64` 없음)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 근거: CPython은 macOS가 아닌 64-bit posix system에서 이 link를 만들고, fsm의 ubuntu-24.04 CI는 `run-tests --venv` 환경을 `holds symbolic links (lib64)`로 거부했습니다. 지우는 일은 `lib64`가 정확히 그 link이고 interpreter의 `sys.platlibdir`가 `lib`일 때만 일어납니다. 다른 symbolic link, 다른 `lib64`, 다른 platlibdir는 경로를 밝히며 거부하고 아무것도 바꾸지 않습니다. 결과는 검사합니다: `sys.path` 항목 중 `lib64`를 이름으로 가진 것이 없고, run-tests의 규칙(같은 module의 `venvProblem`)이 받아들여야 합니다. 실패한 실행은 그것이 만든 directory를 지웁니다. symbolic link가 없어야 한다는 규칙은 바뀌지 않습니다. 이 tool은 CPython venv가 더하는 단계만 수행합니다.
-- ruff: template의 virtual environment는 `var/tools/bin/python3`으로 `--copies`를 써서 만들어 interpreter로의 link가 없습니다.
+- Python (K64): `pythonBuild`는 `python` minor의 정확한 `version`을 가리키며, `config/toolchain.json`의 `uv`가 선언되어 있어야 합니다. uv가 Python을 설치합니다. `install-tools`는 uv를 먼저 설치하고 `var/tools/bin/uv python install --no-bin <version>`을 실행합니다. uv는 고정된 release가 그 version에 지정한 python-build-standalone build를 내려받고(uv 0.12.24는 20261003의 3.14.8을 지정), uv가 기록한 sha256을 확인한 뒤 `var/tools/uv-python`에 uv의 배치 그대로 link까지 포함해 설치합니다(minor directory `cpython-3.14-<platform>`은 patch directory로의 uv link입니다). `--no-bin`은 그 directory 밖에 명령을 쓰지 않습니다. `uv python find --managed-python --no-project <version>`이 interpreter를 가리키고, wrapper `var/tools/bin/python3`은 그 절대 경로로 실행합니다. 두 번째 실행은 그것을 찾고 아무것도 설치하지 않습니다. uv는 자기 Python을 externally managed(PEP 668)로 표시하므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/uv-python` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
+- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
+- Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mjs`)는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
+- ruff: ruff의 virtual environment는 `var/tools/bin/python3`으로 `uv venv`가 만들고, `uv pip install --no-index --no-deps`가 확인된 wheel을 그 안에 설치합니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
   (ordered-json), 증거 함수 `toolchainVersions`(crudui)입니다. 검증은 ruff, cargo-audit, govulncheck도 포함하고, 도구를 하나도
@@ -1057,7 +1057,7 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 
 ## uv와 Python lock writer (K54)
 
-`uv`는 ruff와 같은 형태의 install-tools 도구입니다. `config/toolchain.json`의 `uv`가 정확한 version과 플랫폼별 wheel의 sha256을 선언하고,
+`uv`는 install-tools 도구입니다. `config/toolchain.json`의 `uv`가 정확한 version과 플랫폼별 release archive의 sha256을 선언하고,
 `scripts/kit/install-uv.mjs`가 `var/tools/uv`에 설치하며 wrapper `var/tools/bin/uv`를 씁니다. `make python-lock`(ONLINE)은 그 uv로
 `pythonLocks`의 각 Python lock을 쓰고, `make python-lock-check`(offline)은 각 lock을 source와 비교합니다. 고정하는 이유는, PATH의 선언되지 않은
 uv로 쓴 lock이 기계에 따라 달라지기 때문입니다. `pip lock`(pip 26.2.1)은 experimental이며 실행 중인 platform 하나만 lock했습니다(cryptography가
@@ -1065,16 +1065,13 @@ macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platfo
 
 ### uv: 설치와 state
 
-- **독립 binary인가, 고정된 Python인가:** 고정된 `var/tools/bin/python3`입니다. wheel은 binary를 data scripts에 담고 있는데, 그것을 읽으려면
-  zip reader가 필요하며 kit에는 없습니다(kit은 Node built-in만 import합니다). wheel을 pip로 설치하면 ruff와 같은 hash 확인 다운로드를 거치고
-  `--no-deps`로 virtual environment에 들어갑니다. 이 environment는 interpreter의 link가 아니라 복사본(`--copies`)을 가집니다. 독립 binary는
-  실행에 Python이 필요 없지만, 측정한 대로 uv는 PATH에 interpreter가 없어도 실행되므로 Python은 uv를 설치할 때만 필요합니다.
-- **Wheel:** `manylinux_2_17_x86_64`, `manylinux_2_17_aarch64`, `macosx_11_0_arm64`, `macosx_10_12_x86_64`의 digest입니다(uv 0.12.11,
-  PyPI JSON API. 각 digest는 파일을 내려받아 sha256을 비교해 확인했습니다). pip는 나열된 digest 중에서 이 platform의 wheel을 고릅니다.
-  나열되지 않은 platform(musl, Windows)은 설치하지 않습니다.
+- **Release archive (K64):** uv는 `https://github.com/astral-sh/uv/releases/download/<version>/`의 release archive
+  `uv-<target>.tar.gz`에서 설치하며, 플랫폼별 sha256은 release의 `.sha256` 파일에서 가져옵니다(uv 0.12.24: `aarch64-apple-darwin`,
+  `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`). `tar`가 그대로 풉니다. uv는 실행에 Python이 필요 없으므로
+  Python보다 먼저 설치되고, 그 뒤 Python을 설치합니다. digest가 나열되지 않은 platform(musl, Windows)은 설치하지 않습니다.
 - **state는 `var/tools` 아래, home에는 쓰지 않음:** wrapper는 `UV_CACHE_DIR=var/tools/uv-cache`, `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`,
-  `UV_PYTHON_DOWNLOADS=never`(interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나 system의 `uv.toml`을 읽지 않음)을 설정합니다.
-  설치는 `PIP_CACHE_DIR=var/tools/pip-cache`와 `--no-cache-dir`를 씁니다. wrapper는 호출자의 `UV_CACHE_DIR`를 덮어씁니다(측정함). 그래서
+  `UV_PYTHON_DOWNLOADS=manual`(interpreter는 `uv python install`로만 내려받음), `UV_NO_CONFIG=1`(home이나 system의 `uv.toml`을 읽지 않음)을
+  설정합니다. wrapper는 호출자의 `UV_CACHE_DIR`를 덮어씁니다(측정함). 그래서
   checkout의 cache는 항상 자기 것입니다.
 
 ### 측정한 uv 동작 (uv 0.12.11, aarch64-apple-darwin, install-tools의 Python 3.14.8 virtual environment)

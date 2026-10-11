@@ -12,6 +12,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installWheelFiles } from '../../scripts/kit/release-consumer.mjs';
+import { makeVenv } from '../../scripts/kit/python-venv.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PYTHON = path.join(ROOT, 'var/tools/bin/python3');
@@ -65,7 +66,10 @@ test('the wheels of a release install in one --no-deps command from their files,
 
 test('with the dependencies resolved, pip reads the sibling reference and does not take the local wheel of the same distribution', (t) => {
   const fx = fixture(t);
-  const result = spawnSync(PYTHON, ['-m', 'pip', 'install', '--dry-run', '--no-index', '--no-input', '--disable-pip-version-check', '--no-cache-dir', path.join(fx.wheels, fx.gen), path.join(fx.wheels, fx.val)], { cwd: fx.folder, env: fx.env, encoding: 'utf8' });
+  // The checkout Python is managed by uv and marked externally managed (PEP 668), so pip resolves for a venv of it.
+  const venv = path.join(fx.folder, 'venv');
+  makeVenv({ root: ROOT, directory: venv, env: fx.env });
+  const result = spawnSync(PYTHON, ['-m', 'pip', '--python', path.join(venv, 'bin/python'), 'install', '--dry-run', '--no-index', '--no-input', '--disable-pip-version-check', '--no-cache-dir', path.join(fx.wheels, fx.gen), path.join(fx.wheels, fx.val)], { cwd: fx.folder, env: fx.env, encoding: 'utf8' });
   const output = `${result.stdout}${result.stderr}`;
   assert.notEqual(result.status, 0, output);
   // The requirement of kit-gen is read from the reference: pip goes for the file that the reference names, though the local wheel
