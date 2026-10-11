@@ -35,7 +35,7 @@ repositories (lines).
 
 `scripts/kit/install-tools.mjs` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mjs`
 compares the running tools with the declarations. `scripts/kit/toolchain-declared.mjs` reads the declarations, and each
-installed tool has its own module (`install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`;
+installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`;
 cargo-audit and govulncheck keep `install-cargo-audit.mjs` and `install-govulncheck.mjs`). Every installer uses
 `install-tool.mjs`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
@@ -49,14 +49,14 @@ Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (o
 | Go | `config/toolchain.json` `go`: `versionFile`, else the `toolchain` line, else the `go` directive of `go.mod` | install |
 | Rust | `channel` of `rust-toolchain.toml` (exact) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
-| Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree | verify, and the minor of the ruff environment |
+| Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
-| ruff | the `ruff==X.Y.Z` pin of the `pyproject.toml` named by `ruff.pyproject` | install |
+| ruff | the `ruff==X.Y.Z` pin of the `pyproject.toml` named by `ruff.pyproject`; its environment is made with `var/tools/bin/python3` | install |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
-(`pyproject`), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
+(`pyproject`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
 
@@ -76,7 +76,11 @@ checked.
 - Python: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`. The
   merged tool takes the configuration, else the file, and fails when both exist and differ. PHP is handled the same way
   with `.php-version` (ordered-json, orm) and the list of crudui and template; a file that is not in the list fails.
-- ruff: the virtual environment of template is made with `--copies`, so it holds no link to the interpreter.
+- Python: `pythonBuild` names a python-build-standalone release (its date as `release`, the exact `version`) and the SHA-256 of the
+  `install_only` archive of each platform (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`). `install-tools` downloads the
+  archive of this platform from that release, refuses another digest and unpacks it into `var/tools/python-build`; the wrapper
+  `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH.
+- ruff: the virtual environment of template is made with `--copies` from `var/tools/bin/python3`, so it holds no link to the interpreter.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
   PHP and Python by minor release (crudui, ordered-json, hyper), exact release for the other tools, `GOTOOLCHAIN=local` and
   `RUSTUP_AUTO_INSTALL=0` (ordered-json), the evidence function `toolchainVersions` (crudui). The check also covers ruff,

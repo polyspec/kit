@@ -3,7 +3,7 @@
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -23,6 +23,15 @@ function checkout(t, files) {
 }
 const runner = (root, args, env = {}) => spawnSync(process.execPath, ['scripts/kit/run-tests.mjs', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 const output = result => result.stdout + result.stderr;
+// The Python of a checkout is var/tools/bin/python3, the wrapper that install-python.mjs writes: a test writes its stub there.
+function pythonStub(root, script) {
+  const file = path.join(root, 'var/tools/bin/python3');
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
+  chmodSync(file, 0o755);
+  return root;
+}
+const pythonRoot = (t, script) => pythonStub(tree(t), script);
 
 test('a passing file prints the start and the result of each test and a summary, and exits 0', (t) => {
   const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('group', async (t) => { await t.test('inner', () => {}); });\n` });
@@ -113,7 +122,7 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'] }, '/r'), { command: '/r/p/vendor/bin/phpunit', args: ['--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtension: '/r/e.so' }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: 'python3', args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/bin/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
   try {
     assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [] }, '/r').command, '/elsewhere/bin/phpunit');
@@ -323,32 +332,32 @@ test('a PHP extension that is not built fails before the tool starts', async (t)
   assert.match(result.text, /the PHP extension build\/ext\.so is not built; build it before the run/);
 });
 
-test('python tests run through python3 on PATH, pass, fail and stop at their timeout', async (t) => {
-  const passing = stubTool(t, 'python3', `process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
-  const passed = await inProcess(t, ['python', 'tests'], { path: `${passing}${path.delimiter}${process.env.PATH}` });
+test('python tests run through var/tools/bin/python3, pass, fail and stop at their timeout', async (t) => {
+  const passing = pythonRoot(t, `process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
+  const passed = await inProcess(t, ['python', 'tests'], { root: passing });
   assert.equal(passed.status, 0, passed.text);
   assert.match(passed.text, /✔ python \. tests: 1 passed/);
 
-  const failing = stubTool(t, 'python3', `process.stderr.write('test_a (t.T.test_a) ... FAIL\\n'); process.exitCode = 1;`);
-  const failed = await inProcess(t, ['python', 'tests'], { path: `${failing}${path.delimiter}${process.env.PATH}` });
+  const failing = pythonRoot(t, `process.stderr.write('test_a (t.T.test_a) ... FAIL\\n'); process.exitCode = 1;`);
+  const failed = await inProcess(t, ['python', 'tests'], { root: failing });
   assert.equal(failed.status, 1, failed.text);
   assert.match(failed.text, /✖ test_a \(t\.T\.test_a\)/);
 
-  const hanging = stubTool(t, 'python3', `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
-  const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { path: `${hanging}${path.delimiter}${process.env.PATH}` });
+  const hanging = pythonRoot(t, `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
+  const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { root: hanging });
   assert.equal(hung.status, 1, hung.text);
-  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran \d\.\ds and exceeded its 1\.0s timeout; stopping `python3 -m unittest`/);
+  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran \d\.\ds and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/bin\/python3 -m unittest`/);
 
-  const empty = stubTool(t, 'python3', `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
-  const none = await inProcess(t, ['python', 'tests'], { path: `${empty}${path.delimiter}${process.env.PATH}` });
+  const empty = pythonRoot(t, `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
+  const none = await inProcess(t, ['python', 'tests'], { root: empty });
   assert.equal(none.status, 1, none.text);
   assert.match(none.text, /no test ran/);
 });
 
-test('a python3 that cannot start fails with the fix', async (t) => {
-  const result = await inProcess(t, ['python', 'tests'], { path: path.join(tmpdir(), 'kit-no-such-directory') });
+test('a var/tools/bin/python3 that cannot start fails with the fix', async (t) => {
+  const result = await inProcess(t, ['python', 'tests'], { root: tree(t) });
   assert.equal(result.status, 1);
-  assert.match(result.text, /✖ python \. tests: cannot start python3: .*; install the Python release of config\/toolchain\.json python or \.python-version/);
+  assert.match(result.text, /✖ python \. tests: cannot start .*var\/tools\/bin\/python3: .*; declare pythonBuild in config\/toolchain\.json and run make install-tools TOOLS=python/);
 });
 
 test('inputsDigest hashes the tracked and new non-ignored files under the paths and fails on a path without files', (t) => {
@@ -415,12 +424,12 @@ test('a node file of 89 tests reports every test when the reporter reads its eve
 
 test('python tests are read without color when FORCE_COLOR is set, since unittest colors its output then', (t) => {
   // A stub of python3 that colors its verbose lines as Python 3.14 does under FORCE_COLOR, unless PYTHON_COLORS is 0.
-  const bin = stubTool(t, 'python3', `
+  const root = checkout(t, { 'tests/t.py': '' });
+  pythonStub(root, `
 const colored = process.env.FORCE_COLOR && process.env.PYTHON_COLORS !== '0';
 const ok = colored ? '\\x1b[32mok\\x1b[0m' : 'ok';
 process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
-  const root = checkout(t, { 'tests/t.py': '' });
-  const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3', PATH: `${bin}${path.delimiter}${process.env.PATH}` });
+  const colored = runner(root, ['python', 'tests'], { FORCE_COLOR: '3' });
   assert.equal(colored.status, 0, output(colored));
   assert.match(colored.stdout, /✔ test_a \(t\.T\.test_a\)/);
   assert.match(colored.stdout, /1 passed, 0 failed/);
