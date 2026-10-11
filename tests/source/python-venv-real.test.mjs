@@ -58,3 +58,34 @@ test('make python-venv run twice leaves the venv unchanged, and refuses an exist
   assert.throws(() => makeVenv({ root: ROOT, directory: other }), /other exists and is not a venv of the checkout Python: .*no pyvenv\.cfg/);
   assert.ok(existsSync(path.join(other, 'keep.txt')), 'the refused directory was changed');
 }, { timeout: 300000 });
+
+// A virtual environment that uv makes from the checkout Python is accepted as uv makes it (K63): uv links bin/python to the
+// interpreter and bin/python3 to python, and run-tests --venv keeps those links and runs the tests with the environment's
+// interpreter. The uv of config/toolchain.json makes it (var/tools/bin/uv, make install-tools TOOLS=uv). No link is copied,
+// removed or rewritten.
+test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', (t) => {
+  const python = path.join(ROOT, 'var/tools/bin/python3');
+  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-uv-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const directory = path.join(folder, 'venv');
+  const uv = path.join(ROOT, 'var/tools/bin/uv');
+  assert.ok(existsSync(uv), `${path.relative(ROOT, uv)} is missing; make install-tools TOOLS=uv installs the uv of config/toolchain.json`);
+  const made = spawnSync(uv, ['venv', '--python', python, directory], { encoding: 'utf8' });
+  assert.equal(made.status, 0, made.stderr);
+  const links = linksUnder(directory);
+  assert.ok(links.length > 0, 'uv made the environment with its links');
+  assert.equal(venvProblem(directory, ROOT), undefined, 'run-tests accepts the environment');
+  const tests = path.join(folder, 'tests');
+  mkdirSync(tests);
+  writeFileSync(path.join(tests, 'test_prefix.py'), [
+    'import sys, unittest',
+    'class Prefix(unittest.TestCase):',
+    `    def test_prefix(self): self.assertEqual(sys.prefix, ${JSON.stringify(directory)})`,
+    '',
+  ].join('\n'));
+  const ran = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/run-tests.mjs'), 'python', '--venv', directory, '--cwd', tests, 'discover'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(ran.status, 0, `${ran.stdout}${ran.stderr}`);
+  assert.match(ran.stdout, /test_prefix/);
+  assert.deepEqual(linksUnder(directory), links, 'the links of uv are kept as uv made them');
+}, { timeout: 300000 });

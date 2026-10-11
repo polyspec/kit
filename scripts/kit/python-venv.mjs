@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Makes the virtual environment of the checkout's Python without a symbolic link (`make python-venv DIR=<directory>`), and
-// holds the rule that run-tests --venv checks (venvProblem). `python -m venv --copies` makes lib64 a relative link to lib on
+// holds the rule that run-tests --venv checks (venvProblem): the environment comes from the Python of the checkout. The links
+// of an environment that an outside tool makes, such as `uv venv`, are that tool's behavior and are accepted as it made them. `python -m venv --copies` makes lib64 a relative link to lib on
 // 64-bit posix systems other than macOS; the rule removes exactly that link, and refuses every other link, every other
 // lib64 and every platlibdir other than lib, naming the path and changing nothing.
 //
@@ -17,7 +18,7 @@ import path from 'node:path';
 import { isMain, ROOT } from './paths.mjs';
 import { run, toolsPath } from './tool-wrappers.mjs';
 
-const MAKE = (directory) => `make it with make python-venv DIR=${directory}, and install into it with --link-mode copy`;
+const MAKE = (directory) => `make it from the checkout Python, with make python-venv DIR=${directory} or uv venv --python var/tools/bin/python3 ${directory}`;
 
 /** The symbolic links below `directory`, as paths relative to it; a link is not followed. */
 function symbolicLinks(directory, relative = '') {
@@ -30,7 +31,10 @@ function symbolicLinks(directory, relative = '') {
   return found;
 }
 
-/** Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may. */
+/**
+ * Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may: it has a pyvenv.cfg whose
+ * home is the Python of the checkout. Its symbolic links are not checked: they are the behavior of the tool that made it.
+ */
 export function venvProblem(venv, root = ROOT) {
   const config = path.join(venv, 'pyvenv.cfg');
   const relative = path.relative(root, venv);
@@ -42,8 +46,6 @@ export function venvProblem(venv, root = ROOT) {
   if (!home || resolved(home) !== resolved(expected)) {
     return `${relative} was made from ${home ?? 'no home'}, not from the Python of this checkout (${path.relative(root, expected)}); ${make}`;
   }
-  const links = symbolicLinks(venv);
-  if (links.length > 0) return `${relative} holds symbolic links (${links.slice(0, 3).join(', ')}${links.length > 3 ? ', …' : ''}); ${make}`;
   return undefined;
 }
 
@@ -81,13 +83,15 @@ function interpreterFacts(python, env = process.env) {
 
 /**
  * Why the existing virtual environment `directory` is not a venv of the checkout Python as this tool makes it, or undefined:
- * the rule of run-tests (pyvenv.cfg home, no symbolic link), the version of the checkout Python, platlibdir lib and no lib64 in
+ * the rule of run-tests (pyvenv.cfg home), no symbolic link, the version of the checkout Python, platlibdir lib and no lib64 in
  * sys.path.
  */
 export function existingVenvProblem(directory, root = ROOT, env = process.env) {
   const relative = path.relative(root, directory);
   const problem = venvProblem(directory, root);
   if (problem) return problem;
+  const links = symbolicLinks(directory);
+  if (links.length > 0) return `${relative} holds symbolic links (${links.slice(0, 3).join(', ')}${links.length > 3 ? ', …' : ''})`;
   const interpreter = path.join(directory, 'bin/python');
   if (!existsSync(interpreter)) return `${relative} has no bin/python`;
   const venv = interpreterFacts(interpreter, env);

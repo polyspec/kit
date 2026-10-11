@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3849c3b77f0f332ef472b932fa8f587febc7d22b9d9b79aa289a36f230989831 -->
+<!-- source-sha256: 6b329ab85c3c519861f01881e219105b11f47348ec7837a2f3740cd65bffd5e6 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -114,3 +114,4 @@
 | K59 | kit이 license를 선언합니다: 저장소 root의 file `LICENSE`가 다른 polyspec library가 선언하는 것처럼 MIT License를 담습니다. 어떤 tool도 이 file을 읽지 않습니다. 이전에는 kit이 license를 선언하지 않았습니다 | `LICENSE` | `git ls-files LICENSE`가 `LICENSE`를 출력합니다 | [o] |
 | K61 | K55, K56, K57을 release 전에 제거합니다: limepie가 uv를 직접 쓰므로(사용자 결정) 아무것도 이것들을 쓰지 않고, kit는 consumer가 없는 code를 두지 않습니다. 그 commit들은 0.0.26 전에 main에서 revert됩니다: kit의 npm asset과 package(K55), 호출자가 주는 Python 경로(K56), lock의 local archive file(K57). K58 import guard와 K59 license는 남습니다 | K55, K56, K57의 revert | `make kit-test`, `make source-test` | [o] |
 | K62 | AGENTS가 두 규칙을 적습니다. 저장소는 외부 도구나 라이브러리가 이미 하는 일을 다시 만들지 않고 그 생태계의 표준 도구를 있는 그대로 쓰며, 그 도구의 symbolic link 같은 동작을 받아들입니다. 또 이 저장소는 symbolic link와 relative path를 만들지 않으며, 각 path는 선언으로 정하거나 명시된 discovery 규칙으로 찾습니다. 원인: AGENTS에 이 규칙들이 적혀 있지 않았습니다 | `AGENTS.md`, `AGENTS.ko.md`, `docs/plans/execution-checklist.md(.ko)` | `make documents-check` | [o] |
+| K63 | `run-tests python --venv`는 환경의 symbolic link를 그 환경을 만든 tool이 남긴 그대로 받아들입니다: `venvProblem`은 pyvenv.cfg의 home이 checkout Python인지만 검사하므로, `uv venv --python var/tools/bin/python3`로 만든 환경이 uv의 `bin/python*` link와 함께 실행되며 run-tests는 그 link를 복사하거나 지우거나 고쳐 쓰지 않습니다. 원인: K62의 규칙은 외부 tool이 만든 link를 받아들이는데 run-tests가 uv의 link를 거부했습니다. RED: `node --test tests/source/python-venv-real.test.mjs`가 uv 환경을 `holds symbolic links (bin/python, bin/python3, bin/python3.14)`로 거부했습니다 | `scripts/kit/python-venv.mjs`, `scripts/kit/run-tests.mjs`, `tests/kit/run-tests.test.mjs`, `tests/source/python-venv-real.test.mjs`, `docs/tool-inventory.md(.ko)` | `make kit-test`, `make source-test` | [o] |
