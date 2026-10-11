@@ -60,9 +60,7 @@ config/release.json declares one package, the npm package `@polyspec/kit` at the
 `import { makeVenv } from '@polyspec/kit/python-venv.mjs'` and passes explicit paths to its functions. package.json and kit.json hold
 the same version, CHANGELOG.md and CHANGELOG.ko.md hold the section `## X.Y.Z` of the release, and the consumer project
 `tests/release-consumer/npm` names the archive of the version (`make release-consumer-lock TAG=vX.Y.Z` writes it on the release
-commit). The release proof installs the asset there, and its smoke command imports every module of scripts/kit except
-`test-load-check.mjs`, the preload that run-tests passes to `node --import`: the package holds it, and the exports map maps it to
-null. No module acts when it is imported; a command runs only as the command (`isMain`).
+commit). The release proof installs the asset there, and its smoke command imports every module that exports a name.
 
 A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
 type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A

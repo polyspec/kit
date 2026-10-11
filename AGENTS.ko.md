@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b2156237ec1250162c0c15fb1aab1dfc188c9285e68bd59a339af967e0d4e5dd -->
+<!-- source-sha256: 522c1f9221af9143f7fdb7795a62a9368d5e1ed1d90fc4fef6140bf0b598c6d4 -->
 # 개발
 
 [English](AGENTS.md)
@@ -54,9 +54,7 @@ config/release.json은 package 하나, 저장소 root의 npm package `@polyspec/
 받는 consumer는 module을 `import { makeVenv } from '@polyspec/kit/python-venv.mjs'`로 import하고, 그 함수에 명시적 경로를 넘깁니다.
 package.json과 kit.json은 같은 version을 가지고, CHANGELOG.md와 CHANGELOG.ko.md는 release의 section `## X.Y.Z`를 가지며, consumer project
 `tests/release-consumer/npm`은 그 version의 archive를 적습니다(`make release-consumer-lock TAG=vX.Y.Z`가 release commit에서 씁니다).
-release proof는 asset을 그곳에 설치하고, 그 smoke command는 scripts/kit의 모든 module을 import하되 run-tests가 `node --import`에 넘기는
-preload인 `test-load-check.mjs`만 뺍니다: package는 그것을 담고, exports는 그것을 null로 연결합니다. 어떤 module도 import될 때 동작하지
-않으며, command는 command로 실행될 때만(`isMain`) 실행됩니다.
+release proof는 asset을 그곳에 설치하고, 그 smoke command는 이름을 export하는 모든 module을 import합니다.
 
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
