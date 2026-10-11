@@ -176,12 +176,20 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   assert.ok(lines.some(line => line.includes('the test did not finish')));
 });
 
-test('the progress reports a test that outlives its timeout', async () => {
+// The heartbeat and the clock are driven by the test: the heartbeat at 20 ms prints the still-running line, and the
+// heartbeat at 60 ms, past the 50 ms timeout, stops the test. A real timer made the outcome depend on the load of the machine.
+test('the progress reports a test that outlives its timeout', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  let clock = 0;
   const lines = [];
   const stopped = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 20, timeoutMs: 50, onTimeout: id => stopped.push(id), command: 'tool run' });
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 20, timeoutMs: 50, onTimeout: id => stopped.push(id), command: 'tool run', now: () => clock });
   progress.start('slow');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  clock = 20;
+  t.mock.timers.tick(20);
+  assert.ok(lines.some(line => line.includes('… slow still running')), lines.join(''));
+  clock = 60;
+  t.mock.timers.tick(40);
   assert.deepEqual(stopped, ['slow']);
   progress.fail('slow', undefined, 'stopped');
   assert.ok(lines.some(line => /⏱ slow ran \d\.\ds and exceeded its 0\.1s timeout; stopping `tool run`/.test(line)), lines.join(''));
