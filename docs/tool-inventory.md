@@ -767,6 +767,10 @@ units. The declaration holds no state such as done or planned: the checker takes
   that each run reported. It reads no saved report.
 - It reads the exported symbols from the extractor snapshot of each implementation.
 - It reads the error codes from the generated artifact of each implementation.
+
+A repository with several implementations of one spec declares `config/parity.json`, runs `parity-declarations-check` among its
+check targets and `parity-check` in its CI, both before a push lands.
+
 ### Trust boundary
 
 The checker trusts three inputs that it does not produce itself. Other checks close each one:
@@ -886,8 +890,9 @@ profile with what it omits and its reason. At least two units use it; a one-unit
    `<symbol>/<case>`.
 3. Make the extractor of each implementation write its snapshot with `exported`, and generate the error codes of each
    implementation from the catalog.
-4. Add `parity-declarations-check` and `parity-check` to the checks of the repository. Run them after the checks that regenerate
-   the symbol snapshots and the error-code artifacts (the trust boundary). The `make kit-sync` copy already holds the targets.
+4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
+   lands. Run them after the checks that regenerate the symbol snapshots and the error-code artifacts (the trust boundary). The
+   `make kit-sync` copy already holds the targets.
 
 ```json
 {

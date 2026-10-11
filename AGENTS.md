@@ -27,6 +27,9 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
   a consumer that publishes a wheel also declares `pythonBackend`. A vendored test checks a consumer's declaration only against
   this rule. The kit's own tests of its real Python and wheel path are in `tests/source`: kit-sync does not vendor them, `make
   source-test` runs them, and CI runs them after `make kit-test`.
+- A repository with several implementations of one spec declares them in `config/parity.json` and runs
+  `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
+  (docs/tool-inventory.md, Language parity).
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   `dependency-review`, `kit-sync` and the install tools, and its result is a committed record.
