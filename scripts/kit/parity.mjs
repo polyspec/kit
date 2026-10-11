@@ -12,7 +12,8 @@
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no exported symbol in an implementation of its profile
 //   R2 missing-binding         a suite has no binding of an implementation of its profile
-//   R3 not-executed            a binding exits with an error, or the cases that passed are not exactly the cases of the suite
+//   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
+//                              or its second run gives another status, case or result than its first
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit
 //   R5 undeclared-test         a test file of an implementation is the test of no binding
 //   R6 misplaced-test          the test of a binding lies outside the roots of its implementation
@@ -67,7 +68,7 @@ if (isMain(import.meta.url)) {
   const { values } = parseArgs({ options: { declarations: { type: 'boolean' } } });
   const say = text => console.log(`[parity] ${text}`);
   const { findings, ledger } = checkParity(ROOT, { execute: !values.declarations, say });
-  if (!values.declarations) say(`${ledger.runs.length} bindings ran, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
+  if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);
   else say(values.declarations ? 'every declaration holds' : 'every unit holds in every implementation');
