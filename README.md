@@ -14,7 +14,7 @@ The tools that every polyspec repository shares. A repository holds a byte-for-b
 | Gates | `push-gate.mjs`, `full-run.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `checklist.mjs` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
 | Documents and commits | `check-documents.mjs`, `documents-stamp.mjs`, `check-commits.mjs`, `owner-check.mjs` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | Tests and CI | `run-tests.mjs`, `ci-targets.mjs`, `ci-passed.mjs`, `target-report.mjs` | `ci-targets`, `ci-summary`, `ci-passed` |
-| Release | `release.mjs`, `release-consumer.mjs`, `release-proof.mjs` | `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
+| Release | `release.mjs`, `release-consumer.mjs`, `release-proof.mjs` | `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
 
 `docs/tool-inventory.md` records which implementations each tool replaced and which behaviors it took or dropped.
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Proves a released tag from outside the repository, online. The release workflow (templates/release.yml) runs it after
-// make release-publish, in the same job, so a failed proof fails that run; a developer runs it for any released tag.
+// Proves a released tag from outside the repository, online. The release workflow (workflows/release.yml) runs it on the draft
+// after make release-publish, in the same job; a failed proof fails that run and the release stays a draft. A developer may
+// run it for any released tag.
 //
 //   node scripts/kit/release-proof.mjs TAG
 //
 // For a tag vX.Y.Z it proves, one line `✔ <what>` for each step, and stops at the first step that fails:
-//   1. `gh release view TAG` lists exactly the archives that config/release.json declares for the version.
+//   1. The GitHub Release of TAG, a draft included, lists exactly the archives that config/release.json declares for the version.
 //   2. The release assets, downloaded into a temporary directory, install together in clean npm and Composer projects
 //      (release-consumer.mjs installConsumers, with the committed manifests and locks of the checkout) and the smoke command of
 //      each package passes. Run it in a checkout of the tag, whose consumer projects name the archives of the version.
@@ -21,30 +22,30 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assetNames, context, latestTag, parseTag } from './release.mjs';
+import { downloadAsset, releaseOf } from './github-release.mjs';
 import { run, Stop } from './process.mjs';
 import { installConsumers } from './release-consumer.mjs';
 
-/** `HOST/OWNER/REPO` of the repository URL, the form that `gh --repo` takes for any host. */
-const repositoryOf = url => url.replace(/^https:\/\//, '');
-
-/** Step 1: the names of the assets of the GitHub Release equal the archives of the tag. */
+/** Step 1: the names of the assets of the GitHub Release (a draft included) equal the archives of the tag. */
 function proveAssets(ctx, tag, version, directory, step) {
   const expected = [...(directory === null ? assetNames(ctx.config, version) : [])].sort();
-  const listed = JSON.parse(run('gh', ['release', 'view', tag, '--repo', repositoryOf(ctx.config.repositoryUrl), '--json', 'assets'], { cwd: ctx.root, env: ctx.env }));
-  const actual = (listed.assets ?? []).map(({ name }) => name).sort();
+  const release = releaseOf({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, tag);
+  if (!release) throw new Stop(`the release ${tag} does not exist; make release-publish creates it as a draft`);
+  const actual = release.assets.map(({ name }) => name).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     const missing = expected.filter(name => !actual.includes(name));
     const extra = actual.filter(name => !expected.includes(name));
     throw new Stop(`the release ${tag} lists [${actual.join(', ')}], expected [${expected.join(', ')}]${missing.length ? `; missing [${missing.join(', ')}]` : ''}${extra.length ? `; unexpected [${extra.join(', ')}]` : ''}`);
   }
-  step(`the release ${tag} lists ${expected.length ? `exactly its ${expected.length} archives` : 'no archive'}`);
+  step(`the ${release.draft ? 'draft' : 'public'} release ${tag} lists ${expected.length ? `exactly its ${expected.length} archives` : 'no archive'}`);
+  return release;
 }
 
-/** Step 2: download the assets into `folder/assets` and install them in clean consumer projects. */
-function proveInstall(ctx, tag, version, folder, step) {
+/** Step 2: download the assets of the release into `folder/assets` and install them in clean consumer projects. */
+function proveInstall(ctx, tag, version, folder, release, step) {
   const assets = path.join(folder, 'assets');
   mkdirSync(assets, { recursive: true });
-  run('gh', ['release', 'download', tag, '--repo', repositoryOf(ctx.config.repositoryUrl), '--dir', assets], { cwd: ctx.root, env: ctx.env });
+  for (const { id, name } of release.assets) downloadAsset({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, id, path.join(assets, name));
   step(`downloaded [${readdirSync(assets).sort().join(', ')}] from the release ${tag}`);
   const count = installConsumers(ctx, version, assets, text => step(text));
   step(`installed and checked ${count} packages from the release assets`);
@@ -90,9 +91,9 @@ export function prove(ctx, tag, step) {
   const [directory, version] = parseTag(ctx.config, tag);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-proof-'));
   try {
-    proveAssets(ctx, tag, version, directory, step);
+    const release = proveAssets(ctx, tag, version, directory, step);
     if (directory === null) {
-      proveInstall(ctx, tag, version, folder, step);
+      proveInstall(ctx, tag, version, folder, release, step);
       proveGitTag(ctx, tag, folder, step);
     } else {
       step(`${tag} is a Go module tag: the release holds no archive and no git-tag manifest`);

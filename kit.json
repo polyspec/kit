@@ -5,5 +5,8 @@
   "vendored": [
     "scripts/kit",
     "tests/kit"
-  ]
+  ],
+  "vendoredFiles": {
+    ".github/workflows/release.yml": "workflows/release.yml"
+  }
 }

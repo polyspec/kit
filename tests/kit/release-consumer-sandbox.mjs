@@ -4,7 +4,7 @@
 //   npm       `install --package-lock-only` writes a lock that pins every `file:` tarball with an integrity and one
 //             registry package; `ci` installs the tarballs of the lock into node_modules
 //   composer  `update --no-install` writes a lock of the artifact zips with a shasum; `install` writes vendor/composer/installed.json
-//   gh        `release view` lists state.release names; `release download` copies them from the archives of the sandbox
+//   gh        `api .../releases` lists state.release (its tag, draft and names); `api .../releases/assets/<id>` writes the archive
 //   python3   `-m venv DIR` writes DIR/bin/python, which answers `-m pip install SPEC` and any other call
 //   cargo, go answer from the state
 // No test reaches a registry, GitHub or a network.
@@ -96,13 +96,14 @@ if (args[0] === 'update' && args.includes('--no-install')) {
 `;
 
 const GH = `${PRELUDE}
-if (args[0] !== 'release' || mode === 'fail') finish(1, 'gh stub: release ' + args[1] + ' failed');
-if (args[1] === 'view') {
-  console.log(JSON.stringify({ assets: state.release.names.map(name => ({ name })) }));
+if (mode === 'fail') finish(1, 'gh stub: api failed');
+if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
+  // The release of the tag, a draft included: its assets carry the ids that the download names.
+  console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name })) }));
   finish();
-} else if (args[1] === 'download') {
-  const directory = args[args.indexOf('--dir') + 1];
-  for (const name of state.release.names) fs.copyFileSync(path.join(state.release.source, name), path.join(directory, name));
+} else if (args[0] === 'api' && args.some(arg => arg.includes('/releases/assets/'))) {
+  const name = state.release.names[Number(args.at(-1).split('/').pop()) - 1];
+  fs.writeSync(1, fs.readFileSync(path.join(state.release.source, name)));
   finish();
 } else finish(1, 'gh stub: unexpected arguments ' + JSON.stringify(args));
 `;
@@ -164,7 +165,7 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
   mkdirSync(path.dirname(python), { recursive: true });
   writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
   chmodSync(python, 0o755);
-  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON, version }));
+  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON, version }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
   const env = {
