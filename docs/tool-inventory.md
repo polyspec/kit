@@ -704,19 +704,6 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 repository. The release workflow (`workflows/release.yml`) runs it on the draft after `release-publish` in the same job; a failed proof
 fails that run and the release stays a draft. A developer may run it for any released tag. It is no offline check.
 
-### The npm package of kit (K55)
-
-kit releases itself through the same release form: config/release.json declares the npm package `@polyspec/kit` at the repository
-root. A package `directory` is `.` for the root or a path below it; a directory with a `.` or `..` segment is refused, and the manifest
-of the root package is `package.json` (`manifestFile` of release.mjs). package.json packs `scripts/kit/` (npm adds README.md and
-README.ko.md) and maps `./*.mjs` to `./scripts/kit/*.mjs`; its `packageManager` declares the npm of the release. The smoke command of
-`tests/release-consumer/npm` imports every module of the installed package that exports a name, through the exports map. Two modules
-export nothing and run when they load: `check-dependency-policy-mutation.mjs`, a command whose check runs at import, and
-`test-load-check.mjs`, the preload of run-tests. Every module imports only `node:` built-ins and files of scripts/kit; the one
-`import()`, in test-load-check.mjs, imports the test file that node --test runs. `tests/source/npm-package.test.mjs` checks the
-imports, the configuration, the version of kit.json and the vendored workflow, packs the checkout with the real npm and installs the
-archive in the consumer project with its smoke command.
-
 ### Release workflow, tools and draft (K38)
 
 - `workflows/release.yml` is the source of `vendoredFiles` in kit.json, which maps it to `.github/workflows/release.yml`: `make kit-sync`

@@ -1,6 +1,5 @@
 {
   "schema": 1,
   "comment": "The documents of kit.",
-  "include": ["AGENTS.md", "CHANGELOG.md", "docs/**/*.md"],
-  "changelogs": ["CHANGELOG.md"]
+  "include": ["AGENTS.md", "docs/**/*.md"]
 }

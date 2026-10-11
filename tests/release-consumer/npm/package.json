@@ -1,7 +1,0 @@
-{
-  "name": "kit-release-consumer",
-  "private": true,
-  "dependencies": {
-    "@polyspec/kit": "file:polyspec-kit-npm-0.0.25.tgz"
-  }
-}

@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 522c1f9221af9143f7fdb7795a62a9368d5e1ed1d90fc4fef6140bf0b598c6d4 -->
+<!-- source-sha256: abb5807f379b5003e2efa8293df9fa9ea6551537d3cd7d36961382c471d8e4c0 -->
 # 개발
 
 [English](AGENTS.md)
@@ -47,14 +47,6 @@ subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`
 
 kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `kit.json`이 tree의 버전을 가집니다. 저장소는
 `make kit-sync KIT_TAG=vX.Y.Z`로 릴리스를 채택합니다.
-
-kit은 자기 release 형식으로 스스로를 릴리스합니다. `.github/workflows/release.yml`은 kit이 vendor하는 release workflow이고,
-config/release.json은 package 하나, 저장소 root의 npm package `@polyspec/kit`을 선언합니다. tag마다 `scripts/kit`을 담은 asset
-`polyspec-kit-npm-<version>.tgz`를 게시합니다. package.json의 exports가 `./*.mjs`를 `./scripts/kit/*.mjs`로 연결하므로, kit을 library로
-받는 consumer는 module을 `import { makeVenv } from '@polyspec/kit/python-venv.mjs'`로 import하고, 그 함수에 명시적 경로를 넘깁니다.
-package.json과 kit.json은 같은 version을 가지고, CHANGELOG.md와 CHANGELOG.ko.md는 release의 section `## X.Y.Z`를 가지며, consumer project
-`tests/release-consumer/npm`은 그 version의 archive를 적습니다(`make release-consumer-lock TAG=vX.Y.Z`가 release commit에서 씁니다).
-release proof는 asset을 그곳에 설치하고, 그 smoke command는 이름을 export하는 모든 module을 import합니다.
 
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
