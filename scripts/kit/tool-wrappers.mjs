@@ -10,22 +10,6 @@ export const TOOLS = 'var/tools';
 export const toolsPath = (root, ...parts) => path.join(root, TOOLS, ...parts);
 
 /**
- * The paths of the Python of a kit checkout, which kit's own targets pass to installPython, makeVenv and venvProblem: the
- * install prefix var/tools/python-build, the wrapper var/tools/bin/python3 and the interpreter's home, the bin directory of the
- * prefix. A consumer that takes kit as a library passes its own declared paths instead.
- */
-export const checkoutPython = root => ({
-  prefix: toolsPath(root, 'python-build'),
-  wrapper: toolsPath(root, 'bin', 'python3'),
-  home: toolsPath(root, 'python-build', 'python', 'bin'),
-});
-
-/** Throws unless `file`, named `label` in the message, is an absolute path. */
-export function requireAbsolute(label, file) {
-  if (typeof file !== 'string' || !path.isAbsolute(file)) throw new Error(`${label} ${file} is not an absolute path; the caller names it`);
-}
-
-/**
  * The environment of the commands that install a tool: PATH without var/tools/bin, so that a wrapper of an earlier
  * install never installs its own replacement and the tool of the machine is the bootstrap.
  */
@@ -62,10 +46,8 @@ export function printedRelease(command, tool) {
 export const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
 
 /** Writes the wrapper `name` of var/tools/bin unless it has this text; the file is written beside its path and renamed. */
-export const writeWrapper = (root, name, text, print) => writeWrapperFile(root, toolsPath(root, 'bin', name), text, print);
-
-/** Writes the wrapper `file` unless it has this text; the file is written beside its path and renamed. */
-export function writeWrapperFile(root, file, text, print) {
+export function writeWrapper(root, name, text, print) {
+  const file = toolsPath(root, 'bin', name);
   if (existsSync(file) && readFileSync(file, 'utf8') === text) return;
   writeAtomic(file, text, { mode: 0o755 });
   print(`wrote ${path.relative(root, file)}`);

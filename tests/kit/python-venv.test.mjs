@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { finishVenv, makeVenv, venvProblem } from '../../scripts/kit/python-venv.mjs';
+import { finishVenv, makeVenv } from '../../scripts/kit/python-venv.mjs';
 import { tree } from './tree.mjs';
 
 // A venv tree as `python -m venv --copies --without-pip` writes it: a library directory, an interpreter copy and the config.
@@ -74,35 +74,11 @@ test('another symbolic link, such as bin/python3 -> python, is refused and names
 
 // The run is idempotent (K44): an existing directory is accepted unchanged only when it is a venv of the checkout Python; any
 // other existing directory is refused with its reason and is neither removed nor repaired.
-test('makeVenv refuses an existing directory that is not a venv of the interpreter, and changes nothing', (t) => {
+test('makeVenv refuses an existing directory that is not a venv of the checkout Python, and changes nothing', (t) => {
   const { root, venv } = venvTree(t);
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/bin/python3'), '#!/bin/sh\n');
-  const python = path.join(root, 'var/tools/bin/python3');
-  const home = path.join(root, 'var/tools/python-build/python/bin');
-  assert.throws(() => makeVenv({ root, directory: venv, python, home }), /pkg\/\.venv exists and is not a venv of the interpreter var\/tools\/bin\/python3: pkg\/\.venv was made from \/x, not from the interpreter home var\/tools\/python-build\/python\/bin; .*; it is neither removed nor repaired/);
+  assert.throws(() => makeVenv({ root, directory: venv }), /pkg\/\.venv exists and is not a venv of the checkout Python: pkg\/\.venv was made from \/x, not from the Python of this checkout .*; it is neither removed nor repaired/);
   assert.ok(existsSync(path.join(venv, 'pyvenv.cfg')));
   assert.ok(existsSync(path.join(venv, 'bin/python')));
-});
-
-// K56: the caller names the interpreter and its home. venvProblem accepts a venv whose pyvenv.cfg names that home and refuses
-// any other; a relative path is refused.
-test('venvProblem accepts the venv of the given home and refuses the venv of another', (t) => {
-  const { root, venv } = venvTree(t);
-  const home = path.join(root, 'var/tools/python/python/bin');
-  const other = path.join(root, 'var/tools/python-build/python/bin');
-  mkdirSync(home, { recursive: true });
-  mkdirSync(other, { recursive: true });
-  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home}\nversion = 3.14.8\n`);
-  assert.equal(venvProblem(venv, { root, home }), undefined);
-  assert.equal(venvProblem(venv, { root, home: other }), `pkg/.venv was made from ${home}, not from the interpreter home var/tools/python-build/python/bin; make it with make python-venv DIR=pkg/.venv, and install into it with --link-mode copy`);
-});
-
-test('makeVenv and venvProblem refuse a relative interpreter or home', (t) => {
-  const { root, venv } = venvTree(t);
-  const home = path.join(root, 'var/tools/python/python/bin');
-  const python = path.join(root, 'var/tools/bin/python3.14');
-  assert.throws(() => venvProblem(venv, { root, home: 'var/tools/python/python/bin' }), /the interpreter home var\/tools\/python\/python\/bin is not an absolute path/);
-  assert.throws(() => makeVenv({ root, directory: venv, python: 'python3.14', home }), /the interpreter python3\.14 is not an absolute path/);
-  assert.throws(() => makeVenv({ root, directory: venv, python, home: 'bin' }), /the interpreter home bin is not an absolute path/);
 });
