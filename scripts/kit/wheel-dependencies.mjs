@@ -8,13 +8,9 @@
 //     release WITHOUT a fragment: `name @ <repositoryUrl>/releases/download/v<version>/<file>`. The sha256 of a sibling is known only
 //     after the release builds it, so the lock of the wheel never holds it.
 // Nothing else is accepted. The checks read the texts and never the network; lockRequirements renders the lock as a requirement
-// file of hashes for pip (release-consumer.mjs installs it online in release-proof), or, with a map of local copies of the
-// archive entries, as a requirement file that installs the polyspec archives from those files. A sibling is never in the lock,
-// so the map names archive entries only.
+// file of hashes for pip (release-consumer.mjs installs it online in release-proof).
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { fileDigest } from './digest.mjs';
 import { readPylock } from './pylock.mjs';
 import { Stop } from './process.mjs';
 import { wheelName } from './release-wheel.mjs';
@@ -62,49 +58,14 @@ export function lockProblems(text, lockFile) {
 }
 
 /**
- * The problems of the local files of the archives of `packages`: `archives` maps each archive URL of the lock to an absolute path
- * of a file that exists and whose sha256 is the hash of the lock. An archive without a map entry and a map entry that names no
- * archive of the lock are problems too.
- */
-function localArchiveProblems(packages, lockFile, archives) {
-  const entries = packages.filter(({ kind }) => kind === 'archive');
-  const urls = new Set(entries.map(({ files }) => files[0].url));
-  const problems = [];
-  for (const { name, version, files: [{ url, sha256 }] } of entries) {
-    const where = `${lockFile}: ${name} ${version}`;
-    if (!Object.hasOwn(archives, url)) {
-      problems.push(`${where}: the archive ${url} has no local file in the map`);
-      continue;
-    }
-    const file = archives[url];
-    if (typeof file !== 'string' || !path.isAbsolute(file)) problems.push(`${where}: the local file ${file} of ${url} is not an absolute path`);
-    else if (!existsSync(file)) problems.push(`${where}: the local file ${file} of ${url} is missing`);
-    else {
-      const actual = fileDigest(file);
-      if (actual !== sha256) problems.push(`${where}: the local file ${file} of ${url} has the sha256 ${actual}, the lock holds ${sha256}`);
-    }
-  }
-  for (const url of Object.keys(archives)) if (!urls.has(url)) problems.push(`${lockFile}: the map of local files names ${url}, which is no archive of the lock`);
-  return problems;
-}
-
-/**
  * The requirement file of a lock for pip: `name==version --hash=sha256:…` for each file of a registry package and
- * `name @ <url> --hash=sha256:…` for each archive. With `archives`, a map from each archive URL of the lock to the absolute path of
- * a local copy, an archive renders as `name @ file:///<path> --hash=sha256:…`, so pip installs it with no network; each file must
- * exist and carry the sha256 of the lock. It throws a Stop with each problem of the lock and of the map first.
+ * `name @ <url> --hash=sha256:…` for each archive. It throws a Stop with each problem of the lock first.
  */
-export function lockRequirements(text, lockFile, archives) {
+export function lockRequirements(text, lockFile) {
   const problems = lockProblems(text, lockFile);
   if (problems.length) throw new Stop(problems.join('; '));
-  const { packages } = readPylock(text, lockFile);
-  if (archives !== undefined) {
-    const local = localArchiveProblems(packages, lockFile, archives);
-    if (local.length) throw new Stop(local.join('; '));
-  }
-  const source = url => (archives === undefined ? url : pathToFileURL(archives[url]).href);
-  return packages.map(({ name, version, kind, files }) => (kind === 'archive'
-    ? `${name} @ ${source(files[0].url)} --hash=sha256:${files[0].sha256}\n`
+  return readPylock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
+    ? `${name} @ ${files[0].url} --hash=sha256:${files[0].sha256}\n`
     : `${name}==${version} ${files.map(file => `--hash=sha256:${file.sha256}`).join(' ')}\n`)).join('');
 }
 

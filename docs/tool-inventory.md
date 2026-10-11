@@ -818,14 +818,6 @@ lock fails there), then the smoke command runs. pip's own reading of `pylock.tom
 PyPI and the release assets, so it runs online only, in `release-proof`. `release-proof` step 2 downloads each polyspec archive from the
 release of its version in its declared repository, and its sha256 must equal the sha256 that the lock holds.
 
-Local archives (K57): `lockRequirements(text, lockFile, archives)` takes an optional map from the archive URL of a lock entry to the
-absolute path of a local copy, for a consumer that installs the polyspec wheels from release assets it has already downloaded. With
-the map, each archive renders as `name @ file:///<absolute path> --hash=sha256:<hex>` with the hash of the lock; the file must exist
-and its sha256 must equal that hash. An archive without a map entry, a map entry that names no archive of the lock, a relative path,
-a missing file and another sha256 each fail, naming the entry. A registry package renders as before, and without the map nothing
-changes. A sibling (K52) is never in the lock, so the map names archive entries only; a map entry for the URL of a sibling names no
-archive of the lock and fails.
-
 Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/wheel-dependencies-real.test.mjs` repeats the cases):
 
 - `pip install -r pylock.toml` reads the lock as a requirement source and prints `WARNING: Using pylock.toml as a requirements source is
@@ -842,17 +834,11 @@ Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/w
   and `kit-lib is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of
   the wheel.` and exited 0. For a remote URL it fetches first (`Collecting kit-lib @ https://...`); a URL that does not answer fails with
   `ERROR: HTTP error 404 while getting https://...`. A consumer that resolves dependencies therefore downloads each polyspec archive.
-- A lock that names the GitHub release URL, rendered with a map to the local copy, installs with
-  `pip --python <venv>/bin/python install --no-index --require-hashes --no-deps -r <file>` and no find-links: pip printed
-  `Processing <path>/kit_lib-0.0.1-py3-none-any.whl`, `Installing collected packages: kit-lib` and
-  `Successfully installed kit-lib-0.0.1` and exited 0, and `pip check` printed `No broken requirements found.`. A `file://`
-  requirement does not read the index, so `--no-index` does not refuse it.
 
 The tests: `tests/kit/wheel-dependencies.test.mjs` (the forms, the refusals with their messages, the lock form, the rendered
 requirements), `tests/kit/release-wheel.test.mjs` (the same checks through `release-assets`, the consumer declaration),
 `tests/kit/release-proof.test.mjs` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mjs` (the real
-pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy, the resolver and the
-`--no-index` install of a lock rendered with local archives).
+pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy and the resolver).
 
 ## Sibling wheels (K52)
 

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e8c1bfeefd46ea25c3b8cd417228379595a9459ebbef1b0d6d080ab832e0771b -->
+<!-- source-sha256: c2f66faf8013c40a7a9b6feb9ad0c58e7e062b07184da507757e714b7b3af9e4 -->
 
 # 도구 목록
 
@@ -747,13 +747,6 @@ lock은 여기서 실패합니다). 그다음 smoke command를 실행합니다. 
 release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다. `release-proof`의 2단계는 각 polyspec archive를 선언된 저장소의 그
 version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야 합니다.
 
-로컬 archive (K57): `lockRequirements(text, lockFile, archives)`는 lock entry의 archive URL에서 로컬 복사본의 절대 경로로 가는 map을
-선택적으로 받습니다. 이미 내려받은 release asset에서 polyspec wheel을 설치하는 consumer를 위한 것입니다. map이 있으면 archive마다 lock의
-hash로 `name @ file:///<absolute path> --hash=sha256:<hex>`를 render합니다. file은 존재해야 하고 그 sha256은 그 hash와 같아야 합니다.
-map entry가 없는 archive, lock의 archive를 가리키지 않는 map entry, 상대 경로, 없는 file, 다른 sha256은 각각 그 entry를 이름으로 적고
-실패합니다. registry package는 전과 같이 render하며, map이 없으면 아무것도 바뀌지 않습니다. sibling(K52)은 lock에 없으므로 map은
-archive entry만 적습니다. sibling의 URL을 적은 map entry는 lock의 archive를 가리키지 않으므로 실패합니다.
-
 발견 사항, pip 26.2.1과 고정된 Python 3.14.8로 측정했습니다(`tests/source/wheel-dependencies-real.test.mjs`가 이 사례를 반복합니다):
 
 - `pip install -r pylock.toml`은 lock을 requirement source로 읽고 `WARNING: Using pylock.toml as a requirements source is an experimental
@@ -770,16 +763,11 @@ archive entry만 적습니다. sibling의 URL을 적은 map entry는 lock의 arc
   출력한 뒤 0으로 끝났습니다. 원격 URL에는 먼저 가져오며(`Collecting kit-lib @ https://...`), 응답하지 않는 URL은
   `ERROR: HTTP error 404 while getting https://...`로 실패합니다. 따라서 dependency를 resolve하는 consumer는 polyspec archive를 다시
   내려받습니다.
-- GitHub release URL을 적은 lock을 로컬 복사본으로 가는 map과 함께 render하면,
-  `pip --python <venv>/bin/python install --no-index --require-hashes --no-deps -r <file>`로 find-links 없이 설치됩니다. pip는
-  `Processing <path>/kit_lib-0.0.1-py3-none-any.whl`, `Installing collected packages: kit-lib`,
-  `Successfully installed kit-lib-0.0.1`을 출력하고 0으로 끝났으며, `pip check`는 `No broken requirements found.`를 출력했습니다.
-  `file://` requirement는 index를 읽지 않으므로 `--no-index`가 거부하지 않습니다.
 
 테스트: `tests/kit/wheel-dependencies.test.mjs`(형식, 문구와 함께 거부하는 사례, lock 형식, 렌더링된 requirement),
 `tests/kit/release-wheel.test.mjs`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mjs`(polyspec archive의
 digest), `tests/source/wheel-dependencies-real.test.mjs`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
-로컬 복사, resolver, 로컬 archive로 render한 lock의 `--no-index` 설치)입니다.
+로컬 복사, resolver)입니다.
 
 ## Sibling wheels (K52)
 
