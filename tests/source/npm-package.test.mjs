@@ -34,7 +34,8 @@ test('package.json holds scripts/kit, maps ./*.mjs to its modules and has the ve
   assert.deepEqual(files, ['scripts/kit/']);
   // The run-tests preload stays in the package, since run-tests passes its path to node --import, and is not importable (K58).
   assert.deepEqual(exports, { './*.mjs': './scripts/kit/*.mjs', './test-load-check.mjs': null, './package.json': './package.json' });
-  assert.deepEqual(Object.keys(rest).sort(), ['description', 'packageManager', 'repository'], 'no dependency and no script');
+  assert.equal(rest.license, 'MIT', 'the license that LICENSE holds');
+  assert.deepEqual(Object.keys(rest).sort(), ['description', 'license', 'packageManager', 'repository'], 'no dependency and no script');
 });
 
 test('the release workflow of kit is the workflow that kit vendors', () => {
@@ -76,7 +77,7 @@ test('npm packs the checkout, the archive installs in the consumer project and e
   const listed = files.map(({ path: file }) => file).sort();
   const modules = readdirSync(KIT, { recursive: true, withFileTypes: true }).filter(entry => entry.isFile()).map(entry => path.relative(ROOT, path.join(entry.parentPath, entry.name)));
   assert.deepEqual(listed.filter(file => file.startsWith('scripts/kit/')), modules.sort(), 'the archive holds every file of scripts/kit');
-  assert.deepEqual(listed.filter(file => !file.startsWith('scripts/kit/')), ['README.ko.md', 'README.md', 'package.json'], 'and nothing else but the manifest and the READMEs, which npm always packs');
+  assert.deepEqual(listed.filter(file => !file.startsWith('scripts/kit/')), ['LICENSE', 'README.ko.md', 'README.md', 'package.json'], 'and nothing else but the manifest, the license and the READMEs, which npm always packs');
   const { name: packageName, version } = manifest();
   const name = archiveName('npm', packageName, version);
   mkdirSync(assets);
