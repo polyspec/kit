@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 12b9b1e8e1f639f3d633f3a478e5f9da22c4d89571025b8733a7bbef73a9927e -->
+<!-- source-sha256: c346319449a24911713c0d70877616e5a656ee3d7260ce1773a3d573a25436b4 -->
 
 # 도구 목록
 
@@ -678,8 +678,8 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
   `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
   `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
   파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
-- `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version` 또는 polyspec release 참조만
-  받으며, 다른 형식은 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]`
+- `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version`, polyspec release 참조 또는 같은
+  release의 sibling(K52)만 받으며, 다른 형식은 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]`
   `version`을 요구합니다.
 - `release-consumer`는 wheel을 `var/tools/bin/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 lock(K49), 그다음
   `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 wheel을 설치합니다.
@@ -693,8 +693,8 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 
 ## Wheel dependencies (K49)
 
-wheel의 `Requires-Dist`는 정확히 두 형식입니다. registry package는 `name==version`으로 고정합니다. polyspec package는 release asset의
-PEP 508 직접 참조이며, fragment로 그 asset의 sha256을 붙입니다:
+wheel의 `Requires-Dist`는 세 형식 중 하나입니다: registry 고정, polyspec 참조, 그리고 sibling(K52, 아래)입니다. registry package는
+`name==version`으로 고정합니다. polyspec package는 release asset의 PEP 508 직접 참조이며, fragment로 그 asset의 sha256을 붙입니다:
 
     name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
 
@@ -742,6 +742,63 @@ version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야
 `tests/kit/release-wheel.test.mjs`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mjs`(polyspec archive의
 digest), `tests/source/wheel-dependencies-real.test.mjs`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
 로컬 복사, resolver)입니다.
+
+## Sibling wheels (K52)
+
+sibling은 같은 config/release.json의 다른 wheel package입니다. wheel의 `Requires-Dist`는 같은 release의 sibling asset을 hash fragment
+없이 직접 참조로 가리킬 수 있습니다:
+
+    name @ <repositoryUrl>/releases/download/v<version>/<file>
+
+참조는 모든 조건이 맞을 때만 받습니다: `name`이 sibling이고, URL이 config/release.json의 `<repositoryUrl>/releases/download/v<version>/`
+아래에 있으며, `<version>`이 검사하는 release의 version이고, `<file>`이 `wheelName(name, version)`, 즉 sibling wheel의 PEP 427 이름입니다.
+실패마다 고유한 문구가 있으며, 거부 사례는 다음과 같습니다: `#sha256` fragment를 가진 sibling, `name==version`으로 적은 sibling, 다른
+version의 sibling, 다른 저장소 아래의 sibling URL, version의 wheel 이름이 아닌 파일, 그리고 sibling을 담은 wheel의 lock(형식과 무관하게
+lock은 sibling을 담지 않습니다). 다른 모든 polyspec 참조는 여전히 sha256 fragment가 필요합니다(K49).
+
+sibling은 `packages`에서 유도합니다(`siblingsOf`, scripts/kit/wheel-dependencies.mjs): 설정의 다른 wheel package이며, 두 번째 선언이
+아닙니다. 이유: 한 config/release.json의 wheel package들은 한 저장소에서 한 tag로 함께 릴리스되므로, 두 번째 목록은 `packages`와
+어긋날 수만 있습니다. `consumers.wheel.polyspec`은 다른 저장소의 저장소를 적으므로, 이 설정의 wheel package를 거부합니다
+(`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
+
+sibling의 sha256은 release가 빌드한 뒤에야 알 수 있습니다. SOURCE_DATE_EPOCH가 release commit의 시각이므로, wheel의 sha256은 빌드
+전에는 tree에 없습니다. 그래서 wheel의 lock은 sibling을 담지 않으며, 참조에는 hash가 없습니다.
+
+`release-proof` 3단계는 GitHub가 게시한 release에서 sibling을 온라인으로 증명합니다(scripts/kit/release-proof.mjs, `proveWheels`):
+1. release의 각 wheel 파일을 내려받은 뒤, 그 sha256이 GitHub가 그 asset에 나열한 sha256과 같아야 합니다(release listing의 `digest`,
+   `sha256:<hex>`). 어떤 wheel의 digest를 나열하지 않으면 proof가 실패합니다.
+2. wheel의 METADATA가 이름 붙인 각 sibling은 그 sibling의 게시된 asset URL(`browser_download_url`)과 정확히 같아야 하며, release가 그
+   asset을 나열해야 합니다.
+
+그다음 release의 wheel들은 한 번의 `pip install --no-index --require-hashes --no-deps` 명령으로 파일에서 함께 설치합니다
+(release-consumer.mjs의 `installWheelFiles`, 이미 설정의 모든 wheel package를 함께 설치합니다). `pip check`가 통과하고 smoke command가
+실행됩니다. archive는 자체 검사를 유지합니다. digest 검사는 wheel에만 추가하는데, digest를 나열하기 전에 게시된 release도 증명되어야
+하기 때문입니다.
+
+consumer는 sibling을 polyspec wheel과 같이 설치합니다(K49): 자기 lock이 sibling을 URL과 sha256을 가진 `archive` 항목으로 적으며,
+이 sha256은 게시된 asset의 hash입니다. sibling을 요구하는 wheel의 lock은 sibling을 적지 않습니다.
+
+sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-build`, pip 26.2.1, Python 3.14.8)로 측정했습니다. 두 wheel은 손으로
+만들었고, `kit-gen`은 `kit-val @ <URL>`을 요구합니다(`tests/source/wheel-sibling-real.test.mjs`가 파일 사례를 반복합니다):
+
+- hash와 함께 두 wheel을 로컬 파일에서 `--no-deps`로 설치하면 설치되고, `pip check`가 `No broken requirements found.`를 출력하며
+  0으로 끝납니다. `--no-deps`에서 pip는 `Requires-Dist`를 읽지 않습니다.
+- dependency를 resolve하고 같은 명령에 `kit-val`을 로컬 파일로도 주면, pip는 참조에 대해 로컬 파일을 취하지 않습니다. `Collecting
+  kit-val @ <URL>`을 출력하고 URL을 내려받으며, URL이 같은 바이트를 주면 `ERROR: Cannot install kit-val 0.0.1 (from <local file>) and
+  kit-gen==0.0.1 because these package versions have conflicting dependencies`를 출력하고 1로 끝납니다. 로컬 파일과 참조는 두 후보이며,
+  resolver는 선택하지 않고 충돌을 보고합니다.
+- dependency를 resolve하고 `kit-val`을 주지 않으면, pip는 URL을 내려받아 그 파일로 설치합니다(URL이 파일을 주면 0으로 끝남). URL이 응답하지
+  않으면 `connection-failed`로 재시도 뒤 실패합니다(1로 끝남). 참조가 없는 파일을 가리키면 pip는 `Processing <path> (from
+  kit-gen==0.0.1)`을 출력하고 `No such file or directory`로 실패합니다(1로 끝남).
+- 로컬 파일에서 설치된 복사본은 참조를 만족하지 않습니다. `kit-val`을 파일에서 설치한 뒤 dependency와 함께 `kit-gen`을 resolve하면 pip는
+  URL을 다시 내려받았습니다.
+
+이 결과가 위 설계의 근거입니다. proof는 로컬 파일에서 `--no-deps`로 설치하고, 참조가 게시된 URL과 같음을 증명합니다. 그래서 dependency를
+resolve하는 consumer도 release가 게시한 asset을 내려받습니다.
+
+테스트: `tests/kit/wheel-sibling.test.mjs`(sibling 형식과 거부, lock, consumer 선언, `siblingLinks`),
+`tests/kit/release-wheel.test.mjs`(같은 거부를 `release-assets`로), `tests/kit/release-proof.test.mjs`(wheel digest, sibling URL, wheel의 한
+번 설치), `tests/source/wheel-sibling-real.test.mjs`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
 
 ## Language parity (K33)
 

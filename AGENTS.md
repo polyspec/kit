@@ -67,7 +67,8 @@ A package of kind `wheel` (a Python package with a `pyproject.toml`) is released
 `<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with the
 build backend that `buildBackend` of config/release.json pins by its exact requirement and by the sha256 of its wheel;
 `make release-backend` downloads that wheel into `var/tools/wheels` with the digest checked, and no build reads the network. A
-wheel's `Requires-Dist` is a plain `name==version` or, for a polyspec package, a direct reference to its release asset with the
-sha256 fragment; each is held by the lock of the wheel (`consumers.wheel.lock`), and any other form (a URL, a git source, a range
-or a marker) is refused, as an npm or Composer manifest with the same form is. `release-consumer` installs the lock with hashes, the
-wheel with `--no-deps`, runs `pip check` and then the smoke command in a clean virtual environment. A Python package is not released as a git tag.
+wheel's `Requires-Dist` is a plain `name==version`, a direct reference to the release asset of a polyspec package with the sha256
+fragment, or a direct reference without a hash to a sibling (another wheel package of the same config/release.json) of the same
+release. The first two are held by the lock of the wheel (`consumers.wheel.lock`); a sibling never is. Any other form (a URL, a git
+source, a range or a marker) is refused, as an npm or Composer manifest with the same form is (docs/tool-inventory.md, Sibling wheels). `release-consumer` installs the lock with hashes, the
+wheels of the release together with `--no-deps`, runs `pip check` and then the smoke command in a clean virtual environment. A Python package is not released as a git tag.

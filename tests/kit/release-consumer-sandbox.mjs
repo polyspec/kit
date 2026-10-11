@@ -13,6 +13,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as release from '../../scripts/kit/release.mjs';
 import * as consumer from '../../scripts/kit/release-consumer.mjs';
+import { fileDigest } from '../../scripts/kit/digest.mjs';
 import { releaseSandbox } from './release-sandbox.mjs';
 import { PIP_FUNCTIONS } from './wheel-stubs.mjs';
 
@@ -107,7 +108,7 @@ if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
   const other = (state.dependencies ?? []).find(item => listed === 'repos/' + item.repo + '/releases');
   // The release of the tag, a draft included: its assets carry the ids that the download names.
   if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file }] }));
-  else console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name })) }));
+  else console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url, digest: state.release.published?.[name]?.digest })) }));
   finish();
 } else if (args[0] === 'api' && args.some(arg => arg.includes('/releases/assets/'))) {
   const id = Number(args.at(-1).split('/').pop());
@@ -197,9 +198,12 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
   mkdirSync(path.join(box.root, 'var/tools/python-build/python/bin'), { recursive: true });
   writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'checkout-python3')}' "$@"\n`);
   chmodSync(python, 0o755);
-  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source: path.join(box.root, release.ASSETS) }, venvPython: VENV_PYTHON, version }));
-  // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
+  // The published assets: each asset of the release at its URL in the repository and with the sha256 of its file, as GitHub lists them.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
+  const source = path.join(box.root, release.ASSETS);
+  const published = Object.fromEntries(names.map(name => [name, { url: `${config.repositoryUrl}/releases/download/${tag}/${name}`, digest: `sha256:${fileDigest(path.join(source, name))}` }]));
+  writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source, published }, venvPython: VENV_PYTHON, version }));
+  // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const env = {
     ...box.env,
     STUB_STATE_FILE: stateFile,
