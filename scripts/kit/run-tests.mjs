@@ -27,6 +27,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mjs';
+import { signalGroup } from './process-group.mjs';
 import { venvProblem } from './python-venv.mjs';
 import { toolsPath } from './tool-wrappers.mjs';
 import { writeJson } from './files.mjs';
@@ -309,6 +310,14 @@ export function phpunitEvents(progress) {
 }
 
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */
+/**
+ * Sends SIGTERM to the process group of a timed-out test (its pgid is the pid of the detached child). EPERM while a member is in
+ * exit and ESRCH after the group ended are not errors (process-group.mjs).
+ */
+export function terminateGroup(pgid, kill) {
+  return signalGroup(pgid, 'SIGTERM', kill);
+}
+
 export async function run(argv, { root = ROOT, write = text => process.stdout.write(text) } = {}) {
   const options = parseArguments(argv, root);
   const began = Date.now();
@@ -342,7 +351,7 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
       write,
       timeoutMs: options.timeoutSeconds * 1000,
       command: `${command} ${args.slice(0, 2).join(' ')}`,
-      onTimeout: () => { timedOut = true; process.kill(-child.pid, 'SIGTERM'); },
+      onTimeout: () => { timedOut = true; terminateGroup(child.pid); },
       resultFile,
     }) : undefined;
     // The error lines of the tool, which the summary names when the tool exits without a failing test.
