@@ -30,7 +30,7 @@ The tools that every polyspec repository shares. A repository holds a byte-for-b
 ```sh
 make kit-sync KIT_TAG=v0.0.4   # copy the vendored files at the tag and write .kit/kit.lock.json (online)
 make kit-check                 # compare the files with the lock and the configuration with the schemas (offline)
-make kit-test                  # run the vendored tests (offline)
+make kit-test                  # run the vendored tests through run-tests.mjs (offline)
 ```
 
 `kit-sync` at the same tag changes nothing. A vendored file is changed in kit and copied again, never edited in a repository.

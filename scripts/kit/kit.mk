@@ -12,8 +12,8 @@ kit-sync: ## Copy the vendored files of kit at KIT_TAG into this checkout; ONLIN
 kit-check: ## Check the vendored files against .kit/kit.lock.json and the configuration against its schemas; offline
 	node scripts/kit/kit-check.mjs
 
-kit-test: ## Run the tests of the vendored tools (tests/kit); offline
-	node --test tests/kit/
+kit-test: ## Run the tests of the vendored tools (tests/kit) through the test runner, with per-case progress and timeouts; offline
+	node scripts/kit/run-tests.mjs node -- tests/kit
 
 # --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
 .PHONY: cargo-downloads-check cargo-downloads-fetch
