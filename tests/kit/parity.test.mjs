@@ -305,6 +305,49 @@ test('an implementation declares the command, the arguments and the environment 
   assert.match(missing[0].message, /exited with 3/);
 });
 
+test('a runner value references the invoking environment as ${NAME}, and an unset name or another form fails the declaration', TIMEOUT, (t) => {
+  const declare = (config) => {
+    const implementation = name => config.implementations.find(entry => entry.name === name);
+    Object.assign(implementation('python'), { command: '${PARITY_VENV}/bin/python', args: ['-B'], env: [{ name: 'PYTHONPATH', value: '${PARITY_PYTHON}/src' }, { name: 'REQUIRE_PYTHONPATH', value: '1' }] });
+    implementation('php').args = ['-d', 'extension=${PARITY_PHP}/codec.so'];
+    return config;
+  };
+  const files = { '.gitignore': 'var/\n.venv/\n', 'python/.venv/bin/python': LINE_STUB };
+  const root = repository(t, { files, edit: declare });
+  chmodSync(path.join(root, 'python/.venv/bin/python'), 0o755);
+  const env = { ...ENV, PARITY_VENV: path.join(root, 'python/.venv'), PARITY_PYTHON: 'python', PARITY_PHP: 'php/modules' };
+  const { findings, ledger } = checkParity(root, { execute: true, env, say: () => {} });
+  assert.deepEqual(findings, []);
+  const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, [run.command, ...run.args]]));
+  assert.deepEqual(commands['codec python'], [path.join(root, 'python/.venv/bin/python'), '-B', 'python/tests/test_codec.py']);
+  assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/tests/codec.php']);
+  const unset = { ...env };
+  delete unset.PARITY_PHP;
+  const messages = checkParity(root, { execute: true, env: unset, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages, ['declaration: implementation php: args references ${PARITY_PHP}, which the environment does not set']);
+  const other = repository(t, { files, edit: (config) => { declare(config).implementations.find(entry => entry.name === 'python').env[0].value = '${PARITY_PYTHON:-python}/src'; return config; } });
+  assert.deepEqual(checkParity(other, { execute: false, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
+    'declaration: implementation python: env PYTHONPATH holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
+  ]);
+});
+
+test('a support file of an implementation is never a test, and a support glob that selects no test file fails', TIMEOUT, (t) => {
+  const support = { go: ['go/helpers_test.go'], php: ['php/tests/cases.php'], ts: ['ts/tests/case.mjs'] };
+  const declare = extra => (config) => {
+    for (const entry of config.implementations) if (support[entry.name]) entry.support = [...support[entry.name], ...(extra[entry.name] ?? [])];
+    return config;
+  };
+  const files = { 'go/helpers_test.go': 'package codec\n', 'php/tests/cases.php': '<?php\n', 'ts/tests/case.mjs': 'export const cases = [];\n', 'tools/tests/case.mjs': 'export const cases = [];\n' };
+  assert.deepEqual(check(t, { files, edit: declare({ ts: ['tools/tests/case.mjs'] }) }, { execute: false }).findings, []);
+  const messages = check(t, { files, edit: (config) => { declare({ php: ['php/tests/gone.php'], go: ['go/codec.go'] })(config); config.implementations.find(entry => entry.name === 'python').support = ['python/tests/test_codec.py']; return config; } }, { execute: false })
+    .findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages, [
+    'declaration: implementation go: the support glob go/codec.go selects no test file; remove it',
+    'declaration: implementation php: the support glob php/tests/gone.php selects no test file; remove it',
+    'declaration: unit codec: the test python/tests/test_codec.py of python matches its support globs',
+  ]);
+});
+
 test('R1: an API unit whose symbol is missing, not exported or not declared in an implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {
