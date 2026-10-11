@@ -13,7 +13,7 @@
 // --venv runs the python tool with the interpreter of a virtual environment, so a package's tests import its own installed
 // dependencies. The environment must come from the Python of the checkout: its pyvenv.cfg names var/tools/python-build/python/bin
 // as its home (install-tools installs that Python), and it holds no symbolic link (`python -m venv --copies`). Any other
-// environment is refused before the tool starts.
+// environment is refused before the tool starts. python-venv.mjs makes such an environment (make python-venv DIR=<directory>).
 //
 // Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
@@ -21,12 +21,13 @@
 // limit on a package, a file or a whole run. A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mjs';
+import { venvProblem } from './python-venv.mjs';
 import { toolsPath } from './tool-wrappers.mjs';
 import { writeJson } from './files.mjs';
 import { isMain, ROOT } from './paths.mjs';
@@ -305,36 +306,6 @@ export function phpunitEvents(progress) {
       default: return undefined;
     }
   };
-}
-
-/** The interpreter directory of the Python that install-tools installs (install-python.mjs). */
-const pythonHome = root => toolsPath(root, 'python-build', 'python', 'bin');
-
-/** The symbolic links below `directory`, as paths relative to it. */
-function symbolicLinks(directory, relative = '') {
-  const found = [];
-  for (const entry of readdirSync(path.join(directory, relative), { withFileTypes: true })) {
-    const rel = path.join(relative, entry.name);
-    if (entry.isSymbolicLink()) found.push(rel);
-    else if (entry.isDirectory()) found.push(...symbolicLinks(directory, rel));
-  }
-  return found;
-}
-
-/** Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may. */
-export function venvProblem(venv, root = ROOT) {
-  const config = path.join(venv, 'pyvenv.cfg');
-  const make = `make it with ${path.relative(root, toolsPath(root, 'bin', 'python3'))} -m venv --copies --without-pip ${path.relative(root, venv)} and install into it with --link-mode copy`;
-  if (!existsSync(config)) return `${path.relative(root, venv)} is not a virtual environment (no pyvenv.cfg); ${make}`;
-  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1].trim();
-  const expected = pythonHome(root);
-  const resolved = target => (existsSync(target) ? realpathSync(target) : target);
-  if (!home || resolved(home) !== resolved(expected)) {
-    return `${path.relative(root, venv)} was made from ${home ?? 'no home'}, not from the Python of this checkout (${path.relative(root, expected)}); ${make}`;
-  }
-  const links = symbolicLinks(venv);
-  if (links.length > 0) return `${path.relative(root, venv)} holds symbolic links (${links.slice(0, 3).join(', ')}${links.length > 3 ? ', …' : ''}); ${make}`;
-  return undefined;
 }
 
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */

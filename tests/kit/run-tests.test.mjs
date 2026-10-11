@@ -391,7 +391,7 @@ test('--venv refuses an environment that is not one, comes from another Python o
   const missing = tree(t);
   const none = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: missing });
   assert.equal(none.status, 1, none.text);
-  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it with var\/tools\/bin\/python3 -m venv --copies --without-pip pkg\/\.venv/);
+  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it with make python-venv DIR=pkg\/\.venv, and install into it with --link-mode copy/);
   const other = venvRoot(t, { home: '/usr/bin' });
   const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
   assert.equal(foreign.status, 1, foreign.text);
@@ -400,7 +400,7 @@ test('--venv refuses an environment that is not one, comes from another Python o
   symlinkSync(path.join(linked, 'pkg/.venv/bin/python'), path.join(linked, 'pkg/.venv/bin/python3'));
   const withLink = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: linked });
   assert.equal(withLink.status, 1, withLink.text);
-  assert.match(withLink.text, /pkg\/\.venv holds symbolic links \(bin\/python3\); make it with .*--copies/);
+  assert.match(withLink.text, /pkg\/\.venv holds symbolic links \(bin\/python3\); make it with make python-venv DIR=pkg\/\.venv/);
 });
 
 test('a var/tools/bin/python3 that cannot start fails with the fix', async (t) => {
