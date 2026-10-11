@@ -18,16 +18,23 @@
 //
 // A commit of a range is compared with its parent; the message being committed, with the index against HEAD. The item rules
 // apply when config/checklist.json exists. A merge commit keeps the message that Git writes and is not checked. Each finding is one line
-// `<commit>: <rule>: <message>`; the command exits with status 1 when there is one.
+// `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mjs) reads the
+// same findings of the commits that a push sends, through `logMessages` and `findingLines`.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, ROOT } from './paths.mjs';
-import { readJson } from './files.mjs';
 import { loadConfig, readChecklist, CONFIG as CHECKLIST } from './checklist.mjs';
+import { readJson } from './files.mjs';
 import { git, gitResult } from './git.mjs';
 
 export const CONFIG = 'config/commits.json';
+
+/** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
+export function loadCommitRules(root) {
+  if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
+  return readJson(root, CONFIG);
+}
 
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message, config) {
@@ -112,17 +119,16 @@ export function fileMessage(text) {
   return /^Merge /.test(message) ? null : message;
 }
 
-/** The commits of `range` (`<base>..<head>`, or `HEAD` alone) in `root`, without merge commits, as `{ id, message }`. */
-export function rangeMessages(root, range) {
-  if (range !== 'HEAD' && !/^[^\s.]+\.\.[^\s.]+$/.test(range)) {
-    throw new Error(`the range "${range}" is not <base>..<head>; give the two commits of the range, such as origin/main..HEAD`);
-  }
-  const args = range === 'HEAD' ? ['--max-count=1', 'HEAD'] : [range];
+/**
+ * The commits that `git log` selects with `args` in `root`, without merge commits, as `{ id, message }`; `label` names the
+ * selection in the failure.
+ */
+export function logMessages(root, args, label) {
   let output;
   try {
     output = git(root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args);
   } catch (error) {
-    throw new Error(`the range ${range} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
+    throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
     const separator = entry.indexOf('\x1f');
@@ -130,22 +136,31 @@ export function rangeMessages(root, range) {
   });
 }
 
+/** The commits of `range` (`<base>..<head>`, or `HEAD` alone) in `root`, without merge commits, as `{ id, message }`. */
+export function rangeMessages(root, range) {
+  if (range !== 'HEAD' && !/^[^\s.]+\.\.[^\s.]+$/.test(range)) {
+    throw new Error(`the range "${range}" is not <base>..<head>; give the two commits of the range, such as origin/main..HEAD`);
+  }
+  return logMessages(root, range === 'HEAD' ? ['--max-count=1', 'HEAD'] : [range], range);
+}
+
+/** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
+export function findingLines(root, commits, config) {
+  return commits.flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id)].map(found => `${id}: ${found.rule}: ${found.message}`));
+}
+
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
 export function rangeFindings(root, range, config) {
-  return rangeMessages(root, range).flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id)].map(found => `${id}: ${found.rule}: ${found.message}`));
+  return findingLines(root, rangeMessages(root, range), config);
 }
 
 if (isMain(import.meta.url)) {
   const root = ROOT;
   const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' } } });
-  if (!existsSync(path.join(root, CONFIG))) {
-    console.error(`[check-commits] ${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
-    process.exit(1);
-  }
-  const config = readJson(root, CONFIG);
   let findings;
   let label;
   try {
+    const config = loadCommitRules(root);
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
