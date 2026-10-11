@@ -32,7 +32,7 @@ import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from '.
 import { fileDigest } from './digest.mjs';
 import { wheelName } from './release-wheel.mjs';
 import { lockRequirements, wheelLocks } from './wheel-dependencies.mjs';
-import { toolsPath } from './tool-wrappers.mjs';
+import { checkoutPython } from './tool-wrappers.mjs';
 import { makeVenv } from './python-venv.mjs';
 import { readJson, writeAtomic } from './files.mjs';
 import { run, Stop } from './process.mjs';
@@ -192,19 +192,20 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   const venv = path.join(project, 'venv');
   mkdirSync(project, { recursive: true });
   // The venv is a copy of the checkout Python with no pip and no symbolic link (python-venv.mjs); pip of the checkout installs into it.
+  const checkout = checkoutPython(root);
   try {
-    makeVenv({ root, directory: venv, env });
+    makeVenv({ root, directory: venv, python: checkout.wrapper, home: checkout.home, env });
   } catch (error) {
     throw new Stop(error.message);
   }
   const bin = path.join(venv, 'bin');
   const python = path.join(bin, 'python');
-  const checkoutPython = toolsPath(root, 'bin', 'python3');
+  const pip = checkout.wrapper;
   const venvEnv = { ...env, PATH: `${bin}${path.delimiter}${env.PATH}`, VIRTUAL_ENV: venv };
   if (requirements !== '') {
     const dependencies = path.join(project, 'dependencies.txt');
     writeFileSync(dependencies, requirements);
-    run(checkoutPython, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--require-hashes', '--no-deps', '--only-binary', ':all:', '-r', dependencies], { cwd: project, env });
+    run(pip, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--require-hashes', '--no-deps', '--only-binary', ':all:', '-r', dependencies], { cwd: project, env });
     step(`wheel dependencies pip install of ${requirements.split('\n').filter(Boolean).length} requirements`);
   }
   const requirementsFile = path.join(project, 'requirements.txt');
@@ -212,12 +213,12 @@ export function installWheelFiles({ root, env, folder, version, directory, names
     const file = path.join(directory, wheelName(name, version));
     return `${file} --hash=sha256:${fileDigest(file)}\n`;
   }).join(''));
-  run(checkoutPython, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', requirementsFile], { cwd: project, env });
+  run(pip, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes', '--no-deps', '-r', requirementsFile], { cwd: project, env });
   step(`wheel pip install of ${names.length} packages`);
-  run(checkoutPython, ['-m', 'pip', '--python', python, 'check'], { cwd: project, env });
+  run(pip, ['-m', 'pip', '--python', python, 'check'], { cwd: project, env });
   step('wheel pip check passed');
   for (const name of names) {
-    const shown = run(checkoutPython, ['-m', 'pip', '--python', python, 'show', name], { cwd: project, env });
+    const shown = run(pip, ['-m', 'pip', '--python', python, 'show', name], { cwd: project, env });
     const actual = /^Version: (.*)$/m.exec(shown)?.[1]?.trim() ?? null;
     if (actual !== version) throw new Stop(`wheel installed ${name} ${actual ?? 'none'}, expected ${version}`);
     run(smoke[name][0], smoke[name].slice(1), { cwd: project, env: venvEnv });

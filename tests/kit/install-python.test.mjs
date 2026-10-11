@@ -6,12 +6,15 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, symlinkSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { installPython, PYTHON_TRIPLES } from '../../scripts/kit/install-python.mjs';
 import { toolchainCheckout } from './toolchain-checkout.mjs';
 import { pythonBuild, toolchainStubs } from './toolchain-stubs.mjs';
 
+// The prefix and the wrapper that kit's own install-tools passes.
+const paths = root => ({ prefix: path.join(root, 'var/tools/python-build'), wrapper: path.join(root, 'var/tools/bin/python3') });
+const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const config = value => JSON.stringify({ schema: 1, ...value });
 const install = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/install-tools.mjs', ...tools], { cwd: root, env, encoding: 'utf8' });
 const run = (file, env) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
@@ -46,9 +49,9 @@ test('an archive with another digest is refused, nothing is installed, and the e
 test('a platform without a verified build or without a declared digest fails with the platforms and the fix', (t) => {
   const py = pythonBuild(t);
   const root = toolchainCheckout(t);
-  assert.throws(() => installPython({ root, declared: py.declared, platform: 'win32-x64' }), /no Python build is verified for win32-x64; the verified platforms are darwin-arm64, darwin-x64, linux-x64, linux-arm64/);
+  assert.throws(() => installPython({ root, declared: py.declared, ...paths(root), platform: 'win32-x64' }), /no Python build is verified for win32-x64; the verified platforms are darwin-arm64, darwin-x64, linux-x64, linux-arm64/);
   const other = Object.keys(PYTHON_TRIPLES).find(key => key !== py.key);
-  assert.throws(() => installPython({ root, declared: py.declared, platform: other }), new RegExp(`config/toolchain\\.json pythonBuild declares no sha256 for ${other}; declare the digest of cpython-3\\.14\\.8\\+20261009-${PYTHON_TRIPLES[other].replaceAll('.', '\\.')}-install_only\\.tar\\.gz`));
+  assert.throws(() => installPython({ root, declared: py.declared, ...paths(root), platform: other }), new RegExp(`config/toolchain\\.json pythonBuild declares no sha256 for ${other}; declare the digest of cpython-3\\.14\\.8\\+20261009-${PYTHON_TRIPLES[other].replaceAll('.', '\\.')}-install_only\\.tar\\.gz`));
 });
 
 test('pythonBuild of another minor release or a malformed digest is refused before any install', (t) => {
@@ -122,4 +125,42 @@ test('a link whose target is missing or outside the archive fails the install an
     assert.match(result.stderr, new RegExp(`python/bin/broken links to ${escape(target)}, which ${escape(reason)}`), name);
     assert.deepEqual(readdirSync(path.join(root, 'var/tools')), [], name + ': nothing is installed');
   }
+});
+
+// K56: the caller names the install prefix and the wrapper. A consumer that takes kit as a library installs its Python at its own
+// declared paths; kit's own targets pass checkoutPython(root), var/tools/python-build and var/tools/bin/python3.
+const callInstall = (root, env, args) => spawnSync(process.execPath, ['--input-type=module', '-e', `import { installPython } from ${JSON.stringify(pathToFileURL(path.join(KIT, 'scripts/kit/install-python.mjs')).href)};
+try { installPython(${JSON.stringify({ root, ...args })}); } catch (error) { console.error(error.message); process.exitCode = 1; }`], { cwd: root, env, encoding: 'utf8' });
+
+test('a call with the prefix var/tools/python and the wrapper python3.14 installs there and writes that wrapper, with no symbolic link', (t) => {
+  const py = pythonBuild(t, { extra: LINKS });
+  const root = toolchainCheckout(t);
+  const stubs = toolchainStubs(t, { downloads: { [py.url]: py.archive } });
+  const prefix = path.join(root, 'var/tools/python');
+  const wrapper = path.join(root, 'var/tools/bin/python3.14');
+  const result = callInstall(root, stubs.env, { declared: py.declared, prefix, wrapper, platform: py.key });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readdirSync(path.join(root, 'var/tools')).sort(), ['bin', 'python'], 'no var/tools/python-build');
+  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')), ['python3.14'], 'no var/tools/bin/python3');
+  assert.deepEqual(readdirSync(prefix), ['python']);
+  assert.match(readFileSync(wrapper, 'utf8'), new RegExp(`exec '${escape(path.join(prefix, 'python/bin/python3.14'))}' "\\$@"`));
+  assert.equal(run(wrapper, stubs.env), 'Python 3.14.8');
+  assert.deepEqual(symlinks(path.join(root, 'var/tools')), [], 'no link in var/tools');
+  assert.equal(callInstall(root, stubs.env, { declared: py.declared, prefix, wrapper, platform: py.key }).status, 0);
+  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'a second call keeps the installed release');
+});
+
+test('a relative prefix or wrapper is refused before any download', (t) => {
+  const py = pythonBuild(t);
+  const root = toolchainCheckout(t);
+  const stubs = toolchainStubs(t, { downloads: { [py.url]: py.archive } });
+  const wrapper = path.join(root, 'var/tools/bin/python3.14');
+  const prefix = path.join(root, 'var/tools/python');
+  const relativePrefix = callInstall(root, stubs.env, { declared: py.declared, prefix: 'var/tools/python', wrapper, platform: py.key });
+  assert.equal(relativePrefix.status, 1);
+  assert.match(relativePrefix.stderr, /the install prefix var\/tools\/python is not an absolute path/);
+  const relativeWrapper = callInstall(root, stubs.env, { declared: py.declared, prefix, wrapper: 'python3.14', platform: py.key });
+  assert.equal(relativeWrapper.status, 1);
+  assert.match(relativeWrapper.stderr, /the wrapper python3\.14 is not an absolute path/);
+  assert.deepEqual(stubs.calls(), [], 'nothing is downloaded');
 });

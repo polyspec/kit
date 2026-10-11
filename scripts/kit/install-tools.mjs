@@ -19,6 +19,7 @@ import { installNpm } from './install-npm.mjs';
 import { installPython } from './install-python.mjs';
 import { installBackend } from './release-backend.mjs';
 import { installRuff } from './install-ruff.mjs';
+import { checkoutPython } from './tool-wrappers.mjs';
 import { declaredToolchain } from './toolchain-declared.mjs';
 import { isMain, ROOT } from './paths.mjs';
 
@@ -42,7 +43,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} } = {
   const step = (name, tool) => { if (tool().installed) installed.push(name); };
   if (wanted('npm')) step('npm', () => installNpm({ root, declared: declared.npm, print }));
   if (wanted('go')) step('go', () => installGo({ root, declared: declared.go, print }));
-  if (wanted('python')) step('python', () => installPython({ root, declared: declared.pythonBuild, print }));
+  if (wanted('python')) step('python', () => installPython({ root, declared: declared.pythonBuild, prefix: checkoutPython(root).prefix, wrapper: checkoutPython(root).wrapper, print }));
   if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend.requirement, digests: [declared.pythonBackend.sha256], source: declared.pythonBackend.source, print }); return { installed }; });
   if (wanted('ruff')) step('ruff', () => installRuff({ root, declared: declared.ruff, print }));
   if (wanted('composer')) step('composer', () => installComposer({ root, declared: declared.composer, print }));
