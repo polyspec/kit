@@ -104,13 +104,6 @@ checked.
   link of the archive (such as `bin/python3`) is replaced by a regular copy of its target, a directory link by a copied directory;
   a link to a missing file or outside the archive fails the install. The installed tree holds no link; the wrapper
   `var/tools/bin/python3` runs it. `check-toolchain`, run-tests and release-proof run `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg` names `var/tools/python-build/python/bin` as its `home` and the environment holds no symbolic link; it refuses any other environment before the tool starts, with the fix `make python-venv DIR=<directory>` (K44) and an install with `--link-mode copy`. Measured with uv 0.12.11: `uv venv` and `uv sync` write `bin/python*` as links and have no copy mode, while `uv pip install --python <directory>/bin/python --link-mode copy` into a `--copies` environment keeps it free of links.
-- Caller paths (K56): `installPython({ root, declared, prefix, wrapper })` installs into the install prefix `prefix` and writes the
-  wrapper file `wrapper`; `makeVenv({ root, directory, python, home })` makes the venv with the interpreter `python` and accepts it only
-  when its `pyvenv.cfg` names `home`; `venvProblem(venv, { root, home })` checks that home. The caller names each path, an absolute
-  path, and a relative one is refused. kit's own targets (install-tools, python-venv, run-tests `--venv`, release-consumer) pass
-  `checkoutPython(root)` of tool-wrappers.mjs: the prefix `var/tools/python-build`, the wrapper `var/tools/bin/python3` and the home
-  `var/tools/python-build/python/bin`. A consumer that takes kit as a library passes its own declared paths, for example the prefix
-  `var/tools/python` with the wrapper `var/tools/bin/python3.14`.
 - Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (the same copy of the checkout Python with no pip and no link) and installs the wheel with the pip of the checkout, `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, which reads the version with `show`. The venv has no pip of its own, and no python3 of PATH runs.
 - Python venv (K44): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mjs`) is the way a consumer makes a virtual
   environment of the checkout Python; consumers call it instead of `-m venv`. It runs `var/tools/bin/python3 -m venv --copies

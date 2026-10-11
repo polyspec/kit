@@ -30,7 +30,7 @@ import { createProgress } from './test-progress.mjs';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mjs';
 import { signalGroup } from './process-group.mjs';
 import { venvProblem } from './python-venv.mjs';
-import { checkoutPython, toolsPath } from './tool-wrappers.mjs';
+import { toolsPath } from './tool-wrappers.mjs';
 import { writeJson } from './files.mjs';
 import { isMain, ROOT } from './paths.mjs';
 import { inputsDigest } from './tracked-files.mjs';
@@ -146,7 +146,7 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
     write(`✖ ${label}: the PHP extension ${path.relative(root, options.phpExtension)} is not built; build it before the run\n`);
     return 1;
   }
-  const venvRefusal = options.venv && venvProblem(options.venv, { root, home: checkoutPython(root).home });
+  const venvRefusal = options.venv && venvProblem(options.venv, root);
   if (venvRefusal) {
     write(`✖ ${label}: ${venvRefusal}\n`);
     return 1;

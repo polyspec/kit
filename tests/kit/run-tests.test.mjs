@@ -435,7 +435,7 @@ test('--venv refuses an environment that is not one, comes from another Python o
   const other = venvRoot(t, { home: '/usr/bin' });
   const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
   assert.equal(foreign.status, 1, foreign.text);
-  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from the interpreter home var\/tools\/python-build\/python\/bin;/);
+  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from the Python of this checkout \(var\/tools\/python-build\/python\/bin\)/);
   const linked = venvRoot(t);
   symlinkSync(path.join(linked, 'pkg/.venv/bin/python'), path.join(linked, 'pkg/.venv/bin/python3'));
   const withLink = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: linked });

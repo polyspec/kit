@@ -1,6 +1,5 @@
-// Installs the Python release that config/toolchain.json pythonBuild declares into the install prefix that the caller names, with
-// the wrapper file that the caller names; kit's own install-tools passes var/tools/python-build and var/tools/bin/python3
-// (checkoutPython of tool-wrappers.mjs). The archive is the install_only build of python-build-standalone for this platform, downloaded
+// Installs the Python release that config/toolchain.json pythonBuild declares into var/tools/python-build, with the wrapper
+// python3 in var/tools/bin. The archive is the install_only build of python-build-standalone for this platform, downloaded
 // from the release of the declaration; the download is refused unless its SHA-256 is the digest that the declaration gives
 // for the platform. The archive's symbolic links are replaced by regular copies of their targets (materializeLinks), so the
 // installed tree holds no link. An installed release is kept, and the Python of the machine is never changed.
@@ -8,7 +7,7 @@ import { copyFileSync, cpSync, readdirSync, readlinkSync, realpathSync, rmSync, 
 import path from 'node:path';
 import { fileDigest } from './digest.mjs';
 import { installOnce } from './install-tool.mjs';
-import { bootstrapEnvironment, printedRelease, quote, requireAbsolute, run, wrapperText, writeWrapperFile } from './tool-wrappers.mjs';
+import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mjs';
 
 // The target triple of each platform key (process.platform-process.arch) that the declaration may name.
 export const PYTHON_TRIPLES = {
@@ -61,13 +60,8 @@ export function materializeLinks(top, label) {
   if (left.length > 0) throw new Error(`${label} still holds ${left.length} links after the copies: ${left.map(link => path.relative(top, link)).join(', ')}`);
 }
 
-/**
- * Installs the declared Python `{ version, release, sha256 }` (sha256 by platform key) into `prefix` and writes the wrapper file
- * `wrapper`, which runs `<prefix>/python/bin/python<minor>`. Both are absolute paths.
- */
-export function installPython({ root, declared, prefix, wrapper, platform = `${process.platform}-${process.arch}`, print = () => {} }) {
-  requireAbsolute('the install prefix', prefix);
-  requireAbsolute('the wrapper', wrapper);
+/** Installs the declared Python `{ version, release, sha256 }` (sha256 by platform key) into var/tools and writes the wrapper. */
+export function installPython({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }) {
   const triple = PYTHON_TRIPLES[platform];
   if (!triple) throw new Error(`no Python build is verified for ${platform}; the verified platforms are ${Object.keys(PYTHON_TRIPLES).join(', ')}`);
   const sha256 = declared.sha256[platform];
@@ -75,6 +69,7 @@ export function installPython({ root, declared, prefix, wrapper, platform = `${p
   const file = pythonArchiveName(declared, triple);
   const url = `https://github.com/astral-sh/python-build-standalone/releases/download/${declared.release}/${file}`;
   const minor = declared.version.split('.').slice(0, 2).join('.');
+  const prefix = toolsPath(root, 'python-build');
   const result = installOnce({
     root, label: 'Python', prefix, recorded: declared.version, print,
     installedRelease: directory => printedRelease(path.join(directory, 'python', 'bin', `python${minor}`), 'python'),
@@ -92,6 +87,6 @@ export function installPython({ root, declared, prefix, wrapper, platform = `${p
       materializeLinks(path.join(next, 'python'), 'python');
     },
   });
-  writeWrapperFile(root, wrapper, wrapperText(`Python ${declared.version} of this checkout`, `exec ${quote(path.join(prefix, 'python', 'bin', `python${minor}`))} "$@"`), print);
+  writeWrapper(root, 'python3', wrapperText(`Python ${declared.version} of this checkout`, `exec ${quote(path.join(prefix, 'python', 'bin', `python${minor}`))} "$@"`), print);
   return result;
 }
