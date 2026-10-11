@@ -68,11 +68,13 @@ process.stdout.write(exit ? 'FAILED\\n' : 'ok\\n\\ntest result: ok. 1 passed; 0 
 process.exit(exit ? 101 : 0);
 `;
 
-// The stub of php and python3: it prints the PASS and FAIL lines of the test file and exits with its EXIT line.
+// The stub of php and python3: it prints the PASS and FAIL lines of the test file, its last argument, and exits with its EXIT
+// line. With REQUIRE_PYTHONPATH it reports nothing and exits with 3 unless PYTHONPATH is python/src and -B is its first argument.
 const LINE_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
-const file = args[0];
+const file = args[args.length - 1];
+if (process.env.REQUIRE_PYTHONPATH && !(process.env.PYTHONPATH === 'python/src' && args[0] === '-B')) process.exit(3);
 let exit = 0;
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
   if (/^(PASS|FAIL) /.test(line)) console.log(line);
@@ -251,6 +253,33 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
   assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, 'ts/tests/codec.mjs'] });
   assert.deepEqual(commands['codec php'], { cwd: '.', command: ['php', 'php/tests/codec.php'] });
   assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/bin/python3'), 'python/tests/test_codec.py'] });
+});
+
+test('an implementation declares the command, the arguments and the environment of its runner', TIMEOUT, (t) => {
+  const declare = (withEnvironment) => (config) => {
+    const implementation = name => config.implementations.find(entry => entry.name === name);
+    Object.assign(implementation('python'), { command: 'python/.venv/bin/python', args: ['-B'], env: withEnvironment ? [{ name: 'PYTHONPATH', value: 'python/src' }, { name: 'REQUIRE_PYTHONPATH', value: '1' }] : [{ name: 'REQUIRE_PYTHONPATH', value: '1' }] });
+    implementation('php').args = ['-d', 'extension=php/modules/codec.so'];
+    implementation('go').args = ['-tags', 'parity'];
+    implementation('rust').args = ['--features', 'vectors'];
+    return config;
+  };
+  const files = { '.gitignore': 'var/\n.venv/\n', 'python/.venv/bin/python': LINE_STUB };
+  const root = repository(t, { files, edit: declare(true) });
+  chmodSync(path.join(root, 'python/.venv/bin/python'), 0o755);
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(findings, []);
+  const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, [run.command, ...run.args]]));
+  assert.deepEqual(commands['codec python'], [path.join(root, 'python/.venv/bin/python'), '-B', 'python/tests/test_codec.py']);
+  assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/tests/codec.php']);
+  assert.deepEqual(commands['codec go'], ['go', 'test', '-tags', 'parity', '-json', '-count=1', '-run', '^TestCodec$', './']);
+  assert.deepEqual(commands['codec rust'], ['cargo', 'test', '--features', 'vectors', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--exact', 'vectors', '--nocapture', '--test-threads=1']);
+  assert.equal(process.env.REQUIRE_PYTHONPATH, undefined, 'the environment of an implementation reaches only its runs');
+  const other = repository(t, { files, edit: declare(false) });
+  chmodSync(path.join(other, 'python/.venv/bin/python'), 0o755);
+  const missing = checkParity(other, { execute: true, env: ENV, say: () => {} }).findings;
+  assert.deepEqual(keys(missing), ['R3 codec python']);
+  assert.match(missing[0].message, /exited with 3/);
 });
 
 test('R1: an API unit whose symbol is missing, not exported or not declared in an implementation fails', TIMEOUT, (t) => {

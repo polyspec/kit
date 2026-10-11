@@ -19,13 +19,13 @@ export function runBindings(model, root, { env, say }) {
     const binding = unit.bindings.find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
     const where = { unit: unit.id, implementation: implementation.name, place: binding.test };
-    const run = runOf(implementation.runner, root, binding, unit.id);
+    const run = runOf(implementation, root, binding, unit.id, env);
     if (run.error) {
       findings.push(finding('R3', run.error, where));
       continue;
     }
     say(`run ${unit.id} ${implementation.name}: ${[run.command, ...run.args].join(' ')} (in ${run.cwd})`);
-    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env });
+    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
     const status = result.error ? null : result.status;
     ledger.runs.push({ unit: unit.id, implementation: implementation.name, command: run.command, args: run.args, cwd: run.cwd, status });
     const cases = result.error ? new Map() : run.cases(result);
