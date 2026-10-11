@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3db86bb38bbc13b37f8eee5d29f73620ae8179058bb9f2fa29518cb73ab9c90e -->
+<!-- source-sha256: 318856205bb75186eecb565dca74bec612496a02dbcbeaeb660e8d6708902b35 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -73,3 +73,4 @@
 | K22 | run-tests python은 unittest를 NO_COLOR=1과 PYTHON_COLORS=0으로 실행한다: parser가 색 없는 줄을 읽고, FORCE_COLOR가 설정되면 Python 3.14가 unittest 출력에 색을 넣기 때문이다 | scripts/kit/run-tests.mjs, tests/kit/run-tests.test.mjs | node --test tests/kit/run-tests.test.mjs | [o] release 0.0.15가 이것을 내보낸다. |
 | K24 | `release-verify`는 annotated가 아닌 release tag를 거부한다: tag의 object 종류(`git cat-file -t <tag>`)는 `tag`여야 하며, 실패는 tag 이름과 그 종류(lightweight tag는 `commit`)를 적는다. release tag는 `git tag -a vX.Y.Z -m vX.Y.Z`로 만든다 | `scripts/kit/release.mjs, tests/kit/release.test.mjs, AGENTS.md(.ko)` | `node --test tests/kit/release.test.mjs` | [o] The next release publishes it. |
 | K25 | `install-tools`는 config/toolchain.json의 `pythonBuild`가 선언한 Python을 var/tools에 정확한 release로, sha256으로 검증한 download에서 멱등하게 설치한다. `check-toolchain`, run-tests, release-proof, ruff는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행한다 | `scripts/kit/install-python.mjs, install-tools.mjs, install-ruff.mjs, check-toolchain.mjs, run-tests.mjs, release-proof.mjs, toolchain-declared.mjs, schema/toolchain.schema.json, tests/kit/` | `make kit-test` | [o] The next release publishes it. |
+| K26 | `pythonBuild`의 Python은 symbolic link를 담지 않는다: `install-python`은 검증된 archive의 link마다 대상의 일반 복사본으로 바꾸고(directory link는 복사된 directory가 된다), 대상이 없거나 archive 밖이면 link와 대상을 적어 실패한다 | `scripts/kit/install-python.mjs, tests/kit/install-python.test.mjs` | `node --test tests/kit/install-python.test.mjs` | [ ] |
