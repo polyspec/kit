@@ -280,7 +280,7 @@ test('the named tools are installed alone, and an unknown or an undeclared name 
   assert.ok(stubs.calls().every(line => !line.startsWith('python3.14')), 'ruff was not installed');
   const unknown = install(root, stubs.env, 'make');
   assert.equal(unknown.status, 1);
-  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, composer, cargoAudit, govulncheck/);
+  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, composer, phpunit, cargoAudit, govulncheck/);
   const undeclared = install(root, stubs.env, 'go');
   assert.equal(undeclared.status, 1);
   assert.match(undeclared.stderr, /go is not declared; declare it in config\/toolchain\.json or in its file, or leave it out of the tools to install/);

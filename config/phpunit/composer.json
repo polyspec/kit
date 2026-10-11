@@ -1,0 +1,13 @@
+{
+    "name": "polyspec/kit-phpunit",
+    "description": "The PHPUnit that kit runs for its own PHP tests; install-tools installs it into var/tools/phpunit.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "phpunit/phpunit": "11.5.57"
+    },
+    "config": {
+        "sort-packages": true,
+        "bin-compat": "full"
+    }
+}

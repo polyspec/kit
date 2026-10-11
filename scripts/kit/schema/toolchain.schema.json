@@ -90,6 +90,20 @@
         }
       }
     },
+    "phpunit": {
+      "description": "The PHPUnit release of the PHP tests of kit: install-tools installs the Composer project of config/phpunit (composer.json and composer.lock) into var/tools/phpunit with the declared Composer.",
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        }
+      }
+    },
     "go": {
       "description": "Where the Go release is declared: the go.mod that holds its toolchain line or go directive, and optionally a file that holds the exact release.",
       "type": "object",

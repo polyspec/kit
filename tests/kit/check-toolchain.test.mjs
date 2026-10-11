@@ -115,7 +115,7 @@ test('the tools to check come from the arguments; an undeclared tool, an unknown
   assert.equal(undeclared.status, 1);
   assert.match(undeclared.stderr, /go is not declared; declare it in config\/toolchain\.json or in its file, or leave it out of the tools to check/);
   const unknown = check(bare, stubs.env, 'make');
-  assert.match(unknown.stderr, /unknown tool make; the tools are node, npm, go, rust, php, python, composer, ruff, cargoAudit, govulncheck/);
+  assert.match(unknown.stderr, /unknown tool make; the tools are node, npm, go, rust, php, python, composer, ruff, phpunit, cargoAudit, govulncheck/);
 
   const nothing = check(toolchainCheckout(t), stubs.env);
   assert.equal(nothing.status, 1);

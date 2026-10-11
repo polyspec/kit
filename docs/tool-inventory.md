@@ -35,7 +35,7 @@ repositories (lines).
 
 `scripts/kit/install-tools.mjs` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mjs`
 compares the running tools with the declarations. `scripts/kit/toolchain-declared.mjs` reads the declarations, and each
-installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`;
+installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-phpunit.mjs`;
 cargo-audit and govulncheck keep `install-cargo-audit.mjs` and `install-govulncheck.mjs`). Every installer uses
 `install-tool.mjs`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
@@ -52,11 +52,12 @@ Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (o
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
 | ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made with `var/tools/bin/python3` | install |
+| PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the declared Composer |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
-(`version`, `sha256` of each platform's wheel), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
+(`version`, `sha256` of each platform's wheel), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
 
@@ -287,7 +288,8 @@ Dropped behaviors:
 ## Test runner (K8.1-2)
 
 `scripts/kit/run-tests.mjs` replaces `run-tests.mjs` of template, crudui and hyper and `test.py` of ordered-json. Its progress
-reporters are `test-progress.mjs`, `node-reporter.mjs` and `vitest-reporter.mjs`; `test-load-check.mjs` is preloaded into
+reporters are `test-progress.mjs`, `node-reporter.mjs` and `vitest-reporter.mjs`, and its parsers of the go, cargo, PHPUnit and
+unittest output are in `test-output.mjs`, which the language-parity check reads with the same functions (K47); `test-load-check.mjs` is preloaded into
 each node test file and `test-hooks.mjs` is the `setup` and `teardown` helper of tests.
 
 Merged behaviors:
@@ -832,9 +834,13 @@ The checker trusts three inputs that it does not produce itself. Other checks cl
 - **The generated error-code artifacts.** The repository's generator check regenerates them from the catalog and fails on a
   difference. That check must also run before `parity-check`. The parity check compares the committed artifacts with the
   catalog, and it does not regenerate them.
-- **The PASS lines that a harness prints** for itself (node, php, python and cargo). The checker cannot tell a printed PASS from
-  a passed case. The shared test harness of each language prints the line only after the case passed, and review keeps each
-  binding on that harness. Go events come from `go test` itself.
+- **The output of each native tool** (node:test, go test, cargo test, unittest and PHPUnit), which `test-output.mjs` reads. A
+  binding's test prints nothing for the check: the outcome of each case is the tool's own report of that test. go and node
+  frame their events: go writes the output of a test inside the `Output` field of its JSON events, and node writes the console
+  output of a test as `# ` lines of its TAP. cargo, unittest and PHPUnit do not frame theirs, so a test can print a line that
+  reads as a result on the same stream: `test <name> ... ok` on the standard output of cargo, a `... ok` line on the standard
+  error of unittest, or an echoed `##teamcity[` message of PHPUnit. For those three the checker trusts the tool to print only
+  its own results, and review enforces it; no check of the output closes it.
 
 Make targets: `parity-check` runs the bindings and checks every rule. `parity-declarations-check` checks every rule except R3
 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
@@ -845,7 +851,8 @@ and runs nothing. Both are offline, print a line for each step and each finding,
 | `parity-declaration.mjs` | the schema, the references of the declaration, and the finding |
 | `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
 | `parity-ledger.mjs` | R3: the runs of the bindings and the ledger |
-| `parity-runners.mjs` | the native command of each runner and the cases of its output |
+| `parity-runners.mjs` | the native command of each runner and the outcome of each case in its output |
+| `test-output.mjs` | the parsers of the output of node:test (TAP), go, cargo, unittest and PHPUnit, shared with run-tests |
 | `parity-errors.mjs` | R7 |
 | `parity-text.mjs` | R9, R10 |
 
@@ -855,12 +862,12 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 
 | Rule | Finding |
 |---|---|
-| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no file of the `tests` of its implementation or of the `testPatterns` of its runner, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value holds a `${` form that is not `${NAME}`. |
+| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no file of the `tests` of its implementation or of the `testPatterns` of its runner, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value holds a `${` form that is not `${NAME}`. <br>- An `admit` key is on no case object, a list is empty or names an implementation twice, or an implementation of the profile admits no case (K47). |
 | R1 missing-implementation | An API unit has no symbol of an implementation of its profile, the symbol is not in the snapshot, or the symbol is not exported. |
 | R2 missing-binding | A suite unit has no binding of an implementation of its profile. |
-| R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset or empty), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A Go package that does not build adds its compiler output. |
+| R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset or empty), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A case that a run reports twice is named by a `reported twice in run <n>` part of the finding. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit. |
-| R5 undeclared-test | A file of the `tests` globs of an implementation, other than its `support` files, is the test of no binding of that implementation. Or a support file of a node, php or python implementation prints a harness line when `parity-check` runs it. |
+| R5 undeclared-test | A file of the `tests` globs of an implementation, other than its `support` files, is the test of no binding of that implementation. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
 | R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file of the `testPatterns` of a runner, other than a `support` file of an implementation of that runner, lies outside the roots of every implementation of that runner and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
 | R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
 | R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
@@ -873,20 +880,27 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | Runner | Command | Cases |
 |---|---|---|
 | `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` |
-| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --exact <symbol> --nocapture --test-threads=1` | the harness lines of standard output and standard error |
-| `node`, `php`, `python` | `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` in the root of the checkout | the harness lines of standard output |
+| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --test-threads=1 <symbol>::` | the tests `<symbol>::<case>`: `test <name> ... ok`, `FAILED` or `ignored` in the output |
+| `node` | `node --test --test-reporter=tap <test>` | the top-level tests of the TAP output: `ok` and `not ok` pass and fail, `# SKIP` is skipped, and `# TODO` is a todo; the line of the file itself is no case |
+| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages |
+| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error |
 
-A harness line is `PASS <unit>/<case>` or `FAIL <unit>/<case>`, optionally followed by a space and other text. This is the format
-of the shared test harness of each language. A `FAIL` line of a case counts over a `PASS` line. A case name holds no whitespace,
-and in a unit with a go binding it holds no `/`, because Go nests the names of subtests at `/`.
+Each runner reads its tool's output with the parsers of `test-output.mjs`, the same parsers that `run-tests` reads a run with
+(K47). A todo is a test that the tool expects to fail, a node `# TODO` or a unittest `expected failure`: it is no pass, so its
+case fails the check, while run-tests shows it as a pass line.
 
-With `--nocapture`, libtest prints `test <name> ... ` without a line break. The first line that a Rust test prints continues that
-line, so the cargo runner reads a harness line after this prefix.
+PHPUnit reads its configuration from the working directory, and the check keeps the checkout root as the working directory of
+every runner, so that the `command`, `args` and paths of each runner share one base. A php binding therefore names the
+configuration of its package: `--configuration` with the package's `phpunit.xml` (or `phpunit.xml.dist` when only that exists),
+or `--no-configuration` when the package has neither, so that no configuration of another directory applies. A test whose name is no case of the binding is ignored: a go subtest nested below a case keeps its `/` and is a case that
+the suite does not declare. A case name holds no whitespace, and in a unit with a go binding it holds no `/`, because Go nests
+the names of subtests at `/`. A run of node:test starts without `NODE_TEST_CONTEXT`, since node prints TAP only outside a test
+run.
 
 An implementation can replace the program of its runner with `command`, which is not empty. A command that holds a `/` is a
 path resolved against the root of the checkout, such as the Python of a virtual environment: an absolute path stays absolute,
 and a path with `..` resolves like an absolute path, outside the checkout when it climbs above the root. Otherwise it is a name
-on PATH. `args` go after `test` for go and cargo, and before the test file for node, php and python, such as
+on PATH. `args` go after `test` for go and cargo, and before the test file for node, before the PHPUnit path for php and before `-m unittest` for python, such as
 `-d extension=<library>` for one PHP implementation. `env` sets variables for the runs of that implementation only, over the
 environment of the check.
 
@@ -906,10 +920,23 @@ test that its runner would run:
   letter, or `Example`.
 - A cargo support file holds no test attribute: `#[test]`, `#[bench]`, `#[test_case]`, `#[rstest]`, or one of these with a
   path such as `#[tokio::test]`.
-- `parity-check` runs each node, php and python support file once with the runner of its implementation, and a harness line in
-  its output is an R5 finding.
+- `parity-check` runs each node, php and python support file once with the runner of its implementation, and a case that its
+  output reports is an R5 finding.
 
 Each glob selects at least one such file, so a stale glob fails the declaration.
+
+### Per-case admission
+
+A suite unit may declare `admit`: the key of each case object, beside the case name at `cases`, that lists the implementations
+which admit the case, such as `kinds`. A case object without the key is admitted by every implementation of the profile. Each
+listed name must be an implementation of the profile, and the key must hold an array of such names; otherwise it is a
+declaration finding. An implementation that a list omits does not run the case: the expected cases of its binding leave the
+case out, so a native test of that case is an R3 finding (`not in the suite`), and every run prints
+`unit <unit> does not run <case> for <implementations>: <key> lists <implementations>`. `admit` belongs to a suite unit only.
+
+These are declaration findings: a key that no case object has, an empty list, a name listed twice, and an implementation of the
+profile that admits no case (unless R8 excludes it, which is itself a finding). An implementation that admits nothing runs
+nothing, so it leaves the profile or is excluded with its reason and item.
 
 ### Declaration
 
@@ -961,8 +988,9 @@ profile with what it omits and its reason. At least two units use it; a one-unit
 1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, the profiles, a suite unit for each vector
    file, an API unit for each public concept, and an exclusion with its checklist item for each unit that an implementation does not
    hold yet.
-2. Make each language harness print `PASS <unit>/<case>` for each case of a suite. In Go, run each case as the subtest
-   `<symbol>/<case>`.
+2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
+   `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, and a test method
+   `test_<case>` in PHPUnit and unittest. A binding prints no line for the check.
 3. Make the extractor of each implementation write its snapshot with `exported`, and generate the error codes of each
    implementation from the catalog.
 4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
