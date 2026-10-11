@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: abb5807f379b5003e2efa8293df9fa9ea6551537d3cd7d36961382c471d8e4c0 -->
+<!-- source-sha256: a1ffdf19065245bec0633534a5202c155145093ff96fa73154bc0432178df06a -->
 # 개발
 
 [English](AGENTS.md)
@@ -19,6 +19,11 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   schema 검증기는 자신이 나열한 키워드만 지원합니다.
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
   바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
+- 기존 외부 도구나 라이브러리가 이미 하는 일을 다시 만들지 않습니다. 그 생태계의 표준 도구를 있는 그대로 쓰고(예: Python interpreter, environment,
+  lock은 uv, PHP 의존성은 Composer), 만들어 내는 symbolic link처럼 그 도구 고유의 동작은 받아들입니다. 우리 규칙은 우리가 만드는 것을 규율합니다.
+- 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
+  path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
+  외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
 - 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `tests/kit/duplication.test.mjs`는 서로 다른 두 파일이
   6줄 이상의 같은 함수를 가지면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은

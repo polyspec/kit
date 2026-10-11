@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 91a917d1f9e5f21b41f340036cd4886825091b09dbd2d15b1b8bc8fbc09ed639 -->
+<!-- source-sha256: 0ddc01ae9584dd7b849a26bc914661a8122b3313803255f001419fdc9bbce038 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -112,3 +112,4 @@
 | K58 | command module은 import될 때 동작하지 않습니다: `check-dependency-policy-mutation.mjs`는 다른 command module처럼 command로 실행될 때만(`isMain`) mutation 검사를 실행하므로, module을 import하면 아무것도 실행하거나 출력하지 않습니다. 원인: module을 import하면 checkout에 대해 그 검사가 실행되었습니다. RED: guard가 없는 module로 `node --test tests/kit/dependency-policy.test.mjs`를 실행하면 9 pass와 1 fail을 출력했고, import case는 `actual: '[dependency-policy] 4 mutations rejected: an outdated dependency without an exception; …\nimported\n'`, `expected: 'imported\n'`를 출력했습니다. GREEN: 같은 file이 10 pass와 0 fail을 출력했습니다 | `scripts/kit/check-dependency-policy-mutation.mjs`, `tests/kit/dependency-policy.test.mjs` | `node --test tests/kit/dependency-policy.test.mjs` | [o] |
 | K59 | kit이 license를 선언합니다: 저장소 root의 file `LICENSE`가 다른 polyspec library가 선언하는 것처럼 MIT License를 담습니다. 어떤 tool도 이 file을 읽지 않습니다. 이전에는 kit이 license를 선언하지 않았습니다 | `LICENSE` | `git ls-files LICENSE`가 `LICENSE`를 출력합니다 | [o] |
 | K61 | K55, K56, K57을 release 전에 제거합니다: limepie가 uv를 직접 쓰므로(사용자 결정) 아무것도 이것들을 쓰지 않고, kit는 consumer가 없는 code를 두지 않습니다. 그 commit들은 0.0.26 전에 main에서 revert됩니다: kit의 npm asset과 package(K55), 호출자가 주는 Python 경로(K56), lock의 local archive file(K57). K58 import guard와 K59 license는 남습니다 | K55, K56, K57의 revert | `make kit-test`, `make source-test` | [o] |
+| K62 | AGENTS가 두 규칙을 적습니다. 저장소는 외부 도구나 라이브러리가 이미 하는 일을 다시 만들지 않고 그 생태계의 표준 도구를 있는 그대로 쓰며, 그 도구의 symbolic link 같은 동작을 받아들입니다. 또 이 저장소는 symbolic link와 relative path를 만들지 않으며, 각 path는 선언으로 정하거나 명시된 discovery 규칙으로 찾습니다. 원인: AGENTS에 이 규칙들이 적혀 있지 않았습니다 | `AGENTS.md`, `AGENTS.ko.md`, `docs/plans/execution-checklist.md(.ko)` | `make documents-check` | [o] |
