@@ -744,18 +744,70 @@ distribution escapes each run of characters other than word characters and dots 
   `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
   `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
   wheel package, and it runs before a release.
-- `release-assets` refuses a wheel whose `Requires-Dist` is not a plain `name==version`: a URL, a git source, a range or a marker
-  (`; extra == ...` or `; python_version ...`) fails with the line and its form. `release-versions` requires the `version` of
+- `release-assets` checks each `Requires-Dist` of a wheel against its lock (K49): a plain `name==version` or a polyspec release
+  reference; any other form fails with the line and its form. `release-versions` requires the `version` of
   `[project]` in the pyproject.toml, as for every archive manifest.
-- `release-consumer` installs the wheel into a clean virtual environment of `var/tools/bin/python3` with
-  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`; the requirement file
-  names the wheel of the run with the sha256 of its file. It checks the version that `pip show` prints and runs the smoke command of
-  `consumers.wheel`. A wheel has no committed lock.
+- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/bin/python3`: first its lock (K49), then the
+  wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
+  requirement file naming the wheel of the run with the sha256 of its file. Then `pip check` must pass, the version that `pip show`
+  prints is checked and the smoke command of `consumers.wheel` runs.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] } } },
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } },
 "buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
+
+## Wheel dependencies (K49)
+
+A wheel's `Requires-Dist` takes exactly two forms. A registry package is pinned as `name==version`. A polyspec package is a PEP 508
+direct reference to its release asset, with the sha256 of that asset as the fragment:
+
+    name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
+
+`<file>` is the PEP 427 name of the wheel of `name` at `<version>`, and the name and the version in the URL are the requirement's.
+The repository comes from `consumers.wheel.polyspec` of config/release.json, a map from the distribution name to its repository URL,
+never from the name. Every other form (another host, a git URL, a branch, an extra, a range or a marker) is refused, and the refusal
+names the requirement. A name that `consumers.wheel.polyspec` does not declare is refused too.
+
+Each wheel package declares one PEP 751 lock in `consumers.wheel.lock` (`pylock.toml` or `pylock.<name>.toml`). The lock is a superset:
+it holds every dependency, transitive ones included. A registry package has the version and the sha256 of its files; a polyspec
+package is an `archive` entry with the same URL and sha256 as its reference. `release-assets` checks these offline, from the tagged
+commit: the lock is read by the K36 reader; a source other than registry or archive is refused; each `Requires-Dist` is in the lock with
+the same version (registry) or the same URL and sha256 (polyspec); the fragment equals the sha256 of the lock; each archive is a release
+asset of its declared repository at its version. Nothing here reads the network.
+
+`release-consumer install` renders the lock with `lockRequirements` (`scripts/kit/wheel-dependencies.mjs`) into a requirement file of
+hashes: `name==version --hash=sha256:…` for each file of a registry package and `name @ <url> --hash=sha256:…` for each archive. The
+pip of the checkout installs it into the venv of `makeVenv`:
+
+    var/tools/bin/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
+
+The wheel follows with `--no-index --require-hashes --no-deps`, then `pip --python <venv>/bin/python check` must exit 0 (an incomplete
+lock fails there), then the smoke command runs. pip's own reading of `pylock.toml` is not used (see the findings). The install reaches
+PyPI and the release assets, so it runs online only, in `release-proof`. `release-proof` step 2 downloads each polyspec archive from the
+release of its version in its declared repository, and its sha256 must equal the sha256 that the lock holds.
+
+Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/wheel-dependencies-real.test.mjs` repeats the cases):
+
+- `pip install -r pylock.toml` reads the lock as a requirement source and prints `WARNING: Using pylock.toml as a requirements source is
+  an experimental feature. It may be removed/changed in a future release without prior warning.` The lock is therefore rendered.
+- `pip --python <venv>/bin/python check` works in a venv that has no pip. A missing dependency prints `kit-app 0.0.1 requires six, which
+  is not installed.` and exits 1; a version mismatch prints `kit-app 0.0.1 has requirement kit-reg==1.0.0, but you have kit-reg 0.0.1.`
+  and exits 1; a complete install prints `No broken requirements found.` and exits 0.
+- Local copy (the case of consumer, which installs dependency wheels from downloaded files): the dependency wheels installed from local
+  files with the same bytes (`--require-hashes --no-deps`), then the wheel with `--no-deps`, then `pip check`, printed
+  `No broken requirements found.` and exited 0. `pip check` compares versions only, so it does not reject a direct-URL requirement
+  that a local file satisfies.
+- The resolver is not used by the install (`--no-deps`). Resolving the wheel with its dependencies reads each direct-URL requirement
+  before it accepts an installed copy. For a `file:` URL of the same version it printed `Processing .../kit_lib-0.0.1-py3-none-any.whl`
+  and `kit-lib is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of
+  the wheel.` and exited 0. For a remote URL it fetches first (`Collecting kit-lib @ https://...`); a URL that does not answer fails with
+  `ERROR: HTTP error 404 while getting https://...`. A consumer that resolves dependencies therefore downloads each polyspec archive.
+
+The tests: `tests/kit/wheel-dependencies.test.mjs` (the forms, the refusals with their messages, the lock form, the rendered
+requirements), `tests/kit/release-wheel.test.mjs` (the same checks through `release-assets`, the consumer declaration),
+`tests/kit/release-proof.test.mjs` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mjs` (the real
+pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy and the resolver).
 
 ## Language parity (K33)
 

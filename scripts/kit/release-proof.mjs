@@ -7,12 +7,14 @@
 //
 // For a tag vX.Y.Z it proves, one line `✔ <what>` for each step, and stops at the first step that fails:
 //   1. The GitHub Release of TAG, a draft included, lists exactly the archives that config/release.json declares for the version.
-//   2. The release assets, downloaded into a temporary directory, install together in clean npm and Composer projects
+//   2. Each polyspec archive that a wheel lock names (consumers.wheel.lock) is the release asset of its version in its repository
+//      (consumers.wheel.polyspec): the release lists the file, and the sha256 of the downloaded file is the one the lock holds.
+//   3. The release assets, downloaded into a temporary directory, install together in clean npm and Composer projects
 //      (release-consumer.mjs installConsumers, with the committed manifests and locks of the checkout) and the smoke command of
 //      each package passes. Run it in a checkout of the tag, whose consumer projects name the archives of the version.
-//   3. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
+//   4. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
 //      the declared smoke command runs in that crate. A Python package is a `wheel` package: its wheel is an archive of step 2.
-//   4. Each Go module has its tag on the remote (`git ls-remote`) and `go list -m <module>@<tag>` resolves it with
+//   5. Each Go module has its tag on the remote (`git ls-remote`) and `go list -m <module>@<tag>` resolves it with
 //      GOFLAGS=-mod=mod and GOPROXY=direct.
 // A tag `<Go module directory>/vX.Y.Z` releases that module alone: the release holds no archive and only step 4 runs for it.
 // Every command of a step comes from config/release.json: `consumers` (smoke commands of the archives) and `proof.gitTag`.
@@ -25,6 +27,9 @@ import { assetNames, context, latestTag, parseTag } from './release.mjs';
 import { downloadAsset, releaseOf } from './github-release.mjs';
 import { run, Stop } from './process.mjs';
 import { installConsumers } from './release-consumer.mjs';
+import { readPylock } from './pylock.mjs';
+import { fileDigest } from './digest.mjs';
+import { repositoryOf, wheelLocks } from './wheel-dependencies.mjs';
 
 /** Step 1: the names of the assets of the GitHub Release (a draft included) equal the archives of the tag. */
 function proveAssets(ctx, tag, version, directory, step) {
@@ -41,7 +46,33 @@ function proveAssets(ctx, tag, version, directory, step) {
   return release;
 }
 
-/** Step 2: download the assets of the release into `folder/assets` and install them in clean consumer projects. */
+/**
+ * Step 2: each polyspec archive that a wheel lock names is downloaded from the release of its version in the repository that
+ * consumers.wheel.polyspec declares, and its sha256 must be the one the lock holds (the fragment of the Requires-Dist is the same
+ * sha256, checked offline by release-assets).
+ */
+function proveDependencies(ctx, folder, step) {
+  const { root, env, config } = ctx;
+  for (const { file, text } of wheelLocks(root, config)) {
+    for (const entry of readPylock(text, file).packages.filter(item => item.kind === 'archive')) {
+      const repository = repositoryOf(config.consumers.wheel.polyspec, entry.name);
+      if (repository === null) throw new Stop(`${file} names the archive of ${entry.name}, which consumers.wheel.polyspec does not declare`);
+      const asset = path.posix.basename(entry.files[0].url);
+      const release = releaseOf({ cwd: root, env }, repository, `v${entry.version}`);
+      if (!release) throw new Stop(`the release v${entry.version} of ${repository} does not exist; ${file} names its asset ${asset}`);
+      const found = release.assets.find(item => item.name === asset);
+      if (!found) throw new Stop(`the release v${entry.version} of ${repository} lists no ${asset}; ${file} names it`);
+      const target = path.join(folder, 'dependencies', asset);
+      mkdirSync(path.dirname(target), { recursive: true });
+      downloadAsset({ cwd: root, env }, repository, found.id, target);
+      const actual = fileDigest(target);
+      if (actual !== entry.files[0].sha256) throw new Stop(`${asset} of ${repository} v${entry.version} has the sha256 ${actual}, ${file} holds ${entry.files[0].sha256} for ${entry.name}`);
+      step(`polyspec ${entry.name} ${entry.version}: ${asset} of ${repository} has the sha256 that ${file} holds`);
+    }
+  }
+}
+
+/** Step 3: download the assets of the release into `folder/assets` and install them in clean consumer projects. */
 function proveInstall(ctx, tag, version, folder, release, step) {
   const assets = path.join(folder, 'assets');
   mkdirSync(assets, { recursive: true });
@@ -93,6 +124,7 @@ export function prove(ctx, tag, step) {
   try {
     const release = proveAssets(ctx, tag, version, directory, step);
     if (directory === null) {
+      proveDependencies(ctx, folder, step);
       proveInstall(ctx, tag, version, folder, release, step);
       proveGitTag(ctx, tag, folder, step);
     } else {

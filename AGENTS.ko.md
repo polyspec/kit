@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b385b495a336b66e457f521fa47e1a0db961e6690782855491e2efdc40159e64 -->
+<!-- source-sha256: 912d55746fec66c20e5e88b442c012bbba6137fb8a080981d88bef2961ef6276 -->
 # 개발
 
 [English](AGENTS.md)
@@ -57,7 +57,8 @@ kit은 `workflows/release.yml`을 kit.json의 `vendoredFiles`로 모든 저장�
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의
 `buildBackend`가 정확한 requirement와 wheel의 sha256으로 고정합니다. `make release-backend`는 그 wheel을 digest를 확인하며
-`var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. `Requires-Dist`가 plain `name==version`이 아닌 wheel(URL, git source,
-범위, marker)은 거부합니다. 같은 형식의 npm 또는 Composer manifest를 거부하는 것과 같습니다. `release-consumer`는 wheel을
-`pip install --no-index --require-hashes --no-deps`로 깨끗한 virtual environment에 설치하고 그 smoke command를 실행합니다.
+`var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. wheel의 `Requires-Dist`는 plain `name==version`이거나, polyspec package이면 sha256 fragment를 가진 release asset의 직접 참조입니다.
+각각은 wheel의 lock(`consumers.wheel.lock`)이 담으며, 다른 형식(URL, git source, 범위, marker)은 거부합니다. 같은 형식의 npm 또는
+Composer manifest를 거부하는 것과 같습니다. `release-consumer`는 깨끗한 virtual environment에 lock을 hash와 함께 설치하고, wheel을
+`--no-deps`로 설치한 뒤 `pip check`를 실행하고, 그다음 smoke command를 실행합니다.
 Python package는 git tag로 릴리스하지 않습니다.

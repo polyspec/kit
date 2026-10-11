@@ -98,15 +98,26 @@ if (args[0] === 'update' && args.includes('--no-install')) {
 } else finish(1, 'composer stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
+// The state's `dependencies` are the releases of other repositories: each { repo, tag, file, source } lists its one file with the
+// id 1000 + its index, and its download reads the file in source.
 const GH = `${PRELUDE}
 if (mode === 'fail') finish(1, 'gh stub: api failed');
+const listed = args.find(arg => arg.startsWith('repos/') && arg.endsWith('/releases'));
 if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
+  const other = (state.dependencies ?? []).find(item => listed === 'repos/' + item.repo + '/releases');
   // The release of the tag, a draft included: its assets carry the ids that the download names.
-  console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name })) }));
+  if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file }] }));
+  else console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name })) }));
   finish();
 } else if (args[0] === 'api' && args.some(arg => arg.includes('/releases/assets/'))) {
-  const name = state.release.names[Number(args.at(-1).split('/').pop()) - 1];
-  fs.writeSync(1, fs.readFileSync(path.join(state.release.source, name)));
+  const id = Number(args.at(-1).split('/').pop());
+  if (id >= 1000) {
+    const other = state.dependencies[id - 1000];
+    fs.writeSync(1, fs.readFileSync(path.join(other.source, other.file)));
+  } else {
+    const name = state.release.names[id - 1];
+    fs.writeSync(1, fs.readFileSync(path.join(state.release.source, name)));
+  }
   finish();
 } else finish(1, 'gh stub: unexpected arguments ' + JSON.stringify(args));
 `;
