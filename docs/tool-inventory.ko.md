@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b9146928fb9176ab162c39e91ada7bc189419e8325808739944b9864f31fcb5d -->
+<!-- source-sha256: a4da629ac72b2fce41fe6b041ad39f629b13208465ab48fe961cc18199afa14b -->
 # 도구 목록
 
 [English](tool-inventory.md)
@@ -691,6 +691,18 @@ implementation(repository의 language 집합의 유일한 원천), 그것을 묶
 - 각 implementation의 extractor snapshot에서 export된 symbol을 읽습니다.
 - 각 implementation의 생성물에서 error code를 읽습니다.
 
+### 신뢰 경계
+
+검사기는 스스로 만들지 않는 입력 세 가지를 신뢰합니다. 각각은 다른 검사가 막습니다:
+
+- **각 implementation의 symbol snapshot.** repository의 interface 검사가 source에서 snapshot을 다시 만들고, 다르면 실패합니다.
+  이 검사는 `parity-check`보다 먼저 실행해야 합니다.
+- **생성된 error code 생성물.** repository의 생성기 검사가 catalog에서 생성물을 다시 만들고, 다르면 실패합니다. 이 검사도
+  `parity-check`보다 먼저 실행해야 합니다. parity 검사는 commit된 생성물을 catalog와 비교하며, 다시 만들지 않습니다.
+- **harness가 스스로 출력하는 PASS 줄**(node, php, python, cargo). 검사기는 출력된 PASS와 통과한 case를 구별할 수 없습니다. 각
+  언어의 공유 test harness는 case가 통과한 뒤에만 그 줄을 출력하고, review가 각 binding을 그 harness 위에 둡니다. Go event는
+  `go test`가 직접 냅니다.
+
 Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는 R3를 뺀 모든 rule을
 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
 
@@ -710,13 +722,13 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 
 | Rule | Finding |
 |---|---|
-| `declaration` | 선언이 `scripts/kit/schema/parity.schema.json`을 어기거나, 없는 파일, 모르는 implementation이나 profile, unit의 profile 밖 implementation의 binding, `symbol` 없는 go 또는 cargo binding, 중복 case, export되지 않은 `nativeOnly` symbol, unit이 binding한 쌍의 exclusion, group 없는 pattern을 적습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. |
+| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, 그 profile을 unit 하나만 씁니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` symbol이 export되지 않았습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. |
 | R1 missing-implementation | API unit에 profile의 한 implementation의 symbol이 없거나, symbol이 snapshot에 없거나, export되지 않았습니다. |
 | R2 missing-binding | suite unit에 profile의 한 implementation의 binding이 없습니다. |
-| R3 not-executed | binding이 시작하지 못하거나, 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. finding은 실패, skip, 누락, 초과 case를 나열합니다. |
+| R3 not-executed | binding이 시작하지 못하거나, 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아닙니다. |
 | R5 undeclared-test | implementation의 `tests` glob 파일이 그 implementation의 어떤 binding의 test도 아닙니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖에 있습니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 runner의 `testPatterns` 파일이 그 runner의 모든 implementation의 root 밖이고 `comparators` 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
@@ -728,12 +740,20 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 | Runner | 명령 | Case |
 |---|---|---|
 | `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>` | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event |
-| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --exact <symbol> --nocapture --test-threads=1` | harness 줄 |
-| `node`, `php`, `python` | checkout root에서 `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` | harness 줄 |
+| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --exact <symbol> --nocapture --test-threads=1` | 표준 출력과 표준 오류의 harness 줄 |
+| `node`, `php`, `python` | checkout root에서 `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` | 표준 출력의 harness 줄 |
 
 harness 줄은 `PASS <unit>/<case>` 또는 `FAIL <unit>/<case>`이며, 뒤에 공백과 다른 글이 올 수 있습니다. 각 언어의 공유 test
-harness가 쓰는 형식입니다. case의 `FAIL` 줄은 `PASS` 줄보다 우선합니다. case 이름에는 공백이 없고, Go에서는 `/`도 없습니다.
-Go가 subtest 이름의 공백을 바꾸고 `/`로 중첩하기 때문입니다.
+harness가 쓰는 형식입니다. case의 `FAIL` 줄은 `PASS` 줄보다 우선합니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는
+`/`도 없습니다. Go가 subtest 이름을 `/`에서 중첩하기 때문입니다.
+
+`--nocapture`일 때 libtest는 `test <name> ... `을 줄바꿈 없이 출력합니다. Rust test가 출력하는 첫 줄이 그 줄에 이어지므로,
+cargo runner는 이 prefix 뒤의 harness 줄을 읽습니다.
+
+implementation은 `command`로 runner의 program을 바꿀 수 있습니다. `/`를 담은 command는 virtual environment의 Python처럼
+checkout root에 대한 상대 경로이고, 아니면 PATH의 이름입니다. `args`는 go와 cargo에서는 `test` 뒤에, node, php, python에서는 test
+파일 앞에 옵니다. 예를 들어 PHP implementation 하나에만 `-d extension=<library>`를 줍니다. `env`는 검사의 environment 위에 그
+implementation의 실행에만 변수를 설정합니다.
 
 ### 선언
 
@@ -741,9 +761,11 @@ Go가 subtest 이름의 공백을 바꾸고 `/`로 중첩하기 때문입니다.
 
 | Key | 내용 |
 |---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `roots`(directory, `.`은 repository 전체), `tests`(test 파일의 glob), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
-| `profiles` | `name`과 묶는 `implementations` |
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `command`, `args`, `env`(`name`, `value`), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
+| `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
+| `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
+| `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
 | `units` | `id`, `kind`(`suite` 또는 `api`), `profile`. suite는 `file`, `cases`(`$` 뒤에 `.<key>`와 `[*]` 단계가 오는 path), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
 | `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
@@ -755,6 +777,13 @@ pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값�
 고유어 수사이고 뒤에 noun 하나가 옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개
 이상입니다. implementation의 snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
 
+catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하는 줄)도 아닌 각 줄에 적용합니다. 그런 줄 모두에 맞아야 하므로
+어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
+`^- code: (\w+)$|^  \w+: .*$`입니다.
+
+모든 implementation보다 좁은 profile은 빠진 implementation을 그 unit에서 제외합니다. 실행마다 그런 profile을 빠진 것과 이유와 함께
+출력합니다. unit 둘 이상이 그 profile을 씁니다. unit 하나의 profile은 실패하지 않는 exclusion이 되기 때문입니다.
+
 ### Repository 연결
 
 1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, profile, vector 파일마다 suite unit, 공개 개념마다
@@ -762,7 +791,8 @@ pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값�
 2. 각 언어 harness가 suite의 case마다 `PASS <unit>/<case>`를 출력하게 합니다. Go에서는 각 case를 subtest `<symbol>/<case>`로
    실행합니다.
 3. 각 implementation의 extractor가 `exported`를 담은 snapshot을 쓰게 하고, 각 implementation의 error code를 catalog에서 생성합니다.
-4. `parity-declarations-check`와 `parity-check`를 repository의 검사에 추가합니다. `make kit-sync`의 복사본에 target이 이미 있습니다.
+4. `parity-declarations-check`와 `parity-check`를 repository의 검사에 추가합니다. symbol snapshot과 error code 생성물을 다시 만드는
+   검사 뒤에 실행합니다(신뢰 경계). `make kit-sync`의 복사본에 target이 이미 있습니다.
 
 ```json
 {
@@ -775,6 +805,11 @@ pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값�
   ],
   "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
+  "comparators": ["tests/conformance/check"],
+  "testPatterns": [
+    { "runner": "go", "globs": ["**/*_test.go"] },
+    { "runner": "python", "globs": ["**/test_*.py"] }
+  ],
   "units": [
     { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
       "bindings": [

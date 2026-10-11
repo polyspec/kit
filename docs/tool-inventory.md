@@ -742,6 +742,19 @@ units. The declaration holds no state such as done or planned: the checker takes
 - It reads the exported symbols from the extractor snapshot of each implementation.
 - It reads the error codes from the generated artifact of each implementation.
 
+### Trust boundary
+
+The checker trusts three inputs that it does not produce itself. Other checks close each one:
+
+- **The symbol snapshot** of each implementation. The repository's interface check regenerates it from the source and fails
+  on a difference. That check must run before `parity-check`.
+- **The generated error-code artifacts.** The repository's generator check regenerates them from the catalog and fails on a
+  difference. That check must also run before `parity-check`. The parity check compares the committed artifacts with the
+  catalog, and it does not regenerate them.
+- **The PASS lines that a harness prints** for itself (node, php, python and cargo). The checker cannot tell a printed PASS from
+  a passed case. The shared test harness of each language prints the line only after the case passed, and review keeps each
+  binding on that harness. Go events come from `go test` itself.
+
 Make targets: `parity-check` runs the bindings and checks every rule. `parity-declarations-check` checks every rule except R3
 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
 
@@ -761,13 +774,13 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 
 | Rule | Finding |
 |---|---|
-| `declaration` | The declaration breaks `scripts/kit/schema/parity.schema.json`, or it names a missing file, an unknown implementation or profile, a binding of an implementation outside the unit's profile, a go or cargo binding without `symbol`, a duplicate case, a `nativeOnly` symbol that is not exported, an exclusion of a pair that the unit binds, or a pattern without a group. No other rule runs on such a declaration. |
+| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. |
 | R1 missing-implementation | An API unit has no symbol of an implementation of its profile, the symbol is not in the snapshot, or the symbol is not exported. |
 | R2 missing-binding | A suite unit has no binding of an implementation of its profile. |
-| R3 not-executed | The binding cannot start, exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. The finding lists the failed, skipped, missing and extra cases. |
+| R3 not-executed | The binding cannot start, exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit. |
 | R5 undeclared-test | A file of the `tests` globs of an implementation is the test of no binding of that implementation. |
-| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation. |
+| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file of the `testPatterns` of a runner lies outside the roots of every implementation of that runner and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
 | R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
 | R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
 | R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
@@ -779,12 +792,20 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | Runner | Command | Cases |
 |---|---|---|
 | `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` |
-| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --exact <symbol> --nocapture --test-threads=1` | the harness lines |
-| `node`, `php`, `python` | `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` in the root of the checkout | the harness lines |
+| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --exact <symbol> --nocapture --test-threads=1` | the harness lines of standard output and standard error |
+| `node`, `php`, `python` | `node <test>`, `php <test>`, `var/tools/bin/python3 <test>` in the root of the checkout | the harness lines of standard output |
 
 A harness line is `PASS <unit>/<case>` or `FAIL <unit>/<case>`, optionally followed by a space and other text. This is the format
 of the shared test harness of each language. A `FAIL` line of a case counts over a `PASS` line. A case name holds no whitespace,
-and in Go it holds no `/`, because Go rewrites spaces and nests the names of subtests.
+and in a unit with a go binding it holds no `/`, because Go nests the names of subtests at `/`.
+
+With `--nocapture`, libtest prints `test <name> ... ` without a line break. The first line that a Rust test prints continues that
+line, so the cargo runner reads a harness line after this prefix.
+
+An implementation can replace the program of its runner with `command`. A command that holds a `/` is a path relative to the root
+of the checkout, such as the Python of a virtual environment; otherwise it is a name on PATH. `args` go after `test` for go and
+cargo, and before the test file for node, php and python, such as `-d extension=<library>` for one PHP implementation. `env`
+sets variables for the runs of that implementation only, over the environment of the check.
 
 ### Declaration
 
@@ -792,9 +813,11 @@ and in Go it holds no `/`, because Go rewrites spaces and nests the names of sub
 
 | Key | Content |
 |---|---|
-| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (directories, `.` is the whole repository), `tests` (globs of its test files), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
-| `profiles` | `name` and the `implementations` that it groups |
+| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
+| `profiles` | `name`, the `implementations` that it groups, and `reason`, which a profile narrower than every implementation needs |
 | `suites` | globs of the shared vector files |
+| `comparators` | the directories of the checks that compare the outputs of several implementations |
+| `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
 | `units` | `id`, `kind` (`suite` or `api`) and `profile`. A suite has `file`, `cases` (a path of `$` followed by `.<key>` and `[*]` steps) and `bindings` (`implementation`, `test`, `symbol`). An API unit has `symbols` (`implementation`, `symbol`). |
 | `nativeOnly` | `implementation`, `symbol` and `reason` of an exported symbol that only one implementation has |
 | `exclusions` | `unit`, `implementation`, `reason` and `item`, the checklist item that removes the exclusion |
@@ -807,6 +830,13 @@ an English number word up to twelve, or a Korean native numeral up to 열, follo
 implementation names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The snapshot of an implementation is a
 JSON object that maps each symbol id to an object with a boolean `exported`.
 
+The catalog pattern applies to each line of the catalog that is not blank and is not a comment (a line that starts with `#` or
+`//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,
+such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$`.
+
+A profile narrower than every implementation removes the omitted implementations from its units. Every run prints such a
+profile with what it omits and its reason. At least two units use it; a one-unit profile would be an exclusion that never fails.
+
 ### Wiring a repository
 
 1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, the profiles, a suite unit for each vector
@@ -816,8 +846,8 @@ JSON object that maps each symbol id to an object with a boolean `exported`.
    `<symbol>/<case>`.
 3. Make the extractor of each implementation write its snapshot with `exported`, and generate the error codes of each
    implementation from the catalog.
-4. Add `parity-declarations-check` and `parity-check` to the checks of the repository. The `make kit-sync` copy already holds the
-   targets.
+4. Add `parity-declarations-check` and `parity-check` to the checks of the repository. Run them after the checks that regenerate
+   the symbol snapshots and the error-code artifacts (the trust boundary). The `make kit-sync` copy already holds the targets.
 
 ```json
 {
@@ -830,6 +860,11 @@ JSON object that maps each symbol id to an object with a boolean `exported`.
   ],
   "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
+  "comparators": ["tests/conformance/check"],
+  "testPatterns": [
+    { "runner": "go", "globs": ["**/*_test.go"] },
+    { "runner": "python", "globs": ["**/test_*.py"] }
+  ],
   "units": [
     { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
       "bindings": [
