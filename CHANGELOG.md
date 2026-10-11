@@ -8,7 +8,6 @@ Each release `vX.Y.Z` of kit has a section `## X.Y.Z`; its text is the notes of 
 
 ## Unreleased
 
-- kit declares the MIT License in `LICENSE` and in `package.json` of `@polyspec/kit` (K59).
 - The parity check reports a case that one run reports twice as an R3 finding. The parsers of the node:test, unittest, PHPUnit, cargo
   and go outputs move into `test-output.mjs`, which run-tests and the parity check share, and a suite unit declares `admit`, the
   implementations that admit each case. phpunit becomes an install-tools tool (K47).
