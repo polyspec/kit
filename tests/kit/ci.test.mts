@@ -184,7 +184,7 @@ test('the summary of a report is written again from its record, also for a run t
   assert.match(text, /- the setup step install did not succeed/);
   assert.doesNotMatch(text, /the setup step (lint|cache)/);
   put(root, { 'var/report/ci/record.json': '{broken' });
-  ciSummary({ root, directory: 'var/report/ci', env: { CI_STEPS: 'nope' }, print: line => printed.push(line) });
+  assert.equal(ciSummary({ root, directory: 'var/report/ci', env: { CI_STEPS: 'nope' }, print: line => printed.push(line) }), 1, 'a CI_STEPS that is not JSON fails the summary');
   assert.ok(printed.some(line => line.startsWith('[ci-targets] CI_STEPS is not JSON: ')));
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /recorded no run\*\* \(var\/report\/ci\/record\.json: /);
 });
