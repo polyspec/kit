@@ -22,34 +22,37 @@ const MIN_LINES = 6;
 const KIT = path.join(ROOT, 'scripts/kit');
 
 // Duplicates that are allowed, each as `{ files, reason }`; empty, because every shared piece has one module.
-const EXEMPT = [];
+const EXEMPT: Array<{ files: string[]; reason: string }> = [];
 
 const DECLARATION = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?\s+(\w+)|class\s+(\w+)|const\s+(\w+)\s*=)/;
 
 /** The text of `line` without a trailing `//` comment, when the `//` is outside quotes. */
-function withoutLineComment(line) {
-  let quote = null;
+function withoutLineComment(line: string) {
+  let quote: string | null = null;
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index];
     if (quote) {
       if (character === '\\') index += 1;
       else if (character === quote) quote = null;
     } else if (character === '\'' || character === '"' || character === '`') quote = character;
-    else if (character === '/' && line[index + 1] === '/' && (index === 0 || /\s/.test(line[index - 1]))) return line.slice(0, index);
+    else if (character === '/' && line[index + 1] === '/' && (index === 0 || /\s/.test(line.charAt(index - 1)))) return line.slice(0, index);
   }
   return line;
 }
 
 /** The functions of `text` as `{ name, line, lines }`, with `lines` normalized. */
-export function functionsOf(text) {
+export function functionsOf(text: string) {
   const lines = text.replace(/\/\*[\s\S]*?\*\//g, match => '\n'.repeat(match.split('\n').length - 1)).split('\n');
-  const found = [];
+  const found: Array<{ name: string | undefined; line: number; lines: string[] }> = [];
   for (let start = 0; start < lines.length; start += 1) {
-    const declaration = DECLARATION.exec(lines[start]);
+    const first = lines[start];
+    if (first === undefined) throw new Error(`functionsOf: the line ${start + 1} is missing`);
+    const declaration = DECLARATION.exec(first);
     if (!declaration) continue;
     let end = start;
     for (let next = start + 1; next < lines.length; next += 1) {
       const line = lines[next];
+      if (line === undefined) throw new Error(`functionsOf: the line ${next + 1} is missing`);
       if (line.trim() === '') {
         const following = lines.slice(next + 1).find(candidate => candidate.trim() !== '');
         if (following !== undefined && /^(\s|[})\]])/.test(following)) continue;
@@ -61,7 +64,9 @@ export function functionsOf(text) {
     }
     const name = declaration[1] ?? declaration[2] ?? declaration[3];
     const body = lines.slice(start, end + 1).map(withoutLineComment).map(line => line.trim().replace(/\s+/g, ' ')).filter(Boolean);
-    body[0] = body[0].replace(/^export /, '').replace(new RegExp(`\\b${name}\\b`), 'NAME');
+    const head = body[0];
+    if (head === undefined) throw new Error(`functionsOf: the declaration of ${name} on line ${start + 1} has no text`);
+    body[0] = head.replace(/^export /, '').replace(new RegExp(`\\b${name}\\b`), 'NAME');
     found.push({ name, line: start + 1, lines: body });
     start = end;
   }
@@ -69,14 +74,15 @@ export function functionsOf(text) {
 }
 
 /** The groups of functions with the same normalized text in at least two files: `[{ lines, places: ['file:line name', ...] }]`. */
-export function duplicates(files, minimum = MIN_LINES) {
-  const byText = new Map();
+export function duplicates(files: Record<string, string>, minimum = MIN_LINES) {
+  const byText = new Map<string, { lines: number; entries: Array<{ file: string; place: string }> }>();
   for (const [file, text] of Object.entries(files)) {
     for (const fn of functionsOf(text)) {
       if (fn.lines.length < minimum) continue;
       const key = fn.lines.join('\n');
-      if (!byText.has(key)) byText.set(key, { lines: fn.lines.length, entries: [] });
-      byText.get(key).entries.push({ file, place: `${file}:${fn.line} ${fn.name}` });
+      let group = byText.get(key);
+      if (!group) { group = { lines: fn.lines.length, entries: [] }; byText.set(key, group); }
+      group.entries.push({ file, place: `${file}:${fn.line} ${fn.name}` });
     }
   }
   return [...byText.values()]
@@ -92,7 +98,7 @@ test('the detector reads the modules of scripts/kit', () => {
 });
 
 test(`no function of scripts/kit of ${MIN_LINES} lines or more exists in two files`, () => {
-  const exempt = group => EXEMPT.some(entry => entry.files.join(',') === group.files.join(','));
+  const exempt = (group: { files: string[] }) => EXEMPT.some(entry => entry.files.join(',') === group.files.join(','));
   const found = duplicates(KIT_FILES).filter(group => !exempt(group));
   assert.deepEqual(found.map(group => `${group.lines} lines: ${group.places.join(' = ')}`), [], 'move the function into one module of scripts/kit and import it where it is used');
 });
@@ -105,7 +111,9 @@ test('every exemption names its files and a reason', () => {
 });
 
 test('the detector reads the functions of the modules of scripts/kit', () => {
-  const names = functionsOf(KIT_FILES['holder-lock.mts']).map(fn => fn.name);
+  const holderLock = KIT_FILES['holder-lock.mts'];
+  assert.ok(holderLock !== undefined, 'scripts/kit/holder-lock.mts was not read');
+  const names = functionsOf(holderLock).map(fn => fn.name);
   for (const expected of ['procStart', 'processStart', 'holderRunning', 'acquireHolderLock', 'removeDeadLock', 'main']) assert.ok(names.includes(expected), `${expected} in [${names.join(', ')}]`);
 });
 
@@ -116,15 +124,19 @@ test('the detector finds a copy that differs in name, whitespace, comments and e
   const different = original.replace('total > 10', 'total > 11').replace('sum(', 'other(');
   const found = duplicates({ 'a.mjs': original, 'b.mjs': renamed, 'c.mjs': different });
   assert.equal(found.length, 1, JSON.stringify(found));
-  assert.deepEqual(found[0].files, ['a.mjs', 'b.mjs']);
-  assert.equal(found[0].lines, 7);
+  const group = found[0];
+  assert.ok(group, 'the detector found no group of copies');
+  assert.deepEqual(group.files, ['a.mjs', 'b.mjs']);
+  assert.equal(group.lines, 7);
   assert.deepEqual(duplicates({ 'a.mjs': original, 'b.mjs': original }, 8), [], 'a function shorter than the minimum is not compared');
   assert.deepEqual(duplicates({ 'a.mjs': `${original}${original.replace('sum', 'sum2')}` }), [], 'a copy in the same file is not reported');
 });
 
 test('the detector keeps a comment marker inside a string', () => {
   const text = 'function url() {\n  const a = \'http://x\';\n  const b = "// not a comment";\n  const c = `a // b`;\n  return [a, b, c];\n}\n';
-  assert.deepEqual(functionsOf(text)[0].lines.slice(1, 4), ['const a = \'http://x\';', 'const b = "// not a comment";', 'const c = `a // b`;']);
+  const url = functionsOf(text)[0];
+  assert.ok(url, 'the detector found no function url');
+  assert.deepEqual(url.lines.slice(1, 4), ['const a = \'http://x\';', 'const b = "// not a comment";', 'const c = `a // b`;']);
 });
 
 test('the detector runs on a directory written to disk', (t) => {

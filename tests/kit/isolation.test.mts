@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|limepie)\b/i;
 
-const files = (directory) => readdirSync(path.join(ROOT, directory)).sort().flatMap((entry) => {
+const files = (directory: string): string[] => readdirSync(path.join(ROOT, directory)).sort().flatMap((entry) => {
   const relative = `${directory}/${entry}`;
   if (relative === 'tests/kit/fixture') return [];
   return statSync(path.join(ROOT, relative)).isDirectory() ? files(relative) : [relative];
@@ -19,12 +19,13 @@ const tools = files('scripts/kit');
 const sources = [...tools, ...files('tests/kit')].filter(file => /\.(mts|json|mk)$/.test(file) && file !== 'tests/kit/isolation.test.mts');
 
 test('a kit tool imports only Node built-ins and files of scripts/kit', () => {
-  const modules = tools.filter(name => name.endsWith('.mts'));
+  const modules = tools.filter((name: string) => name.endsWith('.mts'));
   // An empty selection would pass without checking anything, as it did when the tools were renamed (K71-1).
   assert.ok(modules.length > 0, 'the scan found the modules of scripts/kit');
   for (const file of modules) {
     const text = readFileSync(path.join(ROOT, file), 'utf8');
     for (const [, specifier] of text.matchAll(/(?:from|import\()\s*'([^']+)'/g)) {
+      if (specifier === undefined) throw new Error(`${file}: an import matched without its specifier`);
       const allowed = specifier.startsWith('node:') || (specifier.startsWith('./') && !specifier.slice(2).includes('..'));
       assert.ok(allowed, `${file} imports ${specifier}, which is neither a node: built-in nor a file of its directory`);
     }

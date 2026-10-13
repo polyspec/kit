@@ -7,6 +7,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -14,30 +15,30 @@ import { initRepository } from './sandbox-repository.mts';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** A temporary directory, removed with `t.after`. */
-function sandbox(t, prefix) {
+function sandbox(t: TestContext, prefix: string) {
   const directory = mkdtempSync(path.join(tmpdir(), prefix));
   t.after(() => removeSandbox(directory));
   return directory;
 }
 
 /** Runs git in `cwd` with the trace of every git process appended to `trace`; fails on a nonzero status. */
-function git(cwd, trace, ...args) {
+function git(cwd: string, trace: string, ...args: string[]) {
   const env = { ...process.env, GIT_TRACE2_EVENT: trace };
   const result = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
 }
 
 /** The argument lists of the child processes that the traced git commands started. */
-function children(trace) {
+function children(trace: string): string[] {
   return readFileSync(trace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
     .filter(event => event.event === 'child_start').map(event => event.argv.join(' '));
 }
 
 /** The children that run maintenance: `git maintenance run --auto --detach` and `git gc --auto` detach from the command. */
-const maintenance = (trace) => children(trace).filter(argv => /^git (maintenance|gc)\b/.test(argv));
+const maintenance = (trace: string) => children(trace).filter(argv => /^git (maintenance|gc)\b/.test(argv));
 
 /** A sandbox repository with files added. */
-function filled(t, trace) {
+function filled(t: TestContext, trace: string) {
   const root = sandbox(t, 'kit-sandbox-repository-');
   initRepository(root);
   for (let index = 0; index < 3; index += 1) writeFileSync(path.join(root, `file-${index}.txt`), `${index}\n`);

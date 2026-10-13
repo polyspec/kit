@@ -16,17 +16,20 @@ test('a failed removal names each entry still in the sandbox with its type and m
   let calls = 0;
   const failing = () => {
     calls += 1;
-    const error = new Error('directory not empty');
+    const error: NodeJS.ErrnoException = new Error('directory not empty');
     error.code = 'ENOTEMPTY';
     throw error;
   };
   assert.throws(() => removeSandbox(directory, { remove: failing }), (error) => {
+    assert.ok(error instanceof Error, 'the removal throws an Error');
     const message = error.message;
     assert.match(message, new RegExp(`^cannot remove ${directory.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(ENOTEMPTY: directory not empty\\); still in it: `));
     assert.match(message, /objects directory mtime \d{4}-\d{2}-\d{2}T[\d:.]+Z/, 'the entry of a subdirectory is named with its type and mtime');
     assert.match(message, /objects\/late\.pack file mtime \d{4}-\d{2}-\d{2}T[\d:.]+Z/);
     assert.match(message, new RegExp(`live processes of this process group: .*\\b${process.pid}\\b`), 'the test process is named among the live processes');
-    assert.equal(error.cause?.code, 'ENOTEMPTY', 'the original error is the cause');
+    const cause = error.cause;
+    assert.ok(cause instanceof Error && 'code' in cause, 'the original error is the cause');
+    assert.equal(cause.code, 'ENOTEMPTY', 'the original error is the cause');
     return true;
   });
   assert.equal(calls, 1, 'the removal runs once: no retry');

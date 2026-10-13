@@ -6,13 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { fileMessage, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
-const rules = message => messageFindings(message, CONFIG).map(found => found.rule);
+const rules = (message: string) => messageFindings(message, CONFIG).map(found => found.rule);
 
 test('a message with a subject, a blank line and a wrapped body passes', () => {
   assert.deepEqual(rules('feat(docs): Merge the document checks (#K7.1)\n\nReplace the checks of the\nrepositories.\n\nCo-Authored-By: Name <a@b.c>\n'), []);
@@ -24,6 +25,7 @@ test('commit-subject: the type, the scope and the id are required', () => {
     assert.deepEqual(rules(subject), ['commit-subject'], subject);
   }
   const [found] = messageFindings('chore(docs): Merge the checks (#K1)', CONFIG);
+  assert.ok(found, 'the subject has no finding');
   assert.equal(found.message, 'the subject is "chore(docs): Merge the checks (#K1)"; expected "type(scope): Subject (#id)" with a type of feat, fix, docs');
 });
 
@@ -40,7 +42,9 @@ test('commit-blank and commit-width: the body', () => {
   const wide = `feat(docs): Merge the checks (#K1)\n\n${'word '.repeat(15)}\nshort\n${'x'.repeat(100)}\n`;
   const found = messageFindings(wide, CONFIG);
   assert.deepEqual(found.map(entry => entry.rule), ['commit-width']);
-  assert.match(found[0].message, /^line 3 of the message has 75 characters; expected at most 72; wrap the body$/);
+  const width = found[0];
+  assert.ok(width, 'the wide body has no finding');
+  assert.match(width.message, /^line 3 of the message has 75 characters; expected at most 72; wrap the body$/);
   assert.deepEqual(rules(`feat(docs): Merge the checks (#K1)\n\n${'word '.repeat(14)}ab`), []);
 });
 
@@ -49,10 +53,10 @@ test('a message file loses its comment lines, and a merge commit is not checked'
   assert.equal(fileMessage('Merge branch x\n'), null);
 });
 
-function repository(t, messages) {
+function repository(t: TestContext, messages: string[]) {
   const root = tree(t, { 'config/commits.json': JSON.stringify(CONFIG) });
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  const git = (...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   messages.forEach((message, index) => {
     put(root, { [`f${index}.txt`]: String(index) });
     git('add', '-A');
@@ -90,7 +94,7 @@ test('a merge commit in the range is not checked', (t) => {
 
 test('the command checks a range or a message file and exits with the findings', (t) => {
   const { root } = repository(t, ['feat(docs): Start (#K1)', 'bad subject']);
-  const command = (...args) => spawnSync(process.execPath, ['scripts/kit/check-commits.mts', ...args], { cwd: root, encoding: 'utf8' });
+  const command = (...args: string[]) => spawnSync(process.execPath, ['scripts/kit/check-commits.mts', ...args], { cwd: root, encoding: 'utf8' });
   const range = command('--range', 'HEAD~1..HEAD');
   assert.equal(range.status, 1, range.stdout + range.stderr);
   assert.match(range.stderr, /\[check-commits\] \w+: commit-subject: the subject is "bad subject"/);
@@ -124,12 +128,12 @@ test('config/commits.json is validated against its schema', async () => {
 
 const TRACKED = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72, changelog: { path: 'CHANGELOG.md', translation: 'CHANGELOG.ko.md' } };
 const CHECKLIST = { schema: 1, hooks: ['pre-push'], trackers: [{ path: 'plan.md', format: 'table', states: ['[ ]', '[~]', '[o]'], active: '[~]', done: '[o]' }] };
-const plan = rows => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;
+const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;
 
-function tracked(t, steps) {
+function tracked(t: TestContext, steps: Array<[string, Record<string, string | null>]>) {
   const root = tree(t, { 'config/commits.json': JSON.stringify(TRACKED), 'config/checklist.json': JSON.stringify(CHECKLIST) });
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  const git = (...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   for (const [message, files] of steps) {
     put(root, files);
     git('add', '-A');

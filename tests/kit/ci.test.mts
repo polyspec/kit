@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mts';
 import { acquireHolderLock, HolderLockRefused, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
@@ -25,14 +26,17 @@ flags:
 \t@echo flags-ran
 `;
 
-function setup(t, files = {}) {
+// A target of record.json, as the tests read it.
+type TargetRecord = { name: string; status: string; log: string };
+
+function setup(t: TestContext, files: Record<string, string> = {}) {
   return tree(t, { Makefile: MAKEFILE, ...files });
 }
-async function run(root, targets, extra = {}) {
-  const printed = [];
-  const outputs = [];
-  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH }, print: line => printed.push(line), output: (text, stream) => outputs.push([stream, text]), ...extra });
-  const read = file => readFileSync(path.join(root, 'var/report/ci', file), 'utf8');
+async function run(root: string, targets: string[], extra: Partial<Parameters<typeof ciTargets>[0]> = {}) {
+  const printed: string[] = [];
+  const outputs: Array<[string, string]> = [];
+  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH }, print: (line: string) => printed.push(line), output: (text: string, stream: string) => outputs.push([stream, text]), ...extra });
+  const read = (file: string) => readFileSync(path.join(root, 'var/report/ci', file), 'utf8');
   return { status, printed, outputs, read, record: () => JSON.parse(read('record.json')) };
 }
 
@@ -43,7 +47,7 @@ test('every target runs to its end and the report holds a log, a record and a su
   assert.match(result.read('targets/good.log'), /^make --no-print-directory -k good\nran-good\n\[report\] make good exited with status 0\n$/);
   const record = result.record();
   assert.equal(record.result, 'passed');
-  assert.deepEqual(record.targets.map(target => [target.name, target.status, target.log]), [['good', 'passed', 'targets/good.log'], ['warn', 'passed', 'targets/warn.log']]);
+  assert.deepEqual(record.targets.map((target: TargetRecord) => [target.name, target.status, target.log]), [['good', 'passed', 'targets/good.log'], ['warn', 'passed', 'targets/warn.log']]);
   assert.deepEqual(record.environment, { node: 'v-test' });
   assert.deepEqual(record.reportErrors, []);
   assert.match(result.read('summary.md'), /^# make ci-targets good warn\n[\s\S]*2 of 2 targets passed, 0 failed, 0 not finished, 1 warning\.[\s\S]*\| good \| passed \| [\d.]+ s \|/);
@@ -58,7 +62,7 @@ test('a failed target does not stop the next one, and the report names its first
   const result = await run(root, ['bad', 'good']);
   assert.equal(result.status, 1);
   const record = result.record();
-  assert.deepEqual(record.targets.map(target => target.status), ['failed', 'passed']);
+  assert.deepEqual(record.targets.map((target: TargetRecord) => target.status), ['failed', 'passed']);
   assert.equal(record.result, 'failed');
   assert.deepEqual(record.targets[0].failures, ['src/a.js:3:1: rule: expected 1, actual 2', 'make bad exited with status 2']);
   const summary = result.read('summary.md');
@@ -97,8 +101,8 @@ test('a failed write of the report is recorded, every target still runs and the 
   const root = setup(t, { blocker: 'file' });
   const result = await run(root, ['good', 'flags'], { env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'blocker/summary.md') } });
   assert.equal(result.status, 1);
-  assert.deepEqual(result.record().targets.map(target => target.status), ['passed', 'passed']);
-  assert.ok(result.record().reportErrors.some(error => error.startsWith('report write failed: ') && error.includes('blocker/summary.md')), JSON.stringify(result.record().reportErrors));
+  assert.deepEqual(result.record().targets.map((target: TargetRecord) => target.status), ['passed', 'passed']);
+  assert.ok(result.record().reportErrors.some((error: string) => error.startsWith('report write failed: ') && error.includes('blocker/summary.md')), JSON.stringify(result.record().reportErrors));
   assert.ok(result.printed.some(line => line.includes('report writes failed')));
 });
 
@@ -154,8 +158,8 @@ test('a log above the limit keeps its head and its tail', (t) => {
 
 test('a report writer never throws and records a failed write', (t) => {
   const root = tree(t, { blocker: 'file' });
-  const printed = [];
-  const writer = reportWriter(line => printed.push(line));
+  const printed: string[] = [];
+  const writer = reportWriter((line: string) => printed.push(line));
   writer.write(path.join(root, 'blocker/x.json'), '{}');
   writer.append(path.join(root, 'blocker/y.md'), 'x');
   writer.write(path.join(root, 'ok/z.json'), '{}');
@@ -166,8 +170,8 @@ test('a report writer never throws and records a failed write', (t) => {
 
 test('the summary of a report is written again from its record, also for a run that stopped', async (t) => {
   const root = setup(t);
-  const printed = [];
-  assert.equal(ciSummary({ root, directory: 'var/report/ci', print: line => printed.push(line) }), 0);
+  const printed: string[] = [];
+  assert.equal(ciSummary({ root, directory: 'var/report/ci', print: (line: string) => printed.push(line) }), 0);
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /\*\*make ci-targets recorded no run\*\*/);
   const record = { title: 'make ci-targets a b', tree: 't1', result: 'incomplete', started: 's', ended: null, environment: {}, targets: [{ name: 'a', status: 'passed', elapsedMs: 1000 }, { name: 'b', status: 'running' }] };
   put(root, { 'var/report/ci/record.json': JSON.stringify(record) });
@@ -183,7 +187,7 @@ test('the summary of a report is written again from its record, also for a run t
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /recorded no run\*\* \(var\/report\/ci\/record\.json: /);
 });
 
-function command(root, args, env = {}) {
+function command(root: string, args: string[], env: Record<string, string> = {}) {
   return spawnSync(process.execPath, ['scripts/kit/ci-targets.mts', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 }
 
@@ -198,7 +202,7 @@ test('the command runs the targets, exits with the result and refuses a bad usag
   const summary = command(root, ['--summary', 'var/report/ci']);
   assert.equal(summary.status, 0, summary.stderr);
   assert.match(summary.stdout, /# make ci-targets good/);
-  for (const [args, message] of [[[], /usage: node scripts\/kit\/ci-targets\.mts/], [['var/report/ci'], /usage:/], [['var/report/ci', 'a/b'], /the target name "a\/b" is not a make target name/], [['var/report/ci', 'good', 'good'], /the target good is listed twice/]]) {
+  for (const [args, message] of [[[], /usage: node scripts\/kit\/ci-targets\.mts/], [['var/report/ci'], /usage:/], [['var/report/ci', 'a/b'], /the target name "a\/b" is not a make target name/], [['var/report/ci', 'good', 'good'], /the target good is listed twice/]] satisfies Array<[string[], RegExp]>) {
     const refused = command(root, args);
     assert.equal(refused.status, 2, `${args.join(' ')}: ${refused.stdout}${refused.stderr}`);
     assert.match(refused.stderr, message);
@@ -221,15 +225,17 @@ test('ci-passed fails for a job that failed, was skipped or was cancelled, and n
 });
 
 test('ci-passed judges nothing, and fails with status 2, for input that names no job', () => {
-  for (const [input, message] of [[undefined, /RESULTS is not set; the step passes the JSON of needs/], ['', /RESULTS is not set/], ['{oops', /RESULTS is not JSON: /], ['[]', /not a JSON object of jobs/], ['null', /not a JSON object of jobs/], ['{}', /RESULTS names no job: "\{\}"; list every other job of the workflow under needs/]]) {
+  for (const [input, message] of [[undefined, /RESULTS is not set; the step passes the JSON of needs/], ['', /RESULTS is not set/], ['{oops', /RESULTS is not JSON: /], ['[]', /not a JSON object of jobs/], ['null', /not a JSON object of jobs/], ['{}', /RESULTS names no job: "\{\}"; list every other job of the workflow under needs/]] satisfies Array<[string | undefined, RegExp]>) {
     const result = passed(input);
     assert.equal(result.status, 2, String(input));
-    assert.match(result.lines[0], message);
+    const first = result.lines[0];
+    assert.ok(first !== undefined, `ci-passed printed no line for ${String(input)}`);
+    assert.match(first, message);
   }
 });
 
 test('the ci-passed command writes annotations on GitHub Actions only', () => {
-  const run = env => spawnSync(process.execPath, [path.join(KIT, 'ci-passed.mts')], { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [path.join(KIT, 'ci-passed.mts')], { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
   const results = JSON.stringify({ a: { result: 'failure' } });
   const plain = run({ RESULTS: results });
   assert.equal(plain.status, 1);

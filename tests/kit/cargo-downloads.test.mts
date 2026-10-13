@@ -8,7 +8,7 @@ import { cargoDownloads, FIX } from '../../scripts/kit/check-cargo-downloads.mts
 import { fixtureCheckout as fixture } from './checkout.mts';
 
 // A cargo that logs its arguments and fails for a manifest named by MISSING with the error line of cargo.
-function cargoStub(root) {
+function cargoStub(root: string) {
   const bin = path.join(root, 'stub-bin');
   mkdirSync(bin, { recursive: true });
   const log = path.join(root, 'cargo.log');
@@ -24,8 +24,8 @@ case "$*" in *"$MISSING"*) echo "error: failed to download crate itoa v1.0.15" >
 test('every Cargo.lock is fetched offline and the check passes when every crate is downloaded', (t) => {
   const root = fixture(t);
   const stub = cargoStub(root);
-  const printed = [];
-  const { locks, failures } = cargoDownloads({ root, cargo: stub.cargo, env: { ...process.env, MISSING: 'none' }, print: line => printed.push(line) });
+  const printed: string[] = [];
+  const { locks, failures } = cargoDownloads({ root, cargo: stub.cargo, env: { ...process.env, MISSING: 'none' }, print: (line: string) => printed.push(line) });
   assert.deepEqual(locks, ['packages/fixture-rust/Cargo.lock']);
   assert.deepEqual(failures, []);
   assert.deepEqual(stub.calls(), ['cargo fetch --locked --offline --manifest-path packages/fixture-rust/Cargo.toml']);
