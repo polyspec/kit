@@ -6,12 +6,10 @@ import { chmodSync, cpSync, mkdirSync, symlinkSync, writeFileSync } from 'node:f
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { enginesFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
-import { PINS } from '../../scripts/kit/toolchain-pins.mts';
+import { toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { versionStubs } from './toolchain-stubs.mts';
-import { tree } from './tree.mts';
 import { KIT } from './kit-tools.mts';
 
 const NODE = process.versions.node;
@@ -180,23 +178,6 @@ test('uv is probed by its version line, and a uv of another release names the de
   assert.deepEqual(toolchainMismatches(['uv'], { root, env: same.env }), []);
   const older = versionStubs(t, { uv: 'uv 0.12.10 (4b53f66b7 2026-09-08 aarch64-apple-darwin)' });
   assert.deepEqual(toolchainMismatches(['uv'], { root, env: older.env }), ['uv: 0.12.10 runs here and config/toolchain.json uv declares 0.12.11; fix: make install-tools, and var/tools/bin first on PATH']);
-});
-
-// engines.node of every package.json is the floor of the Node.js pin of kit: `>=` the pin.
-test('every package.json of the checkout declares engines.node as >= the Node.js pin of kit', (t) => {
-  const root = tree(t, {
-    '.node-version': '26.8.1\n',
-    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0', engines: { node: '>=26.0.0' } }),
-    'packages/a/package.json': JSON.stringify({ name: 'a' }),
-    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.11.1' } }),
-    'packages/c/package.json': JSON.stringify({ name: 'c', engines: { node: '>=26.8.1' } }),
-    'tests/kit/fixture/package.json': JSON.stringify({ name: 'fixture' }),
-  });
-  assert.deepEqual(enginesFindings(root, PINS), [
-    'package.json: engines.node is ">=26.0.0"; kit pins node 26.11.1, so it must be ">=26.11.1"',
-    'packages/a/package.json: engines.node is missing; kit pins node 26.11.1, so it must be ">=26.11.1"',
-    'packages/c/package.json: engines.node is ">=26.8.1"; kit pins node 26.11.1, so it must be ">=26.11.1"',
-  ], 'the floor is the pin of kit, not .node-version');
 });
 
 test('the check fails on an engines.node that is not the floor of the pin, whichever tools run', (t) => {

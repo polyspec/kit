@@ -10,8 +10,8 @@
 // declared by minor release, so a patch release of the minor passes and the running patch is the evidence of the run; every other
 // tool is compared by its exact release. Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
-// every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor: engines.node of
-// every package.json is `>=` the Node.js pin. Each other declaration or floor is a finding.
+// every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor
+// (toolchain-floors.mts). Each other declaration or floor is a finding.
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
@@ -19,10 +19,8 @@ import { govulncheckCommand } from './install-govulncheck.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
-import { readJson } from './bootstrap/files.mts';
-import { checkedFiles } from './tracked-files.mts';
 import { PINS, pinFindings } from './toolchain-pins.mts';
-import type { Pins } from './toolchain-pins.mts';
+import { composerFindings, enginesFindings } from './toolchain-floors.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -119,16 +117,6 @@ export function toolchainMismatches(tools: string[], { root = ROOT, env = toolch
   return mismatches;
 }
 
-/** One line for each package.json of the checkout whose engines.node is not `>=` the Node.js pin of kit: the floor of every package equals the pin. */
-export function enginesFindings(root: string, pins: Pins): string[] {
-  const floor = `>=${pins.node}`;
-  return checkedFiles(root).filter(file => path.posix.basename(file) === 'package.json').flatMap((file) => {
-    const engines: unknown = readJson(root, file).engines?.node;
-    if (engines === floor) return [];
-    return [`${file}: engines.node is ${engines === undefined ? 'missing' : JSON.stringify(engines)}; kit pins node ${pins.node}, so it must be "${floor}"`];
-  });
-}
-
 const expectation = (entry: DeclaredTool) => (entry.minors ?? (entry.minor ? [entry.minor] : [entry.version])).join(' or ');
 
 if (isMain(import.meta.url)) {
@@ -139,7 +127,7 @@ if (isMain(import.meta.url)) {
     const mismatches = toolchainMismatches(tools);
     // Every declaration and every floor equals the pin of kit, whichever tools run.
     const pins = pinFindings(declaredToolchain(ROOT), PINS);
-    const floors = enginesFindings(ROOT, PINS);
+    const floors = [...enginesFindings(ROOT, PINS), ...composerFindings(ROOT, PINS)];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
