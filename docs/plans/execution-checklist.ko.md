@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: d8b6efd3386f7e213eb50a71086391c59262ebd0766c7653f39a126f27746c66 -->
+<!-- source-sha256: 9d389da36e62bd23f6cafc6ec5fdf508de88bb87eb97491ed8c934c106893e26 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -120,3 +120,4 @@
 | K65 | install-go는 Go toolchain을 scratch module 안에서 내려받습니다: 내려받기 directory에 낮은 Go의 go.mod를 쓰므로, 기계의 Go는 checkout의 go.mod를 읽지 않습니다. 그 go directive가 더 새 Go를 부르면 `GOTOOLCHAIN=local` 아래에서 내려받기 전에 설치가 멈추는데, release runner가 그것을 보였습니다. toolchain stub이 그 기계 Go처럼 거부하므로 고치기 전에는 test가 실패합니다. 원인: orm의 release runner가 release-tools의 toolchain module `go mod download`에서 멈췄습니다(orm T126). | `scripts/kit/install-go.mjs`, `tests/kit/toolchain-stubs.mjs` | `node --test tests/kit/install-tools.test.mjs`(고치기 전 실패 3, 고친 뒤 통과 22) | [o] |
 | K66 | release 단계는 release-tools가 설치한 도구로 실행됩니다: release workflow는 make target `release-tools-path`로 `var/tools/bin`을 뒤따르는 단계의 PATH에 올리고(`GITHUB_PATH`, runner가 단계 사이에 읽는 파일), release-tools 전에 `.php-version`의 PHP를 coverage driver 없이 설치하므로 Composer 증명은 선언된 PHP로 실행됩니다. 원인: orm의 release가 runner의 오래된 Go로 build했고, `require.php >=8.4`에 대해 runner의 PHP 8.3으로 Composer를 증명했습니다(orm T126). repository 자신의 build 요구(Go module, node module)는 kit이 추측하지 않고 그 repository의 `release-assets` 선행 조건이 선언합니다. | `workflows/release.yml`, `scripts/kit/kit.mk`, `tests/kit/release-workflow.test.mjs` | `node --test tests/kit/release-workflow.test.mjs`(고치기 전 실패 4, 고친 뒤 통과 4) | [o] |
 | K66-1 | release workflow test는 checkout이 가진 위치에서 workflow를 읽습니다: kit.json이 `workflows/release.yml`(kit)을 `.github/workflows/release.yml`(소비자)로 mapping하며, vendor된 test는 존재하는 쪽을 읽고 둘 다 없거나 둘 다 있으면 실패합니다. 원인: K66 test가 kit에만 있는 `workflows/release.yml`을 읽었으므로 `make kit-test`가 모든 소비자에서 실패했습니다(v0.0.29를 받은 orm에서 발견). | `tests/kit/release-workflow.test.mjs` | kit과 orm에서 `node --test tests/kit/release-workflow.test.mjs`(예전 test는 orm에서 실패하고 새 test는 양쪽에서 통과) | [o] |
+| K67 | kit은 release 전에 vendor하는 test를 소비자 배치에서 실행합니다: 검사가 tree를 sandbox 소비자에 sync하고(workflow는 `.github/workflows/release.yml`, script와 test는 `scripts/kit`와 `tests/kit` 아래) 그곳에서 `node --test tests/kit`를 실행합니다. 원인: kit이 vendor하는 test를 자기 배치에서만 실행했으므로 K66-1이 v0.0.29에 실려 나갔습니다. | `tests/kit/`, `Makefile` | K66-1 이전의 K66 test에서 검사가 실패한다 | [ ] |
