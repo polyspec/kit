@@ -5,7 +5,7 @@
 // directories in var/), and a real unittest case in tests/kit/parity.test.mts failed in flowmark, which cannot install
 // the Python it asked for.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -53,6 +53,10 @@ test('in a checkout without var/, every vendored test passes', { timeout: KIT_TE
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
   commitSandbox(sandbox);
+  // A fresh checkout has run npm ci, which the tools need since K73, and not make install-tools, which creates var/. The
+  // node_modules of kit is a link here, which the /node_modules/ of .gitignore, a directory pattern, does not match.
+  appendFileSync(path.join(sandbox, '.git/info/exclude'), '/node_modules\n');
+  symlinkSync(path.join(ROOT, 'node_modules'), path.join(sandbox, 'node_modules'));
   const { output, passed } = await runKitTest(sandbox, t.signal);
   assert.ok(passed > 0, 'the vendored tests ran');
   assert.deepEqual(failedCases(output).map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
