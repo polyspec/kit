@@ -86,7 +86,8 @@ function plan(config: ReleaseConfig, version: string): [ConsumerKind, Consumer, 
 /** Requires `directory` to hold exactly the archives of `version`; the names of the archives. */
 export function requireArchives(config: ReleaseConfig, version: string, directory: string, where: string) {
   const expected = [...assetNames(config, version)].sort();
-  const actual = existsSync(directory) ? readdirSync(directory).sort() : [];
+  if (!existsSync(directory)) throw new Stop(`${where} does not exist; it holds the archives of ${version}: [${expected.join(', ')}]`);
+  const actual = readdirSync(directory).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Stop(`${where} holds [${actual.join(', ')}], the archives of ${version} are [${expected.join(', ')}]`);
   }
