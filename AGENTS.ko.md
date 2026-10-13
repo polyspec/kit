@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 9e82fecb6ea55b37550c01f48892df4eaa7aa095a775ce5867b5dd2892a74181 -->
+<!-- source-sha256: 4bf9f6823e853754f7b4322fa014b6589183b083084d6b6320746891c516c69e -->
 # 개발
 
 [English](AGENTS.md)
@@ -47,7 +47,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
-  case는 자기 timeout을 가집니다. 네트워크 조회는 `dependency-review`, `kit-sync`, 설치 도구만 하고, 결과는 commit된 기록입니다.
+  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`dependency-review`, `python-lock`,
+  `install-tools`, `release-tools`, `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`)만
+  하고, 결과는 commit된 기록이나 var/tools의 설치입니다.
 - dependency advisory는 갱신으로 고칩니다. 어떤 release도 고치지 않는 advisory는 `config/dependency-policy.json`의
   `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review와 gate가 받아들였다고 출력합니다. 숨기지
   않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/tool-inventory.md, Accepted advisories).
