@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: cef152ba5311a983f34c3b10c262c256a03d4b6f42f453868ce4a79d3318d700 -->
+<!-- source-sha256: f6cc2970d1ba810aab2918a6a10adbd6cf4948a26f5c4df2b0bbc66574c7afcb -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -95,7 +95,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   spec anchor를 인용하는 선언된 profile이며, exclusion은 제거될 때까지 실패하는 부채입니다.
 - S7 test 위치: 기본 기능의 test는 그 기능을 소유한 package와 repository에 둡니다. 소비자는 소비자 관점의 test만 둡니다.
 - S8 이상한 점의 보고는 "책임"의 두 번째 항목이며, 어떤 tool도 이를 강제할 수 없습니다. S8이 더하는 것: 모든 예외,
-  profile, rebuild 기록은 이유와 owner의 필수 review를 가집니다.
+  profile, rebuild 기록은 선언된 자리에 이유를 가집니다.
 - S9 kit을 포함한 언어 간 orchestration과 check는 TypeScript로 쓰고, `tsc`가 `erasableSyntaxOnly`로 검사합니다. 예외: 한
   언어의 구현을 구동하는 harness는 그 언어의 test이고, 언어별 정적 check는 그 생태계 analyzer의 plugin이며, symbol
   추출기는 그 생태계의 tool을 돌립니다.

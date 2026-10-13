@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: f9d761315a0e2ce937885a19880a03434794e8b9623db0259f61879bd5f0e580 -->
+<!-- source-sha256: 4b17acb4630ce1edc1910f30b1511217fc0b85ca31ed15353c91742e0ea686ba -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -176,4 +176,4 @@
 | K114 | `dependency-state`의 pyproject 읽기는 유효한 requirement 형태를 모두 읽거나 그 형태를 이름으로 대며 실패합니다: 작은따옴표 pin, 따옴표 친 extra key, inline table의 extra, dotted `build-system.requires`; 주석 안의 pin은 읽지 않으며, 문자열 안의 `]`가 목록을 자르지 않습니다. 원인: `pythonRequirements`가 pyproject를 정규식으로 읽어 형태를 조용히 버렸습니다. K73 비교에서 찾았습니다. K73의 smol-toml 교체로 고치며, case는 그 test에 들어갑니다. | K73 dependency-state test | 정규식에서 실패하고 smol-toml에서 통과하는 case | [ ] |
 | K115 | version 비교는 각 생태계의 규칙을 따릅니다: prerelease는 그 release보다 오래되었고, `3.11`은 `3.9`보다 새롭고, `1.0.post1`은 `1.0`보다 새롭고, 네 번째 segment도 세며, PEP 440 `rc`/`b`/`dev`는 prerelease입니다. 원인: `older`가 두 부분 version을 text로 비교하고 prerelease 부분을 무시했으며, `isPrerelease`가 PEP 440 표시를 놓쳤습니다(실제 기록에 `pycparser 3.11`이 있습니다). K73 비교에서 찾았습니다. K73의 생태계별 comparator로 고치며, case는 그 test에 들어갑니다. | K73 version test | `version.mts`에서 실패하고 semver와 pep440에서 통과하는 case | [ ] |
 | K116 | 중첩 brace를 가진 glob은 throw하지 않고 그 전개로 match합니다. K73의 picomatch 비교에서 찾았습니다. K73의 picomatch 교체로 고치며, case는 그 test에 들어갑니다. | K73 glob test | `glob.mts`에서 throw하고 picomatch에서 match하는 case | [ ] |
-| K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [ ] |
+| K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [o] |

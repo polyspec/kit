@@ -1,5 +1,5 @@
 <!-- doc-id: standards-enforcement -->
-<!-- source-sha256: fc34b539a67a10ecd066b1dfb8e11c53819993dda21f1b03fcd096bd2138245a -->
+<!-- source-sha256: 6a098f64d429f33fc174756e3083ae14e9554c8a189454d87103a7ee44bab949 -->
 # Standards enforcement 계획
 
 [English](standards-enforcement.md)
@@ -93,9 +93,9 @@ AGENTS.md와 AGENTS.ko.md는 이 문서를 참조만 하고 내용을 복사하�
 | S3 | **test runner.** test는 생태계 표준 runner로만 돈다: `node --test`, vitest, PHPUnit, `go test`, `cargo test` / nextest, unittest. 자체 PASS/FAIL protocol, `check()` helper, 파일을 하나씩 잇는 chain을 쓰지 않는다. test는 설치된 package를 대상으로 돈다. `PYTHONPATH`, `sys.path` 변경, 레포를 벗어나는 경로를 쓰지 않는다. | kit이 runner별 test 파일 규약을 고정한다(`*.test.{ts,mjs}`, `*Test.php`, `*_test.go`, `tests/`와 `#[test]`, `test_*.py`). 레포 선언은 파일을 더할 수만 있고 좁힐 수 없다. test root 아래에서 test API를 import하는 파일은 모두 binding에 속해야 한다. parity R3, R5; ruff TID251 `sys.path`, 중첩된 `[tool.ruff]`는 반드시 root를 `extend`; parity schema와 layout 도구가 `env`, Makefile, 설정의 `PYTHONPATH`와 레포 밖 경로를 거부 |
 | S4 | **버전.** lock의 모든 의존성이 동작함을 보인 뒤에만 버전을 정한다. LTS가 있는 생태계(Node, Symfony)는 최신 LTS를 쓴다. 그 밖에는 의존성이 지원하는 최신 stable을 쓴다. LTS에 근접한 더 새 non-LTS는 허용한다. 선언 하한은 pin 정밀도로 pin과 같다. 모든 레포가 같은 pin을 쓴다. 예외는 범위, 이유, 재시도 조건과 함께 선언한다. source build로 조용히 fallback하지 않는다. | kit이 pin을 data로 배포한다. 레포는 쓰는 도구와 예외만 선언한다. `check-toolchain`이 모든 manifest 하한을 pin과 비교한다(새 TypeScript key 포함). uv `no-build`, npm `engine-strict`, Composer `config.platform.php`. CI가 pin에서 전체 suite를 돈다. |
 | S5 | **폴더.** 모든 monorepo가 한 폴더 구조를 쓴다(아래). | layout 도구(§1.4) |
-| S6 | **언어 parity.** 레포의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test한다. 영구 차이는 parity `profile`이나 `nativeOnly` 항목으로 두고, 그 이유는 도구가 확인하는 spec anchor(`contracts/…#id` 또는 `docs/spec/…#id`)를 인용해야 한다. `exclusion`은 제거될 때까지 실패하는 임시 부채다(kit parity R8). | kit parity 확장(§1.3); `config/parity.json`과 `config/layout.json`에 `CODEOWNERS`와 소유자 필수 review |
+| S6 | **언어 parity.** 레포의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test한다. 영구 차이는 parity `profile`이나 `nativeOnly` 항목으로 두고, 그 이유는 도구가 확인하는 spec anchor(`contracts/…#id` 또는 `docs/spec/…#id`)를 인용해야 한다. `exclusion`은 제거될 때까지 실패하는 임시 부채다(kit parity R8). | kit parity 확장(§1.3) |
 | S7 | **test 위치.** 기본 기능의 test는 그 기능을 소유한 package와 레포에 둔다. 소비자는 소비자 관점의 test만 둔다. | 한 레포 안에서는 parity R6와 layout 도구. 다른 레포의 vector나 fixture를 읽는 test는 S3의 경로 규칙이 잡는다. 소유자의 assertion을 말만 바꿔 반복하는 소비자 test는 도구로 찾을 수 없어 review로 찾아 기록한다 |
-| S8 | **이유와 review.** 이상한 점의 보고는 PRINCIPLES "책임"의 두 번째 항목이므로 다시 적지 않는다. S8은 모든 예외, profile, rebuild 기록이 이유와 소유자 필수 review를 가진다는 것을 더한다. | 보고 자체는 어떤 도구로도 강제할 수 없고, 계획은 이를 그대로 적는다. 도구가 맡는 부분은 모든 예외, profile, rebuild 기록에 이유와 소유자 필수 review를 요구하는 것이다 |
+| S8 | **이유.** 이상한 점의 보고는 PRINCIPLES "책임"의 두 번째 항목이므로 다시 적지 않는다. S8은 모든 예외, profile, rebuild 기록이 선언된 자리에 이유를 가진다는 것을 더한다(K117). | 보고 자체는 어떤 도구로도 강제할 수 없고, 계획은 이를 그대로 적는다. 도구가 맡는 부분은 모든 예외, profile, rebuild 기록에 이유를 요구하는 것이다 |
 | S9 | **인프라 언어 하나.** kit을 포함한 언어 간 orchestration과 check는 TypeScript로 쓴다. Node 26은 레포 안의 `.ts`를 바로 실행한다(type stripping). `tsc` 7이 `noEmit`, `erasableSyntaxOnly`, `allowImportingTsExtensions`, `verbatimModuleSyntax`로 검사한다. Node는 `node_modules` 안에서 type을 지우지 않으므로, kit package는 `tsc` 7 출력(JS와 `.d.ts`)으로 배포한다. | layout 도구가 인프라 경로의 비-TS 스크립트를 실패시킨다. 선언된 예외: (a) 한 언어의 구현을 구동하는 harness는 그 언어의 test이므로 소유 package에 둔다; (b) 언어별 정적 check는 그 생태계 analyzer(golangci-lint, PHPStan)의 plugin으로 둔다; (c) symbol 추출기는 그 생태계 도구를 돌려 JSON을 낸다 |
 
 ### S5: 폴더 구조
