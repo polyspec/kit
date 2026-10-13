@@ -5,9 +5,9 @@
 // release is kept. The alint of the machine is never used.
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { fileDigest } from './digest.mts';
-import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { fileDigest } from './bootstrap/digest.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
+import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 // The target of the alint archive of each platform key (process.platform-process.arch) that the declaration may name. The
 // Linux archives are the static musl builds, the only Linux builds of a release.

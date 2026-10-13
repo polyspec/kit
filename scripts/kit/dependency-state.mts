@@ -20,8 +20,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { checkedFiles } from './tracked-files.mts';
-import { readJson } from './files.mts';
-import { toolchainConfig } from './toolchain-declared.mts';
+import { readJson } from './bootstrap/files.mts';
+import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { readPylock } from './pylock.mts';
 
 export const POLICY = 'config/dependency-policy.json';

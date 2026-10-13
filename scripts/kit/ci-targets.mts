@@ -22,7 +22,7 @@ import { toolchainVersions } from './check-toolchain.mts';
 import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mts';
 import type { RunRecord, UnreadRecord } from './target-report.mts';
 import { isMain, ROOT } from './paths.mts';
-import { jsonText, readJson } from './files.mts';
+import { jsonText, readJson } from './bootstrap/files.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 // The toolchains whose releases the record of a run names.

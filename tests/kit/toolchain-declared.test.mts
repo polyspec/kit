@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../../scripts/kit/schema-validate.mts';
-import { declaredToolchain } from '../../scripts/kit/toolchain-declared.mts';
+import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { FIXTURE_CONFIG, fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
 
 const SCHEMA = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema/toolchain.schema.json'), 'utf8'));

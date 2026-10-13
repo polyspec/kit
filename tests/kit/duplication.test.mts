@@ -90,11 +90,13 @@ export function duplicates(files: Record<string, string>, minimum = MIN_LINES) {
     .map(group => ({ lines: group.lines, files: [...new Set(group.entries.map(entry => entry.file))].sort(), places: group.entries.map(entry => entry.place) }));
 }
 
-const KIT_FILES = Object.fromEntries(readdirSync(KIT).filter(name => name.endsWith('.mts')).sort().map(name => [name, readFileSync(path.join(KIT, name), 'utf8')]));
+// The modules of scripts/kit and of its bootstrap directory, by their path below scripts/kit.
+const KIT_FILES = Object.fromEntries(['', 'bootstrap/'].flatMap(directory => readdirSync(path.join(KIT, directory)).filter(name => name.endsWith('.mts')).sort().map(name => [`${directory}${name}`, readFileSync(path.join(KIT, directory, name), 'utf8')])));
 
 test('the detector reads the modules of scripts/kit', () => {
   // An empty selection would pass without comparing anything, as it did when the tools were renamed (K71-1).
   assert.ok(Object.keys(KIT_FILES).length > 0, 'the modules of scripts/kit were read');
+  assert.ok(Object.keys(KIT_FILES).some(name => name.startsWith('bootstrap/')), 'the modules of scripts/kit/bootstrap were read');
 });
 
 test(`no function of scripts/kit of ${MIN_LINES} lines or more exists in two files`, () => {

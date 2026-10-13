@@ -6,8 +6,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CONFIG, documentsOf } from './check-documents.mts';
-import { sha256 } from './digest.mts';
-import { readJson, writeAtomic } from './files.mts';
+import { sha256 } from './bootstrap/digest.mts';
+import { readJson, writeAtomic } from './bootstrap/files.mts';
 import { proseLines } from './markdown.mts';
 import { isMain, ROOT } from './paths.mts';
 

@@ -6,8 +6,8 @@
 // holds no symbolic link. An installed release is kept, and the Composer of the machine is never used.
 import { copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
+import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 /** Installs the declared PHPUnit `{ version, manifest }` into var/tools/phpunit of `root` and writes the wrapper. */
 export function installPhpunit({ root, declared, print = () => {} }: { root: string; declared: { version: string; manifest: string }; print?: (text: string) => void }) {

@@ -4,7 +4,7 @@
 // changes its result (AGENTS, "Idempotency").
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { sha256 } from './digest.mts';
+import { sha256 } from './bootstrap/digest.mts';
 import { git } from './git.mts';
 import { ROOT } from './paths.mts';
 

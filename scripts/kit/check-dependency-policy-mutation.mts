@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD } from './dependency-state.mts';
-import { readJson, writeJson } from './files.mts';
+import { readJson, writeJson } from './bootstrap/files.mts';
 import { isMain, ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 

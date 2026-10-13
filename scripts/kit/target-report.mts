@@ -11,7 +11,7 @@
 import { spawn } from 'node:child_process';
 import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import path from 'node:path';
-import { writeAtomic } from './files.mts';
+import { writeAtomic } from './bootstrap/files.mts';
 import { git } from './git.mts';
 import { seconds } from './time.mts';
 

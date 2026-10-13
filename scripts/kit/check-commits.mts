@@ -25,7 +25,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, ROOT } from './paths.mts';
 import { loadConfig, readChecklist, CONFIG as CHECKLIST } from './checklist.mts';
-import { readJson } from './files.mts';
+import { readJson } from './bootstrap/files.mts';
 import { git, gitResult } from './git.mts';
 
 export const CONFIG = 'config/commits.json';

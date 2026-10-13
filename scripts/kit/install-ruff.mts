@@ -5,10 +5,10 @@
 // is kept. The Python of the machine is never used.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './install-tool.mts';
-import type { PlatformRelease } from './toolchain-declared.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
+import type { PlatformRelease } from './bootstrap/toolchain-declared.mts';
 import { installBackend } from './release-backend.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 /** Installs the declared ruff `{ version, sha256, source }` into var/tools/python of `root` and writes the wrapper. */
 export function installRuff({ root, declared, print = () => {} }: { root: string; declared: PlatformRelease; print?: (text: string) => void }) {

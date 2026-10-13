@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
-import { sha256 } from '../../scripts/kit/digest.mts';
+import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { Stop, run } from '../../scripts/kit/process.mts';
 import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';

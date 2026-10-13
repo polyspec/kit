@@ -16,7 +16,7 @@ import path from 'node:path';
 import type { TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
-import { fileDigest } from '../../scripts/kit/digest.mts';
+import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import { releaseSandbox } from './release-sandbox.mts';
 import type { ReleaseSandboxOptions } from './release-sandbox.mts';
 import { PIP_FUNCTIONS } from './wheel-stubs.mts';

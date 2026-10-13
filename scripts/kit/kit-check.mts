@@ -10,8 +10,8 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { validate } from './schema-validate.mts';
 import { isMain, ROOT } from './paths.mts';
-import { fileDigest } from './digest.mts';
-import { readJson } from './files.mts';
+import { fileDigest } from './bootstrap/digest.mts';
+import { readJson } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 
 export const LOCK = '.kit/kit.lock.json';

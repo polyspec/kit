@@ -10,7 +10,7 @@ import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PRE_PUSH_HOOK } from './checklist.mts';
 import { isMain, ROOT } from './paths.mts';
-import { writeAtomic } from './files.mts';
+import { writeAtomic } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 
 export const HOOKS_PATH = '.githooks';

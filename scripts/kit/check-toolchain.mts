@@ -11,10 +11,10 @@
 // tool is compared by its exact release. Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails.
 import path from 'node:path';
-import { declaredToolchain } from './toolchain-declared.mts';
+import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
-import { RELEASE_OUTPUT, toolsPath } from './tool-wrappers.mts';
+import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 

@@ -4,8 +4,8 @@
 // of the machine selects no other toolchain). An installed release is kept. The Go of the machine is never changed.
 import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
+import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 const ARCHITECTURES: Partial<Record<string, string>> = { x64: 'amd64', arm64: 'arm64' };
 const SYSTEMS = new Set(['darwin', 'linux']);

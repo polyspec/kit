@@ -31,8 +31,8 @@ import { createProgress } from './test-progress.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
-import { toolsPath } from './tool-wrappers.mts';
-import { writeJson } from './files.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { writeJson } from './bootstrap/files.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 

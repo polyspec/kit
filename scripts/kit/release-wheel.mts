@@ -6,9 +6,9 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileDigest } from './digest.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { run, Stop } from './process.mts';
-import { toolsPath } from './tool-wrappers.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 
 /** buildBackend of config/release.json: the pinned requirement of the build backend and the sha256 of its wheel. */
 export interface BuildBackend {

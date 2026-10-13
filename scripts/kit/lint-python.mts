@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
-import { toolchainConfig } from './toolchain-declared.mts';
+import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 
 /** The steps of the lint of `root`: `{ label, command, args }`; throws when the checkout declares no ruff or has none installed. */
 export function lintSteps(root: string): { label: string; command: string; args: string[] }[] {

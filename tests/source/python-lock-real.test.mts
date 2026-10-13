@@ -12,7 +12,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readPylock } from '../../scripts/kit/pylock.mts';
 import { checkPythonLock, writePythonLock } from '../../scripts/kit/python-lock.mts';
-import { toolsPath } from '../../scripts/kit/tool-wrappers.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = `var/python-lock-real-${process.pid}`;

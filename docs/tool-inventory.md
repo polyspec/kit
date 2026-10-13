@@ -34,7 +34,7 @@ repositories (lines).
 ## Toolchains (K8.2)
 
 `scripts/kit/install-tools.mts` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mts`
-compares the running tools with the declarations. `scripts/kit/toolchain-declared.mts` reads the declarations, and each
+compares the running tools with the declarations. `scripts/kit/bootstrap/toolchain-declared.mts` reads the declarations, and each
 installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`;
 cargo-audit and govulncheck keep `install-cargo-audit.mts` and `install-govulncheck.mts`). Every installer uses
 `install-tool.mts`: the release is built beside the target, checked there and renamed, so a second run changes nothing.

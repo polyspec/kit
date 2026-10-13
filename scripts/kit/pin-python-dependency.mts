@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isMain } from './paths.mts';
-import { writeAtomic } from './files.mts';
+import { writeAtomic } from './bootstrap/files.mts';
 
 /** The text of the file with the pin of `name` set to `version`; the number of replacements is returned with it. */
 export function pinPythonRequirement(text: string, name: string, version: string): { text: string; count: number } {
