@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/commits.json",
-  "description": "The rules of a commit message, read by scripts/kit/check-commits.mjs: the subject is type(scope): Subject (#id), then a blank line and a body.",
+  "description": "The rules of a commit message, read by scripts/kit/check-commits.mts: the subject is type(scope): Subject (#id), then a blank line and a body.",
   "type": "object",
   "required": ["schema", "types", "subjectMax", "bodyMax"],
   "additionalProperties": false,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/parity.json",
-  "description": "The language-parity declaration, read by scripts/kit/parity.mjs: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings, reads the symbol snapshots and the error-code artifacts.",
+  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings, reads the symbol snapshots and the error-code artifacts.",
   "type": "object",
   "required": ["schema", "implementations", "profiles", "testPatterns", "units"],
   "additionalProperties": false,
@@ -17,7 +17,7 @@
         "additionalProperties": false,
         "properties": {
           "name": { "description": "The name of the implementation, used by the profiles, bindings and documents.", "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "runner": { "description": "How a binding runs and reads its outcomes, through the output parsers of scripts/kit/test-output.mjs: go (go test -json), cargo (cargo test), node (node --test with the TAP reporter), php (PHPUnit of the Composer package of the test, TeamCity messages) and python (var/tools/bin/python3 -m unittest -v). A case is a subtest, a test named by the case, or a test method test_<case>.", "type": "string", "enum": ["go", "cargo", "node", "php", "python"] },
+          "runner": { "description": "How a binding runs and reads its outcomes, through the output parsers of scripts/kit/test-output.mts: go (go test -json), cargo (cargo test), node (node --test with the TAP reporter), php (PHPUnit of the Composer package of the test, TeamCity messages) and python (var/tools/bin/python3 -m unittest -v). A case is a subtest, a test named by the case, or a test method test_<case>.", "type": "string", "enum": ["go", "cargo", "node", "php", "python"] },
           "roots": { "description": "The directories that hold the implementation and its tests; the whole repository is no root.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "tests": { "description": "Globs of the test files of the implementation; each one, except a file of its support globs, must be the test of a binding.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "support": { "description": "Globs of the test-support files of the implementation: files in its roots that its tests or the testPatterns of its runner select but that hold no test, such as a Go helper that must end in _test.go. A support file is no test of a binding; a Go support file declares no function that go test runs, a cargo support file holds no test attribute, and parity-check runs each node, php and python support file once and fails when it reports a case. Each glob selects at least one such file.", "type": "array", "items": { "type": "string" } },

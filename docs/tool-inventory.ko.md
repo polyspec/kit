@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f846a41120c3ccef785b4addd498e252a9cf0747030ae443b6e665d9abbdcef1 -->
+<!-- source-sha256: 4975f51ffb3cb36138c9e097194abc2f35dd7d3655b4201ae3df2f27c68211e2 -->
 
 # 도구 목록
 
@@ -11,16 +11,16 @@
 
 | 도구 | template | crudui | hyper | ordered-json | orm | kit의 기반 |
 |---|---|---|---|---|---|---|
-| release | `scripts/release.mjs` 388 | 357 | 317 | `scripts/release.py` 383 | `scripts/release/release.mjs` 302 | template, ordered-json의 Go tag 규칙 포함 |
-| push-gate | 125 | 149 | 121 | `push_gate.py` 192 | `scripts/check/push-gate.mjs` 121 | crudui |
-| full-run | 199 | 240 | 246 | `full_run.py` 285 | `scripts/check/full-run.mjs` 328 | orm |
+| release | `scripts/release.mts` 388 | 357 | 317 | `scripts/release.py` 383 | `scripts/release/release.mts` 302 | template, ordered-json의 Go tag 규칙 포함 |
+| push-gate | 125 | 149 | 121 | `push_gate.py` 192 | `scripts/check/push-gate.mts` 121 | crudui |
+| full-run | 199 | 240 | 246 | `full_run.py` 285 | `scripts/check/full-run.mts` 328 | orm |
 | git-hooks | 27 | 없음 | 28 | 없음 | 없음 | hyper |
 | holder-lock | 134 | 275 | 111 | 없음 | 없음 | crudui |
 | check-documents | 151 | 95 | 70 | `docs_check.py` | 없음 | template |
 | owner-check | 219 | 254 | 178 | `owner_check.py` 171 | 없음 | crudui |
 | run-tests | 289 | 282 | 159 | `test.py` | 없음 | template |
 | target-report, ci-targets | 100, 52 | 73, 47 | 없음 | `ci_run.py` | 없음 | template |
-| ci-passed | 36 | 39 | 없음 | `ci_run.py` | `scripts/check/ci-passed.mjs` 32 | template |
+| ci-passed | 36 | 39 | 없음 | `ci_run.py` | `scripts/check/ci-passed.mts` 32 | template |
 | install-tools | 189 | 없음 | 없음 | `toolchains.py` | 없음 | template |
 | 의존성 상태, 검토, 게이트 | v0.0.2부터 kit에 있음 | 317, 288, 185 | 없음 | 없음 | 없음 | crudui, kit과 병합 |
 | github-ruleset | 182 | 없음 | 164 | 없음 | 없음 | 제거(0.x에는 ruleset이 없음) |
@@ -34,10 +34,10 @@
 
 ## Toolchain (K8.2)
 
-`scripts/kit/install-tools.mjs`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mjs`는 실행 중인
-도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mjs`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-uv.mjs`, `install-composer.mjs`, `install-phpunit.mjs`; cargo-audit와 govulncheck는 기존
-`install-cargo-audit.mjs`, `install-govulncheck.mjs`를 씁니다). 모든 installer는 `install-tool.mjs`를 씁니다. release를 대상
+`scripts/kit/install-tools.mts`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mts`는 실행 중인
+도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mts`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
+(`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
+`install-cargo-audit.mts`, `install-govulncheck.mts`를 씁니다). 모든 installer는 `install-tool.mts`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
 
@@ -48,10 +48,10 @@
 `var/tools` 아래에 두는 Go toolchain도 그중 하나입니다. govulncheck는 이를 거부하므로(`outside main module`) 모든 RECORD 실행이
 실패했습니다. `./...`은 디렉터리를 제외할 수 없으므로, `var/`를 포함한 module은 작업 디렉터리와 상관없이 그것을 걷습니다.
 
-- `goPackagePatterns`(`dependency-state.mjs`)는 module의 추적되거나 새로운 `.go` 파일마다 디렉터리를 `./...`의 규칙으로 고릅니다.
+- `goPackagePatterns`(`dependency-state.mts`)는 module의 추적되거나 새로운 `.go` 파일마다 디렉터리를 `./...`의 규칙으로 고릅니다.
   이름이 `.` 또는 `_`로 시작하는 디렉터리, `testdata`, `vendor`는 건너뛰며, 하위 nested module(자체 `go.mod`)의 디렉터리도
   건너뜁니다. `checkedFiles`가 `var/`, `node_modules`, `.tools`를 제외하므로, 설치나 출력의 디렉터리는 명시되지 않습니다.
-- `goPackages`(`dependency-review.mjs`)는 그 패턴에 `go list -e`를 실행하고, 빌드 가능한 파일이 있는 package의 import path만
+- `goPackages`(`dependency-review.mts`)는 그 패턴에 `go list -e`를 실행하고, 빌드 가능한 파일이 있는 package의 import path만
   남깁니다. `./...`은 파일이 모두 build 제약으로 제외되는 디렉터리(예: `//go:build ignore` 생성기)를 건너뛰고, govulncheck는 그
   패턴을 거부하므로 조회도 같은 방식으로 뺍니다. 빌드 가능한 package가 없는 module에는 취약점이 없습니다. 그 안의 코드가 취약한
   함수를 호출하지 않기 때문입니다.
@@ -98,7 +98,7 @@
   같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
 - Python (K64): `pythonBuild`는 `python` minor의 정확한 `version`을 가리키며, `config/toolchain.json`의 `uv`가 선언되어 있어야 합니다. uv가 Python을 설치합니다. `install-tools`는 uv를 먼저 설치하고 `var/tools/bin/uv python install --no-bin <version>`을 실행합니다. uv는 고정된 release가 그 version에 지정한 python-build-standalone build를 내려받고(uv 0.12.24는 20261003의 3.14.8을 지정), uv가 기록한 sha256을 확인한 뒤 `var/tools/uv-python`에 uv의 배치 그대로 link까지 포함해 설치합니다(minor directory `cpython-3.14-<platform>`은 patch directory로의 uv link입니다). `--no-bin`은 그 directory 밖에 명령을 쓰지 않습니다. `uv python find --managed-python --no-project <version>`이 interpreter를 가리키고, wrapper `var/tools/bin/python3`은 그 절대 경로로 실행합니다. 두 번째 실행은 그것을 찾고 아무것도 설치하지 않습니다. uv는 자기 Python을 externally managed(PEP 668)로 표시하므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/uv-python` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
 - Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
-- Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mjs`)는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
+- Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
 - ruff: ruff의 virtual environment는 `var/tools/bin/python3`으로 `uv venv`가 만들고, `uv pip install --no-index --no-deps`가 확인된 wheel을 그 안에 설치합니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
@@ -132,14 +132,14 @@
   읽지 않습니다.
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
-파일: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`,
+파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed`입니다.
 lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합을 기반으로 삼았습니다.
 
 ### 정책
 
 tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. 대기 `[ ]`, 완료
-`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mjs`, `config/commits.json`)의
+`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
 규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
 0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
 각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
@@ -181,12 +181,12 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | 한국어 짝은 같은 ID를 같은 순서로, 같은 state로 가져야 함 | orm, ordered-json(문서 검사) | 짝을 같은 parser로 읽으므로 gate와 guard도 다른 짝을 거부, 나머지 규칙(marker, 우회 문구)은 K7의 문서 검사가 유지 |
 | 거부 메시지가 파일, ID, 제목, 위치(push하는 ref와 commit 또는 working tree)를 적음 | 전체 | 유지, 어떤 state가 막고 어떤 state가 막지 않는지도 적음, commit은 12자로 표시(ordered-json, orm, template과 hyper는 7자) |
 | `commit <rev>`는 줄마다 GitHub annotation을 출력하고 `%`와 줄바꿈을 escape하며 `$GITHUB_STEP_SUMMARY`에 덧붙이고 hook의 mode 100755를 요구하고 commit이 아닌 revision을 알림 | template, crudui, hyper, ordered-json, orm | 유지, `hooks`의 모든 hook의 mode를 요구(ordered-json은 `pre-commit`도 요구, 나머지는 `pre-push`만) |
-| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mjs check`, `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
-| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mjs install`이 `pre-push`도 쓰고 나열한 hook을 실행 가능하게 함, 두 번째 실행은 아무것도 바꾸지 않음 |
+| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mts check`, `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
+| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mts install`이 `pre-push`도 쓰고 나열한 hook을 실행 가능하게 함, 두 번째 실행은 아무것도 바꾸지 않음 |
 | make를 호출할 때마다 `core.hooksPath`를 설정 | template, orm | `kit.mk`는 `.githooks/pre-push`를 추적하는 checkout에서만 설정, hook이 없는 checkout은 바꾸지 않음 |
 | `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
 | `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
-| lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mjs`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
+| lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mts`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
 | 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
 | process 종료와 SIGINT, SIGTERM, SIGHUP(종료 상태 128 + n)에서 release | template | 유지, process 안의 holder의 기본값, `run`은 신호를 command에 전달 |
 | `run <lock> -- <command>`는 command의 상태로 종료, 신호는 128 + n, 시작하지 못하면 127 | crudui(`hold`), template, hyper | `run`이라는 이름으로 유지 |
@@ -194,7 +194,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | lock directory를 만듦 | crudui, hyper | 유지 |
 | guard 조건: active 항목, hook 미설치, 변경된 tree, 다른 실행 진행 중, 현재 tree의 기록 | template, crudui, hyper, ordered-json | 유지 |
 | Git이 무시하지 않는 untracked 파일이 있으면 거부: 기록은 tree를 가리키는데 tree에는 그 파일이 없음 | ordered-json, 나머지는 추적하는 파일만 봄 | 더 넓은 검사 |
-| 한 번에 한 실행: guard가 첫 읽기부터 마지막 쓰기까지 `var/full-run.lock`을 잡음 | template(`var/full-run.json.lock`), crudui(`var/locks/full-run.lock`), hyper와 ordered-json(`var/full-run.lock`) | `holder-lock.mjs`를 통한 `var/full-run.lock`(ordered-json은 `flock` 사용) |
+| 한 번에 한 실행: guard가 첫 읽기부터 마지막 쓰기까지 `var/full-run.lock`을 잡음 | template(`var/full-run.json.lock`), crudui(`var/locks/full-run.lock`), hyper와 ordered-json(`var/full-run.lock`) | `holder-lock.mts`를 통한 `var/full-run.lock`(ordered-json은 `flock` 사용) |
 | 기록 `var/full-run.json`: tree, commit, result, target별 status·시각·경과 시간, reruns | orm 제외 전체 | 유지, process 전용 파일에 쓰고 rename |
 | 끝나지 않은 기록이 process를 적음, 실행 중인 process가 있으면 거부 | template, crudui, hyper, ordered-json | 기록에 process 시작 시각도 적어 재사용된 process ID가 이후 실행을 영구히 막지 않음(네 구현의 결함) |
 | `rerun-failed`는 현재 tree에서 통과하지 못한 target(failed, running, pending)을 다시 실행 | template, crudui, hyper, ordered-json | 유지 |
@@ -207,19 +207,19 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | 동작 | 출처 | 이유 |
 |---|---|---|
 | pull request, merge queue, merge group, ruleset을 말하는 문구(`REASON`, workflow `push-gate.yml`의 trigger, 필수 check `push-gate`) | template, crudui, hyper, ordered-json, orm | 0.x 정책에는 그것들이 없음, `commit <rev>`는 hook이 없는 checkout의 push를 위해 남김 |
-| `push-gate.mjs`의 `hooks-check` mode와 `push_gate.py`의 `hooks-install` | template, crudui, hyper, ordered-json, orm | hook은 `git-hooks.mjs`의 몫, make target은 이름을 유지 |
+| `push-gate.mts`의 `hooks-check` mode와 `push_gate.py`의 `hooks-install` | template, crudui, hyper, ordered-json, orm | hook은 `git-hooks.mts`의 몫, make target은 이름을 유지 |
 | command line(`sh -c <text>`)이나 `--` 뒤의 인자 묶음인 target | crudui, ordered-json | 기록 이름과 log 경로는 안정된 단어여야 함, 저장소는 command를 make target으로 감쌈 |
 | committed tree의 새 clone에서 `make install`과 clone 안의 marker로 실행 | crudui | 저장소의 install command와 저장소 이름이 붙은 marker가 필요, 필요한 저장소는 clone하는 target을 만듦 |
 | 실행 전 conformance evidence directory 초기화 | crudui | 저장소 전용 |
 | 기록의 `environment`(toolchain 버전)와 보고서의 `summary.md` | template, crudui | toolchain command는 저장소 data, K8.1이 target report와 toolchain 기록을 합침 |
 | 기록된 commit 이후 바뀐 path로 rerun target 선택, 후손 commit에서의 rerun, status `not-run`과 `crashed`, preflight `decide`, `claim`과 `recorder` 인터페이스, `.runtime/`의 기록 | orm | orm만 가지며 K8의 owner check를 읽음, 나머지 넷은 같은 tree의 rerun에 합의 |
-| `full_run.py`의 `flock` guard | ordered-json | `holder-lock.mjs`로 대체, 모든 도구는 Node |
+| `full_run.py`의 `flock` guard | ordered-json | `holder-lock.mts`로 대체, 모든 도구는 Node |
 | `user-lock-file`과 `checkoutLockFile` | crudui | lock 경로에 저장소 이름이 있음, 호출자가 절대 경로를 넘김 |
 | `test-progress`의 진행 줄 | crudui | crudui의 module, gate는 단계마다 한 줄을 출력 |
 | `scripts/git/check.mjs`(commit subject 형식, `commit-msg` hook)와 `scripts/checklist/check.mjs`의 marker·우회 문구 규칙 | orm | gate가 아님, hook은 `hooks`에 적고 문서 규칙은 K7의 몫 |
 ## 문서 검사 (K7.1)
 
-`scripts/kit/check-documents.mjs`는 template, crudui, hyper의 `check-documents.mjs`와 ordered-json의 `docs_check.py`를 대체합니다.
+`scripts/kit/check-documents.mts`는 template, crudui, hyper의 `check-documents.mts`와 ordered-json의 `docs_check.py`를 대체합니다.
 어느 Markdown 파일이 문서인지, status table, changelog는 `config/documents.json`
 (`scripts/kit/schema/documents.schema.json`)에 선언하고, 체크리스트는 `config/checklist.json`(K7.2)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다.
 
@@ -254,7 +254,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 
 ## Owner check (K8.1-1)
 
-`scripts/kit/owner-check.mjs`는 template, crudui, hyper의 `owner-check.mjs`와 ordered-json의 `owner_check.py`를 대체합니다.
+`scripts/kit/owner-check.mts`는 template, crudui, hyper의 `owner-check.mts`와 ordered-json의 `owner_check.py`를 대체합니다.
 선언은 `config/owner-checks.json`(`scripts/kit/schema/owner-checks.schema.json`)입니다.
 
 합친 동작:
@@ -267,12 +267,12 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   것입니다(crudui는 directory `packages/`를 가정했습니다).
 - `variable`(template, hyper)은 rule의 target에 일치한 경로를 make 변수로 넘깁니다.
 - target은 `CHECK_TARGETS` 순서(template, hyper)로 정렬하고, 다른 check는 선언 순서(crudui)를 유지합니다.
-- full suite target은 recipe가 `full-run.mjs`를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
+- full suite target은 recipe가 `full-run.mts`를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
   `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
 - `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, schema validator가 키가
   자유로운 object를 읽지 못하므로 선언은 `{ check, paths }`의 목록입니다.
 - Makefile이 include하는 파일(`include scripts/kit/kit.mk`)의 target도 알려진 target입니다(새 동작).
-- node test 파일은 `scripts/kit/run-tests.mjs`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
+- node test 파일은 `scripts/kit/run-tests.mts`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
 - 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.
 
 버린 동작:
@@ -284,9 +284,9 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 
 ## 테스트 실행기 (K8.1-2)
 
-`scripts/kit/run-tests.mjs`는 template, crudui, hyper의 `run-tests.mjs`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
-`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mjs`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-exit-deadline.mjs`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
-`test-hooks.mjs`는 test의 `setup`과 `teardown` helper입니다.
+`scripts/kit/run-tests.mts`는 template, crudui, hyper의 `run-tests.mts`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
+`test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-exit-deadline.mts`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
+`test-hooks.mts`는 test의 `setup`과 `teardown` helper입니다.
 
 합친 동작:
 
@@ -323,8 +323,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 
 ## CI report 도구 (K8.1-3)
 
-`scripts/kit/ci-targets.mjs`, `target-report.mjs`, `ci-passed.mjs`는 template, crudui의 `ci-targets.mjs`, `target-report.mjs`,
-`ci-passed.mjs`, hyper의 `ci-run.mjs`, ordered-json의 `ci_run.py`, orm의 `scripts/check/ci-passed.mjs`,
+`scripts/kit/ci-targets.mts`, `target-report.mts`, `ci-passed.mts`는 template, crudui의 `ci-targets.mts`, `target-report.mts`,
+`ci-passed.mts`, hyper의 `ci-run.mjs`, ordered-json의 `ci_run.py`, orm의 `scripts/check/ci-passed.mts`,
 `scripts/check/report.mjs`, `summary.mjs`를 대체합니다.
 
 합친 동작:
@@ -352,12 +352,12 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   실행은 어디서나 허용하며 전체 suite 가드는 full run의 몫), `var/records` 복사(ordered-json), 환경, disk, server log 파일,
   case runner protocol(`RUN`, `STEP`, `PASS`, `FAIL`)과 full-run report의 run id(orm)는 한 저장소의 검사에 의존하므로 그 저장소에
   남습니다.
-- `ci-targets.mjs`의 자체 lock(holder의 process id를 담은 파일이며, process가 끝나면 낡은 lock으로 보고 지움)은
-  `holder-lock.mjs`(K7.2)로 대체합니다. 끝난 holder의 lock은 `holder-lock.mjs clear`가 지울 때까지 남습니다.
+- `ci-targets.mts`의 자체 lock(holder의 process id를 담은 파일이며, process가 끝나면 낡은 lock으로 보고 지움)은
+  `holder-lock.mts`(K7.2)로 대체합니다. 끝난 holder의 lock은 `holder-lock.mts clear`가 지울 때까지 남습니다.
 
 ## 커밋 메시지 검사 (K8.1-4)
 
-`scripts/kit/check-commits.mjs`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
+`scripts/kit/check-commits.mts`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
 ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 형식과 한도는 `config/commits.json`
 (`scripts/kit/schema/commits.schema.json`)의 data입니다.
 
@@ -380,7 +380,7 @@ version 일관성과 orm의 다른 영역 검사:
   검사의 공통 부분인 changelog section은 문서 검사(K7.1)입니다.
 - orm의 `scripts/repo/*.mjs`(`check`, `ci`, `scripts`, `target`, `testcases`, `toolchains`, `gosource`, `node`, `probes`,
   `messages`)는 orm의 배치, Rust target 경로, toolchain, test case, 실패 메시지의 형식을 검사하므로 orm에 남습니다.
-- orm의 `scripts/check/ci-passed.mjs`는 CI report 도구(K8.1-3)입니다.
+- orm의 `scripts/check/ci-passed.mts`는 CI report 도구(K8.1-3)입니다.
 
 버린 동작:
 
@@ -389,7 +389,7 @@ version 일관성과 orm의 다른 영역 검사:
 
 ## Release 도구 (K5)
 
-`scripts/kit/release.mjs`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
+`scripts/kit/release.mts`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
 `coverage`). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
@@ -475,7 +475,7 @@ go.mod의 module path에 연결합니다.
 
 ## 체크리스트 모델 하나 (K7.2)
 
-`scripts/kit/checklist.mjs`는 push gate와 guard의 reader(K6.1)를, `scripts/kit/checklist-rows.mjs`는 문서 검사의 reader(K7.1)를
+`scripts/kit/checklist.mts`는 push gate와 guard의 reader(K6.1)를, `scripts/kit/checklist-rows.mjs`는 문서 검사의 reader(K7.1)를
 담았습니다. 둘은 같은 문서(표의 행 `| ID | ... | [o] |`, 목록 항목 `- [o] ID text`, 상태 `[ ]`, `[~]`, `[o]`, `[!]`)를 두 설정,
 곧 `config/checklist.json`의 `trackers`와 `config/documents.json`의 `checklists`로 읽었습니다. 이제 reader 하나, 설정 하나,
 finding 하나입니다.
@@ -487,37 +487,37 @@ finding 하나입니다.
   보고합니다. 각 읽기의 메시지는 합치기 전에 test가 단언하던 메시지입니다.
 - `twinFindings`는 두 읽기에서 문서와 번역의 item을 비교합니다.
 - `config/checklist.json`은 모든 체크리스트를 선언합니다: `path`, `translation`, `format`(`table` 또는 `list`), `idPattern`, `states`,
-  `active`, `column`. `check-documents.mjs`는 체크리스트를 여기서 읽습니다. `config/documents.json`의 `checklists` key와 그 schema는
+  `active`, `column`. `check-documents.mts`는 체크리스트를 여기서 읽습니다. `config/documents.json`의 `checklists` key와 그 schema는
   없어지고, key `style`은 `format`입니다. `translation`이 없는 체크리스트는 영어만 읽습니다.
 - 더 넓은 동작을 채택: task ID 뒤에 `` T3.2 `parallel` ``처럼 code span이 올 수 있습니다(두 읽기 모두). 엄격한 reader는 ID 뒤의 아무
   글이나 받았으나, 이제 code span만 받으므로 `not an id` 같은 첫 cell은 두 읽기 모두에서 finding입니다. 표의 행은 들여 쓸 수
   있습니다. `states`는 엄격한 읽기에도 적용되므로 `states`를 선언하지 않은 체크리스트는 엄격한 읽기에서 모든 state 단어를 받습니다(엄격한
   reader는 네 state만 받았음). 구분 줄과 header는 위치와 cell `ID`로 알아봅니다.
-- `ci-targets.mjs`는 `holder-lock.mjs`로 report를 잡고, 자체 lock 함수는 없앴습니다.
+- `ci-targets.mts`는 `holder-lock.mts`로 report를 잡고, 자체 lock 함수는 없앴습니다.
 
 ## 공유 module (K11)
 
 `scripts/kit`의 여러 도구가 같은 helper를 각자 가지고 있었습니다. 이제 각 helper는 module 하나에 있고 사용하는 쪽이 import하며,
-`tests/kit/duplication.test.mjs`는 서로 다른 두 파일이 정규화한 본문이 같고 6줄 이상인 함수를 가지면 실패합니다(정규화 방법은
+`tests/kit/duplication.test.mts`는 서로 다른 두 파일이 정규화한 본문이 같고 6줄 이상인 함수를 가지면 실패합니다(정규화 방법은
 test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다.
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|
-| `paths.mjs` | `ROOT`, `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
-| `process.mjs` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
-| `git.mjs` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
-| `files.mjs` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
-| `digest.mjs` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer의 `digest`, install-npm의 sha512 | 위 module들 |
-| `time.mjs` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
-| `version.mjs` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰 | changelog, dependency-review, check-dependency-policy |
-| `findings.mjs` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
-| `markdown.mjs` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀 | checklist, status-table, changelog |
-| `schema-validate.mjs` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
-| `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
-| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
-| `toolchain-declared.mjs` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
-| `dependency-state.mjs` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
+| `paths.mts` | `ROOT`, `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
+| `process.mts` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
+| `files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
+| `digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer의 `digest`, install-npm의 sha512 | 위 module들 |
+| `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
+| `version.mts` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰 | changelog, dependency-review, check-dependency-policy |
+| `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
+| `markdown.mts` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀 | checklist, status-table, changelog |
+| `schema-validate.mts` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
+| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
+| `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
+| `toolchain-declared.mts` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
+| `dependency-state.mts` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
 
 그 밖에 없앤 중복:
 
@@ -551,7 +551,7 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 ## Python lint (K8.4)
 
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
-`scripts/kit/lint-python.mjs`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션을 주고 실행하며, `var/tools/bin`의
+`scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션을 주고 실행하며, `var/tools/bin`의
 ruff이고 버전은 config/toolchain.json의 `ruff` `version`입니다. 규칙은 checkout의 pyproject.toml 파일들의 `[tool.ruff]` table이므로
 결과가 머신의 ruff 설정에 의존하지 않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지
 않았으면 고치는 방법과 함께 실패합니다.
@@ -560,9 +560,9 @@ ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이�
 config/toolchain.json의 pin을 PyPI dependency로 읽습니다. 새 ruff는 wheel의 sha256과 함께 손으로 설정합니다.
 ## Release archive의 consumer 설치 (K5.4)
 
-`scripts/kit/release-consumer.mjs install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다
-smoke command를 실행합니다. `lock TAG`는 그 project의 manifest와 lock을 씁니다. 파일은 `scripts/kit/release-consumer.mjs`,
-`scripts/kit/release-consumer-config.mjs`(설정 규칙이며 `release.mjs`의 `loadConfig`가 호출), `schema/release.schema.json`의 section `consumers`,
+`scripts/kit/release-consumer.mts install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다
+smoke command를 실행합니다. `lock TAG`는 그 project의 manifest와 lock을 씁니다. 파일은 `scripts/kit/release-consumer.mts`,
+`scripts/kit/release-consumer-config.mts`(설정 규칙이며 `release.mts`의 `loadConfig`가 호출), `schema/release.schema.json`의 section `consumers`,
 make target `release-consumer`와 `release-consumer-lock`입니다. 설치와 lock은 template을 base로 하고, archive 규칙은 crudui, manifest 규칙은
 crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔습니다.
 
@@ -623,7 +623,7 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 
 | 동작 | 출처 | 이유 |
 |---|---|---|
-| 설치 안에서 archive를 만듦(`packTree`, `buildAssets`, working tree의 `git stash create`) | template, crudui, hyper, ordered-json, orm | `release.mjs assets`가 tag의 archive를 만들고, 설치는 `var/release/assets`를 읽으므로 어떤 release도 만들지 않는 archive를 check가 설치하는 일이 없음 |
+| 설치 안에서 archive를 만듦(`packTree`, `buildAssets`, working tree의 `git stash create`) | template, crudui, hyper, ordered-json, orm | `release.mts assets`가 tag의 archive를 만들고, 설치는 `var/release/assets`를 읽으므로 어떤 release도 만들지 않는 archive를 check가 설치하는 일이 없음 |
 | 다른 저장소의 release archive를 project로 download | orm, hyper | kit은 저장소 이름을 모름; 다른 저장소의 dependency는 lock에 URL, integrity, shasum으로 고정되고 설치는 이를 registry package처럼 download함 |
 | URL dependency를 위한 npm `--allow-remote` 설정 | hyper | npm 한 release의 우회(npm/cli#9818); 저장소 설정을 합치지 않으므로 remote tarball이 있는 lock은 이를 받아들이는 npm이 필요 |
 | `--workspaces=false` | crudui | project는 어떤 workspace 밖에 있음 |
@@ -637,14 +637,14 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 
 ## Release proof (K5.5)
 
-`scripts/kit/release-proof.mjs TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
+`scripts/kit/release-proof.mts TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
 release workflow(`workflows/release.yml`)가 `release-publish` 뒤 같은 job에서 draft에 대해 실행합니다. 증명이 실패하면 그 run이 실패하고 release는 draft로 남습니다.
 developer도 어떤 released tag에든 실행할 수 있습니다. offline check가 아닙니다.
 
 ### Release workflow, tool과 draft (K38)
 
 - `workflows/release.yml`은 kit.json의 `vendoredFiles`가 `.github/workflows/release.yml`로 대응시키는 원본입니다. `make kit-sync`가 이를 복사하고 sha256을 lock에 기록하며, `make kit-check`가 차이를 실패시킵니다.
-- `make release-tools`(`scripts/kit/release-tools.mjs`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
+- `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
 - `release-publish`는 release를 draft로 만듭니다. `release-proof`는 저장소의 release를 API로 읽으며 draft를 포함하고, 각 자산을 id로 내려받습니다. `release-undraft`는 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
 또는 기대값과 실제 값을 적습니다.
@@ -730,7 +730,7 @@ registry와 archive가 아닌 source는 거부하며, 각 `Requires-Dist`는 같
 있어야 하고, fragment는 lock의 sha256과 같아야 하며, 각 archive는 선언된 저장소의 그 version release asset이어야 합니다. 여기서는 network를
 읽지 않습니다.
 
-`release-consumer install`은 `lockRequirements`(`scripts/kit/wheel-dependencies.mjs`)로 lock을 hash가 든 requirement 파일로 바꾸고,
+`release-consumer install`은 `lockRequirements`(`scripts/kit/wheel-dependencies.mts`)로 lock을 hash가 든 requirement 파일로 바꾸고,
 checkout의 pip가 `makeVenv`의 venv에 설치합니다: registry 파일마다 `name==version --hash=sha256:…`, archive마다 `name @ <url>
 --hash=sha256:…`입니다.
 
@@ -741,7 +741,7 @@ lock은 여기서 실패합니다). 그다음 smoke command를 실행합니다. 
 release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다. `release-proof`의 2단계는 각 polyspec archive를 선언된 저장소의 그
 version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야 합니다.
 
-발견 사항, pip 26.2.1과 고정된 Python 3.14.8로 측정했습니다(`tests/source/wheel-dependencies-real.test.mjs`가 이 사례를 반복합니다):
+발견 사항, pip 26.2.1과 고정된 Python 3.14.8로 측정했습니다(`tests/source/wheel-dependencies-real.test.mts`가 이 사례를 반복합니다):
 
 - `pip install -r pylock.toml`은 lock을 requirement source로 읽고 `WARNING: Using pylock.toml as a requirements source is an experimental
   feature. It may be removed/changed in a future release without prior warning.`를 출력합니다. 그래서 lock을 requirement로 바꿉니다.
@@ -758,9 +758,9 @@ version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야
   `ERROR: HTTP error 404 while getting https://...`로 실패합니다. 따라서 dependency를 resolve하는 consumer는 polyspec archive를 다시
   내려받습니다.
 
-테스트: `tests/kit/wheel-dependencies.test.mjs`(형식, 문구와 함께 거부하는 사례, lock 형식, 렌더링된 requirement),
-`tests/kit/release-wheel.test.mjs`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mjs`(polyspec archive의
-digest), `tests/source/wheel-dependencies-real.test.mjs`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
+테스트: `tests/kit/wheel-dependencies.test.mts`(형식, 문구와 함께 거부하는 사례, lock 형식, 렌더링된 requirement),
+`tests/kit/release-wheel.test.mts`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mts`(polyspec archive의
+digest), `tests/source/wheel-dependencies-real.test.mts`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
 로컬 복사, resolver)입니다.
 
 ## Sibling wheels (K52)
@@ -776,7 +776,7 @@ sibling은 같은 config/release.json의 다른 wheel package입니다. wheel의
 version의 sibling, 다른 저장소 아래의 sibling URL, version의 wheel 이름이 아닌 파일, 그리고 sibling을 담은 wheel의 lock(형식과 무관하게
 lock은 sibling을 담지 않습니다). 다른 모든 polyspec 참조는 여전히 sha256 fragment가 필요합니다(K49).
 
-sibling은 `packages`에서 유도합니다(`siblingsOf`, scripts/kit/wheel-dependencies.mjs): 설정의 다른 wheel package이며, 두 번째 선언이
+sibling은 `packages`에서 유도합니다(`siblingsOf`, scripts/kit/wheel-dependencies.mts): 설정의 다른 wheel package이며, 두 번째 선언이
 아닙니다. 이유: 한 config/release.json의 wheel package들은 한 저장소에서 한 tag로 함께 릴리스되므로, 두 번째 목록은 `packages`와
 어긋날 수만 있습니다. `consumers.wheel.polyspec`은 다른 저장소의 저장소를 적으므로, 이 설정의 wheel package를 거부합니다
 (`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
@@ -784,7 +784,7 @@ sibling은 `packages`에서 유도합니다(`siblingsOf`, scripts/kit/wheel-depe
 sibling의 sha256은 release가 빌드한 뒤에야 알 수 있습니다. SOURCE_DATE_EPOCH가 release commit의 시각이므로, wheel의 sha256은 빌드
 전에는 tree에 없습니다. 그래서 wheel의 lock은 sibling을 담지 않으며, 참조에는 hash가 없습니다.
 
-`release-proof` 3단계는 GitHub가 게시한 release에서 sibling을 온라인으로 증명합니다(scripts/kit/release-proof.mjs, `proveWheels`):
+`release-proof` 3단계는 GitHub가 게시한 release에서 sibling을 온라인으로 증명합니다(scripts/kit/release-proof.mts, `proveWheels`):
 1. release의 각 wheel 파일을 내려받은 뒤, 그 sha256이 GitHub가 그 asset에 나열한 sha256과 같아야 합니다(release listing의 `digest`,
    `sha256:<hex>`). 어떤 wheel의 digest를 나열하지 않으면 proof가 실패합니다.
 2. wheel의 METADATA가 이름 붙인 각 sibling은 그 sibling의 게시된 asset URL(`browser_download_url`)과 정확히 같아야 하며, release가 그
@@ -799,7 +799,7 @@ consumer는 sibling을 polyspec wheel과 같이 설치합니다(K49): 자기 loc
 이 sha256은 게시된 asset의 hash입니다. sibling을 요구하는 wheel의 lock은 sibling을 적지 않습니다.
 
 sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-build`, pip 26.2.1, Python 3.14.8)로 측정했습니다. 두 wheel은 손으로
-만들었고, `kit-gen`은 `kit-val @ <URL>`을 요구합니다(`tests/source/wheel-sibling-real.test.mjs`가 파일 사례를 반복합니다):
+만들었고, `kit-gen`은 `kit-val @ <URL>`을 요구합니다(`tests/source/wheel-sibling-real.test.mts`가 파일 사례를 반복합니다):
 
 - hash와 함께 두 wheel을 로컬 파일에서 `--no-deps`로 설치하면 설치되고, `pip check`가 `No broken requirements found.`를 출력하며
   0으로 끝납니다. `--no-deps`에서 pip는 `Requires-Dist`를 읽지 않습니다.
@@ -816,13 +816,13 @@ sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-buil
 이 결과가 위 설계의 근거입니다. proof는 로컬 파일에서 `--no-deps`로 설치하고, 참조가 게시된 URL과 같음을 증명합니다. 그래서 dependency를
 resolve하는 consumer도 release가 게시한 asset을 내려받습니다.
 
-테스트: `tests/kit/wheel-sibling.test.mjs`(sibling 형식과 거부, lock, consumer 선언, `siblingLinks`),
-`tests/kit/release-wheel.test.mjs`(같은 거부를 `release-assets`로), `tests/kit/release-proof.test.mjs`(wheel digest, sibling URL, wheel의 한
-번 설치), `tests/source/wheel-sibling-real.test.mjs`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
+테스트: `tests/kit/wheel-sibling.test.mts`(sibling 형식과 거부, lock, consumer 선언, `siblingLinks`),
+`tests/kit/release-wheel.test.mts`(같은 거부를 `release-assets`로), `tests/kit/release-proof.test.mts`(wheel digest, sibling URL, wheel의 한
+번 설치), `tests/source/wheel-sibling-real.test.mts`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
 
 ## Language parity (K33)
 
-`scripts/kit/parity.mjs`는 repository의 모든 implementation이 같은 unit을 갖추는지 검사합니다. `config/parity.json`은
+`scripts/kit/parity.mts`는 repository의 모든 implementation이 같은 unit을 갖추는지 검사합니다. `config/parity.json`은
 implementation(repository의 language 집합의 유일한 원천), 그것을 묶는 profile, unit을 선언합니다. 선언은 완료나 예정 같은 상태를
 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
 
@@ -842,7 +842,7 @@ implementation(repository의 language 집합의 유일한 원천), 그것을 묶
   이 검사는 `parity-check`보다 먼저 실행해야 합니다.
 - **생성된 error code 생성물.** repository의 생성기 검사가 catalog에서 생성물을 다시 만들고, 다르면 실패합니다. 이 검사도
   `parity-check`보다 먼저 실행해야 합니다. parity 검사는 commit된 생성물을 catalog와 비교하며, 다시 만들지 않습니다.
-- **각 native 도구의 출력**(node:test, go test, cargo test, unittest, PHPUnit). `test-output.mjs`가 이 출력을 읽습니다. binding의
+- **각 native 도구의 출력**(node:test, go test, cargo test, unittest, PHPUnit). `test-output.mts`가 이 출력을 읽습니다. binding의
   test는 검사를 위해 아무것도 출력하지 않으며, 각 case의 결과는 그 test에 대한 도구 자신의 보고입니다. go와 node는 이벤트를
   틀에 넣어 씁니다. go는 test의 출력을 JSON 이벤트의 `Output` 필드 안에 쓰고, node는 test의 console 출력을 TAP의 `# ` 줄로
   씁니다. cargo, unittest, PHPUnit은 틀에 넣지 않으므로, test가 같은 stream에 결과처럼 읽히는 줄을 출력할 수 있습니다:
@@ -855,14 +855,14 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 
 | Module | 담당 |
 |---|---|
-| `parity.mjs` | 명령과 rule의 순서 |
-| `parity-declaration.mjs` | schema, 선언의 참조, finding |
-| `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
-| `parity-ledger.mjs` | R3: binding 실행과 ledger |
-| `parity-runners.mjs` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
-| `test-output.mjs` | node:test(TAP), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
-| `parity-errors.mjs` | R7 |
-| `parity-text.mjs` | R9, R10 |
+| `parity.mts` | 명령과 rule의 순서 |
+| `parity-declaration.mts` | schema, 선언의 참조, finding |
+| `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-ledger.mts` | R3: binding 실행과 ledger |
+| `parity-runners.mts` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
+| `test-output.mts` | node:test(TAP), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
+| `parity-errors.mts` | R7 |
+| `parity-text.mts` | R9, R10 |
 
 ### Rule
 
@@ -893,7 +893,7 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다 | TeamCity 메시지의 test method `test_<case>` |
 | `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` |
 
-각 runner는 그 도구의 출력을 `test-output.mjs`의 parser로 읽습니다. run-tests가 실행을 읽는 parser와 같습니다(K47). todo는 도구가
+각 runner는 그 도구의 출력을 `test-output.mts`의 parser로 읽습니다. run-tests가 실행을 읽는 parser와 같습니다(K47). todo는 도구가
 실패를 기대하는 test, 즉 node의 `# TODO`와 unittest의 `expected failure`입니다. 통과가 아니므로 그 case는 검사에서 실패하며, run-tests는
 todo를 통과 줄로 보여 줍니다. binding의 case가 아닌 test 이름은 무시하되, go subtest가 case 아래에 중첩되면 `/`를 유지하므로 suite가
 선언하지 않은 case로 R3가 잡습니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는 `/`도 없습니다. Go가 subtest 이름을
@@ -964,7 +964,7 @@ pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값�
 옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개 이상입니다. implementation의
 snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
 
-R10은 `scripts/kit/markdown.mjs`의 Markdown reader 위에서 문서의 산문을 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한
+R10은 `scripts/kit/markdown.mts`의 Markdown reader 위에서 문서의 산문을 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한
 문단이나 list item, marker를 뺀 block quote, ATX heading(`#`부터 `######`와 공백), 또는 table row입니다. fenced block, 들여쓴 code
 block, setext 밑줄은 산문이 아니며, setext 밑줄은 그 문단을 끝냅니다. inline code, link 목적지, autolink, 그냥 쓴 URL, link 정의,
 HTML tag와 주석은 비우므로 산문만 implementation을 적습니다. 이름 뒤의 code span은 그 이름을 목록에 남깁니다
@@ -1037,7 +1037,7 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 
 ### 규칙
 
-- 파일은 `scripts/kit/pylock.mjs`(`readPylock`)가 읽습니다. 이 도구들이 쓰는 TOML 부분집합을 읽는 reader입니다. Node에는 TOML reader가 없고 kit은
+- 파일은 `scripts/kit/pylock.mts`(`readPylock`)가 읽습니다. 이 도구들이 쓰는 TOML 부분집합을 읽는 reader입니다. Node에는 TOML reader가 없고 kit은
   Node built-in만 import하므로 TOML 라이브러리를 재사용하지 않습니다. 부분집합 밖의 구문(여러 줄 문자열, 알 수 없는 escape, 중복 key)은 줄 번호와 함께 실패합니다.
 - `lock-version`은 `"1.0"`이어야 하며, 다른 값이면 gate가 실패합니다.
 - 각 lock의 sha256은 다른 생태계의 lock과 같이 `config/dependency-review.json`에 기록합니다.
@@ -1058,7 +1058,7 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 ## uv와 Python lock writer (K54)
 
 `uv`는 install-tools 도구입니다. `config/toolchain.json`의 `uv`가 정확한 version과 플랫폼별 release archive의 sha256을 선언하고,
-`scripts/kit/install-uv.mjs`가 `var/tools/uv`에 설치하며 wrapper `var/tools/bin/uv`를 씁니다. `make python-lock`(ONLINE)은 그 uv로
+`scripts/kit/install-uv.mts`가 `var/tools/uv`에 설치하며 wrapper `var/tools/bin/uv`를 씁니다. `make python-lock`(ONLINE)은 그 uv로
 `pythonLocks`의 각 Python lock을 쓰고, `make python-lock-check`(offline)은 각 lock을 source와 비교합니다. 고정하는 이유는, PATH의 선언되지 않은
 uv로 쓴 lock이 기계에 따라 달라지기 때문입니다. `pip lock`(pip 26.2.1)은 experimental이며 실행 중인 platform 하나만 lock했습니다(cryptography가
 macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platform의 파일을 marker와 hash와 함께 씁니다.
@@ -1147,7 +1147,7 @@ urllib3==2.8.0
 
 ### writer (`make python-lock`, findLinks를 선언하지 않으면 ONLINE)
 
-`scripts/kit/python-lock.mjs write`는 `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+`scripts/kit/python-lock.mts write`는 `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
 --generate-hashes --format pylock.toml -o pylock.toml`(`<python>`은 `config/toolchain.json`의 `python` minor)을 `var/tools`의 directory(`python-lock-<random>`)에서 실행합니다. 이 directory에는 두 source가
 각자의 이름으로 있습니다. `pyproject.toml`은 그 이름으로 복사되며, uv는 거기서 읽습니다(아래 측정). 그래서 uv를 위해 pyproject가
 checkout에 그대로 있을 필요는 없습니다. findLinks가 있으면 `--no-index --find-links <directory>`를 덧붙입니다. source는 먼저 읽고
@@ -1174,8 +1174,8 @@ resolve하지 않습니다. 다음 경우 파일과 package 이름, 그리고 �
 - archive의 URL이나 sha256이 constraint와 다릅니다.
 - source 또는 lock이 없습니다.
 
-각 경우에는 그 경우에서만 실패하는 test가 있습니다(`tests/kit/python-lock-check.test.mjs`). writer의 경우는
-`tests/kit/python-lock-write.test.mjs`에 있으며 uv는 stub입니다. `tests/source/python-lock-real.test.mjs`는 network 없이 실제 uv를
+각 경우에는 그 경우에서만 실패하는 test가 있습니다(`tests/kit/python-lock-check.test.mts`). writer의 경우는
+`tests/kit/python-lock-write.test.mts`에 있으며 uv는 stub입니다. `tests/source/python-lock-real.test.mts`는 network 없이 실제 uv를
 실행합니다. wheel은 `var/tools/wheels`의 고정된 setuptools wheel과, 고정된 Python으로 source tree에서 만든 순수 Python wheel이며,
 둘 다 test의 directory(`var/` 아래)에 있습니다. 이 test는 findLinks로 pyproject의 lock을 쓰고, offline 검사가 그 lock을 통과시키며,
 version drift(`0.0.1`에서 `0.0.2`)는 `tinylib`과 함께, `setuptools`가 빠진 constraints는 `setuptools`와 함께 실패하는지 봅니다.

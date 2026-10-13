@@ -1,0 +1,19 @@
+{
+  "name": "@polyspec/kit",
+  "version": "0.0.34",
+  "description": "The shared tools of the polyspec repositories",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polyspec/kit.git"
+  },
+  "engines": {
+    "node": ">=26.8.1"
+  },
+  "packageManager": "npm@12.2.0+sha512.66c2632a94e796649738b2d7894d710c2cc2e1696893823066687f6b0d8a52e5f2b54eeaeaa32ffdc513ecca1e49ff794a5c2ec3f9515d879f1b3182b291cf35",
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  }
+}

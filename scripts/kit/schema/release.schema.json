@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/release.json",
-  "description": "The packages, manifests and Go modules that a release tag covers, read by scripts/kit/release.mjs.",
+  "description": "The packages, manifests and Go modules that a release tag covers, read by scripts/kit/release.mts.",
   "type": "object",
   "required": [
     "schema",
@@ -89,7 +89,7 @@
       "type": "object"
     },
     "buildBackend": {
-      "description": "The build backend of the wheel packages: the exact requirement of the wheel that a build uses, and the sha256 of that wheel from its PyPI release. release-backend.mjs downloads it into var/tools/wheels with the digest checked.",
+      "description": "The build backend of the wheel packages: the exact requirement of the wheel that a build uses, and the sha256 of that wheel from its PyPI release. release-backend.mts downloads it into var/tools/wheels with the digest checked.",
       "type": "object",
       "required": [
         "requirement",
@@ -108,7 +108,7 @@
       }
     },
     "consumers": {
-      "description": "The consumer projects that install the archives of a tag outside the repository (release-consumer.mjs); one per package kind that has packages. A wheel has no committed project; its lock is named per package.",
+      "description": "The consumer projects that install the archives of a tag outside the repository (release-consumer.mts); one per package kind that has packages. A wheel has no committed project; its lock is named per package.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -176,7 +176,7 @@
       }
     },
     "proof": {
-      "description": "What the release proof (release-proof.mjs) installs from the tag besides the archives.",
+      "description": "What the release proof (release-proof.mts) installs from the tag besides the archives.",
       "type": "object",
       "required": [
         "gitTag"
