@@ -97,3 +97,15 @@ test('a Python requirement is pinned exactly, in the build system and in each ex
   ]);
   assert.throws(() => pythonRequirements('[build-system]\nrequires = ["setuptools>=80"]\n', 'pyproject.toml'), /"setuptools>=80" is not an exact pin name==version; pin it exactly/);
 });
+
+test('every valid pyproject form of a requirement is read, and a pin in a comment or a ] in a string changes nothing (K114)', () => {
+  const read = (text: string) => pythonRequirements(text, 'pyproject.toml').map(item => [item.package, item.kind, item.version]);
+  assert.deepEqual(read("[build-system]\nrequires = ['setuptools==84.0.0']\n"), [['setuptools', 'build-system', '84.0.0']], 'a single-quoted pin');
+  assert.deepEqual(read('[project.optional-dependencies]\n"dev-x" = ["ruff==0.16.10"]\n'), [['ruff', 'optional:dev-x', '0.16.10']], 'a quoted extra key');
+  assert.deepEqual(read('[project]\nname = "x"\noptional-dependencies = { dev = ["ruff==0.16.10"] }\n'), [['ruff', 'optional:dev', '0.16.10']], 'extras as an inline table');
+  assert.deepEqual(read('build-system.requires = ["setuptools==84.0.0"]\n'), [['setuptools', 'build-system', '84.0.0']], 'a dotted build-system.requires');
+  assert.deepEqual(read('[build-system]\nrequires = [\n  "setuptools==84.0.0", # not "wheel==1.0"\n]\n'), [['setuptools', 'build-system', '84.0.0']], 'a pin inside a comment');
+  assert.throws(() => read('[build-system]\nrequires = ["pkg[extra]==1.0", "setuptools==84.0.0"]\n'), /"pkg\[extra\]==1\.0" is not an exact pin name==version; pin it exactly/);
+  assert.throws(() => read('[build-system]\nrequires = "setuptools==84.0.0"\n'), /pyproject\.toml: build-system\.requires is not an array of strings/);
+  assert.throws(() => read('[build-system\n'), /^Error: pyproject\.toml line 1 column \d+: Invalid TOML document/);
+});
