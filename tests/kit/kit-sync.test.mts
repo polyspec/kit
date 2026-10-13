@@ -76,6 +76,24 @@ test('the first sync copies the vendored files and the lock agrees with them', (
   assert.deepEqual(Object.keys(lock.files).sort(), ['kit.json', 'scripts/kit/tool.mjs', 'tests/kit/tool.test.mjs']);
 });
 
+test('a sync refuses a ref that is not a tag, names it and writes nothing (K83)', (t) => {
+  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
+  git(['branch', 'feat/branch-K13'], repository);
+  const root = consumer(t);
+  assert.throws(() => sync({ root, repository, tag: 'feat/branch-K13' }), /feat\/branch-K13 is not a tag of /);
+  assert.equal(existsSync(path.join(root, LOCK)), false);
+  assert.equal(existsSync(path.join(root, 'kit.json')), false);
+});
+
+test('a sync refuses a branch that has the name of a tag and is cloned in its place (K83)', (t) => {
+  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
+  git(['commit', '--quiet', '--allow-empty', '-m', 'after'], repository);
+  git(['branch', 'v0.0.1'], repository);
+  const root = consumer(t);
+  assert.throws(() => sync({ root, repository, tag: 'v0.0.1' }), /v0\.0\.1 is not a tag of /);
+  assert.equal(existsSync(path.join(root, LOCK)), false);
+});
+
 test('a second sync at the same tag changes nothing and writes the same lock', (t) => {
   const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
   const root = consumer(t);
