@@ -2,7 +2,7 @@
 // module proxy, the vulnerabilities that the code calls from govulncheck, and the install of govulncheck into var/tools.
 // go, govulncheck and the proxy are stubs.
 import assert from 'node:assert/strict';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,7 @@ import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mt
 import { installGovulncheck } from '../../scripts/kit/install-govulncheck.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { pinnedGo, toolchainStubs } from './toolchain-stubs.mts';
 
 // A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
 // the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
@@ -96,26 +97,22 @@ test('the review names the install command when govulncheck is not installed', (
 test('govulncheck is installed into var/tools once and a second run installs nothing', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-govulncheck-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const bin = path.join(root, 'bin');
-  mkdirSync(bin);
-  const log = path.join(root, 'go.log');
-  // go install golang.org/x/vuln/cmd/govulncheck@v<release> with GOBIN writes $GOBIN/govulncheck of that release.
-  writeFileSync(path.join(bin, 'go'), `#!/bin/sh
-echo "go $*" >> "${log}"
-release=\${2##*@v}
-mkdir -p "$GOBIN"
-printf '#!/bin/sh\\necho "Go: go1.27.0"\\necho "Scanner: govulncheck@v%s"\\n' "$release" > "$GOBIN/govulncheck"
-chmod 755 "$GOBIN/govulncheck"
-`);
-  chmodSync(path.join(bin, 'go'), 0o755);
-  const saved = process.env.PATH;
-  process.env.PATH = `${bin}${path.delimiter}${saved}`;
-  t.after(() => { process.env.PATH = saved; });
-  writeFileSync(log, '');
+  // install-govulncheck builds with var/tools/bin/go, the Go of the kit pin: the go stub of toolchain-stubs.mts, which logs
+  // its calls and writes the govulncheck of the release; the go of PATH fails.
+  const stubs = toolchainStubs(t);
+  const env = pinnedGo(t, stubs, root);
+  const saved = { PATH: process.env.PATH, STUB_LOG: process.env.STUB_LOG };
+  Object.assign(process.env, { PATH: env.PATH, STUB_LOG: env.STUB_LOG });
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
   assert.deepEqual(installGovulncheck({ root, recorded: '1.1.4' }), { installed: true, release: '1.1.4' });
   assert.equal(existsSync(path.join(root, 'var/tools/govulncheck/bin/govulncheck')), true);
   assert.deepEqual(installGovulncheck({ root, recorded: '1.1.4' }), { installed: false, release: '1.1.4' });
-  assert.equal(readFileSync(log, 'utf8').split('\n').filter(Boolean).length, 1);
+  assert.deepEqual(stubs.calls(), ['go install golang.org/x/vuln/cmd/govulncheck@v1.1.4'], 'a second run installs nothing');
 });
 
 test('govulncheck scans the packages of each tracked Go module and never the tree under var/ (K53)', (t) => {
