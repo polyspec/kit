@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c77b64e4d7942ac859900323f03dc7102cc9ba7bb63dacce2c7566ef9e5b0c8e -->
+<!-- source-sha256: 9a4abf419ccd0bc4419bf32cb814fe2be154e58a8a350024933da1428c6d12ce -->
 
 # 도구 목록
 
@@ -399,8 +399,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
 - `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
-  끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`와
-  `expected failure`는 pass, `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
+  끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는
+  pass, `expected failure`는 todo(통과가 아님), `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
   description의 id를 유지합니다. timeout은 실행기가 적용합니다.
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
   `{id, status, elapsedMs}`(`pass`, `fail`, `timeout`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
