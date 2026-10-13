@@ -7,8 +7,12 @@ include scripts/kit/kit.mk
 
 .PHONY: kit-test kit-fixture-record source-test
 
-kit-test: ## Run the tests of the tools (tests/kit) through the test runner, with per-case progress and timeouts; offline
+# kit-test fails when its run changes the checkout: git status --porcelain -uall and the hash of git diff --binary HEAD are
+# recorded under var/ (ignored) before the run and compared after it; the changed status lines are printed.
+kit-test: ## Run the tests of the tools (tests/kit) through the test runner, with per-case progress and timeouts, and fail when the run changes the checkout; offline
+	@mkdir -p var && git status --porcelain -uall > var/kit-test-status && git diff --binary HEAD | git hash-object --stdin > var/kit-test-diff
 	node scripts/kit/run-tests.mts node -- tests/kit
+	@git status --porcelain -uall | diff var/kit-test-status - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff - || { echo "kit-test: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
 
 # The kit's own tests (tests/source) check the kit's real Python and wheel path. kit-sync does not vendor them, so a consumer never runs them.
 source-test: ## Run the kit's own tests (tests/source) through the test runner, with the pythonBuild and pythonBackend of config/toolchain.json; offline after make install-tools
