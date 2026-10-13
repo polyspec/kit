@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { writePythonLock } from '../../scripts/kit/python-lock.mjs';
@@ -30,7 +31,7 @@ const SOURCES = { 'app/requirements.txt': 'requests==2.34.2\n', 'app/constraints
 // A checkout with the sources, the uv stub of var/tools/bin and the policy-free entry; the stub logs its arguments and working
 // directory, writes STUB_LOCK to its -o file and exits with STUB_STATUS.
 function checkout(t, { lock = GOOD, sources = SOURCES, existing = null, status = 0, extra = null, toolchain = { python: '3.14' } } = {}) {
-  const root = realpathSync(mkdtempSync(path.join(ROOT, 'var', 'python-lock-write-')));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-lock-write-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, text] of Object.entries(sources)) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
@@ -39,12 +40,16 @@ function checkout(t, { lock = GOOD, sources = SOURCES, existing = null, status =
   if (existing !== null) writeFileSync(path.join(root, ENTRY.lock), existing);
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify(toolchain));
+  // A consumer checkout may declare its scripts as ES modules; the stub runs the same in either case.
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type: 'module', packageManager: 'npm@12.2.0' }));
   const text = lock.replaceAll('{{ROOT}}', root);
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   const log = path.join(root, 'uv.log');
+  // The stub is a CommonJS file (.cjs) that the wrapper var/tools/bin/uv runs, so the type of a package.json does not change it.
+  const script = path.join(root, 'var/tools/uv-stub.cjs');
   const stub = path.join(root, 'var/tools/bin/uv');
-  writeFileSync(stub, `#!/usr/bin/env node
-const fs = require('node:fs');
+  writeFileSync(stub, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} "$@"\n`);
+  writeFileSync(script, `const fs = require('node:fs');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, cwd: process.cwd(), listing: fs.readdirSync(process.cwd()).sort(), env: process.env.UV_CACHE_DIR ?? null }) + '\\n');
 const out = args[args.indexOf('-o') + 1];
