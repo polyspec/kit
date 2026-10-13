@@ -1391,3 +1391,52 @@ fixture policy of `tests/kit/fixture` declares sources that exist and agree with
 - The writer needs the network (PyPI through uv) unless findLinks is declared.
 - A requirement's extras and markers do not change which packages are pinned: every package of the lock must be in the constraints,
   whatever the marker.
+
+## Editor tools (K80)
+
+orm and template both have editor packages: a language service, a language server, a CodeMirror adapter and a VS Code
+extension. The two tools that check and test them move from template (`scripts/check-editor-boundaries.mjs` 103,
+`scripts/install-vscode.mjs` 75) into kit. Each repository runs them from its own make target, with its own configuration.
+
+### Editor boundaries
+
+`scripts/kit/check-editor-boundaries.mts` reads `config/editor-boundaries.json` (`scripts/kit/schema/editor-boundaries.schema.json`).
+Each boundary has:
+- `packages`, the package directories;
+- `sources`, the source directory of each package;
+- `forbiddenModules`, globs of the modules that the packages may neither import nor declare in a dependency field of package.json;
+- `forbiddenGlobals`, the globals that the packages may not use;
+- `exempt`, the sources that are not starting points, such as the command line of a language service.
+
+The check starts at every source that no exempt glob matches. It follows the relative imports transitively, also out of
+the package, and reports a finding with its import chain. A file under an exempt glob that a checked source reaches is
+checked too. A bare specifier is judged by its name and never followed. A relative import names its file, with `.js` for
+a `.ts` file. An import that the check cannot follow is a finding, never skipped: a computed `import()`, a subpath import,
+a relative import of no file, or a `.tsx` or `.jsx` source.
+
+The template tool had no configuration and followed no import. It found imports with one regular expression over each file
+of `src`, and found DOM globals with a second one that listed the properties of `document`. kit parses instead:
+- amaro, the TypeScript remover of Node.js, turns TypeScript into JavaScript in transform mode. The remover built into
+  Node.js 26 only strips, and fails on parameter properties.
+- acorn parses the JavaScript, and acorn-walk finds the `import`, `export … from`, `import()` and `require()` nodes.
+- eslint-scope finds the references that no scope declares, so a local variable named `document` is not a use of the global.
+
+These replaced the alternatives:
+- TypeScript 7 has only an unstable compiler API.
+- dependency-cruiser and madge need the API of TypeScript 6 (K111).
+- es-module-lexer reads neither `require()` nor globals.
+
+The runtime self-test of the template tool became `tests/kit/editor-boundaries.test.mts`.
+
+### VS Code installer
+
+`scripts/kit/install-vscode.mts <extension package directory> <tools directory>` installs the minimum of `engines.vscode`
+(`^X.Y.Z`; any other form fails) in the layout of `@vscode/test-electron`, which does the download. The tool adds two
+things that the library lacks:
+- `installedExecutable`, the offline read of the integration run. It fails with `run make install-vscode` when the copy is
+  missing.
+- A download into `<tools>/.next-<pid>` that is renamed into place. The library unzips into the final directory, so two
+  installs at once would destroy each other; with the rename, the copy of the first install stays.
+
+`@vscode/test-electron` is an optional peer dependency of kit: a repository that installs VS Code declares it.
+`tests/kit/install-vscode.test.mts` replaces the download with a function, so no test reaches the network.
