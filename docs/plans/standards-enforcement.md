@@ -121,7 +121,7 @@ Existing roots move like this:
 - ssr's `verification/` → `packages/verification/`
 - template-benchmark, which is not a monorepo of packages: `adapters/` → `packages/`, and it adopts kit and S1–S9
 
-Every repository's map is written in its `config/layout.json` before the tool is turned on, so the red has a defined green.
+Every repository's map is written in its `config/layout.yml` before the tool is turned on, so the red has a defined green.
 
 **Package folders**
 - The runtime ports of the main spec live in `packages/<runtime>/`, where the runtime is go, php, php-ext, python, rust,
@@ -279,16 +279,23 @@ document lands.
 4. **Layout tool (S5, S7).**
    - fsm's `check-layout.mjs` is not portable: it requires the `fsm-<kind>` prefix, reads `contracts/layout.json` and
      checks only `packages/`.
-   - First a rebuild record weighs alint, which covers existence, allowlist and per-package structure. It is young (0.x).
-     ls-lint checks names only. Repolinter's state is unverified.
-   - If alint covers S5, kit configures alint. Otherwise kit writes the layout tool in TypeScript.
-   - Either way, the tool covers:
+   - Decided (K76): kit configures alint 0.18.2 and writes no layout tool. alint expresses every item with configuration
+     alone, so S1 forbids a rebuild and there is no rebuild record; ls-lint checks names only, and Repolinter is archived.
+     The evaluation, the verdict of each item and the version procedure are in `docs/tool-inventory.md` (Layout check).
+   - `make layout-check` runs the alint of `var/tools` (`install-tools`, pinned with the sha256 of each platform archive) on
+     `config/layout.yml`. That file extends the vendored `config/layout.kit.yml` (the common rules and templates) with the map of
+     the repository; each S9 exception carries its reason in a comment, reviewed by the owner (S8).
+   - The rules cover:
      - the root allowlist;
-     - the package tree;
-     - go.mod module path = repository path + folder;
-     - no `PYTHONPATH` or repository-leaving path;
-     - no non-TS infrastructure script outside the S9 carve-outs.
+     - the package tree and no repository prefix;
+     - go.mod module path = repository path + folder, with Go's `/vN` for v2+;
+     - no `PYTHONPATH`, checked here only and not by the parity schema;
+     - no path that leaves the repository, in `config/*.json` and in the path dependencies of `go.mod`, `package.json`,
+       `pyproject.toml`, `Cargo.toml` and `composer.json`;
+     - no non-TS infrastructure script outside the S9 carve-outs;
+     - the root `tests/` holds the declared runners only (S7).
    - Feature ownership stays in parity.
+   - The consumer repositories adopt it in K79.
 5. **Lint configuration.** kit distributes it, and each run passes the root config explicitly (for example
    `ruff check --config`).
 
@@ -327,7 +334,7 @@ document lands.
 
 ## 2. Red reproduction
 
-Folder targets are fixed first, so `config/parity.json` and `config/layout.json` are written once for the final paths.
+Folder targets are fixed first, so `config/parity.json` and `config/layout.yml` are written once for the final paths.
 
 Right after a repository adopts the release, `make check` runs and its failures are recorded, not fixed. The table predicts
 them:
@@ -347,7 +354,7 @@ them:
 | orm | python and php-extension missing in 11 suite units | parity |
 | orm | npm `performance_gate` | parity |
 | orm | root Go module | layout |
-| orm | `PYTHONPATH=../ordered-json/…` in `config/parity.json` | layout / parity schema |
+| orm | `PYTHONPATH=../ordered-json/…` in `config/parity.json` | layout |
 | ordered-json | 4 classes in `OrderedJson.php` (the functions and `MAX_DEPTH` keep `files`); no `license` | phpcs; `composer validate` |
 | ordered-json | JS `check()` runner | S3 |
 | ordered-json | strict duplicate keys missing in Go and php-ext | parity |
@@ -381,7 +388,7 @@ them:
 | fsm | fsm-go module path | layout |
 | fsm | `polyspec_fsm` namespace | review |
 | fsm | orm 0.0.7 pinned in an inline Composer `package` repository | toolchain / dependency policy |
-| fsm | `PYTHONPATH` in `config/parity.json` | parity schema |
+| fsm | `PYTHONPATH` in `config/parity.json` | layout |
 | ssr | adapter asymmetry (vue and svelte no invalid-input test; react and vanilla no empty-SSR hydration) | parity |
 | ssr | `crates/` | layout |
 | ssr | no kit | adoption |

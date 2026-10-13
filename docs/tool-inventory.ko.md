@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4975f51ffb3cb36138c9e097194abc2f35dd7d3655b4201ae3df2f27c68211e2 -->
+<!-- source-sha256: df1495b1fc7a1d54fe944ebed251b12f705955c509b1b8fa475236d468b611af -->
 
 # 도구 목록
 
@@ -36,7 +36,7 @@
 
 `scripts/kit/install-tools.mts`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mts`는 실행 중인
 도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mts`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
+(`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mts`, `install-govulncheck.mts`를 씁니다). 모든 installer는 `install-tool.mts`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
 통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
@@ -72,12 +72,13 @@
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
 | ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 `var/tools/bin/uv venv`가 만들고 wheel은 `uv pip install`로 설치함 | 설치 |
+| alint | `config/toolchain.json`의 `alint`: 정확한 `version`과 플랫폼별 release archive `alint-v<version>-<target>.tar.gz`의 `sha256`, digest를 확인하며 내려받아 `var/tools/alint`에 풂; `make layout-check`가 실행함(K76) | 설치 |
 | uv | `config/toolchain.json`의 `uv`: 정확한 `version`과 플랫폼별 release archive `uv-<target>.tar.gz`의 `sha256`, digest를 확인하며 내려받아 `var/tools/uv`에 풂; wrapper `var/tools/bin/uv`는 state를 `var/tools` 아래에 둠(K54, K64) | 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | 선언된 Composer로 설치 |
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
+목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`와 `alint`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
 `phpunit`(`version`), `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
@@ -130,6 +131,69 @@
   machine의 도구가 아닙니다.
 - `config/toolchain.json` `node`의 Node.js archive checksum은 저장소 자신의 download가 읽는 data입니다. kit는 받아들이기만 하고
   읽지 않습니다.
+## Layout 검사 (K76)
+
+S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 도구가 아니라 release된 도구
+[alint](https://github.com/asamarts/alint)가 검사합니다. 생태계 도구가 요구사항을 표현하면 S1은 재구현을 금하고, alint는 아래
+모든 항목을 설정만으로 표현합니다. 그래서 kit에는 이에 대한 rebuild record가 없고, 이 절이 선택을 기록합니다.
+
+- `make layout-check`는 `var/tools/bin/alint check --config config/layout.yml .`을 실행합니다(offline). `config/toolchain.json`의
+  `alint`가 release와 platform별 archive의 sha256을 고정하고, `install-alint.mts`가 uv처럼 설치합니다.
+- `config/layout.kit.yml`은 공통 rule과 template을 담습니다. vendored 파일(kit.json `vendoredFiles`)이므로 kit-sync가 copy하고
+  kit-check가 hash를 확인하며, 레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
+  때문에 이 파일은 `config/`에 있습니다.
+- 레포의 `config/layout.yml`은 이 파일을 extends하고 자기 map을 더합니다. 자기 이름으로 template `no-repository-prefix`와
+  `go-module-path`의 instance를 두고, port가 있는 component마다 `component-ports` instance를 하나 두며, rule id로 override합니다
+  (`layout-packages`의 component, `layout-root-tests`의 runner, root 파일과 S9 예외). `paths` override는 목록을 통째로 바꾸므로
+  공통 항목을 되풀이합니다. 예외마다 바로 위 주석에 이유를 적습니다. alint에는 이유를 담을 field가 없으므로, 표준 계획서가
+  parity(S6)와 함께 두는 `CODEOWNERS`의 `config/layout.yml` owner 필수 review가 S8을 강제합니다. kit에는 아직 `CODEOWNERS`가
+  없습니다.
+- `PYTHONPATH`는 여기서만 검사하고 parity schema에서는 다시 검사하지 않습니다. test의 기능 소유는 parity R6에 두고, layout은
+  root `tests/`의 위치만 정합니다.
+- `tests/source/layout-real.test.mts`는 실제 alint를 돌립니다. layout을 따르는 레포는 통과하고, 심은 위반 17개는 각각 그것을
+  가리키는 rule로 실패하며, 이 checkout은 통과합니다.
+
+### 요구사항과 판정
+
+alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만 하며 돌렸습니다. 거기서 rule은 표준 계획서가 적은 위반을
+찾았습니다(root `conformance/`, `machines/`, `schema/`, `fsm-` 접두사, `fsm-go`의 module path, `config/parity.json`의
+`PYTHONPATH`와 `../ordered-json/…`, `.mjs` script).
+
+| 항목 | 요구사항 | alint rule | 판정 |
+|---|---|---|---|
+| L1 | root 폴더와 파일의 allowlist | `root_only`와 `!` 항목을 쓰는 `dir_absent`, `file_absent` | native |
+| L2 | `packages/<runtime>/`, `packages/<component>/`, `packages/<component>/<runtime>/` | `dir_absent`, `file_absent`, template `component-ports` | native |
+| L3 | `packages/` 아래 `<repo>-` 접두사 금지 | template `no-repository-prefix` | native |
+| L4 | go.mod module path = `github.com/polyspec/<repo>/<folder>`, v2 이상은 Go의 `/vN` | `file_content_matches`를 쓰는 `for_each_file` | native |
+| L5 | `PYTHONPATH` 금지 | `file_content_forbidden` | native |
+| L6 | 레포를 벗어나는 경로 금지: `config/*.json`, `go.mod` replace, `package.json` `file:`, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
+| L7 | `scripts/`와 `tests/` 아래 TypeScript가 아닌 인프라 script 금지, 선언된 S9 예외는 허용 | script 확장자에 `file_absent`, 다른 shebang에 `file_content_forbidden` | native. 이유는 주석 |
+| L8 | root `tests/`에는 선언된 runner만 | `dir_absent` | 위치는 native |
+| L9 | release와 platform별 sha256 고정, offline, 설정을 명시적으로 넘김 | `SHA256SUMS`와 cosign bundle이 있는 release archive | install-tools에 맞음 |
+
+### 평가한 도구
+
+| 도구 | 상태 (2026-10-13) | 판정 |
+|---|---|---|
+| alint | 0.18.2, 첫 release 2026-04-19, Apache-2.0 OR MIT, maintainer 한 명, crate download 약 1.4k, darwin과 linux의 x64, arm64 binary | 채택: L1–L9를 다룸 |
+| ls-lint | 2.3.1, MIT | 이름만(`.dir`이 재귀로 적용). 파일 내용을 읽지 못해 L4–L6 불가 |
+| Repolinter | 0.12.0, repository가 archived | 제외 |
+| @rikalabs/repo-lint | 2.3.0, 월 약 180 download | 경로 배치만. L4–L6 불가 |
+| eslint-plugin-project-structure | 3.14.5 | ESLint가 읽는 파일만 lint. `go.mod`와 manifest 불가 |
+| fsm `scripts/check-layout.mjs` | 우리 code | fsm 전용(`fsm-<kind>` 접두사 요구, `contracts/layout.json`을 읽고 `packages/`만 검사) |
+
+### 성숙도 위험과 버전 절차
+
+alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨지만 layout rule이 쓰는 key는 아닙니다. 위험은 고정으로
+관리합니다. `config/toolchain.json`이 정확한 release와 platform archive별 sha256을 적고, 설치는 다른 archive를 거부합니다.
+버전을 올릴 때는 다음 순서를 따릅니다.
+
+1. 고정된 release와 새 release 사이의 모든 CHANGELOG에서 바뀐 설정을 읽습니다.
+2. release의 `SHA256SUMS`에서 digest 네 개를 가져오고, archive를 각각 내려받아 digest를 확인합니다.
+3. `config/toolchain.json`의 `alint`를 고치고 `make install-tools TOOLS=alint`를 돌린 뒤
+   `tests/source/layout-real.test.mts`의 fixture와 `make layout-check`를 돌립니다.
+4. 바뀐 key가 있을 때만 `config/layout.kit.yml`의 layout rule을 고칩니다.
+
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
@@ -516,7 +580,7 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `toolchain-declared.mts` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-alint, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
 | `dependency-state.mts` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
 
 그 밖에 없앤 중복:

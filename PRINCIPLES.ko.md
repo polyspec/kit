@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 78af798b6358b7e104651338cdb23029e4675db639ed0844f746cf59e49cf9d7 -->
+<!-- source-sha256: 6b30376a42794a8e2d49b829b1d93e87dbb17c790f4c5a8a45d26204d2d5d88a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -93,7 +93,8 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
-  않습니다.
+  않습니다. `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
+  그 안의 예외는 모두 이유를 가집니다.
 - S6 언어 parity: repository의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test합니다. 영구 차이는 이유가
   spec anchor를 인용하는 선언된 profile이며, exclusion은 제거될 때까지 실패하는 부채입니다.
 - S7 test 위치: 기본 기능의 test는 그 기능을 소유한 package와 repository에 둡니다. 소비자는 소비자 관점의 test만 둡니다.

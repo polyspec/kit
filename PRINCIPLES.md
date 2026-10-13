@@ -99,6 +99,8 @@ tool lands, a standard binds the work as written here.
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
   `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix.
+  `make layout-check` checks it with alint against `config/layout.yml`, the map of the repository over kit's common rules;
+  each exception there carries its reason.
 - S6 Language parity: every implementation of a repository tests the same feature units, vectors and API at the same
   level. A permanent difference is a declared profile whose reason cites a spec anchor; an exclusion is debt that fails
   until removed.

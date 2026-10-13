@@ -9,6 +9,7 @@
   "vendoredFiles": {
     ".github/workflows/release.yml": "workflows/release.yml",
     "PRINCIPLES.md": "PRINCIPLES.md",
-    "PRINCIPLES.ko.md": "PRINCIPLES.ko.md"
+    "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
+    "config/layout.kit.yml": "config/layout.kit.yml"
   }
 }

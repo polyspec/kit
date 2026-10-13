@@ -1,0 +1,58 @@
+# The folder layout of kit (S5, S7, S9), checked by make layout-check: the common rules of config/layout.kit.yml and the map
+# of this repository. kit is the repository of the tools, not a monorepo of packages, so it has no packages/.
+version: 1
+extends:
+  - layout.kit.yml
+
+rules:
+  - extends_template: no-repository-prefix
+    id: layout-no-repository-prefix
+    vars: { repo: kit }
+
+  - extends_template: go-module-path
+    id: layout-go-module-path
+    vars: { repo: kit }
+
+  - id: layout-root-folders
+    paths:
+      - "*"
+      - "!packages"
+      - "!contracts"
+      - "!docs"
+      - "!scripts"
+      - "!tests"
+      - "!examples"
+      - "!benchmarks"
+      - "!config"
+      - "!.github"
+      - "!.githooks"
+      - "!.kit"
+      # The source of the vendored release workflow; the copy of a consumer repository lies in .github/workflows/.
+      - "!workflows"
+
+  - id: layout-root-tests
+    paths:
+      - "tests/*"
+      - "!tests/kit"
+      # The tests of kit itself that run the real tools of var/tools (make source-test); kit vendors only tests/kit.
+      - "!tests/source"
+
+  - id: layout-no-pythonpath
+    paths:
+      - "config/**"
+      - "scripts/**"
+      - "tests/**"
+      - "Makefile"
+      - ".github/**"
+      - "packages/**/Makefile"
+      - "packages/**/*.toml"
+      - "packages/**/*.json"
+      - "packages/**/*.cfg"
+      - "packages/**/*.ini"
+      # The layout rules name PYTHONPATH to forbid it.
+      - "!config/layout.kit.yml"
+      - "!config/layout.yml"
+      # The parity tests of kit hold the text PYTHONPATH as data of the declarations they check.
+      - "!tests/kit/parity.test.mts"
+      # The real layout test of kit plants PYTHONPATH into a fixture repository to see the rule fail.
+      - "!tests/source/layout-real.test.mts"
