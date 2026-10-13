@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 4bf9f6823e853754f7b4322fa014b6589183b083084d6b6320746891c516c69e -->
+<!-- source-sha256: 28f6a05b7607848d539e1ee7b532f200104c6820ae0c51138a71c9b883744aff -->
 # 개발
 
 [English](AGENTS.md)
@@ -31,6 +31,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
   path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
+  테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
+  sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).
 - 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은

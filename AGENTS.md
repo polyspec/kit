@@ -35,6 +35,8 @@ and states only its own rules. The rules below are kit's own.
 - This repository creates no symbolic link and no relative path: not in its tracked files, configuration, scripts or
   generated output. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
+  A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
+  test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
