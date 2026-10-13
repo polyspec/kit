@@ -8,7 +8,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 
 | Concern | Tools (`scripts/kit/`) | Make targets (`scripts/kit/kit.mk`) |
 |---|---|---|
-| Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync KIT_TAG=…`, `kit-check`, `kit-test` |
+| Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync`, `kit-check` |
 | Dependencies | `dependency-state.mts`, `dependency-review.mts`, `check-dependency-policy.mts`, `check-dependency-policy-mutation.mts`, `pin-python-dependency.mts` | `dependency-policy-check`, `dependency-policy-mutation-check`, `dependency-review RECORD=1 UPDATE=1` |
 | Toolchains | `install-tools.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-composer.mts`, `install-cargo-audit.mts`, `install-govulncheck.mts`, `install-rust.mts`, `check-toolchain.mts`, `check-cargo-downloads.mts` | `install-tools TOOLS=…`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | Folder layout | `install-alint.mts`; alint runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
