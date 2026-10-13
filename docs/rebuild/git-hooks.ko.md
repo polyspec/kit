@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-git-hooks -->
-<!-- source-sha256: e459aba2b91c029b2af8fee03a9547621b13f88145d35b99442dd94ce1daf6ab -->
+<!-- source-sha256: 621418c7b3a563cd393274345a9e212e93c2fd13afa279165e6a63cc0b90b0e9 -->
 # 재구현 기록: git-hooks
 
 [English](git-hooks.md)
@@ -28,8 +28,8 @@
 
 ## 맞는 도구가 없는 이유
 
-이 도구들이 더하는 것은 `git config core.hooksPath` 호출 하나인데, kit.mk가 이미 make를 실행할 때마다 그 호출을
-합니다. H2와 H4, 즉 gate hook의 내용과 그것이 제자리에 있는지의 검사는 이 도구들의 관심사가 아니므로, kit은 둘을
+이 도구들이 더하는 것은 `git config core.hooksPath` 호출 하나인데, kit.mk가 이미 `.githooks/pre-push`를 추적하는
+checkout에서 make를 실행할 때마다 그 호출을 합니다. H2와 H4, 즉 gate hook의 내용과 그것이 제자리에 있는지의 검사는 이 도구들의 관심사가 아니므로, kit은 둘을
 그대로 두고 의존성만 더하게 됩니다.
 
 ## 재시도 조건
