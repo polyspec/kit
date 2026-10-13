@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3ab33f8e537f7e4c65fbf669f2743bbbfffa3aa41ed7e53704fd2eff91a2753b -->
+<!-- source-sha256: 0ace0a5d4a46c0722c71646629ab01f8d2ce6fbee0480363dc008e38aaa69a65 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -157,8 +157,8 @@
 | K84 | PRINCIPLES가 code와 문서의 언어를 정합니다: 주석, identifier, log, error message, test 이름, commit message는 영어, 문서는 영어와 한국어 쌍. 원인: 주석은 영어라는 owner 규칙이 flowmark의 AGENTS에만 있었고, orm의 AGENTS는 반대(주석은 한국어)를 적었습니다. | PRINCIPLES.md(+ko), 기준 | `make documents-check` | [o] |
 | K94 | `release.mts` `latestTag`는 release tag `vX.Y.Z`만 비교합니다. 원인: `v[0-9]*`에 맞는 `v1.2`나 `v1.2.3-rc1` 같은 tag가 비교에서 NaN을 내어 순서가 불안정했고 latest가 틀릴 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release.mts`, 그 test | 섞인 tag의 red test, 그다음 `make kit-test` | [o] |
 | K95 | `dependency-review`는 latest version을 넣은 dependency로 fix 문구를 만듭니다. 원인: review가 latest를 넣기 전의 dependency를 넘겨 toolchain ruff의 fix가 "set ruff in config/toolchain.json to undefined"가 되었고, test는 latest를 직접 넣어 이를 놓쳤습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/dependency-review.mts`, 그 test | review 경로를 거친 red test, 그다음 `make kit-test` | [o] |
-| K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 뺍니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [ ] |
-| K97 | `tests/source`의 real test는 option을 함수 앞에 넘깁니다(`test(name, { timeout }, fn)`). 원인: test 10개가 함수 뒤에 `{ timeout }`을 넘겼고 node:test는 그것을 무시하므로 timeout이 적용되지 않았습니다. K71-1 type 작업에서 찾았습니다(TS2559). | `tests/source/*-real.test.mts` | `make typecheck`(전에는 TS2559), `make source-test` | [ ] |
+| K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 뺍니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [~] |
+| K97 | `tests/source`의 real test는 option을 함수 앞에 넘깁니다(`test(name, { timeout }, fn)`). 원인: test 10개가 함수 뒤에 `{ timeout }`을 넘겼고 node:test는 그것을 무시하므로 timeout이 적용되지 않았습니다. K71-1 type 작업에서 찾았습니다(TS2559). | `tests/source/*-real.test.mts` | `make typecheck`(전에는 TS2559), `make source-test` | [o] |
 | K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [o] |
 | K99 | `release-consumer-config`는 text가 아닌 `proof.gitTag` kind를 거부합니다. 원인: `in`과 index가 `["rust"]`를 `"rust"`로 바꾸어 list가 통과했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K100 | TOML reader는 array 아래 table의 TOML 규칙을 지킵니다: `a = [[1]]` 다음의 `[a.x]`는 내부 array에 key를 두는 것이 아니라 error입니다. 원인: `parseToml`이 array의 마지막 항목을 확인 없이 table로 썼습니다. reader는 K73에서 smol-toml로 대체되며, 이 입력은 대체의 test에 들어갑니다. | K73 TOML test | 옛 reader에서 실패하고 대체에서 통과하는 case | [ ] |
@@ -168,3 +168,4 @@
 | K107 | parity 선언 검사는 `symbols`가 없는 API unit을 그 unit을 이름으로 대는 finding으로 거부합니다. 원인: 그런 unit이 선언 검사를 통과한 뒤 `missingImplementations`가 `unit.symbols.find`에서 TypeError로 죽었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/parity-units.mts`, `scripts/kit/parity-declaration.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
 | K108 | toolchain 검사는 PHP가 실행되지 않을 때 fix에 선언된 PHP minor를 이름으로 댑니다. 원인: fix가 PHP 선언에 없는 `.version`을 읽어(PHP는 minor를 선언합니다) "install PHP undefined"라고 했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/check-toolchain.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
 | K109 | `release-consumer-config`는 wheel package가 있는데 `consumers`가 없는 release config를 빠진 절을 이름으로 대는 problem으로 거부합니다. 원인: `consumerConfigProblems`가 `consumers`가 없으면 검사를 건너뛰어 그런 config가 `loadConfig`를 통과했고, `release assets`가 이름 있는 error로 멈췄으며(K71-1 전에는 TypeError) release-consumer도 같은 이유로 실패할 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
+| K110 | `tests/kit/sandbox-repository.test.mts`는 kit test의 모든 Git repository가 `initRepository`로 만들어지는지를 `.mts` test 파일에 대해 검사하며, 파일을 읽었음을 단언합니다. 원인: K71-1이 이름을 바꾼 뒤에도 scan이 `.mjs` 파일을 골라 빈 선택으로 통과했습니다. K71-1 type 작업(E 그룹)에서 찾았습니다. | `tests/kit/sandbox-repository.test.mts` | 다른 방법으로 repository를 만드는 test에서 scan이 실패하고, 그다음 통과 | [ ] |
