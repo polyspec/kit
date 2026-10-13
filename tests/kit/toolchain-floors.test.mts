@@ -118,6 +118,24 @@ test('every Cargo package declares rust-version as the Rust pin, also through it
   ]);
 });
 
+// A lock entry of a workspace is scoped by the workspace of its key, so an exception scoped to the workspace covers the
+// typescript that the workspace resolves, as it covers the workspace's package.json.
+test('the typescript of a workspace in the root lock is covered by an exception scoped to that workspace', (t) => {
+  const exception = { tool: 'typescript' as const, channel: '6.0.3', scope: 'packages/w', reason: 'the generator runs TypeScript 6', retry: 'the generator runs TypeScript 7' };
+  const root = tree(t, {
+    'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
+    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
+    'packages/w/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
+  });
+  const covered = new Pinning(PINS, [exception]);
+  assert.deepEqual(typescriptFindings(root, covered), []);
+  assert.deepEqual(covered.stale(), [], 'the exception of packages/w is used');
+  assert.deepEqual(typescriptFindings(root, new Pinning(PINS)), [
+    'package-lock.json: packages["packages/w/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+    'packages/w/package.json: devDependencies.typescript is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+  ], 'without the exception the entry of packages/w fails');
+});
+
 // A lock resolves the typescript that a manifest of the repository declares at the top level or in the node_modules of a
 // workspace; a copy nested under another package, such as the TypeScript 5.9.3 that API Extractor bundles, is that tool's.
 test('every package.json that names typescript names the TypeScript pin, and every lock resolves it to the pin', (t) => {

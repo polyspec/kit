@@ -103,7 +103,8 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
 | `typescript` of each dependency field of a `package.json`, and the `typescript` that a `package-lock.json` resolves at its top level or for a workspace; a copy nested under another package, such as the TypeScript that API Extractor bundles, is that tool's (S1) | the TypeScript pin |
 
 - `exceptions` of `config/toolchain.json` declares a deviation as `{ tool, channel, scope, reason, retry }` (S8): the scope is
-  `.` or a directory of the checkout, and a value under it may equal the channel. A deviation without an exception fails,
+  `.` or a directory of the checkout, and a value under it may equal the channel; a lock entry of a workspace is under the
+  folder of that workspace, not of the lock. A deviation without an exception fails,
   and so do an exception that lacks a field or names an unpinned tool, a channel of the wrong precision or a missing
   directory, and one that nothing uses (stale). A Rust `nightly-<yyyy-mm-dd>` is never stale: parity reads it for rustdoc
   JSON.

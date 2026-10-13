@@ -125,8 +125,12 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
     }
     if (name === 'package-lock.json') {
       const packages: Record<string, { version?: unknown }> = readJson(root, file).packages ?? {};
+      // An entry belongs to the folder of its workspace (packages/w/node_modules/typescript to packages/w), and an exception
+      // scoped to that workspace covers it; a top-level entry belongs to the folder of the lock.
       return Object.entries(packages).filter(([key]) => declaredTypescript(key))
-        .flatMap(([key, entry]) => pinning.check(file, `packages[${JSON.stringify(key)}].version`, entry.version, 'typescript'));
+        .flatMap(([key, entry]) => pinning.check(file, `packages[${JSON.stringify(key)}].version`, entry.version, 'typescript', undefined, {
+          scope: path.posix.join(path.posix.dirname(file), key.slice(0, -'node_modules/typescript'.length)).replace(/\/$/, ''),
+        }));
     }
     return [];
   });

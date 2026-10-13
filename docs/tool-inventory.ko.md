@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ea24d6f2e9d897b42055c4bc2fd2a4390e73383eb18b660c6aac9caef65ca4d3 -->
+<!-- source-sha256: 812e93c995f7ba58866c3963a93476a76f15ff16b6d785c65ac2ef7881918932 -->
 
 # 도구 목록
 
@@ -101,7 +101,8 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
 | `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript`. 다른 package 아래에 중첩된 사본(API Extractor가 내장한 TypeScript 등)은 그 도구의 것입니다(S1) | TypeScript pin |
 
 - `config/toolchain.json`의 `exceptions`는 편차를 `{ tool, channel, scope, reason, retry }`로 선언합니다(S8). scope는 `.`
-  또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. 예외 없는 편차는 실패하고, 필드가 빠졌거나 pin되지
+  또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. workspace의 lock 항목은 lock이 아니라 그 workspace의
+  folder 아래에 있습니다. 예외 없는 편차는 실패하고, 필드가 빠졌거나 pin되지
   않은 도구, 정밀도가 틀린 channel, 없는 directory를 가리키는 예외와 아무것도 쓰지 않는 예외(stale)도 실패합니다. Rust
   `nightly-<yyyy-mm-dd>`는 parity가 rustdoc JSON에 읽으므로 stale이 되지 않습니다.
 - `install-links=true` 또는 `bin-links=false`를 설정한 `.npmrc`는 실패합니다(S1: 우리 규칙은 npm의 link를 막지 않습니다).
