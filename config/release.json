@@ -21,6 +21,8 @@
   "notReleased": {
     "config/php-lint/composer.json": "the Composer project of the PHP lint that install-tools installs and that kit copies into every repository",
     "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit",
+    "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which install-tools builds and the package @polyspec/kit ships in dist/symbols",
+    "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which install-tools installs and the package @polyspec/kit ships in dist/symbols",
     "tests/release-consumer/npm/package.json": "the npm consumer project that installs the release archive of kit"
   },
   "goModules": {},
