@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: f3a1ce0b490af3c4b8f1ddadd1a4d89e20c2d98a8837cfae995dda6d2dafda49 -->
+<!-- source-sha256: a9756a33e5ce7b8e6fc37ea2bf848a5fc1ce437f1f11de9d846490cbec5a7ade -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -177,7 +177,7 @@
 | K119 | 철회했습니다. `tests/kit/release-sandbox.mts`의 npm stub은 이미 자기 `stub-npm-*` 폴더를 지웁니다(K5.1, 87f8b1c부터); 새 임시 directory로 실행하면 하나도 남지 않았습니다. 5,434개는 폴더를 만들고 지우기 전에 중단된 실행이나, v0.0.10보다 오래된 kit test를 vendor한 소비자에서 나왔습니다. 이 행은 삭제 코드를 읽지 않고 50번째 줄만 보고 등록했습니다. | — | — | [-] |
 | K120 | `markdown.mts`와 check-documents의 link·anchor 규칙이 Markdown을 mdast-util-from-markdown과 micromark-extension-gfm(그리고 mdast-util-frontmatter)으로, heading anchor를 github-slugger와 @mdit-vue/shared `slugify`로 읽습니다. K74 측정: 9개 repository의 650개 파일과 4607개 heading에서 같은 fence, link, anchor. | `scripts/kit/markdown.mts`, `scripts/kit/check-documents.mts`, tests | a red case each library reads and kit misreads (the escaped `\#` heading, front matter); the unit tests | [ ] |
 | K121 | owner-check가 target과 prerequisite를 regex가 아니라 GNU make의 database(`make -pRrq`)에서 읽습니다. K74 측정: regex는 target별 변수를 prerequisite로 읽고, `$(…)`를 펼치지 않으며, fsm에서 11개, orm에서 86개 target을 놓칩니다. | `scripts/kit/owner-check.mts`, tests | a red Makefile with a target-specific variable and an expanded prerequisite; the unit tests | [ ] |
-| K122 | `pin-python-dependency`가 pyproject.toml을 @decimalturn/toml-patch로 고칩니다. K74 측정: 실제 파일 30개의 pin 57개에서 같은 출력. | `scripts/kit/pin-python-dependency.mts`, tests | a red case the regex edit gets wrong; the unit tests | [ ] |
+| K122 | `pin-python-dependency`가 pyproject.toml을 @decimalturn/toml-patch로 고칩니다. K74 측정: 실제 파일 30개의 pin 57개에서 같은 출력. | `scripts/kit/pin-python-dependency.mts`, tests | a red case the regex edit gets wrong; the unit tests | [o] |
 | K123 | release-wheel과 wheel-dependencies가 wheel의 metadata를 `pip install --dry-run --no-deps --no-index --report`로 offline에서 읽습니다. 원인: `unzip -p '*.dist-info/METADATA'`는 vendored dist-info 폴더도 잡습니다; setuptools 84.0.0에서 METADATA 13개를 이어 붙여, package를 vendor하는 wheel의 `Name:`과 `Requires-Dist`가 틀립니다(K74). | `scripts/kit/release-wheel.mts`, `scripts/kit/wheel-dependencies.mts`, tests | a red wheel with a vendored dist-info; the unit tests | [ ] |
 | K124 | dependency-review가 JSON stream을 `parseJsonStream`이 아니라 stream-json(`jsonStreaming`) 또는 govulncheck의 단일 문서 SARIF로 읽습니다(K74). | `scripts/kit/dependency-review.mts`, tests | red cases: braces and escaped quotes in strings, an empty stream; the unit tests | [ ] |
 | K125 | test-output은 TAP을 읽지 않습니다: tap-parser가 먼저 kit의 TAP reader를 대신했고, 이어 parity의 node reporter(K75)로 TAP을 읽는 곳이 없어져 reader와 tap-parser를 지웠습니다. 원인: kit은 test 이름의 TAP escape `\#`를 그대로 두는데 TAP은 이를 제거합니다(K74). libtest, unittest, TeamCity는 kit의 reader를 유지합니다(docs/rebuild/test-output). | `scripts/kit/test-output.mts`, tests | a red TAP name with `\#`; the unit tests | [ ] |
