@@ -4,14 +4,25 @@
 // .php-version declares. No test uses the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const WORKFLOW = readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8');
+// The test is vendored, so it runs in kit and in every consumer. kit.json maps the workflow from its source in kit
+// (`workflows/release.yml`) to its copy in a consumer (`.github/workflows/release.yml`); in a checkout exactly one of the two
+// exists, and the test reads that one. A checkout holding neither or both is a failure, never a choice.
+const KIT = JSON.parse(readFileSync(path.join(ROOT, 'kit.json'), 'utf8'));
+const [WORKFLOW_PATH] = (() => {
+  const [copy, source] = Object.entries(KIT.vendoredFiles ?? {}).find(([, from]) => from === 'workflows/release.yml') ?? [];
+  assert.ok(source, 'kit.json vendors workflows/release.yml');
+  const present = [source, copy].filter(file => existsSync(path.join(ROOT, file)));
+  assert.equal(present.length, 1, `exactly one of ${source} and ${copy} exists in the checkout, found ${present.length}`);
+  return present;
+})();
+const WORKFLOW = readFileSync(path.join(ROOT, WORKFLOW_PATH), 'utf8');
 // The steps of the release job, each as its text from its `- ` line to the next; the last line of a step has no line end.
 const steps = WORKFLOW.split(/\n(?=      - )/).slice(1);
 const index = pattern => steps.findIndex(step => pattern.test(step));
