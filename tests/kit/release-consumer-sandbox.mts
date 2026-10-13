@@ -96,6 +96,7 @@ if (args[0] === 'update' && args.includes('--no-install')) {
 } else if (args[0] === 'install') {
   if (!fs.existsSync('composer.lock')) finish(1, 'composer stub: composer install needs a composer.lock');
   const lock = readJson('composer.lock');
+  if (mode === 'no-installed') finish();
   fs.mkdirSync('vendor/composer', { recursive: true });
   const version = mode === 'wrong-version' ? '9.9.9' : null;
   fs.writeFileSync('vendor/composer/installed.json', JSON.stringify({ packages: lock.packages.map(entry => ({ name: entry.name, version: version ?? entry.version })) }));

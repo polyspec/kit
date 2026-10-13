@@ -168,9 +168,11 @@ function installedVersion(kind: ConsumerKind, project: string, name: string) {
     const file = path.join(project, 'node_modules', name, 'package.json');
     return existsSync(file) ? readJson(file).version ?? null : null;
   }
+  // Composer 2 writes vendor/composer/installed.json as { packages: [...] } on every install.
   const file = path.join(project, 'vendor/composer/installed.json');
-  const list = existsSync(file) ? readJson(file) : {};
-  return (Array.isArray(list) ? list : list.packages ?? []).find((item: ComposerEntry) => item.name === name)?.version ?? null;
+  if (!existsSync(file)) throw new Stop(`composer install wrote no vendor/composer/installed.json in ${project}`);
+  const installed: { packages: ComposerEntry[] } = readJson(file);
+  return installed.packages.find(item => item.name === name)?.version ?? null;
 }
 
 /**
