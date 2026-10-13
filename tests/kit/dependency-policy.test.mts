@@ -157,6 +157,20 @@ test('an npm audit that prints nothing is an error of its lock, not a lock witho
   assert.match(result.stdout + result.stderr, /npm audit --json --package-lock-only printed no JSON: the output is empty/);
 });
 
+test('the review refuses a policy that breaks its schema instead of reviewing nothing for a missing key', (t) => {
+  const root = fixture(t);
+  const file = path.join(root, 'config/dependency-policy.json');
+  const policy = JSON.parse(readFileSync(file, 'utf8'));
+  delete policy.pythonLocks;
+  writeFileSync(file, JSON.stringify(policy));
+  const stub = stubRegistries(t);
+  stub.registry(FIXTURE_REGISTRY);
+  const result = review(root, [], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /config\/dependency-policy\.json: .*pythonLocks/);
+  assert.equal(stub.calls().length, 0, 'the review queried a registry');
+});
+
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);

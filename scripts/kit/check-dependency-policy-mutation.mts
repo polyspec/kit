@@ -8,7 +8,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } fr
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { check } from './check-dependency-policy.mts';
-import { POLICY, RECORD } from './dependency-state.mts';
+import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
 import { isMain, ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -65,7 +65,7 @@ const editJson = <T,>(root: string, file: string, edit: (data: T) => void) => {
 // The first registry dependency of the review record, whatever its ecosystem: the one that the outdated mutation changes.
 const firstDependency = (root: string) => readJson(root, RECORD).dependencies[0];
 const firstLock = (root: string) => readJson(root, RECORD).locks[0].lock;
-const hasComposer = (root: string) => (readJson(root, POLICY).composerPlatforms ?? []).length > 0;
+const hasComposer = (root: string) => readPolicy(root).composerPlatforms.length > 0;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
 const MUTATIONS: Mutation[] = [
