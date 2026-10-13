@@ -11,7 +11,8 @@
 // tool is compared by its exact release. Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
 // every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor
-// (toolchain-floors.mts). Each other declaration or floor is a finding.
+// (toolchain-floors.mts), or the channel of an exception of config/toolchain.json whose scope holds the file
+// (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings.
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
@@ -20,8 +21,9 @@ import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredGo, declaredRust } from './toolchain-files.mts';
-import { PINS, pinFindings } from './toolchain-pins.mts';
-import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings, typescriptFindings } from './toolchain-floors.mts';
+import { PINS } from './toolchain-pins.mts';
+import { Pinning, readExceptions } from './toolchain-exceptions.mts';
+import { floorFindings, pinFindings } from './toolchain-floors.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -129,15 +131,19 @@ if (isMain(import.meta.url)) {
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in config/toolchain.json, .node-version, .php-version, .python-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
-    // Every declaration and every floor equals the pin of kit, whichever tools run.
-    const pins = pinFindings(declared, PINS);
-    const floors = [...enginesFindings(ROOT, PINS), ...composerFindings(ROOT, PINS), ...pyprojectFindings(ROOT, PINS, env), ...goModFindings(ROOT, PINS, env), ...cargoFindings(ROOT, PINS, env), ...typescriptFindings(ROOT, PINS)];
+    // Every declaration and every floor equals the pin of kit, or the channel of a declared exception, whichever tools run.
+    const { exceptions, findings: malformed } = readExceptions(ROOT);
+    const pinning = new Pinning(PINS, exceptions);
+    const pins = pinFindings(declared, pinning);
+    const floors = floorFindings(ROOT, pinning, env);
+    const excepted = [...malformed, ...pinning.stale()];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...pins, ...floors]) console.error(`[check-toolchain] ${line}`);
+    for (const line of [...mismatches, ...pins, ...floors, ...excepted]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
     if (pins.length > 0) console.error(`[check-toolchain] ${pins.length} declarations differ from the pins of kit`);
     if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
-    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0) process.exitCode = 1;
+    if (excepted.length > 0) console.error(`[check-toolchain] ${excepted.length} findings of the exceptions of config/toolchain.json`);
+    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
     // The declarations and the check fail with an Error.

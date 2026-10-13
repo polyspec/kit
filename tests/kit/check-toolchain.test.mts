@@ -193,7 +193,25 @@ test('a declaration that differs from the pin of kit fails the check, whichever 
   const result = check(root, stubs.env, 'npm');
   assert.equal(result.status, 1, result.stdout);
   assert.deepEqual(result.stderr.trim().split('\n'), [
-    '[check-toolchain] rust-toolchain.toml channel declares rust 1.98.1; kit pins rust 1.99.0, so declare 1.99.0',
+    '[check-toolchain] rust-toolchain.toml: channel is "1.98.1"; kit pins rust 1.99.0, so it must be "1.99.0"',
     '[check-toolchain] 1 declarations differ from the pins of kit',
   ]);
+});
+
+test('a malformed or stale exception fails the check, and a used one passes it', (t) => {
+  const exception = { tool: 'node', channel: NODE, scope: '.', reason: 'a test of the exceptions', retry: 'never' };
+  const config = (exceptions: unknown[]) => JSON.stringify({ ...JSON.parse(FILES['config/toolchain.json']), exceptions });
+  const stale = setup(t, OUTPUTS, { ...FILES, 'config/toolchain.json': config([exception, { ...exception, retry: '' }]) });
+  const failed = check(stale.root, stale.stubs.env, 'npm');
+  assert.equal(failed.status, 1, failed.stdout);
+  assert.deepEqual(failed.stderr.trim().split('\n'), [
+    '[check-toolchain] config/toolchain.json exceptions[1] has no retry; an exception declares tool, channel, scope, reason, retry',
+    `[check-toolchain] config/toolchain.json exceptions[0]: nothing under . uses node ${NODE}, so the exception is stale; remove it (its retry condition: never)`,
+    '[check-toolchain] 2 findings of the exceptions of config/toolchain.json',
+  ]);
+  // Under a pin of another release, the exception allows the Node.js of .node-version and of engines.node.
+  const used = setup(t, OUTPUTS, { ...FILES, 'config/toolchain.json': config([exception]) });
+  pinned(used.root, { ...TEST_PINS, node: '99.0.0' });
+  const passed = check(used.root, used.stubs.env, 'npm');
+  assert.equal(passed.status, 0, passed.stderr);
 });
