@@ -15,6 +15,7 @@ import { readPylock } from './pylock.mts';
 import type { PylockPackage } from './pylock.mts';
 import { Stop } from './process.mts';
 import { wheelName } from './release-wheel.mts';
+import type { ReleaseConfig } from './release.mts';
 
 const PLAIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)==(\d+(?:\.\d+)*)$/;
 const DIRECT = /^([A-Za-z0-9][A-Za-z0-9._-]*) @ (\S+)$/;
@@ -22,8 +23,6 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const SOURCE_NAMES: Record<string, string> = { vcs: 'a git source', directory: 'a directory source', none: 'no source' };
 
 
-// The part of config/release.json that the wheel checks read.
-type ReleaseConfig = { packages: { name: string; kind: string }[]; consumers: { wheel: { lock: Record<string, string> } } };
 
 /** What a Requires-Dist is checked against: the lock, the declared polyspec packages and the siblings of this release. */
 type Context = {
@@ -50,7 +49,7 @@ function archiveUrl(entry: PylockPackage, lockFile: string): string {
 }
 
 /** The siblings of the wheel `name`: the other wheel packages of config.packages, which the same tag releases. */
-export const siblingsOf = (config: Pick<ReleaseConfig, 'packages'>, name: string) => config.packages
+export const siblingsOf = (config: { packages: { name: string; kind: string }[] }, name: string) => config.packages
   .filter(item => item.kind === 'wheel' && canonicalName(item.name) !== canonicalName(name))
   .map(item => item.name);
 
@@ -228,10 +227,12 @@ function directProblems(spec: string, name: string, url: string, context: Contex
 export const repositoryOf = (polyspec: Record<string, string>, name: string): string | null => Object.entries(polyspec).find(([declared]) => canonicalName(declared) === canonicalName(name))?.[1] ?? null;
 
 /** The lock of each wheel package of `config`: { name, file, text } for the packages in the order of the configuration. */
-export function wheelLocks(root: string, config: ReleaseConfig) {
+export function wheelLocks(root: string, config: Pick<ReleaseConfig, 'packages' | 'consumers'>) {
   return config.packages.filter(item => item.kind === 'wheel').map(({ name }) => {
+    const wheel = config.consumers?.wheel;
+    if (wheel === undefined) throw new Error(`config/release.json: consumers.wheel is missing; the wheel package ${name} needs its lock there`);
     // release-consumer-config.mts requires a lock of each wheel package.
-    const file = config.consumers.wheel.lock[name]!;
+    const file = wheel.lock[name]!;
     if (!existsSync(path.join(root, file))) throw new Stop(`${file} is missing; consumers.wheel.lock declares the lock of ${name}`);
     return { name, file, text: readFileSync(path.join(root, file), 'utf8') };
   });

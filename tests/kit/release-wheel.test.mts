@@ -71,7 +71,7 @@ test('assets refuses a pyproject.toml whose project name differs from the config
 test('assets refuses a Requires-Dist that is neither a registry pin nor a polyspec release asset, and names it', (t) => {
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
-  const refused = [
+  const refused: [string, string][] = [
     ['kit-git @ git+https://example.com/kit-git.git', 'a git source'],
     ['kit-range>=1.0', 'a range'],
     ['kit-extra==1.0.0; extra == "dev"', 'a marker'],

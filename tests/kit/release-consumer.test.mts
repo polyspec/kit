@@ -42,7 +42,7 @@ test('the configuration rules name each inconsistent consumer and proof entry', 
     writeJson(box.root, 'config/release.json', change(structuredClone(original)));
     return () => release.loadConfig(box.root);
   };
-  assert.equal(release.loadConfig(box.root).consumers.npm.directory, NPM);
+  assert.equal(release.loadConfig(box.root).consumers?.npm?.directory, NPM);
   stop(load(c => ({ ...c, consumers: { npm: c.consumers.npm } })), /consumers\.composer is missing; the composer packages \[polyspec\/kit-fixture\] need a consumer project/);
   stop(load((c) => { c.consumers.npm.smoke.nothing = ['node']; return c; }), /consumers\.npm\.smoke\.nothing is not a npm package of packages \[fixture-lib, fixture-app\]/);
   stop(load((c) => { c.consumers.npm.smoke['fixture-lib'] = []; return c; }), /consumers\.npm\.smoke\.fixture-lib needs a command, a non-empty array of non-empty strings, found \[\]/);

@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from './release.mts';
+import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
 import { fileDigest } from './digest.mts';
 import { wheelName } from './release-wheel.mts';
 import { lockRequirements, wheelLocks } from './wheel-dependencies.mts';
@@ -36,7 +37,7 @@ import { toolsPath } from './tool-wrappers.mts';
 import { makeVenv } from './python-venv.mts';
 import { readJson, writeAtomic } from './files.mts';
 import { run, Stop } from './process.mts';
-import { CONSUMER_KINDS, WHEEL_KIND, type ReleasePackage } from './release-consumer-config.mts';
+import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
 export const UNREACHABLE = 'http://127.0.0.1:9/';
@@ -50,23 +51,10 @@ const INHERITED = ['npm_config_offline', 'COMPOSER_DISABLE_NETWORK', 'COMPOSER',
 /** A package kind with a committed consumer project: the keys of CONSUMER_KINDS (release-consumer-config.mts). */
 export type ConsumerKind = keyof typeof FILES;
 /** The consumer project of an archive kind (config/release.json consumers.npm or consumers.composer). */
-export type Consumer = { directory: string; smoke: Record<string, string[]> };
-/** The consumer of the wheels (config/release.json consumers.wheel). */
-export type WheelConsumer = { smoke: Record<string, string[]>; lock: Record<string, string>; polyspec: Record<string, string> };
-/**
- * config/release.json as release.mts loadConfig returns it (schema scripts/kit/schema/release.schema.json), in the sections
- * that the release consumer and the release proof read.
- */
-export type ReleaseConfig = {
-  repositoryUrl: string;
-  packages: ReleasePackage[];
-  manifests: Record<string, string>;
-  goModules: Record<string, string>;
-  consumers?: { npm?: Consumer; composer?: Consumer; wheel?: WheelConsumer };
-  proof?: { gitTag?: Record<string, { kind: string; name: string; smoke: string[] }> };
-};
-/** The release context of release.mts context(). */
-export type ReleaseContext = { root: string; config: ReleaseConfig; env: NodeJS.ProcessEnv };
+export type Consumer = ConsumerProject;
+export type { ReleaseConfig, WheelConsumer };
+/** The release context of release.mts context(), in the fields that the release consumer and the release proof read. */
+export type ReleaseContext = Pick<Context, 'root' | 'config' | 'env'>;
 /** An installed package of a consumer project and the name of its archive. */
 type ArchivePackage = { name: string; file: string };
 /** An entry of composer.lock packages or of vendor/composer/installed.json. */

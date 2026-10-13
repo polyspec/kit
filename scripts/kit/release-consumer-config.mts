@@ -18,9 +18,6 @@ export const WHEEL_KIND: 'wheel' = 'wheel';
 /** The kind of the git-tag manifests with their file names. */
 export const GIT_TAG_KINDS: Record<string, string> = { rust: 'Cargo.toml' };
 
-/** A package of config/release.json. */
-export type ReleasePackage = { kind: 'npm' | 'composer' | 'wheel'; directory: string; name: string };
-
 /**
  * A consumer of config/release.json as release.schema.json declares it: `directory` and `smoke` for npm and Composer,
  * `smoke`, `lock` and `polyspec` for the wheels.
@@ -32,13 +29,14 @@ export type ConsumerSection = {
   polyspec?: Record<string, unknown>;
 };
 
-/** The sections of config/release.json that consumerConfigProblems reads, in the shape that release.schema.json declares. */
+/**
+ * The sections of config/release.json that consumerConfigProblems reads, in the shape that release.schema.json declares: the
+ * manifests are read with `proof` only.
+ */
 export type ConsumerConfig = {
-  packages: ReleasePackage[];
-  manifests: Record<string, unknown>;
+  packages: { kind: string; name: string }[];
   consumers?: { npm?: ConsumerSection; composer?: ConsumerSection; wheel?: ConsumerSection };
-  proof?: { gitTag: Record<string, unknown> };
-};
+} & ({ proof?: undefined; manifests?: Record<string, unknown> } | { proof: { gitTag: Record<string, unknown> }; manifests: Record<string, unknown> });
 
 const command = (value: unknown): boolean => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string' && item !== '');
 
