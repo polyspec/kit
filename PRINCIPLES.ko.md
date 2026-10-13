@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: dc643530e04536dfd2737837cc0ca517ae3af418958e097555c57153fca27df4 -->
+<!-- source-sha256: cef152ba5311a983f34c3b10c262c256a03d4b6f42f453868ce4a79d3318d700 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -36,6 +36,8 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로 이름 짓고, main에 merge되는 즉시
   지웁니다. merge될 수 없는 test나 실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에
   합니다; 바로 지울 수 없으면 checklist 하위 항목에 제거 조건을 적습니다.
+- code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
+  영어로 쓰는 한국어 쌍을 가집니다.
 
 ## 설계
 
