@@ -14,7 +14,7 @@ import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
 import { runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
-import { KIT_MAKE, tool } from './kit-tools.mts';
+import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 
 const TIMEOUT = { timeout: 120_000 };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose, so it has no
@@ -25,12 +25,13 @@ type Change = { files?: Record<string, string | null>; edit?: (config: Declarati
 
 // The stub of go: `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the module directory. It reads the lines
 // `PASS <symbol>/<case>` and `FAIL <symbol>/<case>` of the *_test.go files of the directory and writes the events of go test;
-// it exits with the status of the line `EXIT <symbol> <n>`, so a test function of the same directory keeps status 0.
+// it exits with the status of the line `EXIT <symbol> <n>`, so a test function of the same directory keeps status 0. Without
+// -run it writes every PASS and FAIL line of the directory and exits with 1 when one is FAIL.
 const GO_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
-const symbol = args[args.indexOf('-run') + 1].replace(/^\\^|\\$$/g, '');
+const symbol = args.includes('-run') ? args[args.indexOf('-run') + 1].replace(/^\\^|\\$$/g, '') : undefined;
 const directory = args[args.length - 1];
 let exit = 0;
 // A line \`BUILD <message>\` makes the package fail to build, with the events that go 1.27 writes, observed with a real module.
@@ -50,7 +51,8 @@ console.log(JSON.stringify({ Action: 'start', Package: 'example' }));
 for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()) {
   for (const line of fs.readFileSync(path.join(directory, file), 'utf8').split('\\n')) {
     const found = /^(PASS|FAIL) (\\S+)$/.exec(line);
-    if (found && found[2].startsWith(symbol + '/')) {
+    if (found && (symbol === undefined || found[2].startsWith(symbol + '/'))) {
+      if (symbol === undefined && found[1] === 'FAIL') exit = 1;
       console.log(JSON.stringify({ Action: 'run', Test: found[2] }));
       console.log(JSON.stringify({ Action: 'output', Test: found[2], Output: '=== RUN ' + found[2] + '\\n' }));
       console.log(JSON.stringify({ Action: found[1] === 'PASS' ? 'pass' : 'fail', Test: found[2] }));
@@ -59,7 +61,7 @@ for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test
     if (status && status[1] === symbol) exit = Number(status[2]);
   }
 }
-console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Test: symbol }));
+if (symbol !== undefined) console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Test: symbol }));
 process.exit(exit);
 `;
 
@@ -72,7 +74,7 @@ const path = require('path');
 const args = process.argv.slice(2);
 const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
 const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : path.join(crate, 'tests', args[args.indexOf('--test') + 1] + '.rs');
-const filter = args[args.length - 1];
+const filter = args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
 const tests = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && match[2].startsWith(filter));
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
@@ -323,7 +325,7 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
   assert.deepEqual(commands['codec go'], { cwd: 'go', command: ['go', 'test', '-json', '-count=1', '-run', '^TestCodec$', './'] });
   assert.deepEqual(commands['codec rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--test-threads=1', 'vectors::'] });
   assert.deepEqual(commands['width rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--lib', '--', '--test-threads=1', 'width::tests::vectors::'] });
-  assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', '--test-reporter=tap', 'ts/tests/codec.mjs'] });
+  assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'ts/tests/codec.mjs'] });
   assert.deepEqual(commands['codec php'], { cwd: '.', command: ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php'] });
   assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/bin/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
 });
@@ -445,6 +447,71 @@ test('the reason of a narrow profile and of a native-only entry cites a spec anc
     'declaration docs/spec/missing.md#width',
     'declaration docs/spec/codec.md#depth-tables',
     'declaration contracts/codec.json#/benchmarks/octal',
+  ]);
+});
+
+// A feature unit: one native test of each implementation, named by the id that its runner reports.
+const FEATURE_FILES = {
+  'go/roundtrip_test.go': 'PASS TestRoundtrip/bytes\nPASS TestRoundtrip/text\n',
+  'rust/tests/roundtrip.rs': 'PASS roundtrip::bytes\n',
+  'ts/tests/roundtrip.test.mjs': "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  test('bytes', () => {});\n  test('text', () => {});\n});\n",
+  'php/tests/RoundtripTest.php': 'PASS test_bytes\n',
+  'python/tests/test_roundtrip.py': 'PASS test_bytes\n',
+};
+const FEATURE = {
+  id: 'roundtrip', kind: 'feature', profile: 'all',
+  bindings: [
+    { implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' },
+    { implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip::bytes' },
+    { implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'roundtrip › bytes' },
+    { implementation: 'php', test: 'php/tests/RoundtripTest.php', id: 'test_bytes' },
+    { implementation: 'python', test: 'python/tests/test_roundtrip.py', id: 'test_bytes' },
+  ],
+};
+/** The feature change: FEATURE_FILES with `files` over them, and FEATURE (edited by `edit`) as a unit of the declaration. */
+const feature = (files: Record<string, string | null> = {}, edit = (unit: Declaration) => unit): Change => ({ files: { ...FEATURE_FILES, ...files }, edit: (config) => { config.units.push(edit(structuredClone(FEATURE))); return config; } });
+
+test('a feature unit holds when the id of each binding passed in both unfiltered runs of its test (K75)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature());
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
+    'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › bytes pass', 'php test_bytes pass', 'python test_bytes pass',
+  ]);
+  const commands = Object.fromEntries(ledger.runs.filter(run => run.unit === 'roundtrip').map(run => [run.implementation, [run.command, ...run.args]]));
+  assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', './']);
+  assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
+});
+
+test('a feature unit fails R2 without a binding and R3 when its id is missing, fails or is not the full native id (K75)', TIMEOUT, (t) => {
+  const missing = check(t, feature({ 'python/tests/test_roundtrip.py': null }, (unit) => { unit.bindings.pop(); return unit; }));
+  assert.deepEqual(keys(missing.findings), ['R2 roundtrip python']);
+  const { findings } = check(t, feature({ 'rust/tests/roundtrip.rs': 'FAIL roundtrip::bytes\n' }, (unit) => {
+    unit.bindings[0].id = 'TestRoundtrip/binary';
+    // node reports the nested test as roundtrip › bytes; its bare name is no id of the run.
+    unit.bindings[2].id = 'bytes';
+    return unit;
+  }));
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.unit} ${finding.implementation} ${finding.place}`), [
+    'R3 roundtrip go go/roundtrip_test.go',
+    'R3 roundtrip rust rust/tests/roundtrip.rs',
+    'R3 roundtrip ts ts/tests/roundtrip.test.mjs',
+  ]);
+  assert.match(findingAt(findings, 0).message, /not executed: TestRoundtrip\/binary/);
+  assert.match(findingAt(findings, 1).message, /failed: roundtrip::bytes/);
+  assert.match(findingAt(findings, 2).message, /not executed: bytes/);
+});
+
+test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({}, (unit) => {
+    delete unit.bindings[0].id;
+    unit.bindings[1].symbol = 'roundtrip';
+    unit.file = 'tests/vectors/codec.json';
+    return unit;
+  }), { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.message}`), [
+    'declaration unit roundtrip: a unit of kind feature has no file',
+    'declaration unit roundtrip: the binding of go needs id, the native test id that its runner reports',
+    'declaration unit roundtrip: the binding of rust has symbol, which a feature binding does not take; its id names the test',
   ]);
 });
 
@@ -820,7 +887,7 @@ test('a declaration that breaks its schema fails, and no rule runs on it', TIMEO
   const { findings } = check(t, { edit: (config) => { config.extra = true; config.units[0].kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"extra"}',
-    'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","api"]}, value "vector"',
+    'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","feature","api"]}, value "vector"',
   ]);
 });
 
@@ -910,7 +977,7 @@ test('a case that the admit list of its suite does not name is not run for the i
 
 test('the PHPUnit run names the configuration of its package, phpunit.xml or phpunit.xml.dist, or none (K47)', TIMEOUT, (t) => {
   const args = (files: Record<string, string>) => {
-    const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files }), { test: 'php/tests/codec.php' }, 'codec', ENV);
+    const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files }), { test: 'php/tests/codec.php' }, 'suite', ENV);
     if (run.error) throw new Error(`the php binding cannot start: ${run.error}`);
     return run.args;
   };

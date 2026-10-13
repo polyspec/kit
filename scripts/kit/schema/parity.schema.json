@@ -83,7 +83,7 @@
         "additionalProperties": false,
         "properties": {
           "id": { "description": "The name of the unit; the findings name a case of a suite as <id>/<case>.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
-          "kind": { "type": "string", "enum": ["suite", "api"] },
+          "kind": { "description": "suite: the shared cases of a vector file, run by a binding of each implementation; feature: one native test of each implementation, named by its id; api: an exported symbol of each implementation.", "type": "string", "enum": ["suite", "feature", "api"] },
           "profile": { "type": "string" },
           "file": { "description": "suite: the vector file.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: the path of the case names in the file, $ followed by .<key> and [*] steps.", "type": "string", "pattern": "^\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*$" },
@@ -93,7 +93,7 @@
             "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
           },
           "bindings": {
-            "description": "suite: the native test of each implementation.",
+            "description": "suite and feature: the native test of each implementation.",
             "type": "array",
             "items": {
               "type": "object",
@@ -102,7 +102,8 @@
               "properties": {
                 "implementation": { "type": "string" },
                 "test": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-                "symbol": { "description": "go: the test function whose subtests are the cases; cargo: the module path whose tests <symbol>::<case> are the cases.", "type": "string" }
+                "symbol": { "description": "suite, go: the test function whose subtests are the cases; cargo: the module path whose tests <symbol>::<case> are the cases.", "type": "string" },
+                "id": { "description": "feature: the id of the test as its runner reports it in a run of the whole test file, which must pass in both runs: go the test or subtest name (TestX/case), cargo the libtest path (module::test), node and vitest the names of the test and its enclosing suites joined by ' › ', php and python the test method.", "type": "string", "minLength": 1 }
               }
             }
           },

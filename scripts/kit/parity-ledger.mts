@@ -1,8 +1,9 @@
-// R3 of the language-parity check: the checker runs the binding of every suite unit in every implementation of its profile and
-// keeps, in memory, the ledger of the runs and of the cases that each run reported. A binding holds its unit when its command
-// exits with 0 and the cases that passed are exactly the cases of the suite file: a failed, skipped, missing or extra case is a
-// finding. Each binding runs twice, and a second run with another exit status, another case or another result is a finding
-// that names the case. No saved report is read. The environment references of the runner values resolve here, and a run whose
+// R3 of the language-parity check: the checker runs the binding of every suite and feature unit in every implementation of its
+// profile and keeps, in memory, the ledger of the runs and of the cases that each run reported. A suite binding holds its unit
+// when its command exits with 0 and the cases that passed are exactly the cases of the suite file: a failed, skipped, missing or
+// extra case is a finding. A feature binding holds its unit when the whole test file, run once for every feature that binds
+// it, exits with 0 and reports its id once as passed. Each run happens twice, and a second run with another exit status,
+// another case or another result is a finding that names the case. No saved report is read. The environment references of the runner values resolve here, and a run whose
 // reference is unset or empty cannot start. Each support file of a file runner (node, php, python) runs once, and one that
 // reports a case is an R5 finding.
 import type { SpawnSyncReturns } from 'node:child_process';
@@ -11,7 +12,7 @@ import { execute } from './process.mts';
 import { finding, resolveReferences, supportFiles } from './parity-declaration.mts';
 import type { Environment, Finding, ParityBinding, ParityImplementation, ParityModel } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
-import type { BindingCommand, Outcome, RunError } from './parity-runners.mts';
+import type { BindingCommand, Outcome, RunError, RunKind } from './parity-runners.mts';
 import { pairs } from './parity-units.mts';
 
 /** A run with `shown`, its command line as declared, or a run that cannot start. */
@@ -65,12 +66,12 @@ function differences(first: Attempt, second: Attempt): string[] {
  * The run of `binding` in the implementation `declared` with its environment references resolved from `env`: the run of
  * runOf, with `shown`, the command line as declared (a reference is printed, never its value), or `{ error }`.
  */
-function resolvedRun(declared: ParityImplementation, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, unit: string, env: Environment): ResolvedRun {
+function resolvedRun(declared: ParityImplementation, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, env: Environment): ResolvedRun {
   const { implementation, errors } = resolveReferences(declared, env, root);
   if (errors.length) return { error: `cannot start: ${errors.join('; ')}` };
-  const run = runOf(implementation, root, binding, unit, env);
+  const run = runOf(implementation, root, binding, kind, env);
   if (run.error) return run;
-  const shown = runOf(declared, root, binding, unit, env);
+  const shown = runOf(declared, root, binding, kind, env);
   // The runner of a binding does not read the references, so the declared run starts where the resolved run does.
   if (shown.error) throw new Error(`${declared.name}: the run as declared cannot start while the resolved run starts: ${shown.error}`);
   return { ...run, shown: [declared.command ?? shown.command, ...shown.args].join(' ') };
@@ -84,7 +85,7 @@ const FILE_RUNNERS = new Set(['node', 'php', 'python']);
 function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
   return model.config.implementations.filter(implementation => FILE_RUNNERS.has(implementation.runner)).flatMap(implementation => supportFiles(implementation, files).flatMap((file) => {
     const where = { implementation: implementation.name, place: file };
-    const run = resolvedRun(implementation, root, { test: file }, '', env);
+    const run = resolvedRun(implementation, root, { test: file }, 'suite', env);
     if (run.error) return [finding('R3', run.error, where)];
     say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
     const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
@@ -92,6 +93,62 @@ function runSupport(model: ParityModel, root: string, files: Set<string>, { env,
     const reported = outcomesOf(run, result).map(([name]) => name);
     return reported.length ? [finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where)] : [];
   }));
+}
+
+/** The two runs of `run`, each recorded in `ledger.runs` under `unit` and `implementation`, with `say` printing each step. */
+function twice(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void): [Attempt, Attempt] {
+  return [1, 2].map((attempt): Attempt => {
+    say(`run ${where.unit} ${where.implementation} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
+    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
+    const status = result.error ? null : result.status;
+    const reported = result.error ? [] : outcomesOf(run, result);
+    ledger.runs.push({ ...where, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
+    return { result, status, cases: new Map(reported), repeated: repeated(reported) };
+  }) as [Attempt, Attempt];
+}
+
+/**
+ * R3 of the feature units: the test file of each feature binding runs twice as a whole, once for all the features that bind it
+ * in its implementation, and each id passes in both runs, once in each, and the runs exit with 0.
+ */
+function runFeatures(model: ParityModel, root: string, ledger: { runs: LedgerRun[]; cases: LedgerCase[] }, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
+  // The bindings of each test file of an implementation, in declaration order.
+  const files = new Map<string, { implementation: ParityImplementation; test: string; bound: { unit: string; id: string }[] }>();
+  for (const { unit, implementation } of pairs(model, 'feature')) {
+    // readDeclaration requires bindings and the id of each feature binding.
+    const binding = unit.bindings!.find(entry => entry.implementation === implementation.name);
+    if (!binding) continue;
+    const key = `${implementation.name}\0${binding.test}`;
+    const entry = files.get(key) ?? { implementation, test: binding.test, bound: [] };
+    entry.bound.push({ unit: unit.id, id: binding.id! });
+    files.set(key, entry);
+  }
+  return [...files.values()].flatMap(({ implementation, test, bound }) => {
+    const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
+    const run = resolvedRun(implementation, root, { test }, 'feature', env);
+    if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
+    const units = bound.map(entry => entry.unit).join(', ');
+    const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);
+    say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed`);
+    const failedRun = [
+      first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
+      !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
+      first.status !== second.status && `exit ${first.status ?? 'none'} then ${second.status ?? 'none'}`,
+    ];
+    return bound.flatMap(({ unit, id }) => {
+      const outcome = first.cases.get(id);
+      if (outcome !== undefined) ledger.cases.push({ unit, implementation: implementation.name, case: id, outcome });
+      const problems = [
+        ...failedRun,
+        outcome === undefined && `not executed: ${id}`,
+        outcome === 'fail' && `failed: ${id}`,
+        outcome === 'skip' && `skipped: ${id}`,
+        ...[first, second].map((attempt, index) => attempt.repeated.includes(id) && `reported twice in run ${index + 1}: ${id}`),
+        outcome !== second.cases.get(id) && `the second run differs from the first: ${id} ${outcome ?? 'absent'} then ${second.cases.get(id) ?? 'absent'}`,
+      ].filter(Boolean);
+      return problems.length ? [finding('R3', problems.join('; '), where(unit))] : [];
+    });
+  });
 }
 
 /**
@@ -106,7 +163,7 @@ export function runBindings(model: ParityModel, root: string, { env, files, say 
     const binding = unit.bindings.find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
     const where = { unit: unit.id, implementation: implementation.name, place: binding.test };
-    const run = resolvedRun(implementation, root, binding, unit.id, env);
+    const run = resolvedRun(implementation, root, binding, 'suite', env);
     if (run.error) {
       findings.push(finding('R3', run.error, where));
       continue;
@@ -114,16 +171,8 @@ export function runBindings(model: ParityModel, root: string, { env, files, say 
     const expected = model.admitted(unit, implementation.name);
     // The binding runs twice; the same tree gives the same cases with the same results, or the binding does not hold.
     // map gives one attempt for each of the two runs.
-    const [first, second] = [1, 2].map((attempt): Attempt => {
-      say(`run ${unit.id} ${implementation.name} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
-      const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
-      const status = result.error ? null : result.status;
-      const reported = result.error ? [] : outcomesOf(run, result);
-      const cases = new Map(reported);
-      ledger.runs.push({ unit: unit.id, implementation: implementation.name, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
-      say(`${unit.id} ${implementation.name} (${attempt} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${named(cases, 'pass').length} of ${expected.length} cases passed`);
-      return { result, status, cases, repeated: repeated(reported) };
-    }) as [Attempt, Attempt];
+    const [first, second] = twice(run, root, { unit: unit.id, implementation: implementation.name }, ledger, say);
+    for (const [attempt, { status, cases }] of [first, second].entries()) say(`${unit.id} ${implementation.name} (${attempt + 1} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${named(cases, 'pass').length} of ${expected.length} cases passed`);
     const { result, status, cases } = first;
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
     const problems = [
@@ -138,5 +187,5 @@ export function runBindings(model: ParityModel, root: string, { env, files, say 
     ].filter(part => part && !part.endsWith(': '));
     if (problems.length) findings.push(finding('R3', problems.join('; '), where));
   }
-  return { ledger, findings: [...findings, ...runSupport(model, root, files, { env, say })] };
+  return { ledger, findings: [...findings, ...runFeatures(model, root, ledger, { env, say }), ...runSupport(model, root, files, { env, say })] };
 }
