@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings, typescriptFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
@@ -18,7 +19,7 @@ test('every package.json of the checkout declares engines.node as >= the Node.js
     'packages/c/package.json': JSON.stringify({ name: 'c', engines: { node: '>=26.8.1' } }),
     'tests/kit/fixture/package.json': JSON.stringify({ name: 'fixture' }),
   });
-  assert.deepEqual(enginesFindings(root, PINS), [
+  assert.deepEqual(enginesFindings(root, new Pinning(PINS)), [
     'package.json: engines.node is ">=26.0.0"; kit pins node 26.11.1, so it must be ">=26.11.1"',
     'packages/a/package.json: engines.node is missing; kit pins node 26.11.1, so it must be ">=26.11.1"',
     'packages/c/package.json: engines.node is ">=26.8.1"; kit pins node 26.11.1, so it must be ">=26.11.1"',
@@ -37,7 +38,7 @@ test('every composer.json requires php >= the pin, and a locked one sets config.
     'packages/d/composer.lock': '{}',
     'tests/kit/fixture/composer.json': json({ require: { php: '>=8.2' } }),
   });
-  assert.deepEqual(composerFindings(root, PINS), [
+  assert.deepEqual(composerFindings(root, new Pinning(PINS)), [
     'composer.json: require.php is "^8.2"; kit pins php 8.5, so it must be ">=8.5"',
     'composer.json: config.platform.php is "8.2.0"; kit pins php 8.5, so it must be "8.5"',
     'packages/b/composer.json: require.php is missing; kit pins php 8.5, so it must be ">=8.5"',
@@ -54,7 +55,7 @@ test('every pyproject.toml with a project table requires-python >= the Python pi
     'packages/d/pyproject.toml': '[tool.ruff]\nline-length = 120\n',
     'packages/e/pyproject.toml': '[project]\nname = "e"\n"requires-python" = """>=3.14"""\n',
   });
-  assert.deepEqual(pyprojectFindings(root, PINS, process.env), [
+  assert.deepEqual(pyprojectFindings(root, new Pinning(PINS), process.env), [
     'packages/b/pyproject.toml: project.requires-python is missing; kit pins python 3.14, so it must be ">=3.14"',
     'pyproject.toml: project.requires-python is ">=3.11"; kit pins python 3.14, so it must be ">=3.14"',
   ]);
@@ -62,7 +63,7 @@ test('every pyproject.toml with a project table requires-python >= the Python pi
 
 test('a pyproject.toml that is no TOML fails with the file and the error of tomllib', (t) => {
   const root = tree(t, { 'pyproject.toml': '[project\n' });
-  assert.throws(() => pyprojectFindings(root, PINS, process.env), /pyproject\.toml: tomllib of python3 cannot read it \(exit status 1\): .*TOMLDecodeError/s);
+  assert.throws(() => pyprojectFindings(root, new Pinning(PINS), process.env), /pyproject\.toml: tomllib of python3 cannot read it \(exit status 1\): .*TOMLDecodeError/s);
 });
 
 // go.mod is read by `go mod edit -json` of the Go on PATH; GOTOOLCHAIN=local keeps it from switching to the declared Go.
@@ -73,7 +74,7 @@ test('every go.mod declares go <the Go pin> and no toolchain line, which the go 
     'packages/c/go.mod': 'module example.com/c\n\ngo 1.27\n\ntoolchain go1.27.2\n',
     'packages/d/go.mod': 'module example.com/d\n\ngo 1.27.2 // the pin of kit\n',
   });
-  assert.deepEqual(goModFindings(root, PINS, { ...process.env, GOTOOLCHAIN: 'local' }), [
+  assert.deepEqual(goModFindings(root, new Pinning(PINS), { ...process.env, GOTOOLCHAIN: 'local' }), [
     'packages/b/go.mod: go is "1.21"; kit pins go 1.27.2, so it must be "1.27.2"',
     'packages/c/go.mod: go is "1.27"; kit pins go 1.27.2, so it must be "1.27.2"',
     'packages/c/go.mod: toolchain is "go1.27.2"; kit pins go 1.27.2 in the go line, so remove the toolchain line',
@@ -94,7 +95,7 @@ test('every Cargo package declares rust-version as the Rust pin, also through it
     'tools/d/Cargo.toml': crate('d', "rust-version = '1.99.0' # the pin of kit\n\n[workspace]\n"),
     'tools/d/src/lib.rs': '',
   });
-  assert.deepEqual(cargoFindings(root, PINS, process.env), [
+  assert.deepEqual(cargoFindings(root, new Pinning(PINS), process.env), [
     'crates/b/Cargo.toml: package.rust-version is missing; kit pins rust 1.99.0, so it must be "1.99.0"',
     'tools/c/Cargo.toml: package.rust-version is "1.89"; kit pins rust 1.99.0, so it must be "1.99.0"',
   ]);
@@ -109,7 +110,7 @@ test('every package.json that names typescript names the TypeScript pin, and eve
     'packages/c/package.json': json({ optionalDependencies: { typescript: '7.0.2' } }),
     'packages/c/package-lock.json': json({ packages: { 'node_modules/typescript-plugin': { version: '1.0.0' } } }),
   });
-  assert.deepEqual(typescriptFindings(root, PINS), [
+  assert.deepEqual(typescriptFindings(root, new Pinning(PINS)), [
     'package-lock.json: packages["node_modules/x/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
     'packages/a/package.json: dependencies.typescript is "^7.0.2"; kit pins typescript 7.0.2, so it must be "7.0.2"',
     'packages/a/package.json: peerDependencies.typescript is ">=6"; kit pins typescript 7.0.2, so it must be "7.0.2"',

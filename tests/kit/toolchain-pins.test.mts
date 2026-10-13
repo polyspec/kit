@@ -5,7 +5,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PINS, pinFindings, readPins } from '../../scripts/kit/toolchain-pins.mts';
+import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
+import { pinFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { PINS, readPins } from '../../scripts/kit/toolchain-pins.mts';
 
 const SHIPPED = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/toolchain-pins.json');
 
@@ -30,16 +32,16 @@ test('every declaration equals its pin at the pin\'s precision; each other names
     php: { minors: ['8.4', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.13', source: '.python-version' },
   };
-  assert.deepEqual(pinFindings(declared, PINS), [
-    '.node-version declares node 26.8.1; kit pins node 26.11.1, so declare 26.11.1',
-    'rust-toolchain.toml channel declares rust 1.98.1; kit pins rust 1.99.0, so declare 1.99.0',
-    'config/toolchain.json php declares php 8.4; kit pins php 8.5, so declare 8.5',
-    '.python-version declares python 3.13; kit pins python 3.14, so declare 3.14',
+  assert.deepEqual(pinFindings(declared, new Pinning(PINS)), [
+    '.node-version: node is "26.8.1"; kit pins node 26.11.1, so it must be "26.11.1"',
+    'rust-toolchain.toml: channel is "1.98.1"; kit pins rust 1.99.0, so it must be "1.99.0"',
+    'config/toolchain.json: php is "8.4"; kit pins php 8.5, so it must be "8.5"',
+    '.python-version: python is "3.13"; kit pins python 3.14, so it must be "3.14"',
   ]);
   const pinned = {
     node: { version: '26.11.1', source: '.node-version' },
     php: { minors: ['8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.14', source: 'config/toolchain.json python' },
   };
-  assert.deepEqual(pinFindings(pinned, PINS), [], 'a declaration at its pin passes, and an undeclared tool is not required');
+  assert.deepEqual(pinFindings(pinned, new Pinning(PINS)), [], 'a declaration at its pin passes, and an undeclared tool is not required');
 });

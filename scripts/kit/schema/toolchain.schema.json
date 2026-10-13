@@ -197,6 +197,50 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       }
+    },
+    "exceptions": {
+      "description": "The declared exceptions to the pins of kit (S4): each names the pinned tool, the channel that its scope uses instead of the pin, the scope (\".\" or a directory of the checkout), the reason and the condition under which the pin is tried again. check-toolchain fails on an exception that nothing uses, except a Rust nightly, which parity reads.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool",
+          "channel",
+          "scope",
+          "reason",
+          "retry"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "node",
+              "python",
+              "php",
+              "go",
+              "rust",
+              "typescript"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "pattern": "^(\\d+\\.\\d+(\\.\\d+)?|nightly-\\d{4}-\\d{2}-\\d{2})$"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retry": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }
