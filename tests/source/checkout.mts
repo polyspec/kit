@@ -5,6 +5,13 @@ import { signalGroup } from '../../scripts/kit/process-group.mts';
 import { cpSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
+/**
+ * The timeout of a test that runs make kit-test in a sandbox. The whole vendored suite runs there: it took 998 s and 1226 s
+ * under the load of a full source-test (K81), far beyond the 30 s default of the runner, which fires now that runKitTest
+ * is asynchronous (K104). Half again the slowest measurement.
+ */
+export const KIT_TEST_TIMEOUT_MS = 30 * 60_000;
+
 /** Copies every tracked file of `root` that `keep` accepts to the same path under `sandbox`. */
 export function copyTracked(root: string, sandbox: string, keep: (file: string) => boolean = () => true) {
   const listed = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
