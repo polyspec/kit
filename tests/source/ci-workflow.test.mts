@@ -24,6 +24,10 @@ test('the CI workflow runs commits-check over the commits it was triggered by, o
 test('the CI workflow installs the packages with the pinned npm and then checks the types (K71-1)', () => {
   const install = runs.indexOf('var/tools/bin/npm ci');
   const typecheck = runs.indexOf('make typecheck');
-  assert.ok(runs.indexOf('make install-tools') >= 0 && install > runs.indexOf('make install-tools'), 'npm ci runs after install-tools installed the npm of packageManager');
+  assert.ok(runs.indexOf('make install-tools TOOLS=npm') >= 0 && install > runs.indexOf('make install-tools TOOLS=npm'), 'npm ci runs after install-tools installed the npm of packageManager');
   assert.ok(typecheck > install, 'make typecheck runs after npm ci installed TypeScript');
+});
+
+test('the CI workflow bootstraps in the order of a repository: the npm of packageManager, npm ci, then the other tools (K71-2)', () => {
+  assert.deepEqual(runs.slice(0, 3), ['make install-tools TOOLS=npm', 'var/tools/bin/npm ci', 'make install-tools'], 'the first steps');
 });
