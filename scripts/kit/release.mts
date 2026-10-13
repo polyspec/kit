@@ -135,6 +135,18 @@ export type Manifest = Record<string, unknown>;
 /** Whether a thrown value carries the code ENOENT of a missing file. */
 const missingFile = (value: unknown): value is NodeJS.ErrnoException => typeof value === 'object' && value !== null && 'code' in value && value.code === 'ENOENT';
 
+/** The options of the command line of a release tool: the checkout, the environment and where the lines go. */
+export type CommandOptions = { root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void };
+
+/**
+ * The message of a failure that a release step reports with the exit status 1: a Stop, a JSON syntax error or a missing
+ * file. Any other failure is a defect of the tool and is thrown on.
+ */
+export function stepFailure(failure: unknown): string {
+  if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && !missingFile(failure)) throw failure;
+  return failure.message;
+}
+
 /**
  * The configuration of the repository at `root`: config/release.json validated against its schema and for the rules that the
  * schema cannot express (the values of the maps, the packages against the manifests). Stop with every finding.
@@ -603,7 +615,7 @@ export function coverage(ctx: Context): string[] {
 const USAGE = 'usage: node scripts/kit/release.mts verify|versions|assets|publish|undraft|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void } = {}): number {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
   const tagged = mode !== undefined && ['verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
@@ -651,8 +663,7 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
       print(`[release] ${tag}: created the GitHub Release with ${names.length ? names.join(', ') : 'no archive'}`);
     }
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && !missingFile(failure)) throw failure;
-    error(`[release] ${mode}${tag ? ` ${tag}` : ''} failed: ${failure.message}`);
+    error(`[release] ${mode}${tag ? ` ${tag}` : ''} failed: ${stepFailure(failure)}`);
     return 1;
   }
   return 0;

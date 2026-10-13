@@ -2,7 +2,7 @@
   "schema": 1,
   "comment": "The owner checks of kit. A change under scripts/kit, tests/kit or the package files runs kit-test and typecheck, the whole tool suite of kit; the real tool tests of tests/source do not run for it and wait for the full run, since choosing them per module would need an import graph tool, which K111 withdrew. A changed tests/source test runs itself. consumer-layout and fresh-checkout run make kit-test again inside a sandbox, so they run only for themselves and their helper tests/source/checkout.mts. LICENSE is read by no check.",
   "owners": [
-    { "paths": ["scripts/kit/**", "tests/kit/**", "package.json", "package-lock.json", "tsconfig.json", "Makefile"], "targets": ["kit-test", "typecheck"] },
+    { "paths": ["scripts/kit/**", "tests/kit/**", "package.json", "package-lock.json", "tsconfig.json", "Makefile"], "targets": ["kit-test", "typecheck", "duplication-check"] },
     { "paths": ["tests/source/*.test.mts"], "tests": ["$path"] },
     { "paths": ["tests/source/checkout.mts"], "tests": ["tests/source/checkout.test.mts", "tests/source/consumer-layout.test.mts", "tests/source/fresh-checkout.test.mts"] },
     { "paths": ["docs/**", "*.md", "config/documents.json"], "targets": ["documents-check"] },

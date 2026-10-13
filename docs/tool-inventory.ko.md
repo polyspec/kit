@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ef20cbf091228ceef8f63e869558b0adaa19a38476742112ef14343699b1486a -->
+<!-- source-sha256: ff698b08b9fe558c1e3dee558b824a87e87e7edd304aa69d8e899a31dc97e81d -->
 
 # 도구 목록
 
@@ -563,8 +563,9 @@ finding 하나입니다.
 ## 공유 module (K11)
 
 `scripts/kit`의 여러 도구가 같은 helper를 각자 가지고 있었습니다. 이제 각 helper는 module 하나에 있고 사용하는 쪽이 import하며,
-`tests/kit/duplication.test.mts`는 서로 다른 두 파일이 정규화한 본문이 같고 6줄 이상인 함수를 가지면 실패합니다(정규화 방법은
-test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다.
+`make duplication-check`는 6줄 이상의 같은 부분이 두 번 있으면 실패합니다. jscpd가 scripts/kit의 token을 읽으므로 함수 안에서
+되풀이된 부분도 찾는데, 이것이 대신한 test(`tests/kit/duplication.test.mts`, 함수 전체만 비교)는 찾지 못했습니다(K126). 기준 코드에는
+그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다.
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|

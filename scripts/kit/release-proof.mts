@@ -25,7 +25,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
-import { assetNames, context, latestTag, parseTag } from './release.mts';
+import { assetNames, context, latestTag, parseTag, stepFailure, type CommandOptions } from './release.mts';
 import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
 import { installConsumers, type ReleaseContext } from './release-consumer.mts';
@@ -180,9 +180,7 @@ export function prove(ctx: ReleaseContext, tag: string, step: Step) {
 const USAGE = 'usage: node scripts/kit/release-proof.mts TAG';
 
 /** Runs the command line; the exit status. */
-export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: {
-  root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
-} = {}) {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: CommandOptions = {}) {
   const [latest, ...rest] = argv;
   let tag = latest;
   if (!tag || rest.length) {
@@ -193,8 +191,7 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
     if (tag === 'latest') tag = latestTag(context(root, { env }));
     prove(context(root, { env }), tag, text => print(`✔ ${text}`));
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
-    error(`[release-proof] ${tag} failed: ${(failure as Error).message}`);
+    error(`[release-proof] ${tag} failed: ${stepFailure(failure)}`);
     return 1;
   }
   print(`✔ ${tag} is proven from outside the repository`);

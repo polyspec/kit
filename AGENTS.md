@@ -34,7 +34,7 @@ and states only its own rules. The rules below are kit's own.
   generated output. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
-  `tests/kit/duplication.test.mts` fails when two files hold the same function of 6 lines or more.
+  `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
 - A consumer that runs Python declares `pythonBuild` and `uv` in config/toolchain.json and installs its Python with `make install-tools`,

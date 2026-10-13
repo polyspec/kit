@@ -34,3 +34,10 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 .PHONY: rebuild-check
 rebuild-check: ## Check that every tool of config/rebuild.json paths has its class: ecosystem, replaced, record or policy (S1); offline
 	node scripts/kit/rebuild-check.mts
+
+.PHONY: duplication-check
+# jscpd skips two files until the items that own them remove the code they repeat (S8): install-alint.mts repeats the
+# archive download of install-uv.mts, and both installers move to mise; parity-units.mts repeats two blocks of
+# parity-declaration.mts, which K75 removes.
+duplication-check: ## Fail while a piece of 6 lines or more of scripts/kit exists twice (jscpd); offline after npm ci
+	node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console --ignore "**/install-alint.mts,**/parity-units.mts" scripts/kit

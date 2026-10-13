@@ -11,7 +11,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { context } from './release.mts';
+import { context, stepFailure } from './release.mts';
 import { Stop } from './process.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
 
@@ -84,8 +84,7 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
     }
     print(`[release-tools] the tools of the release are ready: ${[...install, ...(rust ? ['rust'] : [])].join(' ') || 'none'}`);
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
-    error(`[release-tools] failed: ${(failure as Error).message}`);
+    error(`[release-tools] failed: ${stepFailure(failure)}`);
     return 1;
   }
   return 0;

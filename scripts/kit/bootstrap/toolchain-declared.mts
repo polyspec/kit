@@ -117,34 +117,20 @@ function pythonBuild(value: unknown, minor: string | undefined, uv: PlatformRele
   return { version, source: file };
 }
 
-// The release of a tool installed from its archive (uv, alint): its exact version and the sha256 of the archive of each
-// platform key, each read as 64 hexadecimal digits.
-function archiveRelease(key: 'uv' | 'alint', value: unknown): PlatformRelease {
-  const file = `config/toolchain.json ${key}`;
+// The release of a tool that is downloaded per platform: its exact version and the sha256 of the `file` of each platform key,
+// each read as 64 hexadecimal digits. uv and alint install from their release archive, ruff from its wheel, which
+// install-tools installs into a virtual environment.
+function platformRelease(key: 'uv' | 'alint' | 'ruff', file: 'archive' | 'wheel', value: unknown): PlatformRelease {
+  const source = `config/toolchain.json ${key}`;
   const version = field(value, 'version');
-  if (!matches(EXACT, version)) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
+  if (!matches(EXACT, version)) throw new Error(`${source} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
   // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
   const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
-  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} archive of each platform, for example linux-x64; it records none`);
+  if (Object.keys(digests).length === 0) throw new Error(`${source} must record the sha256 of the ${key} ${file} of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
-    if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+    if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${source} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
-  return { version, sha256: digests, source: file };
-}
-
-// A wheel release of the tool that install-tools installs into a virtual environment (ruff): its exact version and the
-// sha256 of the wheel of each platform key, each read as 64 hexadecimal digits.
-function wheel(key: string, value: unknown): PlatformRelease {
-  const file = `config/toolchain.json ${key}`;
-  const version = field(value, 'version');
-  if (!matches(EXACT, version)) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
-  // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
-  const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
-  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} wheel of each platform, for example linux-x64; it records none`);
-  for (const [platform, digest] of Object.entries(digests)) {
-    if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
-  }
-  return { version, sha256: digests, source: file };
+  return { version, sha256: digests, source };
 }
 
 // The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
@@ -202,8 +188,8 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   } else if (pythonFile) {
     declared.python = { minor: pythonFile, source: '.python-version' };
   }
-  if (config.uv) declared.uv = archiveRelease('uv', config.uv);
-  if (config.alint) declared.alint = archiveRelease('alint', config.alint);
+  if (config.uv) declared.uv = platformRelease('uv', 'archive', config.uv);
+  if (config.alint) declared.alint = platformRelease('alint', 'archive', config.alint);
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor, declared.uv);
   }
@@ -213,7 +199,7 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', field(config.composer, 'version')), sha256: field(config.composer, 'sha256'), source: 'config/toolchain.json composer' };
   }
-  if (config.ruff) declared.ruff = wheel('ruff', config.ruff);
+  if (config.ruff) declared.ruff = platformRelease('ruff', 'wheel', config.ruff);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   for (const key of ['cargoAudit', 'govulncheck'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };

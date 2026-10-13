@@ -28,7 +28,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
-import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from './release.mts';
+import { ASSETS, archiveName, assetNames, context, latestTag, parseTag, stepFailure, type CommandOptions } from './release.mts';
 import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { wheelName } from './release-wheel.mts';
@@ -315,9 +315,7 @@ export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: str
 const USAGE = 'usage: node scripts/kit/release-consumer.mts install|lock TAG';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: {
-  root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
-} = {}) {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: CommandOptions = {}) {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
   if (mode === undefined || !['install', 'lock'].includes(mode) || !tag || rest.length) {
@@ -338,8 +336,7 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
       step(`installed and checked ${count} packages from ${ASSETS}`);
     }
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
-    error(`[release-consumer] ${mode} ${tag} failed: ${(failure as Error).message}`);
+    error(`[release-consumer] ${mode} ${tag} failed: ${stepFailure(failure)}`);
     return 1;
   }
   return 0;
