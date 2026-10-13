@@ -40,7 +40,7 @@ export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): {
   JSON.parse(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env));
 
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
-export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; rust_version: string | null }[] =>
+export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; version: string; rust_version: string | null }[] =>
   JSON.parse(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env)).packages;
 
 /**
