@@ -4,10 +4,14 @@
     "type": "project",
     "license": "proprietary",
     "require": {
+        "php": ">=8.5",
         "phpunit/phpunit": "11.5.57"
     },
     "config": {
         "sort-packages": true,
-        "bin-compat": "full"
+        "bin-compat": "full",
+        "platform": {
+            "php": "8.5"
+        }
     }
 }
