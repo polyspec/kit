@@ -57,7 +57,7 @@ test('an exception that matches no advisory of the review is stale and fails the
   const stale = { ...ACCEPTED, advisory: 'RUSTSEC-2099-0009' };
   const { root, result } = reviewed(t, [ACCEPTED, stale]);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa: the advisory exception RUSTSEC-2099-0009 of config\/dependency-policy\.json is stale, the review found no such advisory\. Fix: remove the exception from config\/dependency-policy\.json$/m);
+  assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa: the advisory exception RUSTSEC-2099-0009 of config\/dependency-policy\.json is stale, the review found no such advisory\. Fix: remove the exception from config\/dependency-policy\.json\.$/m);
   const gated = gate(root);
   assert.equal(gated.status, 1);
   assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa: the review of .+ found no advisory RUSTSEC-2099-0009, and config\/dependency-policy\.json holds an exception for it\. Rule: an advisory exception names an advisory that the review of its lock found\. Fix: remove the exception from config\/dependency-policy\.json\.$/m);
