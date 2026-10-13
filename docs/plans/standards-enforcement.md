@@ -313,7 +313,7 @@ document lands.
      - Node `engines >=26.11.1`
      - Composer `php >=8.5`
      - `requires-python >=3.14`
-     - go.mod `go 1.27.2` with `toolchain go1.27.2`
+     - go.mod `go 1.27.2` and no `toolchain` line: the go command removes a toolchain line equal to the go line
      - `rust-version 1.99.0`
      - the TypeScript pin
    - It reads the declared exceptions.
