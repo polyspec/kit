@@ -27,3 +27,17 @@ export const siblingTool = (moduleUrl: string, name: string): string => {
 export const isMain = (moduleUrl: string): boolean =>
   // Boolean() above checked process.argv[1]; TypeScript does not narrow through Boolean().
   Boolean(process.argv[1]) && realpathSync(process.argv[1]!) === realpathSync(fileURLToPath(moduleUrl));
+
+/** The variable in which run-tests names the repository root to the reporters that it loads into a test run. */
+export const TEST_ROOT = 'KIT_TEST_ROOT';
+
+/**
+ * The repository root of a test run, for a reporter that run-tests loads into the test tool: that process runs in the
+ * --cwd directory of the run, so its working directory names no repository root, and run-tests passes its own root in
+ * TEST_ROOT. Throws while the variable is unset, as it is outside run-tests.
+ */
+export function testRoot(): string {
+  const root = process.env[TEST_ROOT];
+  if (!root) throw new Error(`${TEST_ROOT} is not set; the test reporters of kit run under scripts/kit/run-tests.mts, which sets it to the repository root`);
+  return root;
+}

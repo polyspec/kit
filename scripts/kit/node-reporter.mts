@@ -7,7 +7,10 @@ import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
-import { ROOT } from './paths.mts';
+import { testRoot } from './paths.mts';
+
+// The repository root of the run, which run-tests passes; the working directory of this process is the --cwd directory.
+const ROOT = testRoot();
 
 /** The error of a failed test; node sets failureType, which @types/node does not declare. */
 type TestFailure = EventData.Error & { failureType?: string };

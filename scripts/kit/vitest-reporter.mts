@@ -2,7 +2,10 @@
 // reporter shows every test starting, still running and ending.
 import path from 'node:path';
 import { createProgress, type Progress } from './test-progress.mts';
-import { ROOT } from './paths.mts';
+import { testRoot } from './paths.mts';
+
+// The repository root of the run, which run-tests passes; the working directory of this process is the --cwd directory.
+const ROOT = testRoot();
 
 // Vitest is no dependency of kit, so these describe the members of its reporter API that this reporter reads.
 interface ReportedError {
