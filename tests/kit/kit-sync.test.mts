@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { check, isSource } from '../../scripts/kit/kit-check.mts';
+import { check, checkConfig, isSource } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
 import { tree } from './tree.mts';
 
@@ -127,4 +127,9 @@ test('the package.json of kit declares its copies: the bootstrap, the release wo
   const files: string[] = manifest.files ?? [];
   assert.deepEqual(Object.values(copies).filter(from => !files.some(entry => entry === from || (entry.endsWith('/') && from.startsWith(entry)))), [], 'these copies are not in files of package.json, so the package lacks them');
   assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
+});
+
+test('a generated configuration that breaks its schema names the command that writes it as the fix', (t) => {
+  const root = tree(t, { 'config/dependency-review.json': `${JSON.stringify({ schema: 1, comment: 'x', reviewed: '2026-01-01T00:00:00.000Z', locks: [], dependencies: [] })}\n` });
+  assert.deepEqual(checkConfig(root), ["config/dependency-review.json: / must have required property 'vcs' {\"missingProperty\":\"vcs\"}. Rule: the schema dependency-review.schema.json of @polyspec/kit. Fix: make dependency-review RECORD=1"]);
 });

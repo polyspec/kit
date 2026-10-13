@@ -54,6 +54,9 @@ export function installedKit(root: string): { version: string; copies: { file: s
   return { version: installed.version, copies: copiesOf(installed) };
 }
 
+// The configurations that a command writes, and the command, which is the fix of a file that breaks its schema.
+const WRITTEN: Record<string, string> = { 'config/dependency-review.json': 'make dependency-review RECORD=1' };
+
 /**
  * The findings of the configuration of `root` against the schemas of the package: each config/<name>.json that the repository
  * has must validate against its schema <name>.schema.json; an error names the file, the location and the rule.
@@ -67,7 +70,8 @@ export function checkConfig(root: string): string[] {
     if (!existsSync(path.join(root, config))) continue;
     const schema = readJson(SCHEMAS, schemaFile);
     const value = readJson(root, config);
-    for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: the schema ${schemaFile} of ${PACKAGE}`);
+    const fix = WRITTEN[config] ? `. Fix: ${WRITTEN[config]}` : '';
+    for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: the schema ${schemaFile} of ${PACKAGE}${fix}`);
   }
   return found;
 }
