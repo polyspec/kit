@@ -70,9 +70,17 @@ test('a kit tool imports only Node built-ins, files of scripts/kit and the decla
   }
 });
 
-test('every package of dependencies and peerDependencies in package.json is imported by a kit tool', () => {
-  const imported = new Set(tools.filter(name => name.endsWith('.mts')).flatMap(file => importsOf(readFileSync(path.join(ROOT, file), 'utf8'))).map(packageOf));
-  for (const { field, name } of DECLARED) assert.ok(imported.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it; remove it`);
+test('every package of dependencies and peerDependencies in package.json is used by a kit tool', () => {
+  // A package is used when a tool imports it, when a tool runs one of its commands (the name of a command of its bin, as a
+  // quoted string of a tool, such as the knip that lint-ts.mts runs), or when it is a peer dependency of a used package,
+  // such as the oxlint-tsgolint that oxlint loads for --type-aware; the manifests of node_modules say which.
+  const texts = tools.filter(name => name.endsWith('.mts')).map(file => readFileSync(path.join(ROOT, file), 'utf8'));
+  const manifest = (name: string) => JSON.parse(readFileSync(path.join(ROOT, 'node_modules', name, 'package.json'), 'utf8')) as { bin?: string | Record<string, string>; peerDependencies?: Record<string, string> };
+  const commands = (name: string) => { const { bin } = manifest(name); return typeof bin === 'string' ? [name.split('/').at(-1)!] : Object.keys(bin ?? {}); };
+  const used = new Set(texts.flatMap(importsOf).map(packageOf));
+  for (const { name } of DECLARED) if (commands(name).some(command => texts.some(text => text.includes(`'${command}'`)))) used.add(name);
+  for (const name of DEPENDENCIES.filter(name => used.has(name))) for (const peer of Object.keys(manifest(name).peerDependencies ?? {})) used.add(peer);
+  for (const { field, name } of DECLARED) assert.ok(used.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it, runs its command or uses a package that it is a peer of; remove it`);
 });
 
 test('no tool or test of kit names another repository', () => {

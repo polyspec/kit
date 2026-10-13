@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 93fb795c5ee2c49fbf76e28e32109d9cf6eb99964a6659d65503723dfd65ec9f -->
+<!-- source-sha256: 1d6df9a45bd220408b9bc1458a7d24420f461edb745c008c3001cc1485913368 -->
 # 개발
 
 [English](AGENTS.md)
@@ -20,7 +20,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 도구는 Node 내장 모듈(`node:`), `scripts/kit/`의 파일, `package.json`의 `dependencies`가 선언한 package(각각 정확히 pin)와,
   `peerDependencies`가 선언하고 도구를 실행하는 저장소가 설치하는 optional peer(`install-vscode.mts`의 `@vscode/test-electron` 등)만
   import합니다. `scripts/kit/bootstrap/`의 module은 npm이 package를 설치하기 전에 실행되므로 Node 내장 모듈과 같은 디렉터리의 파일만
-  import합니다. `tests/kit/isolation.test.mts`가 둘 다 강제하며, 어떤 도구도 import하지 않는 선언된 package에서도 실패합니다.
+  import합니다. `tests/kit/isolation.test.mts`가 둘 다 강제하며, 어떤 도구도 쓰지 않는 선언된 package에서도 실패합니다. 쓴다는 것은 import하거나, 그 명령을 실행하거나(`lint-ts.mts`의 lint
+  도구), 그렇게 쓰는 package의 peer로 필요한 것입니다.
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
