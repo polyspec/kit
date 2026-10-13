@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record source-test install-packages
+.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm, as in a
 # repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
@@ -25,6 +25,9 @@ source-test: ## Run the kit's own tests (tests/source) through the test runner, 
 
 kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
 	node tests/kit/record-fixture.mts
+
+kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
+	node tests/kit/record-tools.mts
 
 .PHONY: build typecheck
 build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors; offline after npm ci

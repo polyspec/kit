@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tool } from './kit-tools.mts';
+import { toolStubs } from './registry.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -23,7 +24,8 @@ export function fixtureCheckout(t: Pick<TestContext, 'after'>) {
   return directory;
 }
 
-export const gate = (root: string, env: NodeJS.ProcessEnv = process.env) => spawnSync(process.execPath, [tool('check-dependency-policy')], { cwd: root, encoding: 'utf8', env });
+// The gate runs with the stubs of go and composer unless a test gives its own registries (registry.mts).
+export const gate = (root: string, env: NodeJS.ProcessEnv = toolStubs()) => spawnSync(process.execPath, [tool('check-dependency-policy')], { cwd: root, encoding: 'utf8', env });
 export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync(process.execPath, [tool('dependency-review'), ...args], { cwd: root, encoding: 'utf8', env });
 
 /** The JSON report of `cargo audit --json`, as far as the stub reads it. */

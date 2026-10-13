@@ -9,7 +9,7 @@ import test from 'node:test';
 import { goRequirements } from '../../scripts/kit/dependency-state.mts';
 import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
-import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
 
 // A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
 // the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
@@ -37,6 +37,13 @@ test('go.mod requirements are the direct modules that the checkout does not repl
   const root = mkdtempSync(path.join(tmpdir(), 'kit-go-requirements-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(path.join(root, 'go.mod'), text);
+  // goRequirements runs the go of PATH: the stub, which answers from the record of the real go (registry.mts).
+  const saved = { ...process.env };
+  Object.assign(process.env, toolStubs());
+  t.after(() => {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  });
   assert.deepEqual(goRequirements(root, 'go.mod'), [{ module: 'github.com/a/b', version: 'v1.2.3' }, { module: 'github.com/e/f', version: 'v2.0.0+incompatible' }]);
 });
 

@@ -1,12 +1,31 @@
 // Stub registries for the tests of the dependency tools: `npm`, `composer`, `curl` and `go` on PATH answer from a JSON file
 // (`registry.json` of the directory), so a test or the record of a fixture needs no network. The stubs log their calls.
-// The real composer and go are the tools of mise.toml that the checkout under test installed, named by their absolute paths
-// (`mise which`, K127), and run the commands that the stubs do not answer; while they are not installed the stubs fail.
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// The commands that read only files of the checkout, go mod edit and composer validate, are answered from the records of
+// tests/kit/tool-records.json: what the pinned go and Composer printed for the same arguments and files (K127). A stub never
+// runs the real tool, so a vendored test needs neither; a request without a record fails, names itself, and is added to
+// STUB_TOOL_MISSES when that names a file, which record-tools.mts reads to write the records.
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { TestContext } from 'node:test';
+
+/** The records of the real go and Composer that the go and composer stubs answer from. */
+export const TOOL_RECORDS = path.join(import.meta.dirname, 'tool-records.json');
+
+/** The answer of a stub from the records of the real tools: a function `answer(tool, args, files, shown)` of the stub's script. */
+export const TOOL_ANSWER = `// The record of the real tool for these arguments and files: its output and status, else a failure that names the request.
+const answer = (tool, args, files, shown) => {
+  const records = JSON.parse(require('node:fs').readFileSync(process.env.STUB_TOOL_RECORDS, 'utf8'))[tool] ?? [];
+  const found = records.find(record => JSON.stringify(record.args) === JSON.stringify(args) && JSON.stringify(record.files) === JSON.stringify(files));
+  if (!found) {
+    if (process.env.STUB_TOOL_MISSES) require('node:fs').appendFileSync(process.env.STUB_TOOL_MISSES, JSON.stringify({ tool, args, files }) + '\\n');
+    console.error(tool + ' stub: no record for ' + tool + ' ' + shown.join(' '));
+    process.exit(1);
+  }
+  process.stdout.write(found.stdout);
+  process.stderr.write(found.stderr);
+  process.exit(found.status);
+};
+`;
 
 const NPM_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
@@ -43,6 +62,7 @@ if (args[0] === 'view' && args[2] === 'deprecated') {
 
 const COMPOSER_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
+${TOOL_ANSWER}
 const path = require('node:path');
 const args = process.argv.slice(2);
 const directory = path.basename(process.cwd());
@@ -65,16 +85,9 @@ if (args[0] === 'outdated') {
   console.log(JSON.stringify(report));
   process.exit(Array.isArray(report.advisories) ? 0 : 1);
 } else {
-  // Other commands (validate) run the real composer, which reads the files of the checkout only; as the go stub, it refuses a
-  // composer that reaches a stub again.
-  if (!process.env.REAL_COMPOSER) { console.error('composer is not installed; run make install-tools (the stub cannot forward \`composer ' + args.join(' ') + '\`)'); process.exit(1); }
-  const { realpathSync } = require('node:fs');
-  if (process.env.STUB_COMPOSER_FORWARDED || realpathSync(process.env.REAL_COMPOSER) === realpathSync(__filename)) {
-    console.error('the composer stub reached itself through REAL_COMPOSER ' + process.env.REAL_COMPOSER + '; REAL_COMPOSER must name a composer that is no stub');
-    process.exit(1);
-  }
-  const { spawnSync } = require('node:child_process');
-  process.exit(spawnSync(process.env.REAL_COMPOSER, args, { stdio: 'inherit', env: { ...process.env, STUB_COMPOSER_FORWARDED: '1' } }).status ?? 1);
+  // Other commands (validate) read the composer.json and the composer.lock of the working directory: their record answers.
+  const read = file => (require('node:fs').existsSync(file) ? readFileSync(file, 'utf8') : null);
+  answer('composer', args, { 'composer.json': read('composer.json'), 'composer.lock': read('composer.lock') }, args);
 }
 `;
 
@@ -91,20 +104,14 @@ if (version === undefined) console.log(JSON.stringify({ info: { version: Object.
 else console.log(JSON.stringify({ info: { version }, vulnerabilities: registry.pypiVulnerabilities?.[name]?.[version] ?? [] }));
 `;
 
-// go mod edit reads a go.mod and queries nothing: the real go runs it, unlogged, as the real composer runs composer validate.
+// go mod edit reads a go.mod and queries nothing: its record answers, unlogged, as for composer validate.
 const GO_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
+${TOOL_ANSWER}
 const args = process.argv.slice(2);
 if (args[0] === 'mod' && args[1] === 'edit') {
-  if (!process.env.REAL_GO) { console.error('go is not installed; run make install-tools (the stub cannot forward \`go ' + args.join(' ') + '\`)'); process.exit(1); }
-  // The real go is no stub: one that is this file, or that reaches a stub again (a shim of mise that runs the next go of
-  // PATH), would forward without end. The stub refuses it instead.
-  const { realpathSync } = require('node:fs');
-  if (process.env.STUB_GO_FORWARDED || realpathSync(process.env.REAL_GO) === realpathSync(__filename)) {
-    console.error('the go stub reached itself through REAL_GO ' + process.env.REAL_GO + '; REAL_GO must name a go that is no stub');
-    process.exit(1);
-  }
-  process.exit(require('node:child_process').spawnSync(process.env.REAL_GO, args, { stdio: 'inherit', env: { ...process.env, STUB_GO_FORWARDED: '1' } }).status ?? 1);
+  // go mod edit <flags> <go.mod> reads the go.mod that it names: the record of its flags and its text answers.
+  answer('go', args.slice(0, -1), { 'go.mod': readFileSync(args[args.length - 1], 'utf8') }, args);
 }
 appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
@@ -122,27 +129,11 @@ if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
 }
 `;
 
-// The checkout under test, whose var/tools holds its pinned tools.
-const ROOT = path.resolve(import.meta.dirname, '../..');
-
-/**
- * The absolute path of the command `command` of a tool of mise.toml that the checkout `root` installed, as the wrapper
- * var/tools/bin/mise names it (`mise which`), or undefined while mise or the tool is not installed. A shim of mise is no such
- * path: it runs the tool only inside the checkout, and elsewhere the next command of PATH, which may be a stub.
- */
-export function pinnedTool(root: string, command: string): string | undefined {
-  const mise = path.join(root, 'var/tools/bin/mise');
-  if (!existsSync(mise)) return undefined;
-  const found = spawnSync(mise, ['which', command], { cwd: root, encoding: 'utf8' });
-  return found.status === 0 ? found.stdout.trim() : undefined;
-}
-
 /**
  * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
- * the directory with `t.after`. REAL_COMPOSER and REAL_GO are the pinned tools of the checkout `root`; a missing one is
- * not set, and its stub then fails with the install that provides it.
+ * the directory with `t.after`.
  */
-export function stubRegistries(t: Pick<TestContext, 'after'>, { root = ROOT }: { root?: string } = {}) {
+export function stubRegistries(t: { after: (cleanup: () => void) => unknown }) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-registry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
@@ -155,17 +146,28 @@ export function stubRegistries(t: Pick<TestContext, 'after'>, { root = ROOT }: {
   writeFileSync(log, '');
   const registryFile = path.join(directory, 'registry.json');
   writeFileSync(registryFile, JSON.stringify({ npm: {}, composer: {}, pypi: {} }));
-  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile };
-  // A missing tool is no variable: an undefined value would reach the stub as the text "undefined".
-  const composer = pinnedTool(root, 'composer');
-  if (composer !== undefined) env.REAL_COMPOSER = composer;
-  const go = pinnedTool(root, 'go');
-  if (go !== undefined) env.REAL_GO = go;
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile, STUB_TOOL_RECORDS: TOOL_RECORDS };
   return {
     env,
     calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
     registry: (data: unknown) => writeFileSync(registryFile, JSON.stringify(data)),
   };
+}
+
+// The stubs of a process that a test runs without its own registries, such as the gate: an empty registry, removed when the
+// process exits.
+let processStubs: NodeJS.ProcessEnv | undefined;
+
+/**
+ * The environment of the stubs with an empty registry, made once for this process: the gate runs go mod edit and composer
+ * validate, which the stubs answer from the records, so a gate of the fixture runs neither go nor Composer.
+ */
+export function toolStubs(): NodeJS.ProcessEnv {
+  if (processStubs) return processStubs;
+  const cleanups: (() => unknown)[] = [];
+  process.on('exit', () => { for (const cleanup of cleanups) cleanup(); });
+  processStubs = stubRegistries({ after: cleanup => cleanups.push(cleanup) }).env;
+  return processStubs;
 }
 
 /** What the stub registries answer for the fixture of tests/kit/fixture: every dependency is at its latest stable release. */

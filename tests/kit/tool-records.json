@@ -1,0 +1,113 @@
+{
+  "composer": [
+    {
+      "tool": "composer",
+      "args": [
+        "validate",
+        "--strict",
+        "--no-interaction",
+        "--no-check-publish",
+        "--no-check-version"
+      ],
+      "files": {
+        "composer.json": "{\n    \"name\": \"polyspec/kit-fixture\",\n    \"description\": \"Fixture of the kit tests of the dependency tools.\",\n    \"version\": \"0.0.0\",\n    \"type\": \"library\",\n    \"license\": \"proprietary\",\n    \"require\": {\n        \"php\": \">=8.2\",\n        \"psr/log\": \"^3.0\"\n    },\n    \"config\": {\n        \"platform\": {\n            \"php\": \"8.2.0\"\n        }\n    }\n}\n",
+        "composer.lock": "{\n    \"_readme\": [\n        \"This file locks the dependencies of your project to a known state\",\n        \"Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies\",\n        \"This file is @generated automatically\"\n    ],\n    \"content-hash\": \"8327d420888cc48badb16cd67c87de3e\",\n    \"packages\": [\n        {\n            \"name\": \"psr/log\",\n            \"version\": \"3.0.2\",\n            \"source\": {\n                \"type\": \"git\",\n                \"url\": \"https://github.com/php-fig/log.git\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\"\n            },\n            \"dist\": {\n                \"type\": \"zip\",\n                \"url\": \"https://api.github.com/repos/php-fig/log/zipball/f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"shasum\": \"\"\n            },\n            \"require\": {\n                \"php\": \">=8.0.0\"\n            },\n            \"type\": \"library\",\n            \"extra\": {\n                \"branch-alias\": {\n                    \"dev-master\": \"3.x-dev\"\n                }\n            },\n            \"autoload\": {\n                \"psr-4\": {\n                    \"Psr\\\\Log\\\\\": \"src\"\n                }\n            },\n            \"notification-url\": \"https://packagist.org/downloads/\",\n            \"license\": [\n                \"MIT\"\n            ],\n            \"authors\": [\n                {\n                    \"name\": \"PHP-FIG\",\n                    \"homepage\": \"https://www.php-fig.org/\"\n                }\n            ],\n            \"description\": \"Common interface for logging libraries\",\n            \"homepage\": \"https://github.com/php-fig/log\",\n            \"keywords\": [\n                \"log\",\n                \"psr\",\n                \"psr-3\"\n            ],\n            \"support\": {\n                \"source\": \"https://github.com/php-fig/log/tree/3.0.2\"\n            },\n            \"time\": \"2024-09-11T13:17:53+00:00\"\n        }\n    ],\n    \"packages-dev\": [],\n    \"aliases\": [],\n    \"minimum-stability\": \"stable\",\n    \"stability-flags\": {},\n    \"prefer-stable\": false,\n    \"prefer-lowest\": false,\n    \"platform\": {\n        \"php\": \">=8.2\"\n    },\n    \"platform-dev\": {},\n    \"platform-overrides\": {\n        \"php\": \"8.2.0\"\n    },\n    \"plugin-api-version\": \"2.9.0\"\n}\n"
+      },
+      "status": 0,
+      "stdout": "./composer.json is valid\n",
+      "stderr": ""
+    },
+    {
+      "tool": "composer",
+      "args": [
+        "validate",
+        "--strict",
+        "--no-interaction",
+        "--no-check-publish",
+        "--no-check-version"
+      ],
+      "files": {
+        "composer.json": "{\n    \"name\": \"polyspec/kit-fixture\",\n    \"description\": \"Fixture of the kit tests of the dependency tools.\",\n    \"version\": \"0.0.0\",\n    \"type\": \"library\",\n    \"license\": \"proprietary\",\n    \"require\": {\n        \"php\": \">=8.2\",\n        \"psr/log\": \"^3.0\"\n    },\n    \"config\": {\n        \"platform\": {\n            \"php\": \"8.2.0\"\n        }\n    }\n}\n",
+        "composer.lock": "{\n    \"_readme\": [\n        \"This file locks the dependencies of your project to a known state\",\n        \"Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies\",\n        \"This file is @generated automatically\"\n    ],\n    \"content-hash\": \"8327d420888cc48badb16cd67c87de3e\",\n    \"packages\": [\n        {\n            \"name\": \"psr/log\",\n            \"version\": \"3.0.2\",\n            \"source\": {\n                \"type\": \"git\",\n                \"url\": \"https://github.com/php-fig/log.git\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\"\n            },\n            \"dist\": {\n                \"type\": \"zip\",\n                \"url\": \"https://api.github.com/repos/php-fig/log/zipball/f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"shasum\": \"\"\n            },\n            \"require\": {\n                \"php\": \">=8.0.0\"\n            },\n            \"type\": \"library\",\n            \"extra\": {\n                \"branch-alias\": {\n                    \"dev-master\": \"3.x-dev\"\n                }\n            },\n            \"autoload\": {\n                \"psr-4\": {\n                    \"Psr\\\\Log\\\\\": \"src\"\n                }\n            },\n            \"notification-url\": \"https://packagist.org/downloads/\",\n            \"license\": [\n                \"MIT\"\n            ],\n            \"authors\": [\n                {\n                    \"name\": \"PHP-FIG\",\n                    \"homepage\": \"https://www.php-fig.org/\"\n                }\n            ],\n            \"description\": \"Common interface for logging libraries\",\n            \"homepage\": \"https://github.com/php-fig/log\",\n            \"keywords\": [\n                \"log\",\n                \"psr\",\n                \"psr-3\"\n            ],\n            \"support\": {\n                \"source\": \"https://github.com/php-fig/log/tree/3.0.2\"\n            },\n            \"time\": \"2024-09-11T13:17:53+00:00\"\n        }\n    ],\n    \"packages-dev\": [],\n    \"aliases\": [],\n    \"minimum-stability\": \"stable\",\n    \"stability-flags\": {},\n    \"prefer-stable\": false,\n    \"prefer-lowest\": false,\n    \"platform\": {\n        \"php\": \">=8.2\"\n    },\n    \"platform-dev\": {},\n    \"platform-overrides\": {\n        \"php\": \"8.2.0\"\n    },\n    \"plugin-api-version\": \"2.9.0\"\n}\n\n"
+      },
+      "status": 0,
+      "stdout": "./composer.json is valid\n",
+      "stderr": ""
+    },
+    {
+      "tool": "composer",
+      "args": [
+        "validate",
+        "--strict",
+        "--no-interaction",
+        "--no-check-publish",
+        "--no-check-version"
+      ],
+      "files": {
+        "composer.json": "{\n  \"name\": \"polyspec/kit-fixture\",\n  \"description\": \"Fixture of the kit tests of the dependency tools.\",\n  \"version\": \"0.0.0\",\n  \"type\": \"library\",\n  \"license\": \"proprietary\",\n  \"require\": {\n    \"php\": \">=8.2\",\n    \"psr/log\": \"^3.0\"\n  },\n  \"config\": {\n    \"platform\": {\n      \"php\": \"8.1.0\"\n    }\n  }\n}\n",
+        "composer.lock": "{\n    \"_readme\": [\n        \"This file locks the dependencies of your project to a known state\",\n        \"Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies\",\n        \"This file is @generated automatically\"\n    ],\n    \"content-hash\": \"8327d420888cc48badb16cd67c87de3e\",\n    \"packages\": [\n        {\n            \"name\": \"psr/log\",\n            \"version\": \"3.0.2\",\n            \"source\": {\n                \"type\": \"git\",\n                \"url\": \"https://github.com/php-fig/log.git\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\"\n            },\n            \"dist\": {\n                \"type\": \"zip\",\n                \"url\": \"https://api.github.com/repos/php-fig/log/zipball/f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"reference\": \"f16e1d5863e37f8d8c2a01719f5b34baa2b714d3\",\n                \"shasum\": \"\"\n            },\n            \"require\": {\n                \"php\": \">=8.0.0\"\n            },\n            \"type\": \"library\",\n            \"extra\": {\n                \"branch-alias\": {\n                    \"dev-master\": \"3.x-dev\"\n                }\n            },\n            \"autoload\": {\n                \"psr-4\": {\n                    \"Psr\\\\Log\\\\\": \"src\"\n                }\n            },\n            \"notification-url\": \"https://packagist.org/downloads/\",\n            \"license\": [\n                \"MIT\"\n            ],\n            \"authors\": [\n                {\n                    \"name\": \"PHP-FIG\",\n                    \"homepage\": \"https://www.php-fig.org/\"\n                }\n            ],\n            \"description\": \"Common interface for logging libraries\",\n            \"homepage\": \"https://github.com/php-fig/log\",\n            \"keywords\": [\n                \"log\",\n                \"psr\",\n                \"psr-3\"\n            ],\n            \"support\": {\n                \"source\": \"https://github.com/php-fig/log/tree/3.0.2\"\n            },\n            \"time\": \"2024-09-11T13:17:53+00:00\"\n        }\n    ],\n    \"packages-dev\": [],\n    \"aliases\": [],\n    \"minimum-stability\": \"stable\",\n    \"stability-flags\": {},\n    \"prefer-stable\": false,\n    \"prefer-lowest\": false,\n    \"platform\": {\n        \"php\": \">=8.2\"\n    },\n    \"platform-dev\": {},\n    \"platform-overrides\": {\n        \"php\": \"8.2.0\"\n    },\n    \"plugin-api-version\": \"2.9.0\"\n}\n"
+      },
+      "status": 2,
+      "stdout": "./composer.json is valid but your composer.lock has some errors\n",
+      "stderr": "# Lock file errors\n- The lock file is not up to date with the latest changes in composer.json, it is recommended that you run `composer update` or `composer update <package name>`.\n"
+    }
+  ],
+  "go": [
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/fixture\n\ngo 1.27.2\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/fixture\"\n\t},\n\t\"Go\": \"1.27.2\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/kit-fixture-go\n\ngo 1.21\n\nrequire github.com/google/uuid v1.6.0\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/kit-fixture-go\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"github.com/google/uuid\",\n\t\t\t\"Version\": \"v1.6.0\"\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/kit-root\n\ngo 1.21\n\nrequire github.com/google/uuid v1.6.0\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/kit-root\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"github.com/google/uuid\",\n\t\t\t\"Version\": \"v1.6.0\"\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module x\n\ngo 1.21\n\nrequire (\n\t\"github.com/a/b\" v1.2.3\n\tgithub.com/c/d v0.1.0 // indirect\n\texample.com/local v0.0.0\n)\nrequire github.com/e/f v2.0.0+incompatible\nreplace (\n\texample.com/local => ./local\n)\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"x\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"github.com/a/b\",\n\t\t\t\"Version\": \"v1.2.3\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"github.com/c/d\",\n\t\t\t\"Version\": \"v0.1.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"example.com/local\",\n\t\t\t\"Version\": \"v0.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"github.com/e/f\",\n\t\t\t\"Version\": \"v2.0.0+incompatible\"\n\t\t}\n\t],\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"example.com/local\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./local\"\n\t\t\t}\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    }
+  ]
+}

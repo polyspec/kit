@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
+import { TOOL_ANSWER, TOOL_RECORDS } from './registry.mts';
 
 const HEADER = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -67,8 +68,9 @@ export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, 
   return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
 
-// The first argument of each reader of manifests that a version stub passes to the real command.
-const READERS: Record<string, string> = { go: 'mod', python3: '-I', npm: 'config' };
+// The first argument of each reader of manifests that a version stub passes to the real command: npm config, of the npm of
+// the bootstrap. go mod edit is answered from the records of the real go (registry.mts), never by running a go.
+const READERS: Record<string, string> = { npm: 'config' };
 
 // The real command `name` on the PATH of the test, or null.
 function realCommand(name: string): string | null {
@@ -80,8 +82,8 @@ function realCommand(name: string): string | null {
  * is `null` exits with status 1, as a command that fails to run), and the log line
  * holds the arguments and the GOTOOLCHAIN and RUSTUP_AUTO_INSTALL it ran with. The environment has the stubs first on PATH,
  * followed by the directory of this Node.js and the system directories only, so a tool that is not stubbed is absent. The
- * readers of manifests (READERS: `go mod`, `python3 -I`, `npm config`) are no version commands: a stub runs the real command
- * of the PATH of the test for them, unlogged, and fails when the test has none.
+ * readers of manifests are no version commands: `go mod edit` answers from the records of the real go (TOOL_ANSWER of
+ * registry.mts), and `npm config` (READERS) runs the real npm of the PATH of the test, unlogged, and fails without one.
  */
 export function versionStubs(t: Pick<TestContext, 'after'>, outputs: Record<string, string | null>) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-versions-')));
@@ -95,6 +97,11 @@ export function versionStubs(t: Pick<TestContext, 'after'>, outputs: Record<stri
     writeFileSync(path.join(bin, name), `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
+${name === 'go' ? `${TOOL_ANSWER}
+if (process.argv[2] === 'mod' && process.argv[3] === 'edit') {
+  const args = process.argv.slice(2);
+  answer('go', args.slice(0, -1), { 'go.mod': fs.readFileSync(args[args.length - 1], 'utf8') }, args);
+}` : ''}
 ${reader ? `if (process.argv[2] === ${JSON.stringify(reader)}) {
   const real = ${JSON.stringify(realCommand(name))};
   if (!real) { console.error('stub: no real ${name} on the PATH of the test'); process.exit(1); }
@@ -105,6 +112,8 @@ ${text === null ? 'console.error("stub: the command fails"); process.exit(1);' :
 `);
     chmodSync(path.join(bin, name), 0o755);
   }
-  const env = { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter), STUB_LOG: log, HOME: directory };
+  const env: NodeJS.ProcessEnv = { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter), STUB_LOG: log, HOME: directory, STUB_TOOL_RECORDS: TOOL_RECORDS };
+  // make kit-tool-record collects the requests that no record answers.
+  if (process.env.STUB_TOOL_MISSES) env.STUB_TOOL_MISSES = process.env.STUB_TOOL_MISSES;
   return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
