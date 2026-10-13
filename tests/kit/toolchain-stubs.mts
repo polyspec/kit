@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { ALINT_TARGETS, alintArchive, alintArchiveUrl } from '../../scripts/kit/install-alint.mts';
+import { GOLANGCI_LINT_TARGETS, golangciLintArchive, golangciLintArchiveUrl } from '../../scripts/kit/install-golangci-lint.mts';
 import { UV_TARGETS, uvArchiveUrl } from '../../scripts/kit/install-uv.mts';
 import { GO_TARGETS, goArchiveUrl } from '../../scripts/kit/install-go.mts';
 
@@ -68,9 +69,15 @@ if (args[0] === 'mod') {
   fs.writeFileSync(path.join(root, 'pkg/tool/stub_arch/compile'), 'binary', { mode: 0o644 });
   fs.mkdirSync(path.join(cache, 'cache/download'), { recursive: true });
   fs.writeFileSync(path.join(cache, 'cache/download/zip'), 'zip');
+} else if (args[0] === 'install' && args[1].startsWith('golang.org/x/tools/cmd/deadcode@')) {
+  // deadcode prints no release; the binary names its module release, which \`go version -m\` reads.
+  const release = /@v(.+)$/.exec(args[1])[1];
+  script(path.join(process.env.GOBIN, 'deadcode'), '// \\tmod\\tgolang.org/x/tools\\tv' + (process.env.STUB_DEADCODE_SHOWS ?? release) + '\\th1:stub=');
 } else if (args[0] === 'install') {
   const release = /@v(.+)$/.exec(args[1])[1];
   script(path.join(process.env.GOBIN, 'govulncheck'), 'console.log("Scanner: govulncheck@v' + (process.env.STUB_GOVULNCHECK_SHOWS ?? release) + '");');
+} else if (args[0] === 'version' && args[1] === '-m') {
+  for (const line of fs.readFileSync(args[2], 'utf8').split(String.fromCharCode(10))) if (line.startsWith('// ')) console.log(line.slice(3));
 }
 `;
 
@@ -180,18 +187,38 @@ export const ALINT_VERSION = '0.18.2';
  * the archive holds the folder alint-v<version>-<target> with the binary alint.
  */
 export function alintRelease(t: Pick<TestContext, 'after'>, version = ALINT_VERSION) {
-  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-alint-release-')));
+  return archiveRelease(t, { name: 'alint', targets: ALINT_TARGETS, archive: alintArchive, url: alintArchiveUrl, source: alintSource(version) }, version);
+}
+
+export const GOLANGCI_LINT_VERSION = '2.14.0';
+
+// The golangci-lint of a release archive: it prints its release as golangci-lint does, and checks nothing.
+const golangciLintSource = (version: string) => `${HEADER}
+if (args[0] === 'version') console.log('golangci-lint has version ' + (process.env.STUB_GOLANGCI_LINT_SHOWS ?? ${JSON.stringify(version)}) + ' built with go1.27.0 from stub on 2026-01-01T00:00:00Z');
+`;
+
+/** The golangci-lint declaration of this platform and the release archive of the stub golangci-lint that it names, as alintRelease. */
+export function golangciLintRelease(t: Pick<TestContext, 'after'>, version = GOLANGCI_LINT_VERSION) {
+  return archiveRelease(t, { name: 'golangci-lint', targets: GOLANGCI_LINT_TARGETS, archive: golangciLintArchive, url: golangciLintArchiveUrl, source: golangciLintSource(version) }, version);
+}
+
+/**
+ * The declaration of this platform and the release archive of a stub tool: the archive holds the folder that `archive` names
+ * with the binary `name`, whose text is `source`; it is written into a temporary directory that is removed with `t.after`.
+ */
+function archiveRelease(t: Pick<TestContext, 'after'>, tool: { name: string; targets: Readonly<Record<string, string>>; archive: (version: string, target: string) => string; url: (version: string, target: string) => string; source: string }, version: string) {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), `kit-${tool.name}-release-`)));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const key = `${process.platform}-${process.arch}`;
-  const target = ALINT_TARGETS[key];
-  if (target === undefined) throw new Error(`alintRelease: ALINT_TARGETS has no alint target for ${key}`);
-  const folder = alintArchive(version, target);
+  const target = tool.targets[key];
+  if (target === undefined) throw new Error(`archiveRelease: ${tool.name} has no target for ${key}`);
+  const folder = tool.archive(version, target);
   mkdirSync(path.join(directory, folder));
-  writeFileSync(path.join(directory, folder, 'alint'), alintSource(version), { mode: 0o755 });
+  writeFileSync(path.join(directory, folder, tool.name), tool.source, { mode: 0o755 });
   const archive = path.join(directory, 'archive.tar.gz');
   execFileSync('tar', ['-czf', archive, '-C', directory, folder]);
   const declared = { version, sha256: { [key]: createHash('sha256').update(readFileSync(archive)).digest('hex') } };
-  return { declared, url: alintArchiveUrl(version, target), archive, key, target, folder };
+  return { declared, url: tool.url(version, target), archive, key, target, folder };
 }
 
 /** The directory of stubs and the environment that puts them first on PATH; the directory is removed with \`t.after\`. */
