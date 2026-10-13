@@ -24,8 +24,7 @@
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ROOT } from './paths.mts';
+import { isMain, ROOT } from './paths.mts';
 import { assetNames, context, latestTag, parseTag } from './release.mts';
 import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
@@ -202,4 +201,4 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
   return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url)) process.exitCode = main(process.argv.slice(2));
