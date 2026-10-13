@@ -3,7 +3,7 @@
 // column that has a closed set of values (the other columns are translated text).
 import { finding } from './findings.mts';
 import type { Finding } from './findings.mts';
-import { tableRows } from './markdown.mts';
+import { lineBlocks } from './markdown.mts';
 
 /** A column of a status table that has a closed set of values or a pattern. */
 export type StatusColumn = { index: number; enum?: readonly string[] | undefined; pattern?: string | undefined };
@@ -24,9 +24,12 @@ export function readStatusTable(text: string, spec: StatusTableSpec): { findings
   const findings: Finding[] = [];
   const rows: StatusRow[] = [];
   const seen = new Map<string, number>();
-  // The rows of the GFM tables of the text (markdown.mts); a row whose first cell is no ID, such as the header, is not a row
-  // of the status table, and a row without cells has no first cell.
-  for (const { line: number, cells } of tableRows(text)) {
+  // The body rows of the GFM tables of the text (lineBlocks of markdown.mts); a row whose first cell is no ID is not a row of
+  // the status table, and a row without cells has no first cell.
+  for (const [index, block] of lineBlocks(text).entries()) {
+    if (block.kind !== 'tableRow') continue;
+    const number = index + 1;
+    const cells = block.cells.map(cell => cell.text.trim());
     const rowId = cells[0];
     if (rowId === undefined || !id.test(rowId)) continue;
     if (cells.length !== spec.cells) findings.push(finding(number, 'status-table', `the row ${rowId} has ${cells.length} cells; expected ${spec.cells}`));
