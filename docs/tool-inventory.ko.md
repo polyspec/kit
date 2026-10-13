@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 050bb8ad1569eb2c20c81c581084206ef7650dd2921eb9d48a5e475cabb7ca49 -->
+<!-- source-sha256: 45812a9e8473c1396e0d626c39ed19f9481c134b079de21046194bc1da3238cf -->
 
 # 도구 목록
 
@@ -1286,3 +1286,49 @@ version drift(`0.0.1`에서 `0.0.2`)는 `tinylib`과 함께, `setuptools`가 빠
   review는 lock의 sha256을 기록하고 그 변경에서 gate가 실패합니다(K36).
 - findLinks를 선언하지 않으면 writer는 network(uv를 통한 PyPI)가 필요합니다.
 - requirement의 extra와 marker는 고정되는 package를 바꾸지 않습니다. lock의 모든 package는 marker와 관계없이 constraints에 있어야 합니다.
+
+## Editor tools (K80)
+
+orm과 template은 둘 다 editor package를 갖습니다: language service, language server, CodeMirror adapter, VS Code extension입니다.
+이것을 검사하고 시험하는 두 tool이 template(`scripts/check-editor-boundaries.mjs` 103, `scripts/install-vscode.mjs` 75)에서
+kit으로 옮겨집니다. 각 repository는 자기 make target에서 자기 설정으로 이것을 실행합니다.
+
+### Editor boundaries
+
+`scripts/kit/check-editor-boundaries.mts`는 `config/editor-boundaries.json`(`scripts/kit/schema/editor-boundaries.schema.json`)을
+읽습니다. 각 boundary는 다음을 갖습니다:
+- `packages`: package directory;
+- `sources`: 각 package의 source directory;
+- `forbiddenModules`: package가 import하지도, package.json의 dependency field에 선언하지도 못하는 module의 glob;
+- `forbiddenGlobals`: package가 쓰지 못하는 global;
+- `exempt`: 시작점이 아닌 source, 예를 들어 language service의 command line.
+
+검사는 exempt glob에 맞지 않는 모든 source에서 시작합니다. relative import를 package 밖까지 이행적으로 따라가고, finding을 import
+사슬과 함께 보고합니다. 검사한 source가 닿는 파일은 exempt glob 아래에 있어도 검사합니다. bare specifier는 이름으로 판정하며 따라가지
+않습니다. relative import는 자기 파일을 적고, `.ts` 파일에는 `.js`를 적습니다. 검사가 따라갈 수 없는 import는 건너뛰지 않고 finding이
+됩니다: 계산된 `import()`, subpath import, 파일이 없는 relative import, `.tsx`나 `.jsx` source입니다.
+
+template tool은 설정이 없었고 import를 따라가지 않았습니다. `src`의 각 파일에서 정규식 하나로 import를 찾았고, `document`의 property를
+나열한 두 번째 정규식으로 DOM global을 찾았습니다. kit은 대신 parse합니다:
+- Node.js의 TypeScript 제거기인 amaro가 transform mode로 TypeScript를 JavaScript로 바꿉니다. Node.js 26에 내장된 제거기는 strip만
+  하며, parameter property에서 실패합니다.
+- acorn이 JavaScript를 parse하고, acorn-walk가 `import`, `export … from`, `import()`, `require()` node를 찾습니다.
+- eslint-scope가 어떤 scope도 선언하지 않은 reference를 찾으므로, `document`라는 지역 변수는 global의 사용이 아닙니다.
+
+이것들이 다음 대안을 대신했습니다:
+- TypeScript 7에는 불안정한 compiler API만 있습니다.
+- dependency-cruiser와 madge는 TypeScript 6의 API가 필요합니다(K111).
+- es-module-lexer는 `require()`도 global도 읽지 않습니다.
+
+template tool의 runtime self-test는 `tests/kit/editor-boundaries.test.mts`가 되었습니다.
+
+### VS Code installer
+
+`scripts/kit/install-vscode.mts <extension package directory> <tools directory>`는 `engines.vscode`의 최소 버전(`^X.Y.Z`; 다른
+형식은 실패)을 `@vscode/test-electron`의 layout으로 설치하며, 내려받기는 그 library가 합니다. tool은 library에 없는 두 가지를 더합니다:
+- `installedExecutable`: integration 실행의 offline 읽기입니다. 사본이 없으면 `run make install-vscode`와 함께 실패합니다.
+- `<tools>/.next-<pid>`에 내려받아 제자리로 rename합니다. library는 최종 directory에 압축을 풀므로 두 install이 동시에 돌면 서로를
+  망가뜨립니다. rename을 쓰면 먼저 끝난 install의 사본이 남습니다.
+
+`@vscode/test-electron`은 kit의 optional peer dependency입니다: VS Code를 설치하는 repository가 이것을 선언합니다.
+`tests/kit/install-vscode.test.mts`는 내려받기를 함수로 바꾸므로 어떤 test도 network에 닿지 않습니다.
