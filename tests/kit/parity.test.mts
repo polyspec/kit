@@ -1004,6 +1004,38 @@ test('R10: a count or a list is judged with the implementations of its sentence,
   ]);
 });
 
+test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, (t) => {
+  const prose = (config: Declaration) => { config.implementations.find((entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
+  const { findings } = check(t, {
+    files: {
+      'docs/index.md': [
+        '# Codec', '',
+        '- Go', '- PHP', '- Rust', '- TypeScript', '',
+        'The five:', '',
+        '- Go', '- Rust', '- TS', '- PHP', '- Python', '',
+        'Paragraph.', '',
+        '* Go and Rust compile.', '* PHP reads.', '* TS runs.', '',
+        'The Node package, Go, PHP and Rust share one contract.', '',
+        'Five languages share the codec: Go, Rust, TypeScript, PHP and Python.', '',
+      ].join('\n'),
+    },
+    edit: prose,
+  }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`), [
+    'R10 docs/index.md:3: the Markdown list go, php, rust, ts names one implementation per item, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+    'R10 docs/index.md:22: the list ts, go, php, rust is in a sentence that names ts, go, php, rust, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+  ]);
+  const messages = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages((config) => { prose(config).implementations[0].prose = ['typescript']; return config; }), [
+    'declaration: implementation go: the prose name typescript is also a name of ts',
+    'declaration: implementation ts: the prose name TypeScript is also a name of go',
+  ]);
+  assert.deepEqual(messages((config) => { config.implementations[0].prose = ['Rust']; return config; }), [
+    'declaration: implementation go: the prose name Rust is also a name of rust',
+  ]);
+  assert.deepEqual(messages((config) => { config.implementations[0].prose = [' Go']; return config; }).length, 1);
+});
+
 test('R11: a public symbol that no API unit and no native-only entry declares, and a stale native-only entry, fail (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {

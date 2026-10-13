@@ -43,10 +43,13 @@ function countsOf(text: string, nouns: string[]) {
   return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]!) ? Number(match[1]) : NUMBERS[match[1]!.toLowerCase()], index: match.index }));
 }
 
-/** The implementation names of `text` in the order of the text, as `{ name, index, end }`. */
-function namesOf(text: string, names: Iterable<string>) {
-  const pattern = new RegExp(`(?<![A-Za-z0-9_-])(?:${[...names].sort((a, b) => b.length - a.length).map(escape).join('|')})(?![A-Za-z0-9_-])`, 'gi');
-  return [...text.matchAll(pattern)].map(match => ({ name: match[0].toLowerCase(), index: match.index, end: match.index + match[0].length }));
+/**
+ * The implementations that `text` names, in the order of the text, as `{ name, index, end }`: `written` maps each name and
+ * prose name, in lower case, to its implementation.
+ */
+function namesOf(text: string, written: Map<string, string>) {
+  const pattern = new RegExp(`(?<![A-Za-z0-9_-])(?:${[...written.keys()].sort((a, b) => b.length - a.length).map(escape).join('|')})(?![A-Za-z0-9_-])`, 'gi');
+  return [...text.matchAll(pattern)].map(match => ({ name: written.get(match[0].toLowerCase())!, index: match.index, end: match.index + match[0].length }));
 }
 
 /** The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. */
@@ -69,18 +72,22 @@ const QUOTE = /^(?: {0,3}> ?)+/;
 const SETEXT = /^ {0,3}(?:=+|-+)\s*$/;
 const INDENTED = /^(?: {4}|\t)/;
 
-type Passage = { text: string; line: number; table: boolean; quoted: boolean };
+type Passage = { text: string; line: number; table: boolean; quoted: boolean; list: number | undefined };
 
 /**
- * The passages of the Markdown `text` outside its fenced blocks, each `{ text, line, table }` with the number of its first
- * line: a paragraph or a list item with the lines that continue it (a block quote without its markers), a heading, or a
- * table row. Inline code is blanked.
+ * The passages of the Markdown `text` outside its fenced blocks, each `{ text, line, table, list }` with the number of its
+ * first line: a paragraph or a list item with the lines that continue it (a block quote without its markers), a heading, or
+ * a table row. Inline code is blanked. The items of one Markdown list, with the same marker and indent and no other passage
+ * between them, share the number `list`.
  */
 function passagesOf(text: string) {
   const { fenced } = scanFences(text);
   const passages: Passage[] = [];
   let current: Passage | undefined;
+  let lists = 0;
+  let list: { id: number; marker: string } | undefined;
   text.split('\n').forEach((raw, index) => {
+    if (fenced[index]) list = undefined;
     if (fenced[index] || !raw.trim()) {
       current = undefined;
       return;
@@ -97,7 +104,10 @@ function passagesOf(text: string) {
       current.text += `\n${line}`;
       return;
     }
-    current = { text: line, line: index + 1, table: TABLE.test(line), quoted };
+    const marker = ITEM.exec(line)?.[0].replace(/\d+/, '1').trimEnd();
+    if (marker === undefined) list = undefined;
+    else if (list?.marker !== marker) list = { id: ++lists, marker };
+    current = { text: line, line: index + 1, table: TABLE.test(line), quoted, list: list?.id };
     passages.push(current);
     if (alone) current = undefined;
   });
@@ -147,15 +157,26 @@ export function documentCounts(model: ParityModel, root: string, files: Iterable
   const known = profiles.map(profile => `${profile.name} ${profile.members.length}`).join(', ');
   const listed = profiles.map(profile => `${profile.name}: ${profile.members.join(', ')}`).join('; ');
   const sameSet = (names: string[], members: string[]) => names.length === members.length && names.every(name => members.includes(name));
+  const written = new Map(model.config.implementations.flatMap(entry => [entry.name, ...entry.prose ?? []].map(name => [name.toLowerCase(), entry.name] as const)));
   const found: ReturnType<typeof finding>[] = [];
   for (const file of [...files].filter(name => matchesAny(documents.globs, name)).sort()) {
-    for (const passage of passagesOf(readFileSync(path.join(root, file), 'utf8'))) {
+    const passages = passagesOf(readFileSync(path.join(root, file), 'utf8'));
+    // A Markdown list whose every item names one implementation lists them, and three or more of them are a profile.
+    for (const id of new Set(passages.map(passage => passage.list).filter(list => list !== undefined))) {
+      const items = passages.filter(passage => passage.list === id);
+      const each = items.map(item => [...new Set(namesOf(proseOf(item.text), written).map(match => match.name))]);
+      if (!each.every(names => names.length === 1)) continue;
+      const names = [...new Set(each.flat())];
+      if (names.length < 3 || profiles.some(profile => sameSet(names, profile.members))) continue;
+      found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is no profile (${listed})`, { place: `${file}:${items[0]!.line}` }));
+    }
+    for (const passage of passages) {
       const prose = proseOf(passage.text);
       const place = (index: number) => `${file}:${passage.line + prose.slice(0, index).split('\n').length - 1}`;
-      const named = (text: string) => [...new Set(namesOf(text, model.implementations.keys()).map(match => match.name))];
+      const named = (text: string) => [...new Set(namesOf(text, written).map(match => match.name))];
       const passageProfile = profiles.some(profile => sameSet(named(prose), profile.members));
       for (const sentence of sentencesOf(prose, passage.table)) {
-        const names = namesOf(sentence.text, model.implementations.keys());
+        const names = namesOf(sentence.text, written);
         const sentenceNames = named(sentence.text);
         for (const count of countsOf(sentence.text, documents.nouns)) {
           const held = profiles.some(profile => profile.members.length === count.count && sentenceNames.every(name => profile.members.includes(name)));
