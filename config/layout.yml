@@ -67,6 +67,8 @@ rules:
       - "!ruff.toml"
       - "!phpcs.xml.dist"
       - "!phpstan.dist.neon"
+      - "!Cargo.toml"
+      - "!Cargo.lock"
 
   - id: layout-no-pythonpath
     paths:
