@@ -19,6 +19,9 @@ in kit, with its grounding.
   rule exists for what the work needs, the rule is made, never skipped.
 - A settled ruling is written into its specification, with its grounding, before work that depends on it. A ruling that
   lives only in a conversation, a commit message or an agent's report is not settled.
+- A wrong change is judged by its harm and its correctness, not by its intent. A harmful change is reverted at once; a
+  harmless change that is wrong or unneeded is removed; a correct change unrelated to the work is kept and committed on
+  its own with its real reason, never recorded as part of the work it did not belong to.
 
 ## Standards
 
@@ -48,7 +51,9 @@ in kit, with its grounding.
 - A defect starts as a test that reproduces it and fails for the intended reason; the fix follows; the same test passes.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
 - A hard judgement or a new line of reasoning is verified adversarially, in rounds, until a round finds nothing. The scope
-  of the review is fixed before the first round; a question beside it becomes its own item.
+  of the review is fixed before the first round; a question beside it becomes its own item. The review is asked for
+  solutions as well as objections, and a finding counts only when it shows a proposition wrong, shows it contradicted by
+  another document, or shows a case missing that the proposition claims to cover.
 - Work handed to an agent carries everything the one handing it knows: the history, why earlier attempts were wrong, the
   measurements, these principles, the state of shared resources and the completion conditions. The agent first answers
   how it will judge right and wrong; the two agree before the work starts. An agent's report that something does not exist,
