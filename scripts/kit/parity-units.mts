@@ -7,7 +7,7 @@ import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mt
 
 // The declaration of config/parity.json as scripts/kit/schema/parity.schema.json describes it, and the model that
 // readDeclaration builds from it; the parity rules read only the members named here.
-export type Runner = 'go' | 'cargo' | 'node' | 'php' | 'python';
+export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
 export type ParityImplementation = {
   name: string;
   runner: Runner;
@@ -131,11 +131,13 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));
   const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !KIT_DIRECTORIES.some(root => within(root, file))).flatMap((file) => {
-    return (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file)).flatMap((runner) => {
-      const roots = model.config.implementations.filter(entry => entry.runner === runner).flatMap(entry => entry.roots);
-      if (roots.some(root => within(root, file))) return [];
-      return [finding('R6', `a ${runner} test outside ${roots.join(', ') || 'nothing'}, the roots of the ${runner} implementations, and outside ${comparators.join(', ') || 'nothing'}, the comparator roots; move it into the package of its implementation`, { place: file })];
-    });
+    // Conventions overlap (a *.test.ts file is a node and a vitest test), so a file lies in a root of one of its runners.
+    const runners = (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file));
+    if (!runners.length) return [];
+    const roots = model.config.implementations.filter(entry => runners.includes(entry.runner)).flatMap(entry => entry.roots);
+    if (roots.some(root => within(root, file))) return [];
+    const named = runners.join(' or ');
+    return [finding('R6', `a ${named} test outside ${roots.join(', ') || 'nothing'}, the roots of the ${named} implementations, and outside ${comparators.join(', ') || 'nothing'}, the comparator roots; move it into the package of its implementation`, { place: file })];
   });
   return [...bindings, ...patterns];
 }

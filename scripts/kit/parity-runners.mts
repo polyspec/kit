@@ -9,11 +9,14 @@
 //           a feature runs the target of the test without a filter
 //   node    `node --test --test-reporter=<parity-node-reporter.mts> <test>`, whose lines name each test with its enclosing
 //           suites, joined by ' › '; a case is a top-level test, and a feature id is the joined name
+//   vitest  `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>`
+//           from the checkout root, read from the JSON report that vitest writes; a test is named by the titles of its
+//           suites and its own joined by ' › ', a case is a top-level test, and a feature id is the joined name
 //   php     `php <args> vendor/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
 //           the phpunit.xml of the Composer package of the test (phpunit.xml.dist when only that exists), or
 //           `--no-configuration` when it has none; a case is a test method `test_<case>`, and a feature id is the method
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the method
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -83,6 +86,12 @@ const after = (prefix: string, name: string): string | undefined => (name.starts
 /** The name of a unittest or PHPUnit test method: `test_<case>` names the case `<case>`; another name is the case itself. */
 const methodCase = (name: string): string => (name.startsWith('test_') ? name.slice(5) : name);
 
+// The JSON report of a vitest run, in the checkout; the report of vitest 5 as its run reads it, and the sink call of each status
+// (a todo test is expected to fail, so it is no pass).
+const VITEST_REPORT = 'var/parity/vitest.json';
+type VitestReport = { testResults: { assertionResults: { ancestorTitles: string[]; title: string; status: keyof typeof VITEST_OUTCOMES }[] }[] };
+const VITEST_OUTCOMES = { passed: 'pass', failed: 'fail', skipped: 'skip', pending: 'skip', todo: 'todo' } as const;
+
 /** The native name itself, the id of a feature test. */
 const itself = (name: string): string => name;
 
@@ -142,6 +151,32 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       }),
       detail: stderrTail,
     }),
+  },
+  vitest: {
+    program: () => process.execPath,
+    run(root, binding, kind) {
+      const vitest = 'node_modules/vitest/vitest.mjs';
+      if (!existsSync(path.join(root, vitest))) return { error: `${vitest} does not exist; run npm ci` };
+      // vitest 5 writes its JSON report to a file; each run writes it anew, and the run reads and removes it. A report that an
+      // interrupted check left is removed first, so a run that writes none reads none.
+      const report = path.join(root, VITEST_REPORT);
+      rmSync(report, { force: true });
+      return {
+        args: test => [path.join(root, vitest), 'run', ...test, '--reporter=json', `--outputFile.json=${report}`, binding.test],
+        cwd: '.',
+        caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
+        read: (output, sink) => {
+          if (!existsSync(report)) return;
+          const { testResults } = JSON.parse(readFileSync(report, 'utf8')) as VitestReport;
+          rmSync(report);
+          for (const result of testResults.flatMap(file => file.assertionResults)) {
+            const name = [...result.ancestorTitles, result.title].join(' › ');
+            sink[VITEST_OUTCOMES[result.status]]({ id: name, name });
+          }
+        },
+        detail: stderrTail,
+      };
+    },
   },
   php: {
     program: () => 'php',
