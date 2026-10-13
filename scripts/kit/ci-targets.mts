@@ -20,20 +20,13 @@ import { acquireHolderLock } from './holder-lock.mts';
 import { now } from './time.mts';
 import { toolchainVersions } from './check-toolchain.mts';
 import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mts';
+import type { RunRecord, UnreadRecord } from './target-report.mts';
 import { isMain, ROOT } from './paths.mts';
 import { jsonText, readJson } from './files.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 // The toolchains whose releases the record of a run names.
 const REPORTED_TOOLS = ['node', 'npm', 'go', 'rust', 'php', 'composer'];
-
-/** A target of a run in record.json: its log, its status and, when it ended, its time and its failure and warning lines. */
-type TargetEntry = { name: string; status: string; log: string; started?: string; ended?: string; elapsedMs?: number; failures?: string[]; warnings?: string[] };
-/** record.json of a report, which target-report.mts render reads. */
-type RunRecord = {
-  title: string; tree: string; environment: Record<string, string>; result: string; started: string; ended: string | null;
-  targets: TargetEntry[]; reportErrors?: string[];
-};
 
 /**
  * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
@@ -102,7 +95,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
 export function ciSummary({ root, directory, env = process.env, print = line => console.log(line) }: { root: string; directory: string; env?: NodeJS.ProcessEnv; print?: (line: string) => void }) {
   const report = path.resolve(root, directory);
   const file = path.join(report, 'record.json');
-  let record: { title?: string; error?: string } | null = null;
+  let record: RunRecord | UnreadRecord | null = null;
   if (existsSync(file)) {
     try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
   }

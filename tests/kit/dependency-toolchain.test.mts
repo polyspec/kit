@@ -6,11 +6,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { POLICY, TOOLCHAIN, UPDATE, readState } from '../../scripts/kit/dependency-state.mts';
+import type { Dependency } from '../../scripts/kit/dependency-state.mts';
 import { fixOf, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture } from './checkout.mts';
 
 const RUFF = { version: '0.16.10', sha256: { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a' } };
-const toolchainRuff = { ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: '==0.16.10', version: '0.16.10', lock: null };
+const toolchainRuff: Dependency = { ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: '==0.16.10', version: '0.16.10', lock: null };
 const policyOf = (root: string) => JSON.parse(readFileSync(path.join(root, POLICY), 'utf8'));
 
 test('the ruff pin of config/toolchain.json is a PyPI dependency of the review state', (t) => {
