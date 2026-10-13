@@ -20,7 +20,8 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpat
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY } from './dependency-state.mts';
-import { parseToml, readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
+import { readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
+import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
@@ -43,8 +44,6 @@ export type Pin = { name: string; version: string; line: number; url?: undefined
 export type LockEntry = { lock: string; source: { requirements: string; constraints: string; findLinks?: string } };
 /** Adds a finding with its fix. */
 type Add = (message: string, fix: string) => void;
-/** A TOML table: an object that is not an array. */
-const isTable = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** The name of a package as PEP 503 compares it: lower case, and each run of - _ . as one -. */
 export const normalize = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
@@ -88,11 +87,12 @@ export function parseRequirements(text: string, file: string) {
  * [project].dynamic is refused, since the direct requirements are then not in the file.
  */
 export function parseProjectDependencies(text: string, file: string) {
-  let data: Record<string, unknown>;
+  let data: TomlTable;
   try {
-    data = parseToml(text);
+    data = readToml(text, file);
   } catch (error) {
-    throw failWith(`${file} ${(error as Error).message}`, `write a pyproject.toml that the reader of kit reads`);
+    // readToml throws an Error that names the file, the line and the column.
+    throw failWith((error as Error).message, `write ${file} as valid TOML`);
   }
   const project = data.project;
   if (!isTable(project)) {
@@ -102,7 +102,7 @@ export function parseProjectDependencies(text: string, file: string) {
     throw failWith(`${file}: [project].dynamic lists dependencies, so the direct requirements are not static`, `write the requirements in [project].dependencies of ${file} and remove dependencies from [project].dynamic`);
   }
   const list = project.dependencies ?? [];
-  if (!Array.isArray(list) || list.some(item => typeof item !== 'string')) {
+  if (!isStringArray(list)) {
     throw failWith(`${file}: [project].dependencies is not an array of strings`, `write each requirement as a string in [project].dependencies of ${file}`);
   }
   return list.map((item, index) => parseRequirementText(item, `${file} [project].dependencies item ${index + 1}`, index + 1));

@@ -1193,9 +1193,8 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 ### Rules
 
-- The file is read by `scripts/kit/pylock.mts` (`readPylock`), a reader for the TOML subset that these writers produce. Node has
-  no TOML reader and kit imports only Node built-ins, so no TOML library is reused; a construct outside the subset (a multi-line
-  string, an unknown escape, a duplicate key) fails with its line.
+- The file is read by `scripts/kit/pylock.mts` (`readPylock`) through smol-toml (`scripts/kit/toml.mts`), which reads all of
+  TOML; a text that is not valid TOML fails with the file, the line and the column.
 - `lock-version` is `"1.0"`; another version fails the gate.
 - Each lock's sha256 is recorded in `config/dependency-review.json`, as a lock of any other ecosystem is.
 - A registry package (`sdist` or `wheels`) is a dependency of the lock: its name and version are recorded, its latest stable
