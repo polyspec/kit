@@ -35,7 +35,7 @@ repositories (lines).
 
 `scripts/kit/install-tools.mts` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mts`
 compares the running tools with the declarations. `scripts/kit/toolchain-declared.mts` reads the declarations, and each
-installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-composer.mts`, `install-phpunit.mts`;
+installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`;
 cargo-audit and govulncheck keep `install-cargo-audit.mts` and `install-govulncheck.mts`). Every installer uses
 `install-tool.mts`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
@@ -74,12 +74,13 @@ would walk it whatever the working directory.
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
 | ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made by `var/tools/bin/uv venv` from `var/tools/bin/python3` and the wheel is installed by `uv pip install` | install |
 | uv | `uv` of `config/toolchain.json`: the exact `version` and the `sha256` of the release archive `uv-<target>.tar.gz` of each platform, downloaded with the digest checked and unpacked into `var/tools/uv`; the wrapper `var/tools/bin/uv` keeps its state under `var/tools` (K54, K64) | install |
+| alint | `alint` of `config/toolchain.json`: the exact `version` and the `sha256` of the release archive `alint-v<version>-<target>.tar.gz` of each platform, downloaded with the digest checked and unpacked into `var/tools/alint`; `make layout-check` runs it (K76) | install |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the declared Composer |
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
-(`version`, `sha256` of each platform's wheel), `uv` (the same shape as `ruff`), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
+(`version`, `sha256` of each platform's wheel), `uv` and `alint` (the same shape as `ruff`), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
 
@@ -155,6 +156,70 @@ checked.
   `go.mod` module: they check files of one repository, not a tool of the machine.
 - The Node.js archive checksums of `config/toolchain.json` `node` are data that a repository's own download reads; kit
   accepts them and reads none.
+## Layout check (K76)
+
+S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by
+[alint](https://github.com/asamarts/alint), a released tool, and not by a tool of kit: S1 forbids a rebuild when an
+ecosystem tool expresses the requirement, and alint expresses every item below with configuration alone. kit therefore has
+no rebuild record for it; this section records the choice.
+
+- `make layout-check` runs `var/tools/bin/alint check --config config/layout.yml .` (offline). `config/toolchain.json` `alint`
+  pins the release and the sha256 of the archive of each platform; `install-alint.mts` installs it like uv.
+- `config/layout.kit.yml` holds the common rules and templates. It is a vendored file (kit.json `vendoredFiles`), so kit-sync
+  copies it and kit-check holds its hash; a repository never edits it. It lies in `config/` because alint reads an `extends:`
+  target only from the folder of the config that names it.
+- `config/layout.yml` of a repository extends it and adds its map: the instances of the templates `no-repository-prefix` and
+  `go-module-path` with its name, one `component-ports` instance for each component with ports, and overrides by rule id (its
+  components in `layout-packages`, its runners in `layout-root-tests`, its root files and S9 exceptions). An override of
+  `paths` replaces the list, so it repeats the common entries. Each exception carries its reason in the comment right above
+  it. alint has no field for a reason, so the owner's required review of `config/layout.yml` through `CODEOWNERS`, which
+  the standards plan sets up with parity (S6), is what enforces S8; kit has no `CODEOWNERS` yet.
+- `PYTHONPATH` is checked here only, not also by the parity schema; feature ownership of a test stays in parity R6, and the
+  layout places only the root `tests/`.
+- `tests/source/layout-real.test.mts` runs the real alint: a repository that follows the layout passes, each of 17 planted
+  violations fails with the rule that names it, and this checkout passes.
+
+### Requirement and verdicts
+
+Measured with alint 0.18.2 on fixture repositories, and read-only on fsm and orm, where the rules found the violations that the
+standards plan lists (root `conformance/`, `machines/`, `schema/`, the `fsm-` prefixes, the module path of `fsm-go`,
+`PYTHONPATH` and `../ordered-json/…` in `config/parity.json`, `.mjs` scripts).
+
+| Item | Requirement | alint rule | Verdict |
+|---|---|---|---|
+| L1 | root allowlist of folders and files | `dir_absent`, `file_absent` with `root_only` and `!` entries | native |
+| L2 | `packages/<runtime>/`, `packages/<component>/`, `packages/<component>/<runtime>/` | `dir_absent`, `file_absent`, template `component-ports` | native |
+| L3 | no `<repo>-` prefix under `packages/` | template `no-repository-prefix` | native |
+| L4 | go.mod module path = `github.com/polyspec/<repo>/<folder>`, with Go's `/vN` for v2+ | `for_each_file` with `file_content_matches` | native |
+| L5 | no `PYTHONPATH` | `file_content_forbidden` | native |
+| L6 | no path that leaves the repository: `config/*.json`, `go.mod` replace, `package.json` `file:`, pyproject path sources, `Cargo.toml` `path`, `composer.json` path repositories | `json_path_absent`; `for_each_file` with `cross_file` `relation: resolves`, which resolves inside the repository only (a missing target is reported too) | native |
+| L7 | no infrastructure script that is not TypeScript under `scripts/` and `tests/`, except declared S9 exceptions | `file_absent` on script extensions, `file_content_forbidden` on other shebangs | native; reasons are comments |
+| L8 | the root `tests/` holds the declared runners only | `dir_absent` | native for the location |
+| L9 | pinned release and sha256 per platform, offline, config passed explicitly | release archives with `SHA256SUMS` and a cosign bundle | fits install-tools |
+
+### Tools evaluated
+
+| Tool | State (2026-10-13) | Verdict |
+|---|---|---|
+| alint | 0.18.2, first release 2026-04-19, Apache-2.0 OR MIT, one maintainer, about 1.4k crate downloads; binaries for darwin and linux, x64 and arm64 | chosen: covers L1–L9 |
+| ls-lint | 2.3.1, MIT | names only (`.dir` applies recursively); no file content, so no L4–L6 |
+| Repolinter | 0.12.0; the repository is archived | out |
+| @rikalabs/repo-lint | 2.3.0, about 180 downloads a month | path layout only; no L4–L6 |
+| eslint-plugin-project-structure | 3.14.5 | lints the files ESLint reads; no `go.mod` or manifests |
+| fsm `scripts/check-layout.mjs` | our own code | fsm only (requires the `fsm-<kind>` prefix, reads `contracts/layout.json`, checks only `packages/`) |
+
+### Maturity risk and the version procedure
+
+alint is 0.x and releases often; 0.17 and 0.18 changed configuration keys that the layout rules do not use. The risk is held by
+the pin: `config/toolchain.json` names the exact release and the sha256 of each platform archive, and the install refuses
+another archive. To raise the version:
+
+1. read the CHANGELOG of every release between the pinned one and the new one for changed configuration;
+2. take the four digests from the release's `SHA256SUMS` and download each archive to confirm its digest;
+3. update `config/toolchain.json` `alint`, run `make install-tools TOOLS=alint`, then the fixtures of
+   `tests/source/layout-real.test.mts` and `make layout-check`;
+4. change the layout rules only for a changed key, in `config/layout.kit.yml`.
+
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
@@ -568,7 +633,7 @@ more (the normalization is in the test). The base had no pair that long; the sho
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `toolchain-declared.mts` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, cargo-audit and govulncheck that install-ruff, install-uv, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that install-ruff, install-uv, install-alint, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
 | `dependency-state.mts` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
 
 Other duplicates removed:

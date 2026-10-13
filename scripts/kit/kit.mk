@@ -32,6 +32,14 @@ install-tools: ## Install the toolchains that the checkout declares into var/too
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
 	node scripts/kit/check-toolchain.mts $(TOOLS)
+
+# ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
+# alint (config/toolchain.json alint, installed by install-tools) checks the tree against config/layout.yml, which extends
+# the common rules of kit in the vendored config/layout.kit.yml with the map of the repository.
+.PHONY: layout-check
+layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of var/tools; offline
+	@test -x var/tools/bin/alint || { echo "layout-check: var/tools/bin/alint is missing; run make install-tools TOOLS=alint"; exit 1; }
+	var/tools/bin/alint check --config config/layout.yml --color never --compact .
 # ---- The gates: Git hooks, push gate and guard of the full run ------------------------------------------------------
 # scripts/kit/git-hooks.mts, push-gate.mts and full-run.mts read config/checklist.json. The target that runs the full suite
 # is the repository's own: it calls `node scripts/kit/full-run.mts run <target>...` with the targets of its suite.

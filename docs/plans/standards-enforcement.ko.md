@@ -1,5 +1,5 @@
 <!-- doc-id: standards-enforcement -->
-<!-- source-sha256: 6a098f64d429f33fc174756e3083ae14e9554c8a189454d87103a7ee44bab949 -->
+<!-- source-sha256: c4bcd085553d7f872555188ccf4b27adc64c0ea049b67479d5a3fd7fdfd4faba -->
 # Standards enforcement 계획
 
 [English](standards-enforcement.md)
@@ -121,7 +121,7 @@ AGENTS.md와 AGENTS.ko.md는 이 문서를 참조만 하고 내용을 복사하�
 - ssr의 `verification/` → `packages/verification/`
 - template-benchmark는 package monorepo가 아니다. `adapters/` → `packages/`로 옮기고, kit과 S1–S9를 도입한다
 
-도구를 켜기 전에 각 레포의 `config/layout.json`에 이 대응을 적는다. 그래야 red의 green이 정해진다.
+도구를 켜기 전에 각 레포의 `config/layout.yml`에 이 대응을 적는다. 그래야 red의 green이 정해진다.
 
 **package 폴더**
 - 주 spec의 runtime port는 `packages/<runtime>/`에 둔다. runtime은 go, php, php-ext, python, rust, ts, js 중 하나다.
@@ -278,16 +278,23 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
 4. **layout 도구(S5, S7).**
    - fsm의 `check-layout.mjs`는 옮겨 쓸 수 없다. `fsm-<kind>` prefix를 요구하고, `contracts/layout.json`을 읽고,
      `packages/`만 검사한다.
-   - 먼저 rebuild 기록에서 alint를 비교한다. alint는 존재, allowlist, package별 구조를 다루지만 아직 0.x로 젊다. ls-lint는
-     이름만 검사한다. Repolinter의 상태는 확인하지 못했다.
-   - alint가 S5를 다루면 kit이 alint를 설정한다. 그렇지 않으면 kit이 layout 도구를 TypeScript로 쓴다.
-   - 어느 쪽이든 도구는 다음을 검사한다.
+   - 결정(K76): kit은 alint 0.18.2를 설정해 쓰고 layout 도구를 만들지 않는다. alint가 모든 항목을 설정만으로 표현하므로 S1에
+     따라 재구현하지 않고 rebuild 기록도 없다. ls-lint는 이름만 검사하고 Repolinter는 archived다. 평가, 항목별 판정, 버전 절차는
+     `docs/tool-inventory.ko.md`(Layout 검사)에 있다.
+   - `make layout-check`는 `var/tools`의 alint(`install-tools`가 platform archive별 sha256으로 고정해 설치)를
+     `config/layout.yml`에 돌린다. 이 파일은 vendored `config/layout.kit.yml`(공통 rule과 template)을 extends하고 레포의 map을
+     더한다. S9 예외마다 이유를 주석으로 적고 owner가 review한다(S8).
+   - rule은 다음을 검사한다.
      - root allowlist
-     - package tree
-     - go.mod module path = 레포 경로 + 폴더
-     - `PYTHONPATH`나 레포를 벗어나는 경로가 없음
+     - package tree와 레포 접두사 금지
+     - go.mod module path = 레포 경로 + 폴더, v2 이상은 Go의 `/vN`
+     - `PYTHONPATH` 금지. 여기서만 검사하고 parity schema에서는 검사하지 않는다
+     - 레포를 벗어나는 경로 금지: `config/*.json`, 그리고 `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`,
+       `composer.json`의 path 의존성
      - S9 예외 밖에 비-TS 인프라 스크립트가 없음
+     - root `tests/`에는 선언된 runner만 있음(S7)
    - feature 소유는 parity가 맡는다.
+   - 소비 레포 적용은 K79에서 한다.
 5. **lint 설정.** kit이 배포하고, 실행할 때마다 root 설정을 명시한다(예: `ruff check --config`).
 
    | 언어 | 설정 |
@@ -324,7 +331,7 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
 
 ## 2. red 재현
 
-폴더 목적지를 먼저 정한다. 그래야 `config/parity.json`과 `config/layout.json`을 최종 경로로 한 번만 쓴다.
+폴더 목적지를 먼저 정한다. 그래야 `config/parity.json`과 `config/layout.yml`을 최종 경로로 한 번만 쓴다.
 
 레포가 release를 도입한 직후 `make check`를 돌리고 실패를 기록한다. 이때는 고치지 않는다. 아래 표가 실패를 예측한다.
 - "도구"로 적힌 실패는 그 도구가 보고해야 한다. 나오지 않으면 도구가 틀린 것이므로 도구를 고친다.
@@ -343,7 +350,7 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
 | orm | suite unit 11개에서 python과 php-extension 누락 | parity |
 | orm | npm `performance_gate` | parity |
 | orm | root Go module | layout |
-| orm | `config/parity.json`의 `PYTHONPATH=../ordered-json/…` | layout / parity schema |
+| orm | `config/parity.json`의 `PYTHONPATH=../ordered-json/…` | layout |
 | ordered-json | `OrderedJson.php`에 class 4개(function과 `MAX_DEPTH`는 `files`에 남음); `license` 없음 | phpcs; `composer validate` |
 | ordered-json | JS `check()` runner | S3 |
 | ordered-json | Go와 php-ext에 strict duplicate key 없음 | parity |
@@ -377,7 +384,7 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
 | fsm | fsm-go module path | layout |
 | fsm | `polyspec_fsm` namespace | review |
 | fsm | inline Composer `package` repository에 orm 0.0.7을 pin | toolchain / dependency policy |
-| fsm | `config/parity.json`의 `PYTHONPATH` | parity schema |
+| fsm | `config/parity.json`의 `PYTHONPATH` | layout |
 | ssr | adapter 비대칭(vue와 svelte에 invalid-input test 없음, react와 vanilla에 empty-SSR hydration 없음) | parity |
 | ssr | `crates/` | layout |
 | ssr | kit 없음 | 도입 |
