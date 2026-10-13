@@ -23,6 +23,7 @@ import semver from 'semver';
 import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
 import { readConfig } from './schema-validate.mts';
+import { readGoMod } from './toolchain-files.mts';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
@@ -212,24 +213,15 @@ export function goPackagePatterns(root: string, lock: string): string[] {
 }
 
 /**
- * The direct requirements of a go.mod as { module, version }: the `require` lines without `// indirect`, except a module
- * that a `replace` directive points to a directory of the checkout, which is a package of this repository.
+ * The direct requirements of the go.mod `file` of `root` as { module, version }, as `go mod edit -json` reads them: the
+ * requirements that are not indirect, except a module that a replace directive points to a directory (a replacement without a
+ * version), which is a package of this repository.
  */
-export function goRequirements(text: string) {
-  // The first group of each pattern below is not optional, so every match holds it.
-  const replaced = new Set([...text.matchAll(/^\s*(?:replace\s+)?(\S+)(?:\s+v\S+)?\s*=>\s*(?:\.{1,2}\/|\/)\S*\s*$/gm)].map(match => match[1]!));
-  const lines = [
-    ...[...text.matchAll(/^require\s*\(([\s\S]*?)^\)/gm)].flatMap(match => match[1]!.split('\n')), // The groups of the pattern are not optional.
-    ...[...text.matchAll(/^require\s+(\S+\s+v\S+.*)$/gm)].map(match => match[1]!), // The groups of the pattern are not optional.
-  ];
-  const requirements: { module: string; version: string }[] = [];
-  for (const line of lines) {
-    if (/\/\/\s*indirect/.test(line)) continue;
-    const match = /^\s*(\S+)\s+(v\d\S*)/.exec(line);
-    // Neither group of the pattern is optional, so a match holds both.
-    if (match && !replaced.has(match[1]!)) requirements.push({ module: match[1]!, version: match[2]! });
-  }
-  return requirements;
+export function goRequirements(root: string, file: string) {
+  const mod = readGoMod(root, file, process.env);
+  // go mod edit -json leaves out Require and Replace when the go.mod has none.
+  const replaced = new Set((mod.Replace ?? []).filter(item => item.New.Version === undefined).map(item => item.Old.Path));
+  return (mod.Require ?? []).filter(item => !item.Indirect && !replaced.has(item.Path)).map(item => ({ module: item.Path, version: item.Version }));
 }
 
 /** The Cargo locks of the checkout: every Cargo.lock that is tracked or new and not ignored. */
@@ -379,7 +371,7 @@ export function readState(root: string, policy: DependencyPolicy) {
   const ruff = toolchainConfig(root).ruff as { version: string } | undefined;
   if (ruff) dependencies.push({ ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: `==${ruff.version}`, version: ruff.version, lock: null });
   for (const manifestPath of goModules(root)) {
-    const requirements = goRequirements(readFileSync(path.join(root, manifestPath), 'utf8'));
+    const requirements = goRequirements(root, manifestPath);
     if (requirements.length === 0) continue;
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'go.sum');
     if (!existsSync(path.join(root, lockPath))) throw new Error(`${manifestPath} requires modules and ${lockPath} is missing; run go mod tidy in ${path.posix.dirname(manifestPath)}`);
