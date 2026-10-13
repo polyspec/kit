@@ -26,9 +26,11 @@
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
 // package at the tagged commit, with stored entries, the time of the commit and TZ=UTC, so a second run of the same tag
 // writes the same bytes. Each archive carries the manifest of its package unchanged, and
-// the manifest names every package of its scope by an exact version (see manifestProblems). `publish` runs `gh release
-// create TAG --verify-tag --title TAG --notes-file <notes>` with the archives; the notes are the section X.Y.Z, or one
-// line that links the section when it is longer than NOTES_LIMIT characters, the limit of a release body.
+// the manifest names every package of its scope by an exact version (see manifestProblems). `publish` creates the draft
+// release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
+// var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
+// NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
+// list of releases shows a new draft only after a while, and its tag does not address it.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with the build
 // backend of buildBackend (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
 // its lock of consumers.wheel.lock holds (wheel-dependencies.mts).
@@ -37,10 +39,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import semver from 'semver';
-import { releaseOf } from './github-release.mts';
+import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
 import { readCargoPackages, readGoMod } from './toolchain-files.mts';
-import { readJson } from './bootstrap/files.mts';
+import { readJson, writeJson } from './bootstrap/files.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
@@ -558,9 +560,21 @@ function wheelConsumer(config: ReleaseConfig): WheelConsumer {
   return config.consumers.wheel;
 }
 
+/** The record of the draft release that publish created for `tag`, relative to the checkout: `{ "id": <id> }`. */
+export const releaseRecord = (tag: string) => `var/release/${tag}.json`;
+
+/** The release that publish created for `tag`, read by the id of its record; a missing record is an error. */
+export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, tag: string): GitHubRelease {
+  const file = releaseRecord(tag);
+  if (!existsSync(path.join(ctx.root, file))) throw new Stop(`${file} is missing; make release-publish writes it`);
+  const record: { id?: unknown } = readJson(path.join(ctx.root, file));
+  if (typeof record.id !== 'number' || !Number.isInteger(record.id)) throw new Stop(`${file} records no release id: ${JSON.stringify(record)}; make release-publish writes it`);
+  return releaseById({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, record.id);
+}
+
 /**
- * Creates the GitHub Release of the tag as a draft, with the notes of releaseNotes and the archives of assets. A draft of an
- * earlier run is replaced; a public release is never replaced.
+ * Creates the GitHub Release of the tag as a draft, with the notes of releaseNotes and the archives of assets, and records its
+ * id (releaseRecord). A draft of an earlier run is replaced; a public release is never replaced.
  */
 export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
@@ -574,14 +588,16 @@ export function publish(ctx: Context, tag: string): string[] {
   if (earlier && !earlier.draft) throw new Stop(`the release ${tag} is already public; a public release is not replaced`);
   if (earlier) {
     ctx.log(`[release] ${tag}: removing the draft release ${earlier.id} of an earlier run`);
-    run('gh', ['release', 'delete', tag, '--yes'], at(ctx));
+    deleteRelease(at(ctx), config.repositoryUrl, earlier.id);
   }
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-notes-'));
   try {
     const notesFile = path.join(folder, 'notes.md');
     writeFileSync(notesFile, notes);
     ctx.log(`[release] ${tag}: creating the draft GitHub Release with ${names.length} archives`);
-    run('gh', ['release', 'create', tag, '--verify-tag', '--draft', '--title', tag, '--notes-file', notesFile, ...names.map(name => path.join(target, name))], at(ctx));
+    const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map(name => path.join(target, name)));
+    writeJson(path.join(root, releaseRecord(tag)), { id });
+    ctx.log(`[release] ${tag}: the draft release ${id} is recorded in ${releaseRecord(tag)}`);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
@@ -593,13 +609,12 @@ export function publish(ctx: Context, tag: string): string[] {
  * Returns true when this call made it public.
  */
 export function undraft(ctx: Context, tag: string): boolean {
-  const release = releaseOf(at(ctx), ctx.config.repositoryUrl, tag);
-  if (!release) throw new Stop(`the release ${tag} does not exist; make release-publish creates it as a draft`);
+  const release = recordedRelease(ctx, tag);
   if (!release.draft) {
     ctx.log(`[release] ${tag}: the release is already public`);
     return false;
   }
-  run('gh', ['release', 'edit', tag, '--draft=false'], at(ctx));
+  makePublic(at(ctx), ctx.config.repositoryUrl, release.id);
   return true;
 }
 

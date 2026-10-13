@@ -3,7 +3,7 @@
 // (release-consumer-sandbox.mts); git runs for real against the sandbox, which stands in for the remote of the repository URL.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
@@ -36,6 +36,14 @@ const prove = (box: Box, tag: string = box.released) => {
   return steps;
 };
 
+test('the proof reads the draft by the id that publish recorded, also while the list of releases does not show it yet (K79)', (t) => {
+  const box = locked(t);
+  box.stub({ release: { ...box.state().release, listed: false } });
+  assert.equal(prove(box)[0], 'the draft release v0.0.1 lists exactly its 4 archives');
+  rmSync(path.join(box.root, 'var/release/v0.0.1.json'));
+  stop(() => prove(box), /var\/release\/v0\.0\.1\.json is missing; make release-publish writes it/);
+});
+
 test('a released tag is proven in four steps and each step runs the commands of the configuration', (t) => {
   const box = locked(t);
   assert.deepEqual(prove(box), [
@@ -55,8 +63,8 @@ test('a released tag is proven in four steps and each step runs the commands of 
     'packages/fixture-rust/Cargo.toml: cargo resolved kit-fixture-rust from v0.0.1 and cargo check passed',
     'the Go module example.com/kit-fixture-go resolves at packages/fixture-go/v0.0.1',
   ]);
-  const [list, ...downloads] = box.calls('gh');
-  assert.deepEqual(list.args, ['api', '--hostname', 'example.com', '--paginate', 'repos/polyspec/kit-fixture/releases', '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]} | @json']);
+  const [read, ...downloads] = box.calls('gh');
+  assert.deepEqual(read.args, ['api', '--hostname', 'example.com', 'repos/polyspec/kit-fixture/releases/7', '--jq', '{id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]}'], 'the draft is read by the id that publish recorded');
   assert.deepEqual(downloads.map((call: Call) => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
   const [venvCall] = box.calls('checkout-uv').filter((call: Call) => call.args[0] === 'venv');
@@ -90,10 +98,10 @@ test('the proof stops when the release lists other archives than the configurati
   stop(() => prove(box), /the release v0\.0\.1 lists \[\], expected \[fixture-app-npm-0\.0\.1\.tgz/);
 });
 
-test('the proof fails when gh cannot list the releases of the repository', (t) => {
+test('the proof fails when gh cannot read the release of the repository', (t) => {
   const box = locked(t);
   box.stub({ modes: { gh: 'fail' } });
-  stop(() => prove(box), /gh api --hostname example\.com --paginate repos\/polyspec\/kit-fixture\/releases --jq .* exited with 1: gh stub: api failed/);
+  stop(() => prove(box), /gh api --hostname example\.com repos\/polyspec\/kit-fixture\/releases\/7 --jq .* exited with 1: gh stub: api failed/);
 });
 
 test('the proof fails when the downloaded archives do not install', (t) => {
@@ -169,6 +177,8 @@ test('a Go module at the repository root is resolved at the tag of the release',
 test('the tag of a Go module is proven by the module alone and its release lists no archive', (t) => {
   const box = locked(t);
   box.stub({ release: { tag: 'packages/fixture-go/v0.0.1', draft: false, names: [], source: path.join(box.root, release.ASSETS) } });
+  mkdirSync(path.join(box.root, 'var/release/packages/fixture-go'), { recursive: true });
+  writeFileSync(path.join(box.root, 'var/release/packages/fixture-go/v0.0.1.json'), JSON.stringify({ id: 7 }));
   const steps = prove(box, 'packages/fixture-go/v0.0.1');
   assert.deepEqual(steps, [
     'the public release packages/fixture-go/v0.0.1 lists no archive',

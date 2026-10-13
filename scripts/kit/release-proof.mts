@@ -25,7 +25,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
-import { assetNames, context, latestTag, parseTag, stepFailure, type CommandOptions } from './release.mts';
+import { assetNames, context, latestTag, parseTag, recordedRelease, stepFailure, type CommandOptions } from './release.mts';
 import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
 import { installConsumers, type ReleaseContext } from './release-consumer.mts';
@@ -41,8 +41,8 @@ type Step = (text: string) => void;
 /** Step 1: the names of the assets of the GitHub Release (a draft included) equal the archives of the tag. */
 function proveAssets(ctx: ReleaseContext, tag: string, version: string, directory: string | null, step: Step) {
   const expected = [...(directory === null ? assetNames(ctx.config, version) : [])].sort();
-  const release = releaseOf({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, tag);
-  if (!release) throw new Stop(`the release ${tag} does not exist; make release-publish creates it as a draft`);
+  // The draft of this repository is read by the id that publish recorded: the list shows a new draft only after a while.
+  const release = recordedRelease(ctx, tag);
   const actual = release.assets.map(({ name }) => name).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     const missing = expected.filter(name => !actual.includes(name));

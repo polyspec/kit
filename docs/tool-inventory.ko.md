@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: dac2f867cbdd74159bea320b6e898dfd8efcd8e4dfa18ad66151a95d438e708b -->
+<!-- source-sha256: b3857a0be4f3d778fd2a0808763f1a9ef31894112f6d0d5e286b40c7ff5be144 -->
 
 # 도구 목록
 
@@ -525,7 +525,7 @@ go.mod의 module path에 연결합니다.
 - `assets`: tag한 commit의 manifest가 package를 묶기 전에 규칙을 통과하고(ordered-json), manifest의 name이 `config/release.json`의 name과 같고(신규),
   각 archive가 commit의 manifest를 바이트 단위로 그대로 담습니다(ordered-json, crudui, orm; template은 파싱한 JSON을 비교했음). directory는
   대상 옆에 만들어 이름을 바꾸므로 실패한 실행은 archive를 남기지 않습니다.
-- `publish`: archive와 함께 `gh release create TAG --verify-tag --title TAG --notes-file`(다섯 모두); archive 이름은 목록 file이 아니라
+- `publish`: API로 만든 draft release(원격에서 tag를 찾은 뒤 `gh api --method POST repos/O/R/releases`, `--verify-tag`가 요구하던 대로), 각 archive를 그 release의 upload URL로 올리고 id를 `var/release/<tag>.json`에 기록(K79); 다섯 도구는 `gh release create TAG --verify-tag`를 실행했음; archive 이름은 목록 file이 아니라
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
 - `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
   `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
@@ -825,7 +825,7 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 
 - `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 쓰며, `make kit-check`가 차이를 실패시킵니다.
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
-- `release-publish`는 release를 draft로 만듭니다. `release-proof`는 저장소의 release를 API로 읽으며 draft를 포함하고, 각 자산을 id로 내려받습니다. `release-undraft`는 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
+- `release-publish`는 release를 draft로 만듭니다. `release-publish`는 그 id를 `var/release/<tag>.json`에 기록합니다. `release-proof`와 `release-undraft`는 release 목록에서 tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초 뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish writes it`로 실패합니다. `release-proof`는 각 자산을 id로 내려받고, `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. wheel lock이 가리키는 다른 저장소의 release는 공개되어 있으므로 여전히 tag로 찾습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
 또는 기대값과 실제 값을 적습니다.
 

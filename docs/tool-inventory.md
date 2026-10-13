@@ -571,7 +571,9 @@ Dropped behaviors:
   equals the name in `config/release.json` (new), and each archive carries the manifest of the commit byte for byte
   (ordered-json, crudui, orm; template compared parsed JSON). The directory is built beside the target and renamed, so a failed
   run leaves no archive.
-- `publish`: `gh release create TAG --verify-tag --title TAG --notes-file` with the archives (all five); the archive names come
+- `publish`: the draft release through the API (`gh api --method POST repos/O/R/releases` after the tag is found on the remote,
+  as `--verify-tag` required), each archive uploaded to the upload URL of that release, and its id recorded in
+  `var/release/<tag>.json` (K79); the five tools ran `gh release create TAG --verify-tag`. The archive names come
   from the configuration, not from a list file (orm wrote `assets.txt`).
 - `coverage`: every tracked or new package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION file is in
   `manifests`, `notReleased` or `goModules` (template test, orm `unlistedManifests`); a listed file that does not exist and a file
@@ -902,8 +904,12 @@ fails that run and the release stays a draft. A developer may run it for any rel
   consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
   `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
   `check-toolchain rust` checks rustc against that channel. A git-tag proof without rust-toolchain.toml fails with the file name.
-- `release-publish` creates the release as a draft. `release-proof` reads the releases of the repository through the API, drafts included,
-  and downloads each asset by its id. `release-undraft` makes the release public and changes nothing for a public release. A draft of an
+- `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-proof` and
+  `release-undraft` read the draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the
+  list shows a new draft only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address
+  a draft. A missing record fails with `var/release/<tag>.json is missing; make release-publish writes it`. `release-proof`
+  downloads each asset by its id; `release-undraft` makes the release public by its id and changes nothing for a public release.
+  The release of another repository that a wheel lock names is public and is still found by its tag. A draft of an
   earlier run is replaced; a public release is never replaced. No tool of the five
 repositories had a counterpart; the install of the archives is `installConsumers` of K5.4. It stops at the first failed step and
 prints `✔ <what>` for each step that passed. A failure names the command with its status and error, or the expected and the

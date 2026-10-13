@@ -109,11 +109,19 @@ if (args[0] === 'update' && args.includes('--no-install')) {
 const GH = `${PRELUDE}
 if (mode === 'fail') finish(1, 'gh stub: api failed');
 const listed = args.find(arg => arg.startsWith('repos/') && arg.endsWith('/releases'));
-if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
+// The release of the tag, a draft included, as the API returns it by its id: its assets carry the ids that the download names.
+const own = () => ({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url, digest: state.release.published?.[name]?.digest })) });
+if (args[0] === 'api' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/\\d+$/.test(arg))) {
+  const id = Number(args.find(arg => /\\/releases\\/\\d+$/.test(arg)).split('/').pop());
+  if (id !== 7) finish(1, 'gh: Not Found (HTTP 404)');
+  console.log(JSON.stringify(own()));
+  finish();
+} else if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
   const other = (state.dependencies ?? []).find(item => listed === 'repos/' + item.repo + '/releases');
   // The release of the tag, a draft included: its assets carry the ids that the download names.
   if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file }] }));
-  else console.log(JSON.stringify({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url, digest: state.release.published?.[name]?.digest })) }));
+  // A draft that was just created may be missing from the list for a while (listed: false).
+  else if (state.release.listed !== false) console.log(JSON.stringify(own()));
   finish();
 } else if (args[0] === 'api' && args.some(arg => arg.includes('/releases/assets/'))) {
   const id = Number(args.at(-1).split('/').pop());
@@ -216,6 +224,9 @@ export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.
   const source = path.join(box.root, release.ASSETS);
   const published = Object.fromEntries(names.map((name: string) => [name, { url: `${config.repositoryUrl}/releases/download/${tag}/${name}`, digest: `sha256:${fileDigest(path.join(source, name))}` }]));
   writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source, published }, venvPython: VENV_PYTHON, version }));
+  // The record that make release-publish writes: the id of the draft release of the tag.
+  mkdirSync(path.join(box.root, 'var/release'), { recursive: true });
+  writeFileSync(path.join(box.root, 'var/release/v0.0.1.json'), JSON.stringify({ id: 7 }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const env = {
     ...box.env,

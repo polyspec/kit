@@ -357,12 +357,14 @@ test('publish creates the release with the notes and the archives', (t) => {
   box.checkRuns([]);
   const lines: string[] = [];
   const names = release.publish(context(box, { log: line => lines.push(line) }), tag);
-  const call = box.state().calls.find((args: string[]) => args[0] === 'release' && args[1] === 'create');
   const target = path.join(box.root, 'var/release/assets');
-  assert.deepEqual(call.slice(0, 7), ['release', 'create', tag, '--verify-tag', '--draft', '--title', tag]);
-  assert.equal(call[7], '--notes-file');
-  assert.deepEqual(call.slice(9), names.map(name => path.join(target, name)));
-  assert.equal(box.state().notes, '- The first entry of 0.0.1.\n- The second entry of 0.0.1.\n');
+  const state = box.state();
+  assert.ok(state.calls.some((args: string[]) => args.at(-3) === `repos/polyspec/kit-fixture/git/ref/tags/${tag}`), 'the tag is verified on the remote first');
+  assert.deepEqual(state.created, { tag, name: tag, draft: 'true' });
+  assert.deepEqual(state.uploads, names.map(name => ({ name, input: path.join(target, name), type: 'Content-Type: application/octet-stream' })));
+  assert.deepEqual(state.byId['42'].assets.map((asset: { name: string }) => asset.name), names, 'each archive is uploaded to the release of its id');
+  assert.deepEqual(readJson(box.root, 'var/release/v0.0.1.json'), { id: 42 }, 'the id of the draft is recorded for the proof and undraft');
+  assert.equal(state.notes, '- The first entry of 0.0.1.\n- The second entry of 0.0.1.\n');
   assert.ok(lines.some(line => line.includes('creating the draft GitHub Release with 4 archives')), lines.join('\n'));
 });
 
@@ -379,11 +381,13 @@ test('publish of a Go module tag creates a release without archives, and a faili
   const tag = box.tag('packages/fixture-go/v0.0.1');
   box.checkRuns([]);
   assert.deepEqual(release.publish(context(box), tag), []);
-  const call = box.state().calls.find((args: string[]) => args[0] === 'release' && args[1] === 'create');
-  assert.deepEqual(call.slice(0, 7), ['release', 'create', tag, '--verify-tag', '--draft', '--title', tag]);
-  assert.equal(call.length, 9, 'the call ends with the notes file');
+  assert.deepEqual(box.state().created, { tag, name: tag, draft: 'true' });
+  assert.equal(box.state().uploads, undefined, 'a Go module tag uploads no archive');
+  assert.deepEqual(readJson(box.root, 'var/release/packages/fixture-go/v0.0.1.json'), { id: 42 });
   box.checkRuns([], { failRelease: true });
-  stop(() => release.publish(context(box), tag), /gh release create packages\/fixture-go\/v0\.0\.1 .* exited with 1: gh: release failed/);
+  stop(() => release.publish(context(box), tag), /gh api .*--method POST repos\/polyspec\/kit-fixture\/releases .* exited with 1: gh: release failed/);
+  box.checkRuns([], { missingTag: true });
+  stop(() => release.publish(context(box), tag), /the tag packages\/fixture-go\/v0\.0\.1 is not on https:\/\/[^ ]+; push it before the release is published/);
 });
 
 test('publish needs the section of the version', (t) => {
@@ -579,23 +583,24 @@ test('publish replaces the draft of an earlier run and never replaces a public r
   const lines: string[] = [];
   release.publish(context(box, { log: line => lines.push(line) }), tag);
   const calls = box.state().calls;
-  assert.ok(calls.some((args: string[]) => args[0] === 'release' && args[1] === 'delete' && args[2] === tag), 'the draft of the earlier run is deleted');
-  assert.ok(calls.some((args: string[]) => args[0] === 'release' && args[1] === 'create' && args[4] === '--draft'), 'the release is created as a draft');
+  assert.deepEqual(box.state().deleted, ['5'], 'the draft of the earlier run is deleted by its id');
+  assert.ok(calls.some((args: string[]) => args.includes('--method') && args.includes('POST') && args.includes('draft=true')), 'the release is created as a draft');
   assert.ok(lines.some(line => line.includes('removing the draft release 5 of an earlier run')), lines.join('\n'));
   box.releases([{ id: 5, tag_name: tag, draft: false, assets: [] }]);
   stop(() => release.publish(context(box), tag), /the release v0\.0\.1 is already public; a public release is not replaced/);
 });
 
-test('undraft makes the draft public with one edit, a public release stays as it is, and a missing release stops', (t) => {
+test('undraft finds the draft by the id that publish recorded, also while the list of releases does not show it yet (K79)', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
-  box.checkRuns([]);
-  stop(() => release.undraft(context(box), tag), /the release v0\.0\.1 does not exist; make release-publish creates it as a draft/);
-  box.releases([{ id: 5, tag_name: tag, draft: true, assets: [] }]);
+  box.checkRuns([], { byId: { 42: { id: 42, tag_name: tag, draft: true, assets: [] } } });
+  box.releases([]);
+  stop(() => release.undraft(context(box), tag), /var\/release\/v0\.0\.1\.json is missing; make release-publish writes it/);
+  mkdirSync(path.join(box.root, 'var/release'), { recursive: true });
+  writeFileSync(path.join(box.root, 'var/release/v0.0.1.json'), JSON.stringify({ id: 42 }));
   assert.equal(release.undraft(context(box), tag), true);
-  assert.deepEqual(box.state().edited, ['release', 'edit', tag, '--draft=false']);
-  box.releases([{ id: 5, tag_name: tag, draft: false, assets: [] }]);
-  const edits = box.state().calls.filter((args: string[]) => args[1] === 'edit').length;
-  assert.equal(release.undraft(context(box), tag), false);
-  assert.equal(box.state().calls.filter((args: string[]) => args[1] === 'edit').length, edits, 'a public release is not edited again');
+  assert.deepEqual(box.state().byId['42'].draft, false);
+  assert.equal(release.undraft(context(box), tag), false, 'a public release stays as it is');
+  assert.equal(box.state().patched.length, 1, 'a public release is not edited again');
 });
+
