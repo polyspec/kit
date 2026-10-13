@@ -1247,8 +1247,8 @@ snapshot, and `parity-declarations-check` runs no extractor.
   files, so a kit release that changes it reinstalls it. `make build` copies `scripts/kit/symbols` into `dist/symbols`.
 - rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
   `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
-  "rustdoc JSON is stable". This is the only use of a nightly. kit does not install Rust:
-  `rustup toolchain install nightly-2026-10-01 --profile minimal` installs the verified one.
+  "rustdoc JSON is stable". This is the only use of a nightly. `make install-tools` installs each Rust channel of the exceptions with
+  `rustup toolchain install <channel> --profile minimal` (`install-rust.mts`), and a missing rustup fails with its install.
 - An extractor that is not installed, a missing or doubled nightly, a failing tool and an output that is no list of ids are R1
   findings that name the extractor and the entry.
 

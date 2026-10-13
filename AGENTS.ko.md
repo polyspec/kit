@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 1d6df9a45bd220408b9bc1458a7d24420f461edb745c008c3001cc1485913368 -->
+<!-- source-sha256: 341e2338d02c53d5fefa5e8a742de882946aea3811b4696efd90e085d6e779a1 -->
 # 개발
 
 [English](AGENTS.md)
@@ -42,7 +42,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   `make kit-test` 뒤에 실행합니다.
 - kit 자신의 검사는 kit pin의 Go, config/toolchain.json의 uv와 Python을 쓰며, 이것들은 `make install-tools`가 var/tools에
   설치합니다. Rust는 `rust-toolchain.toml`의 것을 씁니다. machine이나 CI runner가 제공하는 도구는 rustup 하나이며, rustup이
-  그 channel을 설치하고(`rustup toolchain install`), CI는 var/tools/bin을 PATH 맨 앞에 둡니다(`.github/workflows/ci.yml`).
+  그 channel을 설치하고(`rustup toolchain install`), `make install-tools`를 통해 config/toolchain.json `exceptions`가 선언한 Rust
+  channel도 설치합니다. rustup이 없으면 그 설치 방법과 함께 실패합니다. CI는 var/tools/bin을 PATH 맨 앞에 둡니다(`.github/workflows/ci.yml`).
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트

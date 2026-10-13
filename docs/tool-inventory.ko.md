@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 039e6360bb64569c6db0b1c5ff79af763a9dfaf5951376bb2d5a9d51f0c48e2c -->
+<!-- source-sha256: f7479f6ecd3cdedefe7b59d76017387111c3ed59c48bc4c6bab1f427c35c3a82 -->
 
 # 도구 목록
 
@@ -1152,8 +1152,8 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
   `make build`는 `scripts/kit/symbols`를 `dist/symbols`로 복사합니다.
 - rustdoc JSON은 불안정하므로(rust-lang/rust#76578), rust extractor는 `config/toolchain.json` `exceptions`에서 tool이 `rust`이고
   scope가 crate를 담는 항목의 Rust nightly를 `RUSTUP_AUTO_INSTALL=0`으로 실행합니다. 그 재시도 조건은 "rustdoc JSON is stable"이며,
-  nightly를 쓰는 곳은 이것뿐입니다. kit은 Rust를 설치하지 않습니다. 검증된 nightly는
-  `rustup toolchain install nightly-2026-10-01 --profile minimal`이 설치합니다.
+  nightly를 쓰는 곳은 이것뿐입니다. `make install-tools`가 exceptions의 Rust channel마다
+  `rustup toolchain install <channel> --profile minimal`로 설치하며(`install-rust.mts`), rustup이 없으면 그 설치 방법과 함께 실패합니다.
 - 설치되지 않은 extractor, 없거나 둘인 nightly, 실패한 도구, id 목록이 아닌 출력은 extractor와 entry를 적은 R1 finding입니다.
 
 ### Spec anchor (K75)

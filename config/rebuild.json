@@ -170,6 +170,10 @@
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
+    "scripts/kit/install-rust.mts": {
+      "kind": "ecosystem",
+      "tool": "rustup toolchain install of each Rust channel that config/toolchain.json exceptions declare"
+    },
     "scripts/kit/install-symbols.mts": {
       "kind": "ecosystem",
       "tool": "go build of scripts/kit/symbols/go at its go.mod and go.sum, and composer install of the scripts/kit/symbols/php lock (K75)"
