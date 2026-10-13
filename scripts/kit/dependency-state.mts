@@ -24,6 +24,7 @@ import { readJson } from './bootstrap/files.mts';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
+import type { Ecosystem } from './version.mts';
 
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
@@ -46,7 +47,7 @@ export type DependencyPolicy = {
 export type PythonRequirementKind = 'build-system' | `optional:${string}`;
 
 /** The fields of every registry dependency: its manifest, specification and locked version. */
-type DependencyFields = { ecosystem: string; manifest: string; package: string; spec: string; version: string | null };
+type DependencyFields = { ecosystem: Ecosystem; manifest: string; package: string; spec: string; version: string | null };
 
 /**
  * A registry dependency, by its kind: a package of a PEP 751 lock (`lock`) names the lock and its writer; an entry of an

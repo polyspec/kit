@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b992561e6a0782e5e59e39d58ebd02be0703deda3fb2d4df00e2a67f705aa7b5 -->
+<!-- source-sha256: 48448522d04e67a2132fa144daadda74c0abcffb6c7d59525676a9642649efc0 -->
 
 # 도구 목록
 
@@ -574,7 +574,7 @@ test에 있음). 기준 코드에는 그만큼 긴 쌍이 없었고, 가장 짧�
 | `files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
 | `digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer의 `digest`, install-npm의 sha512 | 위 module들 |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
-| `version.mts` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰 | changelog, dependency-review, check-dependency-policy |
+| `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review, check-dependency-policy |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
 | `markdown.mts` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀 | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |

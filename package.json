@@ -35,6 +35,7 @@
   "devDependencies": {
     "@types/node": "26.6.5",
     "@types/picomatch": "4.0.3",
+    "@types/semver": "7.8.0",
     "typescript": "7.0.2"
   },
   "kit": {
@@ -58,6 +59,7 @@
     "ajv": "8.20.0",
     "picomatch": "4.0.7",
     "pip-requirements-js": "1.0.3",
+    "semver": "7.8.5",
     "smol-toml": "1.9.1"
   }
 }

@@ -53,7 +53,8 @@ if (args[0] === 'outdated') {
   for (const name of Object.keys({ ...manifest.require, ...(manifest['require-dev'] ?? {}) })) {
     if (!locked.has(name)) continue;
     const latest = registry.composer[directory]?.[name] ?? locked.get(name);
-    list.push({ name, version: locked.get(name), latest });
+    // composer outdated reports up-to-date when the latest release is the locked one (ShowCommand::getUpdateStatus).
+    list.push({ name, version: locked.get(name), latest, 'latest-status': latest === locked.get(name) ? 'up-to-date' : 'update-possible' });
   }
   console.log(JSON.stringify({ locked: list }));
 } else if (args[0] === 'audit') {

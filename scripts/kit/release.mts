@@ -36,6 +36,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import semver from 'semver';
 import { releaseOf } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
 import { isTable, readToml } from './toml.mts';
@@ -197,11 +198,8 @@ export function latestTag(ctx: Context): string {
   // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release.
   const tags = list.trim().split('\n').filter(tag => tag.startsWith('v') && EXACT_VERSION.test(tag.slice(1)));
   if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
-  // The filter above keeps the tags of three numbers.
-  const numbers = (tag: string) => tag.slice(1).split('.').map(Number) as [number, number, number];
-  const compare = (a: string, b: string) => { const pa = numbers(a); const pb = numbers(b); return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2]; };
-  // tags holds at least one tag, checked above.
-  return tags.sort(compare).at(-1)!;
+  // tags holds at least one tag, checked above, and semver reads each vX.Y.Z.
+  return semver.rsort(tags)[0]!;
 }
 
 /** [Go module directory or null, version] of a release tag. */

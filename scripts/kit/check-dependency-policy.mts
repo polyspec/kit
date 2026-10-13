@@ -217,11 +217,12 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       add('record', subject, `the lock holds ${dependency.version ?? 'no version'}, the review of ${record.reviewed} recorded ${entry.version}`, REVIEW);
       continue;
     }
-    if (!nonEmpty(entry.latest) || isPrerelease(entry.latest)) {
+    // Composer chose the latest release under the declared minimum-stability of the manifest, so kit judges no Composer stability.
+    if (!nonEmpty(entry.latest) || (dependency.ecosystem !== 'composer' && isPrerelease(dependency.ecosystem, entry.latest))) {
       add('record', subject, `the review recorded ${entry.latest} as the latest stable release`, REVIEW);
       continue;
     }
-    const outdated = older(entry.version, entry.latest);
+    const outdated = older(dependency.ecosystem, entry.version, entry.latest);
     if (outdated && !exceptions.has(key)) add('latest', subject, `${entry.version} is older than ${entry.latest}, the latest stable release at the review of ${record.reviewed}, and ${POLICY} holds no exception for it`, `${dependency.kind === 'lock' ? lockFix(dependency.lock, dependency.createdBy, dependency.package) : UPDATE}, or add an exception with its reason, removal condition and verification to ${POLICY}`);
     if (!outdated && exceptions.has(key)) add('stale', subject, `the review of ${record.reviewed} found ${entry.version}, the latest stable release, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
   }
