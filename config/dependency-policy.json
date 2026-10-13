@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "composerPlatforms": [],
+  "pythonManifests": [],
+  "pythonLocks": [],
+  "npmLocks": [
+    "package-lock.json"
+  ],
+  "exceptions": [],
+  "advisoryExceptions": [
+    {
+      "lock": "package-lock.json",
+      "package": "sprintf-js",
+      "advisory": "1241202",
+      "reason": "GHSA-hp3w-g68c-fv3c (npm advisory 1241202) covers every release of sprintf-js, so no release fixes it. kit pulls sprintf-js 1.0.3 in only through @microsoft/api-extractor -> @rushstack/ts-command-line -> argparse 1.0.10 -> sprintf-js, which formats the help and error texts of the api-extractor command with its own format strings; make lint-ts runs that command with fixed arguments only, and no input of a user reaches sprintf-js",
+      "removalCondition": "a release of sprintf-js fixes GHSA-hp3w-g68c-fv3c, or @microsoft/api-extractor no longer depends on argparse; make dependency-review then reports the exception as stale"
+    }
+  ]
+}
