@@ -34,6 +34,7 @@ export function installPython({ root, declared, print = () => {} }: { root: stri
   const release = python && printedRelease(python, 'python');
   if (release !== declared.version) throw new Error(`the installation of Python ${declared.version} by ${path.relative(root, uv)} prints ${release}; expected ${declared.version}`);
   if (!before) print(`Python: installed ${declared.version} in ${where}`);
-  writeWrapper(root, 'python3', wrapperText(`Python ${declared.version} of this checkout`, `exec ${quote(python)} "$@"`), print);
+  // release equals the declared version only when python is set: the check above throws otherwise.
+  writeWrapper(root, 'python3', wrapperText(`Python ${declared.version} of this checkout`, `exec ${quote(python!)} "$@"`), print);
   return { installed: !before, release };
 }
