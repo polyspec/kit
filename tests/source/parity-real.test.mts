@@ -146,3 +146,41 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
   assert.equal(first.message, 'failed: known');
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['empty pass', 'known fail']);
 });
+
+test('a feature unit holds on the ids that real go, cargo, node and unittest runs of the whole test file passed (K75)', { timeout: 300_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\ntarget/\n',
+    'go/go.mod': 'module example.com/codec\n\ngo 1.21\n',
+    'go/roundtrip_test.go': 'package codec\n\nimport "testing"\n\nfunc TestRoundtrip(t *testing.T) {\n\tt.Run("bytes", func(t *testing.T) {})\n}\n\nfunc TestOther(t *testing.T) {}\n',
+    'rust/Cargo.toml': '[package]\nname = "codec"\nversion = "0.1.0"\nedition = "2021"\n',
+    'rust/src/lib.rs': '',
+    'rust/tests/roundtrip.rs': 'mod roundtrip {\n    #[test]\n    fn bytes() {}\n}\n',
+    'ts/tests/roundtrip.test.mjs': "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  describe('nested', () => {\n    test('bytes', () => {});\n  });\n});\n",
+    'python/tests/test_roundtrip.py': 'import unittest\n\n\nclass Roundtrip(unittest.TestCase):\n    def test_bytes(self):\n        pass\n',
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [
+        { name: 'go', runner: 'go', roots: ['go'] },
+        { name: 'rust', runner: 'cargo', roots: ['rust'] },
+        { name: 'ts', runner: 'node', roots: ['ts'] },
+        { name: 'python', runner: 'python', roots: ['python'] },
+      ],
+      profiles: [{ name: 'all', implementations: ['go', 'rust', 'ts', 'python'] }],
+      units: [{
+        id: 'roundtrip', kind: 'feature', profile: 'all',
+        bindings: [
+          { implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' },
+          { implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip::bytes' },
+          { implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'roundtrip › nested › bytes' },
+          { implementation: 'python', test: 'python/tests/test_roundtrip.py', id: 'test_bytes' },
+        ],
+      }],
+    }, null, 2)}\n`,
+  });
+  givePython(root);
+  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
+    'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › nested › bytes pass', 'python test_bytes pass',
+  ]);
+});

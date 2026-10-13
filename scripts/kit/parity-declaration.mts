@@ -39,6 +39,7 @@ export interface ParityBinding {
   implementation: string;
   test: string;
   symbol?: string;
+  id?: string;
 }
 
 /** The symbol id of an implementation in an API unit. */
@@ -47,10 +48,10 @@ export interface ParitySymbol {
   symbol: string;
 }
 
-/** A unit of the declaration: a suite of shared cases or an API symbol. */
+/** A unit of the declaration: a suite of shared cases, a feature of one native test per implementation, or an API symbol. */
 export interface ParityUnit {
   id: string;
-  kind: 'suite' | 'api';
+  kind: 'suite' | 'feature' | 'api';
   profile: string;
   file?: string;
   cases?: string;
@@ -476,8 +477,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     const where = `unit ${unit.id}`;
     // A known profile is in profiles.
     const members = knownProfile(unit.profile, where) ? profiles.get(unit.profile)! : [];
-    const owned = unit.kind === 'suite' ? unit.bindings ?? [] : unit.symbols ?? [];
-    const misplaced = unit.kind === 'suite' ? ['symbols'] : ['file', 'cases', 'bindings', 'admit'];
+    const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
+    const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'admit', 'symbols'], api: ['file', 'cases', 'bindings', 'admit'] }[unit.kind];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
     const seen = new Set();
     for (const entry of owned) {
@@ -491,15 +492,22 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols snapshot`);
       continue;
     }
-    for (const key of ['file', 'cases', 'bindings']) if (!(key in unit)) fail(`${where}: a unit of kind suite needs ${key}`);
+    for (const key of unit.kind === 'suite' ? ['file', 'cases', 'bindings'] : ['bindings']) if (!(key in unit)) fail(`${where}: a unit of kind ${unit.kind} needs ${key}`);
     for (const entry of unit.bindings ?? []) {
       if (!files.has(entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} does not exist`);
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
+      if (unit.kind === 'feature') {
+        if (entry.id === undefined) fail(`${where}: the binding of ${entry.implementation} needs id, the native test id that its runner reports`);
+        if (entry.symbol !== undefined) fail(`${where}: the binding of ${entry.implementation} has symbol, which a feature binding does not take; its id names the test`);
+        continue;
+      }
+      if (entry.id !== undefined) fail(`${where}: the binding of ${entry.implementation} has id, which a suite binding does not take; its cases come from ${unit.file}`);
       const runner = implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
       // A go binding without symbol took the branch above.
       else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol!)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
     }
+    if (unit.kind === 'feature') continue;
     const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
     if (!unit.file || !unit.cases) continue;
     const value = readTrackedJson(root, files, unit.file, where, errors);

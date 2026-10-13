@@ -22,12 +22,12 @@ export type ParityImplementation = {
 };
 export type ParityUnit = {
   id: string;
-  kind: 'suite' | 'api';
+  kind: 'suite' | 'feature' | 'api';
   profile: string;
   file?: string;
   cases?: string;
   admit?: string;
-  bindings?: { implementation: string; test: string; symbol?: string }[];
+  bindings?: { implementation: string; test: string; symbol?: string; id?: string }[];
   symbols?: { implementation: string; symbol: string }[];
 };
 export type ParityExclusion = { unit: string; implementation: string; reason: string; item: string };
@@ -75,12 +75,12 @@ export function missingImplementations(model: ParityModel) {
   });
 }
 
-/** R2: each suite unit has a binding of each implementation of its profile. */
+/** R2: each suite and feature unit has a binding of each implementation of its profile. */
 export function missingBindings(model: ParityModel) {
-  return pairs(model, 'suite')
-    // readDeclaration reports a suite unit without bindings, and the rules do not run on a declaration with findings.
+  return [...pairs(model, 'suite'), ...pairs(model, 'feature')]
+    // readDeclaration reports a suite or feature unit without bindings, and the rules do not run on a declaration with findings.
     .filter(({ unit, implementation }) => !unit.bindings!.some(entry => entry.implementation === implementation.name))
-    .map(({ unit, implementation }) => finding('R2', `${unit.file} has no binding of ${implementation.name}`, { unit: unit.id, implementation: implementation.name, place: unit.file }));
+    .map(({ unit, implementation }) => finding('R2', `${unit.file ?? `the feature ${unit.id}`} has no binding of ${implementation.name}`, { unit: unit.id, implementation: implementation.name, place: unit.file }));
 }
 
 /** R4: each file of the suite globs is the file of a suite unit. */

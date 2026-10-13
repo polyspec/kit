@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // The language-parity check (`make parity-check`, `make parity-declarations-check`). config/parity.json declares the
 // implementations of the repository, the one source of its language set, the profiles that group them and the units that
-// every implementation of a profile holds: vector suites, API symbols, the error-code catalog, native-only symbols and
+// every implementation of a profile holds: vector suites, features, API symbols, the error-code catalog, native-only symbols and
 // exclusions. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
-// itself and keeps the ledger of the cases that ran, reads the exported symbols from the extractor snapshot of each
+// and feature itself and keeps the ledger of the cases and test ids that ran, reads the exported symbols from the extractor snapshot of each
 // implementation and the error codes from its generated artifact.
 //
 //   node scripts/kit/parity.mts [--declarations]
@@ -11,10 +11,11 @@
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no exported symbol in an implementation of its profile
-//   R2 missing-binding         a suite has no binding of an implementation of its profile
+//   R2 missing-binding         a suite or a feature has no binding of an implementation of its profile
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
-//                              or its second run gives another status, case or result than its first; a run whose
-//                              environment reference is unset or empty cannot start
+//                              the id of a feature binding did not pass once in a run of its whole test file, or the
+//                              second run gives another status, case or result than the first; a run whose environment
+//                              reference is unset or empty, or resolves to a path outside the checkout, cannot start
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit
 //   R5 undeclared-test         a test file of an implementation (the convention of its runner in its roots, and its tests
 //                              globs), other than a support file, is the test of no binding; a file in its roots named like
