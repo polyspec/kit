@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "scripts/kit",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true
+  },
+  "include": ["scripts/kit/**/*.mts"],
+  "exclude": []
+}

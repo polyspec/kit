@@ -21,6 +21,12 @@ source-test: ## Run the kit's own tests (tests/source) through the test runner, 
 kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
 	node tests/kit/record-fixture.mts
 
-.PHONY: typecheck
+.PHONY: build typecheck
+build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk and the schemas; offline after npm ci
+	rm -rf dist
+	node_modules/.bin/tsc -p tsconfig.build.json
+	cp scripts/kit/kit.mk dist/kit.mk
+	cp -R scripts/kit/schema dist/schema
+
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	node_modules/.bin/tsc -p tsconfig.json
