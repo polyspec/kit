@@ -354,7 +354,8 @@ ordered-json. The declaration is `config/owner-checks.json` (`scripts/kit/schema
 Merged behaviors:
 
 - Globs (`*`, `**`, `{a,b}`), the `always` tests, `$path` for a changed test file, `--paths`, `--base`, `--dry-run` and
-  `--validate` are the same in template, crudui and hyper and are kept.
+  `--validate` are the same in template, crudui and hyper and are kept. picomatch with `dot: true` matches the globs, so a
+  path under a dot directory such as `.github` matches like any other.
 - Check kinds: crudui selects make targets, scripts of the root `package.json`, workspaces and package directories;
   template and hyper select make targets; ordered-json selects implementations and two named checks. kit takes the crudui
   kinds. A workspace is a `package.json` with a `test` script in a directory that `workspaces` of the root `package.json`

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4de5fcc129b4fa12803e02abe1d2e00d858e3cce9925debc05a20b1b3c27f7e9 -->
+<!-- source-sha256: 439270fe6b5192b7952296a0ba303e98340a5f6dd2baf2750bad9964f355fa98 -->
 
 # 도구 목록
 
@@ -324,7 +324,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 합친 동작:
 
 - glob(`*`, `**`, `{a,b}`), `always` test, 변경된 test 파일을 뜻하는 `$path`, `--paths`, `--base`, `--dry-run`, `--validate`는
-  template, crudui, hyper가 같고 그대로 유지합니다.
+  template, crudui, hyper가 같고 그대로 유지합니다. glob은 `dot: true`인 picomatch가 맞추므로 `.github` 같은 dot 디렉터리 아래의
+  경로도 다른 경로처럼 맞습니다.
 - check 종류: crudui는 make target, root `package.json`의 script, workspace, package directory를 고릅니다. template과 hyper는
   make target을, ordered-json은 implementation과 이름 붙은 check 둘을 고릅니다. kit은 crudui의 종류를 따릅니다. workspace는 root
   `package.json`의 `workspaces`가 가리키는 directory에서 `test` script가 있는 `package.json`이고, package directory는 그 밖의

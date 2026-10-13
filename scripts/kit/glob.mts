@@ -1,28 +1,13 @@
-// Globs of repository paths: `*` within one path segment, `**` across segments, `{a,b}` either alternative.
-// Owner rules and the document configuration select tracked paths with them.
+// Globs of repository paths, read by picomatch with `dot: true`: a path under a dot directory (.github, docs/.vitepress)
+// matches like any other path. Owner rules and the document and parity configurations select tracked paths with them; the
+// syntax is picomatch's (`*` within one segment, `**` across segments, `{a,b}` alternatives, `?`, ranges and extglobs).
+import picomatch from 'picomatch';
 
-/** The regular expression source of a glob. */
-function globSource(glob: string): string {
-  let source = '';
-  for (let index = 0; index < glob.length; index += 1) {
-    // index < glob.length, so the character exists.
-    const character = glob[index]!;
-    if (glob.startsWith('**/', index)) { source += '(?:.*/)?'; index += 2; }
-    else if (glob.startsWith('**', index)) { source += '.*'; index += 1; }
-    else if (character === '*') source += '[^/]*';
-    else if (character === '{') {
-      const end = glob.indexOf('}', index);
-      if (end === -1) throw new Error(`the glob ${glob} has a { without a closing }; write {a,b} or escape the character`);
-      source += `(?:${glob.slice(index + 1, end).split(',').map(globSource).join('|')})`;
-      index = end;
-    } else source += character.replace(/[.+?^$()|[\]\\]/g, '\\$&');
-  }
-  return source;
-}
+const OPTIONS = { dot: true };
 
 /** The regular expression of a glob. */
 export function globExpression(glob: string): RegExp {
-  return new RegExp(`^${globSource(glob)}$`);
+  return picomatch.makeRe(glob, OPTIONS);
 }
 
 /** Whether `file` matches one of `globs`. */
