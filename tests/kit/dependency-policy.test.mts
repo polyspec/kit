@@ -146,6 +146,17 @@ test('the review records and audits every npm lock that the policy names', (t) =
   assert.equal(stub.calls().filter(call => call.startsWith('npm audit ')).length, 2, stub.calls().join('\n'));
 });
 
+test('an npm audit that prints nothing is an error of its lock, not a lock without advisories', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  stub.registry({ ...FIXTURE_REGISTRY, npmAuditText: '' });
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /npm audit --json --package-lock-only printed no JSON: the output is empty/);
+});
+
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);

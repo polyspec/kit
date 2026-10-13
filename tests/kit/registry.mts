@@ -19,6 +19,8 @@ if (args[0] === 'view' && args[2] === 'deprecated') {
   const versions = registry.npm[args[1]];
   if (!versions) { console.error('404 ' + args[1]); process.exit(1); }
   console.log(JSON.stringify([{ 'dist-tags': { latest: versions[versions.length - 1] }, versions }]));
+} else if (args[0] === 'audit' && registry.npmAuditText !== undefined) {
+  process.stdout.write(registry.npmAuditText);
 } else if (args[0] === 'audit') {
   console.log(JSON.stringify(registry.npmAudit ?? { vulnerabilities: {} }));
   process.exit(Object.keys(registry.npmAudit?.vulnerabilities ?? {}).length ? 1 : 0);
