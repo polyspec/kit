@@ -2,15 +2,17 @@
 // symbolExtractors declares, into var/tools/symbols-<extractor>:
 //   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
 //        the release that its go.mod and go.sum pin, built with `go build` into bin/kit-symbols-go
+//   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
+//        with the composer.phar of var/tools/composer (the declared composer) as install-phpunit.mts installs PHPUnit
 // The release of an extractor is the sha256 of its source files, written to RELEASE beside the build, so a kit release that
 // changes an extractor rebuilds it and a second run installs nothing. Each build goes into a temporary directory beside the
 // target and is renamed into place (install-tool.mts); nothing is installed into the machine.
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from './bootstrap/digest.mts';
 import { installOnce } from './bootstrap/install-tool.mts';
-import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { bootstrapEnvironment, run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import type { InstalledExtractor } from './bootstrap/toolchain-declared.mts';
 
 // The extractor programs that kit ships beside its tools (the build copies scripts/kit/symbols into dist/symbols).
@@ -34,9 +36,16 @@ function installedRelease(directory: string): string | undefined {
   }
 }
 
-// How each extractor is built into the temporary directory `next`.
-const BUILDS: Record<InstalledExtractor, (next: string, print: (text: string) => void) => void> = {
-  go: (next, print) => run('go', ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...process.env, GOFLAGS: '-modcacherw' } }, print),
+// How each extractor is built into the temporary directory `next` for the checkout `root`.
+const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (text: string) => void) => void> = {
+  php: (root, next, print) => {
+    const composer = toolsPath(root, 'composer', 'composer.phar');
+    if (!existsSync(composer)) throw new Error(`the php symbol extractor needs ${path.relative(root, composer)}, the Composer that config/toolchain.json composer declares; declare composer and run make install-tools`);
+    for (const file of ['composer.json', 'composer.lock']) copyFileSync(path.join(SYMBOLS, 'php', file), path.join(next, file));
+    const environment = bootstrapEnvironment(root, { COMPOSER_HOME: toolsPath(root, 'composer', 'home'), COMPOSER_CACHE_DIR: toolsPath(root, 'composer', 'cache') });
+    run('php', [composer, 'install', '--no-interaction', '--no-progress', '--no-scripts', '--no-plugins', '--prefer-dist'], { cwd: next, env: environment }, print);
+  },
+  go: (root, next, print) => run('go', ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...process.env, GOFLAGS: '-modcacherw' } }, print),
 };
 
 /** Installs the extractor `extractor` into var/tools of `root` unless its release is installed there. */
@@ -45,7 +54,7 @@ export function installExtractor({ root, extractor, print = () => {} }: { root: 
   return installOnce({
     root, label: `the ${extractor} symbol extractor`, prefix: symbolsPrefix(root, extractor), recorded: release, installedRelease, print,
     install: (next: string) => {
-      BUILDS[extractor](next, print);
+      BUILDS[extractor](root, next, print);
       writeFileSync(path.join(next, 'RELEASE'), release);
     },
   });

@@ -265,3 +265,38 @@ test('install-tools builds the go extractor, which reads the exported API of a m
     'R11 go: example.com/codec/sub.Option.Apply is public, and no API unit and no nativeOnly entry declares it',
   ]);
 });
+
+test('install-tools installs the php extractor, which reads the public API of sources and of a stub with php-parser (K75)', { timeout: 300_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\n',
+    'php/src/Codec.php': "<?php\nnamespace Demo\\Codec;\n\nconst LIMIT = 3;\n\nfinal class Codec\n{\n    public const MODE = 1;\n    private const HIDDEN = 2;\n    public function __construct(public readonly string $name, private int $size = 0) {}\n    public function decode(): void {}\n    private function hidden(): void {}\n}\n",
+    'php-ext/codec.stub.php': "<?php\nnamespace Demo\\Codec;\n\nfunction encode(string $value): string {}\n",
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [
+        { name: 'php', runner: 'php', roots: ['php'], symbols: { extractor: 'php', entry: 'php/src' } },
+        { name: 'php-ext', runner: 'php', roots: ['php-ext'], symbols: { extractor: 'php', entry: 'php-ext/codec.stub.php' } },
+      ],
+      profiles: [{ name: 'all', implementations: ['php', 'php-ext'] }],
+      units: [],
+      nativeOnly: [
+        { implementation: 'php', symbol: 'Demo\\Codec\\Codec', reason: 'the class of the PHP port', spec: ['docs/spec/codec.md#php'] },
+        { implementation: 'php-ext', symbol: 'Demo\\Codec\\encode', reason: 'the function of the extension', spec: ['docs/spec/codec.md#php'] },
+      ],
+    }, null, 2)}\n`,
+    'docs/spec/codec.md': '# Codec\n\n## PHP\n',
+  });
+  // The Composer of this checkout installs php-parser, with its home and cache.
+  const composer = path.join(ROOT, 'var/tools/composer');
+  if (!existsSync(path.join(composer, 'composer.phar'))) assert.fail(`${composer}/composer.phar does not exist; run make install-tools TOOLS=composer`);
+  mkdirSync(path.join(root, 'var/tools'), { recursive: true });
+  symlinkSync(composer, path.join(root, 'var/tools/composer'));
+  assert.equal(installExtractor({ root, extractor: 'php' }).installed, true);
+  assert.deepEqual(lines(root), [
+    'R11 php: Demo\\Codec\\Codec::$name is public, and no API unit and no nativeOnly entry declares it',
+    'R11 php: Demo\\Codec\\Codec::MODE is public, and no API unit and no nativeOnly entry declares it',
+    'R11 php: Demo\\Codec\\Codec::__construct is public, and no API unit and no nativeOnly entry declares it',
+    'R11 php: Demo\\Codec\\Codec::decode is public, and no API unit and no nativeOnly entry declares it',
+    'R11 php: Demo\\Codec\\LIMIT is public, and no API unit and no nativeOnly entry declares it',
+  ]);
+});

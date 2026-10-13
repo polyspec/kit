@@ -1,0 +1,15 @@
+{
+    "name": "polyspec/kit-symbols-php",
+    "description": "The PHP symbol extractor of the polyspec kit parity check",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.5",
+        "nikic/php-parser": "5.9.0"
+    },
+    "config": {
+        "platform": {
+            "php": "8.5.10"
+        }
+    }
+}

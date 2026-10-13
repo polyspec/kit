@@ -176,12 +176,12 @@
       "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
     "symbolExtractors": {
-      "description": "The symbol extractors of config/parity.json that install-tools builds into var/tools/symbols-<extractor> (scripts/kit/install-symbols.mts): go, the program of scripts/kit/symbols/go on golang.org/x/tools/go/packages.",
+      "description": "The symbol extractors of config/parity.json that install-tools builds into var/tools/symbols-<extractor> (scripts/kit/install-symbols.mts): go, the program of scripts/kit/symbols/go on golang.org/x/tools/go/packages; php, the Composer project of scripts/kit/symbols/php with nikic/php-parser, installed with the declared composer.",
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "string",
-        "enum": ["go"]
+        "enum": ["go", "php"]
       }
     },
     "node": {

@@ -21,8 +21,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
-export type InstalledExtractor = 'go';
-const EXTRACTORS: readonly InstalledExtractor[] = ['go'];
+export type InstalledExtractor = 'go' | 'php';
+const EXTRACTORS: readonly InstalledExtractor[] = ['go', 'php'];
 
 const EXACT = /^\d+\.\d+\.\d+$/;
 const MINOR = /^\d+\.\d+$/;

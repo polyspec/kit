@@ -13,7 +13,7 @@ export const DECLARATION = 'config/parity.json';
 export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
 
 /** The extractor of the public symbols of an implementation (parity-symbols.mts). */
-export type Extractor = 'go' | 'python' | 'ts';
+export type Extractor = 'go' | 'php' | 'python' | 'ts';
 
 /** An implementation of the declaration (parity.schema.json). */
 export interface ParityImplementation {
