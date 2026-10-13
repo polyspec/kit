@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { scanFences, withoutInlineCode } from './markdown.mts';
+import { prosePassages } from './markdown.mts';
 import { captured, difference, finding } from './parity-declaration.mts';
 import type { ParityModel } from './parity-declaration.mts';
 
@@ -63,75 +63,6 @@ function listsOf(text: string, found: { name: string; index: number; end: number
   return lists.map(list => ({ names: [...new Set(list.names)], index: list.index })).filter(list => list.names.length >= 3);
 }
 
-// The Markdown blocks that bound a passage: an ATX heading and a table row stand alone; a list item, a block quote after
-// other text and a setext underline start or end one; a line indented by four spaces outside a passage is code.
-const ATX = /^ {0,3}#{1,6}(?:\s|$)/;
-const TABLE = /^ {0,3}\|/;
-const ITEM = /^\s*(?:[-*+]|\d+[.)])(?:\s|$)/;
-const QUOTE = /^(?: {0,3}> ?)+/;
-const SETEXT = /^ {0,3}(?:=+|-+)\s*$/;
-const INDENTED = /^(?: {4}|\t)/;
-
-type Passage = { text: string; line: number; table: boolean; quoted: boolean; list: number | undefined };
-
-/**
- * The passages of the Markdown `text` outside its fenced blocks, each `{ text, line, table, list }` with the number of its
- * first line: a paragraph or a list item with the lines that continue it (a block quote without its markers), a heading, or
- * a table row. Inline code is blanked. The items of one Markdown list, with the same marker and indent and no other passage
- * between them, share the number `list`.
- */
-function passagesOf(text: string) {
-  const { fenced } = scanFences(text);
-  const passages: Passage[] = [];
-  let current: Passage | undefined;
-  let lists = 0;
-  let list: { id: number; marker: string } | undefined;
-  text.split('\n').forEach((raw, index) => {
-    if (fenced[index]) list = undefined;
-    if (fenced[index] || !raw.trim()) {
-      current = undefined;
-      return;
-    }
-    const quoted = QUOTE.test(raw);
-    const line = withoutInlineCode(raw.replace(QUOTE, ''));
-    if (!line.trim() || (current && SETEXT.test(line))) {
-      current = undefined;
-      return;
-    }
-    if (!current && !quoted && INDENTED.test(raw)) return;
-    const alone = ATX.test(line) || TABLE.test(line);
-    if (current && !alone && !ITEM.test(line) && !(quoted && !current.quoted)) {
-      current.text += `\n${line}`;
-      return;
-    }
-    const marker = ITEM.exec(line)?.[0].replace(/\d+/, '1').trimEnd();
-    if (marker === undefined) list = undefined;
-    else if (list?.marker !== marker) list = { id: ++lists, marker };
-    current = { text: line, line: index + 1, table: TABLE.test(line), quoted, list: list?.id };
-    passages.push(current);
-    if (alone) current = undefined;
-  });
-  return passages;
-}
-
-const blank = (text: string) => text.replace(/[^\n]/g, ' ');
-
-/**
- * The prose of a passage: its comments, HTML tags, autolinks, bare URLs, link definitions and link destinations blanked, a
- * link keeping its text, so that only prose names an implementation and each character keeps its line.
- */
-function proseOf(text: string) {
-  return text.replace(/<!--[\s\S]*?-->/g, blank)
-    .replace(/<(?:https?:\/\/|mailto:)[^>\s]*>/g, blank)
-    .replace(/<\/?[A-Za-z][^>]*>/g, blank)
-    .replace(/^ {0,3}\[[^\]\n]+\]:.*$/gm, blank)
-    .replace(/!?\[([^\]\n]*)\](?:\([^)\n]*\)|\[[^\]\n]*\])/g, (whole: string, label: string) => {
-      const open = whole.indexOf('[') + 1;
-      return blank(whole.slice(0, open)) + label + blank(whole.slice(open + label.length));
-    })
-    .replace(/\bhttps?:\/\/\S+/g, blank);
-}
-
 /** The sentences of `text`, each `{ text, index }`: they end at ., ! or ? before a space or the end, and a table cell ends one. */
 function sentencesOf(text: string, table: boolean) {
   const sentences: { text: string; index: number }[] = [];
@@ -160,18 +91,19 @@ export function documentCounts(model: ParityModel, root: string, files: Iterable
   const written = new Map(model.config.implementations.flatMap(entry => [entry.name, ...entry.prose ?? []].map(name => [name.toLowerCase(), entry.name] as const)));
   const found: ReturnType<typeof finding>[] = [];
   for (const file of [...files].filter(name => matchesAny(documents.globs, name)).sort()) {
-    const passages = passagesOf(readFileSync(path.join(root, file), 'utf8'));
+    // The passages of prose of the document, as the Markdown tree reads them (markdown.mts).
+    const passages = prosePassages(readFileSync(path.join(root, file), 'utf8'));
     // A Markdown list whose every item names one implementation lists them, and three or more of them are a profile.
     for (const id of new Set(passages.map(passage => passage.list).filter(list => list !== undefined))) {
       const items = passages.filter(passage => passage.list === id);
-      const each = items.map(item => [...new Set(namesOf(proseOf(item.text), written).map(match => match.name))]);
+      const each = items.map(item => [...new Set(namesOf(item.text, written).map(match => match.name))]);
       if (!each.every(names => names.length === 1)) continue;
       const names = [...new Set(each.flat())];
       if (names.length < 3 || profiles.some(profile => sameSet(names, profile.members))) continue;
       found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is no profile (${listed})`, { place: `${file}:${items[0]!.line}` }));
     }
     for (const passage of passages) {
-      const prose = proseOf(passage.text);
+      const prose = passage.text;
       const place = (index: number) => `${file}:${passage.line + prose.slice(0, index).split('\n').length - 1}`;
       const named = (text: string) => [...new Set(namesOf(text, written).map(match => match.name))];
       const passageProfile = profiles.some(profile => sameSet(named(prose), profile.members));
