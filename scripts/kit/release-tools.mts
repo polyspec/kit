@@ -11,12 +11,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { context } from './release.mts';
 import { Stop } from './process.mts';
-import { siblingTool } from './paths.mts';
+import { isMain, ROOT, siblingTool } from './paths.mts';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** The sections of config/release.json (release.mts loadConfig) that decide the tools of the release. */
 export type ToolsConfig = {
@@ -68,7 +66,7 @@ export function prepareRust(root: string, { env = process.env, print = console.l
 const USAGE = 'usage: node scripts/kit/release-tools.mts';
 
 /** Runs the command line; the exit status. */
-export function main(argv: string[], { root = path.resolve(HERE, '../..'), env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
   if (argv.length) {
     error(USAGE);
     return 2;
@@ -93,4 +91,4 @@ export function main(argv: string[], { root = path.resolve(HERE, '../..'), env =
   return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url)) process.exitCode = main(process.argv.slice(2));

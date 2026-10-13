@@ -27,8 +27,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ROOT } from './paths.mts';
+import { isMain, ROOT } from './paths.mts';
 import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from './release.mts';
 import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -346,4 +345,4 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
   return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (isMain(import.meta.url)) process.exitCode = main(process.argv.slice(2));

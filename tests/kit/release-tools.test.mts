@@ -90,3 +90,17 @@ test('prepareRust stops with the rustup output when the toolchain cannot be inst
   const box = rustCheckout(t, { channel: '1.99.0', rustupStatus: 1 });
   stop(() => prepareRust(box.root, { env: box.env, ...capture() }), /rustup toolchain install --no-self-update exited with 1/);
 });
+
+test('release-tools reads config/release.json of the repository it runs in, also from a copy outside the repository (K71-2)', (t) => {
+  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of the module names no repository.
+  const outside = mkdtempSync(path.join(tmpdir(), 'release-tools-outside-'));
+  const repository = mkdtempSync(path.join(tmpdir(), 'release-tools-repository-'));
+  t.after(() => { rmSync(outside, { recursive: true, force: true }); rmSync(repository, { recursive: true, force: true }); });
+  cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit'), path.join(outside, 'tools'), { recursive: true });
+  mkdirSync(path.join(repository, 'config'));
+  writeFileSync(path.join(repository, 'config/release.json'), '{}');
+  const ran = spawnSync(process.execPath, [path.join(outside, 'tools/release-tools.mts')], { cwd: repository, encoding: 'utf8' });
+  assert.equal(ran.status, 1, ran.stdout + ran.stderr);
+  assert.doesNotMatch(ran.stderr, /the file is missing/, 'the tool read the directory above its module, not the repository');
+  assert.match(ran.stderr, /config\/release\.json: \$ lacks repositoryUrl/);
+});
