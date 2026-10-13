@@ -84,6 +84,37 @@ test('every tool that differs is named with the declaring file, the expected and
   ]);
 });
 
+// The lint tools of K77: vulture, golangci-lint and deadcode of config/toolchain.json, and phpcs and PHPStan of the locked PHP
+// lint project. deadcode prints no release, so its probe is go version -m of the installed binary, which the go stub answers.
+const LINT_LOCK = JSON.stringify({ packages: [{ name: 'phpstan/phpstan', version: '2.3.1' }, { name: 'squizlabs/php_codesniffer', version: '4.0.4' }, { name: 'spaze/phpstan-disallowed-calls', version: 'v4.15.0' }] });
+const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, vulture: { version: '2.16', sha256: 'f'.repeat(64) }, golangciLint: { version: '2.14.0', sha256: { 'linux-x64': 'f'.repeat(64) } }, deadcode: '0.52.0' }), 'config/php-lint/composer.lock': LINT_LOCK };
+const lintOutputs = ({ vulture = '2.16', golangci = '2.14.0', tools = '0.52.0', phpcs = '4.0.4', phpstan = '2.3.1' } = {}) => ({
+  vulture: `vulture ${vulture}`,
+  'golangci-lint': `golangci-lint has version ${golangci} built with go1.27.0 from 114493f9 on 2026-09-24T11:07:15Z`,
+  go: `/checkout/var/tools/deadcode/bin/deadcode: go1.27.2\n\tpath\tgolang.org/x/tools/cmd/deadcode\n\tmod\tgolang.org/x/tools\tv${tools}\th1:x=`,
+  phpcs: `PHP_CodeSniffer version ${phpcs} (stable) by Squiz and PHPCSStandards`,
+  phpstan: `PHPStan - PHP Static Analysis Tool ${phpstan}`,
+});
+const LINT_TOOLS = ['vulture', 'golangciLint', 'deadcode', 'phpcs', 'phpstan'];
+
+test('the lint tools pass at their declared releases and each other release fails with its declaration and the fix', (t) => {
+  const good = setup(t, lintOutputs(), LINT_FILES);
+  const passed = check(good.root, good.stubs.env, ...LINT_TOOLS);
+  assert.equal(passed.status, 0, passed.stderr);
+  assert.match(passed.stdout, /vulture 2\.16, golangciLint 2\.14\.0, deadcode 0\.52\.0, phpcs 4\.0\.4, phpstan 2\.3\.1\n\[check-toolchain\] 5 tools run at the declared versions/);
+  const { root, stubs } = setup(t, lintOutputs({ vulture: '2.15', golangci: '2.13.0', tools: '0.51.0', phpcs: '4.0.3', phpstan: '2.3.0' }), LINT_FILES);
+  const result = check(root, stubs.env, ...LINT_TOOLS);
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.stderr.trim().split('\n'), [
+    '[check-toolchain] vulture: 2.15 runs here and config/toolchain.json vulture declares 2.16; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] golangciLint: 2.13.0 runs here and config/toolchain.json golangciLint declares 2.14.0; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] deadcode: 0.51.0 runs here and config/toolchain.json deadcode declares 0.52.0; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] phpcs: 4.0.3 runs here and config/php-lint/composer.lock declares 4.0.4; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] phpstan: 2.3.0 runs here and config/php-lint/composer.lock declares 2.3.1; fix: make install-tools, and var/tools/bin first on PATH',
+    '[check-toolchain] 5 of 5 tools differ from the declared versions',
+  ]);
+});
+
 test('the Node.js, cargo-audit and govulncheck releases are compared exactly', (t) => {
   const { root, stubs } = setup(t, OUTPUTS, { ...FILES, '.node-version': '1.2.3\n', 'config/toolchain.json': JSON.stringify({ schema: 1, cargoAudit: '0.22.3', govulncheck: '1.1.5' }) });
   const result = check(root, stubs.env);
