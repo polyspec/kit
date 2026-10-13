@@ -70,6 +70,19 @@
       }
     },
     "suites": { "description": "Globs of the shared vector files; each one must be the file of a suite unit.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
+    "tools": {
+      "description": "The directories of single-language tooling tests that implement no contract, such as the tests of an editor tool; every run prints each with its reason. R6 accepts a test there, and R3 and R5 do not judge it. A root overlaps no implementation root and holds no test of a binding.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["root", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "root": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
+          "reason": { "description": "Why the tests of the root belong to no implementation.", "type": "string" }
+        }
+      }
+    },
     "comparators": { "description": "The directories of the checks that compare the outputs of several implementations; a test there belongs to no implementation.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
     "testPatterns": {
       "description": "Globs of test files of a runner across the repository that its convention does not select; they add to the convention and never remove a file. Such a file lies in a root of an implementation of that runner or in a comparator root.",
@@ -95,8 +108,8 @@
           "id": { "description": "The name of the unit; the findings name a case of a suite as <id>/<case>.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
           "kind": { "description": "suite: the shared cases of a vector file, run by a binding of each implementation; feature: one native test of each implementation, named by its id; api: an exported symbol of each implementation.", "type": "string", "enum": ["suite", "feature", "api"] },
           "profile": { "type": "string" },
-          "file": { "description": "suite: the vector file.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-          "cases": { "description": "suite: the path of the case names in the file, $ followed by .<key> and [*] steps.", "type": "string", "pattern": "^\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*$" },
+          "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
+          "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), what lies inside a case not examined. A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
           "admit": {
             "description": "suite: the key of each case object (the object that holds the name at cases) that lists the implementations which admit the case, such as \"kinds\". A case without the key is admitted by every implementation of the profile; an implementation that the list omits does not run the case, and every run prints it. A listed name is an implementation of the profile, a list is not empty and names each implementation once, the key is on some case, and every implementation of the profile admits some case or is excluded under R8.",
             "type": "string",

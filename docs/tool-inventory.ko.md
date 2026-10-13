@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 955826fe10ae13423537e5d1f23c5f0425b96319b85b6434be72034c24810ac3 -->
+<!-- source-sha256: 174c2887d75dc6aad74c3cccec6aa0bb89a5a1e5c8505911fa8f5432d16adc77 -->
 
 # 도구 목록
 
@@ -974,9 +974,9 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R1 missing-implementation | API unit이 profile의 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol이 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
 | R2 missing-binding | suite 또는 feature unit에 profile의 한 implementation의 binding이 없습니다. |
 | R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 test 파일 전체의 실행이 오류로 끝나거나 그 `id`가 정확히 한 번 통과하지 않으면 실패합니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
-| R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아닙니다. |
+| R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
 | R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고 `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
@@ -1105,8 +1105,9 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 | `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
+| `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite` 또는 `api`), `profile`. suite는 `file`, `cases`(`$` 뒤에 `.<key>`와 `[*]` 단계가 오는 path), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `units` | `id`, `kind`(`suite` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
 | `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
 | `errors` | `profile`과 `catalog`(`file`, `pattern`) |

@@ -326,3 +326,34 @@ test('the rust extractor reads the public API of a crate from the rustdoc JSON o
     'R11 rust: codec::reexported is public, and no API unit and no nativeOnly entry declares it',
   ]);
 });
+
+test('K42 reads the case directories of a suite from real go as nested subtests', { timeout: 300_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\n',
+    'tests/cases/echo/html-escape-five-chars/case.json': '{}\n',
+    'tests/cases/echo/bool/case.json': '{}\n',
+    'tests/cases/if/true/case.json': '{}\n',
+    'go/go.mod': 'module example.com/cases\n\ngo 1.21\n',
+    'go/cases_test.go': [
+      'package cases', '', 'import "testing"', '',
+      'func TestCases(t *testing.T) {',
+      '\tfor group, names := range map[string][]string{"echo": {"html-escape-five-chars", "bool"}, "if": {"true"}} {',
+      '\t\tt.Run(group, func(t *testing.T) {',
+      '\t\t\tfor _, name := range names {',
+      '\t\t\t\tt.Run(name, func(t *testing.T) {})',
+      '\t\t\t}',
+      '\t\t})',
+      '\t}',
+      '}', '',
+    ].join('\n'),
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [{ name: 'go', runner: 'go', roots: ['go'] }],
+      profiles: [{ name: 'all', implementations: ['go'] }],
+      units: [{ id: 'cases', kind: 'suite', profile: 'all', file: 'tests/cases', cases: '*/*', bindings: [{ implementation: 'go', test: 'go/cases_test.go', symbol: 'TestCases' }] }],
+    }, null, 2)}\n`,
+  });
+  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['echo/bool pass', 'echo/html-escape-five-chars pass', 'if/true pass']);
+});

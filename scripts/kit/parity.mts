@@ -17,14 +17,14 @@
 //                              the id of a feature binding did not pass once in a run of its whole test file, or the
 //                              second run gives another status, case or result than the first; a run whose environment
 //                              reference is unset or empty, or resolves to a path outside the checkout, cannot start
-//   R4 undeclared-suite        a file of the suite globs is the file of no suite unit
+//   R4 undeclared-suite        a file of the suite globs is the file of no suite unit and lies in no case directory of one
 //   R5 undeclared-test         a test file of an implementation (the convention of its runner in its roots, and its tests
 //                              globs), other than a support file, is the test of no binding; a file in its roots named like
 //                              a test (*_test.*, test_*.*, *Test.*, *.test.*, *.spec.*) that no convention selects is the
 //                              test of no binding; or a node, php or python support file reports a case when it runs
 //   R6 misplaced-test          the test of a binding lies outside the roots of its implementation, or a file of the
 //                              convention or the testPatterns of a runner, other than a support file of that runner, lies
-//                              outside its roots
+//                              outside its roots, the comparator roots and the tools roots
 //   R7 error-catalog           the codes of an implementation differ from the catalog, or it declares none
 //   R8 exclusion               an exclusion: it never counts as holding the unit
 //   R9 language-set-drift      a declared list of implementation names in another file differs from its profile
@@ -65,6 +65,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
+  for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
   for (const unit of model.config.units.filter((entry: { kind: string; admit?: string }) => entry.kind === 'suite' && entry.admit !== undefined)) {
     for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
   }

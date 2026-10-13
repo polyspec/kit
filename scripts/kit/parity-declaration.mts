@@ -80,6 +80,7 @@ export interface ParityConfig {
   profiles: ParityProfile[];
   suites?: string[];
   comparators?: string[];
+  tools?: { root: string; reason: string }[];
   testPatterns?: { runner: Runner; globs: string[] }[];
   units: ParityUnit[];
   nativeOnly?: { implementation: string; symbol: string; reason: string; spec: string[] }[];
@@ -179,14 +180,22 @@ function patternError(source: string): string | undefined {
 }
 
 /**
- * The case names that the path `cases` ($ followed by .<key> and [*] steps) selects in `value`, with an error for each step that
- * finds nothing. `entries` pairs each name with `parent`, the object or array that holds it, which carries the admit list of its case.
+ * The case names that the path `cases` ($ followed by .<key> and [*] steps, and an optional last .~ step) selects in `value`,
+ * with an error for each step that finds nothing. `entries` pairs each name with `parent`, the object or array that holds it,
+ * which carries the admit list of its case; the case of a .~ name is the value of its key.
  */
 export function casesOf(value: unknown, cases: string): { names: string[]; entries: CaseEntry[]; errors: string[] } {
   let selected: Selected[] = [{ value, where: '$', parent: undefined }];
   const errors: string[] = [];
-  for (const [step, key] of cases.slice(1).matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)|\[\*\]/g)) {
+  for (const [step, key] of cases.slice(1).matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)|\[\*\]|\.~/g)) {
     selected = selected.flatMap(({ value: item, where }): Selected[] => {
+      if (step === '.~') {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          return Object.entries(item).map(([name, entry]) => ({ value: name, where: `${where}.~`, parent: entry && typeof entry === 'object' ? entry as Record<string, unknown> | unknown[] : undefined }));
+        }
+        errors.push(`${where} is no object`);
+        return [];
+      }
       if (key !== undefined) {
         if (item && typeof item === 'object' && !Array.isArray(item) && key in item) return [{ value: (item as Record<string, unknown>)[key], where: `${where}${step}`, parent: item as Record<string, unknown> }];
         errors.push(`${where} has no ${key}`);
@@ -200,6 +209,28 @@ export function casesOf(value: unknown, cases: string): { names: string[]; entri
   for (const { value: name, where } of selected) if (typeof name !== 'string' || !name) errors.push(`${where} is no case name`);
   const entries = selected.filter((entry): entry is Selected & { value: string } => typeof entry.value === 'string' && entry.value !== '').map(entry => ({ name: entry.value, parent: entry.parent }));
   return { names: entries.map(entry => entry.name), entries, errors };
+}
+
+/**
+ * The case directories that `glob` selects in the directory `directory`, read from the checked `files`: each / step of the glob
+ * matches one directory level, and each directory that the whole glob matches is a case named by its path relative to
+ * `directory`; the files inside a case are not examined. A file that a step matches is an error, and so is a ** step.
+ */
+function caseDirectories(files: ReadonlySet<string>, directory: string, glob: string): { names: string[]; errors: string[] } {
+  const steps = glob.split('/');
+  if (steps.some(step => step.includes('**'))) return { names: [], errors: [`the case glob ${glob} holds **; each / step of the glob matches one directory level`] };
+  const names = new Set<string>();
+  const errors: string[] = [];
+  for (const file of [...files].filter(name => within(directory, name)).sort()) {
+    const parts = path.posix.relative(directory, file).split('/');
+    for (let depth = 1; depth <= Math.min(parts.length, steps.length); depth++) {
+      const entry = parts.slice(0, depth).join('/');
+      if (!matchesAny([steps.slice(0, depth).join('/')], entry)) break;
+      if (depth === parts.length) errors.push(`${file} is a file where the case glob ${glob} matches a directory`);
+      else if (depth === steps.length) names.add(entry);
+    }
+  }
+  return { names: [...names], errors };
 }
 
 /** A value that a step of a case path selects, with where it lies and the object or array that holds it. */
@@ -427,6 +458,17 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
+  // A tools root holds tests that implement no contract, so it shares no directory with an implementation and holds no bound test.
+  const overlap = (left: string, right: string) => [[left, right], [right, left]].some(([outer, inner]) => `${inner!.replace(/\/+$/, '')}/`.startsWith(`${outer!.replace(/\/+$/, '')}/`));
+  for (const tool of config.tools ?? []) {
+    for (const entry of config.implementations) {
+      for (const directory of entry.roots.filter(directory => overlap(tool.root, directory))) fail(`tools: the root ${tool.root} overlaps ${directory}, a root of the implementation ${entry.name}`);
+    }
+    if (!tool.reason.trim()) fail(`tools: the root ${tool.root} gives no reason; write why its tests belong to no implementation`);
+    for (const unit of config.units) {
+      for (const entry of (unit.bindings ?? []).filter(entry => within(tool.root, entry.test))) fail(`tools: the root ${tool.root} holds ${entry.test}, the test of the ${unit.kind} ${unit.id} in ${entry.implementation}`);
+    }
+  }
   const knownProfile = (name: string, where: string): boolean => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
   for (const entry of config.implementations) {
     if (entry.symbols !== undefined && !existsSync(path.join(root, entry.symbols.entry))) fail(`implementation ${entry.name}: the symbols entry ${entry.symbols.entry} does not exist`);
@@ -503,17 +545,35 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (unit.kind === 'feature') continue;
     const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
     if (!unit.file || !unit.cases) continue;
-    const value = readTrackedJson(root, files, unit.file, where, errors);
-    if (value === undefined) continue;
-    const found = casesOf(value, unit.cases);
-    for (const error of found.errors) fail(`${where}: ${unit.file}: ${error}`);
+    // A suite file that is a directory holds a case directory for each case, which a glob selects; a vector file names its cases.
+    const directory = !files.has(unit.file) && [...files].some(file => within(unit.file!, file));
+    const glob = !unit.cases.startsWith('$');
+    if (directory && !glob) {
+      fail(`${where}: ${unit.file} is a directory, so cases is a glob of its case directories, not ${unit.cases}`);
+      continue;
+    }
+    if (!directory && glob && files.has(unit.file)) {
+      fail(`${where}: ${unit.file} is a file, so cases is a path $… of its case names, not ${unit.cases}`);
+      continue;
+    }
+    let found: { names: string[]; entries: CaseEntry[]; errors: string[] };
+    if (directory) {
+      const read = caseDirectories(files, unit.file, unit.cases);
+      found = { names: read.names, entries: read.names.map(name => ({ name, parent: undefined })), errors: read.errors };
+      for (const error of found.errors) fail(`${where}: ${error}`);
+    } else {
+      const value = readTrackedJson(root, files, unit.file, where, errors);
+      if (value === undefined) continue;
+      found = casesOf(value, unit.cases);
+      for (const error of found.errors) fail(`${where}: ${unit.file}: ${error}`);
+    }
     if (!found.errors.length && !found.names.length) fail(`${where}: ${unit.cases} selects no case in ${unit.file}`);
     const repeated = found.names.filter((name, index) => found.names.indexOf(name) !== index);
     for (const name of new Set(repeated)) fail(`${where}: ${unit.file} repeats the case ${name}`);
     // A case name holds no whitespace, which go test rewrites to _ in a subtest name, and Go nests a subtest at each /.
     for (const name of found.names) {
       if (/\s/.test(name)) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds whitespace, which no test name of the check can match`);
-      if (goBound && name.includes('/')) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds /, which Go nests as a subtest; the unit has a go binding`);
+      if (goBound && !directory && name.includes('/')) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds /, which Go nests as a subtest; the unit has a go binding`);
     }
     cases.set(unit.id, found.names);
     if (unit.admit !== undefined) {
