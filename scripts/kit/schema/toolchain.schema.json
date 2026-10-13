@@ -165,6 +165,25 @@
         }
       }
     },
+    "mise": {
+      "description": "The mise release that the bootstrap installs into var/tools/mise after the npm of packageManager: the exact version, and the sha256 of the archive mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits. mise installs the tools of mise.toml.",
+      "type": "object",
+      "required": [
+        "version",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "sha256": {
+          "type": "object",
+          "description": "The sha256 of the mise archive of each platform key; the bootstrap refuses an archive of another digest."
+        }
+      }
+    },
     "alint": {
       "description": "The alint release that install-tools installs into var/tools/alint, which make layout-check runs on config/layout.yml: the exact version, and the sha256 of the archive alint-v<version>-<target>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
       "type": "object",
