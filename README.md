@@ -1,3 +1,4 @@
+<!-- doc-id: readme -->
 # polyspec/kit
 
 The tools that every polyspec repository shares. A repository installs them as the package `@polyspec/kit` and holds
