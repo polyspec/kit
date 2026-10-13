@@ -25,8 +25,8 @@ export const miseArchiveUrl = (version: string, asset: string): string => `https
 /**
  * The environment in which the tools of mise run from its shims, var/tools/mise/shims, for the checkout `root`: the directories
  * of mise under var/tools/mise, the trusted config of the checkout, only what mise.lock pins and no install on its own (a
- * missing tool is an error until make install-tools), and no uv that downloads a Python; uv keeps its cache in
- * var/tools/mise. A tool that mise runs from uv gets the Python of mise from mise; the uv of a check gets it from UV_PYTHON
+ * missing tool is an error until make install-tools), and no uv that downloads a Python or reads a uv.toml of the home or the
+ * system; uv keeps its cache in var/tools/mise. A tool that mise runs from uv gets the Python of mise from mise; the uv of a check gets it from UV_PYTHON
  * (toolsEnvironment of mise-tools.mts).
  */
 export function miseEnvironment(root: string): Record<string, string> {
@@ -39,6 +39,7 @@ export function miseEnvironment(root: string): Record<string, string> {
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
+    UV_NO_CONFIG: '1',
     UV_CACHE_DIR: toolsPath(root, 'mise', 'cache', 'uv'),
   };
 }
