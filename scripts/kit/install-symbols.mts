@@ -27,12 +27,15 @@ export function extractorRelease(extractor: InstalledExtractor): string {
   return sha256(readdirSync(directory).sort().map(file => `${file}\0${sha256(readFileSync(path.join(directory, file)))}\n`).join(''));
 }
 
-/** The release that an installation in `directory` records, or undefined when it records none. */
+/** The release that an installation in `directory` records, or undefined when it has no RELEASE; another read error throws. */
 function installedRelease(directory: string): string | undefined {
+  const file = path.join(directory, 'RELEASE');
   try {
-    return readFileSync(path.join(directory, 'RELEASE'), 'utf8');
-  } catch {
-    return undefined;
+    return readFileSync(file, 'utf8');
+  } catch (error) {
+    // Only a missing file means that nothing is installed; any other error is a broken installation.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new Error(`${file} cannot be read: ${(error as Error).message}`);
   }
 }
 
