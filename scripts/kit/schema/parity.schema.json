@@ -54,7 +54,8 @@
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
           "implementations": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-          "reason": { "description": "Why the profile omits implementations; a profile narrower than every implementation needs it, and every run prints it.", "type": "string" }
+          "reason": { "description": "Why the profile omits implementations; a profile narrower than every implementation needs it, and every run prints it.", "type": "string" },
+          "spec": { "description": "The spec anchors that the reason of a profile narrower than every implementation cites; only such a profile has them (S6): a Markdown file under contracts/ or docs/spec/ with an explicit anchor <a id> or a heading anchor, or a JSON file there with a JSON Pointer (RFC 6901), as <file>#<anchor>. Each one resolves.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?:contracts|docs/spec)/(?!(?:.*/)?\\.\\.(?:/|#))[^#]+#.+$" } }
         }
       }
     },
@@ -126,12 +127,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["implementation", "symbol", "reason"],
+        "required": ["implementation", "symbol", "reason", "spec"],
         "additionalProperties": false,
         "properties": {
           "implementation": { "type": "string" },
           "symbol": { "type": "string" },
-          "reason": { "type": "string" }
+          "reason": { "type": "string" },
+          "spec": { "description": "The spec anchors that the reason cites (S6): a Markdown file under contracts/ or docs/spec/ with an explicit anchor <a id> or a heading anchor, or a JSON file there with a JSON Pointer (RFC 6901), as <file>#<anchor>. Each one resolves.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?:contracts|docs/spec)/(?!(?:.*/)?\\.\\.(?:/|#))[^#]+#.+$" } }
         }
       }
     },

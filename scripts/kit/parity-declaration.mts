@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
+import { anchors, headingAnchors } from './markdown.mts';
 import { readConfig } from './schema-validate.mts';
 
 export const DECLARATION = 'config/parity.json';
@@ -30,6 +31,7 @@ export interface ParityProfile {
   name: string;
   implementations: string[];
   reason?: string;
+  spec?: string[];
 }
 
 /** The native test of an implementation in a suite unit. */
@@ -75,7 +77,7 @@ export interface ParityConfig {
   comparators?: string[];
   testPatterns?: { runner: Runner; globs: string[] }[];
   units: ParityUnit[];
-  nativeOnly?: { implementation: string; symbol: string; reason: string }[];
+  nativeOnly?: { implementation: string; symbol: string; reason: string; spec: string[] }[];
   exclusions?: ParityExclusion[];
   errors?: { profile: string; catalog: { file: string; pattern: string } };
   languageLists?: { file: string; pattern: string; profile: string }[];
@@ -321,6 +323,33 @@ function readTrackedJson(root: string, files: ReadonlySet<string>, file: string,
   }
 }
 
+/**
+ * Why the spec anchor `anchor` (<file>#<fragment>, the file under contracts/ or docs/spec/) does not resolve among the
+ * checked `files`, or undefined when it does: a Markdown file defines the fragment as an explicit anchor or a heading anchor,
+ * and the fragment of a JSON file is a JSON Pointer (RFC 6901) to a value of it.
+ */
+function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: string): string | undefined {
+  const hash = anchor.indexOf('#');
+  const file = anchor.slice(0, hash);
+  const fragment = anchor.slice(hash + 1);
+  if (!files.has(file)) return `${file} does not exist`;
+  const text = readFileSync(path.join(root, file), 'utf8');
+  if (file.endsWith('.md')) return anchors(text).includes(fragment) || headingAnchors(text).includes(fragment.toLowerCase()) ? undefined : `${file} defines no anchor ${fragment}`;
+  if (!file.endsWith('.json')) return `${file} is no Markdown or JSON file, so it has no anchor`;
+  if (!fragment.startsWith('/')) return `${fragment} is no JSON Pointer; it starts with /`;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    return `${file} is no JSON: ${(error as Error).message}`;
+  }
+  for (const token of fragment.slice(1).split('/').map(part => part.replaceAll('~1', '/').replaceAll('~0', '~'))) {
+    if (!value || typeof value !== 'object' || !Object.hasOwn(value, token)) return `${file} has no value at ${fragment}`;
+    value = (value as Record<string, unknown>)[token];
+  }
+  return undefined;
+}
+
 /** The symbols of a snapshot: a map from each id to whether it is exported, or errors for an entry without a boolean exported. */
 function snapshotOf(value: unknown, file: string, errors: Finding[]): Map<string, boolean> {
   const symbols = new Map<string, boolean>();
@@ -371,6 +400,21 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   // it, and it groups at least two units: a profile of one unit would be an exclusion that never fails.
   const narrow = config.profiles.map(profile => ({ name: profile.name, omitted: config.implementations.map(entry => entry.name).filter(name => !profile.implementations.includes(name)), reason: profile.reason?.trim() ?? '' }))
     .filter(profile => profile.omitted.length);
+  // A narrow profile is a permanent difference, so its reason cites the spec that makes it one (S6); a profile of every
+  // implementation is no difference and cites none.
+  const unresolved = (where: string, spec: string[]) => {
+    for (const anchor of spec) {
+      const problem = unresolvedAnchor(root, files, anchor);
+      if (problem) fail(`${where}: the spec anchor ${anchor} does not resolve: ${problem}`);
+    }
+  };
+  for (const profile of config.profiles) {
+    if (narrow.some(entry => entry.name === profile.name)) {
+      if (!profile.spec) fail(`profile ${profile.name} omits implementations and cites no spec anchor; write the anchors of its reason in spec`);
+    } else if (profile.spec) fail(`profile ${profile.name} omits no implementation, so it cites no spec anchor; remove spec`);
+    unresolved(`profile ${profile.name}`, profile.spec ?? []);
+  }
+  for (const entry of config.nativeOnly ?? []) unresolved(`nativeOnly ${entry.symbol}`, entry.spec);
   for (const profile of narrow) {
     if (!profile.reason) fail(`profile ${profile.name} omits ${profile.omitted.join(', ')} and gives no reason; write the reason in reason`);
     const users = config.units.filter(unit => unit.profile === profile.name);
