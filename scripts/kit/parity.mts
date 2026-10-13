@@ -16,10 +16,13 @@
 //                              or its second run gives another status, case or result than its first; a run whose
 //                              environment reference is unset or empty cannot start
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit
-//   R5 undeclared-test         a test file of an implementation, other than a support file, is the test of no binding, or
-//                              a node, php or python support file reports a case when it runs
-//   R6 misplaced-test          the test of a binding lies outside the roots of its implementation, or a file of the test
-//                              patterns of a runner, other than a support file of that runner, lies outside its roots
+//   R5 undeclared-test         a test file of an implementation (the convention of its runner in its roots, and its tests
+//                              globs), other than a support file, is the test of no binding; a file in its roots named like
+//                              a test (*_test.*, test_*.*, *Test.*, *.test.*, *.spec.*) that no convention selects is the
+//                              test of no binding; or a node, php or python support file reports a case when it runs
+//   R6 misplaced-test          the test of a binding lies outside the roots of its implementation, or a file of the
+//                              convention or the testPatterns of a runner, other than a support file of that runner, lies
+//                              outside its roots
 //   R7 error-catalog           the codes of an implementation differ from the catalog, or it declares none
 //   R8 exclusion               an exclusion: it never counts as holding the unit
 //   R9 language-set-drift      a declared list of implementation names in another file differs from its profile
