@@ -159,10 +159,25 @@ python-venv: ## Make the virtual environment DIR from var/tools/bin/python3 with
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	node $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
-# --- lint-python: ruff check and ruff format --check of the Python of the checkout, with the ruff that config/toolchain.json declares.
-.PHONY: lint-python
-lint-python: ## Lint and format-check the Python of the checkout with the ruff of var/tools; offline
+# ---- Lint (K77) ------------------------------------------------------------------------------------------------------
+# Each target runs the lint of one language with the configuration that kit copies (ruff.toml, phpcs.xml.dist,
+# phpstan.dist.neon, .golangci.yml, .oxlintrc.json, knip.json, config/api-extractor.kit.json) and the tools of var/tools
+# (make install-tools) or node_modules (npm ci). config/layout.kit.yml checks the lint rules that live in manifests.
+.PHONY: lint-python lint-php lint-rust lint-go lint-ts
+lint-python: ## Lint the Python of the checkout: ruff with ruff.toml, and vulture on each package; offline
 	node $(KIT)/lint-python.$(KIT_EXT)
+
+lint-php: ## Lint the PHP of the checkout: phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon on each Composer package; offline
+	node $(KIT)/lint-php.$(KIT_EXT)
+
+lint-rust: ## Lint the Rust of the checkout: cargo clippy with -D warnings in each Cargo workspace; offline once the crates are downloaded
+	node $(KIT)/lint-rust.$(KIT_EXT)
+
+lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and deadcode -test, in each Go module; offline once the modules are downloaded
+	node $(KIT)/lint-go.$(KIT_EXT)
+
+lint-ts: ## Lint the TypeScript of the checkout: oxlint type-aware, knip, and API Extractor in each package with an api-extractor.json; offline
+	node $(KIT)/lint-ts.$(KIT_EXT)
 # ---- Consumer install of the release archives (K5.4) ------------------------------------------------------------
 # ---- Consumer install and proof of a release (K5.4, K5.5) ------------------------------------------------------------
 # scripts/kit/release-consumer.mts installs the archives of TAG from var/release/assets (make release-assets) in clean npm and
