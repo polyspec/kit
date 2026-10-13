@@ -17,10 +17,20 @@ import { Stop } from './process.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
+/** The sections of config/release.json (release.mts loadConfig) that decide the tools of the release. */
+export type ToolsConfig = {
+  packages: { kind: string }[];
+  consumers?: { npm?: unknown; composer?: unknown; wheel?: unknown };
+  goModules?: Record<string, string>;
+  proof?: { gitTag?: Record<string, unknown> };
+};
+/** The output of a step: `print` receives the stdout of the command and `error` its stderr. */
+type Output = { print: (text: string) => void; error: (text: string) => void };
+
 /** The install-tools names that the configuration needs, in the order of install-tools, and whether it needs Rust. */
-export function toolsFor(config) {
+export function toolsFor(config: ToolsConfig) {
   const kinds = new Set(config.packages.map(({ kind }) => kind));
-  const needed = new Set();
+  const needed = new Set<string>();
   if (kinds.has('npm') || config.consumers?.npm) needed.add('npm');
   if (kinds.has('composer') || config.consumers?.composer) needed.add('composer');
   if (kinds.has('wheel') || config.consumers?.wheel) {
@@ -34,7 +44,7 @@ export function toolsFor(config) {
 }
 
 /** Runs `command` in `root`, forwards its output on success and failure, and stops with the status and output when it fails. */
-function step(command, args, { cwd, env, print, error }) {
+function step(command: string, args: string[], { cwd, env, print, error }: { cwd: string; env: NodeJS.ProcessEnv } & Output) {
   const shown = [command, ...args].join(' ');
   const result = spawnSync(command, args, { cwd, env, encoding: 'utf8' });
   if (result.error) throw new Stop(`${shown} could not start: ${result.error.message}`);
@@ -47,7 +57,7 @@ function step(command, args, { cwd, env, print, error }) {
  * Installs the Rust channel that rust-toolchain.toml of `root` declares and checks rustc against it. The channel is read by
  * rustup from the file in the checkout, and check-toolchain of the checkout's own scripts/kit reads the same declaration.
  */
-export function prepareRust(root, { env = process.env, print = console.log, error = console.error } = {}) {
+export function prepareRust(root: string, { env = process.env, print = console.log, error = console.error }: { env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
   const file = path.join(root, 'rust-toolchain.toml');
   if (!existsSync(file)) throw new Stop('rust-toolchain.toml is missing; the git-tag proof needs the Rust channel that it declares. Fix: write channel in rust-toolchain.toml');
   step('rustup', ['toolchain', 'install', '--no-self-update'], { cwd: root, env, print, error });
@@ -57,7 +67,7 @@ export function prepareRust(root, { env = process.env, print = console.log, erro
 const USAGE = 'usage: node scripts/kit/release-tools.mts';
 
 /** Runs the command line; the exit status. */
-export function main(argv, { root = path.resolve(HERE, '../..'), env = process.env, print = console.log, error = console.error } = {}) {
+export function main(argv: string[], { root = path.resolve(HERE, '../..'), env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
   if (argv.length) {
     error(USAGE);
     return 2;
@@ -75,8 +85,8 @@ export function main(argv, { root = path.resolve(HERE, '../..'), env = process.e
     }
     print(`[release-tools] the tools of the release are ready: ${[...install, ...(rust ? ['rust'] : [])].join(' ') || 'none'}`);
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && failure?.code !== 'ENOENT') throw failure;
-    error(`[release-tools] failed: ${failure.message}`);
+    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
+    error(`[release-tools] failed: ${(failure as Error).message}`);
     return 1;
   }
   return 0;

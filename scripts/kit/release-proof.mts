@@ -26,16 +26,20 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assetNames, context, latestTag, parseTag } from './release.mts';
-import { downloadAsset, releaseOf } from './github-release.mts';
+import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
-import { installConsumers } from './release-consumer.mts';
-import { readPylock } from './pylock.mts';
+import { installConsumers, type ReleaseContext } from './release-consumer.mts';
+import { readPylock, type PylockPackage } from './pylock.mts';
 import { fileDigest } from './digest.mts';
 import { wheelMetadata, wheelName } from './release-wheel.mts';
 import { repositoryOf, siblingLinks, siblingsOf, wheelLocks } from './wheel-dependencies.mts';
 
+/** A Requires-Dist of a sibling as wheel-dependencies.mts siblingLinks returns it. */
+type SiblingLink = { name: string; url: string };
+type Step = (text: string) => void;
+
 /** Step 1: the names of the assets of the GitHub Release (a draft included) equal the archives of the tag. */
-function proveAssets(ctx, tag, version, directory, step) {
+function proveAssets(ctx: ReleaseContext, tag: string, version: string, directory: string | null, step: Step) {
   const expected = [...(directory === null ? assetNames(ctx.config, version) : [])].sort();
   const release = releaseOf({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, tag);
   if (!release) throw new Stop(`the release ${tag} does not exist; make release-publish creates it as a draft`);
@@ -54,13 +58,17 @@ function proveAssets(ctx, tag, version, directory, step) {
  * consumers.wheel.polyspec declares, and its sha256 must be the one the lock holds (the fragment of the Requires-Dist is the same
  * sha256, checked offline by release-assets).
  */
-function proveDependencies(ctx, folder, step) {
+function proveDependencies(ctx: ReleaseContext, folder: string, step: Step) {
   const { root, env, config } = ctx;
-  for (const { file, text } of wheelLocks(root, config)) {
-    for (const entry of readPylock(text, file).packages.filter(item => item.kind === 'archive')) {
-      const repository = repositoryOf(config.consumers.wheel.polyspec, entry.name);
+  for (const { file, text } of wheelLocks(root, config) as { file: string; text: string }[]) {
+    for (const entry of readPylock(text, file).packages.filter((item): item is PylockPackage & { kind: 'archive' } => item.kind === 'archive')) {
+      const wheel = config.consumers?.wheel;
+      if (wheel === undefined) throw new Error(`config/release.json: consumers.wheel is missing; ${file} is the lock of a wheel package`);
+      const repository = repositoryOf(wheel.polyspec, entry.name);
       if (repository === null) throw new Stop(`${file} names the archive of ${entry.name}, which consumers.wheel.polyspec does not declare`);
-      const asset = path.posix.basename(entry.files[0].url);
+      const [archive] = entry.files;
+      if (typeof archive.url !== 'string') throw new Error(`${file}: the archive of ${entry.name} has no url`);
+      const asset = path.posix.basename(archive.url);
       const release = releaseOf({ cwd: root, env }, repository, `v${entry.version}`);
       if (!release) throw new Stop(`the release v${entry.version} of ${repository} does not exist; ${file} names its asset ${asset}`);
       const found = release.assets.find(item => item.name === asset);
@@ -69,7 +77,7 @@ function proveDependencies(ctx, folder, step) {
       mkdirSync(path.dirname(target), { recursive: true });
       downloadAsset({ cwd: root, env }, repository, found.id, target);
       const actual = fileDigest(target);
-      if (actual !== entry.files[0].sha256) throw new Stop(`${asset} of ${repository} v${entry.version} has the sha256 ${actual}, ${file} holds ${entry.files[0].sha256} for ${entry.name}`);
+      if (actual !== archive.sha256) throw new Stop(`${asset} of ${repository} v${entry.version} has the sha256 ${actual}, ${file} holds ${archive.sha256} for ${entry.name}`);
       step(`polyspec ${entry.name} ${entry.version}: ${asset} of ${repository} has the sha256 that ${file} holds`);
     }
   }
@@ -79,7 +87,7 @@ function proveDependencies(ctx, folder, step) {
  * Step 3, the wheels of the release, each downloaded file checked before it is installed: its sha256 is the one that the release
  * lists, and each sibling in its METADATA is named by the URL of the published asset of that sibling (wheel-dependencies.mts).
  */
-function proveWheels(ctx, tag, version, assets, release, step) {
+function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: string, release: GitHubRelease, step: Step) {
   const { config, root, env } = ctx;
   for (const { name } of config.packages.filter(item => item.kind === 'wheel')) {
     const file = wheelName(name, version);
@@ -88,7 +96,7 @@ function proveWheels(ctx, tag, version, assets, release, step) {
     const actual = fileDigest(path.join(assets, file));
     if (actual !== digest) throw new Stop(`the release ${tag} lists ${file} with the sha256 ${digest ?? 'none'}, the downloaded file has ${actual}`);
     step(`${file}: the sha256 of the downloaded file is the one the release lists`);
-    for (const link of siblingLinks(wheelMetadata(root, path.join(assets, file), env), siblingsOf(config, name))) {
+    for (const link of siblingLinks(wheelMetadata(root, path.join(assets, file), env), siblingsOf(config, name)) as SiblingLink[]) {
       const sibling = wheelName(link.name, version);
       const published = release.assets.find(item => item.name === sibling);
       if (!published) throw new Stop(`${file} requires ${link.name} at ${link.url}, the release ${tag} lists no ${sibling}`);
@@ -99,7 +107,7 @@ function proveWheels(ctx, tag, version, assets, release, step) {
 }
 
 /** Step 3: download the assets of the release into `folder/assets`, check the wheels and install the assets in clean consumer projects. */
-function proveInstall(ctx, tag, version, folder, release, step) {
+function proveInstall(ctx: ReleaseContext, tag: string, version: string, folder: string, release: GitHubRelease, step: Step) {
   const assets = path.join(folder, 'assets');
   mkdirSync(assets, { recursive: true });
   for (const { id, name } of release.assets) downloadAsset({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, id, path.join(assets, name));
@@ -110,10 +118,14 @@ function proveInstall(ctx, tag, version, folder, release, step) {
 }
 
 /** The smoke command of a git-tag manifest, run in `cwd`. */
-const smoke = (command, cwd, env) => run(command[0], command.slice(1), { cwd, env });
+const smoke = (command: string[], cwd: string, env: NodeJS.ProcessEnv) => {
+  const program = command[0];
+  if (program === undefined) throw new Error('config/release.json: a smoke command of proof.gitTag is empty');
+  return run(program, command.slice(1), { cwd, env });
+};
 
 /** Step 3: install each git-tag manifest (a Rust crate) from the tag as a git dependency of a temporary crate. */
-function proveGitTag(ctx, tag, folder, step) {
+function proveGitTag(ctx: ReleaseContext, tag: string, folder: string, step: Step) {
   const { config } = ctx;
   const files = Object.entries(config.manifests).filter(([, mode]) => mode === 'git-tag').map(([file]) => file).sort();
   for (const file of files) {
@@ -130,7 +142,7 @@ function proveGitTag(ctx, tag, folder, step) {
 }
 
 /** Step 4: the tag of each Go module is on the remote and the Go tool resolves the module at it. */
-function proveGoModules(ctx, tag, version, directory, folder, step) {
+function proveGoModules(ctx: ReleaseContext, tag: string, version: string, directory: string | null, folder: string, step: Step) {
   const { config } = ctx;
   const modules = Object.entries(config.goModules).filter(([module]) => directory === null || module === directory).sort();
   const env = { ...ctx.env, GIT_TERMINAL_PROMPT: '0' };
@@ -145,7 +157,7 @@ function proveGoModules(ctx, tag, version, directory, folder, step) {
 }
 
 /** Runs the proof of the tag; `step(text)` reports each completed step. */
-export function prove(ctx, tag, step) {
+export function prove(ctx: ReleaseContext, tag: string, step: Step) {
   const [directory, version] = parseTag(ctx.config, tag);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-proof-'));
   try {
@@ -166,7 +178,9 @@ export function prove(ctx, tag, step) {
 const USAGE = 'usage: node scripts/kit/release-proof.mts TAG';
 
 /** Runs the command line; the exit status. */
-export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
+export function main(argv: string[], { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error }: {
+  root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
+} = {}) {
   const [latest, ...rest] = argv;
   let tag = latest;
   if (!tag || rest.length) {
@@ -177,8 +191,8 @@ export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(impo
     if (tag === 'latest') tag = latestTag(context(root, { env }));
     prove(context(root, { env }), tag, text => print(`✔ ${text}`));
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && failure?.code !== 'ENOENT') throw failure;
-    error(`[release-proof] ${tag} failed: ${failure.message}`);
+    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
+    error(`[release-proof] ${tag} failed: ${(failure as Error).message}`);
     return 1;
   }
   print(`✔ ${tag} is proven from outside the repository`);
