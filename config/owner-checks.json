@@ -10,6 +10,7 @@
     { "paths": ["config/toolchain.json", ".node-version"], "targets": ["toolchain-check", "kit-test"] },
     { "paths": ["config/phpunit/**"], "targets": ["kit-test"] },
     { "paths": ["config/owner-checks.json"], "targets": ["owner-validate"] },
+    { "paths": ["config/layout.yml", "config/layout.kit.yml"], "targets": ["layout-check"], "tests": ["tests/source/layout-real.test.mts"] },
     { "paths": [".github/**", "workflows/**"], "tests": ["tests/source/ci-workflow.test.mts", "tests/source/release-workflow.test.mts"] },
     { "paths": [".gitignore"], "tests": ["tests/source/tracked-var.test.mts"] },
     { "paths": ["LICENSE"] }
