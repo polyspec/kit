@@ -435,7 +435,7 @@ Merged behaviors:
 - A tool that cannot start fails with its command and the fix.
 - `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
-  and result lines reads both. `ok` and `expected failure` pass, `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
+  and result lines reads both. `ok` passes, `expected failure` is a todo (no pass), `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
   success` fail; a docstring line after the description keeps the id of the description. The runner applies the timeout.
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
   test as `{id, status, elapsedMs}` (`pass`, `fail`, `timeout` or `skip`), the tool, the elapsed time of the run and `inputs`,
