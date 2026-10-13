@@ -5,7 +5,7 @@
 // scripts, so a wrapper of var/tools/bin can be run.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
@@ -238,6 +238,21 @@ export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, 
   writeFileSync(log, '');
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_DOWNLOADS: JSON.stringify(downloads), ...extra };
   return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+}
+
+/**
+ * The go stub of `stubs` as var/tools/bin/go of `root`, the Go of the kit pin that install-tools installs, and a go of PATH
+ * that fails, so that a test sees which go an installer runs. Returns the environment of the stubs with that PATH.
+ */
+export function pinnedGo<Env extends NodeJS.ProcessEnv>(t: Pick<TestContext, 'after'>, stubs: { env: Env; directory: string }, root: string): Env {
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  copyFileSync(path.join(stubs.directory, 'bin', 'go'), path.join(root, 'var/tools/bin/go'));
+  chmodSync(path.join(root, 'var/tools/bin/go'), 0o755);
+  const machine = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-machine-go-')));
+  t.after(() => rmSync(machine, { recursive: true, force: true }));
+  writeFileSync(path.join(machine, 'go'), '#!/bin/sh\necho "the go of PATH ran: $*" >&2\nexit 1\n');
+  chmodSync(path.join(machine, 'go'), 0o755);
+  return { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}` } as Env;
 }
 
 // The first argument of each reader of manifests that a version stub passes to the real command.

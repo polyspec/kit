@@ -5,10 +5,20 @@
 // GOTOOLCHAIN=local, so the installed Go runs no other toolchain. An installed release is kept.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { quote, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { quote, toolsPath, wrapperText } from './bootstrap/tool-wrappers.mts';
 import { installArchive } from './install-archive.mts';
 
 // The target of the Go archive of each platform key (process.platform-process.arch) that toolchain-pins.json may name.
+/**
+ * var/tools/bin/go of `root`, the Go of the kit pin that install-tools installs, which every Go tool of kit builds with: a go
+ * of the machine may be older than the pin and then reads no module of the pinned go line. Throws, naming `user`, without it.
+ */
+export function pinnedGo(root: string, user: string): string {
+  const go = toolsPath(root, 'bin', 'go');
+  if (!existsSync(go)) throw new Error(`${user} needs ${path.relative(root, go)}, the Go of the kit pin; run make install-tools`);
+  return go;
+}
+
 export const GO_TARGETS: Readonly<Record<string, string>> = {
   'darwin-arm64': 'darwin-arm64',
   'darwin-x64': 'darwin-amd64',

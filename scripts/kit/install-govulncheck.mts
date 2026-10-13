@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Installs the govulncheck release that `govulncheck` of config/toolchain.json records into var/tools/govulncheck, for the
-// advisories of the Go modules in `make dependency-review`. The release is built with `go install` into a temporary
+// advisories of the Go modules in `make dependency-review`. The release is built with `go install` of var/tools/bin/go, the
+// Go of the kit pin, into a temporary
 // directory beside the target and renamed, and an installed recorded release is kept. Nothing is installed into the
 // machine. The command prints a line for each step and has no time limit.
 //
@@ -10,6 +11,7 @@ import { installOnce } from './bootstrap/install-tool.mts';
 import { isMain, ROOT } from './paths.mts';
 import { printedRelease, run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { recordedRelease } from './bootstrap/toolchain-declared.mts';
+import { pinnedGo } from './install-go.mts';
 
 /** The installation directory of govulncheck under `root`. */
 export const govulncheckPrefix = (root: string = ROOT): string => toolsPath(root, 'govulncheck');
@@ -28,7 +30,7 @@ export function installGovulncheck({ root = ROOT, recorded = recordedRelease(roo
     root, label: 'govulncheck', prefix: govulncheckPrefix(root), recorded, print,
     installedRelease: (prefix: string) => printedRelease(commandIn(prefix), 'govulncheck'),
     install: (next: string) => {
-      run('go', ['install', `golang.org/x/vuln/cmd/govulncheck@v${recorded}`], { cwd: root, env: { ...process.env, GOBIN: path.join(next, 'bin'), GOFLAGS: '-modcacherw' } }, print);
+      run(pinnedGo(root, 'govulncheck'), ['install', `golang.org/x/vuln/cmd/govulncheck@v${recorded}`], { cwd: root, env: { ...process.env, GOBIN: path.join(next, 'bin'), GOFLAGS: '-modcacherw' } }, print);
     },
   });
 }
