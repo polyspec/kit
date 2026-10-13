@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/parity.json",
-  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings, reads the symbol snapshots and the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument or env value, and no env sets PYTHONPATH; a package is tested as installed.",
+  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument or env value, and no env sets PYTHONPATH; a package is tested as installed.",
   "type": "object",
   "required": ["schema", "implementations", "profiles", "units"],
   "additionalProperties": false,
@@ -131,7 +131,7 @@
             }
           },
           "symbols": {
-            "description": "api: the symbol id of each implementation in its snapshot.",
+            "description": "api: the symbol id of each implementation, as its symbol extractor gives it.",
             "type": "array",
             "items": {
               "type": "object",

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e28fbcd085746174a1cfcc40358f7d6b6fdba6c3eb684830dc435833d746a8ca -->
+<!-- source-sha256: c77b64e4d7942ac859900323f03dc7102cc9ba7bb63dacce2c7566ef9e5b0c8e -->
 
 # 도구 목록
 
@@ -1182,13 +1182,13 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 
 | Key | 내용 |
 |---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code) |
 | `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
 | `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
 | `errors` | `profile`과 `catalog`(`file`, `pattern`) |
@@ -1198,7 +1198,7 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어나 `both`, 또는 열까지의
 한국어 고유어 수사이고, 공백, hyphen(`four-client`), 또는 한국어 단위(`6개 언어`, `여섯 개 언어`, `세 가지 언어`) 뒤에 noun 하나가
 옵니다. 목록은 `,`, `and`, `or`, `/`, `및`, 또는 조사 `와`와 `과`로 이은 implementation 이름 세 개 이상입니다. implementation의
-snapshot은 각 symbol id를 boolean `exported`를 가진 object에 대응시키는 JSON object입니다.
+extractor는 그 public symbol의 id를 줍니다(Symbol extractors).
 
 R10은 `scripts/kit/markdown.mts`의 Markdown reader 위에서 문서의 산문을 passage 단위로 읽습니다. passage는 이어지는 줄을 포함한
 문단이나 list item, marker를 뺀 block quote, ATX heading(`#`부터 `######`와 공백), 또는 table row입니다. fenced block, 들여쓴 code
@@ -1229,18 +1229,18 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 2. 각 binding의 native test가 suite의 case마다 runner의 이름으로 그 case를 보고하게 합니다(Runner 표 참고). Go에서는 subtest
    `<symbol>/<case>`, cargo에서는 test `<symbol>::<case>`, node:test에서는 이름이 `<case>`인 최상위 test, PHPUnit과 unittest에서는
    test method `test_<case>`입니다. binding은 검사를 위한 줄을 출력하지 않습니다.
-3. 각 implementation의 extractor가 `exported`를 담은 snapshot을 쓰게 하고, 각 implementation의 error code를 catalog에서 생성합니다.
+3. 각 implementation의 `symbols`(`extractor`, `entry`)를 선언하고, 각 implementation의 error code를 catalog에서 생성합니다.
 4. `parity-declarations-check`를 repository의 검사 target에, `parity-check`를 CI에 추가해 둘 다 push가 반영되기 전에 실행되게
-   합니다. symbol snapshot과 error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). `make kit-sync`의 복사본에 target이 이미 있습니다.
+   합니다. error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). 설치된 package의 kit.mk에 target이 이미 있습니다.
 
 ```json
 {
   "schema": 1,
   "implementations": [
     { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
-      "symbols": "contracts/symbols/go.json", "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
+      "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": "contracts/symbols/python.json", "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+      "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
   "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
