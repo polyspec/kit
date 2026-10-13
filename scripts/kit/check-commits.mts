@@ -17,14 +17,14 @@
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
 //
 // A commit of a range is compared with its parent; the message being committed, with the index against HEAD. The item rules
-// apply when config/checklist.json exists. A merge commit keeps the message that Git writes and is not checked. Each finding is one line
+// read the trackers of config/checklist.json, which every repository declares. A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
 // same findings of the commits that a push sends, through `logMessages` and `findingLines`.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, ROOT } from './paths.mts';
-import { loadConfig, readChecklist, CONFIG as CHECKLIST } from './checklist.mts';
+import { loadConfig, readChecklist } from './checklist.mts';
 import { readJson } from './bootstrap/files.mts';
 import { git, gitResult } from './git.mts';
 
@@ -87,7 +87,6 @@ const fileAt = (root: string, rev: string, file: string) => {
  * change, `changed` holds the paths that the change touches.
  */
 export function itemFindings(root: string, config: CommitRules, { before, after, changed }: Change) {
-  if (!existsSync(path.join(root, CHECKLIST))) return [];
   const changes = [];
   for (const tracker of loadConfig(root).trackers) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
