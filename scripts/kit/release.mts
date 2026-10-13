@@ -39,6 +39,7 @@ import path from 'node:path';
 import semver from 'semver';
 import { releaseOf } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
+import { readGoMod } from './toolchain-files.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
@@ -332,11 +333,6 @@ export function releaseNotes(ctx: Context, tag: string): string {
   return `The changes of ${version} are listed in [${path.posix.basename(changelog)}](${repositoryUrl}/blob/${tagPath}/${changelog}#${changelogAnchor(ctx.root, changelog, version)}).\n`;
 }
 
-/** The module path that the go.mod of `directory` declares, or null. */
-function goModulePath(root: string, directory: string): string | null {
-  const file = path.join(root, directory === '.' ? '' : directory, 'go.mod');
-  return existsSync(file) ? /^module\s+(\S+)\s*$/m.exec(readFileSync(file, 'utf8'))?.[1] ?? null : null;
-}
 
 /** Every manifest of the tag declares its version and the change logs have the section of the version: the version. */
 export function versions(ctx: Context, tag: string): string {
@@ -354,9 +350,14 @@ export function versions(ctx: Context, tag: string): string {
   }
   for (const [module, expected] of Object.entries(config.goModules)) {
     if (directory !== null && directory !== module) continue;
-    const declared = goModulePath(root, module);
     const file = `${module === '.' ? '' : `${module}/`}go.mod`;
-    if (declared !== expected) problems.push(`${file}: module ${declared ?? 'none'}, the tag ${tag} is ${expected}`);
+    if (!existsSync(path.join(root, file))) {
+      problems.push(`${file}: the file is missing for the tag ${tag}`);
+      continue;
+    }
+    // go mod edit -json reads the module directive as Go does.
+    const declared = readGoMod(root, file, ctx.env).Module.Path;
+    if (declared !== expected) problems.push(`${file}: module ${declared}, the tag ${tag} is ${expected}`);
   }
   for (const file of [config.changelog, ...config.changelogTranslations]) {
     try {

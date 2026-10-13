@@ -3,7 +3,7 @@
 // gh and npm on PATH; real git, tar and unzip run. No case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
@@ -212,6 +212,11 @@ test('a Go module tag requires the module path of its go.mod and the change log 
   writeFileSync(path.join(box.root, 'packages/fixture-go/go.mod'), 'module example.com/other\n\ngo 1.21\n');
   stop(() => release.versions(context(box), 'packages/fixture-go/v0.0.1'), /packages\/fixture-go\/go\.mod: module example\.com\/other, the tag packages\/fixture-go\/v0\.0\.1 is example\.com\/kit-fixture-go/);
   stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-go\/go\.mod: module example\.com\/other/);
+  // go mod edit -json reads the module path, so a quoted path is the path.
+  writeFileSync(path.join(box.root, 'packages/fixture-go/go.mod'), 'module "example.com/kit-fixture-go"\n\ngo 1.21\n');
+  assert.equal(release.versions(context(box), 'packages/fixture-go/v0.0.1'), '0.0.1');
+  rmSync(path.join(box.root, 'packages/fixture-go/go.mod'));
+  stop(() => release.versions(context(box), 'packages/fixture-go/v0.0.1'), /packages\/fixture-go\/go\.mod: the file is missing for the tag packages\/fixture-go\/v0\.0\.1/);
 });
 
 test('a Go module at the repository root is checked by the root tag', (t) => {
