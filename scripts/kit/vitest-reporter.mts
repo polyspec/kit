@@ -1,7 +1,7 @@
 // Vitest reporter printing through the shared progress lines. Vitest stops a test at its own timeout (--testTimeout); this
 // reporter shows every test starting, still running and ending.
 import path from 'node:path';
-import { createProgress } from './test-progress.mts';
+import { createProgress, type Progress } from './test-progress.mts';
 import { ROOT } from './paths.mts';
 
 // Vitest is no dependency of kit, so these describe the members of its reporter API that this reporter reads.
@@ -41,7 +41,7 @@ const errorText = (errors: readonly ReportedError[]): string => errors.map(error
 
 export default class ProgressReporter {
   // onInit sets these before Vitest reports anything; declare keeps the class without fields of its own.
-  declare progress: ReturnType<typeof createProgress>;
+  declare progress: Progress;
   declare suites: Set<string>;
 
   onInit(): void {

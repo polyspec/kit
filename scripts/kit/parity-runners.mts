@@ -11,26 +11,9 @@
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { goEvents, cargoEvents, phpunitEvents, pythonEvents, tapEvents } from './test-output.mts';
+import { goEvents, cargoEvents, phpunitEvents, pythonEvents, tapEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolsPath } from './tool-wrappers.mts';
 import type { Environment, ParityBinding, ParityImplementation, Runner } from './parity-declaration.mts';
-
-/** A test that a parser of test-output.mts reports: the name of the progress and the name of the tool. */
-interface ReportedTest {
-  id: string;
-  name: string;
-}
-
-/** The sink of the parsers of test-output.mts, as its header describes it. */
-interface Sink {
-  start: (test: ReportedTest, options?: { group: boolean }) => void;
-  pass: (test: ReportedTest, ms?: number) => void;
-  fail: (test: ReportedTest, ms?: number, text?: string) => void;
-  skip: (test: ReportedTest) => void;
-  todo: (test: ReportedTest) => void;
-  line: (text: string) => void;
-  raw: (text: string) => void;
-}
 
 /** The output of a finished run. */
 export interface RunOutput {
@@ -162,7 +145,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
  */
 export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: RunOutput): [string, Outcome][] {
   const outcomes: [string, Outcome][] = [];
-  const record = (outcome: Outcome) => (test: ReportedTest) => {
+  const record = (outcome: Outcome) => (test: TestRef) => {
     const name = run.caseOf(test.name);
     if (name !== undefined) outcomes.push([name, outcome]);
   };

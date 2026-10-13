@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
-import { createProgress } from './test-progress.mts';
+import { createProgress, type Progress } from './test-progress.mts';
 import { ROOT } from './paths.mts';
 
 /** The error of a failed test; node sets failureType, which @types/node does not declare. */
@@ -25,7 +25,7 @@ const failureText = (error: TestFailure | undefined): string => {
 
 export default class ProgressReporter extends Transform {
   // The constructor sets each of these; declare keeps the class without fields of its own.
-  declare progress: ReturnType<typeof createProgress>;
+  declare progress: Progress;
   declare names: Map<string, string[]>;
   declare completedFailures: Map<string, number>;
   declare failedFiles: Set<string>;
