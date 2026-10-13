@@ -36,8 +36,6 @@ rebuild-check: ## Check that every tool of config/rebuild.json paths has its cla
 	node scripts/kit/rebuild-check.mts
 
 .PHONY: duplication-check
-# jscpd skips two files until the items that own them remove the code they repeat (S8): install-alint.mts repeats the
-# archive download of install-uv.mts, and both installers move to mise; parity-units.mts repeats two blocks of
-# parity-declaration.mts, which K75 removes.
+# jscpd skips parity-units.mts until K75, which owns it, removes the two blocks of parity-declaration.mts that it repeats (S8).
 duplication-check: ## Fail while a piece of 6 lines or more of scripts/kit exists twice (jscpd); offline after npm ci
-	node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console --ignore "**/install-alint.mts,**/parity-units.mts" scripts/kit
+	node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console --ignore "**/parity-units.mts" scripts/kit

@@ -3,11 +3,9 @@
 // archive is alint-v<version>-<target>.tar.gz of the GitHub release of alint for this platform; the download is refused
 // unless its sha256 is the digest that the declaration gives for the platform, and it is unpacked as it is. An installed
 // release is kept. The alint of the machine is never used.
-import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { fileDigest } from './bootstrap/digest.mts';
-import { installOnce } from './bootstrap/install-tool.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
+import { quote, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { installArchive } from './install-archive.mts';
 
 // The target of the alint archive of each platform key (process.platform-process.arch) that the declaration may name. The
 // Linux archives are the static musl builds, the only Linux builds of a release.
@@ -26,28 +24,11 @@ export const alintArchiveUrl = (version: string, target: string): string => `htt
 
 /** Installs the declared alint `{ version, sha256 }` (sha256 by platform key) into var/tools/alint of `root` and writes the wrapper. */
 export function installAlint({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, unknown>> }; platform?: string; print?: (text: string) => void }) {
-  const target = ALINT_TARGETS[platform];
-  if (!target) throw new Error(`no alint archive is verified for ${platform}; the verified platforms are ${Object.keys(ALINT_TARGETS).join(', ')}`);
-  const sha256 = declared.sha256[platform];
-  if (!sha256) throw new Error(`config/toolchain.json alint declares no sha256 for ${platform}; declare the digest of ${alintArchive(declared.version, target)}.tar.gz of the alint release ${declared.version}`);
-  const url = alintArchiveUrl(declared.version, target);
-  const prefix = toolsPath(root, 'alint');
-  const binary = (directory: string) => path.join(directory, alintArchive(declared.version, target), 'alint');
-  const result = installOnce({
-    root, label: 'alint', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(binary(directory), 'alint'), print,
-    install: (next: string) => {
-      const archive = path.join(next, `${alintArchive(declared.version, target)}.tar.gz`);
-      const environment = bootstrapEnvironment(root);
-      run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', archive, url], { cwd: root, env: environment }, print);
-      const actual = fileDigest(archive);
-      if (actual !== sha256) {
-        rmSync(archive, { force: true });
-        throw new Error(`${url} has the sha256 ${actual}; config/toolchain.json alint declares ${sha256} for ${platform}`);
-      }
-      run('tar', ['-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
-      rmSync(archive, { force: true });
-    },
+  return installArchive({
+    tool: 'alint', root, declared, platform, targets: ALINT_TARGETS, print,
+    archive: target => alintArchive(declared.version, target),
+    url: target => alintArchiveUrl(declared.version, target),
+    binary: (directory, target) => path.join(directory, alintArchive(declared.version, target), 'alint'),
+    wrapper: binary => wrapperText(`alint ${declared.version} of this checkout`, `exec ${quote(binary)} "$@"`),
   });
-  writeWrapper(root, 'alint', wrapperText(`alint ${declared.version} of this checkout`, `exec ${quote(binary(prefix))} "$@"`), print);
-  return result;
 }

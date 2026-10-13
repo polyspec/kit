@@ -4,11 +4,9 @@
 // uv writes to under var/tools (the cache and the Python installs), reads no uv.toml of the home (UV_NO_CONFIG) and lets uv
 // download a Python only by `uv python install` (UV_PYTHON_DOWNLOADS=manual). An installed release is kept. The uv of the
 // machine is never used.
-import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { fileDigest } from './bootstrap/digest.mts';
-import { installOnce } from './bootstrap/install-tool.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
+import { quote, toolsPath, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { installArchive } from './install-archive.mts';
 
 // The target of the uv archive of each platform key (process.platform-process.arch) that the declaration may name.
 export const UV_TARGETS: Readonly<Record<string, string>> = {
@@ -36,28 +34,11 @@ function uvWrapper(root: string, binary: string, version: string) {
 
 /** Installs the declared uv `{ version, sha256 }` (sha256 by platform key) into var/tools/uv of `root` and writes the wrapper. */
 export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, unknown>> }; platform?: string; print?: (text: string) => void }) {
-  const target = UV_TARGETS[platform];
-  if (!target) throw new Error(`no uv archive is verified for ${platform}; the verified platforms are ${Object.keys(UV_TARGETS).join(', ')}`);
-  const sha256 = declared.sha256[platform];
-  if (!sha256) throw new Error(`config/toolchain.json uv declares no sha256 for ${platform}; declare the digest of uv-${target}.tar.gz of the uv release ${declared.version}`);
-  const url = uvArchiveUrl(declared.version, target);
-  const prefix = toolsPath(root, 'uv');
-  const binary = (directory: string) => path.join(directory, `uv-${target}`, 'uv');
-  const result = installOnce({
-    root, label: 'uv', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(binary(directory), 'uv'), print,
-    install: (next: string) => {
-      const archive = path.join(next, `uv-${target}.tar.gz`);
-      const environment = bootstrapEnvironment(root);
-      run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', archive, url], { cwd: root, env: environment }, print);
-      const actual = fileDigest(archive);
-      if (actual !== sha256) {
-        rmSync(archive, { force: true });
-        throw new Error(`${url} has the sha256 ${actual}; config/toolchain.json uv declares ${sha256} for ${platform}`);
-      }
-      run('tar', ['-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
-      rmSync(archive, { force: true });
-    },
+  return installArchive({
+    tool: 'uv', root, declared, platform, targets: UV_TARGETS, print,
+    archive: target => `uv-${target}`,
+    url: target => uvArchiveUrl(declared.version, target),
+    binary: (directory, target) => path.join(directory, `uv-${target}`, 'uv'),
+    wrapper: binary => uvWrapper(root, binary, declared.version),
   });
-  writeWrapper(root, 'uv', uvWrapper(root, binary(prefix), declared.version), print);
-  return result;
 }
