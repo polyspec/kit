@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commandsOf, makeDatabase, npmProject, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
+import { commandsOf, makeDatabase, npmProject, parseMakeDatabase, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
 import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { put, tree } from './tree.mts';
@@ -136,6 +136,38 @@ test('the targets and prerequisites are those of make: a variable expands, and a
   const makefile = 'STEP := compile\nunit-test: $(STEP)\n\t@echo unit\nunit-test: export MODE := strict\ncompile:\n\t@echo compile\n';
   const declaration = { schema: 1, owners: [{ paths: ['src/**'], targets: ['unit-test'] }, { paths: ['Makefile'], targets: ['compile'] }], inputs: [{ check: 'make compile', paths: ['src/a.js'] }] };
   assert.deepEqual(errorsOf(t, declaration, { Makefile: makefile, 'src/a.js': '1\n' }), []);
+});
+
+test('the database of GNU make 4.x, which prints a target-specific variable as a line before the rule, gives the prerequisites (K121)', () => {
+  // The Files section that GNU make 4.4.1 prints for the Makefile of the case above (`make -pRrq`, trimmed): the variable
+  // MODE of unit-test is the line `unit-test: MODE := strict` after its origin comment, before the rule `unit-test: compile`.
+  const database = [
+    '# Make data base, printed by GNU make 4.4.1',
+    '# makefile (from \'Makefile\', line 1)',
+    'STEP := compile',
+    '',
+    '# Files',
+    'compile:',
+    '#  File does not exist.',
+    '#  recipe to execute (from \'Makefile\', line 6):',
+    '\t@echo compile',
+    '',
+    '# makefile (from \'Makefile\', line 4)',
+    'unit-test: MODE := strict',
+    'unit-test: compile',
+    '#  File does not exist.',
+    '#  recipe to execute (from \'Makefile\', line 3):',
+    '\t@echo unit',
+    '',
+    '# files hash-table stats:',
+    '',
+  ].join('\n');
+  const make = parseMakeDatabase(database);
+  assert.deepEqual(Object.fromEntries([...make.targets].map(([name, { prerequisites, recipe }]) => [name, { prerequisites, recipe }])), {
+    compile: { prerequisites: [], recipe: '@echo compile' },
+    'unit-test': { prerequisites: ['compile'], recipe: '@echo unit' },
+  });
+  assert.equal(make.variables.get('STEP'), 'compile');
 });
 
 test('select: a changed path selects its owners; always, $path, variables and the suite order apply', () => {

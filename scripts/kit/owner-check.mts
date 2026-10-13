@@ -90,7 +90,10 @@ export function parseMakeDatabase(text: string): MakeDatabase {
   for (const entry of files.split('\n\n')) {
     const entryLines = entry.split('\n').filter(Boolean);
     if (entryLines[0] === '# Not a target:') continue;
-    const rule = entryLines.find(line => !line.startsWith('#') && !line.startsWith('\t'));
+    // The rule is the first line that is no comment, no recipe line and no target-specific variable: GNU make 4.x prints such
+    // a variable as `<target>: <name> := <value>` after its origin comment (`# makefile (from …)`), before the rule; make 3.81
+    // prints it as comments after the rule.
+    const rule = entryLines.find((line, index) => !line.startsWith('#') && !line.startsWith('\t') && !/^# (?:makefile|command line|environment|override|automatic|default)\b/.test(entryLines[index - 1] ?? ''));
     const match = rule === undefined ? null : /^(.+?)::?(?:\s+(.*))?$/.exec(rule);
     // The first group of the pattern always takes part in a match; a special target such as .PHONY is no check.
     if (!match || match[1]!.startsWith('.')) continue;
