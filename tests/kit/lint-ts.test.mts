@@ -2,13 +2,13 @@
 // each package with an api-extractor.json, but not for the base configuration of kit; every step runs after an earlier one
 // failed, and a missing tool or configuration fails with the fix. The tools are stubs.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
   '.oxlintrc.json': '{}\n',
@@ -33,8 +33,7 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
     writeFileSync(path.join(root, 'node_modules/.bin', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$PWD")]" >> "${log}"\n${tool === failing ? 'exit 1' : ''}\n`);
     chmodSync(path.join(root, 'node_modules/.bin', tool), 0o755);
   }
-  const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
-  assert.equal(init.status, 0, init.stderr);
+  initRepository(root);
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replace(/ \[kit-lint-ts-[^\]]*\]$/, ' [root]')) };
 }
 
