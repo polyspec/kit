@@ -40,6 +40,7 @@ import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
+import type { Ledger } from './parity-ledger.mts';
 import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
 import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
@@ -48,12 +49,6 @@ import { checkedFiles } from './tracked-files.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
 export type ParityFinding = Finding;
-/** A run of a binding in the ledger of parity-ledger.mts runBindings. */
-export type LedgerRun = { unit: string; implementation: string; attempt: number; command: string; args: string[]; cwd: string; status: number | null };
-/** A case that a run of a binding reported, with its outcome. */
-export type LedgerCase = { unit: string; implementation: string; case: string; outcome: string };
-/** The ledger of the runs and the cases of the bindings. */
-export type Ledger = { runs: LedgerRun[]; cases: LedgerCase[] };
 
 /**
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
