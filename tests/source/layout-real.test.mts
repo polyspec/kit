@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
-const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json'];
+const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json', 'config/composer.schema.json'];
 const ALINT = path.join(ROOT, 'var/tools/bin/alint');
 
 // The map of the repository demo: the component codec has ports, and the root tests/ holds the parity runner.
@@ -34,6 +34,9 @@ rules:
     paths: ["tests/*", "!tests/kit", "!tests/parity"]
 `;
 
+// The autoload of a library (S2): PSR-4 for the package, autoload-dev PSR-4 for its tests, files for namespaced functions.
+const PSR4 = { autoload: { 'psr-4': { 'Polyspec\\Demo\\': 'src/' }, files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Polyspec\\Demo\\Tests\\': 'tests/' } } };
+
 // A repository that follows the layout: its path dependencies stay inside it, and a Go module at v2 ends in /v2.
 const GOOD: Record<string, string> = {
   'README.md': '# demo\n',
@@ -49,8 +52,11 @@ const GOOD: Record<string, string> = {
   'packages/codec/python/pyproject.toml': '[project]\nname = "polyspec-demo-codec"\n',
   'packages/rust/Cargo.toml': '[package]\nname = "demo"\n\n[dependencies]\ncodec = { path = "../codec/rust" }\n',
   'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n',
-  'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: '../codec/php' }] }),
-  'packages/codec/php/composer.json': JSON.stringify({ name: 'polyspec/demo-codec' }),
+  'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: '../codec/php' }], ...PSR4 }),
+  'packages/codec/php/composer.json': JSON.stringify({ name: 'polyspec/demo-codec', ...PSR4 }),
+  // An extension that PIE builds and a consumer project hold no classes of their own.
+  'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-ext', type: 'php-ext' }),
+  'tests/kit/consumer/composer.json': JSON.stringify({ name: 'polyspec/demo-consumer', type: 'project', require: { 'polyspec/demo': '0.0.1' } }),
   'scripts/build.mts': '#!/usr/bin/env node\nconsole.log("build");\n',
   'tests/parity/run.mts': 'console.log("parity");\n',
   'docs/a.md': '# a\n',
@@ -74,9 +80,15 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'layout-npm-file', files: { 'packages/ts/package.json': JSON.stringify({ name: '@polyspec/demo', dependencies: { x: `file:${OUTSIDE}` } }) } },
   { rule: 'layout-python-path', files: { 'packages/python/pyproject.toml': `[project]\nname = "polyspec-demo"\n\n[tool.uv.sources]\nx = { path = "${OUTSIDE}" }\n` } },
   { rule: 'layout-cargo-path', files: { 'packages/rust/Cargo.toml': `[package]\nname = "demo"\n\n[dependencies]\nx = { path = "${OUTSIDE}" }\n` } },
-  { rule: 'layout-composer-path', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: OUTSIDE }] }) } },
+  { rule: 'layout-composer-path', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: OUTSIDE }], ...PSR4 }) } },
   { rule: 'layout-infrastructure-typescript', files: { 'scripts/build.py': 'print("build")\n' } },
   { rule: 'layout-infrastructure-shebang', files: { 'scripts/run': '#!/bin/sh\necho run\n' } },
+  // S2: no classmap or PSR-0, and a library loads its classes and tests by PSR-4.
+  { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', autoload: { ...PSR4.autoload, classmap: ['src/'] }, 'autoload-dev': PSR4['autoload-dev'] }) } },
+  { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', autoload: PSR4.autoload, 'autoload-dev': { 'psr-0': { 'Polyspec_Demo_Tests_': 'tests/' } } }) } },
+  { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', type: 'library', autoload: PSR4.autoload }) } },
+  { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', autoload: { files: ['src/functions.php'] }, 'autoload-dev': PSR4['autoload-dev'] }) } },
+  { rule: 'lint-composer-policy', files: { 'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-ext', type: 'php-ext', autoload: { classmap: ['stubs/'] } }) } },
   // The Python lint runs ruff with the root ruff.toml, which a nested configuration would escape in an editor or a plain ruff run.
   { rule: 'lint-ruff-nested', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' } },
   { rule: 'lint-ruff-files', files: { 'packages/python/ruff.toml': '[lint]\nselect = ["E"]\n' } },
