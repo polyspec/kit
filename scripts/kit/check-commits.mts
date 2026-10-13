@@ -76,10 +76,14 @@ export function messageFindings(message: string, config: CommitRules) {
   return found;
 }
 
-// The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file.
+// The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file. Whether it
+// has the file is read from git ls-tree (ls-files for the index); any failure of git show then throws.
 const fileAt = (root: string, rev: string, file: string) => {
+  const listed = rev === '' ? git(root, 'ls-files', '--cached', '--', file) : git(root, 'ls-tree', '--name-only', rev, '--', file);
+  if (listed.trim() === '') return '';
   const shown = gitResult(root, 'show', `${rev}:${file}`);
-  return shown.status === 0 ? shown.stdout : '';
+  if (shown.error || shown.status !== 0) throw new Error(`git show ${rev}:${file} failed: ${shown.error?.message ?? shown.stderr.trim()}`);
+  return shown.stdout;
 };
 
 /**
