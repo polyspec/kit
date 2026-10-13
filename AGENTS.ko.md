@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 8a61332e67bba8f040fefed05426a086737ff989ab784a698ac9456f82b36ac6 -->
+<!-- source-sha256: ce03a78461a8cd8ff3fd28098f4303ace41bf97c7cd8e8b0c0ca9f3783a1a8ed -->
 # 개발
 
 [English](AGENTS.md)
@@ -17,7 +17,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 
 - 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
   개정 표식 `source-sha256`은 영어 파일의 sha256입니다. 한국어 문서는 기술 용어를 영어로 씁니다.
-- 도구는 Node 내장 모듈(`node:`), `scripts/kit/`의 파일, `package.json`의 `dependencies`가 선언한 package(각각 정확히 pin)만
+- 도구는 Node 내장 모듈(`node:`), `scripts/kit/`의 파일, `package.json`의 `dependencies`가 선언한 package(각각 정확히 pin)와,
+  `peerDependencies`가 선언하고 도구를 실행하는 저장소가 설치하는 optional peer(`install-vscode.mts`의 `@vscode/test-electron` 등)만
   import합니다. `scripts/kit/bootstrap/`의 module은 npm이 package를 설치하기 전에 실행되므로 Node 내장 모듈과 같은 디렉터리의 파일만
   import합니다. `tests/kit/isolation.test.mts`가 둘 다 강제하며, 어떤 도구도 import하지 않는 선언된 package에서도 실패합니다.
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.

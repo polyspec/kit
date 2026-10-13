@@ -1,5 +1,5 @@
 // kit depends on no repository: the tools import only Node built-ins, files of scripts/kit and the packages that
-// package.json declares in dependencies, and neither the tools nor the tests name another repository. A repository
+// package.json declares in dependencies or peerDependencies, and neither the tools nor the tests name another repository. A repository
 // differs from another only in config/*.json.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -24,7 +24,7 @@ const packageOf = (specifier: string) => specifier.split('/').slice(0, specifier
 
 /**
  * Whether the module `file` of scripts/kit may import `specifier`: a node: built-in, a file of scripts/kit, or a package
- * that package.json declares in `dependencies`. A module of scripts/kit/bootstrap runs before npm installs the packages,
+ * that package.json declares in `dependencies` or `peerDependencies`. A module of scripts/kit/bootstrap runs before npm installs the packages,
  * so it imports only node: built-ins and files of its own directory.
  */
 function allowedImport(file: string, specifier: string, dependencies: readonly string[]) {
@@ -33,7 +33,11 @@ function allowedImport(file: string, specifier: string, dependencies: readonly s
   return !file.startsWith('scripts/kit/bootstrap/') && dependencies.includes(packageOf(specifier));
 }
 
-const DEPENDENCIES = Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies ?? {});
+const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as Record<'dependencies' | 'peerDependencies', Record<string, string> | undefined>;
+// The packages that kit declares, by the field of package.json that declares each: a peer dependency, such as the
+// @vscode/test-electron of install-vscode.mts, is one that the repository which runs the tool installs.
+const DECLARED = (['dependencies', 'peerDependencies'] as const).flatMap(field => Object.keys(PACKAGE[field] ?? {}).map(name => ({ field, name })));
+const DEPENDENCIES = DECLARED.map(({ name }) => name);
 // The specifiers of the imports of a module: `from '…'`, `import '…'` and `import('…')`.
 const importsOf = (text: string) => [...text.matchAll(/(?:from|import\(?)\s*'([^']+)'/g)].map(([, specifier]) => specifier!);
 
@@ -61,14 +65,14 @@ test('a kit tool imports only Node built-ins, files of scripts/kit and the decla
   assert.ok(modules.some(file => file.startsWith('scripts/kit/bootstrap/')), 'the scan found the modules of scripts/kit/bootstrap');
   for (const file of modules) {
     for (const specifier of importsOf(readFileSync(path.join(ROOT, file), 'utf8'))) {
-      assert.ok(allowedImport(file, specifier, DEPENDENCIES), `${file} imports ${specifier}, which is neither a node: built-in, a file of scripts/kit nor a package of dependencies in package.json${file.startsWith('scripts/kit/bootstrap/') ? ' (a bootstrap module imports only node: built-ins and files of scripts/kit/bootstrap)' : ''}`);
+      assert.ok(allowedImport(file, specifier, DEPENDENCIES), `${file} imports ${specifier}, which is neither a node: built-in, a file of scripts/kit nor a package of dependencies or peerDependencies in package.json${file.startsWith('scripts/kit/bootstrap/') ? ' (a bootstrap module imports only node: built-ins and files of scripts/kit/bootstrap)' : ''}`);
     }
   }
 });
 
-test('every package of dependencies in package.json is imported by a kit tool', () => {
+test('every package of dependencies and peerDependencies in package.json is imported by a kit tool', () => {
   const imported = new Set(tools.filter(name => name.endsWith('.mts')).flatMap(file => importsOf(readFileSync(path.join(ROOT, file), 'utf8'))).map(packageOf));
-  for (const name of DEPENDENCIES) assert.ok(imported.has(name), `package.json declares ${name} in dependencies, and no module of scripts/kit imports it; remove it`);
+  for (const { field, name } of DECLARED) assert.ok(imported.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it; remove it`);
 });
 
 test('no tool or test of kit names another repository', () => {
