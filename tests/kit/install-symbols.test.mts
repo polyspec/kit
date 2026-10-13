@@ -1,5 +1,6 @@
 // Tests of install-symbols.mts, the build of the symbol extractors of parity: the go extractor is built with the Go of
-// the checkout, var/tools/bin/go, never with a go of PATH. go is a stub that writes the output binary, so no test builds Go.
+// the checkout, var/tools/bin/go, never with a go of PATH, and an installation whose
+// RELEASE cannot be read fails with the file instead of counting as not installed. go is a stub that writes the output binary, so no test builds Go.
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -42,4 +43,12 @@ test('the go extractor is built with var/tools/bin/go, not with the go of PATH',
 test('without var/tools/bin/go the go extractor fails with the install that provides it', (t) => {
   const { root } = checkout(t, { pinned: false });
   assert.throws(() => installExtractor({ root, extractor: 'go' }), /the go symbol extractor needs var\/tools\/bin\/go, the Go of the kit pin; run make install-tools/);
+});
+
+test('an installation whose RELEASE cannot be read fails with the file, and is not rebuilt as missing', (t) => {
+  const { root, calls } = checkout(t);
+  // A RELEASE that is a directory reads with EISDIR, which is no missing installation.
+  mkdirSync(path.join(root, 'var/tools/symbols-go/RELEASE'), { recursive: true });
+  assert.throws(() => installExtractor({ root, extractor: 'go' }), /var\/tools\/symbols-go\/RELEASE cannot be read: EISDIR/);
+  assert.deepEqual(calls(), []);
 });
