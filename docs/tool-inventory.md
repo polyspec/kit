@@ -34,7 +34,8 @@ repositories (lines).
 ## Toolchains (K8.2)
 
 `scripts/kit/install-tools.mts` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mts`
-compares the running tools with the declarations. `scripts/kit/bootstrap/toolchain-declared.mts` reads the declarations, and each
+compares the running tools with the declarations. `scripts/kit/bootstrap/toolchain-declared.mts` reads the declarations,
+`scripts/kit/toolchain-files.mts` reads those of Go and Rust with the tools of their ecosystems, and each
 installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`;
 cargo-audit and govulncheck keep `install-cargo-audit.mts` and `install-govulncheck.mts`). Every installer uses
 `install-tool.mts`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
@@ -67,8 +68,8 @@ would walk it whatever the working directory.
 |---|---|---|
 | Node.js | `.node-version` (exact) | verify |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
-| Go | `config/toolchain.json` `go`: `versionFile`, else the `toolchain` line, else the `go` directive of `go.mod` | install |
-| Rust | `channel` of `rust-toolchain.toml` (exact) | verify |
+| Go | `config/toolchain.json` `go`: the `go` line of the named `go.mod` (exact), read by `go mod edit -json` (K78) | install |
+| Rust | `channel` of `rust-toolchain.toml` (exact), read by tomllib (K78) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
@@ -79,10 +80,38 @@ would walk it whatever the working directory.
 | cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
-minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`, `versionFile`), `ruff`
+minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`), `exceptions` (below), `ruff`
 (`version`, `sha256` of each platform's wheel), `uv` and `alint` (the same shape as `ruff`), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
 Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
 checked.
+
+### Pins, floors and exceptions (K78)
+
+kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), which the build copies into `dist` beside
+`toolchain-pins.mts`: Node.js 26.11.1, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0 and TypeScript 7.0.2. Whichever tools
+`toolchain-check` runs, it fails on each declaration and each manifest floor that is not the pin at the pin's precision
+(`toolchain-floors.mts`, over the files of `checkedFiles`):
+
+| Value | Required |
+|---|---|
+| `.node-version`, `channel` of `rust-toolchain.toml`, `php` and `python` | the pin |
+| `engines.node` of every `package.json` | `>=` the Node.js pin |
+| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin |
+| `project.requires-python` of every `pyproject.toml` with a project table (tomllib) | `>=` the Python pin |
+| `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
+| `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
+| `typescript` of each dependency field of a `package.json`, and every `typescript` of a `package-lock.json` | the TypeScript pin |
+
+- `exceptions` of `config/toolchain.json` declares a deviation as `{ tool, channel, scope, reason, retry }` (S8): the scope is
+  `.` or a directory of the checkout, and a value under it may equal the channel. A deviation without an exception fails,
+  and so do an exception that lacks a field or names an unpinned tool, a channel of the wrong precision or a missing
+  directory, and one that nothing uses (stale). A Rust `nightly-<yyyy-mm-dd>` is never stale: parity reads it for rustdoc
+  JSON.
+- An `.npmrc` that sets `install-links=true` or `bin-links=false` fails (S1: our rules never block the links of npm). npm
+  reads each `.npmrc` in its directory, without the configuration of the user or of the environment.
+- TOML is read by tomllib of the Python on `PATH` until a TOML package of npm is a dependency of kit.
+- A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not
+  `exit status null` (K118).
 
 ### Merged behaviors
 
@@ -91,10 +120,10 @@ checked.
   second path when `packageManager` carries a digest. The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
   `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap npm runs without `var/tools/bin` on `PATH` (template).
-- Go: the download of the toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>` (template) now reads the
-  release from three places: the version file with the consistency check of the `go` directive of `go.mod` (the file of
-  crudui and orm), the `toolchain` line (ordered-json) or the `go` directive (template). The downloaded zip in
-  the module cache is removed after the install, because only the unpacked toolchain is used.
+- Go: the download of the toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>` (template) reads the
+  release from the `go` line of the declared `go.mod` (K78; the version file of crudui and orm and the `toolchain` line of
+  ordered-json are no longer declarations). The downloaded zip in the module cache is removed after the install, because
+  only the unpacked toolchain is used.
 - Composer: hyper installs `composer.phar` verified by its SHA-256; template, crudui and orm only verify the running
   Composer. The merged tool installs when `sha256` is declared and verifies otherwise.
 - Python: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`. The

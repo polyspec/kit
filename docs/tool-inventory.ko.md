@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ff698b08b9fe558c1e3dee558b824a87e87e7edd304aa69d8e899a31dc97e81d -->
+<!-- source-sha256: 0700be4d00ba1fcdcd5bea6a7cc6a222941b1aaef08de708b8ea64b062ee3517 -->
 
 # 도구 목록
 
@@ -35,7 +35,8 @@
 ## Toolchain (K8.2)
 
 `scripts/kit/install-tools.mts`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mts`는 실행 중인
-도구를 선언과 대조합니다. `scripts/kit/bootstrap/toolchain-declared.mts`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
+도구를 선언과 대조합니다. `scripts/kit/bootstrap/toolchain-declared.mts`가 선언을 읽고, Go와 Rust의 선언은
+`scripts/kit/toolchain-files.mts`가 각 ecosystem의 도구로 읽으며, 설치하는 도구마다 module이 하나씩 있습니다
 (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mts`, `install-govulncheck.mts`를 씁니다). 모든 installer는 `install-tool.mts`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
@@ -66,8 +67,8 @@
 |---|---|---|
 | Node.js | `.node-version`(정확한 version) | 검증 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
-| Go | `config/toolchain.json`의 `go`: `versionFile`, 없으면 `go.mod`의 `toolchain` 줄, 없으면 `go` directive | 설치 |
-| Rust | `rust-toolchain.toml`의 `channel`(정확한 version) | 검증 |
+| Go | `config/toolchain.json`의 `go`: 지정한 `go.mod`의 `go` 줄(정확한 version), `go mod edit -json`으로 읽음(K78) | 설치 |
+| Rust | `rust-toolchain.toml`의 `channel`(정확한 version), tomllib으로 읽음(K78) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
@@ -78,9 +79,35 @@
 | cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`, `versionFile`), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`와 `alint`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
+목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`), `exceptions`(아래), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`와 `alint`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
 `phpunit`(`version`), `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
+
+### Pin, 하한, 예외(K78)
+
+kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
+`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.11.1, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
+`toolchain-check`는 어떤 도구를 실행하든, pin 정밀도에서 pin과 다른 선언과 manifest 하한마다 실패합니다
+(`toolchain-floors.mts`, `checkedFiles`의 파일 대상):
+
+| 값 | 요구 |
+|---|---|
+| `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `python` | pin |
+| 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
+| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin |
+| project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(tomllib) | Python pin 이상(`>=`) |
+| 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
+| 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
+| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`의 모든 `typescript` | TypeScript pin |
+
+- `config/toolchain.json`의 `exceptions`는 편차를 `{ tool, channel, scope, reason, retry }`로 선언합니다(S8). scope는 `.`
+  또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. 예외 없는 편차는 실패하고, 필드가 빠졌거나 pin되지
+  않은 도구, 정밀도가 틀린 channel, 없는 directory를 가리키는 예외와 아무것도 쓰지 않는 예외(stale)도 실패합니다. Rust
+  `nightly-<yyyy-mm-dd>`는 parity가 rustdoc JSON에 읽으므로 stale이 되지 않습니다.
+- `install-links=true` 또는 `bin-links=false`를 설정한 `.npmrc`는 실패합니다(S1: 우리 규칙은 npm의 link를 막지 않습니다).
+  npm이 각 `.npmrc`를 그 directory에서 사용자와 환경의 설정 없이 읽습니다.
+- TOML은 npm의 TOML package가 kit의 dependency가 될 때까지 `PATH`의 Python의 tomllib으로 읽습니다.
+- signal로 끝난 version 명령은 `exit status null`이 아니라 `ended by signal SIGKILL`처럼 signal로 보고합니다(K118).
 
 ### 합친 동작
 
@@ -89,9 +116,9 @@
   배치는 `var/tools/npm/node_modules/npm`이고, wrapper `npm`과 `npx`가 `npm-cli.js`와 `npx-cli.js`를 실행합니다. 같은
   version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap npm은
   `PATH`에서 `var/tools/bin`을 뺀 채 실행합니다(template).
-- Go: toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>`을 받는 template의 설치는 이제 release를 세 곳에서
-  읽습니다. version 파일(`go.mod`의 `go` directive와 일치하는지 확인하며, crudui와 orm의 파일), `toolchain` 줄(ordered-json),
-  `go` directive(template)입니다. 압축을 푼 toolchain만 쓰므로 module cache에 받은 zip은 설치 뒤 지웁니다.
+- Go: toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>`을 받는 template의 설치는 선언한 `go.mod`의
+  `go` 줄에서 release를 읽습니다(K78; crudui와 orm의 version 파일과 ordered-json의 `toolchain` 줄은 더 이상 선언이 아닙니다).
+  압축을 푼 toolchain만 쓰므로 module cache에 받은 zip은 설치 뒤 지웁니다.
 - Composer: hyper는 SHA-256을 확인한 `composer.phar`를 설치하고, template, crudui, orm은 실행 중인 Composer만 검증합니다.
   합친 도구는 `sha256`이 선언되면 설치하고 아니면 검증합니다.
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
