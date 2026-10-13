@@ -56,3 +56,15 @@ test('the CI workflow installs the PHP of .php-version before install-tools, whi
   assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
   assert.ok(tools > setup, 'install-tools runs after the PHP of .php-version is installed');
 });
+
+// parity-real runs the rust symbol extractor on the Rust nightly of its exception; CI has no nightly unless make install-tools,
+// which runs before the tests, installs it: install-tools installs each Rust channel that config/toolchain.json exceptions
+// declare (install-rust.mts), so kit declares every nightly that its tests run.
+test('kit declares every Rust nightly that parity-real runs, which make install-tools installs before the tests (K75)', () => {
+  const used = new Set(readFileSync(path.join(ROOT, 'tests/source/parity-real.test.mts'), 'utf8').match(/nightly-\d{4}-\d{2}-\d{2}/g) ?? []);
+  assert.ok(used.size > 0, 'parity-real names a nightly');
+  const exceptions: { tool: string; channel: string }[] = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8')).exceptions ?? [];
+  const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
+  assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
+  assert.ok(runs.indexOf('make install-tools') < runs.indexOf('make source-test'), 'make install-tools runs before make source-test');
+});
