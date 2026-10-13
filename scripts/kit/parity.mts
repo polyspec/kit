@@ -30,6 +30,8 @@
 //                              implementations in a sentence whose names are no profile
 //   R11 undeclared-public      an exported symbol that no API unit and no native-only entry declares
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
+// A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
+// the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
 import { parseArgs } from 'node:util';
 import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';

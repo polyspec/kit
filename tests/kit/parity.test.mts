@@ -181,6 +181,8 @@ const FILES = {
   'docs/errors.yaml': '- code: CONFIG\n- code: CODEC_DECODE\n',
   'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php', 'python'];\n",
   'docs/index.md': '# Codec\n\nFive languages share the codec: Go, Rust, TS, PHP and Python.\nThe two implementations go and rust compile.\n',
+  'docs/spec/codec.md': '# Codec\n\n## Width tables\n\nThe compiled implementations hold the width tables.\n',
+  'contracts/codec.json': JSON.stringify({ benchmarks: { hex: ['rust'] } }),
   'docs/index.ko.md': '# Codec\n\n다섯 언어가 codec을 공유한다: Go, Rust, TS, PHP와 Python.\n',
 };
 
@@ -195,7 +197,7 @@ const CONFIG = {
   ],
   profiles: [
     { name: 'all', implementations: ['go', 'rust', 'ts', 'php', 'python'] },
-    { name: 'compiled', implementations: ['go', 'rust'], reason: 'the width tables exist only in the compiled implementations' },
+    { name: 'compiled', implementations: ['go', 'rust'], reason: 'the width tables exist only in the compiled implementations', spec: ['docs/spec/codec.md#width-tables'] },
   ],
   suites: ['tests/vectors/*.json'],
   comparators: ['tests/compare'],
@@ -242,7 +244,7 @@ const CONFIG = {
       ],
     },
   ],
-  nativeOnly: [{ implementation: 'rust', symbol: 'rust/src/lib.rs::hex_upper', reason: 'the hex helper of the Rust codec, which the crate exports for its benchmarks' }],
+  nativeOnly: [{ implementation: 'rust', symbol: 'rust/src/lib.rs::hex_upper', reason: 'the hex helper of the Rust codec, which the crate exports for its benchmarks', spec: ['contracts/codec.json#/benchmarks/hex'] }],
   exclusions: [],
   errors: { profile: 'all', catalog: { file: 'docs/errors.yaml', pattern: '^- code: (\\w+)$' } },
   languageLists: [{ file: 'tools/languages.mjs', pattern: 'LANGUAGES = \\[([^\\]]*)\\]', profile: 'all' }],
@@ -309,7 +311,7 @@ test('a narrower profile without a reason or with one unit, and an implementatio
   assert.deepEqual(messages({ files: { 'go/size_test.go': null, 'rust/tests/size.rs': null, 'tests/vectors/size.json': null }, edit: (config) => { config.units = config.units.filter((unit: { id: string }) => unit.id !== 'size'); return config; } }), [
     'declaration: profile compiled omits implementations and only the unit width uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); config.profiles[0].reason = 'kotlin starts later'; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); config.profiles[0].reason = 'kotlin starts later'; config.profiles[0].spec = ['docs/spec/codec.md#codec']; return config; } }), [
     'declaration: the implementation kotlin is in no profile, so no unit applies to it',
   ]);
 });
@@ -421,6 +423,28 @@ test('a support file of an implementation is never a test: it lies in its roots 
   assert.deepEqual(reporting.findings.map(finding => `${finding.rule} ${finding.implementation} ${finding.place}: ${finding.message}`), [
     'R5 ts ts/tests/case.mjs: the support file reports cases (empty); declare it as the test of a binding',
     'R5 php php/tests/cases.php: the support file reports cases (ascii); declare it as the test of a binding',
+  ]);
+});
+
+test('the reason of a narrow profile and of a native-only entry cites a spec anchor that resolves (K75)', TIMEOUT, (t) => {
+  // A schema finding names the path in the declaration; another names the anchor, or the profile.
+  const findings = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${(finding.message.startsWith('config/parity.json: ') ? /\$\S+/.exec(finding.message) : /(?:docs|contracts)\/\S+/.exec(finding.message) ?? /profile \S+/.exec(finding.message))?.[0]}`);
+  assert.deepEqual(findings((config) => { delete config.profiles[1].spec; config.profiles[0].spec = ['docs/spec/codec.md#codec']; return config; }), [
+    'declaration profile all',
+    'declaration profile compiled',
+  ]);
+  assert.deepEqual(findings((config) => { delete config.nativeOnly[0].spec; config.profiles[1].spec = ['docs/notes.md#width']; return config; }), [
+    'declaration $.profiles[1].spec[0]',
+    'declaration $.nativeOnly[0]',
+  ]);
+  assert.deepEqual(findings((config) => {
+    config.profiles[1].spec = ['docs/spec/missing.md#width', 'docs/spec/codec.md#depth-tables', 'contracts/codec.json#/benchmarks/hex'];
+    config.nativeOnly[0].spec = ['contracts/codec.json#/benchmarks/octal', 'docs/spec/codec.md#codec'];
+    return config;
+  }), [
+    'declaration docs/spec/missing.md#width',
+    'declaration docs/spec/codec.md#depth-tables',
+    'declaration contracts/codec.json#/benchmarks/octal',
   ]);
 });
 
@@ -805,7 +829,7 @@ test('a declaration that names what does not exist or holds a stale entry fails,
     files: { 'tests/vectors/width.json': JSON.stringify(['narrow', 'narrow']) },
     edit: (config) => {
       config.profiles[1].implementations.push('swift');
-      config.nativeOnly.push({ implementation: 'go', symbol: 'go/codec.go::encodeHost', reason: 'not exported, so the entry is stale' });
+      config.nativeOnly.push({ implementation: 'go', symbol: 'go/codec.go::encodeHost', reason: 'not exported, so the entry is stale', spec: ['docs/spec/codec.md#codec'] });
       binding(config, 'codec', 'php').test = 'php/tests/missing.php';
       delete binding(config, 'codec', 'go').symbol;
       config.exclusions.push({ unit: 'codec', implementation: 'ts', reason: 'bound and excluded', item: 'T1' });
