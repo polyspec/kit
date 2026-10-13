@@ -2,10 +2,11 @@
 // Owner rules and the document configuration select tracked paths with them.
 
 /** The regular expression source of a glob. */
-function globSource(glob) {
+function globSource(glob: string): string {
   let source = '';
   for (let index = 0; index < glob.length; index += 1) {
-    const character = glob[index];
+    // index < glob.length, so the character exists.
+    const character = glob[index]!;
     if (glob.startsWith('**/', index)) { source += '(?:.*/)?'; index += 2; }
     else if (glob.startsWith('**', index)) { source += '.*'; index += 1; }
     else if (character === '*') source += '[^/]*';
@@ -20,11 +21,11 @@ function globSource(glob) {
 }
 
 /** The regular expression of a glob. */
-export function globExpression(glob) {
+export function globExpression(glob: string): RegExp {
   return new RegExp(`^${globSource(glob)}$`);
 }
 
 /** Whether `file` matches one of `globs`. */
-export function matchesAny(globs, file) {
+export function matchesAny(globs: readonly string[], file: string): boolean {
   return globs.some(glob => globExpression(glob).test(file));
 }
