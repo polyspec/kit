@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { copyTracked, runKitTest } from './checkout.mts';
+import { copyTracked, KIT_TEST_TIMEOUT_MS, runKitTest } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -48,7 +48,7 @@ test('failedCases reads each failed case with its error, and no passed case', ()
   ]);
 });
 
-test('in a checkout without var/, every vendored test passes', async (t) => {
+test('in a checkout without var/, every vendored test passes', { timeout: KIT_TEST_TIMEOUT_MS }, async (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
