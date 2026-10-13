@@ -2,10 +2,10 @@
 // the released versions follow, the newest first, each once. The English and the Korean changelog have the same sections.
 // Whether the newest version equals the version of the manifests is checked by the release check, which reads the manifests.
 
+import semver from 'semver';
 import { finding } from './findings.mts';
 import type { Finding } from './findings.mts';
 import { scanFences } from './markdown.mts';
-import { compareParts, dottedParts } from './version.mts';
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 
@@ -38,8 +38,8 @@ export function changelogFindings(text: string): Finding[] {
   versions.slice(1).forEach((heading, index) => {
     // versions[index] precedes heading, so it exists.
     const previous = versions[index]!;
-    // Every title of versions matches SEMVER, so its parts are not null.
-    if (compareParts(dottedParts(previous.title)!, dottedParts(heading.title)!) <= 0) found.push(changelogFinding(heading.line, `the section ## ${heading.title} follows ## ${previous.title}; the newer version comes first and each version appears once`));
+    // Every title of versions matches SEMVER, so semver reads it.
+    if (semver.compare(previous.title, heading.title) <= 0) found.push(changelogFinding(heading.line, `the section ## ${heading.title} follows ## ${previous.title}; the newer version comes first and each version appears once`));
   });
   return found;
 }

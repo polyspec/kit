@@ -1,41 +1,39 @@
-// Release numbers: reading the numeric part of a version and putting versions in order.
+// The versions of the registry dependencies, compared by the rules of their ecosystem: semver for npm and Go (which reads Go's
+// `v` prefix, pseudo-versions and `+incompatible`), PEP 440 by @renovatebot/pep440 for PyPI. kit orders no Composer version:
+// `composer outdated` judges a release (dependency-review), and a release is outdated when it is not the latest one, the rule
+// of its `latest-status`.
+import { explain, lt as pep440Older, valid as pep440Valid } from '@renovatebot/pep440';
+import semver from 'semver';
 
-/** The order of two lists of numbers, a missing number counting as 0: negative when `left` is lower, 0 when equal. */
-export function compareParts(left: readonly number[], right: readonly number[]): number {
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return 0;
+/** An ecosystem of the registry dependencies. */
+export type Ecosystem = 'npm' | 'go' | 'pypi' | 'composer';
+
+// The version `version` of a semver ecosystem, checked; throws with the ecosystem and the version.
+function semverOf(ecosystem: string, version: string): string {
+  if (semver.valid(version) === null) throw new Error(`${ecosystem} version ${JSON.stringify(version)} is not a semver version`);
+  return version;
 }
 
-/** The numbers of a version that is only dotted numbers, as `1.2.3` or `2024.1`; null for any other text. */
-export function dottedParts(version: string): number[] | null {
-  return /^\d+(?:\.\d+)*$/.test(version) ? version.split('.').map(Number) : null;
+// The version `version` of PyPI, checked; throws with the version.
+function pep440Of(version: string): string {
+  if (pep440Valid(version) === null) throw new Error(`PyPI version ${JSON.stringify(version)} is not a PEP 440 version`);
+  return version;
 }
 
-/** The numeric release of a version, without a leading `v`; null when the version does not start with `<major>.<minor>.<patch>`. */
-export function versionParts(version: unknown): number[] | null {
-  const match = String(version).match(/^v?(\d+)\.(\d+)\.(\d+)/);
-  return match ? match.slice(1).map(Number) : null;
+/** Whether `version` is a prerelease: a semver prerelease (a Go pseudo-version too), or a PEP 440 pre-release or dev release. */
+export function isPrerelease(ecosystem: Exclude<Ecosystem, 'composer'>, version: string): boolean {
+  if (ecosystem === 'pypi') return explain(pep440Of(version))!.is_prerelease; // pep440Of checked that the version reads.
+  return semver.prerelease(semverOf(ecosystem, version)) !== null;
 }
 
-/** Whether a version is a prerelease: a suffix after `-`, as in `10.0.0-rc.2` of npm and `2.0.0-beta1` of Composer. */
-export function isPrerelease(version: unknown): boolean {
-  return /^v?\d+\.\d+\.\d+-/.test(String(version));
+/** Whether `current` is an older release than `latest` by the rules of `ecosystem`. */
+export function older(ecosystem: Ecosystem, current: string, latest: string): boolean {
+  if (ecosystem === 'composer') return current !== latest;
+  if (ecosystem === 'pypi') return pep440Older(pep440Of(current), pep440Of(latest));
+  return semver.lt(semverOf(ecosystem, current), semverOf(ecosystem, latest));
 }
 
-/** Whether `current` is an older release than `latest`; versions that are not numeric compare as strings. */
-export function older(current: unknown, latest: unknown): boolean {
-  const left = versionParts(current);
-  const right = versionParts(latest);
-  if (!left || !right) return String(current).replace(/^v/, '') !== String(latest).replace(/^v/, '');
-  return compareParts(left, right) < 0;
-}
-
-/** The stable releases of a list of versions, highest first. */
-export function stableDescending(versions: readonly string[]): string[] {
-  return versions.filter(version => !isPrerelease(version) && versionParts(version))
-    // The filter above kept only versions whose parts are not null.
-    .sort((left, right) => compareParts(versionParts(right)!, versionParts(left)!));
+/** The stable releases of a list of npm or Go versions from a registry, highest first; a text that is no version is no release. */
+export function stableDescending(ecosystem: 'npm' | 'go', versions: readonly string[]): string[] {
+  return semver.rsort(versions.filter(version => semver.valid(version) !== null && !isPrerelease(ecosystem, version)));
 }

@@ -20,6 +20,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readState } from './dependency-state.mts';
 import type { Dependency } from './dependency-state.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
@@ -28,7 +29,7 @@ import { isMain, ROOT, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
-import { compareParts, dottedParts, isPrerelease, older, stableDescending } from './version.mts';
+import { isPrerelease, older, stableDescending } from './version.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
@@ -74,7 +75,8 @@ type Ran = { stdout: string; error?: undefined } | { error: string; stdout?: und
 // The JSON that a command prints, or the message of its failure; a message is never empty.
 type Answer<T> = { value: T; error?: undefined } | { error: string; value?: undefined };
 // The latest stable release of a dependency, or the message of the failure of its query; a message is never empty.
-type Latest = { latest: string | null; error?: undefined } | { error: string; latest?: undefined };
+// `upToDate` is the judgement of composer outdated (its latest-status); kit compares the versions of the other ecosystems.
+type Latest = { latest: string | null; upToDate?: boolean; error?: undefined } | { error: string; latest?: undefined; upToDate?: undefined };
 // The advisories of a lock, or the message of the failure of its query; a message is never empty.
 type Audit = { advisories: Advisory[]; error?: undefined } | { error: string; advisories?: undefined };
 
@@ -86,7 +88,7 @@ interface NpmAudit { vulnerabilities?: Record<string, { range: string; via?: (st
 interface GoVersions { Versions?: string[] }
 interface PypiProject { releases?: Record<string, unknown[]> }
 interface PypiRelease { vulnerabilities?: { id: string; summary?: string; link?: string }[] }
-interface ComposerOutdated { locked?: { name: string; latest?: string }[] }
+interface ComposerOutdated { locked?: { name: string; latest?: string; 'latest-status'?: string }[] }
 interface CargoPackage { name: string; version: string }
 interface CargoAudit {
   vulnerabilities?: { list?: { package: CargoPackage; advisory: { id: string; cvss?: string | null; title: string; url?: string | null } }[] };
@@ -126,7 +128,7 @@ function npmLatest(root: string, name: string): Latest {
   const view = Array.isArray(value) ? value[0] ?? {} : value;
   const tag = view['dist-tags']?.latest;
   const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter((version): version is string => Boolean(version));
-  const candidates = stableDescending(versions).filter((version: string) => !tag || isPrerelease(tag) || !older(tag, version));
+  const candidates = stableDescending('npm', versions).filter((version: string) => !tag || isPrerelease('npm', tag) || !older('npm', tag, version));
   for (const version of candidates) {
     const deprecated = run('npm', ['view', `${name}@${version}`, 'deprecated'], root);
     if (deprecated.error) return deprecated;
@@ -136,13 +138,14 @@ function npmLatest(root: string, name: string): Latest {
   return { error: `npm view ${name} reported no stable release that is not deprecated` };
 }
 
-/** The highest release of a PyPI project that has files and no pre-release or development marker; releases: version -> files. */
+/**
+ * The highest release of a PyPI project that has files and is no pre-release or development release by PEP 440 (a post-release
+ * is a release); releases: version -> files. A key that is no PEP 440 version is no release.
+ */
 export function highestStableRelease(releases: Record<string, unknown[]>): string | null {
-  // version is a key of releases.
-  const stable = Object.keys(releases).filter(version => dottedParts(version) && releases[version]!.length > 0);
-  // The filter above keeps the versions that have dotted parts.
-  stable.sort((a, b) => compareParts(dottedParts(a)!, dottedParts(b)!));
-  return stable.at(-1) ?? null;
+  // version is a key of releases, and pep440Valid checked that it reads.
+  const stable = Object.keys(releases).filter(version => releases[version]!.length > 0 && pep440Valid(version) !== null && !explain(version)!.is_prerelease);
+  return stable.sort(pep440Descending)[0] ?? null;
 }
 
 /** The JSON objects that a command prints one after the other (govulncheck -json), in order. */
@@ -214,7 +217,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
       }
       // A module without a stable release has nothing newer than the version that go.mod requires.
       // A result without an error message has its value.
-      latest.set(key, { latest: stableDescending(answer.value!.Versions ?? [])[0] ?? dependency.version });
+      latest.set(key, { latest: stableDescending('go', answer.value!.Versions ?? [])[0] ?? dependency.version });
       continue;
     }
     if (dependency.ecosystem === 'pypi') {
@@ -240,7 +243,8 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     }
     // A result without an error message has its value.
     const entry = (answer.value!.locked ?? []).find(item => item.name === dependency.package);
-    latest.set(key, entry?.latest ? { latest: entry.latest } : { error: `composer outdated in ${directory} reported no release of ${dependency.package}` });
+    if (!entry?.latest || !entry['latest-status']) latest.set(key, { error: `composer outdated in ${directory} reported no release of ${dependency.package}` });
+    else latest.set(key, { latest: entry.latest, upToDate: entry['latest-status'] === 'up-to-date' });
   }
   return latest;
 }
@@ -392,7 +396,8 @@ export function review(root: string) {
       lines.push(`${subject}: the registry query failed: ${answer.error}. Fix: run make dependency-review again when the registry answers`);
       continue;
     }
-    const outdated = older(dependency.version, answer.latest);
+    // A dependency that its lock holds at no version is not at the latest release.
+    const outdated = answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate;
     // The condition checks that exceptions has the key.
     if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${exceptions.get(key)!.reason}`);
     else if (outdated) {
