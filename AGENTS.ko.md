@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 842d81ae0559c8b1a3f3bf2c70584b5e18c101aeaf083a13c4ed182bf95a3259 -->
+<!-- source-sha256: 6cc51716383ec8a4d0831053a3df96e3e61523dbfb725635b68c7945bdcde14f -->
 # 개발
 
 [English](AGENTS.md)
@@ -40,7 +40,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture)를
   `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
   target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. wheel을 배포하는 consumer는 config/toolchain.json에
-  `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
+  `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. 고정한 도구를 실행하는 vendored test(dependency test가 넘기는
+  go와 Composer 등)에는 먼저 `make install-tools`가 필요합니다. 새 checkout은 `make kit-test` 전에 `make install-tools
+  TOOLS=npm`, `make install-packages`, `make install-tools`를 실행하며, 없는 도구는 그 설치 방법과 함께 실패합니다. kit 자신의 실제
   Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
   `make kit-test` 뒤에 실행합니다.
 - kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.

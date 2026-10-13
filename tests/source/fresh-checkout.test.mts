@@ -1,16 +1,19 @@
-// The vendored tests in a fresh checkout, before make install-tools has created var/ (K90, K81). A vendored test runs in
-// every consumer, and a consumer declares only the toolchains it uses (flowmark declares none), so a vendored test needs
-// nothing that make install-tools provides: it creates what it needs, and a test of a real toolchain lives in tests/source.
-// A test that wrote under var/ without creating it failed with a bare ENOENT (python-lock-check.test.mts made its temporary
-// directories in var/), and a real unittest case in tests/kit/parity.test.mts failed in flowmark, which cannot install
-// the Python it asked for.
+// The vendored tests in a fresh checkout (K90, K81, K127). A vendored test runs in every consumer. One that runs a tool of
+// mise.toml runs the pinned tool, never one of the machine: the dependency tests forward go mod edit and composer validate
+// to the go and the Composer that the checkout installed (tests/kit/registry.mts). So a fresh checkout runs the documented
+// install first, as a consumer and CI do: make install-tools TOOLS=npm (npm and mise), make install-packages, make
+// install-tools (the tools of mise.lock), then make kit-test. The installs download, so this test runs ONLINE, as CI does:
+// mise keeps its downloads in the var/tools/mise of the checkout, which the wrapper of mise sets, so the sandbox cannot use the
+// cache of this checkout without a second setting of its own. A test that wrote under var/ without creating it failed with a
+// bare ENOENT (python-lock-check.test.mts made its temporary directories in var/), and a real unittest case in
+// tests/kit/parity.test.mts failed in flowmark, which cannot install the Python it asked for.
 import assert from 'node:assert/strict';
 import { lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, NPM, primedCache, run, runKitTest } from './checkout.mts';
+import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, run, runKitTest } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -48,14 +51,12 @@ test('failedCases reads each failed case with its error, and no passed case', ()
   ]);
 });
 
-test('in a checkout without var/, every vendored test passes', { timeout: KIT_TEST_TIMEOUT_MS }, async (t) => {
+test('in a fresh checkout after the documented install, every vendored test passes', { timeout: KIT_TEST_TIMEOUT_MS }, async (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
   commitSandbox(sandbox);
-  // A fresh checkout has run the bootstrap's npm ci, which the tools need since K73, and not make install-tools, which
-  // creates var/. npm ci runs offline with the npm of packageManager, from a cache primed with the packages of the lock.
-  run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], sandbox);
+  for (const args of [['install-tools', 'TOOLS=npm'], ['install-packages'], ['install-tools']]) run('make', ['--no-print-directory', ...args], sandbox);
   // The fresh checkout installs its packages; it links none (AGENTS: this repository creates no symbolic link).
   assert.ok(!lstatSync(path.join(sandbox, 'node_modules')).isSymbolicLink(), 'node_modules of the fresh checkout is a link');
   const { output, passed } = await runKitTest(sandbox, t.signal);
