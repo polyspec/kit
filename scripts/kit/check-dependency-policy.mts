@@ -8,7 +8,7 @@
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState } from './dependency-state.mts';
+import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, older } from './version.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
@@ -38,7 +38,7 @@ export type Rule = keyof typeof RULES;
 /** A finding of the gate: the rule it breaks, its subject, the problem and the fix. */
 export type Finding = { rule: Rule; subject: string; problem: string; fix: string };
 /** An advisory that the review found for a package of a lock. */
-type Advisory = { package: string; version: string; id: string; severity: string; title: string; url?: string };
+type Advisory = { package: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
 /** A git package of a lock as the review recorded it: its URL, requested revision and commit. */
 type ReviewedPin = { lock: string; package: string; url: string; requestedRevision: string; commitId: string };
 /**
@@ -201,7 +201,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       const fix = lockEcosystem(lock) === 'pypi'
         ? lockFix(lock, pythonLock(lock).createdBy, advisory.package)
         : `${UPDATE}, which updates the affected package and records the review`;
-      add('advisory', `${lock} ${advisory.package} ${advisory.version}`, `the review of ${record.reviewed} found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
+      add('advisory', `${lock} ${advisory.package} ${advisoryRelease(advisory)}`, `the review of ${record.reviewed} found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
     }
   }
   for (const lock of recordedLocks.keys()) if (!state.locks.includes(lock)) add('record', lock, 'the review record names a lock that the checkout does not review', REVIEW);
@@ -256,7 +256,7 @@ export function acceptedAdvisories(root: string): string[] {
   const record: ReviewRecord = readJson(root, RECORD);
   return (record.locks ?? []).flatMap(entry => (entry.advisories ?? []).flatMap((advisory) => {
     const exception = accepted.get(advisoryKey(entry.lock, advisory.package, advisory.id));
-    return exception ? [`[dependency-policy] ${entry.lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title} ${acceptedText(exception)}`] : [];
+    return exception ? [`[dependency-policy] ${entry.lock} ${advisory.package} ${advisoryRelease(advisory)}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title} ${acceptedText(exception)}`] : [];
   }));
 }
 

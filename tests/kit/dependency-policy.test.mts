@@ -182,6 +182,19 @@ test('the gate reads the review record by its schema and names each error', (t) 
   assert.match(result.stderr, /\[dependency-policy\] config\/dependency-review\.json: the record breaks dependency-review\.schema\.json: .*comment/);
 });
 
+test('an npm advisory of a package that the lock does not hold at node_modules/<name> records its range, not a version', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const via = [{ source: 1099, url: 'https://github.com/advisories/GHSA-0000-0000-0001', severity: 'high', title: 'nested overflows' }];
+  stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { nested: { range: '<1.2.0', via } } } });
+  review(root, ['--record'], stub.env);
+  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
+  const npm = record.locks.find((entry: { lock: string }) => entry.lock === 'package-lock.json');
+  assert.deepEqual(npm.advisories, [{ package: 'nested', range: '<1.2.0', id: '1099', severity: 'high', title: 'nested overflows', url: via[0]!.url }]);
+});
+
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);
