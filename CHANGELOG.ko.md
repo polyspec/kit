@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0ac86414ff61c9f4c171174d8cf89017a65553757c7fc6dbb146c824e36a7b68 -->
+<!-- source-sha256: 6656fbc8d48a7f7da5fe71b417ac372f36a127dcff69831b04dcf70e609287f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `@polyspec/kit`이 repository가 import하는 tool API를 export합니다: `tracked-files`, `test-hooks`, `test-progress`, `run-tests`, `holder-lock`, 그리고 optional peer `@vscode/test-electron`이 필요한 `install-vscode`(K79).
 
 ## 0.0.38
 
