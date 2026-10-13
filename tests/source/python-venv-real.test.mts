@@ -6,6 +6,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
@@ -13,7 +14,7 @@ import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** The symbolic links under `directory`. */
-function linksUnder(directory) {
+function linksUnder(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const file = path.join(directory, entry.name);
     if (entry.isSymbolicLink()) return [file];
@@ -21,15 +22,17 @@ function linksUnder(directory) {
   });
 }
 
-test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', (t) => {
+test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', (t: TestContext) => {
   const python = path.join(ROOT, 'var/tools/bin/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS="uv python" installs the Python of pythonBuild`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-real-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
-  const steps = [];
-  makeVenv({ root: ROOT, directory, print: text => steps.push(text) });
-  assert.ok(steps[0].includes(' venv '), `the venv is made by uv venv: ${steps.join('\n')}`);
+  const steps: string[] = [];
+  makeVenv({ root: ROOT, directory, print: (text: string) => steps.push(text) });
+  const first = steps[0];
+  assert.ok(first !== undefined, 'makeVenv printed no step');
+  assert.ok(first.includes(' venv '), `the venv is made by uv venv: ${steps.join('\n')}`);
   assert.equal(venvProblem(directory, ROOT), undefined, 'run-tests accepts the environment');
   assert.ok(lstatSync(path.join(directory, 'bin/python')).isSymbolicLink(), 'bin/python is the link that uv makes');
   const probe = spawnSync(path.join(directory, 'bin/python'), ['-c', 'import sys, json; print(json.dumps(sys.prefix))'], { encoding: 'utf8' });
@@ -40,14 +43,14 @@ test('make python-venv makes a venv with uv from the checkout Python, with the l
 
 // The run is idempotent: a second run over a venv it made changes nothing and reports it; an existing directory that is not
 // such a venv is an error with its reason, and is neither removed nor repaired.
-test('make python-venv run twice leaves the venv unchanged, and refuses an existing directory that is not its venv', (t) => {
+test('make python-venv run twice leaves the venv unchanged, and refuses an existing directory that is not its venv', (t: TestContext) => {
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-twice-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
   makeVenv({ root: ROOT, directory });
   const config = readFileSync(path.join(directory, 'pyvenv.cfg'), 'utf8');
-  const steps = [];
-  makeVenv({ root: ROOT, directory, print: text => steps.push(text) });
+  const steps: string[] = [];
+  makeVenv({ root: ROOT, directory, print: (text: string) => steps.push(text) });
   assert.ok(steps.some(step => step.includes('unchanged')), steps.join('\n'));
   assert.equal(readFileSync(path.join(directory, 'pyvenv.cfg'), 'utf8'), config, 'the second run rewrote the venv');
   const other = path.join(folder, 'other');
@@ -61,7 +64,7 @@ test('make python-venv run twice leaves the venv unchanged, and refuses an exist
 // interpreter and bin/python3 to python, and run-tests --venv keeps those links and runs the tests with the environment's
 // interpreter. The uv of config/toolchain.json makes it (var/tools/bin/uv, make install-tools TOOLS=uv). No link is copied,
 // removed or rewritten.
-test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', (t) => {
+test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', (t: TestContext) => {
   const python = path.join(ROOT, 'var/tools/bin/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-uv-'));

@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installWheelFiles } from '../../scripts/kit/release-consumer.mts';
 import { makeVenv } from '../../scripts/kit/python-venv.mts';
@@ -22,7 +23,7 @@ const VAL = 'kit-val';
 const VERSION = '0.0.1';
 
 /** A pure Python source tree of `name` with the given dependency strings, written under `folder`. */
-function source(folder, name, dependencies = []) {
+function source(folder: string, name: string, dependencies: string[] = []) {
   const dir = path.join(folder, `src-${name}`);
   const module = name.replaceAll('-', '_');
   mkdirSync(path.join(dir, module), { recursive: true });
@@ -33,7 +34,7 @@ function source(folder, name, dependencies = []) {
 }
 
 /** Builds the wheel of the source tree `dir` into `output` with the checkout Python and the pinned backend, with no index. */
-function build(folder, dir, output, env) {
+function build(folder: string, dir: string, output: string, env: NodeJS.ProcessEnv) {
   mkdirSync(output, { recursive: true });
   const result = spawnSync(PYTHON, ['-m', 'pip', 'wheel', '--no-deps', '--no-index', '--find-links', WHEELS, '--no-input', '--disable-pip-version-check', '-w', output, dir], { cwd: folder, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `pip wheel ${dir} failed: ${result.stderr}`);
@@ -43,7 +44,7 @@ function build(folder, dir, output, env) {
  * The fixture: kit-val and kit-gen built as wheels in `folder/wheels`. kit-gen requires kit-val by a direct reference to
  * `folder/served`, where the file is not: the reference names the release asset of kit-val, which this process does not serve.
  */
-function fixture(t) {
+function fixture(t: TestContext) {
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-wheel-sibling-real-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const env = { ...process.env, PIP_CACHE_DIR: path.join(folder, 'pip-cache'), PIP_NO_INDEX: '1' };
@@ -55,16 +56,16 @@ function fixture(t) {
   return { folder, env, wheels, reference, val, gen: `${GEN.replaceAll('-', '_')}-${VERSION}-py3-none-any.whl` };
 }
 
-test('the wheels of a release install in one --no-deps command from their files, and pip check passes', (t) => {
+test('the wheels of a release install in one --no-deps command from their files, and pip check passes', (t: TestContext) => {
   const fx = fixture(t);
   assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
-  const steps = [];
-  const count = installWheelFiles({ root: ROOT, env: fx.env, folder: fx.folder, version: VERSION, directory: fx.wheels, names: [GEN, VAL], smoke: { [GEN]: ['python', '-c', 'import kit_gen, kit_val'], [VAL]: ['python', '-c', 'import kit_val'] }, step: text => steps.push(text) });
+  const steps: string[] = [];
+  const count = installWheelFiles({ root: ROOT, env: fx.env, folder: fx.folder, version: VERSION, directory: fx.wheels, names: [GEN, VAL], smoke: { [GEN]: ['python', '-c', 'import kit_gen, kit_val'], [VAL]: ['python', '-c', 'import kit_val'] }, step: (text: string) => steps.push(text) });
   assert.equal(count, 2);
   assert.deepEqual(steps, ['wheel pip install of 2 packages', 'wheel pip check passed', `wheel ${GEN} ${VERSION}: python -c import kit_gen, kit_val`, `wheel ${VAL} ${VERSION}: python -c import kit_val`]);
 }, { timeout: 900000 });
 
-test('with the dependencies resolved, pip reads the sibling reference and does not take the local wheel of the same distribution', (t) => {
+test('with the dependencies resolved, pip reads the sibling reference and does not take the local wheel of the same distribution', (t: TestContext) => {
   const fx = fixture(t);
   // The checkout Python is managed by uv and marked externally managed (PEP 668), so pip resolves for a venv of it.
   const venv = path.join(fx.folder, 'venv');

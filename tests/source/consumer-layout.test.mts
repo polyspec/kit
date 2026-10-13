@@ -13,7 +13,7 @@ import { copyInstalledTools, copyTracked, runKitTest } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The paths of the kit that no consumer holds: the source of each vendored file, and the kit's own tests.
-const KIT = JSON.parse(readFileSync(path.join(ROOT, 'kit.json'), 'utf8'));
+const KIT: { vendoredFiles?: Record<string, string> } = JSON.parse(readFileSync(path.join(ROOT, 'kit.json'), 'utf8'));
 const KIT_ONLY = [...Object.values(KIT.vendoredFiles ?? {}), 'tests/source/'];
 
 test('the vendored tests pass in the layout of a consumer', (t) => {

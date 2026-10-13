@@ -32,7 +32,7 @@ function givePython(root) {
 }
 
 /** The findings of the check of a repository as `<rule> <unit> <implementation>`. */
-const keys = findings => findings.map(finding => [finding.rule, finding.unit ?? '-', finding.implementation ?? '-'].join(' '));
+const keys = (findings: Array<{ rule: string; unit?: string | undefined; implementation?: string | undefined }>) => findings.map(finding => [finding.rule, finding.unit ?? '-', finding.implementation ?? '-'].join(' '));
 
 // The real tools of the check: node runs its test file with node:test, go and cargo run their native tests, and python3 runs
 // unittest. Each case of the suite is one native test, and the check reads the outcome of each from the output of the tool.
