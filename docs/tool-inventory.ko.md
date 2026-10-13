@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d86dd934bfc092b698b9444a48d511d6c734b34da30bccbc75070637d0e37d67 -->
+<!-- source-sha256: b992561e6a0782e5e59e39d58ebd02be0703deda3fb2d4df00e2a67f705aa7b5 -->
 
 # 도구 목록
 
@@ -1230,8 +1230,9 @@ resolve하지 않습니다. 다음 경우 파일과 package 이름, 그리고 �
 
 - lock의 package에 constraints의 pin이 없거나(전이 의존성 포함), pin에 대응하는 lock package가 없습니다.
 - lock package의 version이 pin과 다르거나, git 또는 directory package입니다(lock은 registry 파일과 archive만 담습니다).
-- constraint가 `name==version`이나 `#sha256`이 붙은 직접 참조가 아니거나, 줄이 option 또는 hash입니다.
-- requirement에 pin이 없거나, 고정된 release가 그 specifier를 만족하지 않습니다(PEP 440 release 순서, `~=`는 `>=`와 `==prefix.*`).
+- constraint가 `name==version`이나 `#sha256`이 붙은 직접 참조가 아니거나, 줄이 option 또는 hash입니다(requirement와 constraint
+  줄은 pip-requirements-js가 PEP 508과 pip의 파일 문법으로 읽습니다).
+- requirement에 pin이 없거나, 고정된 version이 그 specifier를 만족하지 않습니다(@renovatebot/pep440의 `satisfies`).
 - `pyproject.toml` source가 `[project].dynamic`에 `dependencies`를 나열하거나 `[project]` table이 없습니다.
 - registry 파일에 sha256이 없거나, lock이 PEP 751 1.0이 아니거나 읽히지 않습니다(`readPylock`).
 - lock의 local 파일(lock 기준 상대 `path`)이 없거나, 절대 경로이거나, lock의 sha256을 갖지 않습니다. 검사는 파일을 읽으므로

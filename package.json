@@ -54,8 +54,10 @@
     }
   },
   "dependencies": {
+    "@renovatebot/pep440": "5.0.1",
     "ajv": "8.20.0",
     "picomatch": "4.0.7",
+    "pip-requirements-js": "1.0.3",
     "smol-toml": "1.9.1"
   }
 }

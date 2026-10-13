@@ -102,7 +102,9 @@ test('a constraint that is not name==version is refused, and the finding names t
 test('an option line or a line with a hash in the constraints is refused', (t) => {
   for (const line of ['-r base.txt', '--index-url https://example.org/simple', 'idna==3.20 --hash=sha256:' + HEX]) {
     const result = findings(t, { 'app/constraints.txt': `requests==2.34.2\n${line}\n` });
-    assert.match(result.join('\n'), /^app\/constraints\.txt line 2: /, line);
+    // pip-requirements-js reads -r as a requirement file, which kit refuses by its line; it reads no other option and names
+    // the line of the one it cannot read.
+    assert.match(result.join('\n'), /^app\/constraints\.txt(?: line 2: |: Failed to parse requirements file\. Line 2, col \d+: )/, line);
   }
 });
 
@@ -208,7 +210,8 @@ test('the fixture policy declares sources that exist and agree with its lock, an
 test('the parsers read the forms of a requirement and of a constraint and refuse the rest', () => {
   assert.deepEqual(parseRequirements('requests[socks]>=2.30,<3 ; python_version >= "3.8"\n', 'r.txt'), [{ name: 'requests', url: null, specifiers: [{ op: '>=', version: '2.30' }, { op: '<', version: '3' }], line: 1, where: 'r.txt line 1' }]);
   assert.deepEqual(parseRequirements('# comment\n\nidna\n', 'r.txt').map((item: { name: string }) => item.name), ['idna']);
-  assert.throws(() => parseRequirements('idna===3.20\n', 'r.txt'), /r\.txt line 1: idna===3\.20 .* not read/);
+  assert.throws(() => parseRequirements('idna===3.20\n', 'r.txt'), /^Error: r\.txt: Failed to parse requirements file\. Line 1, col 7: /);
+  assert.throws(() => parseRequirements('-r base.txt\n', 'r.txt'), /^Error: r\.txt line 1: -r base\.txt is not read/);
   assert.throws(() => parseRequirements('idna==3.20.*\n', 'r.txt'), /r\.txt line 1: /);
   assert.deepEqual(parseConstraints(`kit-lib @ ${KIT_LIB}#sha256=${DIGEST}\nidna==3.20\n`, 'c.txt'), [
     { name: 'kit-lib', url: KIT_LIB, sha256: DIGEST, line: 1 },
@@ -229,4 +232,15 @@ test('the policy names each lock with its declared source, and a source is a req
   assert.notDeepEqual(validate(policy([{ lock: 'app/pylock.toml' }]), schema), [], 'a lock with no source is refused');
   assert.notDeepEqual(validate(policy([{ lock: 'app/pylock.toml', source: { requirements: 'setup.cfg', constraints: 'c.txt' } }]), schema), [], 'a source is a requirements file of .txt or .in, or a pyproject.toml');
   assert.notDeepEqual(validate(policy([{ ...ENTRY, source: { ...ENTRY.source, extra: 'x' } }]), schema), []);
+});
+
+test('a pin satisfies a requirement by the order of PEP 440, a post-release included', (t) => {
+  const post = { 'app/pylock.toml': lockText([{ name: 'requests', version: '2.34.2.post1' }, REGISTRY[1]]), 'app/constraints.txt': 'requests==2.34.2.post1\nidna==3.20\n' };
+  assert.deepEqual(findings(t, { ...post, 'app/requirements.txt': 'requests>=2.34,<3\n' }), []);
+  assert.deepEqual(findings(t, { ...post, 'app/requirements.txt': 'requests~=2.34.2\n' }), []);
+  assert.equal(findings(t, { ...post, 'app/requirements.txt': 'requests<2.34.2\n' }).length, 1);
+});
+
+test('a constraint is read by PEP 508, so spaces around == still make an exact pin', () => {
+  assert.deepEqual(parseConstraints('idna == 3.20\n', 'c.txt'), [{ name: 'idna', version: '3.20', line: 1 }]);
 });

@@ -19,6 +19,8 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { satisfies } from '@renovatebot/pep440';
+import { parsePipRequirementsFile, parsePipRequirementsLine, RequirementsSyntaxError, type Requirement as PipRequirement, type RequirementWithLocation } from 'pip-requirements-js';
 import { POLICY } from './dependency-state.mts';
 import { readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
@@ -26,12 +28,8 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
-const NAME_PATTERN = '[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?';
 const RELEASE = /^\d+(?:\.\d+)*$/;
-const REQUIREMENT = new RegExp(`^(${NAME_PATTERN})\\s*(\\[[^\\]]*\\])?\\s*(?:@\\s*(\\S+)|(.*))$`);
-const SPECIFIER = /^(===|~=|==|!=|>=|<=|>|<)\s*(\S+)$/;
-const PIN = new RegExp(`^(${NAME_PATTERN})==([A-Za-z0-9][A-Za-z0-9._+!-]*)$`);
-const ARCHIVE = new RegExp(`^(${NAME_PATTERN})\\s*@\\s*(\\S+?)#sha256=([0-9a-f]{64})$`);
+const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
 const FILE_URL = /url = "(file:[^"]*)"/g;
 
 /** A specifier of a requirement, such as >=2.30. */
@@ -48,38 +46,56 @@ type Add = (message: string, fix: string) => void;
 /** The name of a package as PEP 503 compares it: lower case, and each run of - _ . as one -. */
 export const normalize = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
 const withoutFragment = (url: string) => url.replace(/#.*$/, '');
-// The lines of a file that hold a requirement or a pin: blank lines and comments are skipped; the line number is kept.
-const entriesOf = (text: string) => text.split('\n').map((raw, index) => ({ text: raw.trim(), line: index + 1 })).filter(item => item.text !== '' && !item.text.startsWith('#'));
+// The line of the character `index` of `text`, counted from 1.
+const lineOf = (text: string, index: number) => text.slice(0, index).split('\n').length;
+// A requirement line of `where` parsed by pip-requirements-js; a line that is no PEP 508 requirement or pip option throws with
+// `where` and the reason of the parser.
+function parseLine(text: string, where: string): PipRequirement | null {
+  try {
+    return parsePipRequirementsLine(text);
+  } catch (error) {
+    if (!(error instanceof RequirementsSyntaxError)) throw error;
+    throw new Error(`${where}: ${text} is not read: ${error.message}`);
+  }
+}
+// The entries of a requirements or constraints file as pip reads it (comments and blank lines skipped), each with its text and
+// line; a file that pip-requirements-js does not read throws with the file and the reason of the parser, which names the line.
+function entriesOf(text: string, file: string) {
+  let located: RequirementWithLocation[];
+  try {
+    located = parsePipRequirementsFile(text, { includeLocations: true });
+  } catch (error) {
+    if (!(error instanceof RequirementsSyntaxError)) throw error;
+    throw new Error(`${file}: ${error.message}`);
+  }
+  return located.map(({ location }) => {
+    const line = text.slice(location.startIdx, location.endIdx);
+    // The text is an entry that the file parser read, so the line parser reads it to a requirement.
+    return { text: line, line: lineOf(text, location.startIdx), entry: parseLine(line, file)! };
+  });
+}
 // An error that names the fix of its own, so the finding says what to write.
 const failWith = (message: string, fix: string) => Object.assign(new Error(message), { fix });
 
 /**
- * One requirement as { name, url, specifiers: [{ op, version }], line, where }: a name with an optional extra list and a range of
- * specifiers (name, name==2.34.2, name>=2.30,<3), or name @ url. A marker after `;` is not read for the pin. An option or any
- * other form throws with `where`, the place of the requirement.
+ * One requirement as { name, url, specifiers: [{ op, version }], line, where }, by kit's policy over PEP 508: a name with optional
+ * extras and specifiers (name, name==2.34.2, name>=2.30,<3), or name @ url. A marker is not read for the pin. An option line, a
+ * specifier with a version that is not a release (a wildcard, a pre-release) and ~= with one segment throw with `where`.
  */
-function parseRequirementText(line: string, where: string, number: number): Requirement {
-  if (line.startsWith('-')) throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
-  // split returns at least one item, so the text before the first ; exists.
-  const match = REQUIREMENT.exec(line.split(';')[0]!.trim()) as (RegExpExecArray & [string, string]) | null;
-  if (!match) throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
-  const [, name, , url, rest] = match;
-  if (url !== undefined) return { name, url, specifiers: [], line: number, where };
-  // REQUIREMENT matches either @ url or the rest of the line, so rest is set when url is not.
-  const body = rest!.trim().replace(/^\((.*)\)$/, '$1').trim();
-  const specifiers = body === '' ? [] : body.split(',').map((item) => {
-    // Both groups of SPECIFIER are required, so a match holds them.
-    const found = SPECIFIER.exec(item.trim()) as (RegExpExecArray & [string, string, string]) | null;
-    if (!found || found[1] === '===' || !RELEASE.test(found[2])) throw new Error(`${where}: ${line} is not read; a specifier is ==, !=, >=, <=, >, < or ~= with a release such as 2.30, and no wildcard or pre-release`);
-    if (found[1] === '~=' && found[2].split('.').length < 2) throw new Error(`${where}: ${line} is not read; ~= needs two release segments, such as ~=2.30`);
-    return { op: found[1], version: found[2] };
+function requirementOf(entry: PipRequirement, line: string, where: string, number: number): Requirement {
+  if (entry.type === 'RequirementsFile' || entry.type === 'ConstraintsFile') throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
+  if (entry.type === 'ProjectURL') return { name: entry.name, url: entry.url, specifiers: [], line: number, where };
+  const specifiers = (entry.versionSpec ?? []).map(({ operator, version }) => {
+    if (!RELEASE.test(version)) throw new Error(`${where}: ${line} is not read; a specifier is ==, !=, >=, <=, >, < or ~= with a release such as 2.30, and no wildcard or pre-release`);
+    if (operator === '~=' && version.split('.').length < 2) throw new Error(`${where}: ${line} is not read; ~= needs two release segments, such as ~=2.30`);
+    return { op: operator, version };
   });
-  return { name, url: null, specifiers, line: number, where };
+  return { name: entry.name, url: null, specifiers, line: number, where };
 }
 
 /** The direct requirements of a requirements file, one per line; the errors name the line. */
 export function parseRequirements(text: string, file: string) {
-  return entriesOf(text).map(({ text: line, line: number }) => parseRequirementText(line, `${file} line ${number}`, number));
+  return entriesOf(text, file).map(({ text: line, line: number, entry }) => requirementOf(entry, line, `${file} line ${number}`, number));
 }
 
 /**
@@ -105,7 +121,12 @@ export function parseProjectDependencies(text: string, file: string) {
   if (!isStringArray(list)) {
     throw failWith(`${file}: [project].dependencies is not an array of strings`, `write each requirement as a string in [project].dependencies of ${file}`);
   }
-  return list.map((item, index) => parseRequirementText(item, `${file} [project].dependencies item ${index + 1}`, index + 1));
+  return list.map((item, index) => {
+    const where = `${file} [project].dependencies item ${index + 1}`;
+    const entry = parseLine(item, where);
+    if (entry === null) throw new Error(`${where}: ${JSON.stringify(item)} is no requirement`);
+    return requirementOf(entry, item, where, index + 1);
+  });
 }
 
 /**
@@ -113,48 +134,18 @@ export function parseProjectDependencies(text: string, file: string) {
  * name @ url#sha256=<digest>. Any other line throws with its number, so a constraint never leaves a package unpinned.
  */
 export function parseConstraints(text: string, file: string) {
-  return entriesOf(text).map(({ text: line, line: number }): Pin => {
-    // The groups of PIN and ARCHIVE are required, so a match holds them.
-    const pin = PIN.exec(line) as (RegExpExecArray & [string, string, string]) | null;
-    if (pin) return { name: pin[1], version: pin[2], line: number };
-    const archive = ARCHIVE.exec(line) as (RegExpExecArray & [string, string, string, string]) | null;
-    if (archive) return { name: archive[1], url: archive[2], sha256: archive[3], line: number };
+  return entriesOf(text, file).map(({ text: line, line: number, entry }): Pin => {
+    const plain = entry.type !== 'RequirementsFile' && entry.type !== 'ConstraintsFile' && !entry.extras?.length && !entry.environmentMarkerTree;
+    if (plain && entry.type === 'ProjectName' && entry.versionSpec?.length === 1) {
+      // The length check makes the specifier exist.
+      const { operator, version } = entry.versionSpec[0]!;
+      if (operator === '==' && !version.includes('*')) return { name: entry.name, version, line: number };
+    }
+    const archive = plain && entry.type === 'ProjectURL' ? ARCHIVE_URL.exec(entry.url) : null;
+    // Both groups of ARCHIVE_URL are required, so a match holds them.
+    if (archive && entry.type === 'ProjectURL') return { name: entry.name, url: archive[1]!, sha256: archive[2]!, line: number };
     throw new Error(`${file} line ${number}: ${line} is not name==version or a direct reference with #sha256`);
   });
-}
-
-// The release order of PEP 440 for releases such as 2.30.1: a missing segment is zero.
-function compareReleases(a: string, b: string) {
-  const x = a.split('.').map(Number);
-  const y = b.split('.').map(Number);
-  for (let index = 0; index < Math.max(x.length, y.length); index += 1) {
-    const difference = (x[index] ?? 0) - (y[index] ?? 0);
-    if (difference !== 0) return Math.sign(difference);
-  }
-  return 0;
-}
-
-/** Whether a pinned version satisfies one specifier. A version that is not a release satisfies == and != by its text only. */
-function satisfies(version: string, { op, version: wanted }: Specifier) {
-  if (!RELEASE.test(version)) {
-    if (op === '==') return version === wanted;
-    if (op === '!=') return version !== wanted;
-    return false;
-  }
-  const order = compareReleases(version, wanted);
-  switch (op) {
-    case '==': return order === 0;
-    case '!=': return order !== 0;
-    case '>=': return order >= 0;
-    case '<=': return order <= 0;
-    case '>': return order > 0;
-    case '<': return order < 0;
-    default: {
-      // ~=2.30 is >=2.30 and ==2.*: every release segment but the last one is equal.
-      const prefix = wanted.split('.').slice(0, -1);
-      return order >= 0 && prefix.every((segment, index) => Number(version.split('.')[index] ?? 0) === Number(segment));
-    }
-  }
 }
 
 const pinLabel = (pin: Pin) => (pin.version === undefined ? pin.name : `${pin.name}==${pin.version}`);
@@ -244,7 +235,7 @@ function compare({ root, lock, lockText, requirements, constraints, pins, reqs }
       if (pin.url === undefined || withoutFragment(pin.url) !== withoutFragment(requirement.url)) add(unsatisfied, `make ${requirement.name} the archive that ${constraints} pins`);
     } else if (pin.version === undefined) {
       if (requirement.specifiers.length > 0) add(unsatisfied, `pin ${requirement.name}==<version> in ${constraints}, or change ${requirements}`);
-    } else if (!requirement.specifiers.every(item => satisfies(pin.version, item))) {
+    } else if (!satisfies(pin.version, requirement.specifiers.map(item => `${item.op}${item.version}`).join(','))) {
       add(unsatisfied, `change ${requirements}, or pin a release that satisfies it in ${constraints}`);
     }
   }
