@@ -62,6 +62,8 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   const remote = path.join(directory, 'remote.git');
   mkdirSync(work);
   cpSync(path.join(ROOT, 'scripts/kit'), path.join(work, 'scripts/kit'), { recursive: true });
+  // The pre-push hook calls make push-gate-hook, so the checkout includes kit.mk with its sources, as kit does.
+  writeFileSync(path.join(work, 'Makefile'), 'KIT := scripts/kit\nKIT_EXT := mts\ninclude scripts/kit/kit.mk\n');
   mkdirSync(path.join(work, 'config'));
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(work, 'config/checklist.json'));
   writeFileSync(path.join(work, 'config/commits.json'), JSON.stringify(COMMITS));
