@@ -74,6 +74,7 @@ rules:
       - "!.golangci.yml"
       - "!.oxlintrc.json"
       - "!knip.json"
+      - "!.editorconfig"
 
   - id: layout-no-pythonpath
     paths:

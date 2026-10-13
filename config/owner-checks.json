@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The owner checks of kit. A change under scripts/kit, tests/kit or the package files runs kit-test and typecheck, the whole tool suite of kit; the real tool tests of tests/source do not run for it and wait for the full run, since choosing them per module would need an import graph tool, which K111 withdrew. A changed tests/source test runs itself. consumer-layout and fresh-checkout run make kit-test again inside a sandbox, so they run only for themselves and their helper tests/source/checkout.mts. LICENSE is read by no check.",
+  "comment": "The owner checks of kit. A change under scripts/kit, tests/kit or the package files runs kit-test and typecheck, the whole tool suite of kit; the real tool tests of tests/source do not run for it and wait for the full run, since choosing them per module would need an import graph tool, which K111 withdrew. A changed tests/source test runs itself. consumer-layout and fresh-checkout run make kit-test again inside a sandbox, so they run only for themselves and their helper tests/source/checkout.mts. LICENSE and .editorconfig, which an editor reads, are read by no check.",
   "owners": [
     { "paths": ["scripts/kit/**", "tests/kit/**", "package.json", "package-lock.json", "tsconfig.json", "Makefile"], "targets": ["kit-test", "typecheck", "duplication-check"] },
     { "paths": ["tests/source/*.test.mts"], "tests": ["$path"] },
@@ -22,6 +22,6 @@
     { "paths": [".oxlintrc.json", "knip.json", "config/api-extractor.kit.json"], "tests": ["tests/source/lint-ts-real.test.mts"] },
     { "paths": [".github/**", "workflows/**"], "tests": ["tests/source/ci-workflow.test.mts", "tests/source/release-workflow.test.mts"] },
     { "paths": [".gitignore"], "tests": ["tests/source/tracked-var.test.mts"] },
-    { "paths": ["LICENSE"] }
+    { "paths": ["LICENSE", ".editorconfig"] }
   ]
 }
