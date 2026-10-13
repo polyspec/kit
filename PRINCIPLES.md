@@ -54,6 +54,8 @@ in kit, with its grounding.
 
 - A defect starts as a test that reproduces it and fails for the intended reason; the fix follows; the same test passes.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
+- While an item is developed, only the checks that own what changed run. The full suite runs exactly once, when every
+  item of the active checklist is complete: never per fix and never per item.
 - A hard judgement or a new line of reasoning is verified adversarially, in rounds, until a round finds nothing. The scope
   of the review is fixed before the first round; a question beside it becomes its own item. The review is asked for
   solutions as well as objections, and a finding counts only when it shows a proposition wrong, shows it contradicted by
