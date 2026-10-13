@@ -35,13 +35,15 @@ fs.copyFileSync(source, output);
 
 
 /**
- * The wrapper var/tools/bin/mise of the checkout `root` as a stub: it appends its arguments to STUB_LOG and prints `output`
- * for `which`; with STUB_MISE_FAILS it fails, as a `mise install --locked` that mise.lock does not allow.
+ * The wrapper var/tools/bin/mise of the checkout `root` as a stub: it appends its arguments to STUB_LOG, and with
+ * STUB_MISE_ENV_LOG its arguments, PATH and UV_PYTHON as a line of JSON; it prints `output` for `which`; with STUB_MISE_FAILS
+ * it fails, as a `mise install --locked` that mise.lock does not allow.
  */
 export function miseStub(root: string, output: Record<string, string> = {}) {
   const file = path.join(root, 'var/tools/bin/mise');
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, `${HEADER}
+if (process.env.STUB_MISE_ENV_LOG) fs.appendFileSync(process.env.STUB_MISE_ENV_LOG, JSON.stringify({ args, PATH: process.env.PATH, UV_PYTHON: process.env.UV_PYTHON }) + '\\n');
 if (process.env.STUB_MISE_FAILS) { console.error('mise ERROR ' + process.env.STUB_MISE_FAILS); process.exit(1); }
 const shown = ${JSON.stringify(output)}[args.join(' ')];
 if (shown !== undefined) console.log(shown);
