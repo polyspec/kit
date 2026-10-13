@@ -515,6 +515,74 @@ test('a feature binding names its id and no symbol, and a feature unit has no ve
   ]);
 });
 
+// The stub of vitest (`node node_modules/vitest/vitest.mjs run --reporter=json --outputFile.json=<file> <test>`): each
+// `PASS <name>`, `FAIL <name>`, `SKIP <name>` and `TODO <name>` line of the test file is a test, its name the titles of its
+// suites and its own joined by ' › ', which it writes to <file> as the JSON reporter of vitest 5 does. It exits with 1 when a
+// test failed.
+const VITEST_STUB = `const fs = require('fs');
+const path = require('path');
+const args = process.argv.slice(2);
+const output = args.find(arg => arg.startsWith('--outputFile.json=')).slice(18);
+const file = args[args.length - 1];
+const status = { PASS: 'passed', FAIL: 'failed', SKIP: 'skipped', TODO: 'todo' };
+const assertionResults = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL|SKIP|TODO) (.+)$/.exec(line)).filter(Boolean).map(([, outcome, name]) => {
+  const titles = name.split(' › ');
+  return { ancestorTitles: titles.slice(0, -1), title: titles[titles.length - 1], fullName: titles.join(' '), status: status[outcome] };
+});
+fs.mkdirSync(path.dirname(output), { recursive: true });
+fs.writeFileSync(output, JSON.stringify({ testResults: [{ name: path.resolve(file), assertionResults }] }));
+process.stdout.write('JSON report written to ' + output + '\\n');
+process.exit(assertionResults.some(result => result.status === 'failed') ? 1 : 0);
+`;
+
+/** A repository of a node and a vitest implementation with a suite and a feature unit; `edit` changes its declaration. */
+function vitestRepository(t: TestContext, files: Record<string, string | null> = {}, edit = (config: Declaration) => config) {
+  const config = {
+    schema: 1,
+    implementations: [{ name: 'ts', runner: 'node', roots: ['ts'] }, { name: 'web', runner: 'vitest', roots: ['web'] }],
+    profiles: [{ name: 'all', implementations: ['ts', 'web'] }],
+    units: [
+      { id: 'codec', kind: 'suite', profile: 'all', file: 'tests/vectors/codec.json', cases: '$[*]', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs' }, { implementation: 'web', test: 'web/src/codec.spec.ts' }] },
+      { id: 'roundtrip', kind: 'feature', profile: 'all', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs', id: 'empty' }, { implementation: 'web', test: 'web/src/roundtrip.test.ts', id: 'roundtrip › nested › bytes' }] },
+    ],
+  };
+  const all = {
+    '.gitignore': 'var/\nnode_modules/\n',
+    'tests/vectors/codec.json': JSON.stringify(['empty', 'ascii']),
+    'ts/codec.test.mjs': NODE_CODEC,
+    'web/src/codec.spec.ts': 'PASS empty\nPASS ascii\nPASS group › inner\n',
+    'web/src/roundtrip.test.ts': 'PASS roundtrip › nested › bytes\nSKIP roundtrip › later\n',
+    'node_modules/vitest/vitest.mjs': VITEST_STUB.replaceAll('require(', 'process.getBuiltinModule('),
+    ...files,
+    'config/parity.json': `${JSON.stringify(edit(config), null, 2)}\n`,
+  };
+  return tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
+}
+
+test('the vitest runner reads the JSON report of vitest: a suite case is a top-level test, a feature id the joined titles (K75)', TIMEOUT, (t) => {
+  const root = vitestRepository(t);
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web').map(entry => `${entry.unit} ${entry.case} ${entry.outcome}`), [
+    'codec empty pass', 'codec ascii pass', 'roundtrip roundtrip › nested › bytes pass',
+  ]);
+  const run = ledger.runs.find(entry => entry.implementation === 'web')!;
+  assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
+  const failing = checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} }).findings;
+  assert.deepEqual(keys(failing), ['R3 codec web', 'R3 roundtrip web']);
+  assert.match(findingAt(failing, 0).message, /failed: ascii/);
+  assert.match(findingAt(failing, 1).message, /failed: roundtrip › nested › bytes/);
+  const missing = checkParity(vitestRepository(t, { 'node_modules/vitest/vitest.mjs': null }), { execute: true, env: ENV, say: () => {} }).findings;
+  assert.deepEqual(keys(missing), ['R3 codec web', 'R3 roundtrip web']);
+  assert.match(findingAt(missing, 0).message, /node_modules\/vitest\/vitest\.mjs does not exist/);
+});
+
+test('R6: a test that two conventions select lies in a root of one of their runners (K75)', TIMEOUT, (t) => {
+  const { findings } = checkParity(vitestRepository(t, { 'tools/extra.test.ts': '', 'web/src/extra.test.ts': 'PASS extra\n' }), { execute: false, env: ENV, say: () => {} });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'} ${finding.place}`), ['R5 web web/src/extra.test.ts', 'R6 - tools/extra.test.ts']);
+  assert.match(findingAt(findings, 1).message, /a node or vitest test/);
+});
+
 test('R1: an API unit whose symbol is missing, not exported or not declared in an implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {

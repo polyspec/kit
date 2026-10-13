@@ -10,7 +10,7 @@ import { readConfig } from './schema-validate.mts';
 export const DECLARATION = 'config/parity.json';
 
 /** The runner of an implementation or a test pattern. */
-export type Runner = 'go' | 'cargo' | 'node' | 'php' | 'python';
+export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
 
 /** An implementation of the declaration (parity.schema.json). */
 export interface ParityImplementation {
@@ -289,6 +289,7 @@ export const CONVENTIONS: Readonly<Record<Runner, readonly string[]>> = {
   go: ['**/*_test.go'],
   cargo: ['**/tests/**/*.rs'],
   node: ['**/*.test.{ts,mts,cts,mjs,cjs,js}'],
+  vitest: ['**/*.{test,spec}.{ts,mts,cts,js,mjs,cjs,tsx,jsx}'],
   php: ['**/*Test.php'],
   python: ['**/test_*.py'],
 };
