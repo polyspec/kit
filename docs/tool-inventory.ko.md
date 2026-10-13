@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 174c2887d75dc6aad74c3cccec6aa0bb89a5a1e5c8505911fa8f5432d16adc77 -->
+<!-- source-sha256: 913b16692cbe9e7efad4963c4824fb233c52635ecee43e3bc4b9685d31ebc240 -->
 
 # 도구 목록
 
@@ -1132,7 +1132,7 @@ profile일 때 맞습니다. implementation 일부에 대해 말하는 문장은
 the methods; PHP and Python resolve them at call time"). marker와 들여쓰기가 같고 사이에 다른 passage가 없는 한 Markdown
 list의 item들은, 각 item이 implementation을 정확히 하나 적을 때 한 목록입니다. 그런 이름 세 개 이상은 모두 모아 profile일 때
 맞습니다. implementation은 그 이름이나 `prose`의 이름(`php-extension`의 `"prose": ["PHP extension"]`)으로 대소문자 구분 없이
-적힙니다. 다른 implementation의 이름인 prose 이름은 declaration finding입니다.
+적힙니다. 다른 implementation의 이름인 prose 이름과 반복된 prose 이름은 declaration finding입니다.
 
 catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하는 줄)도 아닌 각 줄에 적용합니다. 그런 줄 모두에 맞아야 하므로
 어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
