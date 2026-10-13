@@ -33,13 +33,14 @@
 // backend of buildBackend (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
 // its lock of consumers.wheel.lock holds (wheel-dependencies.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import semver from 'semver';
 import { releaseOf } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
 import { readCargoPackages, readGoMod } from './toolchain-files.mts';
+import { readJson } from './bootstrap/files.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
@@ -623,6 +624,45 @@ export function coverage(ctx: Context): string[] {
   }
   for (const file of files) {
     if (!where.has(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
+  }
+  problems.push(...fileDependencyProblems(root, config, files.filter(file => path.posix.basename(file) === 'package.json')));
+  return problems;
+}
+
+const NPM_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+
+/**
+ * The problems of the file: dependencies of the package.json files `manifests`: the npm consumer project of `config`
+ * (consumers.npm.directory) names the archive of a package of its smoke, file:<name>-npm-<version>.tgz, which it installs;
+ * every other manifest names a folder of the repository.
+ */
+function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: string[]): string[] {
+  const consumer = config.consumers?.npm;
+  const archives = new Map(Object.keys(consumer?.smoke ?? {}).map((name) => {
+    const [before, after] = archiveName('npm', name, '\0').split('\0') as [string, string];
+    return [name, new RegExp(`^file:${RegExp.escape(before)}\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?${RegExp.escape(after)}$`)];
+  }));
+  const problems: string[] = [];
+  for (const manifest of manifests) {
+    const directory = path.posix.dirname(manifest);
+    const declared: Record<string, unknown> = readJson(path.join(root, manifest));
+    for (const field of NPM_FIELDS) {
+      const entries = declared[field];
+      if (typeof entries !== 'object' || entries === null) continue;
+      for (const [name, spec] of Object.entries(entries)) {
+        if (typeof spec !== 'string' || !spec.startsWith('file:')) continue;
+        const shown = `${manifest}: ${field}.${name} is ${JSON.stringify(spec)}`;
+        if (consumer && directory === consumer.directory) {
+          if (!archives.get(name)?.test(spec)) problems.push(`${shown}; the npm consumer project of ${CONFIG} names the archive of a package of its smoke, file:<name>-npm-<version>.tgz`);
+          continue;
+        }
+        const target = path.posix.normalize(path.posix.join(directory, spec.slice('file:'.length)));
+        const inside = !path.posix.isAbsolute(target) && target !== '..' && !target.startsWith('../');
+        if (!inside || !statSync(path.join(root, target), { throwIfNoEntry: false })?.isDirectory()) {
+          problems.push(`${shown}, which names no folder of the repository; a file: dependency names a folder of the repository, and only the npm consumer project${consumer ? ` ${consumer.directory}` : ''} of ${CONFIG} names archives`);
+        }
+      }
+    }
   }
   return problems;
 }

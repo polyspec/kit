@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2d07ac8cd13160b5a991faa18717dd28754cf4a68bd68cfadc170659e7286dc0 -->
+<!-- source-sha256: 0ac86414ff61c9f4c171174d8cf89017a65553757c7fc6dbb146c824e36a7b68 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -17,6 +17,7 @@
 - check-toolchain은 kit이 내보내는 pin, pin과 같은 하한, scope·이유·재시도를 가진 선언된 예외, TypeScript pin, `.npmrc` link key를 검사하고, tool을 끝낸 signal의 이름을 댑니다(K78, K118).
 - editor 경계 checker와 통합 test의 VS Code installer(K80).
 - Markdown은 mdast와 micromark로 읽고, owner-check는 make의 database를 읽으며, pyproject pin은 toml-patch로 고치고, wheel metadata는 pip의 report에서 오고, govulncheck는 SARIF로 읽으며, 중복은 jscpd가 찾고, 쓰이지 않는 TAP reader는 지웠습니다(K120–K126).
+- release coverage는 repository의 폴더를 가리키지 않는 `file:` dependency를 거부합니다. smoke의 archive를 가리키는 것은 npm release consumer project뿐입니다(K129).
 - Node 26.11.1.
 
 ### 소비자 이전
