@@ -12,6 +12,11 @@ const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 // The group always takes part in a match of the pattern.
 const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1]!);
 
+test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
+  const check = runs.indexOf('make duplication-check');
+  assert.ok(check > runs.indexOf('var/tools/bin/npm ci'), 'a step runs make duplication-check after npm ci');
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });

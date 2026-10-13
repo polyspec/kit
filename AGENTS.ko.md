@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b32026c4603ef8de98536fcf032dd716ea1c37342ba56c202813d158082c13de -->
+<!-- source-sha256: 01c5451b9eb10fabe3ad050d93623e008c0b7ae90d9626a865565a2ec247f15e -->
 # 개발
 
 [English](AGENTS.md)
@@ -29,8 +29,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
   path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
-- 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `tests/kit/duplication.test.mts`는 서로 다른 두 파일이
-  6줄 이상의 같은 함수를 가지면 실패합니다.
+- 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
+  같은 부분이 두 번 있으면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
 - Python을 실행하는 consumer는 config/toolchain.json에 `pythonBuild`와 `uv`를 선언하고 `make install-tools`로 Python을 설치합니다.

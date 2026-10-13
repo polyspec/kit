@@ -616,8 +616,9 @@ the reader of the document check (K7.1). Both read the same documents (table row
 ## Shared modules (K11)
 
 Several tools of `scripts/kit` held their own copy of the same helper. Each helper now lives in one module that its users
-import, and `tests/kit/duplication.test.mts` fails when two files hold a function with the same normalized text of 6 lines or
-more (the normalization is in the test). The base had no pair that long; the shortest pair was the 4 lines of `startReport`.
+import. `make duplication-check` fails when a piece of 6 lines or more exists twice: jscpd reads the tokens of scripts/kit, so
+it also finds a repeated piece inside a function, which the test that it replaced (`tests/kit/duplication.test.mts`, whole
+functions only) did not (K126). The base had no pair that long; the shortest pair was the 4 lines of `startReport`.
 
 | Module | Holds | Replaces | Users |
 |---|---|---|---|

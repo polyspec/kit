@@ -39,6 +39,9 @@ jobs:
       # alint, which install-tools installs from config/toolchain.json, checks the folder layout (S5) against config/layout.yml (K76).
       - name: layout check
         run: make layout-check
+      # jscpd, which npm ci installs, fails while a piece of scripts/kit exists twice (K126).
+      - name: duplication check
+        run: make duplication-check
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         run: make kit-test
