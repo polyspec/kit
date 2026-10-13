@@ -38,7 +38,7 @@ test('without the package, install-tools runs the bootstrap installer of npm and
   const root = repository(t);
   const dry = make(root, '-n', 'install-tools', 'TOOLS=npm', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap-npm.mts');
+  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
   const other = make(root, 'install-tools', 'TOOLS=go');
   assert.equal(other.status, 2, other.stdout);
   assert.match(other.stdout + other.stderr, /install-tools: only TOOLS=npm runs before the package is installed; run make install-tools TOOLS=npm, then make install-packages/);

@@ -9,6 +9,8 @@
 //   composer     config/toolchain.json composer
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
+//   mise         config/toolchain.json mise: the exact version and the sha256 of the release archive of each platform, installed by
+//                the bootstrap; mise installs the tools of mise.toml
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
@@ -41,6 +43,7 @@ export type DeclaredToolchain = {
   php?: { minors: string[]; source: string };
   python?: { minor: string; source: string };
   uv?: PlatformRelease;
+  mise?: PlatformRelease;
   alint?: PlatformRelease;
   pythonBuild?: Declared;
   pythonBackend?: { requirement: string; sha256: string; source: string };
@@ -162,6 +165,7 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     declared.python = { minor: pythonFile, source: '.python-version' };
   }
   if (config.uv) declared.uv = platformRelease('uv', 'archive', config.uv);
+  if (config.mise) declared.mise = platformRelease('mise', 'archive', config.mise);
   if (config.alint) declared.alint = platformRelease('alint', 'archive', config.alint);
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor, declared.uv);
