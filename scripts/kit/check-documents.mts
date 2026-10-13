@@ -23,6 +23,7 @@ import { CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mts';
 import { readStatusTable } from './status-table.mts';
+import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, ROOT } from './paths.mts';
 import { sha256 } from './digest.mts';
@@ -64,7 +65,7 @@ const position = (text: string, offset: number) => {
 export const format = (file: string, found: DocumentFinding) => `${file}${found.line ? `:${found.line}${found.column ? `:${found.column}` : ''}` : ''}: ${found.rule}: ${found.message}`;
 
 /** The English documents of the checkout: tracked Markdown files that `include` selects and `exclude` does not. */
-export function documentsOf(root: string, config: DocumentsConfig) {
+export function documentsOf(root: string, config: DocumentsConfig): string[] {
   const excluded = config.exclude ?? [];
   const documents = new Set<string>();
   for (const file of trackedFiles(root)) {
@@ -220,7 +221,7 @@ export function check(root: string, config: DocumentsConfig) {
     if (results.length === 2) {
       // The length check above leaves the English and the Korean entry.
       const [[, en], [ko, kor]] = results as Pair<(typeof results)[number]>;
-      const show = (rows: { id: string; values: string[] }[]) => rows.map(row => [row.id, ...row.values].join('/')).join(' ');
+      const show = (rows: StatusRow[]) => rows.map(row => [row.id, ...row.values].join('/')).join(' ');
       if (show(en) !== show(kor)) add(ko, { rule: 'status-table', message: `the rows differ from ${table.path}: [${show(kor)}] and [${show(en)}]` });
     }
   }
@@ -230,7 +231,8 @@ export function check(root: string, config: DocumentsConfig) {
       for (const entry of changelogFindings(text)) add(name, entry);
       texts.push(text);
     });
-    if (texts.length === 2) for (const entry of changelogPairFindings(texts[0], texts[1])) add(koreanOf(changelog), entry);
+    // The length check holds both texts.
+    if (texts.length === 2) for (const entry of changelogPairFindings(texts[0]!, texts[1]!)) add(koreanOf(changelog), entry);
   }
   const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));

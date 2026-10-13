@@ -195,6 +195,7 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
       resultFile,
     }) : undefined;
     const sink = progress && toProgress(progress);
+    // The branches below are the tools that this runner reads, which have a progress and so a sink.
     // The error lines of the tool, which the summary names when the tool exits without a failing test.
     const errors: string[] = [];
     // The compiler errors of a Go package that does not build, which the summary names.
@@ -205,12 +206,12 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
     };
     // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
     if (cargo) {
-      const events = cargoEvents(sink);
+      const events = cargoEvents(sink!); // A tool that this runner reads has a sink.
       child.stdout!.setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
       readline.createInterface({ input: child.stderr! }).on('line', noting(events.stderr)); // The stream is piped for this tool.
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
-      const events = pythonEvents(sink);
+      const events = pythonEvents(sink!); // A tool that this runner reads has a sink.
       child.stderr!.setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
         for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
         events(data);
@@ -218,7 +219,7 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
       // python is a tool that this runner reads, so it has a progress.
       readline.createInterface({ input: child.stdout! }).on('line', text => progress!.line(`  ${text}`));
     } else if (reads) {
-      readline.createInterface({ input: child.stdout! }).on('line', noting(options.tool === 'go' ? goEvents(sink, build) : phpunitEvents(sink))); // The stream is piped for this tool.
+      readline.createInterface({ input: child.stdout! }).on('line', noting(options.tool === 'go' ? goEvents(sink!, build) : phpunitEvents(sink!))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const ended = await new Promise<Ended>((resolve) => {

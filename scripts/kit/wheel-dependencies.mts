@@ -12,6 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readPylock } from './pylock.mts';
+import type { PylockPackage } from './pylock.mts';
 import { Stop } from './process.mts';
 import { wheelName } from './release-wheel.mts';
 
@@ -20,9 +21,6 @@ const DIRECT = /^([A-Za-z0-9][A-Za-z0-9._-]*) @ (\S+)$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const SOURCE_NAMES: Record<string, string> = { vcs: 'a git source', directory: 'a directory source', none: 'no source' };
 
-// A package of a lock as readPylock of pylock.mts returns it.
-type LockPackage = { name: string; version: string; kind: string; files: { url: string | null; path: string | null; sha256: string | null }[] };
-const readLock = (text: string, lockFile: string): { packages: LockPackage[] } => readPylock(text, lockFile);
 
 // The part of config/release.json that the wheel checks read.
 type ReleaseConfig = { packages: { name: string; kind: string }[]; consumers: { wheel: { lock: Record<string, string> } } };
@@ -32,13 +30,24 @@ type Context = {
   lockFile: string;
   version: string;
   repositoryUrl: string;
-  packages: Map<string, LockPackage>;
+  packages: Map<string, PylockPackage>;
   declared: Map<string, { name: string; repo: string }>;
   siblings: Set<string>;
 };
 
 /** The name of a distribution in its normalized form (PEP 503): lower case, runs of `-`, `_` and `.` as one `-`. */
 export const canonicalName = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
+
+/**
+ * The URL of the archive of a lock entry. An archive that the lock names by path, or a URL that is no text, failed at
+ * startsWith before and fails here with its name (a possible defect reported with K71-1).
+ */
+function archiveUrl(entry: PylockPackage, lockFile: string): string {
+  // lockProblems accepts an archive with exactly one file.
+  const { url } = entry.files[0]!;
+  if (typeof url !== 'string') throw new Stop(`${lockFile}: the archive of ${entry.name} has no URL`);
+  return url;
+}
 
 /** The siblings of the wheel `name`: the other wheel packages of config.packages, which the same tag releases. */
 export const siblingsOf = (config: Pick<ReleaseConfig, 'packages'>, name: string) => config.packages
@@ -57,19 +66,20 @@ function requirementForm(spec: string) {
 export function lockProblems(text: string, lockFile: string): string[] {
   let lock;
   try {
-    lock = readLock(text, lockFile);
+    lock = readPylock(text, lockFile);
   } catch (error) {
     // readPylock fails with an Error.
     return [(error as Error).message];
   }
   return lock.packages.flatMap(({ name, version, kind, files }) => {
     if (kind === 'registry') {
-      return files.length && files.every(file => SHA256.test(file.sha256 ?? ''))
+      // RegExp.test reads its argument as text, as String does.
+      return files.length && files.every(file => SHA256.test(String(file.sha256 ?? '')))
         ? [] : [`${lockFile}: ${name} ${version} has a file with no sha256; a consumer installs with --require-hashes`];
     }
     if (kind === 'archive') {
       // The length check before holds one file.
-      return files.length === 1 && SHA256.test(files[0]!.sha256 ?? '')
+      return files.length === 1 && SHA256.test(String(files[0]!.sha256 ?? ''))
         ? [] : [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
     }
     return [`${lockFile}: ${name} ${version} is ${SOURCE_NAMES[kind]}; a consumer installs only registry files and archives`];
@@ -84,7 +94,7 @@ export function lockRequirements(text: string, lockFile: string) {
   const problems = lockProblems(text, lockFile);
   if (problems.length) throw new Stop(problems.join('; '));
   // lockProblems accepts an archive with exactly one file.
-  return readLock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
+  return readPylock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
     ? `${name} @ ${files[0]!.url} --hash=sha256:${files[0]!.sha256}\n`
     : `${name}==${version} ${files.map(file => `--hash=sha256:${file.sha256}`).join(' ')}\n`)).join('');
 }
@@ -107,7 +117,7 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
 }) {
   const form = lockProblems(lockText, lockFile);
   if (form.length) return form;
-  const lock = readLock(lockText, lockFile);
+  const lock = readPylock(lockText, lockFile);
   const context: Context = {
     lockFile,
     version,
@@ -128,8 +138,7 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
       const repository = context.declared.get(canonicalName(entry.name));
       if (!repository) {
         problems.push(`${lockFile}: ${entry.name} is an archive, consumers.wheel.polyspec does not declare it`);
-        // lockProblems accepts an archive with exactly one file, and the file of an archive has its URL.
-      } else if (!entry.files[0]!.url!.startsWith(`${repository.repo}/releases/download/v${entry.version}/`)) {
+      } else if (!archiveUrl(entry, lockFile).startsWith(`${repository.repo}/releases/download/v${entry.version}/`)) {
         problems.push(`${lockFile}: ${entry.name} ${entry.version} has the URL ${entry.files[0]!.url}, not a release asset of ${repository.repo} at v${entry.version}`);
       }
     }
@@ -216,7 +225,7 @@ function directProblems(spec: string, name: string, url: string, context: Contex
 }
 
 /** The repository URL that consumers.wheel.polyspec declares for the distribution `name`, or null when it declares none. */
-export const repositoryOf = (polyspec: Record<string, string>, name: string) => Object.entries(polyspec).find(([declared]) => canonicalName(declared) === canonicalName(name))?.[1] ?? null;
+export const repositoryOf = (polyspec: Record<string, string>, name: string): string | null => Object.entries(polyspec).find(([declared]) => canonicalName(declared) === canonicalName(name))?.[1] ?? null;
 
 /** The lock of each wheel package of `config`: { name, file, text } for the packages in the order of the configuration. */
 export function wheelLocks(root: string, config: ReleaseConfig) {
