@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { npmDuplicates, npmSatisfies, pythonRequirements } from '../../scripts/kit/dependency-state.mts';
+import { npmDuplicates, npmManifests, npmSatisfies, pythonRequirements } from '../../scripts/kit/dependency-state.mts';
+import { tree } from './tree.mts';
 import { fixtureCheckout as fixture, gate } from './checkout.mts';
 
 // The data is the parsed JSON of a fixture file, whose shape each test edits as it needs.
@@ -108,4 +109,18 @@ test('every valid pyproject form of a requirement is read, and a pin in a commen
   assert.throws(() => read('[build-system]\nrequires = ["pkg[extra]==1.0", "setuptools==84.0.0"]\n'), /"pkg\[extra\]==1\.0" is not an exact pin name==version; pin it exactly/);
   assert.throws(() => read('[build-system]\nrequires = "setuptools==84.0.0"\n'), /pyproject\.toml: build-system\.requires is not an array of strings/);
   assert.throws(() => read('[build-system\n'), /^Error: pyproject\.toml line 1 column \d+: Invalid TOML document/);
+});
+
+test('npm workspaces are every pattern that npm reads: an explicit path, a glob and a negation, against the directories with a package.json', (t) => {
+  const pkg = (name: string) => JSON.stringify({ name, version: '0.0.0' });
+  const root = tree(t, {
+    'package.json': JSON.stringify({ name: 'root', workspaces: ['tools/cli', 'packages/*', '!packages/skip', 'apps/**'] }),
+    'tools/cli/package.json': pkg('cli'),
+    'tools/other/package.json': pkg('other'),
+    'packages/a/package.json': pkg('a'),
+    'packages/skip/package.json': pkg('skip'),
+    'packages/empty/README.md': 'no package\n',
+    'apps/web/site/package.json': pkg('site'),
+  });
+  assert.deepEqual(npmManifests(root).map(entry => entry.directory), ['.', 'apps/web/site', 'packages/a', 'tools/cli']);
 });
