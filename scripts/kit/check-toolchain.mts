@@ -2,7 +2,7 @@
 // Checks that every tool of the checkout runs at the version that the checkout declares, without a network
 // (`make toolchain-check`):
 //
-//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm go rust php python composer ruff phpunit cargoAudit govulncheck alint
+//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm go rust php python composer ruff phpunit cargoAudit govulncheck alint vulture golangciLint deadcode phpcs phpstan
 //
 // Without a tool name it checks every declared tool; naming an undeclared tool fails. Python is var/tools/bin/python3, the Python that
 // install-python.mts installs, and never the Python of PATH. var/tools/bin comes first on PATH, GOTOOLCHAIN=local
@@ -43,7 +43,9 @@ export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: R
 type DeclaredTool = { version?: string; minor?: string; minors?: string[]; source: string };
 const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), ...declaredLintTools(root), go: declaredGo(root, env), rust: declaredRust(root) });
 
-type Probe = { command: (root: string) => string; args: string[]; pattern: RegExp; fix: (version: string | undefined) => string };
+// The arguments of a probe, or the arguments that name a file of the checkout (deadcode prints no release, so go version -m
+// reads the release of golang.org/x/tools from its binary).
+type Probe = { command: (root: string) => string; args: string[] | ((root: string) => string[]); pattern: RegExp; fix: (version: string | undefined) => string };
 
 // The command that prints the release of a tool, the pattern that reads it, and the fix of a mismatch.
 const probes: Record<string, Probe> = {
@@ -60,6 +62,11 @@ const probes: Record<string, Probe> = {
   cargoAudit: { command: cargoAuditCommand, ...RELEASE_OUTPUT.cargoAudit, fix: () => 'make install-tools' },
   govulncheck: { command: govulncheckCommand, ...RELEASE_OUTPUT.govulncheck, fix: () => 'make install-tools' },
   alint: { command: () => 'alint', ...RELEASE_OUTPUT.alint, fix: () => INSTALL },
+  vulture: { command: () => 'vulture', ...RELEASE_OUTPUT.vulture, fix: () => INSTALL },
+  golangciLint: { command: () => 'golangci-lint', ...RELEASE_OUTPUT['golangci-lint'], fix: () => INSTALL },
+  deadcode: { command: () => 'go', args: root => ['version', '-m', toolsPath(root, 'deadcode', 'bin', 'deadcode')], pattern: /^\s*mod\s+golang\.org\/x\/tools\s+v(\d+\.\d+\.\d+)\s/m, fix: () => INSTALL },
+  phpcs: { command: () => 'phpcs', ...RELEASE_OUTPUT.phpcs, fix: () => INSTALL },
+  phpstan: { command: () => 'phpstan', ...RELEASE_OUTPUT.phpstan, fix: () => INSTALL },
 };
 export const TOOLS = Object.keys(probes);
 
@@ -77,7 +84,8 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
   const entry = probes[tool];
   // Destructuring the probe of an unknown tool failed here before.
   if (!entry) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
-  const { command, args, pattern } = entry;
+  const { command, pattern } = entry;
+  const args = typeof entry.args === 'function' ? entry.args(root) : entry.args;
   const result = run(command(root), args);
   const shown = `${path.relative(root, command(root)).startsWith('..') ? command(root) : path.relative(root, command(root))} ${args.join(' ')}`;
   if (result.error || result.status !== 0) {

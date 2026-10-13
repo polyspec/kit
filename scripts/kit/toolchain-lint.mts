@@ -5,9 +5,10 @@
 //   golangciLint  config/toolchain.json golangciLint: the exact version and the sha256 of the release archive of each platform
 //   deadcode      config/toolchain.json deadcode: the release of golang.org/x/tools whose deadcode go install builds
 //   phpLint       config/php-lint/composer.lock: the PHP lint of kit, whose release is the sha256 of the lock
+//   phpcs, phpstan config/php-lint/composer.lock: the releases of squizlabs/php_codesniffer and phpstan/phpstan that it locks
 // A tool is declared when its config key or its file is present; an undeclared tool is absent from the result. A malformed
 // declaration throws an error with the file, the expected form and the actual value.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { platformRelease, recordedRelease, toolchainConfig } from './bootstrap/toolchain-declared.mts';
@@ -20,6 +21,8 @@ export type DeclaredLintTools = {
   golangciLint?: PlatformRelease;
   deadcode?: Declared;
   phpLint?: { lock: string; manifest: string; source: string };
+  phpcs?: Declared;
+  phpstan?: Declared;
 };
 
 // The vulture release: the release as PyPI names it (vulture names its releases <major>.<minor>) and the sha256 of its one
@@ -41,6 +44,14 @@ export function declaredLintTools(root: string): DeclaredLintTools {
   if (config.golangciLint) declared.golangciLint = platformRelease('golangciLint', 'archive', config.golangciLint);
   if (config.deadcode) declared.deadcode = { version: recordedRelease(root, 'deadcode'), source: 'config/toolchain.json deadcode' };
   const lock = 'config/php-lint/composer.lock';
-  if (existsSync(path.join(root, lock))) declared.phpLint = { lock: fileDigest(path.join(root, lock)), manifest: 'config/php-lint/composer.json', source: lock };
+  if (existsSync(path.join(root, lock))) {
+    declared.phpLint = { lock: fileDigest(path.join(root, lock)), manifest: 'config/php-lint/composer.json', source: lock };
+    const packages = (JSON.parse(readFileSync(path.join(root, lock), 'utf8')).packages ?? []) as { name: string; version: string }[];
+    for (const [tool, name] of [['phpcs', 'squizlabs/php_codesniffer'], ['phpstan', 'phpstan/phpstan']] as const) {
+      const locked = packages.find(entry => entry.name === name)?.version;
+      if (!locked || !/^v?\d+\.\d+\.\d+$/.test(locked)) throw new Error(`${lock} must lock ${name} at a release <major>.<minor>.<patch>; it locks ${JSON.stringify(locked)}`);
+      declared[tool] = { version: locked.replace(/^v/, ''), source: lock };
+    }
+  }
   return declared;
 }
