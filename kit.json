@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.0.29",
+  "version": "0.0.30",
   "repository": "https://github.com/polyspec/kit",
   "vendored": [
     "scripts/kit",
