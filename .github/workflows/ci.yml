@@ -29,10 +29,17 @@ jobs:
       # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: var/tools/bin/npm ci
-      # install-tools installs the uv of config/toolchain.json, the Python of pythonBuild with that uv and the pythonBackend into
-      # var/tools; the wheel and venv tests run that uv and that Python.
+      # install-tools installs the Go of the kit pin (from its archive, since kit tracks a go.mod), the uv of config/toolchain.json,
+      # the Python of pythonBuild with that uv and the pythonBackend into var/tools; the tests run that Go, uv and Python, not
+      # those of the runner image, so var/tools/bin comes first on PATH.
       - name: install tools
         run: make install-tools
+      - name: tools on PATH
+        run: echo "$PWD/var/tools/bin" >> "$GITHUB_PATH"
+      # cargo of the Rust pin for the tests that run cargo metadata: rustup, the one tool that the runner provides, installs the
+      # channel of rust-toolchain.toml.
+      - name: install rust
+        run: rustup toolchain install
       # tsc checks the types of the tools and tests (tsconfig.json, K71-1).
       - name: typecheck
         run: make typecheck

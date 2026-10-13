@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 01c5451b9eb10fabe3ad050d93623e008c0b7ae90d9626a865565a2ec247f15e -->
+<!-- source-sha256: 8a61332e67bba8f040fefed05426a086737ff989ab784a698ac9456f82b36ac6 -->
 # 개발
 
 [English](AGENTS.md)
@@ -38,6 +38,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   배포하는 consumer는 `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
   Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
   `make kit-test` 뒤에 실행합니다.
+- kit 자신의 검사는 kit pin의 Go, config/toolchain.json의 uv와 Python을 쓰며, 이것들은 `make install-tools`가 var/tools에
+  설치합니다. Rust는 `rust-toolchain.toml`의 것을 씁니다. machine이나 CI runner가 제공하는 도구는 rustup 하나이며, rustup이
+  그 channel을 설치하고(`rustup toolchain install`), CI는 var/tools/bin을 PATH 맨 앞에 둡니다(`.github/workflows/ci.yml`).
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트

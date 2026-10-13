@@ -17,6 +17,16 @@ test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)
   assert.ok(check > runs.indexOf('var/tools/bin/npm ci'), 'a step runs make duplication-check after npm ci');
 });
 
+test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of the runner image (K78)', () => {
+  const tools = runs.indexOf('make install-tools');
+  const onPath = runs.indexOf('echo "$PWD/var/tools/bin" >> "$GITHUB_PATH"');
+  const rust = runs.indexOf('rustup toolchain install');
+  const kitTest = runs.indexOf('make kit-test');
+  assert.ok(tools >= 0 && onPath > tools, 'install-tools installs the Go of the pin and the Python of pythonBuild into var/tools, which then comes first on PATH');
+  assert.ok(rust > 0 && rust < kitTest, 'rustup installs the channel of rust-toolchain.toml before kit-test runs cargo');
+  assert.ok(onPath < kitTest);
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });

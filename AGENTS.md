@@ -42,6 +42,9 @@ and states only its own rules. The rules below are kit's own.
   a consumer that publishes a wheel also declares `pythonBackend`. A vendored test checks a consumer's declaration only against
   this rule. The kit's own tests of its real Python and wheel path are in `tests/source`: kit-sync does not vendor them, `make
   source-test` runs them, and CI runs them after `make kit-test`.
+- kit's own checks run the Go of the kit pin, the uv and Python of config/toolchain.json, which `make install-tools` installs
+  into var/tools, and the Rust of `rust-toolchain.toml`. rustup is the one tool that a machine or CI runner provides: it
+  installs that channel (`rustup toolchain install`), and CI puts var/tools/bin first on PATH (`.github/workflows/ci.yml`).
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
   (docs/tool-inventory.md, Language parity).
