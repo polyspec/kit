@@ -35,7 +35,7 @@ rules:
 // A repository that follows the layout: its path dependencies stay inside it, and a Go module at v2 ends in /v2.
 const GOOD: Record<string, string> = {
   'README.md': '# demo\n',
-  'Makefile': 'include scripts/kit/kit.mk\n',
+  'Makefile': 'KIT := scripts/kit\nKIT_EXT := mts\ninclude scripts/kit/kit.mk\n',
   '.gitignore': 'var/\n',
   'config/layout.yml': LAYOUT,
   'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
