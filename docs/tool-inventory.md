@@ -33,19 +33,29 @@ repositories (lines).
 
 ## Toolchains (K8.2)
 
-`scripts/kit/install-tools.mts` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mts`
-compares the running tools with the declarations. `scripts/kit/bootstrap/toolchain-declared.mts` reads the declarations,
-`scripts/kit/toolchain-files.mts` reads those of Go and Rust with the tools of their ecosystems, and each
-installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`;
-cargo-audit and govulncheck keep `install-cargo-audit.mts` and `install-govulncheck.mts`). Every installer uses
-`install-tool.mts`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
-Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
+mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
+its sha256 for linux-x64 and macos-arm64; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
+and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
+not: the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint` and the symbol
+extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
+`packageManager` and mise itself, by the sha256 of `config/toolchain.json` `mise`; `install-tool.mts` builds each of them beside
+its target, checks it there and renames it, so a second run changes nothing. mise keeps its data, cache, state and config,
+its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
+checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
+kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
+`scripts/kit/check-toolchain.mts` compares the running tools with the declarations: `scripts/kit/bootstrap/toolchain-declared.mts`
+reads those of the bootstrap and of the tools that mise does not install, `scripts/kit/toolchain-mise.mts` the tools of
+`mise.toml` and the digests of `mise.lock`, and `scripts/kit/toolchain-files.mts` Rust and the go.mod files with the tools of
+their ecosystems. Make targets: `install-tools` and `toolchain-lock` (online through `ONLINE`) and `toolchain-check` (offline,
+`TOOLS` limits the tools). Rust stays with rustup: `rust-toolchain.toml` with rustup is the Rust ecosystem's own toolchain
+mechanism, and the rust backend of mise drives rustup itself, so a second layer would add nothing. The decision of each gap
+of mise is in docs/rebuild/toolchain.md.
 
 ### Go advisories (K53)
 
 `make dependency-review` asks govulncheck for the advisories of each Go lock (a `go.sum`, beside its `go.mod`), run in the
 module directory of the lock. The query names the packages of that module instead of `./...`. The reason: `./...` walks every
-directory below the module, and a Go toolchain that install-go puts under `var/tools` is one of them; govulncheck refuses it
+directory below the module, and the Go that mise installs under `var/tools` is one of them; govulncheck refuses it
 (`outside main module`), so every RECORD run failed. `./...` cannot exclude a directory, so a module that contains `var/`
 would walk it whatever the working directory.
 
@@ -68,33 +78,38 @@ would walk it whatever the working directory.
 |---|---|---|
 | Node.js | `.node-version` (exact) | verify |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
-| Go | the kit pin of `scripts/kit/toolchain-pins.json`, with the sha256 of each platform's archive; the `go` line of the `go.mod` that `config/toolchain.json` `go` names must equal it, read by `go mod edit -json` (K78) | install the pin |
+| Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
-| Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
-| Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
-| ruff | `ruff` of `config/toolchain.json`: the exact `version` and the `sha256` of the wheel of each platform, downloaded with the digests checked; its environment is made by `var/tools/bin/uv venv` from `var/tools/bin/python3` and the wheel is installed by `uv pip install` | install |
-| uv | `uv` of `config/toolchain.json`: the exact `version` and the `sha256` of the release archive `uv-<target>.tar.gz` of each platform, downloaded with the digest checked and unpacked into `var/tools/uv`; the wrapper `var/tools/bin/uv` keeps its state under `var/tools` (K54, K64) | install |
-| alint | `alint` of `config/toolchain.json`: the exact `version` and the `sha256` of the release archive `alint-v<version>-<target>.tar.gz` of each platform, downloaded with the digest checked and unpacked into `var/tools/alint`; `make layout-check` runs it (K76) | install |
-| PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the declared Composer |
-| cargo-audit, govulncheck | `config/toolchain.json` `cargoAudit`, `govulncheck` | install |
+| Python | `python` of `mise.toml` (exact), whose minor is the kit pin; `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
+| mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
+| uv, ruff, golangci-lint | `uv`, `ruff`, `golangci-lint` of `mise.toml` (the aqua backend; `mise.lock` holds the sha256 of each archive) | install with mise |
+| alint | `"github:asamarts/alint"` of `mise.toml` (`mise.lock` holds the sha256 of each archive); `make layout-check` runs it (K76) | install with mise |
+| Composer | `"http:composer"` of `mise.toml`, with the url of `composer.phar` and its `checksum` from getcomposer.org, which `mise.lock` records | install with mise |
+| cargo-audit | `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }` of `mise.toml`: the native binary of each platform, its sha256 in `mise.lock` | install with mise |
+| govulncheck, deadcode | `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"` of `mise.toml`, built by the `go:` backend; `mise.lock` records the release, and Go checks every module against `GOSUMDB` with `GOFLAGS=-mod=readonly` (the declared exception) | install with mise |
+| vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks` | install with mise |
+| PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the Composer of `mise.toml` |
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
-minor releases), `python` (minor release), `composer` (`version`, `sha256`), `go` (`mod`), `exceptions` (below), `ruff`
-(`version`, `sha256` of each platform's wheel), `uv` and `alint` (the same shape as `ruff`), `phpunit` (`version`), `pythonBuild` (`version`, `release`, `sha256` of each platform), `cargoAudit`, `govulncheck` and `node` (the SHA-256 of the Node.js archive of each platform). Rust and
-Node.js stay in their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor
-checked.
+minor releases), `mise` (`version`, `sha256` of each platform's archive), `pythonBackend`, `phpunit` (`version`),
+`symbolExtractors`, `exceptions` (below) and `node` (the SHA-256 of the Node.js archive of each platform). A tool of
+`mise.toml` has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
+at an exact release, and `toolchain-check` fails while `mise.lock` does not pin one of them as above. Rust and Node.js stay in
+their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor checked.
 
 ### Pins, floors and exceptions (K78)
 
 kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), which the build copies into `dist` beside
 `toolchain-pins.mts`: Node.js 26.11.1, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0 and TypeScript 7.0.2. Whichever tools
 `toolchain-check` runs, it fails on each declaration and each manifest floor that is not the pin at the pin's precision
-(`toolchain-floors.mts`, over the files of `checkedFiles`):
+(`toolchain-floors.mts`, over the files of `checkedFiles`, without the tool environments that mise writes in `.mise`). The
+pins hold versions only; the digests are those of `mise.lock`. Each pin has one source: kit ships the pins, and the
+`mise.toml` of every checkout, kit's included, must declare its Go and Python at them:
 
 | Value | Required |
 |---|---|
-| `.node-version`, `channel` of `rust-toolchain.toml`, `php` and `python` | the pin |
+| `.node-version`, `channel` of `rust-toolchain.toml`, `php`, and the `go` and the minor of the `python` of `mise.toml` | the pin |
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
 | `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.5.0`), the form that dependency-policy requires |
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
@@ -121,42 +136,37 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
   second path when `packageManager` carries a digest. The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
   `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap npm runs without `var/tools/bin` on `PATH` (template).
-- Go: a checkout that tracks a `go.mod` gets the Go of the kit pin (`scripts/kit/toolchain-pins.json` `go`), downloaded as the
-  archive `go<version>.<os>-<arch>.tar.gz` of the Go downloads and refused unless its sha256 is the one that
-  `toolchain-pins.json` `goArchives` pins for the platform (install-archive.mts, as uv and alint). No Go of the machine takes
-  part, so a checkout without Go installs one; toolchain-check then compares the `go` line of each `go.mod` with the pin
-  through `go mod edit -json` (K78). The download of the toolchain module through the machine's Go is gone.
+- Go: the Go of `mise.toml`, at the kit pin, is installed by mise from the archive of the Go downloads at the sha256 of
+  `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one; toolchain-check compares the `go` line of
+  each `go.mod` with the pin through `go mod edit -json` (K78). The archive install of kit and the `goArchives` digests of
+  `toolchain-pins.json` are gone (K127).
 - Composer: hyper installs `composer.phar` verified by its SHA-256; template, crudui and orm only verify the running
-  Composer. The merged tool installs when `sha256` is declared and verifies otherwise.
-- Python: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`. The
-  merged tool takes the configuration, else the file, and fails when both exist and differ. PHP is handled the same way
-  with `.php-version` (ordered-json, orm) and the list of crudui and template; a file that is not in the list fails.
-- Python (K64): `pythonBuild` names the exact `version` of the `python` minor, and `config/toolchain.json` `uv` must be declared:
-  uv installs the Python. `install-tools` installs uv first and then runs `var/tools/bin/uv python install --no-bin <version>`;
-  uv downloads the python-build-standalone build that its pinned release names for the version (uv 0.12.24 names 3.14.8 of
-  20261003), checks the sha256 that uv records for it and installs it into `var/tools/uv-python` as uv lays it out, its links
-  included (the minor directory `cpython-3.14-<platform>` is a link of uv to the patch directory). `--no-bin` writes no command
-  outside that directory. `uv python list --only-installed --managed-python --output-format json <version>` names the
-  interpreter (an empty list: none is installed; a failure of uv fails the install), and the wrapper
-  `var/tools/bin/python3` runs it by that absolute path; a second run finds it and installs nothing. uv marks its Python as
-  externally managed (PEP 668), so pip installs only into a venv of it. `check-toolchain`, run-tests and release-proof run
-  `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
+  Composer. mise installs it from the `http:composer` entry of `mise.toml` with its declared checksum (K127).
+- Python and PHP: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`.
+  Python is a tool of `mise.toml` now, declared at its exact release (K127). PHP takes the configuration, else
+  `.php-version` (ordered-json, orm) and the list of crudui and template, and fails when both exist and differ.
+- Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
+  `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
+  (`UV_PYTHON_DOWNLOADS=never`), and the uv of kit runs on the Python of mise (`UV_PYTHON`). The Python of mise is externally
+  managed for pip as before, so pip installs only into a venv of it. `check-toolchain`, run-tests and release-proof run that
+  shim, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
   `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
-  names as its `home` a directory under `var/tools/uv-python` (read through links); it refuses any other environment before the
-  tool starts, with the fix `make python-venv DIR=<directory>` (K44) or `var/tools/bin/uv venv --python var/tools/bin/python3
-  <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
+  names as its `home` a directory under `var/tools/mise` (read through links); it refuses any other environment before the
+  tool starts, with the fix `make python-venv DIR=<directory>` (K44) or `var/tools/mise/shims/uv venv --python
+  var/tools/mise/shims/python3 <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
   (K63): `uv venv` links `bin/python` to the interpreter and `bin/python3` and `bin/python3.14` to `bin/python`, and run-tests
   runs such an environment without copying, removing or rewriting a link.
 - Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (`uv venv`, no pip) and installs the wheel with
-  the pip of the checkout, `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, which reads the version with
+  the pip of the checkout, `var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install`, which reads the version with
   `show`. The venv has no pip of its own, and no python3 of PATH runs.
 - Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mts`) makes a virtual environment of the
-  checkout Python with `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>` and leaves it as uv makes it, its
+  checkout Python with `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>` and leaves it as uv makes it, its
   links included. The run is idempotent: an existing `<directory>` that is already a venv of the checkout Python (run-tests'
   rule and the same Python version) is accepted unchanged and reported as such; any other existing `<directory>` is an error
   with its reason and is neither removed nor repaired. A failed run removes the directory it made.
-- ruff: the virtual environment of ruff is made by `uv venv` from `var/tools/bin/python3`, and `uv pip install --no-index
-  --no-deps` installs the checked wheel into it.
+- ruff and vulture (K127): ruff is the archive of its GitHub release that mise installs at the sha256 of `mise.lock`, and
+  vulture the `pypi:` tool whose environment mise builds in place from the uv lock of `.mise/locks`, so its console script
+  names an interpreter that exists.
 - Verification: crudui's list of tools and its message (the declaring file, the running and the expected version, the fix),
   PHP and Python by minor release (crudui, ordered-json, hyper), exact release for the other tools, `GOTOOLCHAIN=local` and
   `RUSTUP_AUTO_INSTALL=0` (ordered-json), the evidence function `toolchainVersions` (crudui). The check also covers ruff,
@@ -195,8 +205,8 @@ S5 (folders), the location part of S7 (test placement) and the TypeScript rule o
 ecosystem tool expresses the requirement, and alint expresses every item below with configuration alone. kit therefore has
 no rebuild record for it; this section records the choice.
 
-- `make layout-check` runs `var/tools/bin/alint check --config config/layout.yml .` (offline). `config/toolchain.json` `alint`
-  pins the release and the sha256 of the archive of each platform; `install-alint.mts` installs it like uv.
+- `make layout-check` runs `var/tools/mise/shims/alint check --config config/layout.yml .` (offline). `"github:asamarts/alint"`
+  of `mise.toml` declares the release and `mise.lock` pins the sha256 of the archive of each platform (K127).
 - `config/layout.kit.yml` holds the common rules and templates. It is a copy (`kit.copies` of package.json), so kit-sync
   writes it from the installed package and kit-check compares it byte for byte; a repository never edits it. It lies in `config/` because alint reads an `extends:`
   target only from the folder of the config that names it.
@@ -228,7 +238,7 @@ standards plan lists (root `conformance/`, `machines/`, `schema/`, the `fsm-` pr
 | L6 | no path that leaves the repository: `config/*.json`, `go.mod` replace, pyproject path sources, `Cargo.toml` `path`, `composer.json` path repositories | `json_path_absent`; `for_each_file` with `cross_file` `relation: resolves`, which resolves inside the repository only (a missing target is reported too) | native |
 | L7 | no infrastructure script that is not TypeScript under `scripts/` and `tests/`, except declared S9 exceptions | `file_absent` on script extensions, `file_content_forbidden` on other shebangs | native; reasons are comments |
 | L8 | the root `tests/` holds the declared runners only | `dir_absent` | native for the location |
-| L9 | pinned release and sha256 per platform, offline, config passed explicitly | release archives with `SHA256SUMS` and a cosign bundle | fits install-tools |
+| L9 | pinned release and sha256 per platform, offline, config passed explicitly | release archives with `SHA256SUMS` and a cosign bundle | fits mise and `mise.lock` |
 
 ### Tools evaluated
 
@@ -244,13 +254,13 @@ standards plan lists (root `conformance/`, `machines/`, `schema/`, the `fsm-` pr
 ### Maturity risk and the version procedure
 
 alint is 0.x and releases often; 0.17 and 0.18 changed configuration keys that the layout rules do not use. The risk is held by
-the pin: `config/toolchain.json` names the exact release and the sha256 of each platform archive, and the install refuses
+the pin: `mise.toml` names the exact release, `mise.lock` the sha256 of each platform archive, and the install refuses
 another archive. To raise the version:
 
 1. read the CHANGELOG of every release between the pinned one and the new one for changed configuration;
-2. take the four digests from the release's `SHA256SUMS` and download each archive to confirm its digest;
-3. update `config/toolchain.json` `alint`, run `make install-tools TOOLS=alint`, then the fixtures of
-   `tests/source/layout-real.test.mts` and `make layout-check`;
+2. set the release in `mise.toml`, run `make toolchain-lock` and compare the digests of `mise.lock` with the release's
+   `SHA256SUMS`;
+3. run `make install-tools`, then the fixtures of `tests/source/layout-real.test.mts` and `make layout-check`;
 4. change the layout rules only for a changed key, in `config/layout.kit.yml`.
 
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
@@ -664,7 +674,7 @@ functions only) did not (K126). The base had no pair that long; the shortest pai
 | `process.mts` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
 | `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
-| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer, the sha512 of install-npm | those modules |
+| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer (gone in K127), the sha512 of install-npm | those modules |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
 | `version.mts` | `isPrerelease`, `older`, `stableDescending` by ecosystem: semver for npm and Go, @renovatebot/pep440 for PyPI; a Composer release is outdated when it is not the latest, the rule of `latest-status` of composer outdated (K73) | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed; changelog and the release tag order use semver directly | dependency-review, check-dependency-policy |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
@@ -672,8 +682,7 @@ functions only) did not (K126). The base had no pair that long; the shortest pai
 | `schema-validate.mts` | `SCHEMAS`, `readConfig` | the read-and-validate code of `loadConfig` in checklist and in release | checklist, release |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
-| `toolchain-declared.mts` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that install-ruff, install-uv, install-alint, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the probes and the bootstrap read them | check-toolchain, the bootstrap |
 | `dependency-state.mts` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
 
 Other duplicates removed:
@@ -682,7 +691,8 @@ Other duplicates removed:
   of node, npm, go, rust, php and composer from `check-toolchain.toolchainVersions`, which prints `22.1.0` where target-report
   printed `v22.1.0`.
 - The two `composer validate` calls of check-dependency-policy share one function.
-- `cargoAuditCommand`, `govulncheckCommand` and the path of the probe in check-toolchain were three spellings of one path.
+- `cargoAuditCommand`, `govulncheckCommand` and the path of the probe in check-toolchain were three spellings of one path;
+  since K127 each is the shim of mise that `toolCommand` of `mise-tools.mts` names.
 
 Behaviors that differ between the copies and were merged (the wider or safer one is kept):
 
@@ -693,8 +703,8 @@ Behaviors that differ between the copies and were merged (the wider or safer one
   make reads as an option.
 - `dependency-review` and `release` coverage skip `node_modules`, `var` and `.tools` as well as the kit fixture.
 - The fence scan of a changelog closes a fence by the rule of `scanFences` (the closing fence is as long as the opening one).
-- install-cargo-audit and install-govulncheck run their build through `tool-wrappers.run`, which prints the command before it
-  runs and names the missing command.
+- install-cargo-audit and install-govulncheck ran their build through `tool-wrappers.run`, which prints the command before it
+  runs and names the missing command; mise builds both since K127.
 
 Left as it is, with the reason:
 
@@ -713,13 +723,13 @@ Left as it is, with the reason:
 
 The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
 `scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded and with
-`--config ruff.toml`, the configuration that kit copies (Lint configuration, K77), and ruff is the one of `var/tools/bin` at
-the version `ruff` of `config/toolchain.json` declares, so the result does not depend on the ruff configuration of a machine.
-Every step runs after a failure of an earlier one. An undeclared or missing tool fails with its fix.
+`--config ruff.toml`, the configuration that kit copies (Lint configuration, K77), and ruff is the shim of mise at the version
+that `ruff` of `mise.toml` declares (K127), so the result does not depend on the ruff configuration of a machine.
+Every step runs after a failure of an earlier one. A missing tool fails with its fix.
 
 The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff, and the
-dependency review reads the pin of `config/toolchain.json` as a PyPI dependency; a newer ruff is set by hand with the sha256 of its
-wheels.
+dependency review reads the `ruff` of `mise.toml` as a PyPI dependency; a newer ruff is set by hand in `mise.toml` and locked
+with `make toolchain-lock`.
 
 ## Lint configuration (K77)
 
@@ -732,17 +742,17 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 
 | Language | Tools (pin) | Configuration | Runner |
 |---|---|---|---|
-| Python | ruff 0.17.0, vulture 2.16 (`config/toolchain.json`, wheels) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: ruff with `--config ruff.toml`; vulture at confidence 60 on the Python files of each package, from its folder |
+| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: ruff with `--config ruff.toml`; vulture at confidence 60 on the Python files of each package, from its folder |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with its `vendor/autoload.php` |
 | Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked -- -D warnings` in each workspace |
-| Go | golangci-lint 2.14.0 (release archive), deadcode of golang.org/x/tools 0.52.0 (`go install` of `var/tools/bin/go`, the Go of the kit pin) | `.golangci.yml` | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
+| Go | golangci-lint 2.14.0, deadcode of golang.org/x/tools 0.52.0 (`mise.toml`) | `.golangci.yml` | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
 | TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
 | All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
 
-The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-lint.mts` reads the declarations of
-the lint tools after the bootstrap, and `make toolchain-check` probes each installed release: vulture, golangci-lint, deadcode
-(by `go version -m` of its binary, since it prints no release), and phpcs and PHPStan at the releases that
-`config/php-lint/composer.lock` holds.
+The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
+`mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make toolchain-check` probes each installed release:
+vulture, golangci-lint, deadcode (by `go version -m` of the binary that `mise which deadcode` names, since it prints no release
+and its shim is mise), and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds.
 
 ### Decisions
 
@@ -962,7 +972,7 @@ distribution escapes each run of characters other than word characters and dots 
 `kit_fixture-0.0.1-py3-none-any.whl`, the name pip parses.
 
 - `release-assets` builds the wheel from a copy of the directory at the tagged commit (`git archive`) with
-  `var/tools/bin/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`,
+  `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`,
   with `SOURCE_DATE_EPOCH` set to the time of the commit. `--no-index` makes the directory the only source, so no build reads the network.
 - The build backend is pinned in `buildBackend` of `config/release.json`: `requirement` is the exact requirement of the backend
   (`setuptools==84.0.0`, which the `[build-system] requires` of the pyproject must equal) and `sha256` is the digest of its wheel
@@ -973,7 +983,7 @@ distribution escapes each run of characters other than word characters and dots 
 - `release-assets` checks each `Requires-Dist` of a wheel against its lock (K49): a plain `name==version`, a polyspec release
   reference or a sibling of the release (K52); any other form fails with the line and its form. `release-versions` requires the `version` of
   `[project]` in the pyproject.toml, as for every archive manifest.
-- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/bin/python3`: first its lock (K49), then the
+- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/mise/shims/python3`: first its lock (K49), then the
   wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
   requirement file naming the wheel of the run with the sha256 of its file. Then `pip check` must pass, the version that `pip show`
   prints is checked and the smoke command of `consumers.wheel` runs.
@@ -1007,7 +1017,7 @@ asset of its declared repository at its version. Nothing here reads the network.
 hashes: `name==version --hash=sha256:…` for each file of a registry package and `name @ <url> --hash=sha256:…` for each archive. The
 pip of the checkout installs it into the venv of `makeVenv`:
 
-    var/tools/bin/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
+    var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
 
 The wheel follows with `--no-index --require-hashes --no-deps`, then `pip --python <venv>/bin/python check` must exit 0 (an incomplete
 lock fails there), then the smoke command runs. pip's own reading of `pylock.toml` is not used (see the findings). The install reaches
@@ -1173,7 +1183,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | the top-level tests that the reporter names: node:test's own pass, fail, skip and todo; the test of the file itself is none | the names of the test and its enclosing suites joined by ` › ` |
 | `vitest` | `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` from the checkout root | the top-level tests of the JSON report: `passed`, `failed`, `skipped` or `pending`, and `todo` | the `ancestorTitles` and `title` joined by ` › ` |
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages | the test method |
-| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error | the test method |
+| `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error | the test method |
 
 The go, cargo, php and python runners read their tool's output with the parsers of `test-output.mts`, the same parsers that
 `run-tests` reads a run with (K47). node reports through its reporter API and vitest through its JSON report, so no text of
@@ -1250,7 +1260,7 @@ snapshot, and `parity-declarations-check` runs no extractor.
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, kit's program on `golang.org/x/tools/go/packages` v0.52.0 | a module directory | `<import path>.<name>`, `<import path>.<type>.<method or field>` of the exported names of each non-internal, non-test package |
 | `ts` | API Extractor 7.59.4 (`@microsoft/api-extractor`, a dependency of kit), its API model | a `.d.ts` entry point, such as the one that tsc 7 emits, in the package of the nearest `package.json` | the canonical references, such as `@scope/name!Codec#encode:member(1)` |
 | `php` | `scripts/kit/symbols/php/extract.php` on nikic/php-parser 5.9.0 | a source directory or file, such as the `*.stub.php` of a PHP extension | `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST` of the public declarations |
-| `python` | `scripts/kit/symbols/python.py` on the standard library's `ast`, run by `var/tools/bin/python3 -I` | a package directory or a module file | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>` |
+| `python` | `scripts/kit/symbols/python.py` on the standard library's `ast`, run by `var/tools/mise/shims/python3 -I` | a package directory or a module file | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>` |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json` (format 61) | a `Cargo.toml`, its library | `<crate>::<path>` of each public item reachable from the root, re-exports included, with its public fields, variants, inherent items and trait items |
 
 - A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `make install-tools` then builds the go
@@ -1418,24 +1428,19 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 ## uv and the Python lock writer (K54)
 
-`uv` is an install-tools tool: `config/toolchain.json` `uv` declares the exact version and the sha256 of
-the release archive of each platform, `scripts/kit/install-uv.mts` installs it into `var/tools/uv` and writes the wrapper
-`var/tools/bin/uv`. `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
+`uv` is a tool of `mise.toml`: mise installs the exact release at the sha256 of `mise.lock`, and its shim
+`var/tools/mise/shims/uv` runs it (K127). `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
 python-lock-check` (offline) compares each lock with its sources. The reason for the pin is that a lock written by an undeclared
 uv of PATH depends on the machine: `pip lock` (pip 26.2.1) is experimental and locked only the running platform (cryptography
 got only the macOS arm64 wheel), while uv's universal resolution writes the files of every platform with their markers and hashes.
 
 ### uv: the install and its state
 
-- **Release archive (K64):** uv is installed from its release archive `uv-<target>.tar.gz` of
-  `https://github.com/astral-sh/uv/releases/download/<version>/`, with the sha256 of each platform from the `.sha256` file of
-  the release (uv 0.12.24: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu`,
-  `x86_64-unknown-linux-gnu`); `tar` unpacks it as it is. uv needs no Python to run, so it is installed before the Python,
-  which it then installs. A platform without a listed digest (musl, Windows) is not installed.
-- **State under `var/tools`, never the home:** the wrapper sets `UV_CACHE_DIR=var/tools/uv-cache`,
-  `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`, `UV_PYTHON_DOWNLOADS=manual` (an interpreter is downloaded only by `uv python
-  install`) and `UV_NO_CONFIG=1` (no `uv.toml` of the home or of the system is read). The wrapper overrides a `UV_CACHE_DIR` of the caller (measured), so the cache of a checkout is always
-  its own.
+- **Release archive (K64, K127):** mise installs uv from its release archive `uv-<target>.tar.gz` (the aqua backend), with the
+  sha256 of linux-x64 and macos-arm64 in `mise.lock`. uv installs no Python since K127: the Python is a tool of `mise.toml`.
+- **State under `var/tools`, never the home:** the environment of mise of the checkout (kit.mk, `miseEnvironment`) sets
+  `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never` (uv downloads no interpreter) and `UV_NO_CONFIG=1` (no
+  `uv.toml` of the home or of the system is read), and `toolsEnvironment` adds `UV_PYTHON`, the python3 of mise.
 
 ### Measured uv behaviour (uv 0.12.11, aarch64-apple-darwin, the Python 3.14.8 virtual environment of install-tools)
 
@@ -1454,7 +1459,7 @@ got only the macOS arm64 wheel), while uv's universal resolution writes the file
 | A `pyproject.toml` as the requirements, copied into the temporary directory under its name | uv reads `[project].dependencies` there; the project itself is not emitted, so the lock holds only its dependencies. In place was not measured under a lock name (the first attempt used `out-a.toml`, which uv refuses); the copy works, so the writer copies. |
 | `--no-index --find-links <dir>`, a relative or an absolute `<dir>` | Each local wheel is `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`: uv writes the realpath, not the relative input. The header names `--no-index` and omits `--find-links`, so no checkout path is in the header. |
 | `path = "<relative to the lock>"` (PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml` and pip 26.2.1 `install --dry-run --no-index -r pylock.toml` read the path relative to the lock directory: uv from two working directories, pip from the lock directory (measured on the two wheels of the set). |
-| The lower bound of `--universal` | Without `--python-version`, uv takes the lower Python bound of the universal resolution from an interpreter that it finds, not from `requires-python` (measured: with Python 3.11 on PATH it resolved for 3.11 and noted that a dependency requires 3.14). The writer therefore passes `--python-version` with the `python` minor of `config/toolchain.json`, and a toolchain without one is refused before uv runs. |
+| The lower bound of `--universal` | Without `--python-version`, uv takes the lower Python bound of the universal resolution from an interpreter that it finds, not from `requires-python` (measured: with Python 3.11 on PATH it resolved for 3.11 and noted that a dependency requires 3.14). The writer therefore passes `--python-version` with the minor of the `python` of `mise.toml`, and a `mise.toml` without one is refused before uv runs. |
 | A `dependencies` entry in `[project].dynamic` | Not measured with uv: the writer and the check refuse it before uv runs. |
 
 The six-package set is `requests==2.34.2` with `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`,
@@ -1512,8 +1517,8 @@ urllib3==2.8.0
 
 ### Writer (`make python-lock`, ONLINE unless findLinks is declared)
 
-`scripts/kit/python-lock.mts write` runs `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
---generate-hashes --format pylock.toml -o pylock.toml` (`<python>` is the `python` minor of `config/toolchain.json`) in a directory of `var/tools` (`python-lock-<random>`) that holds the two sources under their
+`scripts/kit/python-lock.mts write` runs `var/tools/mise/shims/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+--generate-hashes --format pylock.toml -o pylock.toml` (`<python>` is the minor of the `python` of `mise.toml`) in a directory of `var/tools` (`python-lock-<random>`) that holds the two sources under their
 own names. A `pyproject.toml` is copied under its name, and uv reads it there (measured below), so the pyproject does not have to
 stay in the checkout for uv. With findLinks it appends `--no-index --find-links <directory>`. The source is read and parsed first,
 so a malformed source stops before uv runs.
