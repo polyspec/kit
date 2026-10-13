@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 341e2338d02c53d5fefa5e8a742de882946aea3811b4696efd90e085d6e779a1 -->
+<!-- source-sha256: 9e82fecb6ea55b37550c01f48892df4eaa7aa095a775ce5867b5dd2892a74181 -->
 # 개발
 
 [English](AGENTS.md)
@@ -24,8 +24,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   도구), 그렇게 쓰는 package의 peer로 필요한 것입니다.
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
-- vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
-  바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
+- vendored 파일은 kit에서 고치고 package-lock.json이 resolve하는 version의 사본을 쓰는 `make kit-sync`로 복사합니다. 저장소에서
+  직접 고치지 않으며, 고치면 `make kit-check`가 바뀐 파일이나 빠진 파일로 실패합니다.
 - [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 kit의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
 - 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
