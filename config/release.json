@@ -19,6 +19,7 @@
     "package.json": "archive"
   },
   "notReleased": {
+    "config/php-lint/composer.json": "the Composer project of the PHP lint that install-tools installs and that kit copies into every repository",
     "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit",
     "tests/release-consumer/npm/package.json": "the npm consumer project that installs the release archive of kit"
   },
