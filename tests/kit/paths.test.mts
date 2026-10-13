@@ -1,12 +1,14 @@
 // isMain (scripts/kit/paths.mts) tells whether a tool is the command that Node.js started. The command may name the tool
 // through a symbolic link of its directory (macOS temporary directories are such links), and then it is the same file.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isMain, ROOT } from '../../scripts/kit/paths.mts';
+import { english, korean, tree } from './tree.mts';
 
 test('isMain is true when the command names the tool through a link of its directory', (t) => {
   const link = mkdtempSync(path.join(tmpdir(), 'paths-link-'));
@@ -25,4 +27,19 @@ test('isMain is true when the command names the tool through a link of its direc
     process.argv[1] = argv!;
   }
   assert.equal(fileURLToPath(module), path.join(ROOT, 'scripts/kit/paths.mts'));
+});
+
+test('ROOT is the working directory: a tool run from a copy outside the repository reads the files of the repository it runs in', (t) => {
+  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of a module names no repository.
+  const outside = mkdtempSync(path.join(tmpdir(), 'paths-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  cpSync(path.join(ROOT, 'scripts/kit'), path.join(outside, 'tools'), { recursive: true });
+  const en = english('guide', 'Some text.\n');
+  const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en) });
+  const root = spawnSync(process.execPath, ['--input-type=module', '-e', `const { ROOT } = await import(${JSON.stringify(path.join(outside, 'tools/paths.mts'))}); process.stdout.write(ROOT);`], { cwd: repository, encoding: 'utf8' });
+  assert.equal(root.status, 0, root.stderr);
+  assert.equal(realpathSync(root.stdout), realpathSync(repository));
+  const checked = spawnSync(process.execPath, [path.join(outside, 'tools/check-documents.mts')], { cwd: repository, encoding: 'utf8' });
+  assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+  assert.match(checked.stdout, /1 document pairs/);
 });
