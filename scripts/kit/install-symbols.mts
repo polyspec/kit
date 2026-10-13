@@ -14,6 +14,7 @@ import { sha256 } from './bootstrap/digest.mts';
 import { installOnce } from './bootstrap/install-tool.mts';
 import { bootstrapEnvironment, run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import type { InstalledExtractor } from './bootstrap/toolchain-declared.mts';
+import { pinnedGo } from './install-go.mts';
 
 // The extractor programs that kit ships beside its tools (the build copies scripts/kit/symbols into dist/symbols).
 export const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'symbols');
@@ -50,8 +51,7 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   },
   // The Go of the kit pin that install-tools installs into var/tools, never a go of the machine.
   go: (root, next, print) => {
-    const go = toolsPath(root, 'bin', 'go');
-    if (!existsSync(go)) throw new Error(`the go symbol extractor needs ${path.relative(root, go)}, the Go of the kit pin; run make install-tools`);
+    const go = pinnedGo(root, 'the go symbol extractor');
     run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: bootstrapEnvironment(root, { GOFLAGS: '-modcacherw' }) }, print);
   },
 };

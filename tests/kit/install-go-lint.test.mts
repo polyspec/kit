@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { golangciLintRelease, toolchainStubs } from './toolchain-stubs.mts';
+import { golangciLintRelease, pinnedGo, toolchainStubs } from './toolchain-stubs.mts';
 import { tool } from './kit-tools.mts';
 
 const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
@@ -44,6 +44,7 @@ test('a golangci-lint archive with another digest is refused, and nothing is ins
 test('deadcode is built by go install of the recorded golang.org/x/tools release, wrapped, and kept by a second run', (t) => {
   const root = toolchainCheckout(t, { 'config/toolchain.json': config({ deadcode: '0.52.0' }) });
   const stubs = toolchainStubs(t);
+  stubs.env = pinnedGo(t, stubs, root);
   const first = install(root, stubs.env, 'deadcode');
   assert.equal(first.status, 0, first.stderr);
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('go install')), ['go install golang.org/x/tools/cmd/deadcode@v0.52.0']);
@@ -56,10 +57,23 @@ test('deadcode is built by go install of the recorded golang.org/x/tools release
 
 test('a deadcode of another golang.org/x/tools release fails with the expected and the actual release', (t) => {
   const root = toolchainCheckout(t, { 'config/toolchain.json': config({ deadcode: '0.52.0' }) });
-  const wrong = install(root, toolchainStubs(t, { extra: { STUB_DEADCODE_SHOWS: '0.51.0' } }).env, 'deadcode');
+  const shows = (release: string) => { const stubs = toolchainStubs(t, { extra: { STUB_DEADCODE_SHOWS: release } }); return pinnedGo(t, stubs, root); };
+  const wrong = install(root, shows('0.51.0'), 'deadcode');
   assert.equal(wrong.status, 1);
   assert.match(wrong.stderr, /the installation of deadcode 0\.52\.0 into .* prints 0\.51\.0; expected 0\.52\.0/);
-  const unread = install(root, toolchainStubs(t, { extra: { STUB_DEADCODE_SHOWS: 'none' } }).env, 'deadcode');
+  const unread = install(root, shows('none'), 'deadcode');
   assert.equal(unread.status, 1);
   assert.match(unread.stderr, /go version -m .*deadcode printed no release of golang\.org\/x\/tools: /);
+});
+
+// The runner of CI has a Go of its own on PATH, older than the pin: a deadcode or govulncheck that it built reads no module of
+// the pinned go line ("package requires newer Go version"). Both build with var/tools/bin/go, the Go of the kit pin.
+test('deadcode and govulncheck are built and read with var/tools/bin/go, never with the go of PATH', (t) => {
+  const root = toolchainCheckout(t, { 'config/toolchain.json': config({ deadcode: '0.52.0', govulncheck: '1.1.4' }) });
+  const stubs = toolchainStubs(t);
+  const env = pinnedGo(t, stubs, root);
+  const result = install(root, env, 'deadcode', 'govulncheck');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('go install')), ['go install golang.org/x/vuln/cmd/govulncheck@v1.1.4', 'go install golang.org/x/tools/cmd/deadcode@v0.52.0']);
+  assert.equal(install(root, env, 'deadcode', 'govulncheck').status, 0, 'the installed releases are read with the pinned go');
 });

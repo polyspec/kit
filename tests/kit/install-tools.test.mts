@@ -10,7 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { GO_ARCHIVES, PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { goRelease, ruffWheel, toolchainStubs, uvRelease, vultureWheel } from './toolchain-stubs.mts';
+import { goRelease, pinnedGo, ruffWheel, toolchainStubs, uvRelease, vultureWheel } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
 
 const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
@@ -371,6 +371,8 @@ test('a declared Rust channel without rustup fails with the one prerequisite of 
 test('cargo-audit and govulncheck are installed by their own installers and kept by a second run', (t) => {
   const root = toolchainCheckout(t, AUDIT_FILES);
   const stubs = toolchainStubs(t);
+  // govulncheck builds with var/tools/bin/go, the Go of the kit pin.
+  stubs.env = pinnedGo(t, stubs, root);
   const first = install(root, stubs.env);
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /cargo-audit: installed 0\.22\.2 in var\/tools\/cargo-audit/);
@@ -408,11 +410,13 @@ test('every declared tool is installed in the order npm, uv, Python, ruff, Compo
     'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, ruff: ruffConfig(), composer: { version: '2.10.3', sha256 }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
   });
   const stubs = toolchainStubs(t, { downloads: { 'https://getcomposer.org/download/2.10.3/composer.phar': phar, [uv.url]: uv.archive } });
+  // govulncheck builds with var/tools/bin/go, the Go of the kit pin.
+  stubs.env = pinnedGo(t, stubs, root);
   const result = install(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   // split returns at least one part.
   assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0]!.replace('[install-tools] ', '')), ['npm', 'uv', 'Python', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
-  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'npm', 'npx', 'python3', 'ruff', 'uv']);
+  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'go', 'npm', 'npx', 'python3', 'ruff', 'uv']);
   const calls = installCalls(stubs).length;
   const again = install(root, stubs.env);
   assert.equal(again.status, 0, again.stderr);
