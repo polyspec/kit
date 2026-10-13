@@ -13,10 +13,10 @@ import { installUv, UV_TARGETS } from '../../scripts/kit/install-uv.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { toolchainStubs, uvRelease } from './toolchain-stubs.mts';
 
-const install = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
-const config = value => JSON.stringify({ schema: 1, ...value });
-const run = (file, env) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
-const escape = text => text.replaceAll('.', '\\.').replaceAll('/', '\\/').replaceAll('+', '\\+');
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const config = (value: object) => JSON.stringify({ schema: 1, ...value });
+const run = (file: string, env: NodeJS.ProcessEnv) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
+const escape = (text: string) => text.replaceAll('.', '\\.').replaceAll('/', '\\/').replaceAll('+', '\\+');
 
 test('uv is downloaded with its sha256 checked, unpacked into var/tools/uv, wrapped, and kept by a second run', (t) => {
   const uv = uvRelease(t);
@@ -71,8 +71,10 @@ test('a platform without a verified archive or without a declared digest fails w
   const uv = uvRelease(t);
   const root = toolchainCheckout(t);
   assert.throws(() => installUv({ root, declared: uv.declared, platform: 'win32-x64' }), /no uv archive is verified for win32-x64; the verified platforms are darwin-arm64, darwin-x64, linux-x64, linux-arm64/);
-  const other = Object.keys(UV_TARGETS).find(key => key !== uv.key);
-  assert.throws(() => installUv({ root, declared: uv.declared, platform: other }), new RegExp(`config/toolchain\\.json uv declares no sha256 for ${other}; declare the digest of uv-${escape(UV_TARGETS[other])}\\.tar\\.gz of the uv release 0\\.12\\.24`));
+  // UV_TARGETS has four platforms, so another than uv.key exists.
+  const other = Object.keys(UV_TARGETS).find(key => key !== uv.key)!;
+  // other is a key of UV_TARGETS.
+  assert.throws(() => installUv({ root, declared: uv.declared, platform: other }), new RegExp(`config/toolchain\\.json uv declares no sha256 for ${other}; declare the digest of uv-${escape(UV_TARGETS[other]!)}\\.tar\\.gz of the uv release 0\\.12\\.24`));
 });
 
 test('uv with a digest of the wrong form is refused with the rule of the declaration', (t) => {

@@ -7,11 +7,11 @@ import path from 'node:path';
 import { installOnce } from './install-tool.mts';
 import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 
-const ARCHITECTURES = { x64: 'amd64', arm64: 'arm64' };
+const ARCHITECTURES: Partial<Record<string, string>> = { x64: 'amd64', arm64: 'arm64' };
 const SYSTEMS = new Set(['darwin', 'linux']);
 
 /** The module of the Go toolchain `version` for a platform. */
-export function goToolchainModule(version, platform = process.platform, arch = process.arch) {
+export function goToolchainModule(version: string, platform: string = process.platform, arch: string = process.arch): string {
   if (!ARCHITECTURES[arch]) throw new Error(`no Go toolchain module for the architecture ${arch}; the architectures are ${Object.keys(ARCHITECTURES).join(', ')}`);
   if (!SYSTEMS.has(platform)) throw new Error(`no Go toolchain module for the platform ${platform}; the platforms are ${[...SYSTEMS].join(', ')}`);
   return `golang.org/toolchain@v0.0.1-go${version}.${platform}-${ARCHITECTURES[arch]}`;
@@ -19,7 +19,7 @@ export function goToolchainModule(version, platform = process.platform, arch = p
 
 // The module zip of a Go toolchain keeps no file modes; like the toolchain switch of go, make the commands of bin and
 // pkg/tool executable.
-function makeExecutable(goroot) {
+function makeExecutable(goroot: string): void {
   const tool = path.join(goroot, 'pkg/tool');
   const directories = [path.join(goroot, 'bin'), ...(existsSync(tool) ? readdirSync(tool).map(name => path.join(tool, name)) : [])];
   for (const directory of directories) {
@@ -31,16 +31,17 @@ function makeExecutable(goroot) {
 }
 
 /** Installs the declared Go `{ version }` into var/tools/go of `root` and writes the wrappers; returns `{ installed, release }`. */
-export function installGo({ root, declared, print = () => {} }) {
+export function installGo({ root, declared, print = () => {} }: { root: string; declared: { version: string }; print?: (text: string) => void }) {
   const module = goToolchainModule(declared.version);
   const prefix = toolsPath(root, 'go');
   const result = installOnce({
     root, label: 'Go', prefix, recorded: declared.version, print,
-    installedRelease: (directory) => {
+    installedRelease: (directory: string) => {
       const file = path.join(directory, module, 'VERSION');
-      return existsSync(file) ? readFileSync(file, 'utf8').split('\n')[0].replace(/^go/, '') : undefined;
+      // split gives at least one line.
+      return existsSync(file) ? readFileSync(file, 'utf8').split('\n')[0]!.replace(/^go/, '') : undefined;
     },
-    install: (next) => {
+    install: (next: string) => {
       // A scratch module of the download directory keeps the Go of the machine from reading the go.mod of the
       // checkout above var/tools, whose go directive may name a newer Go than the machine has: with GOTOOLCHAIN=local
       // that refusal stops the install before any download. The scratch asks for an old Go every release fulfils.

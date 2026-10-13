@@ -10,10 +10,10 @@ import { installPython } from '../../scripts/kit/install-python.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { toolchainStubs, uvRelease } from './toolchain-stubs.mts';
 
-const config = value => JSON.stringify({ schema: 1, ...value });
-const install = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
-const run = (file, env) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
-const uvCalls = stubs => stubs.calls().filter(line => line.startsWith('uv ') && !line.includes('--version'));
+const config = (value: object) => JSON.stringify({ schema: 1, ...value });
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const run = (file: string, env: NodeJS.ProcessEnv) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
+const uvCalls = (stubs: ReturnType<typeof toolchainStubs>) => stubs.calls().filter((line: string) => line.startsWith('uv ') && !line.includes('--version'));
 
 test('the declared Python is installed by uv, wrapped as var/tools/bin/python3, and a second run keeps it', (t) => {
   const uv = uvRelease(t);
@@ -34,7 +34,7 @@ test('the declared Python is installed by uv, wrapped as var/tools/bin/python3, 
   const second = install(root, stubs.env, 'uv', 'python');
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, /Python: 3\.14\.8 is installed in var\/tools\/uv-python/);
-  assert.equal(uvCalls(stubs).filter(line => line.includes('python install')).length, 1, 'a second run installs nothing');
+  assert.equal(uvCalls(stubs).filter((line: string) => line.includes('python install')).length, 1, 'a second run installs nothing');
 });
 
 test('a Python whose release differs from the declaration fails with both releases', (t) => {

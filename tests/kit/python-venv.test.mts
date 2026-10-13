@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
 import { tree } from './tree.mts';
 
 // A venv tree as `uv venv` writes it: bin/python links to the interpreter of var/tools/uv-python, bin/python3 links to python,
 // and pyvenv.cfg names the interpreter's directory as its home (`home` overrides it).
-function venvTree(t, { home } = {}) {
+function venvTree(t: TestContext, { home }: { home?: string } = {}) {
   const root = tree(t);
   const interpreter = path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin');
   mkdirSync(interpreter, { recursive: true });
@@ -33,9 +33,10 @@ test('a venv from a Python of var/tools/uv-python is accepted with its links, wh
 test('a directory without pyvenv.cfg or a venv of another Python is refused with the fix', (t) => {
   const root = tree(t);
   mkdirSync(path.join(root, 'pkg/.venv'), { recursive: true });
-  assert.match(venvProblem(path.join(root, 'pkg/.venv'), root), /^pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/bin\/uv venv --python var\/tools\/bin\/python3 pkg\/\.venv$/);
+  // Each venv below is refused, so venvProblem returns its problem.
+  assert.match(venvProblem(path.join(root, 'pkg/.venv'), root)!, /^pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/bin\/uv venv --python var\/tools\/bin\/python3 pkg\/\.venv$/);
   const other = venvTree(t, { home: '/usr/bin' });
-  assert.match(venvProblem(other.venv, other.root), /^pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/uv-python\); make it/);
+  assert.match(venvProblem(other.venv, other.root)!, /^pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/uv-python\); make it/);  // refused, as above.
 });
 
 test('makeVenv names the missing uv or Python and the install that provides it', (t) => {

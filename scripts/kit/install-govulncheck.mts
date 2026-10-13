@@ -12,22 +12,22 @@ import { printedRelease, run, toolsPath } from './tool-wrappers.mts';
 import { recordedRelease } from './toolchain-declared.mts';
 
 /** The installation directory of govulncheck under `root`. */
-export const govulncheckPrefix = (root = ROOT) => toolsPath(root, 'govulncheck');
+export const govulncheckPrefix = (root: string = ROOT): string => toolsPath(root, 'govulncheck');
 
-const commandIn = prefix => path.join(prefix, 'bin', 'govulncheck');
+const commandIn = (prefix: string): string => path.join(prefix, 'bin', 'govulncheck');
 
 /** The govulncheck command of the checkout under `root`. */
-export const govulncheckCommand = (root = ROOT) => commandIn(govulncheckPrefix(root));
+export const govulncheckCommand = (root: string = ROOT): string => commandIn(govulncheckPrefix(root));
 
 /**
  * Installs govulncheck `recorded` into var/tools/govulncheck of `root`, unless that release is installed there. Returns
  * `{ installed, release }`; throws with the expected and the actual release when the result is not `recorded`.
  */
-export function installGovulncheck({ root = ROOT, recorded = recordedRelease(root, 'govulncheck'), print = () => {} } = {}) {
+export function installGovulncheck({ root = ROOT, recorded = recordedRelease(root, 'govulncheck'), print = () => {} }: { root?: string; recorded?: string; print?: (text: string) => void } = {}) {
   return installOnce({
     root, label: 'govulncheck', prefix: govulncheckPrefix(root), recorded, print,
-    installedRelease: prefix => printedRelease(commandIn(prefix), 'govulncheck'),
-    install: (next) => {
+    installedRelease: (prefix: string) => printedRelease(commandIn(prefix), 'govulncheck'),
+    install: (next: string) => {
       run('go', ['install', `golang.org/x/vuln/cmd/govulncheck@v${recorded}`], { cwd: root, env: { ...process.env, GOBIN: path.join(next, 'bin'), GOFLAGS: '-modcacherw' } }, print);
     },
   });
@@ -35,9 +35,9 @@ export function installGovulncheck({ root = ROOT, recorded = recordedRelease(roo
 
 if (isMain(import.meta.url)) {
   try {
-    installGovulncheck({ print: text => console.log(`[install-govulncheck] ${text}`) });
+    installGovulncheck({ print: (text: string) => console.log(`[install-govulncheck] ${text}`) });
   } catch (error) {
-    console.error(`[install-govulncheck] ${error.message}`);
+    console.error(`[install-govulncheck] ${(error as Error).message}`);
     process.exitCode = 1;
   }
 }
