@@ -12,15 +12,24 @@ const BARE_KEY = /^[A-Za-z0-9_-]+/;
 const INTEGER = /^[+-]?\d[\d_]*$/;
 const FLOAT = /^[+-]?\d[\d_]*\.\d[\d_]*([eE][+-]?\d+)?$/;
 const DATETIME = /^\d{4}-\d{2}-\d{2}([Tt ]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})?)?$/;
-const ESCAPES = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '\\' };
+const ESCAPES: Record<string, string> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '\\' };
 
-const isTable = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+/** A value of a TOML document as parseToml reads it; a datetime stays text. */
+export type TomlValue = string | number | boolean | TomlValue[] | TomlTable;
+
+/** A table of a TOML document. */
+export type TomlTable = { [key: string]: TomlValue };
+
+const isTable = (value: unknown): value is TomlTable => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** The field `key` of `value`; undefined for a value that is not a table, as reading the property of such a value gives. */
+const field = (value: TomlValue | undefined, key: string): TomlValue | undefined => (isTable(value) ? value[key] : undefined);
 
 /** Parses the TOML text of a lock into plain objects, arrays and scalars; throws with the line of an unread construct. */
-export function parseToml(text) {
+export function parseToml(text: string): TomlTable {
   let pos = 0;
-  const lineAt = index => text.slice(0, index).split('\n').length;
-  const fail = (message, index = pos) => {
+  const lineAt = (index: number): number => text.slice(0, index).split('\n').length;
+  const fail: (message: string, index?: number) => never = (message, index = pos) => {
     throw new Error(`line ${lineAt(index)}: ${message}`);
   };
   const spaces = () => { while (text[pos] === ' ' || text[pos] === '\t') pos += 1; };
@@ -42,7 +51,7 @@ export function parseToml(text) {
     else fail(`unexpected ${JSON.stringify(text[pos])} after a value`);
   };
 
-  const basicString = () => {
+  const basicString = (): string => {
     if (text.startsWith('"""', pos)) fail('a multi-line string is not read; write the value on one line');
     pos += 1;
     let out = '';
@@ -58,13 +67,14 @@ export function parseToml(text) {
         if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length !== size) fail('an invalid unicode escape');
         out += String.fromCodePoint(Number.parseInt(hex, 16));
         pos += 2 + size;
-      } else if (code in ESCAPES) {
+      // A backslash at the end of the text has no code; `in` read it as the key `undefined`, which ESCAPES lacks.
+      } else if (code !== undefined && code in ESCAPES) {
         out += ESCAPES[code];
         pos += 2;
       } else fail(`the escape \\${code} is not read`);
     }
   };
-  const literalString = () => {
+  const literalString = (): string => {
     if (text.startsWith("'''", pos)) fail('a multi-line string is not read; write the value on one line');
     const end = text.indexOf("'", pos + 1);
     const line = text.indexOf('\n', pos);
@@ -73,7 +83,7 @@ export function parseToml(text) {
     pos = end + 1;
     return value;
   };
-  const key = () => {
+  const key = (): string => {
     spaces();
     if (text[pos] === '"') return basicString();
     if (text[pos] === "'") return literalString();
@@ -82,7 +92,7 @@ export function parseToml(text) {
     pos += match[0].length;
     return match[0];
   };
-  const keyPath = () => {
+  const keyPath = (): string[] => {
     const path = [key()];
     for (spaces(); text[pos] === '.'; spaces()) {
       pos += 1;
@@ -91,7 +101,7 @@ export function parseToml(text) {
     }
     return path;
   };
-  const scalar = () => {
+  const scalar = (): string | number | boolean => {
     const match = /^[^,\]}\n\r#]+/.exec(text.slice(pos));
     if (!match) fail('expected a value');
     const token = match[0].trim();
@@ -102,7 +112,7 @@ export function parseToml(text) {
     if (DATETIME.test(token)) return token;
     return fail(`the value ${JSON.stringify(token)} is not read`, pos - match[0].length);
   };
-  const value = () => {
+  const value = (): TomlValue => {
     spaces();
     const char = text[pos];
     if (char === '"') return basicString();
@@ -111,9 +121,9 @@ export function parseToml(text) {
     if (char === '{') return inlineTable();
     return scalar();
   };
-  const array = () => {
+  const array = (): TomlValue[] => {
     pos += 1;
-    const items = [];
+    const items: TomlValue[] = [];
     for (;;) {
       skipLayout();
       if (text[pos] === ']') { pos += 1; return items; }
@@ -124,9 +134,9 @@ export function parseToml(text) {
       fail('expected "," or "]" in an array');
     }
   };
-  const inlineTable = () => {
+  const inlineTable = (): TomlTable => {
     pos += 1;
-    const table = {};
+    const table: TomlTable = {};
     spaces();
     if (text[pos] === '}') { pos += 1; return table; }
     for (;;) {
@@ -142,25 +152,27 @@ export function parseToml(text) {
     }
   };
   // The table that a header or a dotted key names: an array of tables stands for its last element.
-  const descend = (table, path) => {
+  const descend = (table: TomlTable, path: string[]): TomlTable => {
     let current = table;
     for (const name of path) {
       if (!(name in current)) current[name] = {};
       const next = current[name];
-      if (Array.isArray(next)) current = next[next.length - 1];
+      // Possible defect, kept: the last item of an array value need not be a table (see the report of K71-1).
+      if (Array.isArray(next)) current = next[next.length - 1] as TomlTable;
       else if (isTable(next)) current = next;
       else fail(`${name} is a value, not a table`);
     }
     return current;
   };
-  const assign = (table, path, item) => {
+  const assign = (table: TomlTable, path: string[], item: TomlValue): void => {
     const owner = descend(table, path.slice(0, -1));
-    const name = path.at(-1);
+    // keyPath returns at least one key.
+    const name = path.at(-1)!;
     if (name in owner) fail(`${name} is already defined`);
     owner[name] = item;
   };
 
-  const root = {};
+  const root: TomlTable = {};
   let current = root;
   for (;;) {
     skipLayout();
@@ -174,12 +186,14 @@ export function parseToml(text) {
       if (text.slice(pos, pos + (tableArray ? 2 : 1)) !== (tableArray ? ']]' : ']')) fail('expected the end of a table header', start);
       pos += tableArray ? 2 : 1;
       const owner = descend(root, path.slice(0, -1));
-      const name = path.at(-1);
+      // keyPath returns at least one key.
+      const name = path.at(-1)!;
       if (tableArray) {
         if (!(name in owner)) owner[name] = [];
         if (!Array.isArray(owner[name])) fail(`${name} is a table, not an array of tables`, start);
         owner[name].push({});
-        current = owner[name].at(-1);
+        // The table pushed on the line above.
+        current = owner[name].at(-1) as TomlTable;
       } else {
         if (name in owner) fail(`the table ${path.join('.')} is already defined`, start);
         owner[name] = {};
@@ -197,16 +211,35 @@ export function parseToml(text) {
   }
 }
 
+
+/** The vcs table of a package as the lock holds it; a field the lock lacks is null. */
+export type PylockVcs = { type: TomlValue | null; url: TomlValue | null; requestedRevision: TomlValue | null; commitId: TomlValue | null; subdirectory: TomlValue | null };
+
+/** A file of a package as the lock holds it; a field the lock lacks is null. */
+export type PylockFile = { url: TomlValue | null; path: TomlValue | null; sha256: TomlValue | null };
+
+/** The source of a package: a vcs table, or the archive file, or the registry files, or none. */
+export type PylockSource<File> =
+  | { kind: 'vcs'; vcs: PylockVcs; files: [] }
+  | { kind: 'archive'; vcs: null; files: [File] }
+  | { kind: 'registry' | 'directory' | 'none'; vcs: null; files: File[] };
+
+/** A package of a lock. */
+export type PylockPackage = { name: string; version: string } & PylockSource<PylockFile>;
+
+/** A PEP 751 lock as readPylock reads it. */
+export type Pylock = { lockVersion: string; createdBy: string | null; packages: PylockPackage[] };
+
 /** The source of a package of a lock: the first table of `vcs`, `directory`, `archive`, else the registry files. */
-function sourceOf(entry, lock, name) {
+function sourceOf(entry: TomlTable, lock: string, name: string): PylockSource<TomlValue> {
   if (entry.vcs !== undefined) {
     const vcs = entry.vcs;
     return { kind: 'vcs', vcs: {
-      type: vcs.type ?? null,
-      url: vcs.url ?? null,
-      requestedRevision: vcs['requested-revision'] ?? null,
-      commitId: vcs['commit-id'] ?? null,
-      subdirectory: vcs.subdirectory ?? null,
+      type: field(vcs, 'type') ?? null,
+      url: field(vcs, 'url') ?? null,
+      requestedRevision: field(vcs, 'requested-revision') ?? null,
+      commitId: field(vcs, 'commit-id') ?? null,
+      subdirectory: field(vcs, 'subdirectory') ?? null,
     }, files: [] };
   }
   if (entry.directory !== undefined) return { kind: 'directory', vcs: null, files: [] };
@@ -220,25 +253,30 @@ function sourceOf(entry, lock, name) {
 }
 
 /** Reads a PEP 751 lock: { lockVersion, createdBy, packages: [{ name, version, kind, vcs, files: [{ url, path, sha256 }] }] }. */
-export function readPylock(text, lock) {
-  let data;
+export function readPylock(text: string, lock: string): Pylock {
+  let data: TomlTable;
   try {
     data = parseToml(text);
   } catch (error) {
-    throw new Error(`${lock}: ${error.message}`);
+    // parseToml throws only an Error.
+    throw new Error(`${lock}: ${(error as Error).message}`);
   }
   if (data['lock-version'] !== '1.0') throw new Error(`${lock}: lock-version is ${JSON.stringify(data['lock-version'])}, PEP 751 requires "1.0"`);
   const createdBy = typeof data['created-by'] === 'string' ? data['created-by'] : null;
-  const packages = (data.packages ?? []).map((entry) => {
-    if (typeof entry.name !== 'string' || typeof entry.version !== 'string') throw new Error(`${lock}: a package has no name or no version`);
+  const listed = data.packages ?? [];
+  // .map below failed with a TypeError for a value that is not an array.
+  if (!Array.isArray(listed)) throw new Error(`${lock}: packages is not an array of tables`);
+  const packages = listed.map((entry) => {
+    // A value that is not a table has no name, so it failed the same check.
+    if (!isTable(entry) || typeof entry.name !== 'string' || typeof entry.version !== 'string') throw new Error(`${lock}: a package has no name or no version`);
     const source = sourceOf(entry, lock, entry.name);
     return {
       name: entry.name,
       version: entry.version,
       kind: source.kind,
       vcs: source.vcs,
-      files: source.files.map(file => ({ url: file.url ?? null, path: file.path ?? null, sha256: file.hashes?.sha256 ?? null })),
-    };
+      files: source.files.map(file => ({ url: field(file, 'url') ?? null, path: field(file, 'path') ?? null, sha256: field(field(file, 'hashes'), 'sha256') ?? null })),
+    } as PylockPackage; // kind, vcs and files come from one source, so they keep its variant through the map of files.
   });
   return { lockVersion: data['lock-version'], createdBy, packages };
 }

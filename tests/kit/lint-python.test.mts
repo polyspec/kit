@@ -5,9 +5,10 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
 
-function checkout(t, { declared = true, installed = true, failing = '' } = {}) {
+function checkout(t: TestContext, { declared = true, installed = true, failing = '' }: { declared?: boolean; installed?: boolean; failing?: string } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-python-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(path.join(root, 'config'));

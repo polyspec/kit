@@ -9,7 +9,15 @@ import path from 'node:path';
  * the tool into the temporary directory `next`. Returns `{ installed, release }`; throws with the expected and the actual
  * release when the build does not print `recorded`.
  */
-export function installOnce({ root, label, prefix, recorded, installedRelease, install, print = () => {} }) {
+export function installOnce({ root, label, prefix, recorded, installedRelease, install, print = () => {} }: {
+  root: string;
+  label: string;
+  prefix: string;
+  recorded: string;
+  installedRelease: (directory: string) => string | undefined;
+  install: (next: string) => void;
+  print?: ((text: string) => unknown) | undefined;
+}): { installed: boolean; release: string } {
   const found = installedRelease(prefix);
   const where = path.relative(root, prefix);
   if (found === recorded) {

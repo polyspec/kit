@@ -73,7 +73,7 @@ test('the Go release comes from the version file, else the toolchain line, else 
 });
 
 test('a declaration that is malformed or contradicts another fails with the file and the values', (t) => {
-  const cases = [
+  const cases: [Record<string, string>, RegExp][] = [
     [{ '.node-version': '26.8\n' }, /\.node-version must record the Node\.js release as <major>\.<minor>\.<patch>; it records "26\.8"/],
     [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],

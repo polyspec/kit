@@ -4,16 +4,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { signalGroup, waitGroupEnd } from '../../scripts/kit/process-group.mts';
+import type { Kill } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
 /** A kill that fails with each code of `codes` in turn, then succeeds; it records each call. */
-function killing(...codes) {
-  const calls = [];
-  const kill = (pid, signal) => {
+function killing(...codes: string[]): { kill: Kill; calls: [number, NodeJS.Signals | number][] } {
+  const calls: [number, NodeJS.Signals | number][] = [];
+  const kill: Kill = (pid, signal) => {
     calls.push([pid, signal]);
     const code = codes.shift();
     if (code) {
-      const error = new Error(`kill ${pid} ${code}`);
+      const error: NodeJS.ErrnoException = new Error(`kill ${pid} ${code}`);
       error.code = code;
       throw error;
     }
@@ -33,7 +34,7 @@ test('signalGroup reports exiting for EPERM and ended for ESRCH, and both are no
 });
 
 test('signalGroup rethrows any other errno', () => {
-  assert.throws(() => signalGroup(4321, 'SIGTERM', killing('EACCES').kill), (error) => error.code === 'EACCES');
+  assert.throws(() => signalGroup(4321, 'SIGTERM', killing('EACCES').kill), (error: NodeJS.ErrnoException) => error.code === 'EACCES');
 });
 
 test('waitGroupEnd does not resolve while the probe reports EPERM, and resolves at ESRCH', async () => {

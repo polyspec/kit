@@ -2,25 +2,26 @@
 // prints itself before it runs, and the wrapper scripts of var/tools/bin. A wrapper starts the installed file by its
 // absolute path; there is no symbolic link.
 import { execFileSync, spawnSync } from 'node:child_process';
+import type { SpawnSyncOptions } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { writeAtomic } from './files.mts';
 
 export const TOOLS = 'var/tools';
-export const toolsPath = (root, ...parts) => path.join(root, TOOLS, ...parts);
+export const toolsPath = (root: string, ...parts: string[]): string => path.join(root, TOOLS, ...parts);
 
 /**
  * The environment of the commands that install a tool: PATH without var/tools/bin, so that a wrapper of an earlier
  * install never installs its own replacement and the tool of the machine is the bootstrap.
  */
-export function bootstrapEnvironment(root, extra = {}) {
+export function bootstrapEnvironment(root: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   const bin = toolsPath(root, 'bin');
   const PATH = (process.env.PATH ?? '').split(path.delimiter).filter(entry => path.resolve(entry) !== bin).join(path.delimiter);
   return { ...process.env, PATH, ...extra };
 }
 
 /** Runs `command` with its output on the output of this process, after printing it; throws when it does not end with status 0. */
-export function run(command, args, options, print) {
+export function run(command: string, args: readonly string[], options: SpawnSyncOptions, print: (text: string) => unknown): void {
   print(`${command} ${args.join(' ')}`);
   const result = spawnSync(command, args, { stdio: 'inherit', ...options });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}; install ${command} on the machine to bootstrap ${TOOLS}`);
@@ -38,16 +39,16 @@ export const RELEASE_OUTPUT = {
 };
 
 /** The release that `command` prints for `tool` of RELEASE_OUTPUT, or undefined when the command does not exist. */
-export function printedRelease(command, tool) {
+export function printedRelease(command: string, tool: keyof typeof RELEASE_OUTPUT): string | undefined {
   const { args, pattern } = RELEASE_OUTPUT[tool];
   return existsSync(command) ? pattern.exec(execFileSync(command, args, { encoding: 'utf8' }))?.[1] : undefined;
 }
 
 /** `text` quoted for sh. */
-export const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
+export const quote = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`;
 
 /** Writes the wrapper `name` of var/tools/bin unless it has this text; the file is written beside its path and renamed. */
-export function writeWrapper(root, name, text, print) {
+export function writeWrapper(root: string, name: string, text: string, print: (text: string) => unknown): void {
   const file = toolsPath(root, 'bin', name);
   if (existsSync(file) && readFileSync(file, 'utf8') === text) return;
   writeAtomic(file, text, { mode: 0o755 });
@@ -55,4 +56,4 @@ export function writeWrapper(root, name, text, print) {
 }
 
 /** The text of a wrapper that runs `command`, with the comment line `comment`. */
-export const wrapperText = (comment, command) => `#!/bin/sh\n# ${comment} (scripts/kit/install-tools.mts).\n${command}\n`;
+export const wrapperText = (comment: string, command: string): string => `#!/bin/sh\n# ${comment} (scripts/kit/install-tools.mts).\n${command}\n`;

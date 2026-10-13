@@ -12,7 +12,7 @@ import { isMain } from './paths.mts';
 import { writeAtomic } from './files.mts';
 
 /** The text of the file with the pin of `name` set to `version`; the number of replacements is returned with it. */
-export function pinPythonRequirement(text, name, version) {
+export function pinPythonRequirement(text: string, name: string, version: string): { text: string; count: number } {
   const pattern = new RegExp(`"${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}==\\d+(?:\\.\\d+)*"`, 'g');
   const matches = text.match(pattern) ?? [];
   if (matches.length === 0) throw new Error(`no exact pin of ${name} in the file`);
