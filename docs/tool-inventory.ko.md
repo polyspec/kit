@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: aa10b142de8166514f7886f9f497846c662b686d1c1d8313b9e4f3ad5c82da59 -->
+<!-- source-sha256: 0ce10d10a32bd9093f46f4da466259491208a55a1faa74f885bff85c04c8eb31 -->
 
 # 도구 목록
 
@@ -714,8 +714,25 @@ make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. `t
 - ruff는 `__import__("sys").path`나 `getattr(sys, "path")`를 보지 못합니다. module과 attribute가 실행 시점에 정해집니다. 이를
   다루는 ruff 규칙은 없습니다.
 - vulture whitelist 항목과 `exclude` 경로의 이유는 review가 확인하는 주석이며, 이를 읽는 도구는 없습니다.
-- `npm audit`는 API Extractor가 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory GHSA-hp3w-g68c-fv3c를
-  보고합니다. 이 advisory는 sprintf-js의 모든 release에 해당합니다.
+- API Extractor가 @rushstack/ts-command-line과 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory
+  GHSA-hp3w-g68c-fv3c(npm advisory 1241202)는 sprintf-js의 모든 release에 해당합니다. kit의 dependency policy가 이를
+  받아들입니다(받아들인 advisory, K77).
+
+## 받아들인 advisory (K77)
+
+어떤 release도 고치지 않는 advisory는 모든 dependency gate를 실패시켰고, 통과하는 길은 숨기는 것뿐이었습니다.
+`config/dependency-policy.json`의 `advisoryExceptions` 항목은 한 lock의 한 package의 advisory 하나를 `reason`과
+`removalCondition`과 함께 받아들입니다. `advisory`는 review가 기록하는 식별자입니다(npm audit는 advisory를 번호로 부릅니다).
+
+- `make dependency-review`와 `make dependency-policy-check`는 받아들인 advisory에서 실패하지 않고, 각각 그 advisory를 이유와
+  제거 조건과 함께 받아들였다고 출력하며, review 기록은 그 advisory를 유지합니다. 항목이 없는 advisory는 전처럼 둘 다 실패시킵니다.
+- lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며, stale version exception처럼 둘 다 실패시킵니다. 이유나 제거 조건이
+  없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
+- `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
+- kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 유일한 항목은
+  sprintf-js를 받아들입니다. 어떤 release도 advisory를 고치지 않고, sprintf-js는 `make lint-ts`가 고정된 인자로만 실행하는
+  api-extractor 명령의 도움말과 오류 문구만 형식화합니다. sprintf-js의 release가 advisory를 고치거나 API Extractor가 더 이상
+  argparse에 의존하지 않으면 제거하며, 그때 review가 항목을 stale로 보고합니다.
 
 ## Release archive의 consumer 설치 (K5.4)
 

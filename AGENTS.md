@@ -52,6 +52,9 @@ and states only its own rules. The rules below are kit's own.
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   `dependency-review`, `kit-sync` and the install tools, and its result is a committed record.
+- A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of `advisoryExceptions`
+  in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
+  it is never hidden. kit reviews its own `package-lock.json` (docs/tool-inventory.md, Accepted advisories).
 - Do not keep backward compatibility: remove an old path instead of adding a compatibility layer, a fallback or a migration.
 - Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection for
   an uncertain future.

@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: ce03a78461a8cd8ff3fd28098f4303ace41bf97c7cd8e8b0c0ca9f3783a1a8ed -->
+<!-- source-sha256: 93fb795c5ee2c49fbf76e28e32109d9cf6eb99964a6659d65503723dfd65ec9f -->
 # 개발
 
 [English](AGENTS.md)
@@ -46,6 +46,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 `dependency-review`, `kit-sync`, 설치 도구만 하고, 결과는 commit된 기록입니다.
+- dependency advisory는 갱신으로 고칩니다. 어떤 release도 고치지 않는 advisory는 `config/dependency-policy.json`의
+  `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review와 gate가 받아들였다고 출력합니다. 숨기지
+  않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/tool-inventory.md, Accepted advisories).
 - 하위 호환성은 유지하지 않습니다: 호환 layer, fallback, migration을 더하지 않고 옛 경로를 제거합니다.
 - 현재 요구를 완전히 충족하는 가장 단순한 구현을 씁니다. 불확실한 미래를 위한 추상화, 설정, 간접 계층을 두지 않습니다.
 - 각 관심사를 자기 module에 분명히 분리한 modular component로 만듭니다.

@@ -779,8 +779,25 @@ the lint tools after the bootstrap, and `make toolchain-check` probes each insta
 - ruff cannot see `__import__("sys").path` or `getattr(sys, "path")`: the module and the attribute are chosen at run time. No
   ruff rule covers them.
 - The reason of a vulture whitelist entry and of an `exclude` path is a comment that review checks; no tool reads it.
-- `npm audit` reports the moderate advisory GHSA-hp3w-g68c-fv3c of sprintf-js 1.0.3, which API Extractor pulls in through
-  argparse 1.0.10; it covers every release of sprintf-js.
+- The moderate advisory GHSA-hp3w-g68c-fv3c (npm advisory 1241202) of sprintf-js 1.0.3, which API Extractor pulls in through
+  @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js. kit's own dependency policy accepts it
+  (Accepted advisories, K77).
+
+## Accepted advisories (K77)
+
+An advisory that no release fixes failed every dependency gate, and the only way past it was to hide it. An entry of
+`advisoryExceptions` of `config/dependency-policy.json` accepts one advisory of one package of one lock, with its `reason` and
+its `removalCondition`; `advisory` is the identifier that the review records (npm audit names an advisory by its number).
+
+- `make dependency-review` and `make dependency-policy-check` no longer fail on an accepted advisory; each prints it as accepted,
+  with its reason and removal condition, and the review record keeps it. An advisory without an entry fails both as before.
+- An entry whose advisory the review of its lock did not find is stale and fails both, as a stale version exception does.
+  An entry without its reason or removal condition fails the gate and accepts nothing.
+- `make dependency-review UPDATE=1` updates no package for an accepted advisory.
+- kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). Its one entry
+  accepts sprintf-js: no release fixes the advisory, and sprintf-js formats only the help and error texts of the api-extractor
+  command, which `make lint-ts` runs with fixed arguments. It is removed when a release of sprintf-js fixes the advisory or API
+  Extractor no longer depends on argparse; the review then reports the entry as stale.
 
 ## Consumer install of the release archives (K5.4)
 
