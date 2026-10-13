@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 9710407f04dd0ea524077a12184d1e7d448af54aa5384346d5752f2c0b9a2235 -->
+<!-- source-sha256: e33b183ffe41b2b7fb91380c278a0fa554a8ef69f6300e0095e0a6bf0262453d -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -180,3 +180,4 @@
 | K116 | 중첩 brace를 가진 glob은 throw하지 않고 그 전개로 match합니다. K73의 picomatch 비교에서 찾았습니다. K73의 picomatch 교체로 고치며, case는 그 test에 들어갑니다. | K73 glob test | `glob.mts`에서 throw하고 picomatch에서 match하는 case | [ ] |
 | K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [o] |
 | K118 | `check-toolchain`이 tool의 version 명령을 끝낸 signal을 `exit status null`이 아니라 이름으로 댑니다. 원인: message가 exit status만 읽었습니다; 부하 아래 K76 소유 실행에서 cargo-audit stub이 signal로 끝났고 원인을 알 수 없었습니다. | `scripts/kit/check-toolchain.mts`, 그 test | signal로 끝난 명령의 red case; `make kit-test` | [ ] |
+| K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
