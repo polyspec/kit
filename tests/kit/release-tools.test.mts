@@ -11,6 +11,7 @@ import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { prepareRust, toolsFor } from '../../scripts/kit/release-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture/config/release.json');
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
@@ -28,6 +29,8 @@ function rustCheckout(t: TestContext, { channel = '1.99.0', rustupStatus = 0 }: 
   for (const name of ['rustup', 'rustc']) chmodSync(path.join(bin, name), 0o755);
   const log = path.join(root, 'rustup.log');
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log };
+  // check-toolchain lists the files of the checkout through Git for the floors, so the checkout is a repository.
+  initRepository(root);
   const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : []);
   return { root, env, calls, log };
 }
