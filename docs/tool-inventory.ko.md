@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d55194f063fdda2709d0afe3d0e1cd008ae1ae36fb30450dafd6844dcaea0c4f -->
+<!-- source-sha256: f846a41120c3ccef785b4addd498e252a9cf0747030ae443b6e665d9abbdcef1 -->
 
 # 도구 목록
 
@@ -285,7 +285,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 ## 테스트 실행기 (K8.1-2)
 
 `scripts/kit/run-tests.mjs`는 template, crudui, hyper의 `run-tests.mjs`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
-`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mjs`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-load-check.mjs`는 각 node test 파일에 preload되며,
+`test-progress.mjs`, `node-reporter.mjs`, `vitest-reporter.mjs`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mjs`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-exit-deadline.mjs`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
 `test-hooks.mjs`는 test의 `setup`과 `teardown` helper입니다.
 
 합친 동작:
