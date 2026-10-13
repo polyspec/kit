@@ -6,15 +6,21 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { captured, difference, finding } from './parity-declaration.mts';
+import type { ParityImplementation, ParityModel } from './parity-units.mts';
 
 const COMMENT = /^(?:#|\/\/)/;
 
+/** The codes of the catalog, and the codes of each implementation by name. */
+export type Codes = { catalog: Set<string>; implementations: Map<string, Set<string>> };
+
+type WithErrors = ParityImplementation & Required<Pick<ParityImplementation, 'errors'>>;
+
 /** The codes of the catalog and of each implementation artifact, and the declaration findings of reading them. */
-export function readCodes(model, root) {
+export function readCodes(model: ParityModel, root: string) {
   const errors = model.config.errors;
-  const codes = { catalog: new Set(), implementations: new Map() };
+  const codes: Codes = { catalog: new Set(), implementations: new Map() };
   if (!errors) return { codes, findings: [] };
-  const findings = [];
+  const findings: ReturnType<typeof finding>[] = [];
   const { file, pattern } = errors.catalog;
   readFileSync(path.join(root, file), 'utf8').split('\n').forEach((line, index) => {
     if (!line.trim() || COMMENT.test(line.trim())) return;
@@ -23,7 +29,7 @@ export function readCodes(model, root) {
     else if (match[1] !== undefined) codes.catalog.add(match[1]);
   });
   if (!findings.length && !codes.catalog.size) findings.push(finding('declaration', `the catalog pattern ${pattern} reads no code`, { place: file }));
-  for (const implementation of model.config.implementations.filter(entry => entry.errors)) {
+  for (const implementation of model.config.implementations.filter((entry): entry is WithErrors => Boolean(entry.errors))) {
     const read = new Set(captured(readFileSync(path.join(root, implementation.errors.file), 'utf8'), implementation.errors.pattern).map(match => match.text).filter(Boolean));
     if (!read.size) findings.push(finding('declaration', `the pattern ${implementation.errors.pattern} of ${implementation.name} reads no code`, { place: implementation.errors.file }));
     codes.implementations.set(implementation.name, read);
@@ -32,12 +38,15 @@ export function readCodes(model, root) {
 }
 
 /** R7: the codes of each implementation of the profile against the catalog. */
-export function errorCatalog(model, codes) {
+export function errorCatalog(model: ParityModel, codes: Codes) {
   const errors = model.config.errors;
   if (!errors) return [];
-  return model.profiles.get(errors.profile).map(name => model.implementations.get(name)).flatMap((implementation) => {
+  // readDeclaration reports an unknown errors profile and a profile member that is no implementation, and the rules do not
+  // run on a declaration with findings.
+  return model.profiles.get(errors.profile)!.map(name => model.implementations.get(name)!).flatMap((implementation) => {
     if (!implementation.errors) return [finding('R7', `${implementation.name} declares no error codes; name its generated codes in errors of the implementation`, { implementation: implementation.name, place: errors.catalog.file })];
-    const differs = difference([...codes.catalog], [...codes.implementations.get(implementation.name)], 'the catalog');
+    // readCodes reads the codes of every implementation that declares errors.
+    const differs = difference([...codes.catalog], [...codes.implementations.get(implementation.name)!], 'the catalog');
     return differs ? [finding('R7', `the codes differ from ${errors.catalog.file}: ${differs}`, { implementation: implementation.name, place: implementation.errors.file })] : [];
   });
 }
