@@ -8,36 +8,25 @@
 //     the autoloader of its vendor/, so a call through a variable or an object is resolved. A package with PHP files and no
 //     vendor/autoload.php fails with the install it needs.
 // The stubs of a PHP extension (*.stub.php) are the input of php-src's gen_stub.php and are left out. A missing tool or
-// configuration is a failure with its fix, never a skip. Every step runs, also after a failure of an earlier one, and each
-// prints one line.
+// configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps.
 //
 //   node scripts/kit/lint-php.mts
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { isMain, ROOT } from './paths.mts';
-import { execute } from './process.mts';
+import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
+import type { LintStep } from './lint-steps.mts';
+import { ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
-
-/** A step of the lint: the command, its arguments and the folder it runs in, relative to the root. */
-export type LintStep = { label: string; command: string; args: string[]; cwd: string };
 
 /** The steps of the lint of `root`; throws when a tool, a configuration or the autoloader of a package is missing. */
 export function lintSteps(root: string): LintStep[] {
-  const tools: Record<string, string> = {};
-  for (const tool of ['phpcs', 'phpstan']) {
-    const command = path.join(root, 'var/tools/bin', tool);
-    if (!existsSync(command)) throw new Error(`${path.relative(root, command)} is missing; run make install-tools TOOLS=phpLint, which installs config/php-lint`);
-    tools[tool] = command;
-  }
-  for (const file of ['phpcs.xml.dist', 'phpstan.dist.neon']) {
-    if (!existsSync(path.join(root, file))) throw new Error(`${file} is missing; it is the PHP lint configuration that kit copies into every repository (make kit-sync)`);
-  }
+  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools TOOLS=phpLint, which installs config/php-lint');
+  requireConfigurations(root, [['phpcs.xml.dist', 'PHP lint'], ['phpstan.dist.neon', 'PHP lint']]);
   const files = checkedFiles(root);
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
   if (sources.length === 0) return [];
-  const packages = files.filter(file => path.posix.basename(file) === 'composer.json').map(file => path.posix.dirname(file));
-  // Each file belongs to the package of the deepest folder that holds it.
-  const owner = (file: string) => packages.filter(folder => folder === '.' || file.startsWith(`${folder}/`)).sort((a, b) => b.length - a.length)[0];
+  const packages = foldersOf(root, 'composer.json');
+  const owner = packageOwner(packages);
   const steps: LintStep[] = [{ label: 'phpcs', command: tools.phpcs!, args: ['-q', '-s', '--report=emacs', '--standard=phpcs.xml.dist', ...sources], cwd: '.' }];
   for (const folder of packages) {
     const own = sources.filter(file => owner(file) === folder).map(file => path.posix.relative(folder, file));
@@ -50,30 +39,7 @@ export function lintSteps(root: string): LintStep[] {
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */
 export function lint(root: string, print: (text: string) => unknown = text => process.stdout.write(text)): string[] {
-  const failed: string[] = [];
-  for (const step of lintSteps(root)) {
-    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd) });
-    print(`${result.stdout}${result.stderr}`);
-    if (result.error || result.status !== 0) {
-      failed.push(step.label);
-      console.log(`[lint-php] ${step.label}: failed with ${result.error?.message ?? `exit status ${result.status}`}`);
-    } else {
-      console.log(`[lint-php] ${step.label}: passed`);
-    }
-  }
-  return failed;
+  return runLint('lint-php', lintSteps(root), root, print);
 }
 
-if (isMain(import.meta.url)) {
-  try {
-    const failed = lint(ROOT);
-    if (failed.length) {
-      console.error(`[lint-php] ${failed.length} steps failed: ${failed.join('; ')}`);
-      process.exitCode = 1;
-    }
-  } catch (error) {
-    // lint and the modules it calls throw only an Error.
-    console.error(`[lint-php] ${(error as Error).message}`);
-    process.exitCode = 1;
-  }
-}
+lintMain(import.meta.url, 'lint-php', ROOT, lintSteps);
