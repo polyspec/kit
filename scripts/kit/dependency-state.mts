@@ -23,6 +23,7 @@ import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { readPylock } from './pylock.mts';
+import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
 
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
@@ -129,26 +130,24 @@ const PLATFORM_REQUIREMENT = /^(php(-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.
 
 /** The exact requirements of a pyproject.toml: build-system.requires and every extra, each `name==version`. */
 export function pythonRequirements(text: string, manifest: string) {
-  const sections = text.split(/^(?=\[)/m);
+  const data = readToml(text, manifest);
   const requirements: PythonRequirement[] = [];
-  const add = (kind: PythonRequirementKind, list: string) => {
-    // The groups of both patterns are not optional, so every match holds them.
-    for (const [, item] of list.matchAll(/"([^"]+)"/g)) {
-      const pin = EXACT_PYTHON_PIN.exec(item!); // The groups of the pattern are not optional.
+  const add = (kind: PythonRequirementKind, where: string, list: TomlValue | undefined) => {
+    if (list === undefined) return;
+    if (!isStringArray(list)) throw new Error(`${manifest}: ${where} is not an array of strings`);
+    for (const item of list) {
+      const pin = EXACT_PYTHON_PIN.exec(item);
       if (!pin) throw new Error(`${manifest}: ${JSON.stringify(item)} is not an exact pin name==version; pin it exactly`);
       requirements.push({ package: pin[1]!, kind, spec: `==${pin[2]}`, version: pin[2]! }); // The groups of the pattern are not optional.
     }
   };
-  for (const section of sections) {
-    if (section.startsWith('[build-system]')) {
-      const requires = /^requires\s*=\s*\[([\s\S]*?)\]/m.exec(section);
-      // The groups of the patterns are not optional, so every match holds them.
-      if (requires) add('build-system', requires[1]!);
-    } else if (section.startsWith('[project.optional-dependencies]')) {
-      // The groups of the patterns are not optional, so every match holds them.
-      for (const [, extra, list] of section.matchAll(/^([A-Za-z0-9_-]+)\s*=\s*\[([\s\S]*?)\]/gm)) add(`optional:${extra}`, list!);
-    }
-  }
+  const table = (value: TomlValue | undefined, where: string) => {
+    if (value !== undefined && !isTable(value)) throw new Error(`${manifest}: ${where} is not a table`);
+    return value;
+  };
+  add('build-system', 'build-system.requires', table(data['build-system'], 'build-system')?.requires);
+  const extras = table(table(data.project, 'project')?.['optional-dependencies'], 'project.optional-dependencies');
+  for (const [extra, list] of Object.entries(extras ?? {})) add(`optional:${extra}`, `project.optional-dependencies.${extra}`, list);
   return requirements;
 }
 
