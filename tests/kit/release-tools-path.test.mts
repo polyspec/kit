@@ -17,7 +17,7 @@ test('make release-tools-path appends var/tools/bin of the checkout to GITHUB_PA
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'github_path');
   writeFileSync(file, '');
-  const run = spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'release-tools-path'], { cwd: ROOT, env: { ...process.env, GITHUB_PATH: file }, encoding: 'utf8' });
+  const run = spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'release-tools-path'], { cwd: ROOT, env: { ...process.env, GITHUB_PATH: file }, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(readFileSync(file, 'utf8'), `${ROOT}/var/tools/bin\n`);
 });
@@ -25,7 +25,7 @@ test('make release-tools-path appends var/tools/bin of the checkout to GITHUB_PA
 test('make release-tools-path refuses without GITHUB_PATH and names where it runs', () => {
   const env = { ...process.env };
   delete env.GITHUB_PATH;
-  const run = spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'release-tools-path'], { cwd: ROOT, env, encoding: 'utf8' });
+  const run = spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'release-tools-path'], { cwd: ROOT, env, encoding: 'utf8' });
   assert.notEqual(run.status, 0);
   assert.match(run.stdout + run.stderr, /release-tools-path: GITHUB_PATH is not set; run it in the release workflow between steps/);
 });

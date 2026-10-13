@@ -33,10 +33,9 @@ import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolsPath } from './tool-wrappers.mts';
 import { writeJson } from './files.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, ROOT, siblingTool } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 
-const KIT = path.dirname(fileURLToPath(import.meta.url));
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
@@ -121,11 +120,11 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
       return {
         command: process.execPath,
         // The preload fails a file whose process is still alive the test timeout after its last test, naming what holds it.
-        args: ['--test', `--import=${pathToFileURL(path.join(KIT, 'test-exit-deadline.mts')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, `--test-reporter=${path.join(KIT, 'node-reporter.mts')}`, '--test-reporter-destination=stdout', ...args],
+        args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, `--test-reporter=${siblingTool(import.meta.url, 'node-reporter')}`, '--test-reporter-destination=stdout', ...args],
       };
     case 'vitest':
       // npm writes no bin links, so the runner starts the entry of the vitest package with node.
-      return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', `--testTimeout=${milliseconds}`, `--hookTimeout=${milliseconds}`, `--reporter=${path.join(KIT, 'vitest-reporter.mts')}`, ...args] };
+      return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', `--testTimeout=${milliseconds}`, `--hookTimeout=${milliseconds}`, `--reporter=${siblingTool(import.meta.url, 'vitest-reporter')}`, ...args] };
     case 'go':
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
       // binary, a package.

@@ -1,37 +1,38 @@
-# The targets of kit that every repository includes (`include scripts/kit/kit.mk`). This file is vendored: it is copied by
-# `make kit-sync`, so a change is made in kit, never in a checkout (.kit/kit.lock.json records its sha256).
+# The targets of kit that every repository includes. A repository includes it through scripts/kit/kit-bootstrap.mk, which
+# sets KIT := node_modules/@polyspec/kit/dist and KIT_EXT := mjs; the Makefile of kit sets KIT := scripts/kit and
+# KIT_EXT := mts and runs the sources. Every tool runs as node $(KIT)/<tool>.$(KIT_EXT).
+ifeq ($(and $(KIT),$(KIT_EXT)),)
+$(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or set both as the Makefile of kit does)
+endif
 KIT_REPOSITORY ?= https://github.com/polyspec/kit
 ONLINE ?=
 
-.PHONY: kit-sync kit-check kit-test
+.PHONY: kit-sync kit-check
 
 kit-sync: ## Copy the vendored files of kit at KIT_TAG into this checkout; ONLINE, it clones KIT_REPOSITORY
 	@test -n "$(KIT_TAG)" || { echo "kit-sync: KIT_TAG is required, for example make kit-sync KIT_TAG=v0.0.1"; exit 1; }
-	$(ONLINE) node scripts/kit/kit-sync.mts --tag $(KIT_TAG) --repository $(KIT_REPOSITORY)
+	$(ONLINE) node $(KIT)/kit-sync.$(KIT_EXT) --tag $(KIT_TAG) --repository $(KIT_REPOSITORY)
 
 kit-check: ## Check the vendored files against .kit/kit.lock.json and the configuration against its schemas; offline
-	node scripts/kit/kit-check.mts
-
-kit-test: ## Run the tests of the vendored tools (tests/kit) through the test runner, with per-case progress and timeouts; offline
-	node scripts/kit/run-tests.mts node -- tests/kit
+	node $(KIT)/kit-check.$(KIT_EXT)
 
 # --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
 .PHONY: cargo-downloads-check cargo-downloads-fetch
 cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the registry of CARGO_HOME; offline
-	node scripts/kit/check-cargo-downloads.mts
+	node $(KIT)/check-cargo-downloads.$(KIT_EXT)
 
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock
-	$(ONLINE) node scripts/kit/check-cargo-downloads.mts --fetch
+	$(ONLINE) node $(KIT)/check-cargo-downloads.$(KIT_EXT) --fetch
 # Toolchains (K8.2): install-tools installs the declared npm, Go, ruff and uv (with the sha256 of their wheels), Composer (with a sha256), cargo-audit and
 # govulncheck into var/tools; ONLINE, because it downloads. Nothing on the machine changes. Put var/tools/bin first on PATH.
 # toolchain-check compares the running tools with the declarations and fails with the expected and the running version.
 .PHONY: install-tools toolchain-check
 
 install-tools: ## Install the toolchains that the checkout declares into var/tools; TOOLS limits the tools; ONLINE
-	$(ONLINE) node scripts/kit/install-tools.mts $(TOOLS)
+	$(ONLINE) node $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
-	node scripts/kit/check-toolchain.mts $(TOOLS)
+	node $(KIT)/check-toolchain.$(KIT_EXT) $(TOOLS)
 
 # ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
 # alint (config/toolchain.json alint, installed by install-tools) checks the tree against config/layout.yml, which extends
@@ -42,7 +43,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 	var/tools/bin/alint check --config config/layout.yml --color never --compact .
 # ---- The gates: Git hooks, push gate and guard of the full run ------------------------------------------------------
 # scripts/kit/git-hooks.mts, push-gate.mts and full-run.mts read config/checklist.json. The target that runs the full suite
-# is the repository's own: it calls `node scripts/kit/full-run.mts run <target>...` with the targets of its suite.
+# is the repository's own: it calls `node $(KIT)/full-run.$(KIT_EXT) run <target>...` with the targets of its suite.
 COMMIT ?= HEAD
 FULL_RUN_KEYS ?=
 
@@ -56,58 +57,58 @@ endif
 endif
 
 hooks: ## Set core.hooksPath to .githooks, write the pre-push hook of the push gate and check the hooks
-	node scripts/kit/git-hooks.mts install
+	node $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
-	node scripts/kit/git-hooks.mts check
+	node $(KIT)/git-hooks.$(KIT_EXT) check
 
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
-	node scripts/kit/push-gate.mts commit $(COMMIT)
+	node $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 rerun-failed: ## Rerun the targets of the last full run of this tree that did not pass; FULL_RUN_KEYS repeats the keys of that run
-	node scripts/kit/full-run.mts rerun-failed$(if $(FULL_RUN_KEYS), $(FULL_RUN_KEYS))
+	node $(KIT)/full-run.$(KIT_EXT) rerun-failed$(if $(FULL_RUN_KEYS), $(FULL_RUN_KEYS))
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
 .PHONY: documents-check
 
 documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
-	node scripts/kit/check-documents.mts
+	node $(KIT)/check-documents.$(KIT_EXT)
 
 .PHONY: documents-stamp
 
 documents-stamp: ## Write the source-sha256 of each English document into its Korean twin; run it after the translation matches
-	node scripts/kit/documents-stamp.mts
+	node $(KIT)/documents-stamp.$(KIT_EXT)
 
 .PHONY: owner-check owner-validate
 
 owner-check: ## Run the checks that own the changed paths (config/owner-checks.json); PATHS="a b" or BASE=<revision> selects the paths
-	node scripts/kit/owner-check.mts $(if $(PATHS),--paths "$(PATHS)") $(if $(BASE),--base $(BASE))
+	node $(KIT)/owner-check.$(KIT_EXT) $(if $(PATHS),--paths "$(PATHS)") $(if $(BASE),--base $(BASE))
 
 owner-validate: ## Check that config/owner-checks.json owns every tracked path and names only existing checks; offline
-	node scripts/kit/owner-check.mts --validate
+	node $(KIT)/owner-check.$(KIT_EXT) --validate
 
 .PHONY: ci-targets ci-summary ci-passed
 
 CI_REPORT ?= var/report/ci-targets
 
 ci-targets: ## Run the make targets of TARGETS past failures and write the report to CI_REPORT (logs, record.json, summary.md)
-	node scripts/kit/ci-targets.mts $(CI_REPORT) $(TARGETS)
+	node $(KIT)/ci-targets.$(KIT_EXT) $(CI_REPORT) $(TARGETS)
 
 ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
-	node scripts/kit/ci-targets.mts --summary $(CI_REPORT)
+	node $(KIT)/ci-targets.$(KIT_EXT) --summary $(CI_REPORT)
 
 ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
-	node scripts/kit/ci-passed.mts
+	node $(KIT)/ci-passed.$(KIT_EXT)
 
 .PHONY: commits-check
 
 commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against config/commits.json; offline
-	node scripts/kit/check-commits.mts $(if $(RANGE),--range $(RANGE))
+	node $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
 .PHONY: release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
 
 release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and its backend, Go) and check cargo when a git-tag proof needs it; ONLINE
-	$(ONLINE) node scripts/kit/release-tools.mts
+	$(ONLINE) node $(KIT)/release-tools.$(KIT_EXT)
 
 
 release-tools-path: ## Append var/tools/bin to GITHUB_PATH for the steps that follow; the release workflow runs it after release-tools
@@ -116,45 +117,45 @@ release-tools-path: ## Append var/tools/bin to GITHUB_PATH for the steps that fo
 
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts verify "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) verify "$$TAG"
 
 release-versions: ## Require the version of TAG in every manifest, the Go module path and the change log section; offline
 	@test -n "$$TAG" || { echo "release-versions: TAG is required, for example make release-versions TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts versions "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) versions "$$TAG"
 
 release-assets: ## Build the archive of every package of TAG into var/release/assets
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts assets "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the archives of release-assets; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts publish "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) publish "$$TAG"
 
 release-undraft: ## Make the draft release of TAG public; run only after release-proof of TAG passed
 	@test -n "$$TAG" || { echo "release-undraft: TAG is required, for example make release-undraft TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts undraft "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) undraft "$$TAG"
 
 release-coverage: ## Require every package file of the checkout to be classified in config/release.json; offline
-	node scripts/kit/release.mts coverage
+	node $(KIT)/release.$(KIT_EXT) coverage
 
 release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
 	@test -n "$$TAG" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release.mts go-tags "$$TAG"
+	node $(KIT)/release.$(KIT_EXT) go-tags "$$TAG"
 
 release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
-	$(ONLINE) node scripts/kit/release-backend.mts
+	$(ONLINE) node $(KIT)/release-backend.$(KIT_EXT)
 
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
 .PHONY: python-venv
 python-venv: ## Make the virtual environment DIR from var/tools/bin/python3 with var/tools/bin/uv venv; offline
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
-	node scripts/kit/python-venv.mts $(DIR)
+	node $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
 # --- lint-python: ruff check and ruff format --check of the Python of the checkout, with the ruff that config/toolchain.json declares.
 .PHONY: lint-python
 lint-python: ## Lint and format-check the Python of the checkout with the ruff of var/tools; offline
-	node scripts/kit/lint-python.mts
+	node $(KIT)/lint-python.$(KIT_EXT)
 # ---- Consumer install of the release archives (K5.4) ------------------------------------------------------------
 # ---- Consumer install and proof of a release (K5.4, K5.5) ------------------------------------------------------------
 # scripts/kit/release-consumer.mts installs the archives of TAG from var/release/assets (make release-assets) in clean npm and
@@ -167,40 +168,40 @@ lint-python: ## Lint and format-check the Python of the checkout with the ruff o
 
 release-consumer: ## Install the archives of TAG in var/release/assets in clean npm and Composer projects and run the smoke commands
 	@test -n "$$TAG" || { echo "release-consumer: TAG is required, for example make release-consumer TAG=v0.0.1"; exit 1; }
-	node scripts/kit/release-consumer.mts install "$$TAG"
+	node $(KIT)/release-consumer.$(KIT_EXT) install "$$TAG"
 
 release-consumer-lock: ## Write the consumer manifests and locks of TAG from the archives in var/release/assets; ONLINE
 	@test -n "$$TAG" || { echo "release-consumer-lock: TAG is required, for example make release-consumer-lock TAG=v0.0.1"; exit 1; }
-	$(ONLINE) node scripts/kit/release-consumer.mts lock "$$TAG"
+	$(ONLINE) node $(KIT)/release-consumer.$(KIT_EXT) lock "$$TAG"
 
 release-proof: ## Prove the released TAG from outside the checkout: release assets, consumer installs, git-tag installs, Go modules; ONLINE
 	@test -n "$$TAG" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
-	$(ONLINE) node scripts/kit/release-proof.mts "$$TAG"
+	$(ONLINE) node $(KIT)/release-proof.$(KIT_EXT) "$$TAG"
 
 # --- dependencies: the gate reads the manifests, the locks and the review record; the review asks the registries.
 .PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review
 dependency-policy-check: ## Check the manifests and locks against config/dependency-policy.json and the review record; offline
-	node scripts/kit/check-dependency-policy.mts
+	node $(KIT)/check-dependency-policy.$(KIT_EXT)
 
 dependency-policy-mutation-check: ## Check that the dependency gate rejects each known mutation of the checkout; offline
-	node scripts/kit/check-dependency-policy-mutation.mts
+	node $(KIT)/check-dependency-policy-mutation.$(KIT_EXT)
 
 dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; ONLINE
-	$(ONLINE) node scripts/kit/dependency-review.mts $(if $(RECORD),--record) $(if $(UPDATE),--update)
+	$(ONLINE) node $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update)
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 .PHONY: parity-check parity-declarations-check
 parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; offline
-	node scripts/kit/parity.mts
+	node $(KIT)/parity.$(KIT_EXT)
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; offline
-	node scripts/kit/parity.mts --declarations
+	node $(KIT)/parity.$(KIT_EXT) --declarations
 
 # --- python-lock: the PEP 751 locks of config/dependency-policy.json (pythonLocks), each with its requirements and a constraints file
 # that pins every package. The writer resolves with var/tools/bin/uv (install-tools TOOLS=uv); the check never resolves.
 .PHONY: python-lock python-lock-check
 python-lock: ## Write every Python lock of pythonLocks with var/tools/bin/uv from its requirements and constraints; ONLINE
-	$(ONLINE) node scripts/kit/python-lock.mts write
+	$(ONLINE) node $(KIT)/python-lock.$(KIT_EXT) write
 
 python-lock-check: ## Check every Python lock of pythonLocks against its requirements and constraints, with no network; offline
-	node scripts/kit/python-lock.mts check
+	node $(KIT)/python-lock.$(KIT_EXT) check

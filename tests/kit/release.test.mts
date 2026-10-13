@@ -467,7 +467,7 @@ test('the command line refuses a missing mode, a missing tag and an extra argume
 test('make runs each release step with the tag of the environment and fails without it', (t) => {
   const box = releaseSandbox(t);
   box.release('0.0.1');
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
   for (const target of ['release-verify', 'release-versions', 'release-assets', 'release-publish', 'release-undraft']) {
     const result = make(target);
     assert.equal(result.status, 2, target);

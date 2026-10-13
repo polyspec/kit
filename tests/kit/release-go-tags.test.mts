@@ -116,7 +116,7 @@ test('the go-tags step prints each finding and exits with 1, or prints one line 
 test('make release-go-tags takes the tag of the environment', (t) => {
   const box = releaseSandbox(t);
   box.release('0.0.1');
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const without = make('release-go-tags');
   assert.equal(without.status, 2);
   assert.match(without.stdout + without.stderr, /release-go-tags: TAG is required, for example make release-go-tags TAG=v0\.0\.1/);
@@ -129,7 +129,7 @@ test('a TAG with shell syntax reaches release.mts as one argument and runs no co
   const box = releaseSandbox(t);
   box.release('0.0.1');
   const marker = path.join(box.root, 'injected');
-  const result = spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'release-go-tags', `TAG=v0.0.1; touch ${marker}`], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const result = spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'release-go-tags', `TAG=v0.0.1; touch ${marker}`], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.notEqual(result.status, 0);
   assert.equal(existsSync(marker), false, 'the shell ran the text after the semicolon');
 });

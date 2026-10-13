@@ -11,6 +11,15 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = process.cwd();
 
 /**
+ * The file of the tool `name` beside the module `moduleUrl` (its `import.meta.url`), with the extension of that module: a
+ * source of scripts/kit (.mts) starts a source, a module of the package's dist (.mjs) a module of dist.
+ */
+export const siblingTool = (moduleUrl: string, name: string): string => {
+  const file = fileURLToPath(moduleUrl);
+  return path.join(path.dirname(file), `${name}${path.extname(file)}`);
+};
+
+/**
  * Whether the module `moduleUrl` (its `import.meta.url`) is the command that Node.js started. Both paths are resolved to their real
  * files before the comparison, so a command named through a link of its directory is that module; the comparison never reads a
  * link as a different file, which would make the tool skip its work and exit 0.

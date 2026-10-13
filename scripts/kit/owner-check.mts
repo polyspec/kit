@@ -22,7 +22,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, ROOT, siblingTool } from './paths.mts';
 import { git } from './git.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
@@ -259,7 +259,7 @@ export function commandsOf(selection: { checks: Check[]; tests: string[] }, decl
   if (!selection.tests.length) return selection.checks;
   const tests = declaration.testTarget
     ? { name: `make ${declaration.testTarget} TESTS=${selection.tests.join(' ')}`, command: 'make', args: ['--no-print-directory', declaration.testTarget, `TESTS=${selection.tests.join(' ')}`] }
-    : { name: `node tests ${selection.tests.join(' ')}`, command: process.execPath, args: ['scripts/kit/run-tests.mts', 'node', '--', ...selection.tests] };
+    : { name: `node tests ${selection.tests.join(' ')}`, command: process.execPath, args: [siblingTool(import.meta.url, 'run-tests'), 'node', '--', ...selection.tests] };
   return [...selection.checks, tests];
 }
 

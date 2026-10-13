@@ -209,7 +209,7 @@ test('the command line prints one line for each step and the exit status', (t) =
 
 test('make release-proof takes the tag of the environment', (t) => {
   const box = locked(t);
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const without = make('release-proof');
   assert.equal(without.status, 2);
   assert.match(without.stdout + without.stderr, /release-proof: TAG is required, for example make release-proof TAG=v0\.0\.1/);
