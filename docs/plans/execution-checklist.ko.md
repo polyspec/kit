@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 23bf2c8f97b01babb871322cd799ff9fd8063ec2f3ff1dd864af464a7131bc4b -->
+<!-- source-sha256: 5eb85360022c68478b92136e382bb631016630d5a88b8069d78b8e542e15a368 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -150,3 +150,5 @@
 | K104 | 멈춘 source-test 실행은 sandbox process를 남기지 않습니다: `consumer-layout`과 `fresh-checkout`은 중첩 `make kit-test`를 자기 process group에서 시작하고, case가 끝나거나 취소되면 그 group을 끝냅니다. run-tests가 timeout에서 하는 것과 같습니다(`signalGroup`). 원인: 실행이 멈추면 중첩 `make`와 `node --test` process가 부모 없이 계속 돌았습니다(2026-10-13, 22–26분 된 8개). | `tests/source/checkout.mts`, 그 test | case를 멈추고 중첩 group이 살아 있음을 찾는 red test, 그다음 그 case의 소유 검사 | [ ] |
 | K105 | kit은 자기 경로의 소유자를 `config/owner-checks.json`에 선언하므로, `make owner-check`가 모든 소비자에서처럼 kit에서도 바뀐 것의 소유 검사를 고릅니다. 원인: kit에 선언이 없어 owner의 규칙(K106)에 kit의 기계적 선택이 없었습니다. | `config/owner-checks.json`, `make owner-validate` | `make owner-validate`; `make owner-check BASE=<rev>`가 바뀐 module의 test를 고름 | [ ] |
 | K81 | vendored test는 `make install-tools`가 제공하는 어떤 것도 필요로 하지 않습니다(K90에 이어). 원인: flowmark는 toolchain을 선언하지 않아 Python을 설치할 수 없고, 그 kit-test가 `var/tools/bin/python3`를 요구하는 `tests/kit/parity.test.mjs`의 실제 unittest case R3에서 실패했습니다. K90은 그런 case가 명령을 지목하면 실패해도 된다고 했지만, 그 toolchain이 없는 소비자는 그 명령을 실행할 수 없습니다. | `tests/source/fresh-checkout.test.mjs`가 `var/` 없는 checkout에서 모든 vendored test의 통과를 요구합니다; R3는 `givePython` helper 하나와 함께 `tests/source/parity-real.test.mjs`로 옮깁니다 | RED: fresh-checkout test가 정확히 R3에서 실패했습니다; GREEN: 통과하며, `make kit-test`와 `make source-test`가 통과합니다 증거: v0.0.34의 flowmark에서 kit-test는 R3 하나에서만 실패했다; 여기서 fresh-checkout test는 이동 전 정확히 R3에서 실패했고 이동 후 통과하며, R3는 tests/source/parity-real.test.mjs에서 통과한다. | [o] |
+| K82 | kit의 CI가 kit commit의 모든 gate를 실행합니다: test 말고도 `documents-check`와 그 실행의 commit에 대한 `commits-check`. 원인: `.github/workflows/ci.yml`이 install-tools, kit-test, source-test만 실행해서, documents-check에 실패한 b415ad8(conflict 뒤 revision marker 둘)이 CI를 통과했습니다. | 두 step과 전체 history checkout을 가진 `.github/workflows/ci.yml`; `tests/source/ci-workflow.test.mjs` | RED: 변경 전 workflow test가 두 case 모두 실패했습니다; GREEN: 둘 다 통과하며 `make commits-check RANGE=0f290df..HEAD`가 통과합니다 | [o] |
+| K83 | kit-sync는 tag가 아닌 ref를 거부합니다. 원인: flowmark의 `.kit/kit.lock.json`이 kit worktree의 branch인 `"tag": "feat/fifth-state-K13"`를 기록해서, 소비자의 vendored tool이 어떤 release에서도 오지 않았습니다. | kit-sync는 `--tag`를 `refs/tags/<name>`으로만 해석하고 그 밖의 것은 이름을 대며 거부합니다 | RED 먼저: branch 이름으로 한 sync가 거부됩니다; tag로 한 sync는 통과합니다 | [ ] |

@@ -13,8 +13,10 @@ jobs:
   kit:
     runs-on: ubuntu-24.04
     steps:
-      # actions/checkout v6.1.0
+      # actions/checkout v6.1.0; commits-check reads the commits of the run, so the checkout carries the full commit graph.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
       # actions/setup-node v6.5.0: the Node.js of .node-version; the repository has no npm package to install.
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -30,3 +32,19 @@ jobs:
       # The kit's own tests (tests/source) build the wheel with the Python and backend of install-tools; kit-sync does not vendor them.
       - name: source tests
         run: make source-test
+      - name: documents check
+        run: make documents-check
+      # The commits the run was triggered by: those of the pull request over its base, or those of the push. A manual run and
+      # the first push of a branch have no earlier commit, so the run checks HEAD.
+      - name: commit range
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -n "$BASE" ]; then echo "range=$BASE..$HEAD_SHA"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then echo "range=$BEFORE..$GITHUB_SHA"
+          else echo "range=HEAD"
+          fi >> "$GITHUB_ENV"
+      - name: commits check
+        run: make commits-check RANGE="$range"
