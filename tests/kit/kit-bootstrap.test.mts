@@ -48,10 +48,10 @@ test('install-packages runs npm ci with the pinned npm of var/tools, with or wit
   const root = repository(t);
   const dry = make(root, '-n', 'install-packages', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'online-wrapper var/tools/bin/npm ci');
+  assert.equal(dry.stdout.trim(), 'online-wrapper var/tools/bin/npm ci --allow-remote=root');
   mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
   cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), 'var/tools/bin/npm ci');
+  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), 'var/tools/bin/npm ci --allow-remote=root');
 });
 
 test('with the package, the kit.mk of its dist runs the built tools', (t) => {
