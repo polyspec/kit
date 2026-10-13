@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0700be4d00ba1fcdcd5bea6a7cc6a222941b1aaef08de708b8ea64b062ee3517 -->
+<!-- source-sha256: 050bb8ad1569eb2c20c81c581084206ef7650dd2921eb9d48a5e475cabb7ca49 -->
 
 # 도구 목록
 
@@ -68,7 +68,7 @@
 | Node.js | `.node-version`(정확한 version) | 검증 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
 | Go | `config/toolchain.json`의 `go`: 지정한 `go.mod`의 `go` 줄(정확한 version), `go mod edit -json`으로 읽음(K78) | 설치 |
-| Rust | `rust-toolchain.toml`의 `channel`(정확한 version), tomllib으로 읽음(K78) | 검증 |
+| Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
 | Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
@@ -95,7 +95,7 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
 | `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `python` | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
 | 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin |
-| project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(tomllib) | Python pin 이상(`>=`) |
+| project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
 | `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`의 모든 `typescript` | TypeScript pin |
@@ -106,7 +106,7 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
   `nightly-<yyyy-mm-dd>`는 parity가 rustdoc JSON에 읽으므로 stale이 되지 않습니다.
 - `install-links=true` 또는 `bin-links=false`를 설정한 `.npmrc`는 실패합니다(S1: 우리 규칙은 npm의 link를 막지 않습니다).
   npm이 각 `.npmrc`를 그 directory에서 사용자와 환경의 설정 없이 읽습니다.
-- TOML은 npm의 TOML package가 kit의 dependency가 될 때까지 `PATH`의 Python의 tomllib으로 읽습니다.
+- TOML은 kit의 유일한 TOML reader인 `toml.mts`의 `readToml`로, smol-toml이 읽습니다(K73).
 - signal로 끝난 version 명령은 `exit status null`이 아니라 `ended by signal SIGKILL`처럼 signal로 보고합니다(K118).
 
 ### 합친 동작
