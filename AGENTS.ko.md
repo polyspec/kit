@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 75db61bb274bb49d174a0241263b8dc41f7025d062218110d106dd3afcab7d42 -->
+<!-- source-sha256: 238bf2ae68d28fb91dbd2dfc751b995a6d7921ce42bb1130a0fd5db07d3521e8 -->
 # 개발
 
 [English](AGENTS.md)
@@ -17,8 +17,10 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 
 - 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
   개정 표식 `source-sha256`은 영어 파일의 sha256입니다. 한국어 문서는 기술 용어를 영어로 씁니다.
-- 도구는 Node 내장 모듈(`node:`)과 같은 디렉터리의 파일만 import합니다. fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도
-  다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
+- 도구는 Node 내장 모듈(`node:`), `scripts/kit/`의 파일, `package.json`의 `dependencies`가 선언한 package(각각 정확히 pin)만
+  import합니다. `scripts/kit/bootstrap/`의 module은 npm이 package를 설치하기 전에 실행되므로 Node 내장 모듈과 같은 디렉터리의 파일만
+  import합니다. `tests/kit/isolation.test.mts`가 둘 다 강제하며, 어떤 도구도 import하지 않는 선언된 package에서도 실패합니다.
+  fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema 검증기는 자신이 나열한 키워드만 지원합니다.
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
   바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
