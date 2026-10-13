@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: fdc70c2f5229718e3499d4439ce3ffc50a430561c77ac0b37f75feec9543d1b8 -->
+<!-- source-sha256: 8d1389661195bfcc961ad5f80d310234d46bb7d46ad72f7c26ef4ce224a55383 -->
 # 개발
 
 [English](AGENTS.md)
@@ -17,7 +17,7 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 
 - 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
   개정 표식 `source-sha256`은 영어 파일의 sha256입니다. 한국어 문서는 기술 용어를 영어로 씁니다.
-- 도구는 Node 내장 모듈(`node:`)과 같은 디렉터리의 파일만 import합니다. fixture와 `tests/kit/isolation.test.mjs`를 뺀 어떤 도구나 테스트도
+- 도구는 Node 내장 모듈(`node:`)과 같은 디렉터리의 파일만 import합니다. fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도
   다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema 검증기는 자신이 나열한 키워드만 지원합니다.
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
@@ -27,7 +27,7 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
   path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
-- 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `tests/kit/duplication.test.mjs`는 서로 다른 두 파일이
+- 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `tests/kit/duplication.test.mts`는 서로 다른 두 파일이
   6줄 이상의 같은 함수를 가지면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.

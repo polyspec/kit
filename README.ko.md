@@ -7,14 +7,14 @@
 
 | 관심사 | 도구(`scripts/kit/`) | make target(`scripts/kit/kit.mk`) |
 |---|---|---|
-| Vendoring | `kit-sync.mjs`, `kit-check.mjs` | `kit-sync KIT_TAG=…`, `kit-check`, `kit-test` |
-| 의존성 | `dependency-state.mjs`, `dependency-review.mjs`, `check-dependency-policy.mjs`, `check-dependency-policy-mutation.mjs`, `pin-python-dependency.mjs` | `dependency-policy-check`, `dependency-policy-mutation-check`, `dependency-review RECORD=1 UPDATE=1` |
-| Toolchain | `install-tools.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-composer.mjs`, `install-cargo-audit.mjs`, `install-govulncheck.mjs`, `check-toolchain.mjs`, `check-cargo-downloads.mjs` | `install-tools`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
-| Python | `lint-python.mjs` | `lint-python` |
-| Gate | `push-gate.mjs`, `full-run.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `checklist.mjs` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
-| 문서와 commit | `check-documents.mjs`, `documents-stamp.mjs`, `check-commits.mjs`, `owner-check.mjs` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
-| 테스트와 CI | `run-tests.mjs`, `ci-targets.mjs`, `ci-passed.mjs`, `target-report.mjs` | `ci-targets`, `ci-summary`, `ci-passed` |
-| Release | `release.mjs`, `release-consumer.mjs`, `release-proof.mjs` | `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
+| Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync KIT_TAG=…`, `kit-check`, `kit-test` |
+| 의존성 | `dependency-state.mts`, `dependency-review.mts`, `check-dependency-policy.mts`, `check-dependency-policy-mutation.mts`, `pin-python-dependency.mts` | `dependency-policy-check`, `dependency-policy-mutation-check`, `dependency-review RECORD=1 UPDATE=1` |
+| Toolchain | `install-tools.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-composer.mts`, `install-cargo-audit.mts`, `install-govulncheck.mts`, `check-toolchain.mts`, `check-cargo-downloads.mts` | `install-tools`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
+| Python | `lint-python.mts` | `lint-python` |
+| Gate | `push-gate.mts`, `full-run.mts`, `git-hooks.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
+| 문서와 commit | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
+| 테스트와 CI | `run-tests.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
+| Release | `release.mts`, `release-consumer.mts`, `release-proof.mts` | `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
 
 `docs/tool-inventory.ko.md`는 각 도구가 어떤 구현들을 대체했고 어떤 동작을 가져오거나 버렸는지 기록합니다.
 

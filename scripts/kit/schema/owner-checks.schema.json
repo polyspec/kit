@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/owner-checks.json",
-  "description": "The checks that own each tracked path, read by scripts/kit/owner-check.mjs: make owner-check runs the owners of the changed paths, never the full suite.",
+  "description": "The checks that own each tracked path, read by scripts/kit/owner-check.mts: make owner-check runs the owners of the changed paths, never the full suite.",
   "type": "object",
   "required": ["schema", "owners"],
   "additionalProperties": false,
@@ -14,11 +14,11 @@
       "items": { "type": "string" }
     },
     "testTarget": {
-      "description": "A make target that runs node test files given in its variable TESTS; without it the tests run through scripts/kit/run-tests.mjs.",
+      "description": "A make target that runs node test files given in its variable TESTS; without it the tests run through scripts/kit/run-tests.mts.",
       "type": "string"
     },
     "fullSuite": {
-      "description": "Make targets that run the full suite besides the targets whose recipe starts full-run.mjs; an owner rule never selects them.",
+      "description": "Make targets that run the full suite besides the targets whose recipe starts full-run.mts; an owner rule never selects them.",
       "type": "array",
       "items": { "type": "string" }
     },

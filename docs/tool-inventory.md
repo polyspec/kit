@@ -10,16 +10,16 @@ repositories (lines).
 
 | Tool | template | crudui | hyper | ordered-json | orm | Base of kit |
 |---|---|---|---|---|---|---|
-| release | `scripts/release.mjs` 388 | 357 | 317 | `scripts/release.py` 383 | `scripts/release/release.mjs` 302 | template, with the Go tag rule of ordered-json |
-| push-gate | 125 | 149 | 121 | `push_gate.py` 192 | `scripts/check/push-gate.mjs` 121 | crudui |
-| full-run | 199 | 240 | 246 | `full_run.py` 285 | `scripts/check/full-run.mjs` 328 | orm |
+| release | `scripts/release.mts` 388 | 357 | 317 | `scripts/release.py` 383 | `scripts/release/release.mts` 302 | template, with the Go tag rule of ordered-json |
+| push-gate | 125 | 149 | 121 | `push_gate.py` 192 | `scripts/check/push-gate.mts` 121 | crudui |
+| full-run | 199 | 240 | 246 | `full_run.py` 285 | `scripts/check/full-run.mts` 328 | orm |
 | git-hooks | 27 | none | 28 | none | none | hyper |
 | holder-lock | 134 | 275 | 111 | none | none | crudui |
 | check-documents | 151 | 95 | 70 | `docs_check.py` | none | template |
 | owner-check | 219 | 254 | 178 | `owner_check.py` 171 | none | crudui |
 | run-tests | 289 | 282 | 159 | `test.py` | none | template |
 | target-report, ci-targets | 100, 52 | 73, 47 | none | `ci_run.py` | none | template |
-| ci-passed | 36 | 39 | none | `ci_run.py` | `scripts/check/ci-passed.mjs` 32 | template |
+| ci-passed | 36 | 39 | none | `ci_run.py` | `scripts/check/ci-passed.mts` 32 | template |
 | install-tools | 189 | none | none | `toolchains.py` | none | template |
 | dependency state, review, gate | in kit since v0.0.2 | 317, 288, 185 | none | none | none | crudui, merged with kit |
 | github-ruleset | 182 | none | 164 | none | none | removed (0.x has no ruleset) |
@@ -33,11 +33,11 @@ repositories (lines).
 
 ## Toolchains (K8.2)
 
-`scripts/kit/install-tools.mjs` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mjs`
-compares the running tools with the declarations. `scripts/kit/toolchain-declared.mjs` reads the declarations, and each
-installed tool has its own module (`install-python.mjs`, `install-npm.mjs`, `install-go.mjs`, `install-ruff.mjs`, `install-uv.mjs`, `install-composer.mjs`, `install-phpunit.mjs`;
-cargo-audit and govulncheck keep `install-cargo-audit.mjs` and `install-govulncheck.mjs`). Every installer uses
-`install-tool.mjs`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
+`scripts/kit/install-tools.mts` installs the declared toolchains into `var/tools`; `scripts/kit/check-toolchain.mts`
+compares the running tools with the declarations. `scripts/kit/toolchain-declared.mts` reads the declarations, and each
+installed tool has its own module (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-composer.mts`, `install-phpunit.mts`;
+cargo-audit and govulncheck keep `install-cargo-audit.mts` and `install-govulncheck.mts`). Every installer uses
+`install-tool.mts`: the release is built beside the target, checked there and renamed, so a second run changes nothing.
 Make targets: `install-tools` (online through `ONLINE`) and `toolchain-check` (offline, `TOOLS` limits the tools).
 
 ### Go advisories (K53)
@@ -48,11 +48,11 @@ directory below the module, and a Go toolchain that install-go puts under `var/t
 (`outside main module`), so every RECORD run failed. `./...` cannot exclude a directory, so a module that contains `var/`
 would walk it whatever the working directory.
 
-- `goPackagePatterns` (`dependency-state.mjs`) names the directory of each tracked or new `.go` file of the module, under the
+- `goPackagePatterns` (`dependency-state.mts`) names the directory of each tracked or new `.go` file of the module, under the
   rules of `./...`: a directory whose name begins with `.` or `_`, `testdata` and `vendor` are skipped, and so is a directory
   below a nested module (a `go.mod` of its own). `checkedFiles` excludes `var/`, `node_modules` and `.tools`, so no directory
   of an install or an output is named.
-- `goPackages` (`dependency-review.mjs`) runs `go list -e` on those patterns and keeps the import paths of the packages with a
+- `goPackages` (`dependency-review.mts`) runs `go list -e` on those patterns and keeps the import paths of the packages with a
   buildable file. `./...` skips a directory whose files a build constraint excludes (a `//go:build ignore` generator, for
   one), and govulncheck refuses such a pattern, so the query drops it the same way. A module with no buildable package has no
   advisory, since no code of it calls a vulnerable function.
@@ -117,7 +117,7 @@ checked.
 - Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (`uv venv`, no pip) and installs the wheel with
   the pip of the checkout, `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, which reads the version with
   `show`. The venv has no pip of its own, and no python3 of PATH runs.
-- Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mjs`) makes a virtual environment of the
+- Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mts`) makes a virtual environment of the
   checkout Python with `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>` and leaves it as uv makes it, its
   links included. The run is idempotent: an existing `<directory>` that is already a venv of the checkout Python (run-tests'
   rule and the same Python version) is accepted unchanged and reported as such; any other existing `<directory>` is an error
@@ -157,7 +157,7 @@ checked.
   accepts them and reads none.
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
-Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lock.mjs`, `full-run.mjs`,
+Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, and the make targets `hooks`, `hooks-check`, `push-gate-commit` and `rerun-failed` at the end of
 `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
 
@@ -165,7 +165,7 @@ Files: `scripts/kit/checklist.mjs`, `push-gate.mjs`, `git-hooks.mjs`, `holder-lo
 
 A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
 tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
-gate. It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mjs`, `config/commits.json`),
+gate. It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
 because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
 the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
 refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
@@ -206,12 +206,12 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | The Korean twin must hold the same IDs in the same order and the same states | orm, ordered-json (document checks) | the gate and the guard also refuse a pair that differs, because the pair is read with the same parser; the document checks of K7 keep the other rules (markers, bypass text) |
 | The refusal names the file, the ID, the title and the place (pushed ref and commit, or working tree) | all | kept; it also states which states block and which do not; the commit is shown with 12 characters (ordered-json, orm; template and hyper used 7) |
 | `commit <rev>` prints a GitHub annotation per line, escapes `%` and line breaks, appends to `$GITHUB_STEP_SUMMARY`, requires mode 100755 of the hook, and names a revision that is not a commit | template, crudui, hyper, ordered-json, orm | kept; it requires the mode of every hook in `hooks` (ordered-json required `pre-commit` too; the others only `pre-push`) |
-| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mjs check`; it also fails when `pre-push` has other content than the hook of the tool |
-| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mjs install` also writes `pre-push` and makes the listed hooks executable; a second run changes nothing |
+| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mts check`; it also fails when `pre-push` has other content than the hook of the tool |
+| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mts install` also writes `pre-push` and makes the listed hooks executable; a second run changes nothing |
 | Every make invocation sets `core.hooksPath` | template, orm | `kit.mk` sets it only in a checkout that tracks `.githooks/pre-push`, so a checkout without hooks is not changed |
 | The content of `pre-push` | all differ in the `cd` to the top level and the comment | one content, written by `git-hooks install` and compared by `check` |
 | Hooks other than `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
-| Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mjs`; template and hyper recorded no start time |
+| Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mts`; template and hyper recorded no start time |
 | A lock of an ended holder stays until `clear`; `clear` renames the lock aside and restores it when a new holder took it meanwhile | crudui (`remove-dead`), template and hyper (`clear`) | under the name `clear`, with the claim of flowmark's spec 40 (K28): `clear` links the lock to `<lock>.<first 32 hex digits of the SHA-256 of the record>.clearing` (an existing claim refuses), removes only a lock that still holds the record it checked, and never moves the lock of a running holder; the rename aside left two holders when two clears ran at once |
 | The start time of a process: `/proc/<pid>/stat` field 22 with `btime` on Linux, `ps -o lstart=` elsewhere | crudui | K28: on Linux field 22 with the boot ID of `/proc/sys/kernel/random/boot_id`, because `btime` follows the wall clock; an unreadable `/proc/<pid>/stat` (`hidepid`) asks kill(pid, 0) again and counts as running unless ESRCH. On Windows `powershell.exe -NoProfile -NonInteractive -Command` with `(Get-Process -Id <pid>).StartTime.ToFileTimeUtc()`: Node reads no creation time without a native addon, .NET reads it with `GetProcessTimes`, Windows PowerShell 5.1 ships with every supported Windows, and `wmic` is deprecated. On macOS `ps` stays: sysctl `kern.proc.pid` and `proc_pidinfo` need a native addon, and macOS has no `/proc` |
 | Release on process exit, and on SIGINT, SIGTERM and SIGHUP with the status 128 + n | template | kept, as the default of an in-process holder; `run` forwards the signals to the command instead |
@@ -220,7 +220,7 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | The lock directory is created | crudui, hyper | kept |
 | Guard conditions: active item, hooks not installed, dirty tree, another run going on, record of the current tree | template, crudui, hyper, ordered-json | kept |
 | Untracked files that Git does not ignore refuse the run, because the record names the tree and the tree does not hold them | ordered-json; the others looked at tracked files only | the wider check |
-| One run at a time: the guard holds `var/full-run.lock` from its first read to its last write | template (`var/full-run.json.lock`), crudui (`var/locks/full-run.lock`), hyper and ordered-json (`var/full-run.lock`) | `var/full-run.lock` through `holder-lock.mjs` (ordered-json used `flock`) |
+| One run at a time: the guard holds `var/full-run.lock` from its first read to its last write | template (`var/full-run.json.lock`), crudui (`var/locks/full-run.lock`), hyper and ordered-json (`var/full-run.lock`) | `var/full-run.lock` through `holder-lock.mts` (ordered-json used `flock`) |
 | Record `var/full-run.json`: tree, commit, result, targets with status, times and elapsed time, reruns | all but orm | kept; written to a file of the process and renamed |
 | The incomplete record names its process; a running process refuses the run | template, crudui, hyper, ordered-json | the record also holds the start time of the process, so a reused process ID does not refuse a later run for good (a defect of all four) |
 | `rerun-failed` reruns the targets that did not pass (failed, running, pending) of the current tree | template, crudui, hyper, ordered-json | kept |
@@ -233,19 +233,19 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | Behavior | Source | Reason |
 |---|---|---|
 | Texts that name pull requests, the merge queue, merge groups or the ruleset (`REASON`, the workflow `push-gate.yml` triggers, the required check `push-gate`) | template, crudui, hyper, ordered-json, orm | the 0.x policy has none of them; `commit <rev>` stays for a push from a checkout without the hook |
-| The mode `hooks-check` of `push-gate.mjs` and `hooks-install` of `push_gate.py` | template, crudui, hyper, ordered-json, orm | a hook belongs to `git-hooks.mjs`; the make target keeps the name |
+| The mode `hooks-check` of `push-gate.mts` and `hooks-install` of `push_gate.py` | template, crudui, hyper, ordered-json, orm | a hook belongs to `git-hooks.mts`; the make target keeps the name |
 | Targets that are command lines (`sh -c <text>`) or argument groups after `--` | crudui, ordered-json | a record name and a log path must be stable words; a repository wraps a command in a make target |
 | The run in a fresh clone of the committed tree with `make install` and a marker in the clone | crudui | it needs the repository's install command and a marker named after the repository; a repository that needs it makes a target that clones |
 | The reset of the conformance evidence directory before a run | crudui | repository-specific |
 | `environment` (versions of the toolchains) in the record and `summary.md` of the report | template, crudui | the toolchain commands are repository data; K8.1 merges the target report and the toolchain record |
 | Selection of the targets of a rerun by the paths changed since the recorded commit, a rerun on a descendant commit, the statuses `not-run` and `crashed`, the preflight `decide`, the `claim` and `recorder` interface, and the record in `.runtime/` | orm | only orm has them, and they read the owner checks of K8; the other four agree on a rerun of the same tree |
-| `flock` guard of `full_run.py` | ordered-json | replaced by `holder-lock.mjs`; all tools are Node |
+| `flock` guard of `full_run.py` | ordered-json | replaced by `holder-lock.mts`; all tools are Node |
 | `user-lock-file` and `checkoutLockFile` | crudui | the path of the lock holds a repository name; the caller passes an absolute path |
 | Progress lines of `test-progress` | crudui | a module of crudui; the gates print one line per step |
 | `scripts/git/check.mjs` (commit subject format, `commit-msg` hook) and the marker and bypass-text rules of `scripts/checklist/check.mjs` | orm | not a gate; the hook is named in `hooks`, the document rules belong to K7 |
 ## Document checks (K7.1)
 
-`scripts/kit/check-documents.mjs` replaces `check-documents.mjs` of template, crudui and hyper and `docs_check.py` of
+`scripts/kit/check-documents.mts` replaces `check-documents.mts` of template, crudui and hyper and `docs_check.py` of
 ordered-json. Which Markdown files are documents, its status tables and changelogs are declared in
 `config/documents.json` (`scripts/kit/schema/documents.schema.json`); its checklists are declared in `config/checklist.json` (K7.2). Each finding is one line
 `<file>:<line>:<column>: <rule>: <message>`.
@@ -283,7 +283,7 @@ Dropped behaviors:
 
 ## Owner check (K8.1-1)
 
-`scripts/kit/owner-check.mjs` replaces `owner-check.mjs` of template, crudui and hyper and `owner_check.py` of
+`scripts/kit/owner-check.mts` replaces `owner-check.mts` of template, crudui and hyper and `owner_check.py` of
 ordered-json. The declaration is `config/owner-checks.json` (`scripts/kit/schema/owner-checks.schema.json`).
 
 Merged behaviors:
@@ -296,12 +296,12 @@ Merged behaviors:
   names, a package directory is one outside them (crudui assumed the directory `packages/`).
 - `variable` (template, hyper) passes the matched paths to the targets of a rule as a make variable.
 - Targets are ordered by `CHECK_TARGETS` (template, hyper); the other checks keep the order of the declaration (crudui).
-- The full-suite targets are those whose recipe starts `full-run.mjs` and those named in `fullSuite`; template's fixed names
+- The full-suite targets are those whose recipe starts `full-run.mts` and those named in `fullSuite`; template's fixed names
   `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
 - A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
   declaration is a list of `{ check, paths }`, because the schema validator reads no object with free keys.
 - Targets of a file that the Makefile includes (`include scripts/kit/kit.mk`) are known targets (new).
-- A node test file runs through `scripts/kit/run-tests.mjs`, or through the make target `testTarget` with `TESTS=<files>`
+- A node test file runs through `scripts/kit/run-tests.mts`, or through the make target `testTarget` with `TESTS=<files>`
   (hyper).
 - Every selected check runs to its end and the failures are listed together (all implementations); no check has a time limit.
 
@@ -314,10 +314,10 @@ Dropped behaviors:
 
 ## Test runner (K8.1-2)
 
-`scripts/kit/run-tests.mjs` replaces `run-tests.mjs` of template, crudui and hyper and `test.py` of ordered-json. Its progress
-reporters are `test-progress.mjs`, `node-reporter.mjs` and `vitest-reporter.mjs`, and its parsers of the go, cargo, PHPUnit and
-unittest output are in `test-output.mjs`, which the language-parity check reads with the same functions (K47); `test-exit-deadline.mjs` is preloaded into
-each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mjs` is the `setup` and `teardown` helper of tests.
+`scripts/kit/run-tests.mts` replaces `run-tests.mts` of template, crudui and hyper and `test.py` of ordered-json. Its progress
+reporters are `test-progress.mts`, `node-reporter.mts` and `vitest-reporter.mts`, and its parsers of the go, cargo, PHPUnit and
+unittest output are in `test-output.mts`, which the language-parity check reads with the same functions (K47); `test-exit-deadline.mts` is preloaded into
+each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mts` is the `setup` and `teardown` helper of tests.
 
 Merged behaviors:
 
@@ -355,8 +355,8 @@ Dropped behaviors:
 
 ## CI report tools (K8.1-3)
 
-`scripts/kit/ci-targets.mjs`, `target-report.mjs` and `ci-passed.mjs` replace `ci-targets.mjs`, `target-report.mjs` and
-`ci-passed.mjs` of template and crudui, `ci-run.mjs` of hyper, `ci_run.py` of ordered-json, `scripts/check/ci-passed.mjs` and
+`scripts/kit/ci-targets.mts`, `target-report.mts` and `ci-passed.mts` replace `ci-targets.mts`, `target-report.mts` and
+`ci-passed.mts` of template and crudui, `ci-run.mjs` of hyper, `ci_run.py` of ordered-json, `scripts/check/ci-passed.mts` and
 `scripts/check/report.mjs`, `summary.mjs` of orm.
 
 Merged behaviors:
@@ -386,12 +386,12 @@ Dropped behaviors:
   the refusal outside GitHub Actions (hyper: a run of the targets is allowed anywhere; the full suite guard belongs to the full
   run), the copy of `var/records` (ordered-json) and the environment, disk and server-log files, the case-runner protocol
   (`RUN`, `STEP`, `PASS`, `FAIL`) and the run id of the full-run report (orm): they depend on one repository's checks and stay there.
-- The private lock of `ci-targets.mjs` (a file with the process id of the holder, removed as stale when the process ended) is
-  replaced by `holder-lock.mjs` (K7.2): a lock of an ended holder stays until `holder-lock.mjs clear` removes it.
+- The private lock of `ci-targets.mts` (a file with the process id of the holder, removed as stale when the process ended) is
+  replaced by `holder-lock.mts` (K7.2): a lock of an ended holder stays until `holder-lock.mts clear` removes it.
 
 ## Commit message check (K8.1-4)
 
-`scripts/kit/check-commits.mjs` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
+`scripts/kit/check-commits.mts` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
 and ordered-json state the same message format in their rules but have no check. The format and the limits are data in
 `config/commits.json` (`scripts/kit/schema/commits.schema.json`).
 
@@ -417,7 +417,7 @@ Version consistency and the other area checks of orm:
 - `scripts/repo/*.mjs` of orm (`check`, `ci`, `scripts`, `target`, `testcases`, `toolchains`, `gosource`, `node`, `probes`,
   `messages`) check the layout, the Rust target paths, the toolchains, the test cases and the form of failure messages of orm
   and stay in orm.
-- `scripts/check/ci-passed.mjs` of orm is the CI report tool (K8.1-3).
+- `scripts/check/ci-passed.mts` of orm is the CI report tool (K8.1-3).
 
 Dropped behaviors:
 
@@ -426,7 +426,7 @@ Dropped behaviors:
 
 ## Release tool (K5)
 
-`scripts/kit/release.mjs` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
+`scripts/kit/release.mts` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
 `coverage`). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
@@ -525,7 +525,7 @@ Dropped behaviors:
 
 ## One checklist model (K7.2)
 
-`scripts/kit/checklist.mjs` held the reader of the push gate and the guard (K6.1), and `scripts/kit/checklist-rows.mjs` held
+`scripts/kit/checklist.mts` held the reader of the push gate and the guard (K6.1), and `scripts/kit/checklist-rows.mjs` held
 the reader of the document check (K7.1). Both read the same documents (table rows `| ID | ... | [o] |`, list items
 `- [o] ID text`, the states `[ ]`, `[~]`, `[o]` and `[!]`) under two configurations, `trackers` of `config/checklist.json` and
 `checklists` of `config/documents.json`. There is now one reader, one configuration and one set of findings.
@@ -538,38 +538,38 @@ the reader of the document check (K7.1). Both read the same documents (table row
   column. The messages of each reading are the ones that their tests asserted before the merge.
 - `twinFindings` compares the items of a document and of its translation for both readings.
 - `config/checklist.json` declares every checklist: `path`, `translation`, `format` (`table` or `list`), `idPattern`, `states`,
-  `active`, `column`. `check-documents.mjs` reads its checklists from it. The key `checklists` of `config/documents.json`
+  `active`, `column`. `check-documents.mts` reads its checklists from it. The key `checklists` of `config/documents.json`
   and its schema is removed, and the key `style` is `format`. A checklist without `translation` is read in English only.
 - Wider behavior taken: a task ID may be followed by a code span, as `` T3.2 `parallel` ``, in both readings (the strict reader
   accepted any text after the ID; it now accepts a code span, so that a first cell such as `not an id` is a finding in both
   readings); a table row may be indented; `states` applies to the strict reading, so a checklist that declares no `states`
   accepts every state word there, where the strict reader accepted only the four states; the separators and the header are
   recognized by their position and by the cell `ID`.
-- `ci-targets.mjs` holds its report with `holder-lock.mjs`; its own lock function is removed.
+- `ci-targets.mts` holds its report with `holder-lock.mts`; its own lock function is removed.
 
 ## Shared modules (K11)
 
 Several tools of `scripts/kit` held their own copy of the same helper. Each helper now lives in one module that its users
-import, and `tests/kit/duplication.test.mjs` fails when two files hold a function with the same normalized text of 6 lines or
+import, and `tests/kit/duplication.test.mts` fails when two files hold a function with the same normalized text of 6 lines or
 more (the normalization is in the test). The base had no pair that long; the shortest pair was the 4 lines of `startReport`.
 
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
-| `paths.mjs` | `ROOT`, `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
-| `process.mjs` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
-| `git.mjs` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
-| `files.mjs` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
-| `digest.mjs` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer, the sha512 of install-npm | those modules |
-| `time.mjs` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
-| `version.mjs` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed | changelog, dependency-review, check-dependency-policy |
-| `findings.mjs` | `finding` | `finding` of status-table and changelog | status-table, changelog |
-| `markdown.mjs` | `tableCells` | `cells` of checklist and `rowCells` of status-table; the fence scan of `changelog.sections` now uses `scanFences` | checklist, status-table, changelog |
-| `schema-validate.mjs` | `SCHEMAS`, `readConfig` | the read-and-validate code of `loadConfig` in checklist and in release | checklist, release |
-| `tracked-files.mjs` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
-| `target-report.mjs` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
-| `toolchain-declared.mjs` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mjs` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, cargo-audit and govulncheck that install-ruff, install-uv, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
-| `dependency-state.mjs` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
+| `paths.mts` | `ROOT`, `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
+| `process.mts` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
+| `files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
+| `digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer, the sha512 of install-npm | those modules |
+| `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
+| `version.mts` | `compareParts`, `dottedParts`, `versionParts`, `isPrerelease`, `older`, `stableDescending` | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed | changelog, dependency-review, check-dependency-policy |
+| `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
+| `markdown.mts` | `tableCells` | `cells` of checklist and `rowCells` of status-table; the fence scan of `changelog.sections` now uses `scanFences` | checklist, status-table, changelog |
+| `schema-validate.mts` | `SCHEMAS`, `readConfig` | the read-and-validate code of `loadConfig` in checklist and in release | checklist, release |
+| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
+| `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
+| `toolchain-declared.mts` | `recordedRelease` | `recordedCargoAudit` and `recordedGovulncheck`, which repeated its validation and message | install-cargo-audit, install-govulncheck |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, cargo-audit and govulncheck that install-ruff, install-uv, install-cargo-audit, install-govulncheck and the probes of check-toolchain each held | those modules |
+| `dependency-state.mts` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
 
 Other duplicates removed:
 
@@ -606,7 +606,7 @@ Left as it is, with the reason:
 ## Python lint (K8.4)
 
 The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
-`scripts/kit/lint-python.mjs` and `make lint-python`: ruff runs on the checkout root with `var` excluded, ruff is the one of
+`scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded, ruff is the one of
 `var/tools/bin` at the version `ruff` of `config/toolchain.json` declares, and the rules are the `[tool.ruff]` tables of the
 pyproject.toml files of the checkout, so the result does not depend on the ruff configuration of a machine. Both steps run after
 a failure of the first. An undeclared ruff and a missing ruff fail with their fix.
@@ -616,10 +616,10 @@ dependency review reads the pin of `config/toolchain.json` as a PyPI dependency;
 wheels.
 ## Consumer install of the release archives (K5.4)
 
-`scripts/kit/release-consumer.mjs install TAG` installs all archives of a tag together in clean consumer projects outside the
+`scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the
 repository and runs a smoke command for each package; `lock TAG` writes the manifests and locks of those projects. Files:
-`scripts/kit/release-consumer.mjs`, `scripts/kit/release-consumer-config.mjs` (the rules of the configuration, called by
-`release.mjs` `loadConfig`), the section `consumers` of `schema/release.schema.json`, and the make targets `release-consumer` and
+`scripts/kit/release-consumer.mts`, `scripts/kit/release-consumer-config.mts` (the rules of the configuration, called by
+`release.mts` `loadConfig`), the section `consumers` of `schema/release.schema.json`, and the make targets `release-consumer` and
 `release-consumer-lock`. The base is template for the install and the lock, with the archive rule of crudui, the manifest rule of
 crudui and ordered-json and the smoke checks of all five.
 
@@ -685,7 +685,7 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 
 | Behavior | Source | Reason |
 |---|---|---|
-| Building the archives inside the install (`packTree`, `buildAssets`, `git stash create` of the working tree) | template, crudui, hyper, ordered-json, orm | `release.mjs assets` builds the archives of a tag; the install reads `var/release/assets`, so a check never installs an archive that no release builds |
+| Building the archives inside the install (`packTree`, `buildAssets`, `git stash create` of the working tree) | template, crudui, hyper, ordered-json, orm | `release.mts assets` builds the archives of a tag; the install reads `var/release/assets`, so a check never installs an archive that no release builds |
 | Downloading the release archives of other repositories into the project | orm, hyper | kit names no repository; a dependency of another repository is pinned in the lock by URL, integrity or shasum, and the install downloads it as any registry package |
 | `--allow-remote` settings of npm for a URL dependency | hyper | a workaround of one npm release (npm/cli#9818); no repository setting is merged, so a lock with a remote tarball needs an npm that accepts it |
 | `--workspaces=false` | crudui | the project is outside every workspace |
@@ -699,7 +699,7 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 
 ## Release proof (K5.5)
 
-`scripts/kit/release-proof.mjs TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
+`scripts/kit/release-proof.mts TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
 repository. The release workflow (`workflows/release.yml`) runs it on the draft after `release-publish` in the same job; a failed proof
 fails that run and the release stays a draft. A developer may run it for any released tag. It is no offline check.
 
@@ -707,7 +707,7 @@ fails that run and the release stays a draft. A developer may run it for any rel
 
 - `workflows/release.yml` is the source of `vendoredFiles` in kit.json, which maps it to `.github/workflows/release.yml`: `make kit-sync`
   copies it and records its sha256 in the lock, and `make kit-check` fails on a difference.
-- `make release-tools` (`scripts/kit/release-tools.mjs`) derives the install-tools names from config/release.json: npm for an npm package or
+- `make release-tools` (`scripts/kit/release-tools.mts`) derives the install-tools names from config/release.json: npm for an npm package or
   consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
   `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
   `check-toolchain rust` checks rustc against that channel. A git-tag proof without rust-toolchain.toml fails with the file name.
@@ -806,7 +806,7 @@ commit: the lock is read by the K36 reader; a source other than registry or arch
 the same version (registry) or the same URL and sha256 (polyspec); the fragment equals the sha256 of the lock; each archive is a release
 asset of its declared repository at its version. Nothing here reads the network.
 
-`release-consumer install` renders the lock with `lockRequirements` (`scripts/kit/wheel-dependencies.mjs`) into a requirement file of
+`release-consumer install` renders the lock with `lockRequirements` (`scripts/kit/wheel-dependencies.mts`) into a requirement file of
 hashes: `name==version --hash=sha256:…` for each file of a registry package and `name @ <url> --hash=sha256:…` for each archive. The
 pip of the checkout installs it into the venv of `makeVenv`:
 
@@ -817,7 +817,7 @@ lock fails there), then the smoke command runs. pip's own reading of `pylock.tom
 PyPI and the release assets, so it runs online only, in `release-proof`. `release-proof` step 2 downloads each polyspec archive from the
 release of its version in its declared repository, and its sha256 must equal the sha256 that the lock holds.
 
-Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/wheel-dependencies-real.test.mjs` repeats the cases):
+Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/wheel-dependencies-real.test.mts` repeats the cases):
 
 - `pip install -r pylock.toml` reads the lock as a requirement source and prints `WARNING: Using pylock.toml as a requirements source is
   an experimental feature. It may be removed/changed in a future release without prior warning.` The lock is therefore rendered.
@@ -834,9 +834,9 @@ Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/w
   the wheel.` and exited 0. For a remote URL it fetches first (`Collecting kit-lib @ https://...`); a URL that does not answer fails with
   `ERROR: HTTP error 404 while getting https://...`. A consumer that resolves dependencies therefore downloads each polyspec archive.
 
-The tests: `tests/kit/wheel-dependencies.test.mjs` (the forms, the refusals with their messages, the lock form, the rendered
-requirements), `tests/kit/release-wheel.test.mjs` (the same checks through `release-assets`, the consumer declaration),
-`tests/kit/release-proof.test.mjs` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mjs` (the real
+The tests: `tests/kit/wheel-dependencies.test.mts` (the forms, the refusals with their messages, the lock form, the rendered
+requirements), `tests/kit/release-wheel.test.mts` (the same checks through `release-assets`, the consumer declaration),
+`tests/kit/release-proof.test.mts` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mts` (the real
 pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy and the resolver).
 
 ## Sibling wheels (K52)
@@ -853,7 +853,7 @@ name of the sibling's wheel. Each failure has its own message, and the refusals 
 and a lock of the wheel that holds a sibling (the lock never holds one, whatever its form). Every other polyspec reference still needs its
 sha256 fragment (K49).
 
-The siblings are derived from `packages` (`siblingsOf`, scripts/kit/wheel-dependencies.mjs): the other wheel packages of the configuration,
+The siblings are derived from `packages` (`siblingsOf`, scripts/kit/wheel-dependencies.mts): the other wheel packages of the configuration,
 not a second declaration. Reason: the wheel packages of one config/release.json are released by one tag from one repository, so a second
 list of them could only disagree with `packages`. `consumers.wheel.polyspec` names repositories of other repositories, so it refuses a
 wheel package of this configuration (`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
@@ -861,14 +861,14 @@ wheel package of this configuration (`consumers.wheel.polyspec.<name> names the 
 A sibling's sha256 is known only after the release builds it: SOURCE_DATE_EPOCH is the time of the release commit, so the sha256 of a
 wheel is not in the tree before the build. For this reason the lock of the wheel never holds a sibling, and the reference has no hash.
 
-`release-proof` step 3 proves the sibling online, from the release that GitHub publishes (scripts/kit/release-proof.mjs, `proveWheels`):
+`release-proof` step 3 proves the sibling online, from the release that GitHub publishes (scripts/kit/release-proof.mts, `proveWheels`):
 1. the file of each wheel of the release, downloaded, has the sha256 that GitHub lists for its asset (the `digest` of the release
    listing, `sha256:<hex>`); a release that lists no digest for a wheel fails the proof;
 2. each sibling that a wheel's METADATA names is exactly the URL of the published asset of that sibling (`browser_download_url`),
    and the release lists that asset.
 
 Then the wheels of the release install together in one `pip install --no-index --require-hashes --no-deps` command from their files
-(`installWheelFiles` of release-consumer.mjs, which already installs every wheel package of the configuration together). `pip check`
+(`installWheelFiles` of release-consumer.mts, which already installs every wheel package of the configuration together). `pip check`
 passes and each smoke command runs. The archives keep their own checks: the digest check is added for wheels, because a release that
 was published before the listing carried a digest must still prove.
 
@@ -876,7 +876,7 @@ A consumer installs a sibling as it installs any polyspec wheel (K49): its own l
 its sha256, which is the hash of the published asset. The lock of the wheel that requires the sibling does not name it.
 
 Findings for the sibling reference, measured with the pip of the checkout (`var/tools/python-build`, pip 26.2.1, Python 3.14.8) on two
-hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/wheel-sibling-real.test.mjs` repeats the file case):
+hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/wheel-sibling-real.test.mts` repeats the file case):
 
 - `pip install --no-deps` of both wheels from their local files, with the hashes, installs them and `pip check` prints
   `No broken requirements found.` and exits 0. pip never reads `Requires-Dist` with `--no-deps`.
@@ -893,14 +893,14 @@ hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/whee
 The consequence is the design above: the proof installs with `--no-deps` from the local files, and it proves that the reference equals the
 published URL, so a consumer that resolves dependencies fetches the asset that the release publishes.
 
-The tests: `tests/kit/wheel-sibling.test.mjs` (the sibling forms and refusals, the lock, the consumer declaration, `siblingLinks`),
-`tests/kit/release-wheel.test.mjs` (the same refusals through `release-assets`), `tests/kit/release-proof.test.mjs` (the wheel digest, the
-sibling URL, one install of the wheels), and `tests/source/wheel-sibling-real.test.mjs` (the real pip: the `--no-deps` install with pip
+The tests: `tests/kit/wheel-sibling.test.mts` (the sibling forms and refusals, the lock, the consumer declaration, `siblingLinks`),
+`tests/kit/release-wheel.test.mts` (the same refusals through `release-assets`), `tests/kit/release-proof.test.mts` (the wheel digest, the
+sibling URL, one install of the wheels), and `tests/source/wheel-sibling-real.test.mts` (the real pip: the `--no-deps` install with pip
 check, and the resolution that reads the reference and not the local wheel).
 
 ## Language parity (K33)
 
-`scripts/kit/parity.mjs` checks that every implementation of a repository holds the same units. `config/parity.json` declares
+`scripts/kit/parity.mts` checks that every implementation of a repository holds the same units. `config/parity.json` declares
 the implementations, which is the one source of the language set of the repository, the profiles that group them, and the
 units. The declaration holds no state such as done or planned: the checker takes every fact from the tree.
 
@@ -921,7 +921,7 @@ The checker trusts three inputs that it does not produce itself. Other checks cl
 - **The generated error-code artifacts.** The repository's generator check regenerates them from the catalog and fails on a
   difference. That check must also run before `parity-check`. The parity check compares the committed artifacts with the
   catalog, and it does not regenerate them.
-- **The output of each native tool** (node:test, go test, cargo test, unittest and PHPUnit), which `test-output.mjs` reads. A
+- **The output of each native tool** (node:test, go test, cargo test, unittest and PHPUnit), which `test-output.mts` reads. A
   binding's test prints nothing for the check: the outcome of each case is the tool's own report of that test. go and node
   frame their events: go writes the output of a test inside the `Output` field of its JSON events, and node writes the console
   output of a test as `# ` lines of its TAP. cargo, unittest and PHPUnit do not frame theirs, so a test can print a line that
@@ -934,14 +934,14 @@ and runs nothing. Both are offline, print a line for each step and each finding,
 
 | Module | Concern |
 |---|---|
-| `parity.mjs` | the command, and the order of the rules |
-| `parity-declaration.mjs` | the schema, the references of the declaration, and the finding |
-| `parity-units.mjs` | R1, R2, R4, R5, R6, R8, R11 |
-| `parity-ledger.mjs` | R3: the runs of the bindings and the ledger |
-| `parity-runners.mjs` | the native command of each runner and the outcome of each case in its output |
-| `test-output.mjs` | the parsers of the output of node:test (TAP), go, cargo, unittest and PHPUnit, shared with run-tests |
-| `parity-errors.mjs` | R7 |
-| `parity-text.mjs` | R9, R10 |
+| `parity.mts` | the command, and the order of the rules |
+| `parity-declaration.mts` | the schema, the references of the declaration, and the finding |
+| `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-ledger.mts` | R3: the runs of the bindings and the ledger |
+| `parity-runners.mts` | the native command of each runner and the outcome of each case in its output |
+| `test-output.mts` | the parsers of the output of node:test (TAP), go, cargo, unittest and PHPUnit, shared with run-tests |
+| `parity-errors.mts` | R7 |
+| `parity-text.mts` | R9, R10 |
 
 ### Rules
 
@@ -972,7 +972,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages |
 | `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error |
 
-Each runner reads its tool's output with the parsers of `test-output.mjs`, the same parsers that `run-tests` reads a run with
+Each runner reads its tool's output with the parsers of `test-output.mts`, the same parsers that `run-tests` reads a run with
 (K47). A todo is a test that the tool expects to fail, a node `# TODO` or a unittest `expected failure`: it is no pass, so its
 case fails the check, while run-tests shows it as a pass line.
 
@@ -1049,7 +1049,7 @@ hyphen (`four-client`) or a Korean counter (`6개 언어`, `여섯 개 언어`, 
 names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The snapshot of an implementation is a JSON object
 that maps each symbol id to an object with a boolean `exported`.
 
-R10 reads the prose of a document in passages, on the Markdown reader of `scripts/kit/markdown.mjs`: a paragraph or a list item
+R10 reads the prose of a document in passages, on the Markdown reader of `scripts/kit/markdown.mts`: a paragraph or a list item
 with the lines that continue it, a block quote without its markers, an ATX heading (`#` to `######` and a space), or a table
 row. A fenced block, an indented code block and a setext underline are no prose, and a setext underline ends its paragraph.
 Inline code, link destinations, autolinks, bare URLs, link definitions and HTML tags and comments are blanked, so only prose
@@ -1127,7 +1127,7 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 ### Rules
 
-- The file is read by `scripts/kit/pylock.mjs` (`readPylock`), a reader for the TOML subset that these writers produce. Node has
+- The file is read by `scripts/kit/pylock.mts` (`readPylock`), a reader for the TOML subset that these writers produce. Node has
   no TOML reader and kit imports only Node built-ins, so no TOML library is reused; a construct outside the subset (a multi-line
   string, an unknown escape, a duplicate key) fails with its line.
 - `lock-version` is `"1.0"`; another version fails the gate.
@@ -1156,7 +1156,7 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 ## uv and the Python lock writer (K54)
 
 `uv` is an install-tools tool: `config/toolchain.json` `uv` declares the exact version and the sha256 of
-the release archive of each platform, `scripts/kit/install-uv.mjs` installs it into `var/tools/uv` and writes the wrapper
+the release archive of each platform, `scripts/kit/install-uv.mts` installs it into `var/tools/uv` and writes the wrapper
 `var/tools/bin/uv`. `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
 python-lock-check` (offline) compares each lock with its sources. The reason for the pin is that a lock written by an undeclared
 uv of PATH depends on the machine: `pip lock` (pip 26.2.1) is experimental and locked only the running platform (cryptography
@@ -1249,7 +1249,7 @@ urllib3==2.8.0
 
 ### Writer (`make python-lock`, ONLINE unless findLinks is declared)
 
-`scripts/kit/python-lock.mjs write` runs `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+`scripts/kit/python-lock.mts write` runs `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
 --generate-hashes --format pylock.toml -o pylock.toml` (`<python>` is the `python` minor of `config/toolchain.json`) in a directory of `var/tools` (`python-lock-<random>`) that holds the two sources under their
 own names. A `pyproject.toml` is copied under its name, and uv reads it there (measured below), so the pyproject does not have to
 stay in the checkout for uv. With findLinks it appends `--no-index --find-links <directory>`. The source is read and parsed first,
@@ -1276,8 +1276,8 @@ It never resolves. It fails, naming the file and the package with its fix, when:
 - an archive's URL or sha256 differs from its constraint;
 - a source or the lock is missing.
 
-Each case has a test that fails for it (`tests/kit/python-lock-check.test.mjs`), and the writer's cases are in
-`tests/kit/python-lock-write.test.mjs` (a stub uv). `tests/source/python-lock-real.test.mjs` runs the real uv with no network: the
+Each case has a test that fails for it (`tests/kit/python-lock-check.test.mts`), and the writer's cases are in
+`tests/kit/python-lock-write.test.mts` (a stub uv). `tests/source/python-lock-real.test.mts` runs the real uv with no network: the
 wheels are the pinned setuptools wheel of `var/tools/wheels` and a pure-Python wheel built with the pinned Python from a source tree,
 both in a directory of the test under `var/`. The test writes a lock of a pyproject with findLinks, the offline check passes on it,
 a version drift (`0.0.1` to `0.0.2`) fails with `tinylib`, and a constraint set without `setuptools` fails with `setuptools`. The
