@@ -32,8 +32,10 @@ and states only its own rules. The rules below are kit's own.
 - The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,
   environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
   creates, is accepted; our rules govern what we create.
-- This repository creates no symbolic link and no relative path: not in its tracked files, configuration, scripts or
-  generated output. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
+- This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. A path
+  that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
+  as PEP 751's lock directory), stays inside the repository, and never depends on the working directory; it is never
+  absolute. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
