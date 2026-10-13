@@ -20,7 +20,8 @@ and states only its own rules. The rules below are kit's own.
   change. The revision marker `source-sha256` of the Korean file is the sha256 of the English file. Korean documents write
   technical terms in English.
 - A tool imports only Node built-ins (`node:`), files of `scripts/kit/` and the packages that `dependencies` of
-  `package.json` declares, each pinned exactly. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,
+  `package.json` declares, each pinned exactly, or an optional peer that `peerDependencies` declares and the repository that
+  runs the tool installs, such as the `@vscode/test-electron` of `install-vscode.mts`. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,
   so it imports only Node built-ins and files of its own directory. `tests/kit/isolation.test.mts` enforces both and fails on
   a declared package that no tool imports. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
   another repository. A value that differs between repositories is data in
