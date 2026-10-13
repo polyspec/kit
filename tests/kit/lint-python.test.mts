@@ -3,13 +3,13 @@
 // kit; every step runs after a failure of an earlier one, and a missing declaration, tool or ruff.toml fails with the fix.
 // ruff and vulture are stubs.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
   'ruff.toml': '[lint]\nselect = ["F"]\n',
@@ -42,8 +42,7 @@ ${failing ? `case "${tool} $1" in "${failing}"*) echo "found a problem" >&2; exi
 `);
     chmodSync(path.join(root, 'var/tools/bin', tool), 0o755);
   }
-  const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
-  assert.equal(init.status, 0, init.stderr);
+  initRepository(root);
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
 

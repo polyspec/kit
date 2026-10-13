@@ -2,13 +2,13 @@
 // package has no run of its own, the kit fixture is not read, and every run happens after an earlier one failed. cargo is a
 // stub on PATH.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-rust.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
   'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\n',
@@ -24,8 +24,7 @@ function checkout(t: TestContext): string {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
   }
-  const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
-  assert.equal(init.status, 0, init.stderr);
+  initRepository(root);
   return root;
 }
 
