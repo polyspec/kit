@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 86a190f8410ada98d9172871a2605593ba3f5b714aa9eb5e73aa4404f4aaf91c -->
+<!-- source-sha256: 1cf9928b6bd1aba2ec9cbc5c5b8a6ee340604114b75855c93a32d3abd92411ea -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -179,7 +179,7 @@
 | K121 | owner-check가 target과 prerequisite를 regex가 아니라 GNU make의 database(`make -pRrq`)에서 읽습니다. K74 측정: regex는 target별 변수를 prerequisite로 읽고, `$(…)`를 펼치지 않으며, fsm에서 11개, orm에서 86개 target을 놓칩니다. | `scripts/kit/owner-check.mts`, tests | a red Makefile with a target-specific variable and an expanded prerequisite; the unit tests | [o] |
 | K122 | `pin-python-dependency`가 pyproject.toml을 @decimalturn/toml-patch로 고칩니다. K74 측정: 실제 파일 30개의 pin 57개에서 같은 출력. | `scripts/kit/pin-python-dependency.mts`, tests | a red case the regex edit gets wrong; the unit tests | [o] |
 | K123 | release-wheel과 wheel-dependencies가 wheel의 metadata를 `pip install --dry-run --no-deps --no-index --report`로 offline에서 읽습니다. 원인: `unzip -p '*.dist-info/METADATA'`는 vendored dist-info 폴더도 잡습니다; setuptools 84.0.0에서 METADATA 13개를 이어 붙여, package를 vendor하는 wheel의 `Name:`과 `Requires-Dist`가 틀립니다(K74). | `scripts/kit/release-wheel.mts`, `scripts/kit/wheel-dependencies.mts`, tests | a red wheel with a vendored dist-info; the unit tests | [o] |
-| K124 | dependency-review가 JSON stream을 `parseJsonStream`이 아니라 stream-json(`jsonStreaming`) 또는 govulncheck의 단일 문서 SARIF로 읽습니다(K74). | `scripts/kit/dependency-review.mts`, tests | red cases: braces and escaped quotes in strings, an empty stream; the unit tests | [ ] |
+| K124 | dependency-review가 JSON stream을 `parseJsonStream`이 아니라 stream-json(`jsonStreaming`) 또는 govulncheck의 단일 문서 SARIF로 읽습니다(K74). | `scripts/kit/dependency-review.mts`, tests | red cases: braces and escaped quotes in strings, an empty stream; the unit tests | [o] |
 | K125 | test-output은 TAP을 읽지 않습니다: tap-parser가 먼저 kit의 TAP reader를 대신했고, 이어 parity의 node reporter(K75)로 TAP을 읽는 곳이 없어져 reader와 tap-parser를 지웠습니다. 원인: kit은 test 이름의 TAP escape `\#`를 그대로 두는데 TAP은 이를 제거합니다(K74). libtest, unittest, TeamCity는 kit의 reader를 유지합니다(docs/rebuild/test-output). | `scripts/kit/test-output.mts`, tests | a red TAP name with `\#`; the unit tests | [o] |
 | K126 | tests/kit/duplication.test.mts 대신 jscpd `--min-lines 6`이 중복을 찾습니다. kit의 detector가 놓친 파일 간 clone 4개(parity-declaration/parity-units 두 번, release-consumer/release-proof, release-consumer/release-tools)를 찾으며, 각각 제거하거나 이유와 함께 선언합니다(K74). | `tests/kit/duplication.test.mts`, jscpd config, the cloned modules | jscpd red on the 4 clones, then green; the unit tests | [ ] |
 | K127 | toolchain의 release installer(install-go, -uv, -ruff, -python, -cargo-audit, -govulncheck, -composer, install-tool, install-tools, tool-wrappers)를 mise와 mise.lock으로 바꾸고, npm bootstrap, repository가 설치하지 않는 tool의 검증, go.mod 검사만 남깁니다(docs/rebuild/toolchain). K74가 측정한 빈틈은 항목 안에서 결정합니다: version으로만 pin되는 govulncheck와 npm, checksum 없는 Composer, macos-arm64의 x86_64 cargo-audit, python-build-standalone release. | the install modules, `config/toolchain.json`, mise.lock, tests | a red case per gap closed or declared; the unit tests | [ ] |
