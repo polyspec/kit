@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 6a3fee0ad3a476c991a835f13c059b8b1c9c05b035aa70e2421484e1492a02e0 -->
+<!-- source-sha256: 3ab33f8e537f7e4c65fbf669f2743bbbfffa3aa41ed7e53704fd2eff91a2753b -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -155,8 +155,8 @@
 | K82 | kit의 CI가 kit commit의 모든 gate를 실행합니다: test 말고도 `documents-check`와 그 실행의 commit에 대한 `commits-check`. 원인: `.github/workflows/ci.yml`이 install-tools, kit-test, source-test만 실행해서, documents-check에 실패한 b415ad8(conflict 뒤 revision marker 둘)이 CI를 통과했습니다. | 두 step과 전체 history checkout을 가진 `.github/workflows/ci.yml`; `tests/source/ci-workflow.test.mjs` | RED: 변경 전 workflow test가 두 case 모두 실패했습니다; GREEN: 둘 다 통과하며 `make commits-check RANGE=0f290df..HEAD`가 통과합니다 | [o] |
 | K83 | kit-sync는 tag가 아닌 ref를 거부합니다. 원인: flowmark의 `.kit/kit.lock.json`이 kit worktree의 branch인 `"tag": "feat/fifth-state-K13"`를 기록해서, 소비자의 vendored tool이 어떤 release에서도 오지 않았습니다. | kit-sync는 `--tag`를 `refs/tags/<name>`으로만 해석하고 그 밖의 것은 이름을 대며 거부합니다 | RED 먼저: branch 이름으로 한 sync가 거부됩니다; tag로 한 sync는 통과합니다 | [ ] |
 | K84 | PRINCIPLES가 code와 문서의 언어를 정합니다: 주석, identifier, log, error message, test 이름, commit message는 영어, 문서는 영어와 한국어 쌍. 원인: 주석은 영어라는 owner 규칙이 flowmark의 AGENTS에만 있었고, orm의 AGENTS는 반대(주석은 한국어)를 적었습니다. | PRINCIPLES.md(+ko), 기준 | `make documents-check` | [o] |
-| K94 | `release.mts` `latestTag`는 release tag `vX.Y.Z`만 비교합니다. 원인: `v[0-9]*`에 맞는 `v1.2`나 `v1.2.3-rc1` 같은 tag가 비교에서 NaN을 내어 순서가 불안정했고 latest가 틀릴 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release.mts`, 그 test | 섞인 tag의 red test, 그다음 `make kit-test` | [ ] |
-| K95 | `dependency-review`는 latest version을 넣은 dependency로 fix 문구를 만듭니다. 원인: review가 latest를 넣기 전의 dependency를 넘겨 toolchain ruff의 fix가 "set ruff in config/toolchain.json to undefined"가 되었고, test는 latest를 직접 넣어 이를 놓쳤습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/dependency-review.mts`, 그 test | review 경로를 거친 red test, 그다음 `make kit-test` | [ ] |
+| K94 | `release.mts` `latestTag`는 release tag `vX.Y.Z`만 비교합니다. 원인: `v[0-9]*`에 맞는 `v1.2`나 `v1.2.3-rc1` 같은 tag가 비교에서 NaN을 내어 순서가 불안정했고 latest가 틀릴 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release.mts`, 그 test | 섞인 tag의 red test, 그다음 `make kit-test` | [o] |
+| K95 | `dependency-review`는 latest version을 넣은 dependency로 fix 문구를 만듭니다. 원인: review가 latest를 넣기 전의 dependency를 넘겨 toolchain ruff의 fix가 "set ruff in config/toolchain.json to undefined"가 되었고, test는 latest를 직접 넣어 이를 놓쳤습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/dependency-review.mts`, 그 test | review 경로를 거친 red test, 그다음 `make kit-test` | [o] |
 | K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 뺍니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [ ] |
 | K97 | `tests/source`의 real test는 option을 함수 앞에 넘깁니다(`test(name, { timeout }, fn)`). 원인: test 10개가 함수 뒤에 `{ timeout }`을 넘겼고 node:test는 그것을 무시하므로 timeout이 적용되지 않았습니다. K71-1 type 작업에서 찾았습니다(TS2559). | `tests/source/*-real.test.mts` | `make typecheck`(전에는 TS2559), `make source-test` | [ ] |
 | K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [o] |
@@ -167,3 +167,4 @@
 | K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K107 | parity 선언 검사는 `symbols`가 없는 API unit을 그 unit을 이름으로 대는 finding으로 거부합니다. 원인: 그런 unit이 선언 검사를 통과한 뒤 `missingImplementations`가 `unit.symbols.find`에서 TypeError로 죽었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/parity-units.mts`, `scripts/kit/parity-declaration.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
 | K108 | toolchain 검사는 PHP가 실행되지 않을 때 fix에 선언된 PHP minor를 이름으로 댑니다. 원인: fix가 PHP 선언에 없는 `.version`을 읽어(PHP는 minor를 선언합니다) "install PHP undefined"라고 했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/check-toolchain.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
+| K109 | `release-consumer-config`는 wheel package가 있는데 `consumers`가 없는 release config를 빠진 절을 이름으로 대는 problem으로 거부합니다. 원인: `consumerConfigProblems`가 `consumers`가 없으면 검사를 건너뛰어 그런 config가 `loadConfig`를 통과했고, `release assets`가 이름 있는 error로 멈췄으며(K71-1 전에는 TypeError) release-consumer도 같은 이유로 실패할 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
