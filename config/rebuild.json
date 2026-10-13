@@ -130,17 +130,33 @@
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
+    "scripts/kit/install-composer-project.mts": {
+      "kind": "ecosystem",
+      "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint), with the Composer that install-composer.mts pins (K77)"
+    },
     "scripts/kit/install-composer.mts": {
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+    },
+    "scripts/kit/install-deadcode.mts": {
+      "kind": "replaced",
+      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-go.mts": {
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
+    "scripts/kit/install-golangci-lint.mts": {
+      "kind": "replaced",
+      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
+    },
     "scripts/kit/install-govulncheck.mts": {
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+    },
+    "scripts/kit/install-php-lint.mts": {
+      "kind": "ecosystem",
+      "tool": "composer install of the committed config/php-lint lock (K77)"
     },
     "scripts/kit/install-phpunit.mts": {
       "kind": "ecosystem",
@@ -154,6 +170,10 @@
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
+    "scripts/kit/install-symbols.mts": {
+      "kind": "ecosystem",
+      "tool": "go build of scripts/kit/symbols/go at its go.mod and go.sum, and composer install of the scripts/kit/symbols/php lock (K75)"
+    },
     "scripts/kit/install-tools.mts": {
       "kind": "replaced",
       "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
@@ -165,6 +185,14 @@
     "scripts/kit/install-vscode.mts": {
       "kind": "ecosystem",
       "tool": "@vscode/test-electron downloads the VS Code build of the extension tests (K80)"
+    },
+    "scripts/kit/install-vulture.mts": {
+      "kind": "replaced",
+      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
+    },
+    "scripts/kit/install-wheel-tool.mts": {
+      "kind": "replaced",
+      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/kit-bootstrap.mk": {
       "kind": "policy",
@@ -182,9 +210,29 @@
       "kind": "policy",
       "reason": "the make targets of polyspec that run the tools of kit"
     },
+    "scripts/kit/lint-go.mts": {
+      "kind": "ecosystem",
+      "tool": "golangci-lint with .golangci.yml, and deadcode (K77)"
+    },
+    "scripts/kit/lint-php.mts": {
+      "kind": "ecosystem",
+      "tool": "phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon (K77)"
+    },
     "scripts/kit/lint-python.mts": {
       "kind": "ecosystem",
       "tool": "ruff"
+    },
+    "scripts/kit/lint-rust.mts": {
+      "kind": "ecosystem",
+      "tool": "cargo clippy (K77)"
+    },
+    "scripts/kit/lint-steps.mts": {
+      "kind": "policy",
+      "reason": "runs the steps of each lint tool of kit and reports each as polyspec's checks do (K77); every step is a linter of its ecosystem"
+    },
+    "scripts/kit/lint-ts.mts": {
+      "kind": "ecosystem",
+      "tool": "oxlint with oxlint-tsgolint, knip and API Extractor (K77)"
     },
     "scripts/kit/markdown.mts": {
       "kind": "ecosystem",
@@ -210,9 +258,17 @@
       "kind": "policy",
       "reason": "the language-parity check of polyspec, classified with K75"
     },
+    "scripts/kit/parity-node-reporter.mts": {
+      "kind": "ecosystem",
+      "tool": "node:test reporter API"
+    },
     "scripts/kit/parity-runners.mts": {
       "kind": "policy",
       "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-symbols.mts": {
+      "kind": "ecosystem",
+      "tool": "the standard library's ast of Python, API Extractor, golang.org/x/tools/go/packages, nikic/php-parser and rustdoc JSON read the public symbols (K75)"
     },
     "scripts/kit/parity-text.mts": {
       "kind": "policy",
@@ -341,6 +397,10 @@
     "scripts/kit/toolchain-floors.mts": {
       "kind": "policy",
       "reason": "the floors of the manifests must equal the pins (S4, K78); the manifests are read by their ecosystem tools through toolchain-files.mts"
+    },
+    "scripts/kit/toolchain-lint.mts": {
+      "kind": "policy",
+      "reason": "reads the declarations of the lint tools in config/toolchain.json and config/php-lint/composer.lock after the bootstrap (K77); the install of each tool has its own class here"
     },
     "scripts/kit/toolchain-pins.mts": {
       "kind": "policy",
