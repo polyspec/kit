@@ -1,5 +1,6 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 285137bce5a2410c2bf0a0b12b95a6d8fa9afdc299a845697515540ae0e16db5 -->
+<!-- source-sha256: 23bf2c8f97b01babb871322cd799ff9fd8063ec2f3ff1dd864af464a7131bc4b -->
+<!-- source-sha256: 4e6a85d019ebcc7b7e763debdb5390aa85a2ede345d40a45e8ae4b3899add15d -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -149,3 +150,4 @@
 | K106 | PRINCIPLES는 검사를 언제 돌리는지에 대한 owner의 규칙을 담습니다: 항목을 개발하는 동안에는 바뀐 것의 소유 검사만 돌리고, 전체 모음은 활성 checklist의 모든 항목이 완료되었을 때 정확히 한 번 돌리며, 수정마다, 개별 항목마다 돌리지 않습니다. 원인: 수정마다 전체 모음을 다시 돌렸고, agent 여섯이 각자 돌려 machine이 과부하되었습니다(2026-10-13). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs` | [o] |
 | K104 | 멈춘 source-test 실행은 sandbox process를 남기지 않습니다: `consumer-layout`과 `fresh-checkout`은 중첩 `make kit-test`를 자기 process group에서 시작하고, case가 끝나거나 취소되면 그 group을 끝냅니다. run-tests가 timeout에서 하는 것과 같습니다(`signalGroup`). 원인: 실행이 멈추면 중첩 `make`와 `node --test` process가 부모 없이 계속 돌았습니다(2026-10-13, 22–26분 된 8개). | `tests/source/checkout.mts`, 그 test | case를 멈추고 중첩 group이 살아 있음을 찾는 red test, 그다음 그 case의 소유 검사 | [ ] |
 | K105 | kit은 자기 경로의 소유자를 `config/owner-checks.json`에 선언하므로, `make owner-check`가 모든 소비자에서처럼 kit에서도 바뀐 것의 소유 검사를 고릅니다. 원인: kit에 선언이 없어 owner의 규칙(K106)에 kit의 기계적 선택이 없었습니다. | `config/owner-checks.json`, `make owner-validate` | `make owner-validate`; `make owner-check BASE=<rev>`가 바뀐 module의 test를 고름 | [ ] |
+| K81 | vendored test는 `make install-tools`가 제공하는 어떤 것도 필요로 하지 않습니다(K90에 이어). 원인: flowmark는 toolchain을 선언하지 않아 Python을 설치할 수 없고, 그 kit-test가 `var/tools/bin/python3`를 요구하는 `tests/kit/parity.test.mjs`의 실제 unittest case R3에서 실패했습니다. K90은 그런 case가 명령을 지목하면 실패해도 된다고 했지만, 그 toolchain이 없는 소비자는 그 명령을 실행할 수 없습니다. | `tests/source/fresh-checkout.test.mjs`가 `var/` 없는 checkout에서 모든 vendored test의 통과를 요구합니다; R3는 `givePython` helper 하나와 함께 `tests/source/parity-real.test.mjs`로 옮깁니다 | RED: fresh-checkout test가 정확히 R3에서 실패했습니다; GREEN: 통과하며, `make kit-test`와 `make source-test`가 통과합니다 증거: v0.0.34의 flowmark에서 kit-test는 R3 하나에서만 실패했다; 여기서 fresh-checkout test는 이동 전 정확히 R3에서 실패했고 이동 후 통과하며, R3는 tests/source/parity-real.test.mjs에서 통과한다. | [o] |

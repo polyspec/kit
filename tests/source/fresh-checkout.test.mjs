@@ -1,6 +1,9 @@
-// The vendored tests in a fresh checkout, before make install-tools has created var/ (K90). A test creates what it needs, or
-// it fails with an error that names the command that provides it. A test that wrote under var/ without creating it failed
-// with a bare ENOENT (python-lock-check.test.mjs made its temporary directories in var/), which names no cause.
+// The vendored tests in a fresh checkout, before make install-tools has created var/ (K90, K81). A vendored test runs in
+// every consumer, and a consumer declares only the toolchains it uses (flowmark declares none), so a vendored test needs
+// nothing that make install-tools provides: it creates what it needs, and a test of a real toolchain lives in tests/source.
+// A test that wrote under var/ without creating it failed with a bare ENOENT (python-lock-check.test.mjs made its temporary
+// directories in var/), and a real unittest case in tests/kit/parity.test.mjs failed in flowmark, which cannot install
+// the Python it asked for.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,12 +46,11 @@ test('failedCases reads each failed case with its error, and no passed case', ()
   ]);
 });
 
-test('in a checkout without var/, every failed vendored test names make install-tools', (t) => {
+test('in a checkout without var/, every vendored test passes', (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
   const { output, passed } = runKitTest(sandbox);
   assert.ok(passed > 0, 'the vendored tests ran');
-  const unnamed = failedCases(output).filter(failed => !failed.error.includes('make install-tools'));
-  assert.deepEqual(unnamed.map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
+  assert.deepEqual(failedCases(output).map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
 });
