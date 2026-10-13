@@ -7,6 +7,7 @@ import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, tapEvents, toProgress } from '../../scripts/kit/test-output.mts';
@@ -17,22 +18,22 @@ import { put, tree } from './tree.mts';
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const SPEC = "import test from 'node:test';\n";
 
-function checkout(t, files) {
+function checkout(t: TestContext, files: Record<string, string>) {
   const root = tree(t, files);
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   return root;
 }
-const runner = (root, args, env = {}) => spawnSync(process.execPath, ['scripts/kit/run-tests.mts', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
-const output = result => result.stdout + result.stderr;
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, ['scripts/kit/run-tests.mts', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
 // The Python of a checkout is var/tools/bin/python3, the wrapper that install-python.mts writes: a test writes its stub there.
-function pythonStub(root, script) {
+function pythonStub(root: string, script: string) {
   const file = path.join(root, 'var/tools/bin/python3');
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
   chmodSync(file, 0o755);
   return root;
 }
-const pythonRoot = (t, script) => pythonStub(tree(t), script);
+const pythonRoot = (t: TestContext, script: string) => pythonStub(tree(t), script);
 
 test('a passing file prints the start and the result of each test and a summary, and exits 0', (t) => {
   const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('group', async (t) => { await t.test('inner', () => {}); });\n` });
@@ -152,8 +153,8 @@ test('each tool starts with its progress and timeout arguments and no limit on a
 });
 
 function recorder() {
-  const lines = [];
-  const counts = (resultFile) => createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile });
+  const lines: string[] = [];
+  const counts = (resultFile?: string) => createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile });
   return { lines, counts };
 }
 
@@ -169,7 +170,7 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['a', 'pass'], ['b', 'skip']]);
   assert.equal(result.cases[0].elapsedMs, 10);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), result);
-  assert.match(lines.at(-1), /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/);
+  assert.match(lines.at(-1)!, /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/); // close wrote its summary line.
 
   const failing = counts();
   failing.start('x'); failing.fail('x', 5, 'boom\nmore');
@@ -179,16 +180,16 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   const group = counts();
   group.start('file', { group: true }); group.start('t'); group.pass('t', 1); group.fail('file', 1, 'hook failed');
   assert.equal(group.close('suite').ok, false);
-  assert.match(lines.at(-1), /1 group failed/);
+  assert.match(lines.at(-1)!, /1 group failed/); // close wrote its summary line.
 
   const exiting = counts();
   exiting.start('t'); exiting.pass('t', 1);
   assert.equal(exiting.close('suite', { exitCode: 2, errors: ['error: link failed'] }).ok, false);
-  assert.match(lines.at(-1), /the tool exited with 2: error: link failed/);
+  assert.match(lines.at(-1)!, /the tool exited with 2: error: link failed/); // close wrote its summary line.
 
   const empty = counts();
   empty.start('t'); empty.skip('t');
-  assert.deepEqual([empty.close('suite').ok, lines.at(-1).includes('no test ran')], [false, true]);
+  assert.deepEqual([empty.close('suite').ok, lines.at(-1)!.includes('no test ran')], [false, true]); // close wrote its summary line.
 
   const unfinished = counts();
   unfinished.start('hang');
@@ -201,9 +202,9 @@ test('the progress closes a run as failed when a test failed, a group failed, th
 test('the progress reports a test that outlives its timeout', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   let clock = 0;
-  const lines = [];
-  const stopped = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 20, timeoutMs: 50, onTimeout: id => stopped.push(id), command: 'tool run', now: () => clock });
+  const lines: string[] = [];
+  const stopped: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 20, timeoutMs: 50, onTimeout: (id: string) => stopped.push(id), command: 'tool run', now: () => clock });
   progress.start('slow');
   clock = 20;
   t.mock.timers.tick(20);
@@ -220,9 +221,9 @@ test('the progress reports a test that outlives its timeout', (t) => {
 });
 
 test('the go events print tests, show the output of a failing test, name build errors and skip a package without a test', () => {
-  const lines = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
-  const build = [];
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const build: string[] = [];
   const feed = goEvents(toProgress(progress), build);
   for (const event of [
     { Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0.5 },
@@ -245,8 +246,8 @@ test('the go events print tests, show the output of a failing test, name build e
 });
 
 test('the cargo events pair each test with its result and name the binary', () => {
-  const lines = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const events = cargoEvents(toProgress(progress));
   events.stderr('     Running unittests src/lib.rs (target/debug/deps/lib-1)');
   events.stdout('running 3 tests\ntest a ... ok\ntest b ... FAILED\ntest c ... ');
@@ -260,8 +261,8 @@ test('the cargo events pair each test with its result and name the binary', () =
 
 // A sink that writes each call as `<method> <test id>`, so a test can read the outcome that a parser reports.
 function recording() {
-  const calls = [];
-  const note = method => (test) => calls.push(`${method} ${test?.id ?? ''}`.trim());
+  const calls: string[] = [];
+  const note = (method: string) => (test?: { id: string }) => calls.push(`${method} ${test?.id ?? ''}`.trim());
   return { calls, sink: { start: note('start'), pass: note('pass'), fail: note('fail'), skip: note('skip'), todo: note('todo'), line: () => {}, raw: () => {} } };
 }
 
@@ -298,10 +299,10 @@ test('the phpunit events of a skipped test pass it as skipped only, as PHPUnit r
 });
 
 test('the phpunit events pair tests, join the failure messages and print other lines', () => {
-  const lines = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const feed = phpunitEvents(toProgress(progress));
-  const message = (name, attributes) => `##teamcity[${name} ${Object.entries(attributes).map(([key, value]) => `${key}='${value}'`).join(' ')}]`;
+  const message = (name: string, attributes: Record<string, string>) => `##teamcity[${name} ${Object.entries(attributes).map(([key, value]) => `${key}='${value}'`).join(' ')}]`;
   feed(message('testSuiteStarted', { name: 'all' }));
   feed(message('testStarted', { name: 'testOk', locationHint: 'php_qn://x/FooTest.php::\\Pkg\\FooTest::testOk' }));
   feed(message('testFinished', { name: 'testOk', duration: '12' }));
@@ -319,8 +320,8 @@ test('the phpunit events pair tests, join the failure messages and print other l
 });
 
 test('the python events pair each test with its outcome, keep the description id over a docstring line and print other lines', () => {
-  const lines = [];
-  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const lines: string[] = [];
+  const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const feed = pythonEvents(toProgress(progress));
   feed('test_a (tests.test_x.T.test_a) ... ok\n');
   feed('test_b (tests.test_x.T.test_b) ... ');
@@ -342,7 +343,7 @@ test('the python events pair each test with its outcome, keep the description id
   assert.deepEqual(progress.counts, { passed: 3, failed: 3, skipped: 1, timedOut: 0 });
 });
 
-function stubTool(t, name, script) {
+function stubTool(t: TestContext, name: string, script: string) {
   const bin = mkdtempSync(path.join(tmpdir(), 'kit-stub-'));
   t.after(() => rmSync(bin, { recursive: true, force: true }));
   const file = path.join(bin, name);
@@ -351,12 +352,12 @@ function stubTool(t, name, script) {
   return bin;
 }
 
-async function inProcess(t, args, { path: extraPath, root = tree(t) } = {}) {
-  const lines = [];
+async function inProcess(t: TestContext, args: string[], { path: extraPath, root = tree(t) }: { path?: string; root?: string } = {}) {
+  const lines: string[] = [];
   const previous = process.env.PATH;
   if (extraPath !== undefined) process.env.PATH = extraPath;
   try {
-    return { status: await run(args, { root, write: text => lines.push(text) }), text: lines.join('') };
+    return { status: await run(args, { root, write: (text: string) => lines.push(text) }), text: lines.join('') };
   } finally {
     process.env.PATH = previous;
   }
@@ -425,7 +426,7 @@ test('python tests run through var/tools/bin/python3, pass, fail and stop at the
 
 // A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/uv-python as its home and
 // bin/python is a stub that prints unittest output; `home` overrides the named home.
-function venvRoot(t, { home } = {}) {
+function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
   const root = tree(t);
   mkdirSync(path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin'), { recursive: true });
   const venv = path.join(root, 'pkg/.venv');
@@ -496,7 +497,7 @@ test('--results writes the cases, the tool, the inputs and the elapsed time of a
   const bin = stubTool(t, 'go', `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exitCode = 1;`);
   const result = await inProcess(t, ['go', '--results', '.results/go.json', '--cwd', 'pkg', './...'], { root, path: `${bin}${path.delimiter}${process.env.PATH}` });
   assert.equal(result.status, 1, result.text);
-  const record = JSON.parse(readFileSync(path.join(root, '.results/go.json'), 'utf8'));
+  const record: { tool: string; ok: boolean; elapsedMs: number; inputs: { paths: string[]; digest: string }; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/go.json'), 'utf8'));
   assert.deepEqual(record.cases, [{ id: 'p › TestA', status: 'pass', elapsedMs: 250 }, { id: 'p › TestB', status: 'fail', elapsedMs: 500 }]);
   assert.deepEqual([record.tool, record.inputs.paths, record.inputs.digest, record.ok], ['go', ['pkg'], inputsDigest(root, ['pkg']), false]);
   assert.equal(typeof record.elapsedMs, 'number');
@@ -506,7 +507,7 @@ test('--results records the cases of node tests, which the reporter counts in it
   const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('later', { skip: true }, () => {});\n` });
   const result = runner(root, ['node', '--results', '.results/node.json', '--inputs', 'tests', '--', 'tests/a.test.mjs']);
   assert.equal(result.status, 0, output(result));
-  const record = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  const record: { tool: string; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/a.test.mjs › adds', 'pass'], ['tests/a.test.mjs › later', 'skip']]);
   assert.equal(record.tool, 'node');
 });
@@ -517,7 +518,7 @@ test('under --cwd a node file group is not a test case, and its ids name the fil
   assert.equal(result.status, 0, output(result));
   assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 timed out, 0 skipped/);
   assert.match(result.stdout, /✔ pkg\/tests\/a\.test\.mjs › adds/);
-  const record = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  const record: { tool: string; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['pkg/tests/a.test.mjs › adds', 'pass'], ['pkg/tests/a.test.mjs › subtracts', 'pass']]);
 });
 
