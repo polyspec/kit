@@ -29,6 +29,15 @@ test('latest names the newest root release tag reachable from HEAD', (t) => {
   assert.equal(release.latestTag(ctx), 'v0.0.10');
 });
 
+test('latest compares only the tags of the form vX.Y.Z and fails when none is reachable', (t) => {
+  const box = releaseSandbox(t, { version: '0.0.3' });
+  const ctx = context(box);
+  for (const tag of ['v1.2', 'v1.2.3-rc1', 'v2']) git(ctx.root, 'tag', tag);
+  stop(() => release.latestTag(ctx), /no release tag is reachable from HEAD/);
+  for (const tag of ['v0.0.1', 'v0.0.10', 'v0.0.2']) git(ctx.root, 'tag', tag);
+  assert.equal(release.latestTag(ctx), 'v0.0.10');
+});
+
 test('latest fails when no release tag is reachable', (t) => {
   const ctx = context(releaseSandbox(t));
   stop(() => release.latestTag(ctx), /no release tag is reachable from HEAD/);

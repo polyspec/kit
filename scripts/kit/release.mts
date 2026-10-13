@@ -193,9 +193,11 @@ export function context(root: string, { config = loadConfig(root), env = process
  * release that the tree carries. */
 export function latestTag(ctx: Context): string {
   const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
-  const tags = list.trim().split('\n').filter(Boolean);
+  // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release.
+  const tags = list.trim().split('\n').filter(tag => tag.startsWith('v') && EXACT_VERSION.test(tag.slice(1)));
   if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
-  const numbers = (tag: string) => tag.slice(1).split('.').map(Number);
+  // The filter above keeps the tags of three numbers.
+  const numbers = (tag: string) => tag.slice(1).split('.').map(Number) as [number, number, number];
   const compare = (a: string, b: string) => { const pa = numbers(a); const pb = numbers(b); return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2]; };
   // tags holds at least one tag, checked above.
   return tags.sort(compare).at(-1)!;
