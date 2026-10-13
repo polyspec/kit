@@ -15,12 +15,15 @@ import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, run, runKitTest } from
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The failed cases of a kit-test output, each with the indented lines of its error. */
+/**
+ * The failed cases of a kit-test output, each with the indented lines of its error, and each test file that failed as a
+ * whole, without a failed case of its own (an error outside the cases), with its error.
+ */
 export function failedCases(output: string) {
   const cases: Array<{ name: string; error: string }> = [];
   let current: { name: string; error: string } | null = null;
   for (const line of output.split('\n')) {
-    const failed = /^\[[^\]]*\] ✖ (tests\/kit\/[^\n]*? › [^\n]*?) \(\d[^)]*\)$/.exec(line);
+    const failed = /^\[[^\]]*\] ✖ (tests\/kit\/[^\n]*?) \(\d[^)]*\)$/.exec(line);
     if (failed) {
       const name = failed[1];
       if (name === undefined) throw new Error(`failedCases: the line names no case: ${line}`);
@@ -32,8 +35,42 @@ export function failedCases(output: string) {
       current = null;
     }
   }
-  return cases;
+  // A file line closes the cases of a file that failed; it names a failure of its own only when no case of it failed.
+  const files = new Set(cases.filter(entry => entry.name.includes(' › ')).map(entry => entry.name.split(' › ')[0]));
+  return cases.filter(entry => entry.name.includes(' › ') || !files.has(entry.name));
 }
+
+/**
+ * Fails unless the kit-test run `run` passed: the message names every failed case and file with its whole error, read from
+ * the whole output; a failure that names no case gives the whole output.
+ */
+export function assertKitTestPassed(run: { output: string; passed: number; failed: number }) {
+  assert.ok(run.passed > 0, 'the vendored tests ran');
+  const failures = failedCases(run.output);
+  if (run.failed === 0 && failures.length === 0) return;
+  const report = failures.map(failed => `${failed.name}\n${failed.error.replace(/^/gm, '  ').trimEnd()}`).join('\n');
+  assert.fail(`make kit-test: ${run.failed} failed\n${report || run.output}`);
+}
+
+test('a failed run names every failed case and file with its whole error, however long the output after it (K129)', () => {
+  const output = [
+    '[  0.1s] ✖ tests/kit/early.test.mts › breaks first (0.1s)',
+    '           AssertionError: the first line',
+    '           the second line of the error',
+    '[  0.2s] ✖ tests/kit/early.test.mts (0.2s)',
+    '           test failed',
+    ...Array.from({ length: 200 }, (_, index) => `[  1.0s] ✔ tests/kit/late.test.mts › case ${index} (0.0s)`),
+    '[  2.0s] ✖ tests/kit/release.test.mts (1.0s)',
+    '           Error: the file failed as a whole',
+    '[  3.0s] ✖ node --test: 200 passed, 2 failed, 0 timed out, 0 skipped (3.0s)',
+  ].join('\n');
+  assert.throws(() => assertKitTestPassed({ output, passed: 200, failed: 2 }), (error: Error) => {
+    for (const part of ['tests/kit/early.test.mts › breaks first', 'the first line', 'the second line of the error', 'tests/kit/release.test.mts', 'the file failed as a whole']) {
+      assert.ok(error.message.includes(part), `the message lacks ${part}:\n${error.message}`);
+    }
+    return true;
+  });
+});
 
 test('failedCases reads each failed case with its error, and no passed case', () => {
   const output = [
@@ -57,7 +94,5 @@ test('in a fresh checkout after the documented install, every vendored test pass
   for (const args of [['install-tools', 'TOOLS=npm'], ['install-packages'], ['install-tools']]) run('make', ['--no-print-directory', ...args], sandbox);
   // The fresh checkout installs its packages; it links none (AGENTS: this repository creates no symbolic link).
   assert.ok(!lstatSync(path.join(sandbox, 'node_modules')).isSymbolicLink(), 'node_modules of the fresh checkout is a link');
-  const { output, passed } = await runKitTest(sandbox, t.signal);
-  assert.ok(passed > 0, 'the vendored tests ran');
-  assert.deepEqual(failedCases(output).map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
+  assertKitTestPassed(await runKitTest(sandbox, t.signal));
 });

@@ -208,7 +208,7 @@ export async function runKitTest(cwd: string, signal: AbortSignal) {
     });
     const output = stdout.join('') + stderr.join('');
     const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);
-    assert.ok(summary, `make kit-test printed no summary:\n${output.slice(-2000)}`);
+    assert.ok(summary, `make kit-test printed no summary:\n${output}`);
     return { status, output, passed: Number(summary[1]), failed: Number(summary[2]) };
   } finally {
     stop();
