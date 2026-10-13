@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 26e76085392750eed8d787984a56f9e80663a80a16ada79d059fcc755da83ef4 -->
+<!-- source-sha256: 70912eee9c4303e8d396dedeb8bcb6f8fb584fa59f65c81df26fef9255a79cda -->
 # 개발
 
 [English](AGENTS.md)
@@ -58,7 +58,7 @@ kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
 이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
 
-kit은 `workflows/release.yml`을 kit.json의 `vendoredFiles`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 `make release-tools`(config/release.json이 필요로 하는 tool), `make release-publish`(draft release), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
+kit은 `workflows/release.yml`을 kit.json의 `vendoredFiles`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`을 그 PATH에 올립니다), `make release-publish`(draft release), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의

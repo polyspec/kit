@@ -65,8 +65,9 @@ type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and 
 published tag is not moved; the check runs only on the tag being released.
 
 kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`vendoredFiles` of
-kit.json). A repository never edits it, and `make kit-check` fails on a difference. The workflow runs `make release-tools` (the tools
-that config/release.json needs), `make release-publish` (the release as a draft), `make release-proof TAG=<tag>` (the proof of the draft)
+kit.json). A repository never edits it, and `make kit-check` fails on a difference. The workflow sets up the PHP of `.php-version` when
+the repository declares one, runs `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
+puts `var/tools/bin` on the PATH of the following steps, so they run on the installed tools), `make release-publish` (the release as a draft), `make release-proof TAG=<tag>` (the proof of the draft)
 and `make release-undraft TAG=<tag>`, which makes the release public only after the proof passed. A failed step leaves the release a
 draft and fails the run, so a release that cannot be installed is never public.
 
