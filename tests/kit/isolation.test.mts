@@ -1,5 +1,6 @@
-// kit depends on no repository: the tools import only Node built-ins and files of their own directory, and neither the
-// tools nor the tests name another repository. A repository differs from another only in config/*.json.
+// kit depends on no repository: the tools import only Node built-ins, files of scripts/kit and the packages that
+// package.json declares in dependencies, and neither the tools nor the tests name another repository. A repository
+// differs from another only in config/*.json.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -18,18 +19,56 @@ const tools = files('scripts/kit');
 // This file lists the names, so it is the one file the scan skips.
 const sources = [...tools, ...files('tests/kit')].filter(file => /\.(mts|json|mk)$/.test(file) && file !== 'tests/kit/isolation.test.mts');
 
-test('a kit tool imports only Node built-ins and files of scripts/kit', () => {
+/** The package that a bare import specifier names: `@scope/name` or `name`, without a subpath. */
+const packageOf = (specifier: string) => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+
+/**
+ * Whether the module `file` of scripts/kit may import `specifier`: a node: built-in, a file of scripts/kit, or a package
+ * that package.json declares in `dependencies`. A module of scripts/kit/bootstrap runs before npm installs the packages,
+ * so it imports only node: built-ins and files of its own directory.
+ */
+function allowedImport(file: string, specifier: string, dependencies: readonly string[]) {
+  if (specifier.startsWith('node:')) return true;
+  if (specifier.startsWith('./')) return !specifier.slice(2).includes('..') && !(file.startsWith('scripts/kit/bootstrap/') && specifier.slice(2).includes('/'));
+  return !file.startsWith('scripts/kit/bootstrap/') && dependencies.includes(packageOf(specifier));
+}
+
+const DEPENDENCIES = Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies ?? {});
+// The specifiers of the imports of a module: `from '…'`, `import '…'` and `import('…')`.
+const importsOf = (text: string) => [...text.matchAll(/(?:from|import\(?)\s*'([^']+)'/g)].map(([, specifier]) => specifier!);
+
+test('the import rule allows built-ins, files of scripts/kit and declared packages, and keeps bootstrap to built-ins', () => {
+  const declared = ['ajv', '@scope/name'];
+  assert.ok(allowedImport('scripts/kit/x.mts', 'node:fs', declared));
+  assert.ok(allowedImport('scripts/kit/x.mts', './y.mts', declared));
+  assert.ok(allowedImport('scripts/kit/x.mts', './bootstrap/files.mts', declared));
+  assert.ok(allowedImport('scripts/kit/x.mts', 'ajv', declared), 'a declared package');
+  assert.ok(allowedImport('scripts/kit/x.mts', 'ajv/dist/2020.js', declared), 'a subpath of a declared package');
+  assert.ok(allowedImport('scripts/kit/x.mts', '@scope/name/sub', declared), 'a subpath of a declared scoped package');
+  assert.ok(!allowedImport('scripts/kit/x.mts', 'picomatch', declared), 'an undeclared package');
+  assert.ok(!allowedImport('scripts/kit/x.mts', '@scope/other', declared), 'an undeclared scoped package');
+  assert.ok(!allowedImport('scripts/kit/x.mts', '../tests/kit/y.mts', declared), 'a file outside scripts/kit');
+  assert.ok(!allowedImport('scripts/kit/x.mts', './a/../../y.mts', declared), 'a path that leaves scripts/kit');
+  assert.ok(allowedImport('scripts/kit/bootstrap/x.mts', './files.mts', declared));
+  assert.ok(!allowedImport('scripts/kit/bootstrap/x.mts', 'ajv', declared), 'bootstrap runs before npm installs the packages');
+  assert.ok(!allowedImport('scripts/kit/bootstrap/x.mts', './schema/x.json', declared), 'bootstrap imports files of its own directory only');
+});
+
+test('a kit tool imports only Node built-ins, files of scripts/kit and the declared dependencies', () => {
   const modules = tools.filter((name: string) => name.endsWith('.mts'));
   // An empty selection would pass without checking anything, as it did when the tools were renamed (K71-1).
   assert.ok(modules.length > 0, 'the scan found the modules of scripts/kit');
+  assert.ok(modules.some(file => file.startsWith('scripts/kit/bootstrap/')), 'the scan found the modules of scripts/kit/bootstrap');
   for (const file of modules) {
-    const text = readFileSync(path.join(ROOT, file), 'utf8');
-    for (const [, specifier] of text.matchAll(/(?:from|import\()\s*'([^']+)'/g)) {
-      if (specifier === undefined) throw new Error(`${file}: an import matched without its specifier`);
-      const allowed = specifier.startsWith('node:') || (specifier.startsWith('./') && !specifier.slice(2).includes('..'));
-      assert.ok(allowed, `${file} imports ${specifier}, which is neither a node: built-in nor a file of its directory`);
+    for (const specifier of importsOf(readFileSync(path.join(ROOT, file), 'utf8'))) {
+      assert.ok(allowedImport(file, specifier, DEPENDENCIES), `${file} imports ${specifier}, which is neither a node: built-in, a file of scripts/kit nor a package of dependencies in package.json${file.startsWith('scripts/kit/bootstrap/') ? ' (a bootstrap module imports only node: built-ins and files of scripts/kit/bootstrap)' : ''}`);
     }
   }
+});
+
+test('every package of dependencies in package.json is imported by a kit tool', () => {
+  const imported = new Set(tools.filter(name => name.endsWith('.mts')).flatMap(file => importsOf(readFileSync(path.join(ROOT, file), 'utf8'))).map(packageOf));
+  for (const name of DEPENDENCIES) assert.ok(imported.has(name), `package.json declares ${name} in dependencies, and no module of scripts/kit imports it; remove it`);
 });
 
 test('no tool or test of kit names another repository', () => {

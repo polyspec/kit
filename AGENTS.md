@@ -19,8 +19,11 @@ and states only its own rules. The rules below are kit's own.
 - English documents are canonical. Every document has a `.ko.md` file with the same information; edit both in the same
   change. The revision marker `source-sha256` of the Korean file is the sha256 of the English file. Korean documents write
   technical terms in English.
-- A tool imports only Node built-ins (`node:`) and files of its own directory. No tool or test, except the fixture and
-  `tests/kit/isolation.test.mts`, names another repository. A value that differs between repositories is data in
+- A tool imports only Node built-ins (`node:`), files of `scripts/kit/` and the packages that `dependencies` of
+  `package.json` declares, each pinned exactly. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,
+  so it imports only Node built-ins and files of its own directory. `tests/kit/isolation.test.mts` enforces both and fails on
+  a declared package that no tool imports. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
+  another repository. A value that differs between repositories is data in
   `config/<name>.json` with a schema in `scripts/kit/schema/`. The schema validator supports only the keywords it lists.
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
   `make kit-check` fails on a changed, missing or unexpected vendored file.
