@@ -3,21 +3,37 @@
 // fails, and so does a run in which no test ran.
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { Transform } from 'node:stream';
+import { Transform, type TransformCallback } from 'node:stream';
+import type { EventData } from 'node:test';
+import type { TestEvent } from 'node:test/reporters';
 import { createProgress } from './test-progress.mts';
 import { ROOT } from './paths.mts';
 
+/** The error of a failed test; node sets failureType, which @types/node does not declare. */
+type TestFailure = EventData.Error & { failureType?: string };
+
+/** What locates a test in the events of node:test. */
+type TestPlace = Pick<EventData.TestComplete, 'file' | 'nesting' | 'name' | 'line' | 'column'>;
+
 // The failure of a test: what failed (for example `failed running after hook`), then its cause.
-const failureText = error => {
-  const cause = error?.cause ?? error;
+const failureText = (error: TestFailure | undefined): string => {
+  // A test may throw any value; the stack and message of a value that has none read as undefined.
+  const cause = (error?.cause ?? error) as { stack?: string; message?: string } | null | undefined;
   const text = cause?.stack ?? cause?.message ?? String(cause);
   return error?.cause && error.message && !text.includes(error.message) ? `${error.message}\n${text}` : text;
 };
 
 export default class ProgressReporter extends Transform {
+  // The constructor sets each of these; declare keeps the class without fields of its own.
+  declare progress: ReturnType<typeof createProgress>;
+  declare names: Map<string, string[]>;
+  declare completedFailures: Map<string, number>;
+  declare failedFiles: Set<string>;
+  declare cases: Map<string, number>;
+
   constructor() {
     super({ writableObjectMode: true });
-    this.progress = createProgress({ write: text => this.push(text) });
+    this.progress = createProgress({ write: (text: string) => this.push(text) });
     this.names = new Map();
     // Failed completions not yet matched by their failure report, by test key.
     this.completedFailures = new Map();
@@ -27,13 +43,13 @@ export default class ProgressReporter extends Transform {
     this.cases = new Map();
   }
 
-  key(data) {
+  key(data: TestPlace): string {
     return [data.file, data.nesting, data.name, data.line, data.column].join('\0');
   }
 
   // A test's position: its file, then the names of its enclosing tests. node names a file group relative to its working
   // directory (--cwd of run-tests), so the group is matched after resolving that name against the same directory.
-  id(data) {
+  id(data: TestPlace): { id: string; group: boolean } {
     const file = data.file ? path.relative(ROOT, data.file) : '';
     if (data.nesting === 0 && data.file && path.resolve(process.cwd(), data.name) === data.file) return { id: file, group: true };
     const trail = this.names.get(file) ?? [];
@@ -44,7 +60,7 @@ export default class ProgressReporter extends Transform {
   }
 
   // node:test reports a start when a test leaves the queue and its result, in execution order, when it completes.
-  _transform(event, encoding, callback) {
+  override _transform(event: TestEvent, encoding: BufferEncoding, callback: TransformCallback): void {
     const { type, data } = event;
     if (type === 'test:dequeue') {
       const { id, group } = this.id(data);
@@ -54,11 +70,12 @@ export default class ProgressReporter extends Transform {
       const { duration_ms: duration, error, passed } = data.details;
       const file = data.file && realpathSync(data.file);
       if (!group && file) this.cases.set(file, (this.cases.get(file) ?? 0) + 1);
+      // A group is a file, so file is set wherever group holds below.
       if (data.skip || data.todo) this.progress.skip(id);
-      else if (passed && group && this.failedFiles.has(file)) {
-        this.failedFiles.delete(file);
+      else if (passed && group && this.failedFiles.has(file!)) {  // group implies file.
+        this.failedFiles.delete(file!);  // group implies file.
         this.progress.fail(id, duration, 'a failure outside its tests failed the file');
-      } else if (passed && group && !this.cases.get(file)) {
+      } else if (passed && group && !this.cases.get(file!)) {  // group implies file.
         this.progress.fail(id, duration, 'the file ran no test case');
         // node --test counts no failure for it; this reporter runs in that process and fails it.
         process.exitCode = 1;
@@ -79,13 +96,13 @@ export default class ProgressReporter extends Transform {
         const { error, duration_ms: duration } = data.details;
         const file = data.file ? path.relative(ROOT, data.file) : '';
         if (data.file) this.failedFiles.add(realpathSync(data.file));
-        this.progress.fail(`${file} › ${error?.failureType === 'hookFailed' ? 'hook' : data.name}`, duration, failureText(error));
+        this.progress.fail(`${file} › ${(error as TestFailure)?.failureType === 'hookFailed' ? 'hook' : data.name}`, duration, failureText(error));
       }
     } else if (type === 'test:stderr' || type === 'test:stdout') this.push(data.message);
     callback();
   }
 
-  _flush(callback) {
+  override _flush(callback: TransformCallback): void {
     // A failure that node --test does not count, such as a run of zero tests, fails the process too.
     if (!this.progress.close('node --test').ok) process.exitCode = 1;
     callback();

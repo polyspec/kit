@@ -5,19 +5,19 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const IDENTITY = ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.invalid', '-c', 'commit.gpgsign=false'];
 
 /** Runs `git <args>` in `root` and returns the result; a conflict is an answer, so the status is not checked here. */
-function git(root, ...args) {
+function git(root: string, ...args: string[]) {
   return spawnSync('git', [...IDENTITY, ...args], { cwd: root, encoding: 'utf8' });
 }
 
 /** Writes `files` ({ path: text }) below `root`. */
-function write(root, files) {
+function write(root: string, files: Record<string, string>) {
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
@@ -25,7 +25,7 @@ function write(root, files) {
 }
 
 /** A repository where `a.md` is edited on the branch `side` and on the initial branch, so the next `command` conflicts. */
-function conflicted(t, command) {
+function conflicted(t: TestContext, command: 'merge' | 'cherry-pick') {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-tracked-files-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   initRepository(root);

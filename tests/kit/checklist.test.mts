@@ -5,22 +5,22 @@ import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist } from '../../scripts/kit/checklist.mts';
+import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist, type Tracker } from '../../scripts/kit/checklist.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
 
 /** The items and the findings of the lenient reading, each finding as the sentence that the gate prints. */
-function parseTracker(text, tracker) {
+function parseTracker(text: string, tracker: Tracker) {
   const { items, findings } = readChecklist(text, tracker);
   return { items, errors: findings.map(describeFinding) };
 }
 
-const TABLE = { path: 'a.md', translation: 'a.ko.md', format: 'table', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
-const LIST = { path: 'b.md', format: 'list', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
+const TABLE: Tracker = { path: 'a.md', translation: 'a.ko.md', format: 'table', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
+const LIST: Tracker = { path: 'b.md', format: 'list', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' };
 
 const TABLE_TEXT = `# Tasks
 
@@ -45,7 +45,7 @@ const LIST_TEXT = `# Items
 - [ ] T3 Remove the runner.
 `;
 
-function checkout(t, files) {
+function checkout(t: TestContext, files: Record<string, string>) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-checklist-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [name, text] of Object.entries(files)) {
@@ -86,7 +86,7 @@ test('the lenient reading ignores the prose of a list document that the strict r
 });
 
 test('a table state may be a cell of another column and any word', () => {
-  const features = { path: 'f.md', format: 'table', column: 2, active: 'partial' };
+  const features: Tracker = { path: 'f.md', format: 'table', column: 2, active: 'partial' };
   const text = '| ID | Feature | Implementation | Evidence |\n|---|---|---|---|\n| F-A | Parse | implemented | x |\n| F-B | Print | partial | y |\n';
   const { items, errors } = parseTracker(text, features);
   assert.deepEqual(errors, []);
@@ -94,13 +94,14 @@ test('a table state may be a cell of another column and any word', () => {
 });
 
 test('a document that cannot be read as the tracker is an error and never an empty list', () => {
-  const errors = text => parseTracker(text, TABLE).errors;
+  // Each document below has a finding, so [0] exists.
+  const errors = (text: string) => parseTracker(text, TABLE).errors;
   assert.deepEqual(errors('# Tasks\n\nNo table.\n'), ['it has no item']);
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0], /line 3: T1 has the state "\[x\]", the states are "\[ \]", "\[~\]", "\[o\]", "\[!\]"/);
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T1 | B | [o] |\n')[0], /line 4: the item T1 is listed twice/);
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| not an id | A | [o] |\n')[0], /line 3: .* is not a row with an ID in its first cell and a state in cell 3/);
-  assert.match(parseTracker('- [x] T1 Done.\n', LIST).errors[0], /line 1: T1 has the state "\[x\]"/);
-  assert.match(parseTracker('- [o]T1 Done.\n', LIST).errors[0], /line 1: .* is not an item of the form "- \[state\] ID text"/);
+  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0]!, /line 3: T1 has the state "\[x\]", the states are "\[ \]", "\[~\]", "\[o\]", "\[!\]"/);  // the document has a finding.
+  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T1 | B | [o] |\n')[0]!, /line 4: the item T1 is listed twice/);  // the document has a finding.
+  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| not an id | A | [o] |\n')[0]!, /line 3: .* is not a row with an ID in its first cell and a state in cell 3/);  // the document has a finding.
+  assert.match(parseTracker('- [x] T1 Done.\n', LIST).errors[0]!, /line 1: T1 has the state "\[x\]"/);  // the document has a finding.
+  assert.match(parseTracker('- [o]T1 Done.\n', LIST).errors[0]!, /line 1: .* is not an item of the form "- \[state\] ID text"/);  // the document has a finding.
 });
 
 test('the impossible state is a state of its own that the lenient reading accepts', () => {
@@ -140,10 +141,11 @@ test('a translation must hold the same IDs in the same order and the same states
 
 test('inspectTrackers names each active item with its file and ID, and each unreadable document', () => {
   const config = { trackers: [TABLE, LIST] };
-  const files = { 'a.md': TABLE_TEXT, 'a.ko.md': TABLE_TEXT, 'b.md': LIST_TEXT };
-  const read = name => {
+  const files: Record<string, string> = { 'a.md': TABLE_TEXT, 'a.ko.md': TABLE_TEXT, 'b.md': LIST_TEXT };
+  const read = (name: string) => {
     if (!(name in files)) throw new Error('does not exist');
-    return files[name];
+    // The check above throws for a name that files lacks.
+    return files[name]!;
   };
   const found = inspectTrackers(config, read);
   assert.deepEqual(found.problems, []);
@@ -167,8 +169,9 @@ test('the sentence of the blocking state names the other states', () => {
 test('loadConfig accepts the configuration of the fixture and names each rule that another breaks', (t) => {
   const good = readFileSync(path.join(FIXTURE, 'config/checklist.json'), 'utf8');
   const root = checkout(t, { 'config/checklist.json': good });
-  assert.equal(loadConfig(root).trackers[0].path, 'docs/plans/execution-checklist.md');
-  const write = value => writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify(value));
+  // The schema requires at least one tracker.
+  assert.equal(loadConfig(root).trackers[0]!.path, 'docs/plans/execution-checklist.md');
+  const write = (value: unknown) => writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify(value));
   const config = JSON.parse(good);
   write({ ...config, hooks: ['commit-msg'] });
   assert.throws(() => loadConfig(root), /\$\.hooks is \["commit-msg"\], it must include "pre-push"/);

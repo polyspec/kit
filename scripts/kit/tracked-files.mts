@@ -8,7 +8,7 @@ import { sha256 } from './digest.mts';
 import { git } from './git.mts';
 import { ROOT } from './paths.mts';
 
-const gitPaths = (root, ...args) => git(root, ...args).split('\0').filter(Boolean);
+const gitPaths = (root: string, ...args: string[]): string[] => git(root, ...args).split('\0').filter(Boolean);
 
 /** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
 export const KIT_FIXTURE = 'tests/kit/fixture/';
@@ -20,17 +20,17 @@ const INSTALLED = /(^|\/)(node_modules|var|\.tools)\//;
  * The files of the checkout under `root`, tracked or new and not ignored, that exist as regular files. An unresolved merge
  * lists a conflicted path once for each stage, so each path is kept once.
  */
-export function trackedFiles(root = ROOT) {
+export function trackedFiles(root: string = ROOT): string[] {
   return [...new Set(gitPaths(root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'))]
     .filter(file => existsSync(path.join(root, file)) && statSync(path.join(root, file)).isFile())
     .sort();
 }
 
 /** The files that the dependency reviews and the release coverage read: `trackedFiles` except the kit fixture and the installed and output directories. */
-export const checkedFiles = root => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE) && !INSTALLED.test(file));
+export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE) && !INSTALLED.test(file));
 
 /** The paths under `root` that Git ignores, a directory with a trailing `/`. */
-export function ignoredPaths(root = ROOT) {
+export function ignoredPaths(root: string = ROOT): string[] {
   return gitPaths(root, 'ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory').sort();
 }
 
@@ -40,9 +40,9 @@ export function ignoredPaths(root = ROOT) {
  * the paths changes, appears or disappears; ignored outputs do not count. A path that names no file fails, so a mistyped
  * path never yields the digest of nothing.
  */
-export function inputsDigest(root, paths) {
+export function inputsDigest(root: string, paths: readonly string[]): string {
   const files = trackedFiles(root);
-  const selected = new Set();
+  const selected = new Set<string>();
   for (const input of paths) {
     const prefix = input.replace(/\/+$/, '');
     const matched = files.filter(file => file === prefix || file.startsWith(`${prefix}/`));
