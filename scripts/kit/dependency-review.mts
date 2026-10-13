@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
-import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState } from './dependency-state.mts';
+import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
@@ -47,7 +47,9 @@ interface ReviewState {
 /** An advisory of a package of a lock. */
 export interface Advisory {
   package: string;
-  version: string | undefined;
+  /** The version that the lock holds; an npm advisory of a package that the lock holds only nested has its range instead. */
+  version?: string | undefined;
+  range?: string | undefined;
   id: string;
   severity: string;
   title: string;
@@ -262,7 +264,8 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       for (const [name, vulnerability] of Object.entries(npm.value!.vulnerabilities ?? {})) {
         for (const via of vulnerability.via ?? []) {
           if (typeof via !== 'object' || !NPM_SEVERITIES.has(via.severity)) continue;
-          list.push({ package: name, version: npmVersions[`node_modules/${name}`]?.version ?? vulnerability.range, id: String(via.source ?? via.url), severity: via.severity, title: via.title, url: via.url });
+          const version = npmVersions[`node_modules/${name}`]?.version;
+          list.push({ package: name, ...(version !== undefined ? { version } : { range: vulnerability.range }), id: String(via.source ?? via.url), severity: via.severity, title: via.title, url: via.url });
         }
       }
       result.set(lock, { advisories: list });
@@ -410,13 +413,13 @@ export function review(root: string) {
       const exception = accepted.get(key);
       if (exception) {
         used.add(key);
-        notes.push(`${lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''} ${acceptedText(exception)}`);
+        notes.push(`${lock} ${advisory.package} ${advisoryRelease(advisory)}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''} ${acceptedText(exception)}`);
         continue;
       }
       found.push({ lock, ...advisory });
       // readState holds each Python lock of the locks in pythonLocks.
       const fix = lockEcosystem(lock) === 'pypi' ? lockFix(lock, state.pythonLocks.find(item => item.lock === lock)!.createdBy, advisory.package) : UPDATE;
-      lines.push(`${lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}. Fix: ${fix}`);
+      lines.push(`${lock} ${advisory.package} ${advisoryRelease(advisory)}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}. Fix: ${fix}`);
     }
   }
   for (const [key, exception] of accepted) {
@@ -427,7 +430,7 @@ export function review(root: string) {
     comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.',
     reviewed: new Date().toISOString(),
     // advisories answers every lock of the state.
-    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (audits.get(lock)!.advisories ?? []).map(({ package: name, version, id, severity, title, url }) => ({ package: name, version, id, severity, title, ...(url ? { url } : {}) })) })),
+    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (audits.get(lock)!.advisories ?? []).map(({ package: name, version, range, id, severity, title, url }) => ({ package: name, ...(version !== undefined ? { version } : { range }), id, severity, title, ...(url ? { url } : {}) })) })),
     // latestReleases answers every dependency of the state.
     dependencies: state.dependencies.map(dependency => ({ ecosystem: dependency.ecosystem, manifest: dependency.manifest, package: dependency.package, version: dependency.version, latest: latest.get(dependencyKey(dependency))!.latest ?? null })),
     vcs: state.vcs.map(({ lock, package: name, url, requestedRevision, commitId }) => ({ lock, package: name, url, requestedRevision, commitId })),
