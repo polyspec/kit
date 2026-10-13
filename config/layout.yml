@@ -27,6 +27,8 @@ rules:
       - "!.github"
       - "!.githooks"
       - "!.kit"
+      # The uv locks of the pypi: tools of mise.lock, which mise writes (make toolchain-lock).
+      - "!.mise"
       # The source of the vendored release workflow; the copy of a consumer repository lies in .github/workflows/.
       - "!workflows"
 
@@ -64,6 +66,8 @@ rules:
       - "!.python-version"
       - "!.php-version"
       - "!rust-toolchain.toml"
+      - "!mise.toml"
+      - "!mise.lock"
       - "!ruff.toml"
       - "!phpcs.xml.dist"
       - "!phpstan.dist.neon"

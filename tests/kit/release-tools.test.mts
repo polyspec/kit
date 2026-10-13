@@ -43,13 +43,10 @@ function capture() {
   return { out, err, print: (line: string) => out.push(line), error: (line: string) => err.push(line) };
 }
 
-test('release-tools derives the install-tools names of the fixture configuration and asks for the Rust toolchain of a git-tag proof', () => {
+test('release-tools runs install-tools for the fixture configuration and asks for the Rust toolchain of a git-tag proof', () => {
   const config = JSON.parse(readFileSync(FIXTURE, 'utf8'));
   assert.ok(config.proof?.gitTag, 'the fixture proves a git-tag manifest, so the proof needs its Rust toolchain');
-  assert.deepEqual(toolsFor(config), {
-    install: ['npm', 'composer', 'uv', 'python', 'pythonBackend', 'go'],
-    rust: true,
-  });
+  assert.deepEqual(toolsFor(config), { install: true, rust: true });
 });
 
 test('release-tools installs only the tools that a configuration without Go modules or git-tag proofs needs', () => {
@@ -59,18 +56,14 @@ test('release-tools installs only the tools that a configuration without Go modu
     goModules: {},
     consumers: { composer: { directory: 'tests/composer', smoke: { 'vendor/php': ['php', '-v'] } } },
   };
-  assert.deepEqual(toolsFor(config), { install: ['composer'], rust: false });
+  assert.deepEqual(toolsFor(config), { install: true, rust: false });
 });
 
-test('release-tools installs the Python and its build backend for a wheel package, and npm for an npm package', () => {
-  const config = {
-    packages: [
-      { kind: 'npm', directory: 'packages/js', name: 'js' },
-      { kind: 'wheel', directory: 'packages/py', name: 'py' },
-    ],
-    goModules: {},
-  };
-  assert.deepEqual(toolsFor(config), { install: ['npm', 'uv', 'python', 'pythonBackend'], rust: false });
+test('release-tools runs install-tools for a wheel package, and nothing for an npm package, whose npm is the bootstrap', () => {
+  const wheel = { packages: [{ kind: 'wheel', directory: 'packages/py', name: 'py' }], goModules: {} };
+  assert.deepEqual(toolsFor(wheel), { install: true, rust: false });
+  const npm = { packages: [{ kind: 'npm', directory: 'packages/js', name: 'js' }], goModules: {} };
+  assert.deepEqual(toolsFor(npm), { install: false, rust: false });
 });
 
 test('prepareRust installs the channel of rust-toolchain.toml with rustup in the checkout and checks rustc against it', (t) => {
