@@ -8,20 +8,21 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import path from 'node:path';
 import test from 'node:test';
 import { LOCK, RECORD, REPORT, decide, fullRun, parseArguments } from '../../scripts/kit/full-run.mts';
+import type { FullRunRecord, Keys } from '../../scripts/kit/full-run.mts';
 import { processStart } from '../../scripts/kit/holder-lock.mts';
 import { CHECKLIST, TRANSLATION, commitAll, git, prepared, run } from './gates-checkout.mts';
 
-const record = work => JSON.parse(readFileSync(path.join(work, RECORD), 'utf8'));
-const edit = (work, file, change) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
-const start = (work) => {
+const record = (work: string): FullRunRecord => JSON.parse(readFileSync(path.join(work, RECORD), 'utf8'));
+const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
+const start = (work: string) => {
   for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
 };
 
 // Runs the guard with stub targets that pass unless they are named in `failing`; returns the exit status, the printed lines
 // and the targets that ran. A stub checks that the record names it as running while it runs.
-async function guard(work, mode, targets, { failing = [], keys = {} } = {}) {
-  const lines = [];
-  const ran = [];
+async function guard(work: string, mode: string, targets: string[], { failing = [], keys = {} }: { failing?: string[]; keys?: Keys } = {}) {
+  const lines: string[] = [];
+  const ran: string[] = [];
   const status = await fullRun({
     root: work,
     mode,
@@ -31,7 +32,8 @@ async function guard(work, mode, targets, { failing = [], keys = {} } = {}) {
     runTarget: async (name) => {
       const current = record(work);
       assert.equal(current.result, 'incomplete');
-      assert.equal(current.targets.find(target => target.name === name).status, 'running');
+      // The test fails when the record lacks the target.
+      assert.equal(current.targets.find(target => target.name === name)!.status, 'running');
       assert.equal(existsSync(path.join(work, LOCK)), true, 'the guard does not hold its lock while a target runs');
       ran.push(name);
       return { passed: !failing.includes(name), lastLines: failing.includes(name) ? [`${name} output 1`, `${name} output 2`] : [] };
@@ -208,8 +210,10 @@ test('a failed target keeps its last lines in the record and in the output, and 
   const written = record(work);
   assert.equal(written.result, 'failed');
   assert.deepEqual(written.failed, ['b']);
-  assert.deepEqual(written.targets.find(target => target.name === 'b').lastLines, ['b output 1', 'b output 2']);
-  assert.equal('lastLines' in written.targets.find(target => target.name === 'a'), false);
+  // The test fails when the record lacks a target.
+  assert.deepEqual(written.targets.find(target => target.name === 'b')!.lastLines, ['b output 1', 'b output 2']);
+  // The test fails when the record lacks a target.
+  assert.equal('lastLines' in written.targets.find(target => target.name === 'a')!, false);
 });
 
 test('rerun-failed without a record is refused', async (t) => {
@@ -237,7 +241,8 @@ test('rerun-failed reruns only the failed targets, and a passing rerun completes
   assert.equal(completed.result, 'passed');
   assert.deepEqual(completed.failed, []);
   assert.deepEqual(completed.targets.map(target => target.status), ['passed', 'passed', 'passed']);
-  assert.equal('lastLines' in completed.targets[1], false, 'a passed target keeps the lines of its failure');
+  // The test fails when the record lacks the target.
+  assert.equal('lastLines' in completed.targets[1]!, false, 'a passed target keeps the lines of its failure');
   assert.deepEqual(completed.reruns.map(rerun => [rerun.targets, rerun.result]), [[['b'], 'failed'], [['b'], 'passed']]);
 
   const again = await guard(work, 'rerun-failed', []);
@@ -323,7 +328,7 @@ test('two guards that start together run the targets once: the second is refused
 });
 
 // A `make` on PATH that logs its arguments and the checkout, prints two lines, and fails for the targets named in FAIL.
-function stubMake(work) {
+function stubMake(work: string) {
   const bin = path.join(work, '..', 'bin');
   mkdirSync(bin, { recursive: true });
   const file = path.join(bin, 'make');
@@ -352,7 +357,8 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   assert.match(readFileSync(path.join(work, REPORT, 'targets/bad.log'), 'utf8'), /error: bad broke\n\[report\] make bad exited with status 2\n$/);
   const written = record(work);
   assert.deepEqual([written.keys, written.failed, written.targets.map(target => target.status)], [{ dep: 'c1' }, ['bad'], ['passed', 'failed']]);
-  assert.deepEqual(written.targets[1].lastLines, ['building bad', 'error: bad broke']);
+  // The test fails when the record lacks the target.
+  assert.deepEqual(written.targets[1]!.lastLines, ['building bad', 'error: bad broke']);
 
   const repeated = run(work, process.execPath, ['scripts/kit/full-run.mts', 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
   assert.equal(repeated.status, 1);

@@ -7,18 +7,19 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { goToolchainModule } from '../../scripts/kit/install-go.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { ruffWheel, toolchainStubs, uvRelease } from './toolchain-stubs.mts';
 
 const MODULE = goToolchainModule('1.27.1');
-const install = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
-const config = value => JSON.stringify({ schema: 1, ...value });
-const walk = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? walk(path.join(directory, entry.name)) : [path.join(directory, entry.name)]));
-const noSymlinks = (root) => {
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const config = (value: Record<string, unknown>) => JSON.stringify({ schema: 1, ...value });
+const walk = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? walk(path.join(directory, entry.name)) : [path.join(directory, entry.name)]));
+const noSymlinks = (root: string) => {
   for (const file of [root, ...walk(root)]) assert.equal(lstatSync(file).isSymbolicLink(), false, `${file} is a symbolic link`);
 };
-const run = (file, env) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
+const run = (file: string, env: NodeJS.ProcessEnv) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
 
 test('npm is installed by the npm of the machine, with wrappers, and a second run installs nothing', (t) => {
   const root = toolchainCheckout(t, { 'package.json': '{ "packageManager": "npm@12.2.0" }' });
@@ -73,11 +74,12 @@ test('the npm bootstrap runs without var/tools/bin on PATH', (t) => {
   const bin = path.join(root, 'var/tools/bin');
   const env = { ...stubs.env, PATH: `${bin}${path.delimiter}${stubs.env.PATH}`, STUB_PATH_LOG: log };
   assert.equal(install(root, env).status, 0);
-  assert.equal(readFileSync(log, 'utf8').split('\n')[0].split(path.delimiter).includes(bin), false);
+  // split returns at least one part.
+  assert.equal(readFileSync(log, 'utf8').split('\n')[0]!.split(path.delimiter).includes(bin), false);
 });
 
 // A tarball of an npm release: package/package.json and package/bin/npm-cli.js, as the registry serves it.
-function npmTarball(t, root, { version = '12.2.0', link = false } = {}) {
+function npmTarball(t: TestContext, root: string, { version = '12.2.0', link = false }: { version?: string; link?: boolean } = {}) {
   const source = path.join(root, `tarball-source-${version}${link ? '-link' : ''}`);
   mkdirSync(path.join(source, 'package/bin'), { recursive: true });
   writeFileSync(path.join(source, 'package/package.json'), JSON.stringify({ name: 'npm', version }));
@@ -179,13 +181,13 @@ test('the Go toolchain module names the platform and refuses an unsupported one'
 });
 
 // The ruff of the declaration: its exact version and the sha256 of its wheel, under the platform key of this machine.
-const ruffDigest = version => createHash('sha256').update(ruffWheel(version)).digest('hex');
+const ruffDigest = (version: string) => createHash('sha256').update(ruffWheel(version)).digest('hex');
 const ruffConfig = (version = '0.16.10', digest = ruffDigest(version)) => ({ version, sha256: { [`${process.platform}-${process.arch}`]: digest } });
 const PYTHON_BUILD = { version: '3.14.8' };
-const ruffFiles = uv => ({ 'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, ruff: ruffConfig() }) });
+const ruffFiles = (uv: ReturnType<typeof uvRelease>) => ({ 'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, ruff: ruffConfig() }) });
 // The calls of the installs: the version probes and the lookups of the installed Python are not installs.
-const installCalls = stubs => stubs.calls().filter(line => !line.includes('--version') && !line.startsWith('uv python find'));
-const RUFF_WHEEL = version => path.join('var/tools/wheels', `ruff-${version}-py3-none-any.whl`);
+const installCalls = (stubs: ReturnType<typeof toolchainStubs>) => stubs.calls().filter(line => !line.includes('--version') && !line.startsWith('uv python find'));
+const RUFF_WHEEL = (version: string) => path.join('var/tools/wheels', `ruff-${version}-py3-none-any.whl`);
 
 test('ruff is downloaded with its sha256 checked, installed by uv into a virtual environment of var/tools/bin/python3 and kept by a second run', (t) => {
   const uv = uvRelease(t);
@@ -194,9 +196,12 @@ test('ruff is downloaded with its sha256 checked, installed by uv into a virtual
   const first = install(root, stubs.env);
   assert.equal(first.status, 0, first.stderr);
   const calls = installCalls(stubs);
-  assert.match(calls.find(line => line.startsWith('uv venv')), new RegExp(`^uv venv --quiet --python ${path.join(root, 'var/tools/bin/python3').replaceAll('.', '\\.')} .*var/tools/python\\.next-`));
-  assert.match(calls.find(line => line.includes(' pip download ')), /^python3\.14 -m pip download --no-deps .*--only-binary :all: --require-hashes -r .* -d .*var\/tools\/wheels$/);
-  assert.match(calls.find(line => line.startsWith('uv pip install')), new RegExp(`^uv pip install --quiet --python .*var/tools/python\\.next-[^ ]*/bin/python --no-index --no-deps ${path.join(root, RUFF_WHEEL('0.16.10')).replaceAll('.', '\\.')}$`));
+  // The test fails when an install did not run.
+  assert.match(calls.find(line => line.startsWith('uv venv'))!, new RegExp(`^uv venv --quiet --python ${path.join(root, 'var/tools/bin/python3').replaceAll('.', '\\.')} .*var/tools/python\\.next-`));
+  // The test fails when an install did not run.
+  assert.match(calls.find(line => line.includes(' pip download '))!, /^python3\.14 -m pip download --no-deps .*--only-binary :all: --require-hashes -r .* -d .*var\/tools\/wheels$/);
+  // The test fails when an install did not run.
+  assert.match(calls.find(line => line.startsWith('uv pip install'))!, new RegExp(`^uv pip install --quiet --python .*var/tools/python\\.next-[^ ]*/bin/python --no-index --no-deps ${path.join(root, RUFF_WHEEL('0.16.10')).replaceAll('.', '\\.')}$`));
   assert.equal(run(path.join(root, 'var/tools/bin/ruff'), stubs.env), 'ruff 0.16.10');
   assert.equal(install(root, stubs.env).status, 0);
   assert.equal(installCalls(stubs).length, calls.length, 'a second run starts no install');
@@ -304,7 +309,8 @@ test('cargo-audit and govulncheck are installed by their own installers and kept
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /cargo-audit: installed 0\.22\.2 in var\/tools\/cargo-audit/);
   assert.match(first.stdout, /govulncheck: installed 1\.1\.4 in var\/tools\/govulncheck/);
-  assert.match(stubs.calls()[0], /^cargo install --locked --root .*var\/tools\/cargo-audit\.next-.* cargo-audit@0\.22\.2$/);
+  // The test fails when no install ran.
+  assert.match(stubs.calls()[0]!, /^cargo install --locked --root .*var\/tools\/cargo-audit\.next-.* cargo-audit@0\.22\.2$/);
   assert.equal(stubs.calls()[1], 'go install golang.org/x/vuln/cmd/govulncheck@v1.1.4');
   assert.equal(run(path.join(root, 'var/tools/cargo-audit/bin/cargo-audit'), stubs.env), 'cargo-audit 0.22.2');
   noSymlinks(path.join(root, 'var/tools'));
@@ -337,7 +343,8 @@ test('every declared tool is installed in the order npm, Go, uv, Python, ruff, C
   const stubs = toolchainStubs(t, { downloads: { 'https://getcomposer.org/download/2.10.3/composer.phar': phar, [uv.url]: uv.archive } });
   const result = install(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0].replace('[install-tools] ', '')), ['npm', 'Go', 'uv', 'Python', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
+  // split returns at least one part.
+  assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0]!.replace('[install-tools] ', '')), ['npm', 'Go', 'uv', 'Python', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
   assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'go', 'gofmt', 'npm', 'npx', 'python3', 'ruff', 'uv']);
   const calls = installCalls(stubs).length;
   const again = install(root, stubs.env);

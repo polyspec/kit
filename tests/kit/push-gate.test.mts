@@ -9,11 +9,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { CHECKLIST, TRANSLATION, commitAll, commitIndex, git, prepared, run } from './gates-checkout.mts';
 
-const push = (work, ...refspecs) => run(work, 'git', ['push', '--quiet', 'origin', ...(refspecs.length ? refspecs : ['HEAD:refs/heads/main'])]);
-const remoteHead = remote => run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/main']).stdout.trim();
-const gate = (work, args, env = {}, input) => run(work, process.execPath, ['scripts/kit/push-gate.mts', ...args], { env: { ...process.env, ...env }, input });
-const edit = (work, file, change) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
-const start = (work, id = 'T1-1') => {
+const push = (work: string, ...refspecs: string[]) => run(work, 'git', ['push', '--quiet', 'origin', ...(refspecs.length ? refspecs : ['HEAD:refs/heads/main'])]);
+const remoteHead = (remote: string) => run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/main']).stdout.trim();
+const gate = (work: string, args: string[], env: NodeJS.ProcessEnv = {}, input?: string) => run(work, process.execPath, ['scripts/kit/push-gate.mts', ...args], { env: { ...process.env, ...env }, input });
+const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
+const start = (work: string, id = 'T1-1') => {
   for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => text.replace(new RegExp(`(\\| ${id} \\|[^\\n]*)\\| \\[ \\] \\|`), '$1| [~] |'));
 };
 
@@ -91,7 +91,7 @@ test('a translation with another state than its document refuses the push', (t) 
 
 test('a list tracker declared in the configuration is read by its items', (t) => {
   const config = { schema: 1, hooks: ['pre-push'], trackers: [{ path: 'docs/checklist.md', format: 'list', states: ['[ ]', '[~]', '[o]', '[!]'], active: '[~]' }] };
-  const list = state => `# Checklist\n\n- [o] T1 Write the parser.\n- ${state} T2 Print a union. More text.\n  - [ ] T2.1 Name the members.\n`;
+  const list = (state: string) => `# Checklist\n\n- [o] T1 Write the parser.\n- ${state} T2 Print a union. More text.\n  - [ ] T2.1 Name the members.\n`;
   const { work, remote } = prepared(t, { config, files: { 'docs/checklist.md': list('[ ]') } });
   assert.equal(push(work).status, 0);
   edit(work, 'docs/checklist.md', () => list('[~]'));
@@ -103,7 +103,7 @@ test('a list tracker declared in the configuration is read by its items', (t) =>
 
 test('a state word of another column is read as the configuration says', (t) => {
   const config = { schema: 1, hooks: ['pre-push'], trackers: [{ path: 'docs/features.md', format: 'table', column: 2, active: 'partial' }] };
-  const features = state => `| ID | Feature | Implementation |\n|---|---|---|\n| F-A | Parse | implemented |\n| F-B | Print | ${state} |\n`;
+  const features = (state: string) => `| ID | Feature | Implementation |\n|---|---|---|\n| F-A | Parse | implemented |\n| F-B | Print | ${state} |\n`;
   const { work } = prepared(t, { config, files: { 'docs/features.md': features('planned') } });
   assert.equal(push(work).status, 0);
   edit(work, 'docs/features.md', () => features('partial'));
@@ -202,7 +202,7 @@ test('the commit command refuses a revision that is not a commit', (t) => {
 
 // The commit messages of the pushed range, checked with the rules of config/commits.json (the same check as make commits-check).
 const WIDE = `${'word '.repeat(14)}abcd`; // 74 characters with a space, so the line is not a single long word
-const note = (work, name, message) => {
+const note = (work: string, name: string, message: string) => {
   writeFileSync(path.join(work, name), `${name}\n`);
   return commitAll(work, message);
 };
