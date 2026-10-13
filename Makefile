@@ -30,3 +30,7 @@ build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit a
 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	node_modules/.bin/tsc -p tsconfig.json
+
+.PHONY: rebuild-check
+rebuild-check: ## Check that every tool of config/rebuild.json paths has its class: ecosystem, replaced, record or policy (S1); offline
+	node scripts/kit/rebuild-check.mts
