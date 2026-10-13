@@ -66,7 +66,7 @@ function differences(first: Attempt, second: Attempt): string[] {
  * runOf, with `shown`, the command line as declared (a reference is printed, never its value), or `{ error }`.
  */
 function resolvedRun(declared: ParityImplementation, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, unit: string, env: Environment): ResolvedRun {
-  const { implementation, errors } = resolveReferences(declared, env);
+  const { implementation, errors } = resolveReferences(declared, env, root);
   if (errors.length) return { error: `cannot start: ${errors.join('; ')}` };
   const run = runOf(implementation, root, binding, unit, env);
   if (run.error) return run;
