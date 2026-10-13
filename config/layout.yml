@@ -65,6 +65,8 @@ rules:
       - "!.php-version"
       - "!rust-toolchain.toml"
       - "!ruff.toml"
+      - "!phpcs.xml.dist"
+      - "!phpstan.dist.neon"
 
   - id: layout-no-pythonpath
     paths:

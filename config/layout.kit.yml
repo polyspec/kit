@@ -76,6 +76,8 @@ rules:
       - "!.php-version"
       - "!rust-toolchain.toml"
       - "!ruff.toml"
+      - "!phpcs.xml.dist"
+      - "!phpstan.dist.neon"
     message: "S5: a file at the root that the layout does not declare; move it into a root folder or declare it in config/layout.yml"
 
   # S5: packages/ holds the runtime ports of the main spec; a repository adds its components to the list.
@@ -199,6 +201,15 @@ rules:
     paths: ["scripts/**", "tests/**", "!tests/kit/fixture/**"]
     pattern: '\A#![^\n]*\b(sh|bash|zsh|python[0-9.]*|perl|ruby|php)\b'
     message: "S9: a script of another interpreter is no infrastructure; port it to TypeScript or declare its S9 exception"
+
+  # S2: no manifest maps classes by classmap or PSR-0, and a library, the default type of Composer, loads its classes by PSR-4
+  # and its tests by autoload-dev PSR-4 (config/composer.schema.json).
+  - id: lint-composer-policy
+    kind: json_schema_passes
+    level: error
+    paths: ["**/composer.json", "!tests/kit/fixture/**"]
+    schema_path: config/composer.schema.json
+    message: "S2: a composer.json maps no classmap or PSR-0, and a library maps autoload and autoload-dev by PSR-4"
 
   # The Python lint (make lint-python) runs ruff with the root ruff.toml. A nested ruff configuration would escape it in an
   # editor or a plain ruff run, where the nearest configuration applies.
