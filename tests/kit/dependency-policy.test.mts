@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
+import { tool } from './kit-tools.mts';
 
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
@@ -63,7 +64,7 @@ test('the review records the fixture, and a second run writes the same record', 
 
 test('the mutation check rejects every mutation of the fixture', (t) => {
   const root = fixture(t);
-  const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mts'], { cwd: root, encoding: 'utf8', env: process.env });
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /4 mutations rejected/);
 });
@@ -77,7 +78,7 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   };
   edit('config/dependency-policy.json', (policy: { composerPlatforms: string[] }) => { policy.composerPlatforms = []; });
   edit('config/dependency-review.json', (record: { dependencies: Array<{ ecosystem: string }> }) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
-  const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mts'], { cwd: root, encoding: 'utf8', env: process.env });
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
@@ -148,7 +149,7 @@ test('the review records and audits every npm lock that the policy names', (t) =
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);
-  const url = pathToFileURL(path.join(root, 'scripts/kit/check-dependency-policy-mutation.mts')).href;
+  const url = pathToFileURL(tool('check-dependency-policy-mutation')).href;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(url)}); console.log('imported');`], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, 'imported\n', 'the import ran the mutation check');

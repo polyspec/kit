@@ -7,16 +7,15 @@
 // its `EXIT <n>` line (go: `EXIT <symbol> <n>`).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
 import { runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
+import { KIT_MAKE, tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const TIMEOUT = { timeout: 120_000 };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose, so it has no
 // fixed type.
@@ -750,8 +749,7 @@ test('a declaration that names what does not exist or holds a stale entry fails,
 
 test('make parity-check and parity-declarations-check pass without a finding; parity.mts exits 1 on one', TIMEOUT, (t) => {
   const root = repository(t);
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  const make = (target: string) => spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', target], { cwd: root, env: ENV, encoding: 'utf8' });
+  const make = (target: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, target], { cwd: root, env: ENV, encoding: 'utf8' });
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
@@ -759,7 +757,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
   assert.notEqual(make('parity-check').status, 0);
-  const failed = spawnSync(process.execPath, ['scripts/kit/parity.mts'], { cwd: root, env: ENV, encoding: 'utf8' });
+  const failed = spawnSync(process.execPath, [tool('parity')], { cwd: root, env: ENV, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /\[parity\] R3 not-executed codec python python\/tests\/test_codec\.py: .*not executed: ascii/);
   assert.match(failed.stderr, /\[parity\] 1 findings/);

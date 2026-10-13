@@ -11,9 +11,10 @@ import type { TestContext } from 'node:test';
 import { goToolchainModule } from '../../scripts/kit/install-go.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { ruffWheel, toolchainStubs, uvRelease } from './toolchain-stubs.mts';
+import { tool } from './kit-tools.mts';
 
 const MODULE = goToolchainModule('1.27.1');
-const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
 const config = (value: Record<string, unknown>) => JSON.stringify({ schema: 1, ...value });
 const walk = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? walk(path.join(directory, entry.name)) : [path.join(directory, entry.name)]));
 const noSymlinks = (root: string) => {

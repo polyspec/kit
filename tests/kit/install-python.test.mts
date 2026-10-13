@@ -9,9 +9,10 @@ import test from 'node:test';
 import { installPython } from '../../scripts/kit/install-python.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { toolchainStubs, uvRelease } from './toolchain-stubs.mts';
+import { tool } from './kit-tools.mts';
 
 const config = (value: object) => JSON.stringify({ schema: 1, ...value });
-const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
 const run = (file: string, env: NodeJS.ProcessEnv) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
 const uvCalls = (stubs: ReturnType<typeof toolchainStubs>) => stubs.calls().filter((line: string) => line.startsWith('uv ') && !line.includes('--version'));
 

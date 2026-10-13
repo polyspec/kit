@@ -2,19 +2,18 @@
 // report with its logs, record and summary, the first failure lines, and the judgment of the results of the needed jobs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mts';
 import { acquireHolderLock, HolderLockRefused, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
 import { passed } from '../../scripts/kit/ci-passed.mts';
 import { capLog, failureLines, reportWriter, warningLines } from '../../scripts/kit/target-report.mts';
 import { put, tree } from './tree.mts';
+import { KIT, tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const MAKEFILE = `good:
 \t@echo ran-good
 bad:
@@ -191,12 +190,11 @@ test('the summary of a report is written again from its record, also for a run t
 });
 
 function command(root: string, args: string[], env: Record<string, string> = {}) {
-  return spawnSync(process.execPath, ['scripts/kit/ci-targets.mts', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+  return spawnSync(process.execPath, [tool('ci-targets'), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 }
 
 test('the command runs the targets, exits with the result and refuses a bad usage', (t) => {
   const root = setup(t);
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   const failed = command(root, ['var/report/ci', 'bad', 'good']);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stdout, /\[ci-targets\] 1 of 2 targets passed; failed: bad/);

@@ -3,15 +3,14 @@
 // and the configuration.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { fileMessage, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
+import { KIT, tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
 const rules = (message: string) => messageFindings(message, CONFIG).map(found => found.rule);
 
@@ -55,7 +54,6 @@ test('a message file loses its comment lines, and a merge commit is not checked'
 
 function repository(t: TestContext, messages: string[]) {
   const root = tree(t, { 'config/commits.json': JSON.stringify(CONFIG) });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   messages.forEach((message, index) => {
     put(root, { [`f${index}.txt`]: String(index) });
@@ -96,7 +94,7 @@ test('a merge commit in the range is not checked', (t) => {
 
 test('the command checks a range or a message file and exits with the findings', (t) => {
   const { root } = repository(t, ['feat(docs): Start (#K1)', 'bad subject']);
-  const command = (...args: string[]) => spawnSync(process.execPath, ['scripts/kit/check-commits.mts', ...args], { cwd: root, encoding: 'utf8' });
+  const command = (...args: string[]) => spawnSync(process.execPath, [tool('check-commits'), ...args], { cwd: root, encoding: 'utf8' });
   const range = command('--range', 'HEAD~1..HEAD');
   assert.equal(range.status, 1, range.stdout + range.stderr);
   assert.match(range.stderr, /\[check-commits\] \w+: commit-subject: the subject is "bad subject"/);
@@ -134,7 +132,6 @@ const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |
 
 function tracked(t: TestContext, steps: Array<[string, Record<string, string | null>]>) {
   const root = tree(t, { 'config/commits.json': JSON.stringify(TRACKED), 'config/checklist.json': JSON.stringify(CHECKLIST) });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   for (const [message, files] of steps) {
     put(root, files);

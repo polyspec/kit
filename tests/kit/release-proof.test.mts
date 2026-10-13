@@ -13,6 +13,7 @@ import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
+import { KIT_MAKE } from './kit-tools.mts';
 type Box = ReturnType<typeof consumerSandbox>;
 /** A command that a stub of the sandbox recorded. */
 type Call = { args: string[] };
@@ -209,7 +210,7 @@ test('the command line prints one line for each step and the exit status', (t) =
 
 test('make release-proof takes the tag of the environment', (t) => {
   const box = locked(t);
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', [...KIT_MAKE, ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const without = make('release-proof');
   assert.equal(without.status, 2);
   assert.match(without.stdout + without.stderr, /release-proof: TAG is required, for example make release-proof TAG=v0\.0\.1/);

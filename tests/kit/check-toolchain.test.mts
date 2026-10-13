@@ -11,6 +11,7 @@ import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { versionStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
 const NODE = process.versions.node;
 const FILES = {
@@ -29,7 +30,7 @@ const OUTPUTS = {
   composer: 'Composer version 2.10.3 2026-01-01 00:00:00',
   ruff: 'ruff 0.16.10',
 };
-const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('check-toolchain'), ...tools], { cwd: root, env, encoding: 'utf8' });
 // The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mts writes; here it runs the stub.
 // A null output makes the stub of the command fail.
 const setup = (t: TestContext, outputs: Record<string, string | null> = OUTPUTS, files: Record<string, string> = FILES) => {

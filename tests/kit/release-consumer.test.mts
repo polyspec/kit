@@ -13,6 +13,7 @@ import { Stop, run } from '../../scripts/kit/process.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
+import { KIT_MAKE } from './kit-tools.mts';
 
 // The JSON files that the cases edit, the configuration included: a case also writes a shape that breaks the schema on
 // purpose, so the data has no fixed type.
@@ -244,7 +245,7 @@ test('the command line locks, installs, ends a Go module tag without an install 
 
 test('make release-consumer-lock and release-consumer take the tag of the environment', (t) => {
   const box = consumerSandbox(t);
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', [...KIT_MAKE, ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   for (const target of ['release-consumer', 'release-consumer-lock']) {
     const without = make(target);
     assert.equal(without.status, 2);
