@@ -1,7 +1,7 @@
 // isMain (scripts/kit/paths.mts) tells whether a tool is the command that Node.js started. The command may name the tool
 // through a symbolic link of its directory (macOS temporary directories are such links), and then it is the same file.
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isMain, ROOT, siblingTool } from '../../scripts/kit/paths.mts';
 import { english, korean, tree } from './tree.mts';
+import { KIT, tool } from './kit-tools.mts';
 
 test('isMain is true when the command names the tool through a link of its directory', (t) => {
   const link = mkdtempSync(path.join(tmpdir(), 'paths-link-'));
@@ -29,27 +30,21 @@ test('isMain is true when the command names the tool through a link of its direc
   assert.equal(fileURLToPath(module), path.join(ROOT, 'scripts/kit/paths.mts'));
 });
 
-test('ROOT is the working directory: a tool run from a copy outside the repository reads the files of the repository it runs in', (t) => {
-  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of a module names no repository.
-  const outside = mkdtempSync(path.join(tmpdir(), 'paths-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  cpSync(path.join(ROOT, 'scripts/kit'), path.join(outside, 'tools'), { recursive: true });
-  // The copy finds the packages of kit beside it, as the dist of an installed package finds its dependencies.
-  symlinkSync(path.join(ROOT, 'node_modules'), path.join(outside, 'node_modules'));
+test('ROOT is the working directory: a tool of this checkout run in another repository reads the files of that repository', (t) => {
+  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of a module names no repository: the
+  // tools of this checkout run with the sandbox as the working directory (kit-tools.mts).
   const en = english('guide', 'Some text.\n');
   const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en) });
-  const root = spawnSync(process.execPath, ['--input-type=module', '-e', `const { ROOT } = await import(${JSON.stringify(path.join(outside, 'tools/paths.mts'))}); process.stdout.write(ROOT);`], { cwd: repository, encoding: 'utf8' });
+  const root = spawnSync(process.execPath, ['--input-type=module', '-e', `const { ROOT } = await import(${JSON.stringify(tool('paths'))}); process.stdout.write(ROOT);`], { cwd: repository, encoding: 'utf8' });
   assert.equal(root.status, 0, root.stderr);
   assert.equal(realpathSync(root.stdout), realpathSync(repository));
-  const checked = spawnSync(process.execPath, [path.join(outside, 'tools/check-documents.mts')], { cwd: repository, encoding: 'utf8' });
+  const checked = spawnSync(process.execPath, [tool('check-documents')], { cwd: repository, encoding: 'utf8' });
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
   assert.match(checked.stdout, /1 document pairs/);
 });
 
 // A tool that starts another tool names it through siblingTool: the directory and the extension of the calling module, so
 // the sources of scripts/kit start sources (.mts) and the modules of the package's dist start modules of dist (.mjs).
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
-
 test('siblingTool names the tool beside the calling module with its extension', () => {
   assert.equal(siblingTool(pathToFileURL('/r/node_modules/@polyspec/kit/dist/release-tools.mjs').href, 'check-toolchain'), '/r/node_modules/@polyspec/kit/dist/check-toolchain.mjs');
   assert.equal(siblingTool(pathToFileURL('/r/scripts/kit/release-tools.mts').href, 'install-tools'), '/r/scripts/kit/install-tools.mts');
