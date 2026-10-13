@@ -64,6 +64,7 @@ rules:
       - "!.python-version"
       - "!.php-version"
       - "!rust-toolchain.toml"
+      - "!ruff.toml"
 
   - id: layout-no-pythonpath
     paths:

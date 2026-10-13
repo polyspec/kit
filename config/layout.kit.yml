@@ -75,6 +75,7 @@ rules:
       - "!.python-version"
       - "!.php-version"
       - "!rust-toolchain.toml"
+      - "!ruff.toml"
     message: "S5: a file at the root that the layout does not declare; move it into a root folder or declare it in config/layout.yml"
 
   # S5: packages/ holds the runtime ports of the main spec; a repository adds its components to the list.
@@ -198,3 +199,27 @@ rules:
     paths: ["scripts/**", "tests/**", "!tests/kit/fixture/**"]
     pattern: '\A#![^\n]*\b(sh|bash|zsh|python[0-9.]*|perl|ruby|php)\b'
     message: "S9: a script of another interpreter is no infrastructure; port it to TypeScript or declare its S9 exception"
+
+  # The Python lint (make lint-python) runs ruff with the root ruff.toml. A nested ruff configuration would escape it in an
+  # editor or a plain ruff run, where the nearest configuration applies.
+  - id: lint-ruff-nested
+    kind: toml_path_absent
+    level: error
+    paths: ["**/pyproject.toml", "!tests/kit/fixture/**"]
+    path: "$.tool.ruff"
+    message: "S3: the ruff configuration is the root ruff.toml of kit; remove [tool.ruff] from this pyproject.toml"
+
+  - id: lint-ruff-files
+    kind: file_absent
+    level: error
+    paths: ["**/ruff.toml", "**/.ruff.toml", "!ruff.toml", "!tests/kit/fixture/**"]
+    message: "S3: the ruff configuration is the root ruff.toml of kit; remove this nested configuration"
+
+  # vulture runs with the confidence of kit; a package keeps code that only consumers use by an entry of its
+  # vulture_whitelist.py with the reason, and excludes generated code only (config/pyproject.schema.json).
+  - id: lint-vulture-config
+    kind: json_schema_passes
+    level: error
+    paths: ["**/pyproject.toml", "!tests/kit/fixture/**"]
+    schema_path: config/pyproject.schema.json
+    message: "[tool.vulture] of a package holds only exclude, the generated code with its reason; keep other code by an entry of vulture_whitelist.py"
