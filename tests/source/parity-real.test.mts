@@ -23,7 +23,7 @@ function phpunitVendor() {
  * Gives the temporary tree root the Python of the checkout: Python runs as var/tools/bin/python3 of the checkout, never the
  * Python of PATH, so the tree gets the wrapper that install-tools wrote for this checkout.
  */
-function givePython(root) {
+function givePython(root: string) {
   const wrapper = path.join(ROOT, 'var/tools/bin/python3');
   if (!existsSync(wrapper)) assert.fail(`${wrapper} does not exist; run make install-tools TOOLS="python pythonBackend"`);
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
@@ -141,6 +141,8 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
   givePython(root);
   const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec python']);
-  assert.equal(findings[0].message, 'failed: known');
+  const [first] = findings;
+  assert.ok(first, 'the check reports the R3 finding');
+  assert.equal(first.message, 'failed: known');
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['empty pass', 'known fail']);
 });
