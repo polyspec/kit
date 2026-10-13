@@ -204,8 +204,9 @@ no rebuild record for it; this section records the choice.
   `paths` replaces the list, so it repeats the common entries. Each exception carries its reason in the comment right above
   it. alint has no field for a reason, so the owner's required review of `config/layout.yml` through `CODEOWNERS`, which
   the standards plan sets up with parity (S6), is what enforces S8; kit has no `CODEOWNERS` yet.
-- `PYTHONPATH` is checked here only, not also by the parity schema; feature ownership of a test stays in parity R6, and the
-  layout places only the root `tests/`.
+- `PYTHONPATH` is checked here across the checkout; the parity schema also rejects it, and every path that leaves the
+  repository, in `config/parity.json` (K75). Feature ownership of a test stays in parity R5 and R6, and the layout places
+  only the root `tests/`.
 - `tests/source/layout-real.test.mts` runs the real alint: a repository that follows the layout passes, each of 17 planted
   violations fails with the rule that names it, and this checkout passes.
 
@@ -1001,9 +1002,10 @@ check, and the resolution that reads the reference and not the local wheel).
 the implementations, which is the one source of the language set of the repository, the profiles that group them, and the
 units. The declaration holds no state such as done or planned: the checker takes every fact from the tree.
 
-- It runs the binding of each suite in each implementation itself and keeps an in-memory ledger of the runs and of the cases
-  that each run reported. It reads no saved report.
-- It reads the exported symbols from the extractor snapshot of each implementation.
+- It runs the binding of each suite and feature in each implementation itself and keeps an in-memory ledger of the runs and
+  of the cases and test ids that each run reported. It reads no saved report.
+- It reads the public symbols of each implementation with the standard tool of its ecosystem (go/packages, API Extractor,
+  nikic/php-parser, Python's ast, rustdoc JSON). It reads no committed snapshot.
 - It reads the error codes from the generated artifact of each implementation.
 
 A repository with several implementations of one spec declares `config/parity.json`, runs `parity-declarations-check` among its
@@ -1013,21 +1015,21 @@ check targets and `parity-check` in its CI, both before a push lands.
 
 The checker trusts three inputs that it does not produce itself. Other checks close each one:
 
-- **The symbol snapshot** of each implementation. The repository's interface check regenerates it from the source and fails
-  on a difference. That check must run before `parity-check`.
+- **The tool of each symbol extractor** (go/packages, API Extractor, nikic/php-parser, ast, rustdoc). The checker runs it
+  on the source and takes its public symbols as they are; the extractor programs of kit only list what the tool gives.
 - **The generated error-code artifacts.** The repository's generator check regenerates them from the catalog and fails on a
   difference. That check must also run before `parity-check`. The parity check compares the committed artifacts with the
   catalog, and it does not regenerate them.
-- **The output of each native tool** (node:test, go test, cargo test, unittest and PHPUnit), which `test-output.mts` reads. A
-  binding's test prints nothing for the check: the outcome of each case is the tool's own report of that test. go and node
-  frame their events: go writes the output of a test inside the `Output` field of its JSON events, and node writes the console
-  output of a test as `# ` lines of its TAP. cargo, unittest and PHPUnit do not frame theirs, so a test can print a line that
+- **The output of each native tool** (node:test, vitest, go test, cargo test, unittest and PHPUnit). A binding's test prints
+  nothing for the check: the outcome of each case is the tool's own report of that test. go, node and vitest frame their
+  events: go writes the output of a test inside the `Output` field of its JSON events, which `test-output.mts` reads; node
+  reports its events to `parity-node-reporter.mts`, a node:test reporter of kit; and vitest writes its JSON report to a file. cargo, unittest and PHPUnit do not frame theirs, so a test can print a line that
   reads as a result on the same stream: `test <name> ... ok` on the standard output of cargo, a `... ok` line on the standard
   error of unittest, or an echoed `##teamcity[` message of PHPUnit. For those three the checker trusts the tool to print only
   its own results, and review enforces it; no check of the output closes it.
 
-Make targets: `parity-check` runs the bindings and checks every rule. `parity-declarations-check` checks every rule except R3
-and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
+Make targets: `parity-check` runs the bindings and the symbol extractors and checks every rule. `parity-declarations-check`
+checks every rule except R1, R3 and R11 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
 
 | Module | Concern |
 |---|---|
@@ -1036,6 +1038,10 @@ and runs nothing. Both are offline, print a line for each step and each finding,
 | `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
 | `parity-ledger.mts` | R3: the runs of the bindings and the ledger |
 | `parity-runners.mts` | the native command of each runner and the outcome of each case in its output |
+| `parity-node-reporter.mts` | the node:test reporter of the node runner: each test with its enclosing suites, as JSON lines |
+| `parity-symbols.mts` | the symbol extractors of R1 and R11, and the walk of rustdoc JSON |
+| `install-symbols.mts` | the build of the go extractor and the install of the php extractor into var/tools |
+| `symbols/` | the extractor programs: `go/` (go/packages), `php/` (nikic/php-parser), `python.py` (ast) |
 | `test-output.mts` | the parsers of the output of node:test (TAP, read with tap-parser, which reads the escapes `\#` and `\\` of a name; K125), go, cargo, unittest and PHPUnit, shared with run-tests |
 | `parity-errors.mts` | R7 |
 | `parity-text.mts` | R9, R10 |
@@ -1046,45 +1052,49 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 
 | Rule | Finding |
 |---|---|
-| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, or only one unit uses it. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` symbol is not exported. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no file of the `tests` of its implementation or of the `testPatterns` of its runner, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value holds a `${` form that is not `${NAME}`. <br>- An `admit` key is on no case object, a list is empty or names an implementation twice, or an implementation of the profile admits no case (K47). |
-| R1 missing-implementation | An API unit has no symbol of an implementation of its profile, the symbol is not in the snapshot, or the symbol is not exported. |
-| R2 missing-binding | A suite unit has no binding of an implementation of its profile. |
-| R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset or empty), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A case that a run reports twice is named by a `reported twice in run <n>` part of the finding. A Go package that does not build adds its compiler output. |
+| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, cites no `spec` anchor, or only one unit uses it, or a profile of every implementation cites one. <br>- A `spec` anchor of a profile or a `nativeOnly` entry does not resolve. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo suite binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A feature binding has no `id` or has a `symbol`, a suite binding has an `id`, or a feature unit has a `file`, `cases` or `admit`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` entry names an implementation that does not exist or that declares no `symbols`. <br>- The `entry` of `symbols` does not exist. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no test file of its implementation (of its runner's convention, its `tests` or its runner's `testPatterns`) and no file named like a test, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value holds a `${` form that is not `${NAME}`. <br>- An env sets `PYTHONPATH`, or a path field, or a word of an `args` or `env` value, is absolute, starts with `~` or holds a `..` segment (S3). <br>- An `admit` key is on no case object, a list is empty or names an implementation twice, or an implementation of the profile admits no case (K47). |
+| R1 missing-implementation | An API unit declares no symbol of an implementation of its profile, or the declared symbol is no public symbol that the implementation's extractor gives. Or the extractor of an implementation gives no symbols: its program or nightly is missing, it fails, or it prints no list. |
+| R2 missing-binding | A suite or feature unit has no binding of an implementation of its profile. |
+| R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset, empty or resolves to a path outside the checkout), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. A feature binding fails when the run of its whole test file exits with an error or its `id` did not pass exactly once. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A case that a run reports twice is named by a `reported twice in run <n>` part of the finding. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit. |
-| R5 undeclared-test | A file of the `tests` globs of an implementation, other than its `support` files, is the test of no binding of that implementation. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
-| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file of the `testPatterns` of a runner, other than a `support` file of an implementation of that runner, lies outside the roots of every implementation of that runner and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
+| R5 undeclared-test | A test file of an implementation (a file in its roots that the convention or `testPatterns` of its runner selects, or a file of its `tests` globs), other than its `support` files, is the test of no binding of that implementation. Or a file in its roots is named like a test (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), no convention selects it, and no binding runs it. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
+| R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation and outside the `comparators`. Or a file that the convention or `testPatterns` of one or more runners select, other than a `support` file of an implementation of those runners, lies outside the roots of every implementation of those runners and outside the `comparators`. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
 | R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
 | R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
 | R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
 | R10 docs-count | A document of `documents` counts N implementations, and no profile of N implementations holds the implementations that its sentence names, unless its sentence names exactly N and the names of its passage together are a profile. Or it lists three or more implementation names in a sentence whose implementation names together are no profile. |
-| R11 undeclared-public | An exported symbol of a snapshot is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. |
+| R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. Or a `nativeOnly` entry names no public symbol. |
 
 ### Runners
 
-| Runner | Command | Cases |
-|---|---|---|
-| `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` |
-| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --test-threads=1 <symbol>::` | the tests `<symbol>::<case>`: `test <name> ... ok`, `FAILED` or `ignored` in the output |
-| `node` | `node --test --test-reporter=tap <test>` | the top-level tests of the TAP output: `ok` and `not ok` pass and fail, `# SKIP` is skipped, and `# TODO` is a todo; the line of the file itself is no case |
-| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages |
-| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error |
+| Runner | Command | Cases | Feature ids |
+|---|---|---|---|
+| `go` | `go test -json -count=1 -run ^<symbol>$ ./<directory>` in the nearest directory with `go.mod`; a feature runs without `-run` | the `pass`, `fail` and `skip` events of the direct subtests `<symbol>/<case>` | the test or subtest name, `TestX/case` |
+| `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --test-threads=1 <symbol>::`; a feature runs without the filter | the tests `<symbol>::<case>`: `test <name> ... ok`, `FAILED` or `ignored` in the output | the libtest path, `module::test` |
+| `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | the top-level tests that the reporter names: node:test's own pass, fail, skip and todo; the test of the file itself is none | the names of the test and its enclosing suites joined by ` › ` |
+| `vitest` | `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` from the checkout root | the top-level tests of the JSON report: `passed`, `failed`, `skipped` or `pending`, and `todo` | the `ancestorTitles` and `title` joined by ` › ` |
+| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages | the test method |
+| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error | the test method |
 
-Each runner reads its tool's output with the parsers of `test-output.mts`, the same parsers that `run-tests` reads a run with
-(K47). A todo is a test that the tool expects to fail, a node `# TODO` or a unittest `expected failure`: it is no pass, so its
-case fails the check, while run-tests shows it as a pass line.
+The go, cargo, php and python runners read their tool's output with the parsers of `test-output.mts`, the same parsers that
+`run-tests` reads a run with (K47). node reports through its reporter API and vitest through its JSON report, so no text of
+theirs is parsed. A todo is a test that the tool expects to fail, a node or vitest todo or a unittest `expected failure`: it
+is no pass, so its case fails the check, while run-tests shows it as a pass line.
 
 PHPUnit reads its configuration from the working directory, and the check keeps the checkout root as the working directory of
 every runner, so that the `command`, `args` and paths of each runner share one base. A php binding therefore names the
 configuration of its package: `--configuration` with the package's `phpunit.xml` (or `phpunit.xml.dist` when only that exists),
 or `--no-configuration` when the package has neither, so that no configuration of another directory applies. A test whose name is no case of the binding is ignored: a go subtest nested below a case keeps its `/` and is a case that
 the suite does not declare. A case name holds no whitespace, and in a unit with a go binding it holds no `/`, because Go nests
-the names of subtests at `/`. A run of node:test starts without `NODE_TEST_CONTEXT`, since node prints TAP only outside a test
-run.
+the names of subtests at `/`. A run of node:test starts without `NODE_TEST_CONTEXT`, so that it does not join the test run
+that started the check.
 
 An implementation can replace the program of its runner with `command`, which is not empty. A command that holds a `/` is a
-path resolved against the root of the checkout, such as the Python of a virtual environment: an absolute path stays absolute,
-and a path with `..` resolves like an absolute path, outside the checkout when it climbs above the root. Otherwise it is a name
-on PATH. `args` go after `test` for go and cargo, and before the test file for node, before the PHPUnit path for php and before `-m unittest` for python, such as
+path relative to the root of the checkout, such as the Python of a virtual environment; otherwise it is a name on PATH. No
+path of the declaration leaves the checkout (S3): the schema rejects an absolute path, a path that starts with `~` and a `..`
+segment, in a path field and in each word (between `=`, `:` and whitespace) of an `args` or `env` value, and an `env` named
+`PYTHONPATH`, since a package is tested as installed. A value that a `${NAME}` reference resolves to such a path cannot start
+its run (R3). `args` go after `test` for go and cargo, and before the test file for node, before the PHPUnit path for php and before `-m unittest` for python, such as
 `-d extension=<library>` for one PHP implementation. `env` sets variables for the runs of that implementation only, over the
 environment of the check.
 
@@ -1095,8 +1105,8 @@ each reference with the value of NAME when it runs the bindings. When NAME is un
 implementation is an R3 finding that cannot start and names the value and NAME, while the other rules run. A step line prints
 the command and arguments as declared, with the reference and never its value.
 
-An implementation declares its test-support files with `support` globs: a file in its `roots` that its `tests` or the
-`testPatterns` of its runner select but that holds no test, such as a Go helper that must end in `_test.go`. A support file is no
+An implementation declares its test-support files with `support` globs: a file in its `roots` that the convention of its
+runner, its `tests` or the `testPatterns` of its runner select, or that is named like a test, but that holds no test, such as a Go helper that must end in `_test.go`. A support file is no
 test of a binding, so R5 skips it, and R6 skips it for the patterns of the runner of its implementation only. It must hold no
 test that its runner would run:
 
@@ -1108,6 +1118,59 @@ test that its runner would run:
   output reports is an R5 finding.
 
 Each glob selects at least one such file, so a stale glob fails the declaration.
+
+### Test-file conventions (K75)
+
+kit fixes the test files of each runner (S3), `CONVENTIONS` of `parity-declaration.mts`: go `**/*_test.go`; cargo
+`**/tests/**/*.rs` and every `.rs` file that holds a test attribute; node `**/*.test.{ts,mts,cts,mjs,cjs,js}`; vitest
+`**/*.{test,spec}.{ts,mts,cts,js,mjs,cjs,tsx,jsx}`; php `**/*Test.php`; python `**/test_*.py`. The test files of an
+implementation are the files in its roots that the convention of its runner selects, and the files of its `tests` globs. The
+`tests` of an implementation and the `testPatterns` of a runner only add to the convention; nothing in the declaration
+removes a file from it, and a support file is proven to hold no test. A file in the roots of an implementation that is named
+like a test in a common convention (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`) and that no convention selects is
+a test that its runner does not run, such as a PHP script named `*_test.php`: R5 fails it until a binding runs it, it is
+renamed to the convention, or a support glob declares it. The node and vitest conventions overlap, so R6 accepts a file in a
+root of any runner whose convention selects it.
+
+### Feature units (K75)
+
+A unit of kind `feature` names one native test of each implementation of its profile: `bindings` of `{ implementation, test,
+id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. `parity-check`
+runs the whole test file of each feature binding, once for every feature that binds that file in that implementation, twice;
+the binding holds when the run exits with 0 and its `id` passed once in each run. A missing, failed, skipped, repeated or
+changing id is R3, and a feature without a binding of an implementation is R2.
+
+### Symbol extractors (K75)
+
+`symbols` of an implementation declares `{ extractor, entry }`. `parity-check` runs the extractor, which reads the public API of
+`entry` with the standard tool of its ecosystem, and judges R1 and R11 on what it gives. Nothing is read from a committed
+snapshot, and `parity-declarations-check` runs no extractor.
+
+| Extractor | Tool | Entry | Ids |
+|---|---|---|---|
+| `go` | `var/tools/symbols-go/bin/kit-symbols-go`, kit's program on `golang.org/x/tools/go/packages` v0.52.0 | a module directory | `<import path>.<name>`, `<import path>.<type>.<method or field>` of the exported names of each non-internal, non-test package |
+| `ts` | API Extractor 7.59.4 (`@microsoft/api-extractor`, a dependency of kit), its API model | a `.d.ts` entry point, such as the one that tsc 7 emits, in the package of the nearest `package.json` | the canonical references, such as `@scope/name!Codec#encode:member(1)` |
+| `php` | `scripts/kit/symbols/php/extract.php` on nikic/php-parser 5.9.0 | a source directory or file, such as the `*.stub.php` of a PHP extension | `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST` of the public declarations |
+| `python` | `scripts/kit/symbols/python.py` on the standard library's `ast`, run by `var/tools/bin/python3 -I` | a package directory or a module file | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>` |
+| `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json` (format 61) | a `Cargo.toml`, its library | `<crate>::<path>` of each public item reachable from the root, re-exports included, with its public fields, variants, inherent items and trait items |
+
+- A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `make install-tools` then builds the go
+  program into `var/tools/symbols-go` and installs the locked Composer project of the php extractor into
+  `var/tools/symbols-php` with the declared Composer (`install-symbols.mts`). The release of each is the sha256 of its source
+  files, so a kit release that changes it reinstalls it. `make build` copies `scripts/kit/symbols` into `dist/symbols`.
+- rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
+  `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
+  "rustdoc JSON is stable". This is the only use of a nightly. kit does not install Rust:
+  `rustup toolchain install nightly-2026-10-01 --profile minimal` installs the verified one.
+- An extractor that is not installed, a missing or doubled nightly, a failing tool and an output that is no list of ids are R1
+  findings that name the extractor and the entry.
+
+### Spec anchors (K75)
+
+A permanent difference cites the spec that makes it one (S6). A profile narrower than every implementation and every
+`nativeOnly` entry declare `spec`, the anchors `<file>#<fragment>` of their reason, with the file under `contracts/` or
+`docs/spec/`. Each one resolves: a Markdown file defines the fragment as an explicit anchor `<a id>` or a heading anchor, and
+the fragment of a JSON file is a JSON Pointer (RFC 6901) to one of its values. A profile of every implementation cites none.
 
 ### Per-case admission
 

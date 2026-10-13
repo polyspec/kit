@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: b1a889341bbfd33aac9bcaa31d9d833066c488c33db775e69feecf741b8f48d5 -->
+<!-- source-sha256: ed7929f4a07f4732ac1f4aa50784def62443ee7d0dcfec0d927e53ba5744daf3 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -86,7 +86,9 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   PHPUnit에서 돕니다.
 - S3 test는 생태계 표준 runner(`node --test` 또는 vitest, PHPUnit, `go test`, `cargo test` 또는 nextest, unittest)로만
   돌며, 자체 runner protocol, `check()` helper, 파일 chain을 쓰지 않고, 설치된 package를 대상으로 돕니다: `PYTHONPATH`,
-  `sys.path` 변경, repository를 벗어나는 경로를 쓰지 않습니다.
+  `sys.path` 변경, repository를 벗어나는 경로를 쓰지 않습니다. kit은 runner마다 test 파일을 고정합니다
+  (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest의 `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/`와 `#[test]`, `test_*.py`).
+  repository는 파일을 더할 수만 있고 좁힐 수 없으며, test처럼 이름 붙은 파일은 binding이 실행합니다.
 - S4 버전: lock의 모든 의존성이 동작함을 보인 뒤에만 정합니다. 생태계에 LTS가 있으면 최신 LTS, 없으면 의존성이 지원하는
   최신 stable, 또는 LTS에 근접한 더 새 non-LTS를 씁니다. 선언 하한은 pin 정밀도로 pin과 같고, 모든 repository가 같은
   pin을 쓰며, 예외는 범위, 이유, 재시도 조건과 함께 선언하고, source build로 조용히 fallback하지 않습니다.

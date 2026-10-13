@@ -91,7 +91,9 @@ tool lands, a standard binds the work as written here.
   follows PSR-1 and PSR-4; tests run on PHPUnit.
 - S3 Tests run only on the ecosystem's standard runner (`node --test` or vitest, PHPUnit, `go test`, `cargo test` or
   nextest, unittest), with no runner protocol, `check()` helper or file chain of our own, and against installed packages:
-  no `PYTHONPATH`, no `sys.path` change, no path that leaves the repository.
+  no `PYTHONPATH`, no `sys.path` change, no path that leaves the repository. kit fixes the test files of each runner
+  (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest's `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/` and `#[test]`,
+  `test_*.py`); a repository may add files but never narrow the set, and a file named like a test is run by a binding.
 - S4 Versions: a version is chosen only after every locked dependency is shown to work with it; the latest LTS where the
   ecosystem has one, otherwise the latest stable release the dependencies support, or a newer non-LTS close to the LTS.
   The declared floor equals the pinned toolchain at the pin's precision, every repository uses the same pins, an exception
