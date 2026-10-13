@@ -2,7 +2,7 @@
 // what S1 and S8 ask of it. Each rule has a passing and a failing case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync } from 'node:fs';
+import { cpSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -85,6 +85,8 @@ test('a record must exist and name the tool it covers', (t) => {
 test('the command checks config/rebuild.json of the checkout it runs in and fails with each finding', (t) => {
   const root = tree(t, { ...FILES, 'config/rebuild.json': JSON.stringify({ ...DECLARATION, tools: { 'scripts/kit/lint.mts': { kind: 'ecosystem', tool: 'ruff' } } }) });
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
+  // The copied tools find the packages of kit, as in a repository that installed them.
+  symlinkSync(path.resolve(KIT, '../../node_modules'), path.join(root, 'node_modules'));
   const run = (cwd: string) => spawnSync(process.execPath, [path.join(cwd, 'scripts/kit/rebuild-check.mts')], { cwd, encoding: 'utf8' });
   spawnSync('git', ['add', '-A'], { cwd: root });
   const failed = run(root);
