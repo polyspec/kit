@@ -10,6 +10,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
+const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json'];
 const ALINT = path.join(ROOT, 'var/tools/bin/alint');
 
 // The map of the repository demo: the component codec has ports, and the root tests/ holds the parity runner.
@@ -75,6 +77,12 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'layout-composer-path', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: OUTSIDE }] }) } },
   { rule: 'layout-infrastructure-typescript', files: { 'scripts/build.py': 'print("build")\n' } },
   { rule: 'layout-infrastructure-shebang', files: { 'scripts/run': '#!/bin/sh\necho run\n' } },
+  // The Python lint runs ruff with the root ruff.toml, which a nested configuration would escape in an editor or a plain ruff run.
+  { rule: 'lint-ruff-nested', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' } },
+  { rule: 'lint-ruff-files', files: { 'packages/python/ruff.toml': '[lint]\nselect = ["E"]\n' } },
+  { rule: 'lint-ruff-files', files: { 'packages/python/.ruff.toml': '[lint]\nselect = ["E"]\n' } },
+  // A package excludes generated code from vulture and nothing else: no ignored names or decorators, no confidence of its own.
+  { rule: 'lint-vulture-config', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.vulture]\nignore_names = ["triple"]\n' } },
 ];
 
 /** Writes `files` below `root`. */
@@ -96,7 +104,7 @@ function repository(t: { after: (fn: () => void) => void }, files: Record<string
   mkdirSync(path.join(folder, 'outside'));
   const root = path.join(folder, 'a', 'b', 'demo');
   write(root, { ...GOOD, ...files });
-  copyFileSync(path.join(ROOT, 'config/layout.kit.yml'), path.join(root, 'config/layout.kit.yml'));
+  for (const file of KIT_FILES) copyFileSync(path.join(ROOT, file), path.join(root, file));
   cpSync(path.join(ROOT, 'scripts/kit/kit.mk'), path.join(root, 'scripts/kit/kit.mk'));
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   symlinkSync(ALINT, path.join(root, 'var/tools/bin/alint'));
