@@ -2,7 +2,7 @@
 // Checks that every tool of the checkout runs at the version that the checkout declares, without a network
 // (`make toolchain-check`):
 //
-//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm go rust php python composer ruff phpunit cargoAudit govulncheck
+//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm go rust php python composer ruff phpunit cargoAudit govulncheck alint
 //
 // Without a tool name it checks every declared tool; naming an undeclared tool fails. Python is var/tools/bin/python3, the Python that
 // install-python.mts installs, and never the Python of PATH. var/tools/bin comes first on PATH, GOTOOLCHAIN=local
@@ -49,6 +49,7 @@ const probes: Record<string, Probe> = {
   phpunit: { command: () => 'phpunit', ...RELEASE_OUTPUT.phpunit, fix: () => INSTALL },
   cargoAudit: { command: cargoAuditCommand, ...RELEASE_OUTPUT.cargoAudit, fix: () => 'make install-tools' },
   govulncheck: { command: govulncheckCommand, ...RELEASE_OUTPUT.govulncheck, fix: () => 'make install-tools' },
+  alint: { command: () => 'alint', ...RELEASE_OUTPUT.alint, fix: () => INSTALL },
 };
 export const TOOLS = Object.keys(probes);
 

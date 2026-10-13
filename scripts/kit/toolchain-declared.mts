@@ -12,6 +12,7 @@
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
+//   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
 // A tool is declared when its file exists (node, rust) or its config key is present; an undeclared tool is absent from the
@@ -38,6 +39,7 @@ export type DeclaredToolchain = {
   php?: { minors: string[]; source: string };
   python?: { minor: string; source: string };
   uv?: PlatformRelease;
+  alint?: PlatformRelease;
   pythonBuild?: Declared;
   pythonBackend?: { requirement: string; sha256: string; source: string };
   composer?: Declared & { sha256: unknown };
@@ -115,14 +117,15 @@ function pythonBuild(value: unknown, minor: string | undefined, uv: PlatformRele
   return { version, source: file };
 }
 
-// The uv release: its exact version and the sha256 of the archive of each platform key, each read as 64 hexadecimal digits.
-function uvRelease(value: unknown): PlatformRelease {
-  const file = 'config/toolchain.json uv';
+// The release of a tool installed from its archive (uv, alint): its exact version and the sha256 of the archive of each
+// platform key, each read as 64 hexadecimal digits.
+function archiveRelease(key: 'uv' | 'alint', value: unknown): PlatformRelease {
+  const file = `config/toolchain.json ${key}`;
   const version = field(value, 'version');
   if (!matches(EXACT, version)) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
   // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
   const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
-  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the uv archive of each platform, for example linux-x64; it records none`);
+  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} archive of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
     if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
@@ -199,7 +202,8 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   } else if (pythonFile) {
     declared.python = { minor: pythonFile, source: '.python-version' };
   }
-  if (config.uv) declared.uv = uvRelease(config.uv);
+  if (config.uv) declared.uv = archiveRelease('uv', config.uv);
+  if (config.alint) declared.alint = archiveRelease('alint', config.alint);
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor, declared.uv);
   }
