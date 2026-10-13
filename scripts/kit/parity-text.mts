@@ -6,14 +6,16 @@ import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { scanFences, withoutInlineCode } from './markdown.mts';
 import { captured, difference, finding } from './parity-declaration.mts';
+import type { ParityModel } from './parity-units.mts';
 
 /** The words of a list: each run of letters, digits, _ and - that starts with a letter. */
-const words = text => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].map(match => match[0].toLowerCase());
+const words = (text: string) => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].map(match => match[0].toLowerCase());
 
 /** R9: the names of each declared list against its profile. */
-export function languageLists(model, root) {
+export function languageLists(model: ParityModel, root: string) {
   return (model.config.languageLists ?? []).flatMap((list) => {
-    const expected = model.profiles.get(list.profile);
+    // readDeclaration reports an unknown profile of a list, and the rules do not run on a declaration with findings.
+    const expected = model.profiles.get(list.profile)!;
     const matches = captured(readFileSync(path.join(root, list.file), 'utf8'), list.pattern);
     if (!matches.length) return [finding('R9', `the pattern ${list.pattern} matches nothing; the list moved or the declaration is stale`, { place: list.file })];
     return matches.flatMap((match) => {
@@ -26,8 +28,8 @@ export function languageLists(model, root) {
 
 // The numbers that a count of implementations is written with: digits, the English words with both, and the Korean native
 // numerals.
-const NUMBERS = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
-const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const NUMBERS: Record<string, number> = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // The text between two names of one list: a comma, and, or, /, 및, or a Korean particle 와 or 과 after the name.
 const SEPARATOR = /^(?:\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과)\s+|\s*\/\s*)$/i;
 
@@ -35,20 +37,21 @@ const SEPARATOR = /^(?:\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과
  * The counts of `text`: each number followed by one of `nouns` after a space, a hyphen (four-client) or a Korean counter
  * (6개 언어, 여섯 개 언어, 세 가지 언어), as `{ text, count, index }`.
  */
-function countsOf(text, nouns) {
+function countsOf(text: string, nouns: string[]) {
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
-  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]) ? Number(match[1]) : NUMBERS[match[1].toLowerCase()], index: match.index }));
+  // The first group of the pattern is not optional, so every match holds it.
+  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]!) ? Number(match[1]) : NUMBERS[match[1]!.toLowerCase()], index: match.index }));
 }
 
 /** The implementation names of `text` in the order of the text, as `{ name, index, end }`. */
-function namesOf(text, names) {
+function namesOf(text: string, names: Iterable<string>) {
   const pattern = new RegExp(`(?<![A-Za-z0-9_-])(?:${[...names].sort((a, b) => b.length - a.length).map(escape).join('|')})(?![A-Za-z0-9_-])`, 'gi');
   return [...text.matchAll(pattern)].map(match => ({ name: match[0].toLowerCase(), index: match.index, end: match.index + match[0].length }));
 }
 
 /** The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. */
-function listsOf(text, found) {
-  const lists = [];
+function listsOf(text: string, found: { name: string; index: number; end: number }[]) {
+  const lists: { names: string[]; index: number; end: number }[] = [];
   for (const match of found) {
     const last = lists.at(-1);
     if (last && SEPARATOR.test(text.slice(last.end, match.index))) Object.assign(last, { names: [...last.names, match.name], end: match.end });
@@ -66,15 +69,17 @@ const QUOTE = /^(?: {0,3}> ?)+/;
 const SETEXT = /^ {0,3}(?:=+|-+)\s*$/;
 const INDENTED = /^(?: {4}|\t)/;
 
+type Passage = { text: string; line: number; table: boolean; quoted: boolean };
+
 /**
  * The passages of the Markdown `text` outside its fenced blocks, each `{ text, line, table }` with the number of its first
  * line: a paragraph or a list item with the lines that continue it (a block quote without its markers), a heading, or a
  * table row. Inline code is blanked.
  */
-function passagesOf(text) {
+function passagesOf(text: string) {
   const { fenced } = scanFences(text);
-  const passages = [];
-  let current;
+  const passages: Passage[] = [];
+  let current: Passage | undefined;
   text.split('\n').forEach((raw, index) => {
     if (fenced[index] || !raw.trim()) {
       current = undefined;
@@ -99,18 +104,18 @@ function passagesOf(text) {
   return passages;
 }
 
-const blank = text => text.replace(/[^\n]/g, ' ');
+const blank = (text: string) => text.replace(/[^\n]/g, ' ');
 
 /**
  * The prose of a passage: its comments, HTML tags, autolinks, bare URLs, link definitions and link destinations blanked, a
  * link keeping its text, so that only prose names an implementation and each character keeps its line.
  */
-function proseOf(text) {
+function proseOf(text: string) {
   return text.replace(/<!--[\s\S]*?-->/g, blank)
     .replace(/<(?:https?:\/\/|mailto:)[^>\s]*>/g, blank)
     .replace(/<\/?[A-Za-z][^>]*>/g, blank)
     .replace(/^ {0,3}\[[^\]\n]+\]:.*$/gm, blank)
-    .replace(/!?\[([^\]\n]*)\](?:\([^)\n]*\)|\[[^\]\n]*\])/g, (whole, label) => {
+    .replace(/!?\[([^\]\n]*)\](?:\([^)\n]*\)|\[[^\]\n]*\])/g, (whole: string, label: string) => {
       const open = whole.indexOf('[') + 1;
       return blank(whole.slice(0, open)) + label + blank(whole.slice(open + label.length));
     })
@@ -118,8 +123,8 @@ function proseOf(text) {
 }
 
 /** The sentences of `text`, each `{ text, index }`: they end at ., ! or ? before a space or the end, and a table cell ends one. */
-function sentencesOf(text, table) {
-  const sentences = [];
+function sentencesOf(text: string, table: boolean) {
+  const sentences: { text: string; index: number }[] = [];
   let start = 0;
   for (const match of text.matchAll(table ? /[.!?](?=\s|$)|(?<!\\)\|/g : /[.!?](?=\s|$)/g)) {
     sentences.push({ text: text.slice(start, match.index + 1), index: start });
@@ -135,19 +140,19 @@ function sentencesOf(text, table) {
  * sentence names exactly N implementations and the names of its passage together are a profile. A list, three names or more,
  * holds when the names of its sentence together are a profile.
  */
-export function documentCounts(model, root, files) {
+export function documentCounts(model: ParityModel, root: string, files: Iterable<string>) {
   const documents = model.config.documents;
   if (!documents) return [];
   const profiles = [...model.profiles].map(([name, members]) => ({ name, members }));
   const known = profiles.map(profile => `${profile.name} ${profile.members.length}`).join(', ');
   const listed = profiles.map(profile => `${profile.name}: ${profile.members.join(', ')}`).join('; ');
-  const sameSet = (names, members) => names.length === members.length && names.every(name => members.includes(name));
-  const found = [];
+  const sameSet = (names: string[], members: string[]) => names.length === members.length && names.every(name => members.includes(name));
+  const found: ReturnType<typeof finding>[] = [];
   for (const file of [...files].filter(name => matchesAny(documents.globs, name)).sort()) {
     for (const passage of passagesOf(readFileSync(path.join(root, file), 'utf8'))) {
       const prose = proseOf(passage.text);
-      const place = index => `${file}:${passage.line + prose.slice(0, index).split('\n').length - 1}`;
-      const named = text => [...new Set(namesOf(text, model.implementations.keys()).map(match => match.name))];
+      const place = (index: number) => `${file}:${passage.line + prose.slice(0, index).split('\n').length - 1}`;
+      const named = (text: string) => [...new Set(namesOf(text, model.implementations.keys()).map(match => match.name))];
       const passageProfile = profiles.some(profile => sameSet(named(prose), profile.members));
       for (const sentence of sentencesOf(prose, passage.table)) {
         const names = namesOf(sentence.text, model.implementations.keys());
