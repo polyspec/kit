@@ -120,8 +120,6 @@ type Pylock = ReturnType<typeof readPylock>;
 type VcsSource = NonNullable<Pylock['packages'][number]['vcs']>;
 
 const LOCAL_SPEC = /^(file|link|workspace):/;
-// A lock entry that npm installed as a copy (`install-links=true`) has `resolved: file:<directory>` and no `link`.
-const COPY_PREFIX = 'file:';
 
 /** The polyspec packages taken from a GitHub tag, from `taggedNpmPackages` of the policy: { directory, repository, tag, version }. */
 const taggedPackages = (policy: DependencyPolicy) => policy.taggedNpmPackages ?? [];
@@ -284,13 +282,10 @@ export function readState(root: string, policy: DependencyPolicy) {
       for (const kind of ['dependencies', 'devDependencies'] as const) {
         for (const [name, spec] of Object.entries(manifest[kind] ?? {})) {
           const entry = npmLockEntry(lock, directory, name);
-          const copied = !entry?.link && entry?.resolved?.startsWith(COPY_PREFIX);
-          if (LOCAL_SPEC.test(spec) || entry?.link || copied) {
-            // copied holds only for an entry with a resolved path.
-            const target = entry?.link ? entry.resolved : copied ? entry!.resolved!.slice(COPY_PREFIX.length) : null;
+          if (LOCAL_SPEC.test(spec) || entry?.link) {
+            const target = entry?.link ? entry.resolved : null;
             const packageDirectory = target ? path.posix.join(base, target) : null;
-            // copied holds only for an entry.
-            const lockVersion = copied ? entry!.version ?? null : target ? lock.packages?.[target]?.version ?? null : null;
+            const lockVersion = target ? lock.packages?.[target]?.version ?? null : null;
             const targetManifest: NpmManifest | null = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) : null;
             const item: NpmLocalPackage = {
               ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, base, lock: lockPath, directory: packageDirectory,
