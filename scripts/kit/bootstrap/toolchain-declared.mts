@@ -8,22 +8,17 @@
 //   pythonBackend config/toolchain.json pythonBackend: the requirement name==version of the build backend of the Python wheels and its sha256
 //   composer     config/toolchain.json composer
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
-//   phpLint      config/php-lint/composer.lock: the PHP lint of kit, whose release is the sha256 of the lock
-//   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
-//   vulture      config/toolchain.json vulture: the release as PyPI names it and the sha256 of its one pure-Python wheel
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
-//   golangciLint config/toolchain.json golangciLint: the exact version and the sha256 of the release archive of each platform
-//   deadcode     config/toolchain.json deadcode: the release of golang.org/x/tools whose deadcode go install builds
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
 //   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
-// Go and Rust are read by toolchain-files.mts with the tools of their ecosystems, after the bootstrap.
+// Go and Rust are read by toolchain-files.mts with the tools of their ecosystems, and the lint tools (ruff, vulture,
+// golangci-lint, deadcode, the PHP lint) by toolchain-lint.mts, after the bootstrap.
 // A tool is declared when its file exists (node) or its config key is present; an undeclared tool is absent from the
 // result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileDigest } from './digest.mts';
 
 /** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
 export type InstalledExtractor = 'go' | 'php';
@@ -47,15 +42,10 @@ export type DeclaredToolchain = {
   python?: { minor: string; source: string };
   uv?: PlatformRelease;
   alint?: PlatformRelease;
-  golangciLint?: PlatformRelease;
-  deadcode?: Declared;
   pythonBuild?: Declared;
   pythonBackend?: { requirement: string; sha256: string; source: string };
   composer?: Declared & { sha256: unknown };
-  ruff?: PlatformRelease;
-  vulture?: Declared & { sha256: string };
   phpunit?: Declared & { manifest: string };
-  phpLint?: { lock: string; manifest: string; source: string };
   cargoAudit?: Declared;
   govulncheck?: Declared;
   symbolExtractors?: { extractors: InstalledExtractor[]; source: string };
@@ -104,31 +94,21 @@ function pythonBuild(value: unknown, minor: string | undefined, uv: PlatformRele
   return { version, source: file };
 }
 
-// The release of a tool that is downloaded per platform: its exact version and the sha256 of the `file` of each platform key,
-// each read as 64 hexadecimal digits. uv, alint and golangci-lint install from their release archive, ruff from its wheel, which
-// install-tools installs into a virtual environment.
-function platformRelease(key: 'uv' | 'alint' | 'golangciLint' | 'ruff', file: 'archive' | 'wheel', value: unknown): PlatformRelease {
-  const source = `config/toolchain.json ${key}`;
+/**
+ * The release of a tool of config/toolchain.json `key` that is installed from a file of each platform, its archive or its
+ * wheel (`kind`): its exact version and the sha256 of the file of each platform key, each read as 64 hexadecimal digits.
+ */
+export function platformRelease(key: string, kind: 'archive' | 'wheel', value: unknown): PlatformRelease {
+  const file = `config/toolchain.json ${key}`;
   const version = field(value, 'version');
-  if (!matches(EXACT, version)) throw new Error(`${source} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
+  if (!matches(EXACT, version)) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
   // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
   const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
-  if (Object.keys(digests).length === 0) throw new Error(`${source} must record the sha256 of the ${key} ${file} of each platform, for example linux-x64; it records none`);
+  if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} ${kind} of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
-    if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${source} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+    if (!matches(/^[0-9a-f]{64}$/, digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
-  return { version, sha256: digests, source };
-}
-
-// The vulture release: the release as PyPI names it (vulture names its releases <major>.<minor>) and the sha256 of its one
-// wheel, which is pure Python (py3-none-any).
-function vulture(value: unknown): Declared & { sha256: string } {
-  const file = 'config/toolchain.json vulture';
-  const version = field(value, 'version');
-  const sha256 = field(value, 'sha256');
-  if (!matches(/^\d+(\.\d+)+$/, version)) throw new Error(`${file} must record version as the PyPI release, for example 2.16; it records ${JSON.stringify(version)}`);
-  if (!matches(/^[0-9a-f]{64}$/, sha256)) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(sha256)}`);
-  return { version, sha256, source: file };
+  return { version, sha256: digests, source: file };
 }
 
 // The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
@@ -183,7 +163,6 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   }
   if (config.uv) declared.uv = platformRelease('uv', 'archive', config.uv);
   if (config.alint) declared.alint = platformRelease('alint', 'archive', config.alint);
-  if (config.golangciLint) declared.golangciLint = platformRelease('golangciLint', 'archive', config.golangciLint);
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor, declared.uv);
   }
@@ -193,13 +172,8 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   if (config.composer) {
     declared.composer = { version: exact('config/toolchain.json', 'composer', field(config.composer, 'version')), sha256: field(config.composer, 'sha256'), source: 'config/toolchain.json composer' };
   }
-  if (config.ruff) declared.ruff = platformRelease('ruff', 'wheel', config.ruff);
-  if (config.vulture) declared.vulture = vulture(config.vulture);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
-  if (existsSync(path.join(root, 'config/php-lint/composer.lock'))) {
-    declared.phpLint = { lock: fileDigest(path.join(root, 'config/php-lint/composer.lock')), manifest: 'config/php-lint/composer.json', source: 'config/php-lint/composer.lock' };
-  }
-  for (const key of ['cargoAudit', 'govulncheck', 'deadcode'] as const) {
+  for (const key of ['cargoAudit', 'govulncheck'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
   if (config.symbolExtractors !== undefined) {

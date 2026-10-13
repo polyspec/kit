@@ -1,5 +1,5 @@
 // Tests of the toolchain configuration: the schema accepts each representative shape and names a wrong value, and
-// declaredToolchain reads every declaring file and fails with the file, the expected form and the actual value.
+// declaredToolchain reads every declaring file of the bootstrap (the lint tools: toolchain-lint.test.mts) and fails with the file, the expected form and the actual value.
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -11,8 +11,6 @@ import { FIXTURE_CONFIG, fixtureConfig, toolchainCheckout } from './toolchain-ch
 
 const SCHEMA = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema/toolchain.schema.json'), 'utf8'));
 const DIGEST = 'a'.repeat(128);
-// The ruff wheels of fixture config toolchain-full.json: their digests are the digests of PyPI for ruff 0.16.10.
-const RUFF_DIGESTS = { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a', 'darwin-arm64': '3031a4a2e8e7b8a46f70be45f198c35a11ece509a94b80334d8d397a33c67550' };
 
 test('the schema accepts every representative toolchain configuration', () => {
   const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
@@ -46,7 +44,6 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.14', source: 'config/toolchain.json python' },
     composer: { version: '2.10.3', sha256: undefined, source: 'config/toolchain.json composer' },
-    ruff: { version: '0.16.10', sha256: RUFF_DIGESTS, source: 'config/toolchain.json ruff' },
     cargoAudit: { version: '0.22.2', source: 'config/toolchain.json cargoAudit' },
     govulncheck: { version: '1.1.4', source: 'config/toolchain.json govulncheck' },
   });
@@ -68,11 +65,8 @@ test('a declaration that is malformed or contradicts another fails with the file
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
     [{ 'config/toolchain.json': '{ "schema": 1, "python": "3.14" }', '.python-version': '3.13\n' }, /\.python-version declares 3\.13, but config\/toolchain\.json python declares 3\.14/],
     [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "ruff": { "version": "0.16", "sha256": {} } }' }, /config\/toolchain\.json ruff must record version as <major>\.<minor>\.<patch>; it records "0\.16"/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "ruff": { "version": "0.16.10", "sha256": {} } }' }, /config\/toolchain\.json ruff must record the sha256 of the ruff wheel of each platform, for example linux-x64; it records none/],
     [{ 'config/toolchain.json': '{ "schema": 1, "uv": { "version": "0.12", "sha256": {} } }' }, /config\/toolchain\.json uv must record version as <major>\.<minor>\.<patch>; it records "0\.12"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "uv": { "version": "0.12.24", "sha256": {} } }' }, /config\/toolchain\.json uv must record the sha256 of the uv archive of each platform, for example linux-x64; it records none/],
-    [{ 'config/toolchain.json': `{ "schema": 1, "ruff": { "version": "0.16.10", "sha256": { "linux-x64": "${'a'.repeat(63)}" } } }` }, /config\/toolchain\.json ruff must record the sha256 of linux-x64 as 64 lowercase hexadecimal digits/],
     // A version is text: a JSON number or a list whose text matches is refused (K98).
     [{ 'package.json': '{ "packageManager": ["npm@12.2.0"] }' }, /package\.json packageManager is \["npm@12\.2\.0"\], expected npm@/],
     [{ 'config/toolchain.json': '{ "schema": 1, "python": 3.14 }' }, /config\/toolchain\.json must record python as <major>\.<minor>; it records 3\.14/],
@@ -86,7 +80,6 @@ test('uv is declared by its exact version and the sha256 of its archive of each 
   const digest = 'b'.repeat(64);
   const root = toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, uv: { version: '0.12.11', sha256: { 'linux-x64': digest } } }) });
   assert.deepEqual(declaredToolchain(root).uv, { version: '0.12.11', sha256: { 'linux-x64': digest }, source: 'config/toolchain.json uv' });
-  assert.equal(declaredToolchain(root).ruff, undefined, 'ruff is not declared by uv');
 });
 
 test('declaredToolchain reads the symbol extractors that install-tools builds, and names a list of unknown ones (K75)', (t) => {
