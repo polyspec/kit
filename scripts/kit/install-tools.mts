@@ -10,6 +10,7 @@
 // declarations are read by toolchain-declared.mts, and Go by toolchain-files.mts with the go command of the machine. Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust and PHP
 // are verified by check-toolchain.mts, not installed. The command prints a line for each step and has no time limit.
+import path from 'node:path';
 import { installAlint } from './install-alint.mts';
 import { installCargoAudit } from './install-cargo-audit.mts';
 import { installComposer } from './install-composer.mts';
@@ -21,8 +22,9 @@ import { installPython } from './install-python.mts';
 import { installBackend } from './release-backend.mts';
 import { installRuff } from './install-ruff.mts';
 import { installUv } from './install-uv.mts';
-import { declaredToolchain, toolchainConfig } from './bootstrap/toolchain-declared.mts';
-import { declaredGo } from './toolchain-files.mts';
+import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
+import { GO_ARCHIVES, PINS } from './toolchain-pins.mts';
+import { checkedFiles } from './tracked-files.mts';
 import type { DeclaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
@@ -35,7 +37,7 @@ const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer',
 export function installTools({ root = ROOT, tools = null, print = () => {} }: { root?: string; tools?: string[] | null; print?: (text: string) => void } = {}): string[] {
   const declared: DeclaredToolchain = declaredToolchain(root);
   const present: Record<string, unknown> = {
-    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: toolchainConfig(root).go, ruff: declared.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint,
+    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: checkedFiles(root).some(file => path.posix.basename(file) === 'go.mod'), ruff: declared.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint,
   };
   for (const name of tools ?? []) {
     if (!TOOLS.includes(name)) throw new Error(`unknown tool ${name}; the tools are ${TOOLS.join(', ')}`);
@@ -48,9 +50,8 @@ export function installTools({ root = ROOT, tools = null, print = () => {} }: { 
   const { npm, uv, pythonBuild, pythonBackend, ruff, composer, phpunit, cargoAudit, govulncheck, alint } = declared;
   if (npm && wanted('npm')) step('npm', () => installNpm({ root, declared: npm, print }));
   if (wanted('go')) {
-    // The Go of the machine reads the go.mod, the same Go that downloads the declared toolchain; wanted holds the declaration.
-    const go = declaredGo(root, { ...process.env, GOTOOLCHAIN: 'local' })!;
-    step('go', () => installGo({ root, declared: go, print }));
+    // A checkout that holds a go.mod needs Go: the release of the kit pin, which toolchain-check compares with the go.mod.
+    step('go', () => installGo({ root, version: PINS.go, sha256: GO_ARCHIVES, print }));
   }
   if (uv && wanted('uv')) step('uv', () => installUv({ root, declared: uv, print }));
   if (pythonBuild && wanted('python')) step('python', () => installPython({ root, declared: pythonBuild, print }));

@@ -68,7 +68,7 @@ would walk it whatever the working directory.
 |---|---|---|
 | Node.js | `.node-version` (exact) | verify |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
-| Go | `config/toolchain.json` `go`: the `go` line of the named `go.mod` (exact), read by `go mod edit -json` (K78) | install |
+| Go | the kit pin of `scripts/kit/toolchain-pins.json`, with the sha256 of each platform's archive; the `go` line of the `go.mod` that `config/toolchain.json` `go` names must equal it, read by `go mod edit -json` (K78) | install the pin |
 | Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
@@ -120,10 +120,11 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
   second path when `packageManager` carries a digest. The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
   `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap npm runs without `var/tools/bin` on `PATH` (template).
-- Go: the download of the toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>` (template) reads the
-  release from the `go` line of the declared `go.mod` (K78; the version file of crudui and orm and the `toolchain` line of
-  ordered-json are no longer declarations). The downloaded zip in the module cache is removed after the install, because
-  only the unpacked toolchain is used.
+- Go: a checkout that tracks a `go.mod` gets the Go of the kit pin (`scripts/kit/toolchain-pins.json` `go`), downloaded as the
+  archive `go<version>.<os>-<arch>.tar.gz` of the Go downloads and refused unless its sha256 is the one that
+  `toolchain-pins.json` `goArchives` pins for the platform (install-archive.mts, as uv and alint). No Go of the machine takes
+  part, so a checkout without Go installs one; toolchain-check then compares the `go` line of each `go.mod` with the pin
+  through `go mod edit -json` (K78). The download of the toolchain module through the machine's Go is gone.
 - Composer: hyper installs `composer.phar` verified by its SHA-256; template, crudui and orm only verify the running
   Composer. The merged tool installs when `sha256` is declared and verifies otherwise.
 - Python: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`. The

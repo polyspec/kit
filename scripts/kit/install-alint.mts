@@ -4,7 +4,7 @@
 // unless its sha256 is the digest that the declaration gives for the platform, and it is unpacked as it is. An installed
 // release is kept. The alint of the machine is never used.
 import path from 'node:path';
-import { quote, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { printedRelease, quote, wrapperText } from './bootstrap/tool-wrappers.mts';
 import { installArchive } from './install-archive.mts';
 
 // The target of the alint archive of each platform key (process.platform-process.arch) that the declaration may name. The
@@ -24,11 +24,12 @@ export const alintArchiveUrl = (version: string, target: string): string => `htt
 
 /** Installs the declared alint `{ version, sha256 }` (sha256 by platform key) into var/tools/alint of `root` and writes the wrapper. */
 export function installAlint({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, unknown>> }; platform?: string; print?: (text: string) => void }) {
+  const binary = (directory: string, target: string) => path.join(directory, alintArchive(declared.version, target), 'alint');
   return installArchive({
-    tool: 'alint', root, declared, platform, targets: ALINT_TARGETS, print,
+    tool: 'alint', source: 'config/toolchain.json alint', root, declared, platform, targets: ALINT_TARGETS, print,
     archive: target => alintArchive(declared.version, target),
     url: target => alintArchiveUrl(declared.version, target),
-    binary: (directory, target) => path.join(directory, alintArchive(declared.version, target), 'alint'),
-    wrapper: binary => wrapperText(`alint ${declared.version} of this checkout`, `exec ${quote(binary)} "$@"`),
+    release: (directory, target) => printedRelease(binary(directory, target), 'alint'),
+    wrappers: (directory, target) => ({ alint: wrapperText(`alint ${declared.version} of this checkout`, `exec ${quote(binary(directory, target))} "$@"`) }),
   });
 }

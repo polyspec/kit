@@ -5,7 +5,7 @@
 // download a Python only by `uv python install` (UV_PYTHON_DOWNLOADS=manual). An installed release is kept. The uv of the
 // machine is never used.
 import path from 'node:path';
-import { quote, toolsPath, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { printedRelease, quote, toolsPath, wrapperText } from './bootstrap/tool-wrappers.mts';
 import { installArchive } from './install-archive.mts';
 
 // The target of the uv archive of each platform key (process.platform-process.arch) that the declaration may name.
@@ -34,11 +34,12 @@ function uvWrapper(root: string, binary: string, version: string) {
 
 /** Installs the declared uv `{ version, sha256 }` (sha256 by platform key) into var/tools/uv of `root` and writes the wrapper. */
 export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, unknown>> }; platform?: string; print?: (text: string) => void }) {
+  const binary = (directory: string, target: string) => path.join(directory, `uv-${target}`, 'uv');
   return installArchive({
-    tool: 'uv', root, declared, platform, targets: UV_TARGETS, print,
+    tool: 'uv', source: 'config/toolchain.json uv', root, declared, platform, targets: UV_TARGETS, print,
     archive: target => `uv-${target}`,
     url: target => uvArchiveUrl(declared.version, target),
-    binary: (directory, target) => path.join(directory, `uv-${target}`, 'uv'),
-    wrapper: binary => uvWrapper(root, binary, declared.version),
+    release: (directory, target) => printedRelease(binary(directory, target), 'uv'),
+    wrappers: (directory, target) => ({ uv: uvWrapper(root, binary(directory, target), declared.version) }),
   });
 }

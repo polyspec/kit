@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 45812a9e8473c1396e0d626c39ed19f9481c134b079de21046194bc1da3238cf -->
+<!-- source-sha256: c0b7db48324cf2d299df7697604174b25ecb82074c980ce20c8e3e8f6cc32f1c -->
 
 # 도구 목록
 
@@ -67,7 +67,7 @@
 |---|---|---|
 | Node.js | `.node-version`(정확한 version) | 검증 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
-| Go | `config/toolchain.json`의 `go`: 지정한 `go.mod`의 `go` 줄(정확한 version), `go mod edit -json`으로 읽음(K78) | 설치 |
+| Go | `scripts/kit/toolchain-pins.json`의 kit pin과 platform별 archive의 sha256; `config/toolchain.json`의 `go`가 지정한 `go.mod`의 `go` 줄은 그와 같아야 하며 `go mod edit -json`으로 읽음(K78) | pin 설치 |
 | Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
 | Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
@@ -116,9 +116,11 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
   배치는 `var/tools/npm/node_modules/npm`이고, wrapper `npm`과 `npx`가 `npm-cli.js`와 `npx-cli.js`를 실행합니다. 같은
   version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap npm은
   `PATH`에서 `var/tools/bin`을 뺀 채 실행합니다(template).
-- Go: toolchain module `golang.org/toolchain@v0.0.1-go<version>.<os>-<arch>`을 받는 template의 설치는 선언한 `go.mod`의
-  `go` 줄에서 release를 읽습니다(K78; crudui와 orm의 version 파일과 ordered-json의 `toolchain` 줄은 더 이상 선언이 아닙니다).
-  압축을 푼 toolchain만 쓰므로 module cache에 받은 zip은 설치 뒤 지웁니다.
+- Go: `go.mod`를 추적하는 checkout은 kit pin(`scripts/kit/toolchain-pins.json`의 `go`)의 Go를 받습니다. Go 내려받기의
+  archive `go<version>.<os>-<arch>.tar.gz`를 받고, sha256이 `toolchain-pins.json`의 `goArchives`가 그 platform에 고정한
+  값이 아니면 거부합니다(install-archive.mts, uv와 alint처럼). 기계의 Go는 관여하지 않으므로 Go가 없는 checkout에도
+  설치됩니다. 그 뒤 toolchain-check가 `go mod edit -json`으로 각 `go.mod`의 `go` 줄을 pin과 비교합니다(K78). 기계의 Go로
+  toolchain module을 받던 방식은 없어졌습니다.
 - Composer: hyper는 SHA-256을 확인한 `composer.phar`를 설치하고, template, crudui, orm은 실행 중인 Composer만 검증합니다.
   합친 도구는 `sha256`이 선언되면 설치하고 아니면 검증합니다.
 - Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
