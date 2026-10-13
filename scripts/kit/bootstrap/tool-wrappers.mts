@@ -3,7 +3,7 @@
 // absolute path; there is no symbolic link.
 import { execFileSync, spawnSync } from 'node:child_process';
 import type { SpawnSyncOptions } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { writeAtomic } from './files.mts';
 
@@ -43,10 +43,17 @@ export const RELEASE_OUTPUT = {
   govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },
 };
 
-/** The release that `command` prints for `tool` of RELEASE_OUTPUT, or undefined when the command does not exist. */
+/**
+ * The release that `command` prints for `tool` of RELEASE_OUTPUT, or undefined when the command does not exist (ENOENT). Another
+ * error of the file, a failed command and an output without the release throw.
+ */
 export function printedRelease(command: string, tool: keyof typeof RELEASE_OUTPUT): string | undefined {
   const { args, pattern } = RELEASE_OUTPUT[tool];
-  return existsSync(command) ? pattern.exec(execFileSync(command, args, { encoding: 'utf8' }))?.[1] : undefined;
+  if (!statSync(command, { throwIfNoEntry: false })) return undefined;
+  const output = execFileSync(command, args, { encoding: 'utf8' });
+  const release = pattern.exec(output)?.[1];
+  if (release === undefined) throw new Error(`${command} ${args.join(' ')} printed no release: ${JSON.stringify(output.trim())}`);
+  return release;
 }
 
 /** `text` quoted for sh. */
