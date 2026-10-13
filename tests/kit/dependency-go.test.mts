@@ -32,9 +32,13 @@ const REPORT = {
   }],
 };
 
-test('go.mod requirements are the direct modules that the checkout does not replace', () => {
-  const text = 'module x\n\ngo 1.21\n\nrequire (\n\tgithub.com/a/b v1.2.3\n\tgithub.com/c/d v0.1.0 // indirect\n\texample.com/local v0.0.0\n)\nrequire github.com/e/f v2.0.0+incompatible\nreplace example.com/local => ../local\n';
-  assert.deepEqual(goRequirements(text), [{ module: 'github.com/a/b', version: 'v1.2.3' }, { module: 'github.com/e/f', version: 'v2.0.0+incompatible' }]);
+test('go.mod requirements are the direct modules that the checkout does not replace, as go mod edit -json reads them', (t) => {
+  // A quoted module path is the path, and a replace block names a directory replacement as a replace line does.
+  const text = 'module x\n\ngo 1.21\n\nrequire (\n\t"github.com/a/b" v1.2.3\n\tgithub.com/c/d v0.1.0 // indirect\n\texample.com/local v0.0.0\n)\nrequire github.com/e/f v2.0.0+incompatible\nreplace (\n\texample.com/local => ./local\n)\n';
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-go-requirements-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(path.join(root, 'go.mod'), text);
+  assert.deepEqual(goRequirements(root, 'go.mod'), [{ module: 'github.com/a/b', version: 'v1.2.3' }, { module: 'github.com/e/f', version: 'v2.0.0+incompatible' }]);
 });
 
 test('the SARIF report of govulncheck gives an advisory for each vulnerability that the code calls, once per module (K124)', () => {

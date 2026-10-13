@@ -1,4 +1,4 @@
-// Stub registries for the tests of the dependency tools: `npm`, `composer` and `curl` on PATH answer from a JSON file
+// Stub registries for the tests of the dependency tools: `npm`, `composer`, `curl` and `go` on PATH answer from a JSON file
 // (`registry.json` of the directory), so a test or the record of a fixture needs no network. The stubs log their calls.
 // The real composer is found before the test runs and used for the commands that the stub does not answer.
 import { spawnSync } from 'node:child_process';
@@ -84,9 +84,14 @@ if (version === undefined) console.log(JSON.stringify({ info: { version: Object.
 else console.log(JSON.stringify({ info: { version }, vulnerabilities: registry.pypiVulnerabilities?.[name]?.[version] ?? [] }));
 `;
 
+// go mod edit reads a go.mod and queries nothing: the real go runs it, unlogged, as the real composer runs composer validate.
 const GO_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
 const args = process.argv.slice(2);
+if (args[0] === 'mod' && args[1] === 'edit') {
+  if (!process.env.REAL_GO) { console.error('go is not installed; the stub cannot forward \`go ' + args.join(' ') + '\`'); process.exit(1); }
+  process.exit(require('node:child_process').spawnSync(process.env.REAL_GO, args, { stdio: 'inherit' }).status ?? 1);
+}
 appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
 if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
@@ -124,6 +129,8 @@ export function stubRegistries(t: Pick<TestContext, 'after'>) {
   // Without a composer on PATH the environment names none: a null value would reach the stub as the text "null".
   const composer = realCommand('composer');
   if (composer !== null) env.REAL_COMPOSER = composer;
+  const go = realCommand('go');
+  if (go !== null) env.REAL_GO = go;
   return {
     env,
     calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
