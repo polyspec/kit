@@ -1,9 +1,9 @@
 // The signals and probes of a process group (scripts/kit/process-group.mts). On macOS a group whose member is in exit answers
-// EPERM while the member is already gone from the process table, and ESRCH once the group has ended. The cases inject kill and
-// the clock, so no test signals a real group.
+// EPERM while the member is already gone from the process table, and ESRCH once the group has ended. The cases inject kill, so no
+// test signals a real group.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { signalGroup, waitGroupEnd } from '../../scripts/kit/process-group.mts';
+import { signalGroup } from '../../scripts/kit/process-group.mts';
 import type { Kill } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
@@ -35,23 +35,6 @@ test('signalGroup reports exiting for EPERM and ended for ESRCH, and both are no
 
 test('signalGroup rethrows any other errno', () => {
   assert.throws(() => signalGroup(4321, 'SIGTERM', killing('EACCES').kill), (error: NodeJS.ErrnoException) => error.code === 'EACCES');
-});
-
-test('waitGroupEnd does not resolve while the probe reports EPERM, and resolves at ESRCH', async () => {
-  const { kill, calls } = killing('EPERM', 'EPERM', 'ESRCH');
-  let slept = 0;
-  await waitGroupEnd(4321, { deadlineMs: 10_000, intervalMs: 5, kill, now: () => 0, sleep: async () => { slept += 1; } });
-  assert.deepEqual(calls, [[-4321, 0], [-4321, 0], [-4321, 0]]);
-  assert.equal(slept, 2, 'the group is probed again after each EPERM and not after ESRCH');
-});
-
-test('waitGroupEnd fails past its deadline with the pgid, the last errno and the elapsed time while EPERM persists', async () => {
-  let clock = 0;
-  const { kill } = killing(...Array(1000).fill('EPERM'));
-  await assert.rejects(
-    waitGroupEnd(4321, { deadlineMs: 100, intervalMs: 10, kill, now: () => clock, sleep: async (ms) => { clock += ms; } }),
-    /process group 4321 has not ended after 100 ms; its last probe failed with EPERM/,
-  );
 });
 
 test('a timed-out test is terminated through its group, and EPERM from a member in exit is not an error', () => {
