@@ -22,8 +22,11 @@ import { isMain, ROOT } from './paths.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;
 
+/** The part of the release context of release.mts context() that fetchBackend reads: buildBackend of config/release.json. */
+type BackendContext = { root: string; env: NodeJS.ProcessEnv; config: { buildBackend?: { requirement: string; sha256: string } } };
+
 // The wheels of `name==version` in `directory`: every file of that distribution and release whose name ends in .whl.
-const wheelsOf = (directory, name, version) => (existsSync(directory) ? readdirSync(directory) : [])
+const wheelsOf = (directory: string, name: string, version: string) => (existsSync(directory) ? readdirSync(directory) : [])
   .filter(file => file.startsWith(`${name}-${version}-`) && file.endsWith('.whl'))
   .map(file => path.join(directory, file));
 
@@ -34,12 +37,13 @@ const wheelsOf = (directory, name, version) => (existsSync(directory) ? readdirS
  * listed. The digest of the file is checked again after the download, and a file that differs is removed. A wheel that already
  * has a listed digest is kept, so a second run changes nothing. Returns { installed, file }.
  */
-export function installBackend({ root, env, requirement, digests, source, print = () => {} }) {
+export function installBackend({ root, env, requirement, digests, source, print = () => {} }: { root: string; env: NodeJS.ProcessEnv; requirement: string; digests: unknown[]; source: string; print?: (text: string) => void }) {
   const python = toolsPath(root, 'bin', 'python3');
   if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
   const found = REQUIREMENT.exec(requirement);
   if (!found) throw new Stop(`${source} must record requirement as name==version; it records ${JSON.stringify(requirement)}`);
-  const [, name, version] = found;
+  // Both groups of REQUIREMENT are required, so a match holds them.
+  const [, name, version] = found as RegExpExecArray & [string, string, string];
   const directory = toolsPath(root, BACKEND_DIRECTORY);
   const kept = wheelsOf(directory, name, version).find(file => digests.includes(fileDigest(file)));
   if (kept) {
@@ -71,7 +75,7 @@ export function installBackend({ root, env, requirement, digests, source, print 
 }
 
 /** Downloads the buildBackend of `ctx.config` (config/release.json) and returns the file; a digest that differs fails. */
-export function fetchBackend(ctx, print = () => {}) {
+export function fetchBackend(ctx: BackendContext, print: (text: string) => void = () => {}) {
   if (!ctx.config.buildBackend) throw new Stop('config/release.json declares no buildBackend; no wheel package needs a build backend');
   const { requirement, sha256 } = ctx.config.buildBackend;
   return installBackend({ root: ctx.root, env: ctx.env, requirement, digests: [sha256], source: 'config/release.json buildBackend', print }).file;

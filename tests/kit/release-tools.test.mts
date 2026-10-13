@@ -7,17 +7,17 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { prepareRust, toolsFor } from '../../scripts/kit/release-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture/config/release.json');
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 
 // A checkout with rust-toolchain.toml (when `channel` is given) and stubs of rustup and rustc on PATH. Each rustup call is
 // appended to rustup.log with its arguments and working directory; rustc prints the release of the channel.
-function rustCheckout(t, { channel = '1.99.0', rustupStatus = 0 } = {}) {
+function rustCheckout(t: TestContext, { channel = '1.99.0', rustupStatus = 0 }: { channel?: string | null; rustupStatus?: number } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'release-tools-rust-'));
   const bin = path.join(root, '.stubs');
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -36,9 +36,9 @@ function rustCheckout(t, { channel = '1.99.0', rustupStatus = 0 } = {}) {
 
 // The lines that prepareRust printed, the lines of the errors it wrote, and the stdout of the checks it ran.
 function capture() {
-  const out = [];
-  const err = [];
-  return { out, err, print: line => out.push(line), error: line => err.push(line) };
+  const out: string[] = [];
+  const err: string[] = [];
+  return { out, err, print: (line: string) => out.push(line), error: (line: string) => err.push(line) };
 }
 
 test('release-tools derives the install-tools names of the fixture configuration and asks for the Rust toolchain of a git-tag proof', () => {

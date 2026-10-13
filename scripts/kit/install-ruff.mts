@@ -6,17 +6,18 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './install-tool.mts';
+import type { PlatformRelease } from './toolchain-declared.mts';
 import { installBackend } from './release-backend.mts';
 import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 
 /** Installs the declared ruff `{ version, sha256, source }` into var/tools/python of `root` and writes the wrapper. */
-export function installRuff({ root, declared, print = () => {} }) {
+export function installRuff({ root, declared, print = () => {} }: { root: string; declared: PlatformRelease; print?: (text: string) => void }) {
   const python = toolsPath(root, 'bin', 'python3');
   if (!existsSync(python)) throw new Error(`ruff needs ${path.relative(root, python)}, the Python that config/toolchain.json pythonBuild declares; declare pythonBuild and run make install-tools TOOLS=python`);
   const prefix = toolsPath(root, 'python');
   const result = installOnce({
-    root, label: 'ruff', prefix, recorded: declared.version, installedRelease: prefix => printedRelease(path.join(prefix, 'bin/ruff'), 'ruff'), print,
-    install: (next) => {
+    root, label: 'ruff', prefix, recorded: declared.version, installedRelease: (prefix: string) => printedRelease(path.join(prefix, 'bin/ruff'), 'ruff'), print,
+    install: (next: string) => {
       const environment = bootstrapEnvironment(root);
       const { file } = installBackend({ root, env: environment, requirement: `ruff==${declared.version}`, digests: Object.values(declared.sha256), source: declared.source, print });
       const uv = toolsPath(root, 'bin', 'uv');

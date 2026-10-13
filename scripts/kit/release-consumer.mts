@@ -36,7 +36,7 @@ import { toolsPath } from './tool-wrappers.mts';
 import { makeVenv } from './python-venv.mts';
 import { readJson, writeAtomic } from './files.mts';
 import { run, Stop } from './process.mts';
-import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
+import { CONSUMER_KINDS, WHEEL_KIND, type ReleasePackage } from './release-consumer-config.mts';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
 export const UNREACHABLE = 'http://127.0.0.1:9/';
@@ -47,15 +47,56 @@ const FILES = { npm: { manifest: 'package.json', lock: 'package-lock.json', exte
 // paths that redirect Composer away from the project.
 const INHERITED = ['npm_config_offline', 'COMPOSER_DISABLE_NETWORK', 'COMPOSER', 'COMPOSER_VENDOR_DIR'];
 
-const json = (value, indent) => `${JSON.stringify(value, null, indent)}\n`;
+/** A package kind with a committed consumer project: the keys of CONSUMER_KINDS (release-consumer-config.mts). */
+export type ConsumerKind = keyof typeof FILES;
+/** The consumer project of an archive kind (config/release.json consumers.npm or consumers.composer). */
+export type Consumer = { directory: string; smoke: Record<string, string[]> };
+/** The consumer of the wheels (config/release.json consumers.wheel). */
+export type WheelConsumer = { smoke: Record<string, string[]>; lock: Record<string, string>; polyspec: Record<string, string> };
+/**
+ * config/release.json as release.mts loadConfig returns it (schema scripts/kit/schema/release.schema.json), in the sections
+ * that the release consumer and the release proof read.
+ */
+export type ReleaseConfig = {
+  repositoryUrl: string;
+  packages: ReleasePackage[];
+  manifests: Record<string, string>;
+  goModules: Record<string, string>;
+  consumers?: { npm?: Consumer; composer?: Consumer; wheel?: WheelConsumer };
+  proof?: { gitTag?: Record<string, { kind: string; name: string; smoke: string[] }> };
+};
+/** The release context of release.mts context(). */
+export type ReleaseContext = { root: string; config: ReleaseConfig; env: NodeJS.ProcessEnv };
+/** An installed package of a consumer project and the name of its archive. */
+type ArchivePackage = { name: string; file: string };
+/** An entry of composer.lock packages or of vendor/composer/installed.json. */
+type ComposerEntry = { name: string; version?: string; dist?: { url?: string; shasum?: string } };
+
+/**
+ * The smoke command of the package `name`, its program first; release-consumer-config.mts requires a non-empty command for
+ * each installed package.
+ */
+function smokeOf(smoke: Record<string, string[]>, name: string, where: string): [string, ...string[]] {
+  const command = smoke[name];
+  if (command === undefined) throw new Error(`config/release.json: ${where}.smoke.${name} is missing`);
+  const [program, ...args] = command;
+  if (program === undefined) throw new Error(`config/release.json: ${where}.smoke.${name} is an empty command`);
+  return [program, ...args];
+}
+
+const json = (value: unknown, indent: number) => `${JSON.stringify(value, null, indent)}\n`;
 /** The package kinds with a committed consumer project, each with its packages: [[kind, consumer, [{ name, file }]]]. */
-function plan(config, version) {
-  if (!config.consumers) throw new Stop('config/release.json has no consumers section; it declares the consumer projects that install the archives');
-  return CONSUMER_KINDS.filter(kind => config.consumers[kind]).map(kind => [kind, config.consumers[kind], Object.keys(config.consumers[kind].smoke).map(name => ({ name, file: archiveName(kind, name, version) }))]);
+function plan(config: ReleaseConfig, version: string): [ConsumerKind, Consumer, ArchivePackage[]][] {
+  const { consumers } = config;
+  if (!consumers) throw new Stop('config/release.json has no consumers section; it declares the consumer projects that install the archives');
+  return CONSUMER_KINDS.flatMap((kind) => {
+    const consumer = consumers[kind];
+    return consumer ? [[kind, consumer, Object.keys(consumer.smoke).map(name => ({ name, file: archiveName(kind, name, version) }))]] : [];
+  });
 }
 
 /** Requires `directory` to hold exactly the archives of `version`; the names of the archives. */
-export function requireArchives(config, version, directory, where) {
+export function requireArchives(config: ReleaseConfig, version: string, directory: string, where: string) {
   const expected = [...assetNames(config, version)].sort();
   const actual = existsSync(directory) ? readdirSync(directory).sort() : [];
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -65,16 +106,16 @@ export function requireArchives(config, version, directory, where) {
 }
 
 /** The environment of a project command: no offline setting, and caches and homes that are empty directories of the run. */
-function environment(env, folder) {
+function environment(env: NodeJS.ProcessEnv, folder: string) {
   const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !INHERITED.includes(name)));
   return { ...clean, npm_config_cache: path.join(folder, 'npm-cache'), COMPOSER_HOME: path.join(folder, 'composer-home'), COMPOSER_CACHE_DIR: path.join(folder, 'composer-cache'), PIP_CACHE_DIR: path.join(folder, 'pip-cache') };
 }
 
 /** The scopes of the npm packages of this repository, each pointed at the unreachable registry. */
-const registryArguments = config => [...new Set(config.packages.filter(item => item.kind === 'npm' && item.name.startsWith('@')).map(({ name }) => name.slice(0, name.indexOf('/'))))].sort().map(scope => `--${scope}:registry=${UNREACHABLE}`);
+const registryArguments = (config: ReleaseConfig) => [...new Set(config.packages.filter(item => item.kind === 'npm' && item.name.startsWith('@')).map(({ name }) => name.slice(0, name.indexOf('/'))))].sort().map(scope => `--${scope}:registry=${UNREACHABLE}`);
 
 /** A new temporary directory outside the repository. */
-function outside(ctx) {
+function outside(ctx: ReleaseContext) {
   const folder = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-release-consumer-')));
   if (!path.relative(realpathSync(ctx.root), folder).startsWith('..')) {
     rmSync(folder, { recursive: true, force: true });
@@ -84,20 +125,20 @@ function outside(ctx) {
 }
 
 /** The manifest of a consumer project with each installed package set to its archive (npm) or to the version (Composer). */
-function manifestFor(ctx, kind, consumer, packages, version) {
+function manifestFor(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer, packages: ArchivePackage[], version: string) {
   const file = path.join(ctx.root, consumer.directory, FILES[kind].manifest);
   if (!existsSync(file)) throw new Stop(`${consumer.directory}/${FILES[kind].manifest} is missing; commit the manifest of the ${kind} consumer project, with its name and ${kind === 'npm' ? '"private": true' : '"type": "project" and the artifact repository'}`);
   const manifest = readJson(file);
   const field = kind === 'npm' ? 'dependencies' : 'require';
-  const set = { ...manifest[field] };
+  const set: Record<string, string> = { ...manifest[field] };
   for (const { name, file: archive } of packages) set[name] = kind === 'npm' ? `file:${archive}` : version;
   return { ...manifest, [field]: set };
 }
 
 /** The consumer manifest and lock must name the archives of the tag; each difference names the expected and the actual value. */
-function staleProblems(ctx, kind, consumer, packages, version) {
+function staleProblems(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer, packages: ArchivePackage[], version: string) {
   const directory = consumer.directory;
-  const problems = [];
+  const problems: string[] = [];
   const manifestFile = `${directory}/${FILES[kind].manifest}`;
   const lockFile = `${directory}/${FILES[kind].lock}`;
   for (const file of [manifestFile, lockFile]) if (!existsSync(path.join(ctx.root, file))) problems.push(`${file} is missing`);
@@ -113,16 +154,16 @@ function staleProblems(ctx, kind, consumer, packages, version) {
     } else {
       const spec = manifest.require?.[name];
       if (spec !== version) problems.push(`${manifestFile}: require.${name} is ${JSON.stringify(spec ?? null)}, expected "${version}"`);
-      const entry = [...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])].find(item => item.name === name);
+      const entry = [...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])].find((item: ComposerEntry) => item.name === name);
       if (entry?.version !== version || entry?.dist?.url !== `${ARTIFACTS}/${file}`) problems.push(`${lockFile}: ${name} is ${entry ? `${entry.version} from ${entry.dist?.url}` : 'missing'}, expected ${version} from ${ARTIFACTS}/${file}`);
     }
   }
-  if (kind === 'composer' && !(manifest.repositories ?? []).some(item => item.type === 'artifact' && item.url === ARTIFACTS)) problems.push(`${manifestFile}: repositories lacks { "type": "artifact", "url": "${ARTIFACTS}" }`);
+  if (kind === 'composer' && !(manifest.repositories ?? []).some((item: { type?: string; url?: string }) => item.type === 'artifact' && item.url === ARTIFACTS)) problems.push(`${manifestFile}: repositories lacks { "type": "artifact", "url": "${ARTIFACTS}" }`);
   return problems;
 }
 
 /** A project of `kind` in `folder`: the archives of its kind, the manifest and, unless `lock`, the committed lock. */
-function stage(ctx, kind, folder, assets, manifest, committed) {
+function stage(ctx: ReleaseContext, kind: ConsumerKind, folder: string, assets: string, manifest: unknown, committed: Consumer | null) {
   const project = path.join(folder, kind);
   const archives = path.join(project, kind === 'npm' ? '' : ARTIFACTS);
   mkdirSync(archives, { recursive: true });
@@ -133,14 +174,14 @@ function stage(ctx, kind, folder, assets, manifest, committed) {
 }
 
 /** The installed version of a package in a project of `kind`, or null. */
-function installedVersion(kind, project, name) {
+function installedVersion(kind: ConsumerKind, project: string, name: string) {
   if (kind === 'npm') {
     const file = path.join(project, 'node_modules', name, 'package.json');
     return existsSync(file) ? readJson(file).version ?? null : null;
   }
   const file = path.join(project, 'vendor/composer/installed.json');
   const list = existsSync(file) ? readJson(file) : {};
-  return (Array.isArray(list) ? list : list.packages ?? []).find(item => item.name === name)?.version ?? null;
+  return (Array.isArray(list) ? list : list.packages ?? []).find((item: ComposerEntry) => item.name === name)?.version ?? null;
 }
 
 /**
@@ -148,7 +189,7 @@ function installedVersion(kind, project, name) {
  * `ctx.config.consumers` with the committed locks and runs the smoke command of each installed package in its project.
  * `step(text)` reports each completed step. Returns the number of installed packages.
  */
-export function installConsumers(ctx, version, directory, step = () => {}) {
+export function installConsumers(ctx: ReleaseContext, version: string, directory: string, step: (text: string) => void = () => {}) {
   const { config } = ctx;
   const relative = path.relative(ctx.root, directory);
   requireArchives(config, version, directory, relative.startsWith('..') ? directory : relative);
@@ -167,8 +208,8 @@ export function installConsumers(ctx, version, directory, step = () => {}) {
       for (const { name } of packages) {
         const actual = installedVersion(kind, project, name);
         if (actual !== version) throw new Stop(`${kind} installed ${name} ${actual ?? 'none'}, expected ${version}`);
-        run(consumer.smoke[name][0], consumer.smoke[name].slice(1), { cwd: project, env });
-        step(`${kind} ${name} ${version}: ${consumer.smoke[name].join(' ')}`);
+        run(smokeOf(consumer.smoke, name, `consumers.${kind}`)[0], smokeOf(consumer.smoke, name, `consumers.${kind}`).slice(1), { cwd: project, env });
+        step(`${kind} ${name} ${version}: ${smokeOf(consumer.smoke, name, `consumers.${kind}`).join(' ')}`);
         installed += 1;
       }
     }
@@ -186,7 +227,10 @@ export function installConsumers(ctx, version, directory, step = () => {}) {
  * named with the sha256 of its file. Each package must show `version`, its smoke command runs in the environment, and `pip check` must
  * pass in it. Returns the number of packages.
  */
-export function installWheelFiles({ root, env, folder, version, directory, names, smoke, requirements = '', step = () => {} }) {
+export function installWheelFiles({ root, env, folder, version, directory, names, smoke, requirements = '', step = () => {} }: {
+  root: string; env: NodeJS.ProcessEnv; folder: string; version: string; directory: string; names: string[]; smoke: Record<string, string[]>;
+  requirements?: string; step?: (text: string) => void;
+}) {
   if (names.length === 0) return 0;
   const project = path.join(folder, WHEEL_KIND);
   const venv = path.join(project, 'venv');
@@ -195,7 +239,7 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   try {
     makeVenv({ root, directory: venv, env });
   } catch (error) {
-    throw new Stop(error.message);
+    throw new Stop((error as Error).message);
   }
   const bin = path.join(venv, 'bin');
   const python = path.join(bin, 'python');
@@ -220,25 +264,29 @@ export function installWheelFiles({ root, env, folder, version, directory, names
     const shown = run(checkoutPython, ['-m', 'pip', '--python', python, 'show', name], { cwd: project, env });
     const actual = /^Version: (.*)$/m.exec(shown)?.[1]?.trim() ?? null;
     if (actual !== version) throw new Stop(`wheel installed ${name} ${actual ?? 'none'}, expected ${version}`);
-    run(smoke[name][0], smoke[name].slice(1), { cwd: project, env: venvEnv });
-    step(`wheel ${name} ${version}: ${smoke[name].join(' ')}`);
+    run(smokeOf(smoke, name, 'consumers.wheel')[0], smokeOf(smoke, name, 'consumers.wheel').slice(1), { cwd: project, env: venvEnv });
+    step(`wheel ${name} ${version}: ${smokeOf(smoke, name, 'consumers.wheel').join(' ')}`);
   }
   return names.length;
 }
 
 /** The wheel packages of the configuration, installed by installWheelFiles with the locks of their dependencies. */
-function installWheels(ctx, version, directory, folder, env, step) {
+function installWheels(ctx: ReleaseContext, version: string, directory: string, folder: string, env: NodeJS.ProcessEnv, step: (text: string) => void) {
   const names = ctx.config.packages.filter(item => item.kind === WHEEL_KIND).map(({ name }) => name);
   if (names.length === 0) return 0;
-  const requirements = wheelLocks(ctx.root, ctx.config).map(({ file, text }) => lockRequirements(text, file)).join('');
-  return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: ctx.config.consumers[WHEEL_KIND].smoke, requirements, step });
+  const requirements = wheelLocks(ctx.root, ctx.config).map(({ file, text }: { file: string; text: string }) => lockRequirements(text, file)).join('');
+  const wheel = ctx.config.consumers?.[WHEEL_KIND];
+  if (wheel === undefined) throw new Error(`config/release.json: consumers.${WHEEL_KIND} is missing; the packages [${names.join(', ')}] are of kind ${WHEEL_KIND}`);
+  return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: wheel.smoke, requirements, step });
 }
 
 /** The lock without the hashes of the archives of this repository, which each run builds again. */
-function withoutArchiveHashes(kind, lock, packages) {
+// The lock is package-lock.json (packages maps paths to entries) or composer.lock (packages lists entries) as `kind` says; a
+// type cannot tie its shape to `kind`, so it is any.
+function withoutArchiveHashes(kind: ConsumerKind, lock: any, packages: ArchivePackage[]) {
   const files = new Set(packages.map(({ file }) => file));
   if (kind === 'npm') {
-    for (const entry of Object.values(lock.packages ?? {})) if (files.has(String(entry.resolved).replace(/^file:/, ''))) delete entry.integrity;
+    for (const entry of Object.values<{ resolved?: string; integrity?: string }>(lock.packages ?? {})) if (files.has(String(entry.resolved).replace(/^file:/, ''))) delete entry.integrity;
   } else {
     for (const entry of [...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])]) if (files.has(String(entry.dist?.url).replace(`${ARTIFACTS}/`, ''))) entry.dist.shasum = '';
   }
@@ -249,13 +297,13 @@ function withoutArchiveHashes(kind, lock, packages) {
  * Writes the manifest and the lock of each consumer project from the committed manifest and the archives of the tag in
  * var/release/assets: `npm install --package-lock-only` and `composer update --no-install`. Returns the written files.
  */
-export function lockConsumers(ctx, tag, step = () => {}) {
+export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: string) => void = () => {}) {
   const [directory, version] = parseTag(ctx.config, tag);
   if (directory !== null) throw new Stop(`${tag} is a Go module tag; it has no archive and no consumer project`);
   const assets = path.join(ctx.root, ASSETS);
   requireArchives(ctx.config, version, assets, ASSETS);
   const folder = outside(ctx);
-  const written = [];
+  const written: string[] = [];
   try {
     const env = environment(ctx.env, folder);
     for (const [kind, consumer, packages] of plan(ctx.config, version)) {
@@ -279,10 +327,12 @@ export function lockConsumers(ctx, tag, step = () => {}) {
 const USAGE = 'usage: node scripts/kit/release-consumer.mts install|lock TAG';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error } = {}) {
+export function main(argv: string[], { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error }: {
+  root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
+} = {}) {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  if (!['install', 'lock'].includes(mode) || !tag || rest.length) {
+  if (mode === undefined || !['install', 'lock'].includes(mode) || !tag || rest.length) {
     error(USAGE);
     return 2;
   }
@@ -290,7 +340,7 @@ export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(impo
     const ctx = context(root, { env, log: print });
     if (tag === 'latest') tag = latestTag(ctx);
     const [directory, version] = parseTag(ctx.config, tag);
-    const step = text => print(`[release-consumer] ${tag}: ${text}`);
+    const step = (text: string) => print(`[release-consumer] ${tag}: ${text}`);
     if (mode === 'lock') {
       lockConsumers(ctx, tag, step);
     } else if (directory !== null) {
@@ -300,8 +350,8 @@ export function main(argv, { root = path.resolve(path.dirname(fileURLToPath(impo
       step(`installed and checked ${count} packages from ${ASSETS}`);
     }
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && failure?.code !== 'ENOENT') throw failure;
-    error(`[release-consumer] ${mode} ${tag} failed: ${failure.message}`);
+    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && (failure as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw failure;
+    error(`[release-consumer] ${mode} ${tag} failed: ${(failure as Error).message}`);
     return 1;
   }
   return 0;

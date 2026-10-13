@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
 import { sha256 } from '../../scripts/kit/digest.mts';
 import { Stop, run } from '../../scripts/kit/process.mts';
@@ -13,21 +13,24 @@ import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
-const escaped = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+type Box = ReturnType<typeof consumerSandbox>;
+/** A command that a stub of the sandbox recorded. */
+type Call = { args: string[] };
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const REMOTE = 'example.com/polyspec/kit-fixture';
 const URL = `https://${REMOTE}`;
 
 /** A sandbox whose consumer projects are locked, as the commit of a release holds them. */
-function locked(t, options) {
+function locked(t: TestContext, options?: { mutate?: (root: string) => void }) {
   const box = consumerSandbox(t, options);
   box.lock();
   return box;
 }
-const installs = box => box.calls('npm').filter(call => call.args[0] === 'ci');
-const prove = (box, tag = box.released) => {
-  const steps = [];
+const installs = (box: Box) => box.calls('npm').filter((call: Call) => call.args[0] === 'ci');
+const prove = (box: Box, tag: string = box.released) => {
+  const steps: string[] = [];
   proof.prove(box.ctx(), tag, text => steps.push(text));
   return steps;
 };
@@ -53,17 +56,17 @@ test('a released tag is proven in four steps and each step runs the commands of 
   ]);
   const [list, ...downloads] = box.calls('gh');
   assert.deepEqual(list.args, ['api', '--hostname', 'example.com', '--paginate', 'repos/polyspec/kit-fixture/releases', '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]} | @json']);
-  assert.deepEqual(downloads.map(call => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
+  assert.deepEqual(downloads.map((call: Call) => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
-  const [venvCall] = box.calls('checkout-uv').filter(call => call.args[0] === 'venv');
+  const [venvCall] = box.calls('checkout-uv').filter((call: Call) => call.args[0] === 'venv');
   assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/bin/python3')]);
   const venv = { args: [null, null, venvCall.args[4]] };
-  const [dependencies, install] = box.calls('checkout-python3').filter(call => call.args.includes('--require-hashes'));
+  const [dependencies, install] = box.calls('checkout-python3').filter((call: Call) => call.args.includes('--require-hashes'));
   assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
   assert.ok(dependencies.args.includes('--no-deps') && dependencies.args.includes('--only-binary'), 'the dependencies install with no dependency of their own and binary files only');
   assert.equal(dependencies.requirements, 'ruff==0.16.10 --hash=sha256:' + '1'.repeat(64) + '\n', 'the lock of the wheel is installed first');
   assert.ok(install.args.includes('--no-index'), 'the wheel itself is installed from its file, with no index');
-  assert.ok(box.calls('checkout-python3').some(call => call.args.at(-1) === 'check'), 'pip check runs in the venv');
+  assert.ok(box.calls('checkout-python3').some((call: Call) => call.args.at(-1) === 'check'), 'pip check runs in the venv');
   const python = box.calls('python');
   assert.deepEqual(python.at(-1).args, ['-c', 'import kit_fixture']);
   assert.equal(python.at(-1).env.VIRTUAL_ENV, venv.args[2], 'the smoke command runs in the virtual environment');
@@ -179,32 +182,34 @@ test('the proof removes its temporary directory and changes nothing in the check
   const before = git(box.root, 'status', '--porcelain', '--ignored');
   prove(box);
   assert.equal(git(box.root, 'status', '--porcelain', '--ignored'), before);
-  const folder = path.dirname(path.dirname(box.calls('checkout-uv').find(call => call.args[0] === 'venv').args[4]));
+  const folder = path.dirname(path.dirname(box.calls('checkout-uv').find((call: Call) => call.args[0] === 'venv').args[4]));
   assert.match(path.basename(folder), /^kit-release-consumer-/);
   assert.equal(existsSync(folder), false);
 });
 
 test('the command line prints one line for each step and the exit status', (t) => {
   const box = locked(t);
-  const lines = [];
-  const errors = [];
-  const run = argv => proof.main(argv, { root: box.root, env: box.env, print: line => lines.push(line), error: line => errors.push(line) });
+  const lines: string[] = [];
+  const errors: string[] = [];
+  const run = (argv: string[]) => proof.main(argv, { root: box.root, env: box.env, print: line => lines.push(line), error: line => errors.push(line) });
   assert.equal(run(['v0.0.1']), 0);
   assert.ok(lines.every(line => line.startsWith('✔ ')), lines.join('\n'));
   assert.equal(lines.length, 16);
   assert.equal(lines.at(-1), '✔ v0.0.1 is proven from outside the repository');
   box.stub({ modes: { go: 'fail' } });
   assert.equal(run(['v0.0.1']), 1);
-  assert.match(errors.at(-1), /^\[release-proof\] v0\.0\.1 failed: go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
+  // Each failed run wrote an error line; without one, assert.match fails on undefined as before.
+  assert.match(errors.at(-1)!, /^\[release-proof\] v0\.0\.1 failed: go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
   assert.equal(run(['v0.0']), 1);
-  assert.match(errors.at(-1), /v0\.0 failed: v0\.0: a release tag is vX\.Y\.Z/);
+  // The refused tag wrote an error line, as above.
+  assert.match(errors.at(-1)!, /v0\.0 failed: v0\.0: a release tag is vX\.Y\.Z/);
   for (const argv of [[], ['v0.0.1', 'x']]) assert.equal(run(argv), 2);
   assert.equal(errors.at(-1), 'usage: node scripts/kit/release-proof.mts TAG');
 });
 
 test('make release-proof takes the tag of the environment', (t) => {
   const box = locked(t);
-  const make = (...args) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const without = make('release-proof');
   assert.equal(without.status, 2);
   assert.match(without.stdout + without.stderr, /release-proof: TAG is required, for example make release-proof TAG=v0\.0\.1/);
@@ -219,7 +224,7 @@ test('the proof downloads each polyspec archive of a wheel lock and names a dige
   const repo = 'https://github.com/polyspec/kit-lib';
   const url = `${repo}/releases/download/v0.0.1/${file}`;
   const digest = sha256(bytes);
-  const lockWith = sha => (root) => {
+  const lockWith = (sha: string) => (root: string) => {
     const config = readJson(root, 'config/release.json');
     writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': repo } } } });
     const lock = readFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), 'utf8');
@@ -232,7 +237,7 @@ test('the proof downloads each polyspec archive of a wheel lock and names a dige
   box.stub({ dependencies: [{ repo: 'polyspec/kit-lib', tag: 'v0.0.1', file, source }] });
   const steps = prove(box);
   assert.ok(steps.includes(`polyspec kit-lib 0.0.1: ${file} of ${repo} has the sha256 that packages/fixture-python/pylock.wheel.toml holds`), steps.join('\n'));
-  assert.ok(box.calls('gh').some(call => call.args.at(-1) === 'repos/polyspec/kit-lib/releases/assets/1000'), 'the polyspec asset is downloaded from its own repository');
+  assert.ok(box.calls('gh').some((call: Call) => call.args.at(-1) === 'repos/polyspec/kit-lib/releases/assets/1000'), 'the polyspec asset is downloaded from its own repository');
 
   const wrong = locked(t, { mutate: lockWith('2'.repeat(64)) });
   const wrongSource = path.join(wrong.root, 'stand-in');
@@ -247,9 +252,10 @@ test('the proof checks each sibling URL in a wheel against the published asset, 
   const steps = prove(box);
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: its Requires-Dist of ${SIBLING} is the published asset of ${SIBLING_WHEEL}, ${SIBLING_URL}`), steps.join('\n'));
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: the sha256 of the downloaded file is the one the release lists`), steps.join('\n'));
-  const install = box.calls('checkout-python3').find(call => call.args.includes('--no-index'));
+  const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index'));
   assert.ok(install.args.includes('--no-deps'), 'the wheels install with no dependency resolution, so the sibling is never fetched from its URL');
-  assert.deepEqual(install.requirements.split('\n').filter(Boolean).map(line => path.basename(line.split(' ')[0])), [GENERATOR_WHEEL, SIBLING_WHEEL]);
+  // split returns at least one item, so the first item of each line exists.
+  assert.deepEqual(install.requirements.split('\n').filter(Boolean).map((line: string) => path.basename(line.split(' ')[0]!)), [GENERATOR_WHEEL, SIBLING_WHEEL]);
 });
 
 test('the proof refuses a sibling URL in a wheel that differs from the URL of the published asset', (t) => {

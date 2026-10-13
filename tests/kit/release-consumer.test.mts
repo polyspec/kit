@@ -14,11 +14,16 @@ import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+// The JSON files that the cases edit, the configuration included: a case also writes a shape that breaks the schema on
+// purpose, so the data has no fixed type.
+type JsonData = any;
+type Box = ReturnType<typeof consumerSandbox>;
+
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const NPM = 'tests/release-consumer/npm';
 const COMPOSER = 'tests/release-consumer/composer';
-const edit = (root, file, change) => writeJson(root, file, change(readJson(root, file)));
-const install = (box, version = box.version, directory = path.join(box.root, release.ASSETS)) => consumer.installConsumers(box.ctx(), version, directory);
+const edit = (root: string, file: string, change: (data: JsonData) => JsonData) => writeJson(root, file, change(readJson(root, file)));
+const install = (box: Box, version: string = box.version, directory = path.join(box.root, release.ASSETS)) => consumer.installConsumers(box.ctx(), version, directory);
 
 test('the schema accepts the consumers of the fixture and names each error of another', (t) => {
   const box = releaseSandbox(t);
@@ -33,7 +38,7 @@ test('the schema accepts the consumers of the fixture and names each error of an
 test('the configuration rules name each inconsistent consumer and proof entry', (t) => {
   const box = releaseSandbox(t);
   const original = readJson(box.root, 'config/release.json');
-  const load = (change) => {
+  const load = (change: (config: JsonData) => JsonData) => {
     writeJson(box.root, 'config/release.json', change(structuredClone(original)));
     return () => release.loadConfig(box.root);
   };
@@ -44,7 +49,7 @@ test('the configuration rules name each inconsistent consumer and proof entry', 
   stop(load((c) => { c.consumers.npm.smoke['fixture-lib'] = 'node -e 1'; return c; }), /consumers\.npm\.smoke\.fixture-lib needs a command.*found "node -e 1"/);
   stop(load((c) => { c.consumers.npm.smoke = {}; return c; }), /consumers\.npm\.smoke needs one entry per installed package/);
   stop(load((c) => { c.consumers.composer.directory = c.consumers.npm.directory; return c; }), /consumers\.composer\.directory tests\/release-consumer\/npm is also the directory of another consumer/);
-  stop(load(c => ({ ...c, packages: c.packages.filter(item => item.kind === 'npm'), manifests: Object.fromEntries(Object.entries(c.manifests).filter(([file]) => !file.endsWith('composer.json'))) })), /consumers\.composer is set but packages lists no composer package/);
+  stop(load(c => ({ ...c, packages: c.packages.filter((item: { kind: string }) => item.kind === 'npm'), manifests: Object.fromEntries(Object.entries(c.manifests).filter(([file]) => !file.endsWith('composer.json'))) })), /consumers\.composer is set but packages lists no composer package/);
   stop(load(c => ({ ...c, proof: { gitTag: {} } })), /proof\.gitTag lacks packages\/fixture-rust\/Cargo\.toml, which manifests releases by "git-tag"/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-lib/package.json'] = { kind: 'python', name: 'x', smoke: ['python'] }; return c; }), /proof\.gitTag\.packages\/fixture-lib\/package\.json is not a manifest with the mode "git-tag"/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'ruby'; return c; }), /kind is "ruby", the allowed values are rust/);
@@ -65,7 +70,7 @@ test('lock writes the manifests and locks of the archives of the tag, without th
   assert.deepEqual([lock['node_modules/fixture-lib'].integrity, lock['node_modules/fixture-app'].integrity], [undefined, undefined], 'the archives are built in the run that uses them');
   assert.equal(lock['node_modules/fixture-lib'].resolved, 'file:fixture-lib-npm-0.0.1.tgz');
   assert.equal(lock['node_modules/semver'].integrity, 'sha512-third-party', 'a registry package keeps its integrity');
-  assert.deepEqual(readJson(box.root, `${COMPOSER}/composer.lock`).packages.map(entry => [entry.name, entry.version, entry.dist.url, entry.dist.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
+  assert.deepEqual(readJson(box.root, `${COMPOSER}/composer.lock`).packages.map((entry: JsonData) => [entry.name, entry.version, entry.dist.url, entry.dist.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
   const before = written.map(file => readFileSync(path.join(box.root, file), 'utf8'));
   box.lock();
   assert.deepEqual(written.map(file => readFileSync(path.join(box.root, file), 'utf8')), before);
@@ -84,7 +89,7 @@ test('lock runs npm and Composer from clean projects outside the repository with
     assert.equal(call.env.npm_config_offline, null);
     assert.equal(call.env.COMPOSER_DISABLE_NETWORK, null);
   }
-  const folder = call => path.basename(path.dirname(call.cwd));
+  const folder = (call: { cwd: string }) => path.basename(path.dirname(call.cwd));
   assert.deepEqual([path.basename(path.dirname(npm.env.npm_config_cache)), path.basename(path.dirname(composer.env.COMPOSER_HOME))], [folder(npm), folder(composer)], 'the caches are directories of the run');
   assert.ok(!existsSync(npm.cwd), 'the project is removed after the run');
 });
@@ -101,7 +106,7 @@ test('lock needs the archives of the tag and a committed manifest', (t) => {
 test('install runs npm ci and composer install in clean projects outside the repository and the smoke command of every package', (t) => {
   const box = consumerSandbox(t);
   box.lock();
-  const steps = [];
+  const steps: string[] = [];
   const count = consumer.installConsumers(box.ctx(), box.version, path.join(box.root, release.ASSETS), text => steps.push(text));
   assert.equal(count, 4);
   assert.deepEqual(steps, [
@@ -129,7 +134,7 @@ test('install runs npm ci and composer install in clean projects outside the rep
 
 test('install points the scope of an npm package of the repository at an unreachable registry', (t) => {
   const box = consumerSandbox(t, {
-    mutate(root) {
+    mutate(root: string) {
       edit(root, 'config/release.json', (config) => {
         config.packages[0].name = '@kit/fixture-lib';
         const { 'fixture-lib': _, ...rest } = config.consumers.npm.smoke;
@@ -143,7 +148,7 @@ test('install points the scope of an npm package of the repository at an unreach
   assert.deepEqual(box.names, ['kit-fixture-lib-npm-0.0.1.tgz', 'fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
   box.lock();
   install(box);
-  assert.deepEqual(box.calls('npm').map(call => call.args.filter(arg => arg.includes('registry'))), [['--@kit:registry=http://127.0.0.1:9/'], ['--@kit:registry=http://127.0.0.1:9/']]);
+  assert.deepEqual(box.calls('npm').map((call: { args: string[] }) => call.args.filter(arg => arg.includes('registry'))), [['--@kit:registry=http://127.0.0.1:9/'], ['--@kit:registry=http://127.0.0.1:9/']]);
 });
 
 test('install refuses archives other than the archives of the version', (t) => {
@@ -166,7 +171,7 @@ test('install names each difference of the manifests and locks from the archives
   stop(install.bind(null, box), /polyspec\/kit-fixture is 0\.0\.1 from artifacts\/polyspec-kit-fixture-php-0\.0\.0\.zip, expected 0\.0\.1 from artifacts\/polyspec-kit-fixture-php-0\.0\.1\.zip/);
   stop(install.bind(null, box), /repositories lacks \{ "type": "artifact", "url": "artifacts" \}/);
   stop(install.bind(null, box), /Fix: make release-consumer-lock TAG=v0\.0\.1 writes them/);
-  assert.deepEqual(box.calls('npm').slice(-1).map(call => call.args[0]), ['install'], 'no install ran');
+  assert.deepEqual(box.calls('npm').slice(-1).map((call: { args: string[] }) => call.args[0]), ['install'], 'no install ran');
 });
 
 test('install fails for a missing lock', (t) => {
@@ -214,9 +219,9 @@ test('install needs a consumers section', (t) => {
 
 test('the command line locks, installs, ends a Go module tag without an install and refuses other arguments', (t) => {
   const box = consumerSandbox(t);
-  const lines = [];
-  const errors = [];
-  const run = argv => consumer.main(argv, { root: box.root, env: box.env, print: line => lines.push(line), error: line => errors.push(line) });
+  const lines: string[] = [];
+  const errors: string[] = [];
+  const run = (argv: string[]) => consumer.main(argv, { root: box.root, env: box.env, print: line => lines.push(line), error: line => errors.push(line) });
   assert.equal(run(['lock', 'v0.0.1']), 0);
   assert.deepEqual(lines, [`[release-consumer] v0.0.1: wrote ${NPM}/package.json and package-lock.json for v0.0.1`, `[release-consumer] v0.0.1: wrote ${COMPOSER}/composer.json and composer.lock for v0.0.1`]);
   lines.length = 0;
@@ -227,14 +232,15 @@ test('the command line locks, installs, ends a Go module tag without an install 
   assert.equal(run(['install', 'packages/fixture-go/v0.0.1']), 0);
   assert.deepEqual(lines, ['[release-consumer] packages/fixture-go/v0.0.1: a Go module tag releases no archive; nothing to install']);
   assert.equal(run(['install', 'v0.0.2']), 1);
-  assert.match(errors.at(-1), /^\[release-consumer\] install v0\.0\.2 failed: var\/release\/assets holds \[/);
+  // The failed run wrote an error line; without one, assert.match fails on undefined as before.
+  assert.match(errors.at(-1)!, /^\[release-consumer\] install v0\.0\.2 failed: var\/release\/assets holds \[/);
   for (const argv of [[], ['install'], ['verify', 'v0.0.1'], ['install', 'v0.0.1', 'x']]) assert.equal(run(argv), 2);
   assert.equal(errors.at(-1), 'usage: node scripts/kit/release-consumer.mts install|lock TAG');
 });
 
 test('make release-consumer-lock and release-consumer take the tag of the environment', (t) => {
   const box = consumerSandbox(t);
-  const make = (...args) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   for (const target of ['release-consumer', 'release-consumer-lock']) {
     const without = make(target);
     assert.equal(without.status, 2);
@@ -256,14 +262,14 @@ test('the real npm ci and composer install install the archives of a tag from th
   }
   // The packages of the fixture without a registry dependency, so that nothing is downloaded.
   const box = releaseSandbox(t, {
-    mutate(root) {
+    mutate(root: string) {
       edit(root, 'packages/fixture-lib/package.json', ({ dependencies, ...manifest }) => manifest);
       edit(root, 'packages/fixture-php/composer.json', ({ require, config, ...manifest }) => manifest);
       // The wheel needs the Python of the machine, which this case does not run: the case covers npm and Composer only.
       edit(root, 'config/release.json', ({ buildBackend, consumers: { wheel, ...consumers }, packages, manifests, ...config }) => ({
         ...config,
         consumers,
-        packages: packages.filter(item => item.kind !== 'wheel'),
+        packages: packages.filter((item: { kind: string }) => item.kind !== 'wheel'),
         manifests: Object.fromEntries(Object.entries(manifests).filter(([file]) => file !== 'packages/fixture-python/pyproject.toml')),
       }));
     },
@@ -275,7 +281,7 @@ test('the real npm ci and composer install install the archives of a tag from th
   consumer.lockConsumers(ctx, tag);
   assert.equal(readJson(box.root, `${NPM}/package-lock.json`).packages['node_modules/fixture-app'].resolved, 'file:fixture-app-npm-0.0.1.tgz');
   assert.equal(readJson(box.root, `${COMPOSER}/composer.lock`).packages[0].dist.url, 'artifacts/polyspec-kit-fixture-php-0.0.1.zip');
-  const steps = [];
+  const steps: string[] = [];
   assert.equal(consumer.installConsumers(ctx, '0.0.1', path.join(box.root, release.ASSETS), text => steps.push(text)), 3);
   assert.equal(steps.length, 5);
   // The lock changes only with a version: locking again writes the same bytes.
