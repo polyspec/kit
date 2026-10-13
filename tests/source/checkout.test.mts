@@ -3,13 +3,13 @@
 // copy of all of var/ met a file that such a run removed (ENOENT under var/python-lock-real-<pid>/tmp/pip-build-env-*).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { installedTool, runKitTest } from './checkout.mts';
+import { builtCopy, installedTool, runKitTest } from './checkout.mts';
 
 test('a sandbox takes the installed tools of var/tools and neither the cache of uv nor the runs of other tests', () => {
   assert.equal(installedTool('var/tools/bin/python3'), true);
@@ -94,4 +94,12 @@ test('a test that run-tests times out ends the process group of its nested run',
   assert.ok(pid);
   assert.ok(await until(() => child.exitCode !== null && !alive(pid), 10000), `the run did not end with its 1 s timeout, or the sleep ${pid} outlived it`);
   assert.equal(child.exitCode, 1, 'the run of a timed-out test fails');
+});
+
+test('builtCopy installs the packages of kit into the copy and links none', (t) => {
+  const copy = builtCopy(t);
+  // AGENTS: this repository creates no symbolic link; the copy installs its packages as a checkout does.
+  assert.ok(!lstatSync(path.join(copy, 'node_modules')).isSymbolicLink(), 'node_modules of the copy is a link');
+  assert.ok(existsSync(path.join(copy, 'node_modules/typescript/package.json')), 'the copy holds the packages of package-lock.json');
+  assert.ok(existsSync(path.join(copy, 'dist/kit.mk')), 'make build ran in the copy');
 });

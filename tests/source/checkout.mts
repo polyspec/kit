@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,22 @@ export function lockEntries(keep: (item: LockEntry) => boolean = () => true): [s
  */
 export const installedLockEntries = (keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] =>
   lockEntries(keep).filter(([entry]) => existsSync(path.join(ROOT, entry)));
+
+let primed: string | undefined;
+
+/**
+ * An npm cache primed once per process with every package of package-lock.json of kit that this machine installed
+ * (primeCache), removed when the process exits. A copy or a sandbox of the checkout installs from it with npm ci --offline.
+ */
+export function primedCache(): string {
+  if (primed) return primed;
+  const work = mkdtempSync(path.join(tmpdir(), 'kit-npm-cache-'));
+  process.on('exit', () => rmSync(work, { recursive: true, force: true }));
+  const cache = path.join(work, 'npm-cache');
+  primeCache(cache, work, installedLockEntries());
+  primed = cache;
+  return cache;
+}
 
 /**
  * Whether a package of package-lock.json of kit is one that kit depends on at run time. A devOptional package, such as
@@ -97,7 +113,9 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   const files = run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], ROOT).split('\n').filter(Boolean);
   for (const file of files) if (existsSync(path.join(ROOT, file))) cpSync(path.join(ROOT, file), path.join(copy, file));
-  symlinkSync(path.join(ROOT, 'node_modules'), path.join(copy, 'node_modules'));
+  // The copy installs the packages of package-lock.json as a checkout does: npm ci of the npm of packageManager, offline,
+  // from the primed cache.
+  run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], copy);
   run('make', ['--no-print-directory', 'build'], copy);
   return copy;
 }
