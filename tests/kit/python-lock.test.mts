@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { parseToml, readPylock } from '../../scripts/kit/pylock.mts';
+import { readPylock } from '../../scripts/kit/pylock.mts';
 import { validate } from '../../scripts/kit/schema-validate.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -56,9 +56,19 @@ test('the parser reads the tables of a uv export: registry files with their hash
   });
 });
 
-test('the parser refuses a construct it does not read and names its line', () => {
-  assert.throws(() => parseToml('name = "a"\nnote = """multi\nline"""\n'), /line 2: .*multi-line string/);
-  assert.throws(() => parseToml('a = 1\na = 2\n'), /line 2: a is already defined/);
+const LOCK_HEAD = 'lock-version = "1.0"\n';
+
+test('the lock reader reads every valid TOML construct and refuses invalid TOML with the file, the line and the column', () => {
+  assert.deepEqual(readPylock(`${LOCK_HEAD}note = """multi\nline"""\nsize = 1e3\n`, 'pylock.toml').packages, [], 'a multi-line string and a float with an exponent are valid TOML');
+  assert.throws(() => readPylock(`${LOCK_HEAD}a = 1\na = 2\n`, 'pylock.toml'), /^Error: pylock\.toml line 3 column 1: Invalid TOML document: trying to redefine an already defined table or value$/);
+});
+
+test('a table under an array of the lock is refused, as TOML requires (K100)', () => {
+  assert.throws(() => readPylock(`${LOCK_HEAD}a = [[1]]\n[a.x]\n`, 'pylock.toml'), /^Error: pylock\.toml line 3 column \d+: Invalid TOML document/);
+});
+
+test('an inline table of the lock that a dotted key extends is refused, as TOML requires (K113)', () => {
+  assert.throws(() => readPylock(`${LOCK_HEAD}a = { b = 1 }\na.c = 2\n`, 'pylock.toml'), /^Error: pylock\.toml line 3 column \d+: Invalid TOML document/);
 });
 
 test('the gate fails on a registry file without a sha256 and names the file, the rule and the fix', (t) => {

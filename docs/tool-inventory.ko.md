@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 439270fe6b5192b7952296a0ba303e98340a5f6dd2baf2750bad9964f355fa98 -->
+<!-- source-sha256: d86dd934bfc092b698b9444a48d511d6c734b34da30bccbc75070637d0e37d67 -->
 
 # 도구 목록
 
@@ -1102,8 +1102,8 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 
 ### 규칙
 
-- 파일은 `scripts/kit/pylock.mts`(`readPylock`)가 읽습니다. 이 도구들이 쓰는 TOML 부분집합을 읽는 reader입니다. Node에는 TOML reader가 없고 kit은
-  Node built-in만 import하므로 TOML 라이브러리를 재사용하지 않습니다. 부분집합 밖의 구문(여러 줄 문자열, 알 수 없는 escape, 중복 key)은 줄 번호와 함께 실패합니다.
+- 파일은 `scripts/kit/pylock.mts`(`readPylock`)가 smol-toml(`scripts/kit/toml.mts`)로 읽으며, smol-toml은 TOML 전체를 읽습니다.
+  올바른 TOML이 아닌 텍스트는 파일, 줄, 열과 함께 실패합니다.
 - `lock-version`은 `"1.0"`이어야 하며, 다른 값이면 gate가 실패합니다.
 - 각 lock의 sha256은 다른 생태계의 lock과 같이 `config/dependency-review.json`에 기록합니다.
 - registry package(`sdist` 또는 `wheels`)는 lock의 의존성입니다. 이름과 버전을 기록하고, 최신 stable release를 PyPI에 질의하며, 고정된 버전의
