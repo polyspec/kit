@@ -14,7 +14,8 @@ import { builtCopy, commitSandbox, NPM, packedKit, run } from './checkout.mts';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const NODE = process.versions.node;
-// The packages that kit depends on at run time, as its package-lock resolves them: [node_modules/<name>, entry].
+// The packages that kit depends on at run time, as its package-lock resolves them: [node_modules/<name>, entry]. The lint
+// tools (K77) are among them, since a consumer runs them through make lint-ts.
 const DEPENDENCIES = Object.entries(JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, { version: string; resolved: string; integrity: string; dev?: boolean }>)
   .filter(([entry, item]) => entry !== '' && !item.dev);
 
@@ -29,9 +30,10 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const cache = path.join(work, 'npm-cache');
   run(NPM, ['cache', 'add', tarball, '--cache', cache], work);
   // The packages that kit depends on come from the npm cache of this checkout, which its npm ci filled: npm pack --offline
-  // writes the registry tarball of each, whose integrity is the one of package-lock.
-  for (const [entry, item] of DEPENDENCIES) {
-    const name = entry.slice('node_modules/'.length);
+  // writes the registry tarball of each, whose integrity is the one of package-lock. An optional package of another platform
+  // is not installed here, and npm ci of the consumer skips it as it skipped it here.
+  for (const [entry, item] of DEPENDENCIES.filter(([entry]) => existsSync(path.join(ROOT, entry)))) {
+    const name = entry.split('node_modules/').at(-1)!;
     const dependency: { filename: string } | undefined = JSON.parse(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work))[name];
     assert.ok(dependency, `npm pack printed no ${name}`);
     run(NPM, ['cache', 'add', path.join(work, dependency.filename), '--cache', cache], work);
@@ -84,8 +86,11 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }
   assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/kit.mk')), 'make install-packages installed @polyspec/kit');
-  // The packages that kit depends on are installed with it, at the versions of its package-lock.
-  for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
+  // The packages that kit depends on are installed with it, at the versions of its package-lock, except an optional package
+  // of another platform, which neither install takes.
+  for (const [entry] of DEPENDENCIES.filter(([entry]) => existsSync(path.join(ROOT, entry)))) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
+  // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.
+  for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor']) assert.ok(existsSync(path.join(consumer, 'node_modules/.bin', tool)), `make install-packages did not install node_modules/.bin/${tool}`);
   for (const target of [['kit-sync'], ['kit-check'], ['toolchain-check', 'TOOLS=node npm']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
