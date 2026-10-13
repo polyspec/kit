@@ -19,6 +19,7 @@ export type Extractor = 'go' | 'php' | 'python' | 'rust' | 'ts';
 export interface ParityImplementation {
   name: string;
   runner: Runner;
+  prose?: string[];
   roots: string[];
   tests?: string[];
   support?: string[];
@@ -378,6 +379,13 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (implementations.has(entry.name)) fail(`the implementation ${entry.name} is declared twice`);
     implementations.set(entry.name, entry);
     expanded(entry, undefined, message => fail(`implementation ${entry.name}: ${message}`));
+  }
+  // R10 reads a name or a prose name, in any case, as one implementation, so no written name belongs to two.
+  for (const entry of config.implementations) {
+    for (const name of entry.prose ?? []) {
+      const other = config.implementations.find(owner => owner !== entry && [owner.name, ...owner.prose ?? []].some(written => written.toLowerCase() === name.toLowerCase()));
+      if (other) fail(`implementation ${entry.name}: the prose name ${name} is also a name of ${other.name}`);
+    }
   }
   const profiles = new Map<string, string[]>();
   for (const profile of config.profiles) {

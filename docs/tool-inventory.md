@@ -1191,7 +1191,7 @@ nothing, so it leaves the profile or is excluded with its reason and item.
 
 | Key | Content |
 |---|---|
-| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
+| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `prose` (the names that documents write for it, which R10 reads), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
 | `profiles` | `name`, the `implementations` that it groups, and `reason`, which a profile narrower than every implementation needs |
 | `suites` | globs of the shared vector files |
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
@@ -1221,7 +1221,10 @@ PHP, Rust, TypeScript and Python"), or when its sentence names exactly N impleme
 are a profile. A count of one or two of something else therefore fails as any other count does; a document writes such a
 sentence without a numeral. A list holds when the implementation names of its own sentence together are a profile: a sentence
 that states something of a part of the implementations names the others in the same sentence ("Go, Rust and TypeScript generate
-the methods; PHP and Python resolve them at call time").
+the methods; PHP and Python resolve them at call time"). The items of one Markdown list, with the same marker and indent and
+no other passage between them, are one list when each item names exactly one implementation; three or more such names hold when
+they together are a profile. An implementation is named by its name or by a name of its `prose` (`"prose": ["PHP extension"]`
+for `php-extension`), in any case; a prose name that is a name of another implementation is a declaration finding.
 
 The catalog pattern applies to each line of the catalog that is not blank and is not a comment (a line that starts with `#` or
 `//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,

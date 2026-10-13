@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c1a30c4ef28f856236058d9678fe0661de7d2b86f0288d62b332a3d79f525a91 -->
+<!-- source-sha256: 955826fe10ae13423537e5d1f23c5f0425b96319b85b6434be72034c24810ac3 -->
 
 # 도구 목록
 
@@ -1101,7 +1101,7 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 
 | Key | 내용 |
 |---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(snapshot), `errors`(`file`, `pattern`: 생성된 code) |
 | `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
@@ -1128,7 +1128,10 @@ N의 수는 implementation N개의 profile이 그 문장이 적은 implementatio
 Python"), 문장이 정확히 N개의 implementation을 적고 passage의 이름을 모두 모은 것이 profile일 때 맞습니다. 그래서 다른 것을 하나나
 둘 세는 수도 다른 수와 똑같이 실패하며, 문서는 그런 문장을 수사 없이 씁니다. 목록은 그 문장의 implementation 이름을 모두 모은 것이
 profile일 때 맞습니다. implementation 일부에 대해 말하는 문장은 같은 문장에서 나머지도 적습니다("Go, Rust and TypeScript generate
-the methods; PHP and Python resolve them at call time").
+the methods; PHP and Python resolve them at call time"). marker와 들여쓰기가 같고 사이에 다른 passage가 없는 한 Markdown
+list의 item들은, 각 item이 implementation을 정확히 하나 적을 때 한 목록입니다. 그런 이름 세 개 이상은 모두 모아 profile일 때
+맞습니다. implementation은 그 이름이나 `prose`의 이름(`php-extension`의 `"prose": ["PHP extension"]`)으로 대소문자 구분 없이
+적힙니다. 다른 implementation의 이름인 prose 이름은 declaration finding입니다.
 
 catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하는 줄)도 아닌 각 줄에 적용합니다. 그런 줄 모두에 맞아야 하므로
 어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
