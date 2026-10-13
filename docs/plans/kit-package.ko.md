@@ -1,5 +1,5 @@
 <!-- doc-id: kit-package -->
-<!-- source-sha256: a7b90cebf5b9df2081616de3d73ce06656ba5760ab4fd8b86268a303907f19fa -->
+<!-- source-sha256: 17070c7c9da65368806df70f2f1a29954d616ede8846193921d867e437fec0ab -->
 # package인 kit (K71-2)
 
 [English](kit-package.md)
@@ -30,8 +30,8 @@ tool을 package가 선언하는 library로 바꿀 수 있습니다.
 
 package가 설치되기 전에 있어야 하거나 고정된 경로에 있어야 하므로 copy로 남는 파일:
 
-- `scripts/kit/kit-bootstrap.mk`: `node_modules/@polyspec/kit/kit.mk`가 없으면 `make install-tools TOOLS=npm`과
-  `var/tools/bin/npm ci`를 이름으로 대는 error로 멈추고, 있으면 include합니다. 조용한 `-include`는 쓰지 않습니다.
+- `scripts/kit/kit-bootstrap.mk`: `node_modules/@polyspec/kit/dist/kit.mk`가 없으면 `make install-tools TOOLS=npm`과
+  `make install-packages`를 이름으로 대는 error로 멈추고, 있으면 include합니다. 조용한 `-include`는 쓰지 않습니다.
 - pin된 npm의 installer와 그 import(`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`; 지금 197줄)를
   `scripts/kit/bootstrap/` 아래에 두고, `npm ci` 전에 `make install-tools TOOLS=npm`으로 실행합니다. 다른 npm은 lock을 다시
   쓰거나 거부할 수 있으므로 pin된 npm이 lock을 설치해야 합니다(S4: tool은 pin에서 돕니다).
@@ -57,31 +57,32 @@ CI와 release workflow는 이 순서로 돌며, consumer-layout 후속 test가 `
 
 - `package.json`: 이름 `@polyspec/kit`, `type: module`, repository가 import해도 되는 tool module의 `exports`, tool을 이름으로
   실행하지 않으면 `bin` 없음, 그리고 tarball을 review할 수 있고 kit-check가 고정된 목록을 갖도록 명시적인 `files` 목록:
-  `dist/`, `kit.mk`, `schema/`, 그리고 copy되는 파일 `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*`,
+  `dist/`(build가 `scripts/kit/kit.mk`와 `scripts/kit/schema/`도 그 안으로 copy하므로 tool은 `$(KIT)/schema`를 찾고 repository는
+  `node_modules/@polyspec/kit/dist/kit.mk`를 include합니다), 그리고 copy되는 파일 `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*`,
   `workflows/release.yml`, `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `config/layout.kit.yml`(K76), K77의 lint 설정 파일(착지하는
   대로).
 - `tsconfig.build.json`: `rewriteRelativeImportExtensions`로 `scripts/kit/**/*.mts`를 `dist/`로; `tsc` 7.
 - source는 `scripts/kit/`에 남습니다(kit repository는 지금처럼 바로 실행합니다); `dist/`는 git이 무시하는 build 출력입니다.
 - release는 `npm pack`으로 tarball을 만들어 polyspec package들처럼 GitHub release에 붙입니다(kit의 `config/release.json`이
-  package를 선언); repository는 asset URL과 그 integrity를 pin합니다.
+  package를 선언하며 작업 단계 3–4와 함께); repository는 asset URL과 그 integrity를 pin합니다.
 - kit 자신의 Makefile은 `KIT := scripts/kit`로 `scripts/kit/kit.mk`를 include하고 source를 실행합니다; repository의
   `kit-bootstrap.mk`는 `KIT := node_modules/@polyspec/kit/dist`를 둡니다. `kit.mk`는 모든 tool을 맞는 확장자(kit은 `.mts`,
   dist는 `.mjs`)의 `$(KIT)/<tool>`로 이름 붙입니다.
 
 ## 검사
 
-- `kit-check`는 copy된 파일을 같은 version의 설치된 package 파일과 비교하고, package-lock이 `@polyspec/kit`에 resolve한
-  version이 copy에 기록된 version과 다르면 실패합니다.
+- `kit-check`는 copy된 파일을 설치된 package 파일과 byte 단위로 비교하고, 설치된 package의 version이 package-lock이
+  `@polyspec/kit`에 resolve한 version과 다르면 실패합니다.
 - consumer-layout 후속 test는 kit을 pack하고, tarball과 그 의존으로 npm cache를 채운 뒤, sandbox 소비자에 offline으로
   설치하고, 거기서 bootstrap 순서와 gate target을 실행합니다.
 - `kit-test`는 kit에서만 돕니다.
 
 ## 작업 순서
 
-1. package build와 release asset(`tsconfig.build.json`, `package.json`, kit의 `config/release.json`).
+1. package build(`tsconfig.build.json`, `package.json`).
 2. `$(KIT)`를 쓰는 `kit.mk`, `kit-bootstrap.mk`, bootstrap copy, 설치된 package에서의 `kit-sync`와 `kit-check`.
 3. offline의 consumer-layout 후속 test.
-4. bootstrap 순서의 kit CI와 release workflow.
+4. bootstrap 순서의 kit CI와 release workflow, 그리고 kit의 `config/release.json`과 release asset.
 5. kit release 하나; repository는 K79에서 전환하며, 각각 그 소유 session에 알립니다.
 
 전환을 담은 release가 나오기 전까지 copy는 그 경로에 남으므로, 어느 repository도 옮기기 전에 깨지지 않습니다.
@@ -103,6 +104,25 @@ flowmark(`~/Projects/flowmark`, kit v0.0.34); ssr과 template-benchmark는 K79�
 - `git-hooks`는 tool 경로가 아니라 make target을 부르는 hook을 씁니다: make target은 kit version이 바뀌어도 안정된
   interface이고 tool 경로는 그렇지 않습니다(kit 담당 session과 합의).
 - 이 문서는 그것에 기대는 작업 전에 K71-2의 첫 commit으로 착지합니다; K71-1은 이름 변경과 type으로 남습니다.
+
+### 작업의 판정(2026-10-13)
+
+- `kit.mk`는 모든 tool을 `node $(KIT)/<tool>.$(KIT_EXT)`로 실행하며 둘 중 하나라도 없으면 error로 멈춥니다. kit의 Makefile은
+  `KIT := scripts/kit`, `KIT_EXT := mts`를, `kit-bootstrap.mk`는 `KIT := node_modules/@polyspec/kit/dist`, `KIT_EXT := mjs`를
+  둡니다. repository가 더는 `tests/kit`를 갖지 않으므로 `kit-test`는 `kit.mk`에서 kit의 Makefile로 옮깁니다.
+- 다른 tool을 시작하는 tool은 `paths.mts`의 helper 하나로 그것을 이름 붙입니다. 호출하는 module의 directory와 확장자를 쓰므로
+  source에서도 `dist`에서도 동작합니다.
+- tool의 `ROOT`는 module 자신의 위치에서 얻은 경로가 아니라 작업 directory, 즉 모든 make target이 도는 repository root입니다.
+- `kit-bootstrap.mk`는 package가 없을 때 `TOOLS=npm`만 받는 `install-tools`와 `install-packages`를 정의하고, 다른 goal은
+  `node_modules/@polyspec/kit/dist/kit.mk is missing; run make install-tools TOOLS=npm, then make install-packages`로 멈춥니다.
+- bootstrap module 다섯은 kit 안에서 `scripts/kit/bootstrap/`으로 옮기고 다른 tool은 거기서 import합니다: copy는 하나이며
+  둘이 아닙니다. source로 배포되고(`node_modules` 밖에서 실행) `dist/bootstrap/`으로도 build됩니다.
+- copy 항목은 `package.json`에 `"kit": { "copies": { "<repository 경로>": "<package 경로>" } }`로 선언하고, 각 원본은 `files`에도
+  있습니다. `kit.json`은 지웁니다: `package.json`이 kit version과 copy의 유일한 원천입니다.
+- `kit-check`는 copy에 기록된 version이 필요 없습니다: 설치된 package version이 package-lock이 resolve한 version과 다르거나, copy가
+  설치된 package의 파일과 byte 단위로 다르면 실패합니다. 둘이 함께 copy를 lock된 version에 묶습니다.
+- kit 자신의 `config/release.json`과 release asset은 consumer-layout 후속(작업 단계 3–4)과 함께 합니다: package directory가
+  repository root인데 release schema가 지금은 그것을 받지 않습니다.
 
 ## 소비자 안의 kit 의존
 
