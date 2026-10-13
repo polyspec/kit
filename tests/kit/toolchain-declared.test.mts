@@ -88,3 +88,12 @@ test('uv is declared by its exact version and the sha256 of its archive of each 
   assert.deepEqual(declaredToolchain(root).uv, { version: '0.12.11', sha256: { 'linux-x64': digest }, source: 'config/toolchain.json uv' });
   assert.equal(declaredToolchain(root).ruff, undefined, 'ruff is not declared by uv');
 });
+
+test('declaredToolchain reads the symbol extractors that install-tools builds, and names a list of unknown ones (K75)', (t) => {
+  const declared = (value: unknown) => declaredToolchain(toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: value }) }));
+  assert.deepEqual(declared(['go']).symbolExtractors, { extractors: ['go'], source: 'config/toolchain.json symbolExtractors' });
+  assert.throws(() => declared(['cobol']), /config\/toolchain\.json symbolExtractors is \["cobol"\]; expected a list of go/);
+  assert.throws(() => declared([]), /symbolExtractors is \[\]/);
+  assert.deepEqual(validate({ schema: 1, symbolExtractors: ['go'] }, SCHEMA), []);
+  assert.deepEqual(validate({ schema: 1, symbolExtractors: ['ts'] }, SCHEMA).length, 1);
+});

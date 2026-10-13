@@ -3,13 +3,15 @@
 // is read from a saved snapshot. Each extractor gives the public symbol ids of `entry`:
 //   python  scripts/kit/symbols/python.py, the standard library's ast, run by var/tools/bin/python3 -I on a package directory
 //           or a module file; ids <module>.<name> and <module>.<class>.<method>
+//   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
+//           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
+//           config/toolchain.json symbolExtractors names go
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
 import { ApiModel } from '@microsoft/api-extractor-model';
 import type { ApiItem } from '@microsoft/api-extractor-model';
@@ -17,12 +19,11 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { finding } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
 import { execute } from './process.mts';
+import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
 type Extracted = { symbols: string[]; error?: never } | { error: string };
 
-// The extractor programs that kit ships beside its tools (the build copies scripts/kit/symbols into dist/symbols).
-const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'symbols');
 
 /** The last lines of standard error, which explain a failed extractor. */
 const tail = (text: string): string => text.trim().split('\n').slice(-3).join(' | ');
@@ -94,6 +95,11 @@ function apiModel(root: string, entry: string): Extracted {
 
 // Each extractor: the public symbol ids of `entry` in the checkout `root`.
 const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment) => Extracted> = {
+  go: (root, entry, env) => {
+    const command = path.join(symbolsPrefix(root, 'go'), 'bin', 'kit-symbols-go');
+    if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install-tools` };
+    return listed(root, command, [entry], env);
+  },
   python: (root, entry, env) => listed(root, toolsPath(root, 'bin', 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
   ts: (root, entry) => apiModel(root, entry),
 };

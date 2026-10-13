@@ -65,6 +65,14 @@ if (symbol !== undefined) console.log(JSON.stringify({ Action: exit ? 'fail' : '
 process.exit(exit);
 `;
 
+// The stub of the go symbol extractor (var/tools/symbols-go/bin/kit-symbols-go <module directory>): it prints the lines of
+// symbols.txt of the directory as a JSON array.
+const GO_SYMBOLS_STUB = `#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+console.log(JSON.stringify(fs.readFileSync(path.join(process.argv[2], 'symbols.txt'), 'utf8').split('\\n').filter(Boolean)));
+`;
+
 // The stub of cargo: `cargo test --manifest-path <crate>/Cargo.toml (--test <name> | --lib) -- --test-threads=1 <filter>`
 // reads tests/<name>.rs or src/lib.rs of the crate and runs each test whose name starts with the filter. It writes what cargo
 // writes for serial tests: `running <n> tests`, then `test <name> ... ok` or `FAILED` for each test, then the result line.
@@ -181,7 +189,8 @@ const FILES = {
   'python/codes.py': 'CONFIG = "CONFIG"\nCODEC_DECODE = "CODEC_DECODE"\n',
   'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n',
   'var/tools/bin/python3': PY_STUB,
-  // The public symbols that the stub of the python extractor prints for each implementation but ts, whose .d.ts API Extractor reads.
+  // The public symbols that the stubs of the go and python extractors print, and the .d.ts that API Extractor reads for ts.
+  'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
   'go/symbols.txt': 'go/codec.go::Encode\n',
   'rust/symbols.txt': 'rust/src/lib.rs::encode\nrust/src/lib.rs::hex_upper\n',
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
@@ -199,7 +208,7 @@ const FILES = {
 const CONFIG = {
   schema: 1,
   implementations: [
-    { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'python', entry: 'go/symbols.txt' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
+    { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'go', entry: 'go' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
     { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'python', entry: 'rust/symbols.txt' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
     { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
     { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'python', entry: 'php/symbols.txt' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
@@ -266,6 +275,7 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
   const all = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(edit(structuredClone(CONFIG)), null, 2)}\n` };
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
   chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
+  if (all['var/tools/symbols-go/bin/kit-symbols-go'] !== null) chmodSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go'), 0o755);
   return root;
 }
 
@@ -685,9 +695,13 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   rmSync(path.join(root, 'var/tools/bin/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // The python extractor, which the stub implementations use, cannot start either.
-  assert.deepEqual(keys(missing), ['R1 - go', 'R1 - rust', 'R1 - php', 'R1 - python', 'R3 codec python']);
-  assert.match(findingAt(missing, 0).message, /the python extractor of go\/symbols\.txt gives no symbols: .* could not start/);
-  assert.match(findingAt(missing, 4).message, /could not start/);
+  assert.deepEqual(keys(missing), ['R1 - rust', 'R1 - php', 'R1 - python', 'R3 codec python']);
+  assert.match(findingAt(missing, 0).message, /the python extractor of rust\/symbols\.txt gives no symbols: .* could not start/);
+  assert.match(findingAt(missing, 3).message, /could not start/);
+  // An extractor that install-tools did not build names the declaration and the install.
+  const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null } }).findings;
+  assert.deepEqual(keys(unbuilt), ['R1 - go']);
+  assert.match(findingAt(unbuilt, 0).message, /var\/tools\/symbols-go\/bin\/kit-symbols-go does not exist; name go in symbolExtractors of config\/toolchain\.json and run make install-tools/);
   const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);
   assert.deepEqual(declarations.ledger.runs, []);

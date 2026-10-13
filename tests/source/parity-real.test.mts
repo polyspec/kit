@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkParity } from '../../scripts/kit/parity.mts';
+import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { tree } from '../kit/tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -237,4 +238,30 @@ test('the ts extractor reads the API model that API Extractor builds from the .d
   const tsc = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '--declaration', '--emitDeclarationOnly', '--strict', '--target', 'es2024', '--module', 'nodenext', '--outDir', 'ts/dist', 'ts/src/index.ts'], { cwd: root, encoding: 'utf8' });
   assert.equal(tsc.status, 0, tsc.stdout + tsc.stderr);
   assert.deepEqual(lines(root), ['R11 ts: @demo/codec!Codec#decode:member(1) is public, and no API unit and no nativeOnly entry declares it']);
+});
+
+test('install-tools builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\n',
+    'go/go.mod': 'module example.com/codec\n\ngo 1.21\n',
+    'go/codec.go': 'package codec\n\nconst Limit = 3\n\ntype Codec struct {\n\tStrict bool\n\thidden int\n}\n\nfunc (c *Codec) Encode(v string) string { return v }\n\nfunc (c Codec) decode() {}\n\nfunc encodeHost() {}\n',
+    'go/codec_test.go': 'package codec\n\nfunc Helper() {}\n',
+    'go/internal/x/x.go': 'package x\n\nfunc Hidden() {}\n',
+    'go/sub/sub.go': 'package sub\n\ntype Option interface{ Apply() }\n',
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [{ name: 'go', runner: 'go', roots: ['go'], support: ['go/codec_test.go'], symbols: { extractor: 'go', entry: 'go' } }],
+      profiles: [{ name: 'all', implementations: ['go'] }],
+      units: [{ id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'go', symbol: 'example.com/codec.Codec' }] }],
+    }, null, 2)}\n`,
+  });
+  assert.equal(installExtractor({ root, extractor: 'go' }).installed, true);
+  assert.equal(installExtractor({ root, extractor: 'go' }).installed, false, 'a second install of the same release builds nothing');
+  assert.deepEqual(lines(root), [
+    'R11 go: example.com/codec.Codec.Encode is public, and no API unit and no nativeOnly entry declares it',
+    'R11 go: example.com/codec.Codec.Strict is public, and no API unit and no nativeOnly entry declares it',
+    'R11 go: example.com/codec.Limit is public, and no API unit and no nativeOnly entry declares it',
+    'R11 go: example.com/codec/sub.Option is public, and no API unit and no nativeOnly entry declares it',
+    'R11 go: example.com/codec/sub.Option.Apply is public, and no API unit and no nativeOnly entry declares it',
+  ]);
 });
