@@ -2,8 +2,39 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { cpSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { initRepository } from '../kit/sandbox-repository.mts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+// The files below `directory`, relative to it, in sorted order.
+export function walk(directory: string, prefix = ''): string[] {
+  return readdirSync(path.join(directory, prefix), { withFileTypes: true }).flatMap(entry => {
+    const relative = path.posix.join(prefix, entry.name);
+    return entry.isDirectory() ? walk(directory, relative) : [relative];
+  }).sort();
+}
+
+// Runs `command` in `cwd` with `env`, fails with its output on a nonzero status and returns its standard output.
+export const run = (command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = process.env) => {
+  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(result.status, 0, `${command} ${args.join(' ')} in ${cwd}: ${result.error?.message ?? ''}${result.stdout}${result.stderr}`);
+  return result.stdout;
+};
+
+// A copy of the tracked and new files of the kit checkout with its installed node_modules, built with make build.
+export function builtCopy(t: { after: (fn: () => void) => void }) {
+  const copy = mkdtempSync(path.join(tmpdir(), 'kit-package-'));
+  t.after(() => rmSync(copy, { recursive: true, force: true }));
+  const files = run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], ROOT).split('\n').filter(Boolean);
+  for (const file of files) if (existsSync(path.join(ROOT, file))) cpSync(path.join(ROOT, file), path.join(copy, file));
+  symlinkSync(path.join(ROOT, 'node_modules'), path.join(copy, 'node_modules'));
+  run('make', ['--no-print-directory', 'build'], copy);
+  return copy;
+}
 
 /**
  * The timeout of a test that runs make kit-test in a sandbox. The whole vendored suite runs there: it took 998 s and 1226 s
@@ -11,6 +42,18 @@ import path from 'node:path';
  * is asynchronous (K104). Half again the slowest measurement.
  */
 export const KIT_TEST_TIMEOUT_MS = 30 * 60_000;
+
+/**
+ * Makes `sandbox` a Git repository with all its files committed, as a checkout is: make kit-test compares git status and the
+ * diff against HEAD before and after its run, and the checks list the files of a checkout through Git.
+ */
+export function commitSandbox(sandbox: string) {
+  initRepository(sandbox);
+  for (const args of [['add', '-A'], ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com', 'commit', '--quiet', '-m', 'sandbox']]) {
+    const run = spawnSync('git', args, { cwd: sandbox, encoding: 'utf8' });
+    assert.equal(run.status, 0, `git ${args.join(' ')} in ${sandbox}: ${run.stderr}`);
+  }
+}
 
 /** Copies every tracked file of `root` that `keep` accepts to the same path under `sandbox`. */
 export function copyTracked(root: string, sandbox: string, keep: (file: string) => boolean = () => true) {
