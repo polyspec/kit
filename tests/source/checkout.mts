@@ -1,6 +1,7 @@
 // A copy of the tracked files of the kit in a sandbox, for the source tests that run the vendored tests in another layout.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { signalGroup } from '../../scripts/kit/process-group.mts';
 import { cpSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -33,11 +34,46 @@ export function copyInstalledTools(root: string, sandbox: string) {
   });
 }
 
-/** Runs make kit-test in `cwd` and returns its exit status, its output and the summary counts. */
-export function runKitTest(cwd: string) {
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test'], { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
-  const output = run.stdout + run.stderr;
-  const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);
-  assert.ok(summary, `make kit-test printed no summary:\n${output.slice(-2000)}`);
-  return { status: run.status, output, passed: Number(summary[1]), failed: Number(summary[2]) };
+/**
+ * Runs make kit-test in `cwd` and returns its exit status, its output and the summary counts. The nested run is the leader
+ * of its own process group, which ends with the case: when the run closes (a process it left behind included), when
+ * `signal` aborts (node:test aborts it when the test times out or is cancelled), and when this process receives SIGTERM or
+ * SIGINT, which is passed on to the group and then to this process as before. A SIGKILL of this process reaches no handler.
+ */
+export async function runKitTest(cwd: string, signal: AbortSignal) {
+  const child = spawn('make', ['--no-print-directory', 'kit-test'], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const pgid = child.pid;
+  assert.ok(pgid !== undefined, `make kit-test did not start in ${cwd}`);
+  const end = () => signalGroup(pgid, 'SIGTERM');
+  const forward = (received: NodeJS.Signals) => {
+    end();
+    stop();
+    // Without another listener the signal ends this process as it did before; another listener has already received it.
+    if (process.listenerCount(received) === 0) process.kill(process.pid, received);
+  };
+  const stop = () => {
+    signal.removeEventListener('abort', end);
+    process.removeListener('SIGTERM', forward);
+    process.removeListener('SIGINT', forward);
+  };
+  signal.addEventListener('abort', end);
+  process.once('SIGTERM', forward);
+  process.once('SIGINT', forward);
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  child.stdout.setEncoding('utf8').on('data', (text: string) => stdout.push(text));
+  child.stderr.setEncoding('utf8').on('data', (text: string) => stderr.push(text));
+  try {
+    const status = await new Promise<number | null>((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', resolve);
+    });
+    const output = stdout.join('') + stderr.join('');
+    const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);
+    assert.ok(summary, `make kit-test printed no summary:\n${output.slice(-2000)}`);
+    return { status, output, passed: Number(summary[1]), failed: Number(summary[2]) };
+  } finally {
+    stop();
+    end();
+  }
 }

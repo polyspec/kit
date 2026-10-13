@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const KIT: { vendoredFiles?: Record<string, string> } = JSON.parse(readFileSync(path.join(ROOT, 'kit.json'), 'utf8'));
 const KIT_ONLY = [...Object.values(KIT.vendoredFiles ?? {}), 'tests/source/'];
 
-test('the vendored tests pass in the layout of a consumer', (t) => {
+test('the vendored tests pass in the layout of a consumer', async (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-consumer-layout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox, file => !KIT_ONLY.some(only => (only.endsWith('/') ? file.startsWith(only) : file === only)));
@@ -26,7 +26,7 @@ test('the vendored tests pass in the layout of a consumer', (t) => {
   }
   copyInstalledTools(ROOT, sandbox);
   // The consumer's own command: make kit-test runs the vendored tests through the kit's test runner.
-  const { status, output, passed } = runKitTest(sandbox);
+  const { status, output, passed } = await runKitTest(sandbox, t.signal);
   assert.ok(passed > 0, 'the vendored tests ran');
   // A failed case prints `✖ tests/kit/<file> › <case> (<time>)`, a file that failed to load `✖ tests/kit/<file> (<time>)`.
   const failed = [...output.matchAll(/✖ (tests\/kit\/[^\n]*?) \(\d[^)]*\)/g)].map(match => match[1]);
