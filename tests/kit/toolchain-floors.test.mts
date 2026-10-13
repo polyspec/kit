@@ -135,7 +135,7 @@ test('every Cargo package declares rust-version as the Rust pin, also through it
 test('the typescript of a workspace in the root lock is covered by an exception scoped to that workspace', (t) => {
   const exception = { tool: 'typescript' as const, channel: '6.0.3', scope: 'packages/w', reason: 'the generator runs TypeScript 6', retry: 'the generator runs TypeScript 7' };
   const root = tree(t, {
-    'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
+    'package.json': json({ devDependencies: { typescript: '7.0.2' }, workspaces: ['packages/w'] }),
     'package-lock.json': json({ packages: { '': { devDependencies: { typescript: '7.0.2' } }, 'node_modules/typescript': { version: '7.0.2' }, 'packages/w': { devDependencies: { typescript: '6.0.3' } }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
     'packages/w/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
   });
