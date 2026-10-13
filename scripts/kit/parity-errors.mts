@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { captured, difference, finding } from './parity-declaration.mts';
-import type { ParityImplementation, ParityModel } from './parity-units.mts';
+import type { ParityImplementation, ParityModel } from './parity-declaration.mts';
 
 const COMMENT = /^(?:#|\/\/)/;
 

@@ -4,56 +4,7 @@
 // exclusion) and R11 (an exported symbol that no unit declares).
 import { matchesAny } from './glob.mts';
 import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mts';
-import type { Extractor } from './parity-declaration.mts';
-
-// The declaration of config/parity.json as scripts/kit/schema/parity.schema.json describes it, and the model that
-// readDeclaration builds from it; the parity rules read only the members named here.
-export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
-export type ParityImplementation = {
-  name: string;
-  runner: Runner;
-  roots: string[];
-  tests?: string[];
-  support?: string[];
-  command?: string;
-  args?: string[];
-  env?: { name: string; value: string }[];
-  symbols?: { extractor: Extractor; entry: string };
-  errors?: { file: string; pattern: string };
-};
-export type ParityUnit = {
-  id: string;
-  kind: 'suite' | 'feature' | 'api';
-  profile: string;
-  file?: string;
-  cases?: string;
-  admit?: string;
-  bindings?: { implementation: string; test: string; symbol?: string; id?: string }[];
-  symbols?: { implementation: string; symbol: string }[];
-};
-export type ParityExclusion = { unit: string; implementation: string; reason: string; item: string };
-export type ParityConfig = {
-  implementations: ParityImplementation[];
-  profiles: { name: string; implementations: string[]; reason?: string }[];
-  suites?: string[];
-  comparators?: string[];
-  testPatterns?: { runner: Runner; globs: string[] }[];
-  units: ParityUnit[];
-  nativeOnly?: { implementation: string; symbol: string; reason: string }[];
-  exclusions?: ParityExclusion[];
-  errors?: { profile: string; catalog: { file: string; pattern: string } };
-  languageLists?: { file: string; pattern: string; profile: string }[];
-  documents?: { globs: string[]; nouns: string[] };
-};
-export type ParityModel = {
-  config: ParityConfig;
-  implementations: ReadonlyMap<string, ParityImplementation>;
-  profiles: ReadonlyMap<string, string[]>;
-  tests: ReadonlyMap<string, string[]>;
-  testRunners: ReadonlyMap<string, Runner[]>;
-  members: (unit: ParityUnit) => string[];
-  exclusion: (unit: ParityUnit, implementation: string) => ParityExclusion | undefined;
-};
+import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
 
 /** The pairs of each unit of `kind` with each implementation of its profile that no exclusion removes, in declaration order. */
 export function pairs(model: ParityModel, kind: ParityUnit['kind']) {

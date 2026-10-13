@@ -6,7 +6,7 @@ import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { scanFences, withoutInlineCode } from './markdown.mts';
 import { captured, difference, finding } from './parity-declaration.mts';
-import type { ParityModel } from './parity-units.mts';
+import type { ParityModel } from './parity-declaration.mts';
 
 /** The words of a list: each run of letters, digits, _ and - that starts with a letter. */
 const words = (text: string) => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].map(match => match[0].toLowerCase());
