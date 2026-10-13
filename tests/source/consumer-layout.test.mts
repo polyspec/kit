@@ -16,8 +16,10 @@ const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const NODE = process.versions.node;
 // The packages that kit depends on at run time, as its package-lock resolves them: [node_modules/<name>, entry]. The lint
 // tools (K77) are among them, since a consumer runs them through make lint-ts.
-const DEPENDENCIES = Object.entries(JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, { version: string; resolved: string; integrity: string; dev?: boolean }>)
-  .filter(([entry, item]) => entry !== '' && !item.dev);
+const DEPENDENCIES = Object.entries(JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, { version: string; resolved: string; integrity: string; dev?: boolean; devOptional?: boolean }>)
+  // A devOptional package, such as @types/node, is a dev dependency of kit and only an optional peer of a dependency, which
+  // npm ci of a consumer leaves out.
+  .filter(([entry, item]) => entry !== '' && !item.dev && !item.devOptional);
 
 test('a consumer installs the packed kit offline and runs the bootstrap order and the gate targets', { timeout: 10 * 60_000 }, (t) => {
   assert.ok(existsSync(NPM), `${path.relative(ROOT, NPM)} is missing; make install-tools TOOLS=npm installs the npm of packageManager`);
