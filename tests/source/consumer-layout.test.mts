@@ -15,6 +15,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const NPM = path.join(ROOT, 'var/tools/bin/npm');
 const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const NODE = process.versions.node;
+// The packages that kit depends on at run time, as its package-lock resolves them: [node_modules/<name>, entry].
+const DEPENDENCIES = Object.entries(JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, { version: string; resolved: string; integrity: string; dev?: boolean }>)
+  .filter(([entry, item]) => entry !== '' && !item.dev);
 
 test('a consumer installs the packed kit offline and runs the bootstrap order and the gate targets', { timeout: 10 * 60_000 }, (t) => {
   assert.ok(existsSync(NPM), `${path.relative(ROOT, NPM)} is missing; make install-tools TOOLS=npm installs the npm of packageManager`);
@@ -28,6 +31,14 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const tarball = path.join(work, packed.filename);
   const cache = path.join(work, 'npm-cache');
   run(NPM, ['cache', 'add', tarball, '--cache', cache], work);
+  // The packages that kit depends on come from the npm cache of this checkout, which its npm ci filled: npm pack --offline
+  // writes the registry tarball of each, whose integrity is the one of package-lock.
+  for (const [entry, item] of DEPENDENCIES) {
+    const name = entry.slice('node_modules/'.length);
+    const dependency: { filename: string } | undefined = JSON.parse(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work))[name];
+    assert.ok(dependency, `npm pack printed no ${name}`);
+    run(NPM, ['cache', 'add', path.join(work, dependency.filename), '--cache', cache], work);
+  }
   const unpacked = path.join(work, 'unpacked');
   mkdirSync(unpacked);
   run('tar', ['-xzf', tarball, '-C', unpacked, '--strip-components=1'], work);
@@ -47,7 +58,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     name: 'consumer', lockfileVersion: 3, requires: true,
     packages: {
       '': { name: 'consumer', devDependencies: manifest.devDependencies, engines: manifest.engines },
-      'node_modules/@polyspec/kit': { version: packed.version, resolved: asset, integrity: packed.integrity, dev: true, license: KIT.license, engines: KIT.engines },
+      'node_modules/@polyspec/kit': { version: packed.version, resolved: asset, integrity: packed.integrity, dev: true, license: KIT.license, dependencies: KIT.dependencies, engines: KIT.engines },
+      ...Object.fromEntries(DEPENDENCIES.map(([entry, item]) => [entry, { ...item, dev: true }])),
     },
   };
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -75,6 +87,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }
   assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/kit.mk')), 'make install-packages installed @polyspec/kit');
+  // The packages that kit depends on are installed with it, at the versions of its package-lock.
+  for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   for (const target of [['kit-sync'], ['kit-check'], ['toolchain-check', 'TOOLS=node npm']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
