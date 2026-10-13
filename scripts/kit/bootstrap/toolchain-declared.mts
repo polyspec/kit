@@ -13,11 +13,16 @@
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
+//   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
 // Go and Rust are read by toolchain-files.mts with the tools of their ecosystems, after the bootstrap.
 // A tool is declared when its file exists (node) or its config key is present; an undeclared tool is absent from the
 // result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+
+/** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
+export type InstalledExtractor = 'go';
+const EXTRACTORS: readonly InstalledExtractor[] = ['go'];
 
 const EXACT = /^\d+\.\d+\.\d+$/;
 const MINOR = /^\d+\.\d+$/;
@@ -44,6 +49,7 @@ export type DeclaredToolchain = {
   phpunit?: Declared & { manifest: string };
   cargoAudit?: Declared;
   govulncheck?: Declared;
+  symbolExtractors?: { extractors: InstalledExtractor[]; source: string };
 };
 
 /**
@@ -170,6 +176,11 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   for (const key of ['cargoAudit', 'govulncheck'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
+  }
+  if (config.symbolExtractors !== undefined) {
+    const extractors: unknown = config.symbolExtractors;
+    if (!Array.isArray(extractors) || !extractors.length || extractors.some(name => !EXTRACTORS.includes(name))) throw new Error(`config/toolchain.json symbolExtractors is ${JSON.stringify(extractors)}; expected a list of ${EXTRACTORS.join(', ')}`);
+    declared.symbolExtractors = { extractors, source: 'config/toolchain.json symbolExtractors' };
   }
   return declared;
 }
