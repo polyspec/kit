@@ -71,7 +71,7 @@ url = "https://getcomposer.org/download/2.10.3/composer.phar"
 version = "2.16"
 backend = "pypi:vulture"
 specifiers = ["2.16"]
-uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "sha256:d53f16c98426164a0db131dbc6a805edbd41d7d0b188d48a1d72ef7b0c2cf6a5" }
+uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "sha256:f1a632a0df71bcab3023b39368ddd6f8ba412dbc7db86295e9a04068553f04e5" }
 
 [[tools.python]]
 version = "3.14.8"
