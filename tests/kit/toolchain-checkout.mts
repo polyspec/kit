@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
+import { initRepository } from './sandbox-repository.mts';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -24,5 +25,7 @@ export function toolchainCheckout(t: Pick<TestContext, 'after'>, files: Record<s
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
   }
+  // The checks list the files of a checkout through Git, so the checkout is a repository.
+  initRepository(root);
   return root;
 }

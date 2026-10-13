@@ -6,15 +6,16 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
+import { enginesFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { versionStubs } from './toolchain-stubs.mts';
+import { tree } from './tree.mts';
 
 const NODE = process.versions.node;
 const FILES = {
   '.node-version': `${NODE}\n`,
-  'package.json': '{ "packageManager": "npm@12.2.0" }',
+  'package.json': `{ "packageManager": "npm@12.2.0", "engines": { "node": ">=${NODE}" } }`,
   'rust-toolchain.toml': '[toolchain]\nchannel = "1.98.1"\n',
   'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
   'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.2', '8.5'], python: '3.14', composer: { version: '2.10.3' }, go: { mod: 'go.mod' }, ruff: { version: '0.16.10', sha256: { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a' } }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
@@ -153,4 +154,27 @@ test('uv is probed by its version line, and a uv of another release names the de
   assert.deepEqual(toolchainMismatches(['uv'], { root, env: same.env }), []);
   const older = versionStubs(t, { uv: 'uv 0.12.10 (4b53f66b7 2026-09-08 aarch64-apple-darwin)' });
   assert.deepEqual(toolchainMismatches(['uv'], { root, env: older.env }), ['uv: 0.12.10 runs here and config/toolchain.json uv declares 0.12.11; fix: make install-tools, and var/tools/bin first on PATH']);
+});
+
+// engines.node of every package.json is the floor of the Node.js pin: `>=` the release of .node-version (one source per pin).
+test('every package.json of the checkout declares engines.node as >= the release of .node-version', (t) => {
+  const root = tree(t, {
+    '.node-version': '26.8.1\n',
+    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0', engines: { node: '>=26.0.0' } }),
+    'packages/a/package.json': JSON.stringify({ name: 'a' }),
+    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.8.1' } }),
+    'tests/kit/fixture/package.json': JSON.stringify({ name: 'fixture' }),
+  });
+  assert.deepEqual(enginesFindings(root), [
+    'package.json: engines.node is ">=26.0.0"; .node-version pins 26.8.1, so it must be ">=26.8.1"',
+    'packages/a/package.json: engines.node is missing; .node-version pins 26.8.1, so it must be ">=26.8.1"',
+  ]);
+  assert.deepEqual(enginesFindings(tree(t, { 'package.json': JSON.stringify({ packageManager: 'npm@12.2.0' }) })), [], 'without .node-version no engines.node is required');
+});
+
+test('the check of node fails on an engines.node that is not the floor of the pin', (t) => {
+  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=20" } }' });
+  const result = check(root, stubs.env, 'node');
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, new RegExp(`\\[check-toolchain\\] package\\.json: engines\\.node is ">=20"; \\.node-version pins ${NODE.replaceAll('.', '\\.')}, so it must be ">=${NODE.replaceAll('.', '\\.')}"`));
 });

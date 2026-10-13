@@ -17,6 +17,8 @@ import { govulncheckCommand } from './install-govulncheck.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
+import { readJson } from './bootstrap/files.mts';
+import { checkedFiles } from './tracked-files.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -112,6 +114,21 @@ export function toolchainMismatches(tools: string[], { root = ROOT, env = toolch
   return mismatches;
 }
 
+/**
+ * One line for each package.json of the checkout whose engines.node is not `>=` the release of .node-version: the pin of
+ * Node.js is .node-version, and the floor of every package equals it. Without .node-version nothing is required.
+ */
+export function enginesFindings(root: string): string[] {
+  const pin = declaredToolchain(root).node?.version;
+  if (pin === undefined) return [];
+  const floor = `>=${pin}`;
+  return checkedFiles(root).filter(file => path.posix.basename(file) === 'package.json').flatMap((file) => {
+    const engines: unknown = readJson(root, file).engines?.node;
+    if (engines === floor) return [];
+    return [`${file}: engines.node is ${engines === undefined ? 'missing' : JSON.stringify(engines)}; .node-version pins ${pin}, so it must be "${floor}"`];
+  });
+}
+
 const expectation = (entry: DeclaredTool) => (entry.minors ?? (entry.minor ? [entry.minor] : [entry.version])).join(' or ');
 
 if (isMain(import.meta.url)) {
@@ -120,14 +137,14 @@ if (isMain(import.meta.url)) {
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredTools(ROOT)[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in config/toolchain.json, .node-version, .php-version, .python-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
+    // The floor of every package is the Node.js pin, so it is checked with node.
+    const engines = tools.includes('node') ? enginesFindings(ROOT) : [];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of mismatches) console.error(`[check-toolchain] ${line}`);
-    if (mismatches.length > 0) {
-      console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
-      process.exitCode = 1;
-    } else {
-      console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
-    }
+    for (const line of [...mismatches, ...engines]) console.error(`[check-toolchain] ${line}`);
+    if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
+    if (engines.length > 0) console.error(`[check-toolchain] ${engines.length} package.json files declare an engines.node other than the floor of .node-version`);
+    if (mismatches.length > 0 || engines.length > 0) process.exitCode = 1;
+    else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
     // The declarations and the check fail with an Error.
     console.error(`[check-toolchain] ${(error as Error).message}`);
