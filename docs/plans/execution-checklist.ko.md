@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 5969e5f65a90bfaf16367a1e2c92db52101fe7915766fe79854ccb0a20f1bb91 -->
+<!-- source-sha256: 3207f9cdd98fbfbcb74c6911ff9843d1713847fd9250b0c99f89cdfedd0deeb0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -140,6 +140,7 @@
 | K74 | 자체 구현을 유지하는 kit tool마다(toolchain 설치, changelog, git hook, duplication, library 없는 version 비교, 통과하는 library가 없을 때의 PEP 508 parsing) 계획이 이름 붙인 생태계 tool과 비교한 rebuild 기록을 씁니다. | `docs/rebuild/*.md(.ko)` | `node scripts/kit/check-documents.mjs`; 외부 형식을 parse하는 kit tool마다 기록이 있는지 보는 check | [ ] |
 | K75 | parity를 확장합니다: native runner가 통과시킨 id와 대조하는 feature unit, repository가 넓힐 수는 있어도 좁힐 수 없는 runner별 고정 test 파일 규약, symbol snapshot(Rust는 선언된 pin nightly), profile 이유의 spec anchor, `PYTHONPATH`와 repository 밖 경로를 거부하는 schema. | `scripts/kit/parity*`, schema, test | 새 규칙마다 fixture가 먼저 실패; `make kit-test` | [ ] |
 | K76 | S5와 S7의 layout tool: rebuild 기록이 먼저 alint를 비교합니다; tool은 root allowlist, package tree, go.mod module path, 금지 경로, S9 예외 밖의 비-TypeScript 인프라 script를 검사합니다. | tool 또는 alint 설정, schema, test | 위반 fixture가 먼저 실패; `make kit-test` | [ ] |
+| K76-1 | layout이나 parity 예외의 review가 강제됩니다: `.github/CODEOWNERS`가 `config/layout*.yml`, `config/parity.json`, `config/owner-checks.json`의 owner를 이름으로 대고, main의 branch protection이 code owner의 review를 요구합니다(S8). CODEOWNERS 파일만으로는 아무것도 강제하지 않고 protection은 GitHub 설정이므로, owner의 계정과 확인을 기다립니다. | `.github/CODEOWNERS`, main의 branch protection | `config/layout.yml`을 바꾸는 pull request가 owner의 승인 없이는 merge되지 않음 | [ ] |
 | K77 | lint 설정을 배포합니다: phpcs PSR-12, phpstan disallowed-calls, composer.json policy schema; `unsafe_code = "deny"`를 둔 Rust `[workspace.lints]`; gomoddirectives를 둔 golangci-lint; root 설정으로 도는 TID251 ruff; oxlint + oxlint-tsgolint; knip, deadcode, vulture; `.editorconfig`. | lint 설정 파일, `kit.json` | 검증에서 찾은 false green마다 실패하는 fixture가 먼저(`--strict-psr`에 추가 class, `importlib` `sys.path`, 중첩 `[tool.ruff]`, `transmute_copy`, `apiReport` 없는 문서 없는 export) | [ ] |
 | K78 | toolchain check를 확장합니다(S4): kit이 배포하는 pin, pin 정밀도로 pin과 같은 하한, 범위·이유·재시도 조건을 가진 선언된 예외(generator-svelte TypeScript 6, 추출용 Rust nightly), TypeScript key, npm link를 막는 `.npmrc` key 거부. | `scripts/kit/check-toolchain*`, `config/toolchain.json` schema, test | 위반 fixture가 먼저 실패; `make kit-test` | [ ] |
 | K79 | K71–K78을 kit release 하나로 내고 모든 repository를 한 번에 옮깁니다(crudui, hyper, template, fsm, ordered-json, orm; ssr과 template-benchmark는 첫 도입). 각각 시작 전에 소유 session에 알립니다. | release, 각 repository의 sync | 각 repository의 `make check`가 자기 red 목록(계획 §2)을 자기 checklist에 기록 | [ ] |
