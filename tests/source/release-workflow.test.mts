@@ -68,3 +68,10 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
 test('the release workflow bootstraps the package before release-tools: the npm of packageManager, then install-packages (K71-2)', () => {
   assert.deepEqual(runs.slice(0, 3).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tools']);
 });
+
+test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
+  // config/release.json declares the package @polyspec/kit and its asset; a tag push runs this workflow, which needs kit's own
+  // make targets install-tools and install-packages in the bootstrap order (K79).
+  assert.equal(readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8'), readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8'));
+  assert.match(readFileSync(path.join(ROOT, 'Makefile'), 'utf8'), /^install-packages:/m);
+});
