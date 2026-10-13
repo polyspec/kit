@@ -51,7 +51,7 @@ interface ReviewState {
   locks: string[];
   npmLocks: Map<string, { packages?: Record<string, { version?: string }> }>;
   pythonLocks: { lock: string; createdBy: string | null; packages: { kind: string; name: string; version: string }[] }[];
-  vcs: { lock: string; package: string; url: string; requestedRevision: string | null; commitId: string }[];
+  vcs: { lock: string; package: string; url: unknown; requestedRevision: unknown; commitId: unknown }[];
 }
 
 /** An advisory of a package of a lock. */
@@ -136,7 +136,7 @@ function npmLatest(root: string, name: string): Latest {
   // npm 12 prints the fields of the one matching package as an array of one object.
   const view = Array.isArray(value) ? value[0] ?? {} : value;
   const tag = view['dist-tags']?.latest;
-  const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter(Boolean);
+  const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter((version): version is string => Boolean(version));
   const candidates = stableDescending(versions).filter((version: string) => !tag || isPrerelease(tag) || !older(tag, version));
   for (const version of candidates) {
     const deprecated = run('npm', ['view', `${name}@${version}`, 'deprecated'], root);
@@ -151,7 +151,8 @@ function npmLatest(root: string, name: string): Latest {
 export function highestStableRelease(releases: Record<string, unknown[]>): string | null {
   // version is a key of releases.
   const stable = Object.keys(releases).filter(version => dottedParts(version) && releases[version]!.length > 0);
-  stable.sort((a, b) => compareParts(dottedParts(a), dottedParts(b)));
+  // The filter above keeps the versions that have dotted parts.
+  stable.sort((a, b) => compareParts(dottedParts(a)!, dottedParts(b)!));
   return stable.at(-1) ?? null;
 }
 

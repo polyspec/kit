@@ -292,7 +292,8 @@ test('an incomplete record whose process runs refuses the run; a reused process 
   const { work } = prepared(t);
   const other = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => other.kill());
-  const stopped = { tree: 'tree-old', commit: 'c0', keys: {}, result: 'incomplete', pid: other.pid, processStart: processStart(other.pid), started: '2026-10-05T01:00:00.000Z', ended: null, targets: [{ name: 'a', status: 'running' }], reruns: [] };
+  // spawn gives the child its pid; the test fails when it does not start.
+  const stopped = { tree: 'tree-old', commit: 'c0', keys: {}, result: 'incomplete', pid: other.pid, processStart: processStart(other.pid!), started: '2026-10-05T01:00:00.000Z', ended: null, targets: [{ name: 'a', status: 'running' }], reruns: [] };
   mkdirSync(path.join(work, 'var'), { recursive: true });
   writeFileSync(path.join(work, RECORD), JSON.stringify(stopped));
   const refused = await guard(work, 'run', ['a']);
@@ -310,7 +311,8 @@ test('a guard is refused while another process holds the lock of the record, and
   const other = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => other.kill());
   mkdirSync(path.join(work, 'var'), { recursive: true });
-  writeFileSync(path.join(work, LOCK), `${JSON.stringify({ checkout: work, pid: other.pid, processStart: processStart(other.pid), acquired: '2026-10-05T00:00:00.000Z', command: 'full-run run', token: 'other' })}\n`);
+  // spawn gives the child its pid; the test fails when it does not start.
+  writeFileSync(path.join(work, LOCK), `${JSON.stringify({ checkout: work, pid: other.pid, processStart: processStart(other.pid!), acquired: '2026-10-05T00:00:00.000Z', command: 'full-run run', token: 'other' })}\n`);
   const refused = await guard(work, 'run', ['a']);
   assert.equal(refused.status, 1, refused.output);
   assert.match(refused.output, new RegExp(`^\\[full-run\\] refuse: .*full-run\\.lock is held by process ${other.pid} .*; the guard of another run reads or writes var/full-run\\.json$`, 'm'));

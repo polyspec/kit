@@ -113,8 +113,8 @@ function runSupport(model: Model, root: string, files: Set<string>, { env, say }
     const run = resolvedRun(implementation, root, { test: file }, '', env);
     if (run.error) return [finding('R3', run.error, where)];
     say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
-    // A run without an error message has its cwd.
-    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd!), env: run.env });
+    // A run without an error message has its command, args and cwd.
+    const result = execute(run.command!, run.args!, { cwd: path.join(root, run.cwd!), env: run.env });
     if (result.error) return [finding('R5', `the support file could not run: ${run.shown}: ${result.error.message}`, where)];
     const reported = outcomesOf(run, result).map(([name]: [string, string]) => name);
     return reported.length ? [finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where)] : [];
@@ -142,8 +142,8 @@ export function runBindings(model: Model, root: string, { env, files, say }: { e
     // map gives one attempt for each of the two runs.
     const [first, second] = [1, 2].map((attempt): Attempt => {
       say(`run ${unit.id} ${implementation.name} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
-      // A run without an error message has its cwd.
-      const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd!), env: run.env });
+      // A run without an error message has its command, args and cwd.
+      const result = execute(run.command!, run.args!, { cwd: path.join(root, run.cwd!), env: run.env });
       const status = result.error ? null : result.status;
       const reported: [string, string][] = result.error ? [] : outcomesOf(run, result);
       const cases = new Map(reported);
