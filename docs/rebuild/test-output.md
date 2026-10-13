@@ -41,4 +41,4 @@ lines that the standard runners print. T1 has a library that reads the same outc
 ## Retry condition
 
 Revisit T3 when stable cargo test writes JSON, T4 when unittest has a machine format, and T5 when a maintained TeamCity
-message reader exists. The tap-parser replacement of T1 is an item to register.
+message reader exists. K125 replaced the TAP reader of T1 with tap-parser.

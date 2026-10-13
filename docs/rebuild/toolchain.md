@@ -3,7 +3,7 @@
 
 [한국어](toolchain.ko.md)
 
-Verdict: **replace** the release installers with mise and its lock (an item to register); **none fits** for the npm bootstrap
+Verdict: **replace** the release installers with mise and its lock (K127, deferred: until it lands kit installs the releases itself); **none fits** for the npm bootstrap
 and the verification of the toolchains that a repository does not install. This record covers the part that stays. Measured
 on 2026-10-13.
 

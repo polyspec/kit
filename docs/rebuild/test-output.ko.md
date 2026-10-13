@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-test-output -->
-<!-- source-sha256: a155788fb695baa47c7c4d7c0c07c3a9b782e4fe5ccd98391f0595c2116d0a8e -->
+<!-- source-sha256: 6e3ac88738e34e5c93707feff08748c4200a2f9e49babbd9e49074e468c09282 -->
 # 재구현 기록: test-output
 
 [English](test-output.md)
@@ -42,4 +42,4 @@ T3–T5에서는 runner가 실행 중에 기계 형식을 쓰지 않으며, 그 
 ## 재시도 조건
 
 T3은 stable cargo test가 JSON을 쓰게 되면, T4는 unittest에 기계 형식이 생기면, T5는 유지되는 TeamCity message
-reader가 생기면 다시 검토합니다. T1의 tap-parser 교체는 등록할 item입니다.
+reader가 생기면 다시 검토합니다. K125가 T1의 TAP reader를 tap-parser로 교체했습니다.
