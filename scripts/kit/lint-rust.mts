@@ -6,17 +6,18 @@
 // toolchain that rust-toolchain.toml of the checkout pins; lint-steps.mts runs the steps.
 //
 //   node scripts/kit/lint-rust.mts
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { isTable } from './toml.mts';
+import { readTomlFile } from './toolchain-files.mts';
 
 /** The steps of the lint of `root`: one clippy run for each workspace of the checkout. */
 export function lintSteps(root: string): LintStep[] {
   return checkedFiles(root)
-    .filter(file => path.posix.basename(file) === 'Cargo.toml' && /^\[workspace\]\s*$/m.test(readFileSync(path.join(root, file), 'utf8')))
+    .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
     .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'], cwd: folder }));
 }

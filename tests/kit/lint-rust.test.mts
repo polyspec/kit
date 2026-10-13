@@ -13,7 +13,8 @@ import { initRepository } from './sandbox-repository.mts';
 const FILES: Record<string, string> = {
   'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\n',
   'packages/rust/Cargo.toml': '[package]\nname = "demo"\n',
-  'benchmarks/rust/Cargo.toml': '[package]\nname = "bench"\n\n[workspace]\n',
+  // A comment after the table header is TOML; the reader of the manifest reads the table.
+  'benchmarks/rust/Cargo.toml': '[package]\nname = "bench"\n\n[workspace] # the benchmarks\n',
   'tests/kit/fixture/packages/fixture-rust/Cargo.toml': '[package]\nname = "fixture"\n\n[workspace]\n',
 };
 
