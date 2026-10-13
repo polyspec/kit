@@ -230,6 +230,8 @@ test('config: a wheel package needs its consumer smoke and a pinned build backen
     return box;
   };
   stop(() => release.loadConfig(edit(c => { delete c.consumers.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
+  // K109: a configuration without consumers is refused with the section that each package kind needs.
+  stop(() => release.loadConfig(edit(c => { delete c.consumers; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
   stop(() => release.loadConfig(edit(c => { delete c.buildBackend; return c; }).root), /buildBackend is missing; the wheel packages \[kit-fixture\] need a pinned build backend/);
   stop(() => release.loadConfig(edit(c => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'python'; return c; }).root), /proof\.gitTag\.packages\/fixture-rust\/Cargo\.toml\.kind is "python", the allowed values are rust/);
 });

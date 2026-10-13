@@ -525,7 +525,7 @@ function wheelLock(config: ReleaseConfig, name: string): string {
 
 /** consumers.wheel of the configuration, which a wheel package needs. */
 function wheelConsumer(config: ReleaseConfig): WheelConsumer {
-  // consumerConfigProblems requires consumers.wheel for a wheel package only when consumers is present.
+  // consumerConfigProblems requires consumers.wheel for a wheel package, so loadConfig refuses a configuration without it.
   if (!config.consumers?.wheel) throw new Error(`${CONFIG}: consumers.wheel is missing; the wheel packages of packages need it`);
   return config.consumers.wheel;
 }

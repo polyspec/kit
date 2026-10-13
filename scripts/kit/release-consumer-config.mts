@@ -83,23 +83,22 @@ function smokeProblems(kind: string, consumer: ConsumerSection, names: string[],
 /** The problems of `consumers` and `proof` of a configuration that passed the schema, as sentences without the file name. */
 export function consumerConfigProblems(config: ConsumerConfig): string[] {
   const problems: string[] = [];
-  if (config.consumers) {
-    const directories = new Set<string | undefined>();
-    for (const kind of [...CONSUMER_KINDS, WHEEL_KIND]) {
-      const names = config.packages.filter(item => item.kind === kind).map(({ name }) => name);
-      const consumer = config.consumers[kind];
-      if (!consumer) {
-        if (names.length) problems.push(`consumers.${kind} is missing; the ${kind} packages [${names.join(', ')}] need a consumer project that installs them`);
-        continue;
-      }
-      if (!names.length) problems.push(`consumers.${kind} is set but packages lists no ${kind} package`);
-      if (kind !== WHEEL_KIND) {
-        if (directories.has(consumer.directory)) problems.push(`consumers.${kind}.directory ${consumer.directory} is also the directory of another consumer`);
-        directories.add(consumer.directory);
-      }
-      smokeProblems(kind, consumer, names, problems);
-      if (kind === WHEEL_KIND) wheelProblems(consumer, names, problems);
+  // A configuration without consumers lacks the consumer of each package kind that it releases.
+  const directories = new Set<string | undefined>();
+  for (const kind of [...CONSUMER_KINDS, WHEEL_KIND]) {
+    const names = config.packages.filter(item => item.kind === kind).map(({ name }) => name);
+    const consumer = config.consumers?.[kind];
+    if (!consumer) {
+      if (names.length) problems.push(`consumers.${kind} is missing; the ${kind} packages [${names.join(', ')}] need a consumer project that installs them`);
+      continue;
     }
+    if (!names.length) problems.push(`consumers.${kind} is set but packages lists no ${kind} package`);
+    if (kind !== WHEEL_KIND) {
+      if (directories.has(consumer.directory)) problems.push(`consumers.${kind}.directory ${consumer.directory} is also the directory of another consumer`);
+      directories.add(consumer.directory);
+    }
+    smokeProblems(kind, consumer, names, problems);
+    if (kind === WHEEL_KIND) wheelProblems(consumer, names, problems);
   }
   if (config.proof) {
     const gitTag = Object.entries(config.manifests).filter(([, mode]) => mode === 'git-tag').map(([file]) => file);

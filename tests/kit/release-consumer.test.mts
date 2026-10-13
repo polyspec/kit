@@ -217,7 +217,8 @@ test('install fails for a smoke command that does not exist', (t) => {
 test('install needs a consumers section', (t) => {
   const box = consumerSandbox(t);
   edit(box.root, 'config/release.json', ({ consumers, ...config }) => config);
-  stop(() => install(box), /config\/release\.json has no consumers section/);
+  // loadConfig refuses the configuration first (K109) and names the section that each package kind lacks.
+  stop(() => install(box), /config\/release\.json: consumers\.npm is missing; the npm packages \[[^\]]+\] need a consumer project that installs them/);
 });
 
 test('the command line locks, installs, ends a Go module tag without an install and refuses other arguments', (t) => {
