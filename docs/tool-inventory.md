@@ -728,10 +728,13 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with its `vendor/autoload.php` |
 | Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked -- -D warnings` in each workspace |
 | Go | golangci-lint 2.14.0 (release archive), deadcode of golang.org/x/tools 0.52.0 (`go install`) | `.golangci.yml` | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
-| TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (devDependencies) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
+| TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
 | All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
 
-The make targets and the copies (`kit.copies`) are wired on the kit package.
+The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-lint.mts` reads the declarations of
+the lint tools after the bootstrap, and `make toolchain-check` probes each installed release: vulture, golangci-lint, deadcode
+(by `go version -m` of its binary, since it prints no release), and phpcs and PHPStan at the releases that
+`config/php-lint/composer.lock` holds.
 
 ### Decisions
 
