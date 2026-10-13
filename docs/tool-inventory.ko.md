@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9a4abf419ccd0bc4419bf32cb814fe2be154e58a8a350024933da1428c6d12ce -->
+<!-- source-sha256: 8e964be19986a20f3750af971e19627c50433fda153ca99addd7bf1ae5017e9c -->
 
 # 도구 목록
 
@@ -640,7 +640,7 @@ finding 하나입니다.
   지우고, 완전한 줄만 넘기고, log 쓰기 실패를 기록합니다. full run의 target log는 명령으로 시작하고 CI report의 log처럼
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
-- `kit-check.walk`는 vendored directory를 무시된 파일까지 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
+- `kit-check`는 설치된 package의 `kit.copies`가 이름을 대는 사본만 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.
 
 ## Python lint (K8.4)
