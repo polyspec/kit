@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commandsOf, makefileText, npmProject, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
+import { commandsOf, makeDatabase, npmProject, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
 import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { put, tree } from './tree.mts';
@@ -55,7 +55,7 @@ const DECLARATION: OwnerDeclaration & { schema: number } = {
 function project(t: TestContext, files: Record<string, string> = FILES) {
   const root = tree(t, files);
   const tracked = trackedFiles(root);
-  return { root, tracked, project: { makefile: makefileText(root), ...npmProject(root, tracked) } };
+  return { root, tracked, project: { make: makeDatabase(root), ...npmProject(root, tracked) } };
 }
 const errorsOf = (t: TestContext, declaration: OwnerDeclaration, files?: Record<string, string>) => {
   const { tracked, project: found } = project(t, files);
@@ -69,7 +69,7 @@ test('a declaration that owns every path passes, with targets of an included fil
   assert.deepEqual(found.prefixes, ['tools/bench']);
   assert.deepEqual(Object.keys(found.scripts), ['test:forms']);
   assert.deepEqual(validate(DECLARATION, tracked, found, file => tracked.includes(file)), []);
-  assert.deepEqual(suiteTargets(found.makefile), ['docs-check', 'unit-test', 'lint']);
+  assert.deepEqual(suiteTargets(found.make), ['docs-check', 'unit-test', 'lint']);
 });
 
 test('a tracked path without an owner and a glob without a path fail', (t) => {
@@ -125,6 +125,13 @@ test('inputs: a path that a check reads needs a rule that selects the check or a
   has(errorsOf(t, inputs('make lint', ['src/a.js'])), 'src/a.js: an input of make lint, which no owner rule of the path selects');
   has(errorsOf(t, inputs('make absent', ['src/a.js'])), 'inputs of "make absent" name no make target');
   has(errorsOf(t, inputs('make lint', ['nothing/**'])), 'the input glob nothing/** of make lint matches no tracked path');
+});
+
+test('the targets and prerequisites are those of make: a variable expands, and a target-specific variable is no prerequisite (K121)', (t) => {
+  // make reads `unit-test: $(STEP)` as the prerequisite compile, and `unit-test: export MODE := strict` as a variable of unit-test.
+  const makefile = 'STEP := compile\nunit-test: $(STEP)\n\t@echo unit\nunit-test: export MODE := strict\ncompile:\n\t@echo compile\n';
+  const declaration = { schema: 1, owners: [{ paths: ['src/**'], targets: ['unit-test'] }, { paths: ['Makefile'], targets: ['compile'] }], inputs: [{ check: 'make compile', paths: ['src/a.js'] }] };
+  assert.deepEqual(errorsOf(t, declaration, { Makefile: makefile, 'src/a.js': '1\n' }), []);
 });
 
 test('select: a changed path selects its owners; always, $path, variables and the suite order apply', () => {
