@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9c487b28e95ec51393d10a9bafc8ea9a3b7b997184c45148f19bb06025d8a5e1 -->
+<!-- source-sha256: c7822e1c7a46b76c67a89c2b7ba01b1273fa2b9867172a996762a514a19f2948 -->
 
 # 도구 목록
 
@@ -98,7 +98,7 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
-| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`의 모든 `typescript` | TypeScript pin |
+| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript`. 다른 package 아래에 중첩된 사본(API Extractor가 내장한 TypeScript 등)은 그 도구의 것입니다(S1) | TypeScript pin |
 
 - `config/toolchain.json`의 `exceptions`는 편차를 `{ tool, channel, scope, reason, retry }`로 선언합니다(S8). scope는 `.`
   또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. 예외 없는 편차는 실패하고, 필드가 빠졌거나 pin되지
