@@ -34,12 +34,12 @@
             }
           },
           "symbols": {
-            "description": "The public API of the implementation, which parity-check reads with the extractor of its ecosystem (scripts/kit/parity-symbols.mts): go (golang.org/x/tools/go/packages on a module directory, built by install-tools when config/toolchain.json symbolExtractors names go), php (nikic/php-parser on a source directory or file, such as the *.stub.php of an extension, installed when symbolExtractors names php), python (the standard library's ast on a package directory or module file) or ts (API Extractor on a .d.ts entry point in its npm package).",
+            "description": "The public API of the implementation, which parity-check reads with the extractor of its ecosystem (scripts/kit/parity-symbols.mts): go (golang.org/x/tools/go/packages on a module directory, built by install-tools when config/toolchain.json symbolExtractors names go), php (nikic/php-parser on a source directory or file, such as the *.stub.php of an extension, installed when symbolExtractors names php), python (the standard library's ast on a package directory or module file), rust (the rustdoc JSON of the library of a Cargo.toml, with the Rust nightly of config/toolchain.json exceptions whose scope holds it) or ts (API Extractor on a .d.ts entry point in its npm package).",
             "type": "object",
             "required": ["extractor", "entry"],
             "additionalProperties": false,
             "properties": {
-              "extractor": { "type": "string", "enum": ["go", "php", "python", "ts"] },
+              "extractor": { "type": "string", "enum": ["go", "php", "python", "rust", "ts"] },
               "entry": { "description": "The path that the extractor reads, relative to the checkout.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" }
             }
           },

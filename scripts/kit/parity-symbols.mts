@@ -9,10 +9,14 @@
 //   php     scripts/kit/symbols/php/extract.php, nikic/php-parser, on a source directory or file, such as the *.stub.php of a
 //           PHP extension; ids Ns\Class, Ns\Class::method, Ns\Class::CONST, Ns\Class::$property, Ns\function and Ns\CONST
 //           of the public declarations; install-tools installs php-parser when config/toolchain.json symbolExtractors names php
+//   rust    the JSON of rustdoc (cargo +<nightly> rustdoc -- -Z unstable-options --output-format json) of the library of a
+//           Cargo.toml entry; rustdoc JSON is unstable (rust-lang/rust#76578), so the channel is the Rust nightly of
+//           config/toolchain.json exceptions whose scope holds the entry; ids <crate>::<path> of each public item reachable
+//           from the crate root (re-exports included), with the fields, variants, inherent items and trait items under it
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
@@ -23,6 +27,7 @@ import { finding } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
+import { readExceptions } from './toolchain-exceptions.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
 type Extracted = { symbols: string[]; error?: never } | { error: string };
@@ -96,6 +101,82 @@ function apiModel(root: string, entry: string): Extracted {
   }
 }
 
+// The part of rustdoc JSON (format 61) that the rust extractor reads: the crate root and each item by its id.
+type RustdocItem = { name: string | null; visibility: string; inner: Record<string, Record<string, unknown>> };
+type Rustdoc = { root: number; index: Record<string, RustdocItem> };
+
+/** The public ids of the crate of `doc`: each public item reachable from its root as <crate>::<path>, with its members. */
+export function rustdocSymbols(doc: Rustdoc): string[] {
+  const found = new Set<string>();
+  const visited = new Set<number>();
+  const item = (id: unknown): RustdocItem | undefined => doc.index[String(id)];
+  const ids = (value: unknown): number[] => (Array.isArray(value) ? value : []);
+  // The members of the item `entry` named `name`: public fields, variants, the items of its inherent impls and of a trait.
+  const members = (name: string, entry: RustdocItem) => {
+    const [kind, inner] = Object.entries(entry.inner)[0] ?? [];
+    const plain = (inner?.kind as { plain?: { fields?: unknown } } | undefined)?.plain;
+    const children = [
+      ...ids(plain?.fields).map(item).filter(field => field?.visibility === 'public'),
+      ...ids(inner?.variants).map(item),
+      ...(kind === 'trait' ? ids(inner?.items).map(item) : []),
+      ...ids(inner?.impls).map(item).filter(impl => impl?.inner.impl?.trait === null).flatMap(impl => ids(impl!.inner.impl!.items).map(item)).filter(member => member?.visibility === 'public'),
+    ];
+    for (const child of children) if (child?.name) found.add(`${name}::${child.name}`);
+  };
+  const visit = (moduleId: number, prefix: string) => {
+    if (visited.has(moduleId)) return;
+    visited.add(moduleId);
+    for (const id of ids(item(moduleId)?.inner.module?.items)) {
+      const entry = item(id);
+      if (!entry || entry.visibility !== 'public') continue;
+      const reexport = entry.inner.use as { name: string; id: number | null; is_glob: boolean } | undefined;
+      if (reexport?.is_glob) {
+        if (reexport.id !== null) visit(reexport.id, prefix);
+        continue;
+      }
+      const name = `${prefix}::${reexport ? reexport.name : entry.name}`;
+      const target = reexport ? item(reexport.id) : entry;
+      found.add(name);
+      if (target?.inner.module) visit(reexport ? reexport.id! : id, name);
+      else if (target) members(name, target);
+    }
+  };
+  const root = item(doc.root);
+  if (!root?.name) throw new Error('the rustdoc JSON has no crate root');
+  visit(doc.root, root.name);
+  return [...found];
+}
+
+/** The Rust nightly of config/toolchain.json exceptions whose scope holds `entry`, or why there is none. */
+function rustNightly(root: string, entry: string): { channel: string; error?: never } | { error: string } {
+  const covering = readExceptions(root).exceptions.filter(exception => exception.tool === 'rust' && exception.channel.startsWith('nightly-') && (exception.scope === '.' || entry.startsWith(`${exception.scope}/`)));
+  if (covering.length === 1) return { channel: covering[0]!.channel };
+  if (covering.length > 1) return { error: `config/toolchain.json exceptions holds ${covering.length} Rust nightlies whose scope holds ${entry}: ${covering.map(exception => exception.channel).join(', ')}; keep one` };
+  return { error: `rustdoc JSON needs a Rust nightly (rust-lang/rust#76578), and config/toolchain.json exceptions declares none whose scope holds ${entry}; declare { tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry: "rustdoc JSON is stable" }` };
+}
+
+/** The public symbols of the library of the Cargo.toml `entry`, read from the rustdoc JSON of the declared nightly. */
+function rustdoc(root: string, entry: string, env: Environment): Extracted {
+  const nightly = rustNightly(root, entry);
+  if (nightly.error !== undefined) return nightly;
+  // The build of the extractor keeps its own target directory in the checkout, which holds the JSON of one crate per run.
+  const target = path.join(root, 'var/parity/rustdoc');
+  rmSync(path.join(target, 'doc'), { recursive: true, force: true });
+  const args = [`+${nightly.channel}`, 'rustdoc', '--manifest-path', entry, '--lib', '--target-dir', target, '--', '-Z', 'unstable-options', '--output-format', 'json'];
+  const shown = ['cargo', ...args].join(' ');
+  // rustup installs no toolchain on its own, so a nightly that is not installed is named.
+  const result = execute('cargo', args, { cwd: root, env: { ...env, RUSTUP_AUTO_INSTALL: '0' } });
+  if (result.error) return { error: `${shown} could not start: ${result.error.message}` };
+  if (result.status !== 0) return { error: `${shown} exited with ${result.status ?? result.signal}: ${tail(result.stderr)}` };
+  const written = readdirSync(path.join(target, 'doc')).filter(file => file.endsWith('.json'));
+  if (written.length !== 1) return { error: `${shown} wrote ${written.length} JSON files into ${path.relative(root, path.join(target, 'doc'))}, not one` };
+  try {
+    return { symbols: rustdocSymbols(JSON.parse(readFileSync(path.join(target, 'doc', written[0]!), 'utf8')) as Rustdoc) };
+  } catch (error) {
+    return { error: `the rustdoc JSON of ${entry} cannot be read: ${(error as Error).message}` };
+  }
+}
+
 // Each extractor: the public symbol ids of `entry` in the checkout `root`.
 const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment) => Extracted> = {
   go: (root, entry, env) => {
@@ -109,6 +190,7 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
     return listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env);
   },
   python: (root, entry, env) => listed(root, toolsPath(root, 'bin', 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
+  rust: (root, entry, env) => rustdoc(root, entry, env),
   ts: (root, entry) => apiModel(root, entry),
 };
 

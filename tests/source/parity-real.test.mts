@@ -300,3 +300,29 @@ test('install-tools installs the php extractor, which reads the public API of so
     'R11 php: Demo\\Codec\\LIMIT is public, and no API unit and no nativeOnly entry declares it',
   ]);
 });
+
+// The case runs the Rust nightly that its exception declares, which `rustup toolchain install nightly-2026-10-01 --profile
+// minimal` installs; a nightly that is not installed fails the case with the error of rustup.
+test('the rust extractor reads the public API of a crate from the rustdoc JSON of the declared nightly (K75)', { timeout: 300_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\ntarget/\n',
+    'config/toolchain.json': JSON.stringify({ schema: 1, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: 'rust', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
+    'rust/Cargo.toml': '[package]\nname = "codec"\nversion = "0.1.0"\nedition = "2024"\n',
+    'rust/src/lib.rs': 'pub struct Codec {\n    pub strict: bool,\n    hidden: u8,\n}\n\nimpl Codec {\n    pub fn encode(&self) -> u8 {\n        self.hidden\n    }\n\n    fn private(&self) {}\n}\n\npub enum Mode {\n    Fast,\n}\n\npub trait Apply {\n    fn apply(&self);\n}\n\nmod inner {\n    pub fn hidden() {}\n}\n\npub use inner::hidden as reexported;\n',
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [{ name: 'rust', runner: 'cargo', roots: ['rust'], symbols: { extractor: 'rust', entry: 'rust/Cargo.toml' } }],
+      profiles: [{ name: 'all', implementations: ['rust'] }],
+      units: [{ id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'rust', symbol: 'codec::Codec' }] }],
+    }, null, 2)}\n`,
+  });
+  assert.deepEqual(lines(root), [
+    'R11 rust: codec::Codec::strict is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::Codec::encode is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::Mode is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::Mode::Fast is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::Apply is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::Apply::apply is public, and no API unit and no nativeOnly entry declares it',
+    'R11 rust: codec::reexported is public, and no API unit and no nativeOnly entry declares it',
+  ]);
+});
