@@ -59,4 +59,7 @@ test('a deadcode of another golang.org/x/tools release fails with the expected a
   const wrong = install(root, toolchainStubs(t, { extra: { STUB_DEADCODE_SHOWS: '0.51.0' } }).env, 'deadcode');
   assert.equal(wrong.status, 1);
   assert.match(wrong.stderr, /the installation of deadcode 0\.52\.0 into .* prints 0\.51\.0; expected 0\.52\.0/);
+  const unread = install(root, toolchainStubs(t, { extra: { STUB_DEADCODE_SHOWS: 'none' } }).env, 'deadcode');
+  assert.equal(unread.status, 1);
+  assert.match(unread.stderr, /go version -m .*deadcode printed no release of golang\.org\/x\/tools: /);
 });

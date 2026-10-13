@@ -3,7 +3,7 @@
 // install-composer-project.mts. The release of the project is the sha256 of its composer.lock: an installation holds the
 // lock it was installed from, so a changed lock installs again. extension-installer is a Composer plugin, which the
 // composer.json of the project allows; it registers the disallowed calls of PHPStan, so phpstan.dist.neon names no path.
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { installComposerProject } from './install-composer-project.mts';
@@ -12,7 +12,7 @@ import { installComposerProject } from './install-composer-project.mts';
 export function installPhpLint({ root, declared, print = () => {} }: { root: string; declared: { lock: string; manifest: string }; print?: (text: string) => void }) {
   return installComposerProject({
     root, label: 'php-lint', folder: 'php-lint', project: path.dirname(declared.manifest), recorded: declared.lock, plugins: true,
-    installedRelease: (directory: string) => (existsSync(path.join(directory, 'composer.lock')) && existsSync(path.join(directory, 'vendor')) ? fileDigest(path.join(directory, 'composer.lock')) : undefined),
+    installedRelease: (directory: string) => (statSync(path.join(directory, 'composer.lock'), { throwIfNoEntry: false }) && statSync(path.join(directory, 'vendor'), { throwIfNoEntry: false }) ? fileDigest(path.join(directory, 'composer.lock')) : undefined),
     wrappers: { phpcs: 'vendor/bin/phpcs', phpstan: 'vendor/bin/phpstan' }, comment: `The PHP lint of the composer.lock ${declared.lock.slice(0, 12)}`, print,
   });
 }

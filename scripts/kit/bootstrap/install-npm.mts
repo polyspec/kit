@@ -3,7 +3,7 @@
 // `+sha512.<digest>`, the registry tarball is downloaded, refused unless its SHA-512 is the digest or when it holds a link,
 // and unpacked. An installed release with the same digest is kept. The npm of the machine is never changed.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './install-tool.mts';
 import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
@@ -15,9 +15,9 @@ const MARKER = '.sha512';
 /** The release of the npm under `prefix` as `<version>` or `<version>+sha512.<digest>`, or undefined when none is installed. */
 function installedRelease(prefix: string): string | undefined {
   const directory = path.join(prefix, 'node_modules/npm');
-  if (!existsSync(path.join(directory, 'package.json'))) return undefined;
+  if (!statSync(path.join(directory, 'package.json'), { throwIfNoEntry: false })) return undefined;
   const version = readJson(directory, 'package.json').version;
-  return existsSync(path.join(directory, MARKER)) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
+  return statSync(path.join(directory, MARKER), { throwIfNoEntry: false }) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
 }
 
 // Downloads the tarball, checks its digest and that it holds only files and directories, and unpacks it without its top directory.
