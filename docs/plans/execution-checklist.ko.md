@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 77d75a485249efa4e00ee52e599ffbe084e910773f4e9157000862a651b0c614 -->
+<!-- source-sha256: 0626561b04ce395f693433c58a859f400e71be9f7e6ca9cae6b3a6d5b4a1603b -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -146,3 +146,4 @@
 | K80 | 공유 editor tool(orm T128-K, template T23.4): import를 전이적으로 따라가며 규칙(금지 module, Node global, adapter가 import할 수 없는 package, 면제 CLI 경로)을 repository의 `config/*.json`에서 읽는 editor boundary checker와, integration test의 VS Code installer. 둘 다 template(`scripts/check-editor-boundaries.mjs`, `scripts/install-vscode.mjs`)에서 kit으로 옮기며, K71 구조의 TypeScript로 씁니다. 근거: orm과 template 모두 필요하며, kit에 없는 tool은 copy하지 않고 kit에 더합니다. | 두 tool과 그 test, 규칙의 config schema, kit release | red 먼저: re-export를 거쳐 금지 module을 import하는 fixture adapter가 checker에서 실패하고, 모르는 규칙 key는 거부됩니다; template과 orm이 kit 갱신 뒤 이를 돌립니다 | [ ] |
 | K92 | PRINCIPLES는 flowmark의 AGENTS에만 있던 owner의 규칙 두 개를 담습니다: 적대적 검증에는 반론뿐 아니라 해법도 요구하며, finding은 명제가 틀렸음, 다른 문서와의 모순, 다룬다고 주장하는 case의 누락을 보일 때만 인정합니다; 잘못된 변경은 의도가 아니라 해로움과 옳음으로 판단합니다(해로우면 즉시 되돌리고, 해롭지 않지만 틀렸거나 불필요하면 제거하며, 무관하지만 옳으면 실제 이유와 함께 따로 commit). 원인: kit 담당 session이 flowmark를 sync하며 그것이 빠졌음을 찾았습니다(K81). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs`; `make kit-test` | [o] |
 | K93 | PRINCIPLES는 owner의 branch와 worktree 규칙을 담습니다: 작업은 main에서 바로 할 수 있고, agent나 상황에 필요한 branch나 worktree는 `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로 이름 짓고 main에 merge되는 즉시 지우며, merge될 수 없는 test나 실험 code는 commit 전에 cherry-pick하거나 폐기하고, 그럴 수 없으면 checklist 하위 항목에 제거 조건을 적습니다. 원인: merge 뒤에 branch와 worktree가 남았습니다(2026-10-13 owner 지시). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs` | [o] |
+| K106 | PRINCIPLES는 검사를 언제 돌리는지에 대한 owner의 규칙을 담습니다: 항목을 개발하는 동안에는 바뀐 것의 소유 검사만 돌리고, 전체 모음은 활성 checklist의 모든 항목이 완료되었을 때 정확히 한 번 돌리며, 수정마다, 개별 항목마다 돌리지 않습니다. 원인: 수정마다 전체 모음을 다시 돌렸고, agent 여섯이 각자 돌려 machine이 과부하되었습니다(2026-10-13). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs` | [o] |
