@@ -24,7 +24,8 @@ import semver from 'semver';
 import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
 import { readConfig } from './schema-validate.mts';
-import { readGoMod } from './toolchain-files.mts';
+import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
+import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
@@ -386,8 +387,22 @@ export function readState(root: string, policy: DependencyPolicy) {
   // The ruff of mise.toml is a PyPI release that the review checks like a requirement of a manifest.
   const ruff = declaredMiseTools(root).ruff;
   if (ruff) dependencies.push({ ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: `==${ruff.version}`, version: ruff.version, lock: null });
+  // The module paths of each go.work: a requirement of a member module is a package of this repository, resolved from the
+  // workspace, so it is no registry dependency and needs no go.sum.
+  const workspaces = new Map<string, Set<string>>();
+  const members = (manifestPath: string): Set<string> => {
+    const file = goWorkFile(root, path.posix.dirname(manifestPath), process.env);
+    if (file === null) return new Set();
+    if (!workspaces.has(file)) {
+      const used = (readGoWork(file, process.env).Use ?? []).map(use => path.relative(root, path.resolve(path.dirname(file), use.DiskPath, 'go.mod')));
+      workspaces.set(file, new Set(used.map(mod => readGoMod(root, mod, process.env).Module.Path)));
+    }
+    // The line above sets the file.
+    return workspaces.get(file)!;
+  };
   for (const manifestPath of goModules(root)) {
-    const requirements = goRequirements(root, manifestPath);
+    const workspace = members(manifestPath);
+    const requirements = goRequirements(root, manifestPath).filter(item => !workspace.has(item.module));
     if (requirements.length === 0) continue;
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'go.sum');
     if (!existsSync(path.join(root, lockPath))) throw new Error(`${manifestPath} requires modules and ${lockPath} is missing; run go mod tidy in ${path.posix.dirname(manifestPath)}`);
