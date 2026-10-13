@@ -179,7 +179,7 @@ release-backend: ## Download the build backend of the wheel packages into var/to
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
 .PHONY: python-venv
-python-venv: ## Make the virtual environment DIR from var/tools/bin/python3 with var/tools/bin/uv venv; offline
+python-venv: ## Make the virtual environment DIR from the python3 of mise.toml with its uv venv; offline
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	node $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
@@ -244,9 +244,9 @@ parity-declarations-check: ## Check the parity rules of config/parity.json that 
 	node $(KIT)/parity.$(KIT_EXT) --declarations
 
 # --- python-lock: the PEP 751 locks of config/dependency-policy.json (pythonLocks), each with its requirements and a constraints file
-# that pins every package. The writer resolves with var/tools/bin/uv (install-tools TOOLS=uv); the check never resolves.
+# that pins every package. The writer resolves with the uv of mise.toml (make install-tools); the check never resolves.
 .PHONY: python-lock python-lock-check
-python-lock: ## Write every Python lock of pythonLocks with var/tools/bin/uv from its requirements and constraints; ONLINE
+python-lock: ## Write every Python lock of pythonLocks with the uv of mise.toml from its requirements and constraints; ONLINE
 	$(ONLINE) node $(KIT)/python-lock.$(KIT_EXT) write
 
 python-lock-check: ## Check every Python lock of pythonLocks against its requirements and constraints, with no network; offline

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f400093e8c3c81b7aa600f083595e00165606ba1bae00e5c8bf277419edbf8e7 -->
+<!-- source-sha256: 0aebc8516588e1eaab24a5a306bde3eed6e07e5c8e55d2d5b70345f12b986834 -->
 
 # 도구 목록
 
@@ -37,7 +37,8 @@
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
 linux-x64와 macos-arm64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
 lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
-것을 설치합니다. wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, symbol extractor입니다.
+것을 설치합니다. wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로 설치하는 `exceptions`의
+Rust channel(`install-rust.mts`), symbol extractor입니다.
 bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 `packageManager`의 npm과, `config/toolchain.json`
 `mise`의 sha256으로 mise 자체를 설치합니다. `install-tool.mts`가 각각을 대상 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두
 번째 실행은 아무것도 바꾸지 않습니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
