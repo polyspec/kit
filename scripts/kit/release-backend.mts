@@ -6,7 +6,7 @@
 //
 //   node scripts/kit/release-backend.mts     the buildBackend of config/release.json
 //
-// The download is `pip download --no-deps --only-binary :all: --require-hashes` by var/tools/bin/python3, from a requirement
+// The download is `pip download --no-deps --only-binary :all: --require-hashes` by the python3 of mise.toml, from a requirement
 // file that names the requirement with each declared sha256, so pip refuses a file of another digest. The file's sha256 is
 // checked again after the download, and a file that differs is removed. A file that already has a declared digest is kept,
 // so a second run changes nothing. This is the one network step of the Python wheels; release-assets reads only var/tools/wheels.
@@ -33,7 +33,7 @@ const wheelsOf = (directory: string, name: string, version: string) => (existsSy
 
 /**
  * Makes a wheel of the exact `requirement` name==version exist in var/tools/wheels, with a digest that `digests` (the sha256
- * of each accepted wheel) lists; `source` names the declaration. The download is `pip download` by var/tools/bin/python3 with
+ * of each accepted wheel) lists; `source` names the declaration. The download is `pip download` by the python3 of mise.toml with
  * every listed digest as a hash of the requirement, so pip picks the wheel of this platform and refuses one whose digest is not
  * listed. The digest of the file is checked again after the download, and a file that differs is removed. A wheel that already
  * has a listed digest is kept, so a second run changes nothing. Returns { installed, file }.
