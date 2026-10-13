@@ -4,12 +4,12 @@
 // so neither the build nor the pack writes into this checkout.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { builtCopy, NPM, packedKit, run, walk } from './checkout.mts';
+import { builtCopy, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage, walk } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -51,17 +51,20 @@ test('a repository that installs the tarball imports @polyspec/kit/tracked-files
   const packs = mkdtempSync(path.join(tmpdir(), 'kit-pack-'));
   t.after(() => rmSync(packs, { recursive: true, force: true }));
   const packed = packedKit(run(NPM, ['pack', '--json', '--ignore-scripts', '--pack-destination', packs], copy));
+  // The consumer installs the tarball and the packages that kit depends on at run time with npm ci, offline, from a cache
+  // primed with the tarball and with those packages, as a repository installs them (consumer-layout.test runs the bootstrap).
+  const cache = path.join(packs, 'npm-cache');
+  run(NPM, ['cache', 'add', path.join(packs, packed.filename), '--cache', cache], packs);
+  primeCache(cache, packs, installedLockEntries(runtimePackage));
   const consumer = path.join(packs, 'consumer');
+  mkdirSync(consumer);
+  const { manifest, lock } = kitConsumer(packed, { type: 'module' });
+  writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
+  run(NPM, ['ci', '--offline', '--cache', cache, '--allow-remote=root', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
   const installed = path.join(consumer, 'node_modules/@polyspec/kit');
-  mkdirSync(installed, { recursive: true });
-  run('tar', ['-xzf', path.join(packs, packed.filename), '-C', installed, '--strip-components=1'], packs);
-  writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ name: 'consumer', private: true, type: 'module' }));
-  // The tools import the packages of dependencies (K73); the consumer resolves each to the one that kit's npm ci installed,
-  // whose own dependencies resolve from there. consumer-layout.test installs them from the lock instead.
-  for (const name of Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies)) {
-    mkdirSync(path.dirname(path.join(consumer, 'node_modules', name)), { recursive: true });
-    symlinkSync(path.join(ROOT, 'node_modules', name), path.join(consumer, 'node_modules', name));
-  }
+  // The consumer installs the packages; it links none of kit's (AGENTS: this repository creates no symbolic link).
+  for (const [entry] of installedLockEntries(runtimePackage)) assert.ok(!lstatSync(path.join(consumer, entry)).isSymbolicLink(), `${entry} of the consumer is a link`);
   const exported = run(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/tracked-files'); process.stdout.write(JSON.stringify([import.meta.resolve('@polyspec/kit/tracked-files'), Object.keys(m).sort()]));"], consumer);
   const [resolved, names] = JSON.parse(exported);
   assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, 'dist/tracked-files.mjs')));
