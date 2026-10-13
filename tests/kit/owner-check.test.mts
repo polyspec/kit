@@ -90,6 +90,13 @@ test('a target that is not in the Makefile and a target that runs the full suite
   has(errorsOf(t, { ...DECLARATION, fullSuite: ['absent'] }), 'fullSuite names absent');
 });
 
+test('a target that runs full-run through $(KIT) of kit.mk is a full-suite target (K71-2)', (t) => {
+  // kit.mk names its tools as $(KIT)/<tool>.$(KIT_EXT), so a repository writes the full run the same way.
+  const makefile = `${MAKEFILE}gate:\n\tnode $(KIT)/full-run.$(KIT_EXT) run docs-check lint\n`;
+  const full = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['gate'] }] }, { ...FILES, Makefile: makefile });
+  has(full, 'the target gate of src/** runs the full suite');
+});
+
 test('a rule that selects every target of CHECK_TARGETS fails', (t) => {
   const errors = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['docs-check', 'unit-test', 'lint'] }] });
   has(errors, 'a rule selects every target of CHECK_TARGETS');

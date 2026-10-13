@@ -98,12 +98,15 @@ export function suiteTargets(makefile: string) {
   return (makefile.match(/^CHECK_TARGETS\s*[:?]?=\s*(.*)$/m)?.[1] ?? '').split(/\s+/).filter(Boolean);
 }
 
-/** The targets that run the full suite: those the declaration names and those whose recipe starts full-run.mts. */
+/**
+ * The targets that run the full suite: those the declaration names and those whose recipe starts full-run, by its path in
+ * kit (`scripts/kit/full-run.mts`) or as kit.mk names it (`$(KIT)/full-run.$(KIT_EXT)`).
+ */
 export function fullSuiteTargets(makefile: string, declared: string[] = []) {
   const result = new Set(declared);
   for (const match of makefile.matchAll(/^([a-zA-Z0-9_-]+):(?!=)[^\n]*\n((?:\t[^\n]*\n?)*)/gm)) {
     // Neither group of the pattern is optional, so every match holds both.
-    if (/scripts\/(?:kit\/)?full-run\.mts/.test(match[2]!)) result.add(match[1]!);
+    if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)full-run\.(?:mts|\$\(KIT_EXT\))/.test(match[2]!)) result.add(match[1]!);
   }
   return result;
 }
