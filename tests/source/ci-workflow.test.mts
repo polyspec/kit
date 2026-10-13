@@ -14,7 +14,7 @@ const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1]!);
 
 test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
   const check = runs.indexOf('make duplication-check');
-  assert.ok(check > runs.indexOf('var/tools/bin/npm ci'), 'a step runs make duplication-check after npm ci');
+  assert.ok(check > runs.indexOf('make install-packages'), 'a step runs make duplication-check after npm ci');
 });
 
 test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of the runner image (K78)', () => {
@@ -37,14 +37,14 @@ test('the CI workflow runs commits-check over the commits it was triggered by, o
 });
 
 test('the CI workflow installs the packages with the pinned npm and then checks the types (K71-1)', () => {
-  const install = runs.indexOf('var/tools/bin/npm ci');
+  const install = runs.indexOf('make install-packages');
   const typecheck = runs.indexOf('make typecheck');
   assert.ok(runs.indexOf('make install-tools TOOLS=npm') >= 0 && install > runs.indexOf('make install-tools TOOLS=npm'), 'npm ci runs after install-tools installed the npm of packageManager');
   assert.ok(typecheck > install, 'make typecheck runs after npm ci installed TypeScript');
 });
 
 test('the CI workflow bootstraps in the order of a repository: the npm of packageManager, npm ci, then the other tools (K71-2)', () => {
-  assert.deepEqual(runs.slice(0, 3), ['make install-tools TOOLS=npm', 'var/tools/bin/npm ci', 'make install-tools'], 'the first steps');
+  assert.deepEqual(runs.slice(0, 3), ['make install-tools TOOLS=npm', 'make install-packages', 'make install-tools'], 'the first steps');
 });
 
 test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {

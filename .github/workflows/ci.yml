@@ -34,7 +34,7 @@ jobs:
         run: make install-tools TOOLS=npm
       # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
       - name: install packages
-        run: var/tools/bin/npm ci
+        run: make install-packages
       # install-tools installs the Go of the kit pin (from its archive, since kit tracks a go.mod), the uv of config/toolchain.json,
       # the Python of pythonBuild with that uv and the pythonBackend into var/tools; the tests run that Go, uv and Python, not
       # those of the runner image, so var/tools/bin comes first on PATH.

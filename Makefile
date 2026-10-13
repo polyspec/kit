@@ -5,7 +5,12 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record source-test
+.PHONY: kit-test kit-fixture-record source-test install-packages
+
+# The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm, as in a
+# repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
+install-packages: ## Install the packages of package-lock.json with the npm of var/tools; ONLINE
+	$(ONLINE) var/tools/bin/npm ci
 
 # kit-test fails when its run changes the checkout: git status --porcelain -uall and the hash of git diff --binary HEAD are
 # recorded under var/ (ignored) before the run and compared after it; the changed status lines are printed.

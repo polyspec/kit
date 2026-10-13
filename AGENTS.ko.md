@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 28f6a05b7607848d539e1ee7b532f200104c6820ae0c51138a71c9b883744aff -->
+<!-- source-sha256: 00d52a5931aaf1ac7c709e55a2a1f1e89e5ce2ce0dabfe5b44a6079cecd85287 -->
 # 개발
 
 [English](AGENTS.md)
@@ -71,6 +71,12 @@ subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`
 
 kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `package.json`이 tree의 버전을 가집니다. 저장소는
 package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make kit-sync`를 실행해 릴리스를 채택합니다.
+
+릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
+`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 이 commit은 `main`에 들어가고 CI가 success로 끝납니다. (2) 그
+commit의 annotated tag `vX.Y.Z`를 push합니다. (3) push가 `.github/workflows/release.yml`을 실행합니다. 이 파일은 vendor되는
+`workflows/release.yml` 그대로이며, `config/release.json`이 선언한 `@polyspec/kit`의 npm archive를 만들어 GitHub Release에
+draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
 
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).

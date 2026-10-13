@@ -82,6 +82,13 @@ kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci
 tree. A repository adopts a release by updating `@polyspec/kit` in its package-lock and running `make install-packages` and
 `make kit-sync`.
 
+A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and
+`package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`; it lands on `main` and its CI
+concludes success. (2) The annotated tag `vX.Y.Z` of that commit is pushed. (3) The push runs `.github/workflows/release.yml`,
+which is the vendored `workflows/release.yml` itself: it builds the npm archive of `@polyspec/kit` that `config/release.json`
+declares, publishes it on the GitHub Release as a draft, proves it from a consumer project and makes it public. A repository
+pins that asset's URL with its integrity.
+
 A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
 type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
 published tag is not moved; the check runs only on the tag being released.
