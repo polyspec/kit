@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/editor-boundaries.json",
+  "description": "The boundaries of the editor packages that check-editor-boundaries checks: the modules that a package may neither import nor declare, and the globals that it may not use. The check reads every source of a package that no exempt glob matches and every file that those sources reach through relative imports.",
+  "type": "object",
+  "required": [
+    "schema",
+    "boundaries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "integer",
+      "const": 1
+    },
+    "comment": {
+      "type": "string"
+    },
+    "boundaries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "packages",
+          "sources",
+          "forbiddenModules"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "packages": {
+            "description": "The package directories of the boundary, relative to the repository root; each has a package.json.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sources": {
+            "description": "The source directory of each package, relative to the package directory.",
+            "type": "string",
+            "minLength": 1
+          },
+          "forbiddenModules": {
+            "description": "Globs of the module specifiers that the reached files may not import (for example node:**, vscode, @codemirror/**). A package.json of the boundary may not declare a matching package in dependencies, devDependencies, peerDependencies or optionalDependencies.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "forbiddenGlobals": {
+            "description": "The global names that the reached files may not use: a reference that no scope declares, or a property of globalThis.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+            }
+          },
+          "exempt": {
+            "description": "Globs of sources, relative to the package directory, that are not checked as starting points (for example the command line, src/cli/**). A file that a checked source reaches is checked even under an exempt glob.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
