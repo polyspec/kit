@@ -101,10 +101,15 @@ process.exit(exit ? 101 : 0);
 
 // The stub of PHPUnit (`php <args> vendor/bin/phpunit --teamcity <test>`): each `PASS <name>` and `FAIL <name>` line of the test
 // file is a test method, which PHPUnit reports as TeamCity messages; a `##teamcity[` line of the file is printed as it is. It
-// exits with 1 when a test failed.
+// exits with 1 when a test failed. Run as the php symbol extractor (\`php <kit>/symbols/php/extract.php <autoload> <entry>\`),
+// it prints the lines of symbols.txt of the entry directory as a JSON array.
 const PHP_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
+if (args[0].endsWith('/symbols/php/extract.php')) {
+  console.log(JSON.stringify(fs.readFileSync(args[2] + '/symbols.txt', 'utf8').split('\\n').filter(Boolean)));
+  process.exit(0);
+}
 const file = args[args.length - 1];
 let exit = 0;
 const teamcity = (name, attributes) => '##teamcity[' + name + ' ' + Object.entries(attributes).map(([key, value]) => key + "='" + value + "'").join(' ') + ']';
@@ -191,6 +196,7 @@ const FILES = {
   'var/tools/bin/python3': PY_STUB,
   // The public symbols that the stubs of the go and python extractors print, and the .d.ts that API Extractor reads for ts.
   'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
+  'var/tools/symbols-php/vendor/autoload.php': '<?php\n',
   'go/symbols.txt': 'go/codec.go::Encode\n',
   'rust/symbols.txt': 'rust/src/lib.rs::encode\nrust/src/lib.rs::hex_upper\n',
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
@@ -211,7 +217,7 @@ const CONFIG = {
     { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'go', entry: 'go' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
     { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'python', entry: 'rust/symbols.txt' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
     { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
-    { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'python', entry: 'php/symbols.txt' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
+    { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'php', entry: 'php' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
     { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python/symbols.txt' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
   ],
   profiles: [
@@ -695,12 +701,13 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   rmSync(path.join(root, 'var/tools/bin/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // The python extractor, which the stub implementations use, cannot start either.
-  assert.deepEqual(keys(missing), ['R1 - rust', 'R1 - php', 'R1 - python', 'R3 codec python']);
+  assert.deepEqual(keys(missing), ['R1 - rust', 'R1 - python', 'R3 codec python']);
   assert.match(findingAt(missing, 0).message, /the python extractor of rust\/symbols\.txt gives no symbols: .* could not start/);
-  assert.match(findingAt(missing, 3).message, /could not start/);
+  assert.match(findingAt(missing, 2).message, /could not start/);
   // An extractor that install-tools did not build names the declaration and the install.
-  const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null } }).findings;
-  assert.deepEqual(keys(unbuilt), ['R1 - go']);
+  const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
+  assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);
+  assert.match(findingAt(unbuilt, 1).message, /var\/tools\/symbols-php\/vendor\/autoload\.php does not exist; name php in symbolExtractors/);
   assert.match(findingAt(unbuilt, 0).message, /var\/tools\/symbols-go\/bin\/kit-symbols-go does not exist; name go in symbolExtractors of config\/toolchain\.json and run make install-tools/);
   const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);

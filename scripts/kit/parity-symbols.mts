@@ -6,6 +6,9 @@
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
 //           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
 //           config/toolchain.json symbolExtractors names go
+//   php     scripts/kit/symbols/php/extract.php, nikic/php-parser, on a source directory or file, such as the *.stub.php of a
+//           PHP extension; ids Ns\Class, Ns\Class::method, Ns\Class::CONST, Ns\Class::$property, Ns\function and Ns\CONST
+//           of the public declarations; install-tools installs php-parser when config/toolchain.json symbolExtractors names php
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
@@ -99,6 +102,11 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
     const command = path.join(symbolsPrefix(root, 'go'), 'bin', 'kit-symbols-go');
     if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install-tools` };
     return listed(root, command, [entry], env);
+  },
+  php: (root, entry, env) => {
+    const autoload = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
+    if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
+    return listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env);
   },
   python: (root, entry, env) => listed(root, toolsPath(root, 'bin', 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
   ts: (root, entry) => apiModel(root, entry),
