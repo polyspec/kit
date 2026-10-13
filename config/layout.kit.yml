@@ -80,6 +80,9 @@ rules:
       - "!phpstan.dist.neon"
       - "!Cargo.toml"
       - "!Cargo.lock"
+      - "!go.work"
+      - "!go.work.sum"
+      - "!.golangci.yml"
     message: "S5: a file at the root that the layout does not declare; move it into a root folder or declare it in config/layout.yml"
 
   # S5: packages/ holds the runtime ports of the main spec; a repository adds its components to the list.
