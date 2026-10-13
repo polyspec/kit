@@ -45,7 +45,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 COMMIT ?= HEAD
 FULL_RUN_KEYS ?=
 
-.PHONY: hooks hooks-check push-gate-commit rerun-failed
+.PHONY: hooks hooks-check push-gate-hook push-gate-commit rerun-failed
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-push),)
@@ -59,6 +59,9 @@ hooks: ## Set core.hooksPath to .githooks, write the pre-push hook of the push g
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
 	node $(KIT)/git-hooks.$(KIT_EXT) check
+
+push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
+	node $(KIT)/push-gate.$(KIT_EXT) hook
 
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
 	node $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)

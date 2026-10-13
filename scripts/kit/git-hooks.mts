@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hook `pre-push` runs the push gate (push-gate.mts) and has the
+// holds the hooks that config/checklist.json lists. The hook `pre-push` runs the push gate through `make push-gate-hook` and has the
 // content of PRE_PUSH_CONTENT, so every checkout holds the same file; the other hooks belong to the repository.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
@@ -18,9 +18,9 @@ export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
 export const PRE_PUSH_CONTENT = `#!/bin/sh
 # The pre-push hook. Git starts it with the pushed refs on standard input. The push gate refuses the push while an item of
 # a tracker of config/checklist.json is in its active state, in a pushed commit or in the working tree. Written by
-# \`make hooks\` (scripts/kit/git-hooks.mts); do not edit it.
+# \`make hooks\`; do not edit it. It calls the make target of the push gate, which stays across the versions of kit.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec node scripts/kit/push-gate.mts hook
+exec make --no-print-directory push-gate-hook
 `;
 
 function configuredHooksPath(root: string) {

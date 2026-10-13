@@ -2,6 +2,7 @@
 // listed hooks executable, a second run changes nothing, and `check` fails with the cause and the fix for each hook that is
 // not installed.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -89,4 +90,14 @@ test('git-hooks takes only install or check', (t) => {
   const refused = run(work, process.execPath, ['scripts/kit/git-hooks.mts', 'remove']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/git-hooks\.mts install \| check/);
+});
+
+// A make target is the interface of kit that stays across its versions, and the path of a tool does not: the pre-push hook
+// calls the target push-gate-hook, which kit.mk runs from the tools of KIT.
+test('the pre-push hook calls the make target push-gate-hook and names no tool path', () => {
+  assert.doesNotMatch(PRE_PUSH_CONTENT, /scripts\/kit|node_modules|\.mts|\.mjs/);
+  assert.match(PRE_PUSH_CONTENT, /^exec make --no-print-directory push-gate-hook$/m);
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'push-gate-hook', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.trim(), 'node node_modules/@polyspec/kit/dist/push-gate.mjs hook');
 });
