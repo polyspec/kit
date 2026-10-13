@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c7822e1c7a46b76c67a89c2b7ba01b1273fa2b9867172a996762a514a19f2948 -->
+<!-- source-sha256: aa10b142de8166514f7886f9f497846c662b686d1c1d8313b9e4f3ad5c82da59 -->
 
 # 도구 목록
 
@@ -668,10 +668,12 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 `vendor/autoload.php`로 PHPStan |
 | Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Go | golangci-lint 2.14.0 (release archive), golang.org/x/tools 0.52.0의 deadcode (`go install`) | `.golangci.yml` | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
-| TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (devDependencies) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
+| TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
 
-make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다.
+make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. `toolchain-lint.mts`가 bootstrap 이후에 lint 도구의 선언을
+읽고, `make toolchain-check`는 설치된 각 release를 확인합니다: vulture, golangci-lint, deadcode(release를 출력하지 않으므로 binary의
+`go version -m`으로), 그리고 `config/php-lint/composer.lock`이 고정한 release의 phpcs와 PHPStan입니다.
 
 ### 결정
 
