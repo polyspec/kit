@@ -1,11 +1,12 @@
 // Tests of scripts/kit/install-tools.mts and scripts/kit/toolchain-lock.mts (K127): install-tools has mise install every tool
 // of mise.lock (`mise install --locked`, by the wrapper of the bootstrap) before the tools that mise does not install, takes no
 // tool names, and stops on a failed mise install; toolchain-lock writes mise.lock with `mise lock` for the platforms of kit,
-// locks a pypi: tool again after installing the uv and the Python of mise.toml, and fails on a lock that misses a digest.
+// locks a pypi: tool with the uv and the Python of mise.toml, installed first, at the head of PATH, and fails on a lock that
+// misses a digest.
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -91,19 +92,44 @@ test('toolchain-lock runs mise lock for linux-x64 and macos-arm64 and passes a l
   assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
 });
 
-test('a pypi: tool without its uv lock is locked again after the uv and the Python of mise.toml are installed', (t) => {
+// The uv and the Python that the stub of mise names as its own, by `mise which`.
+const MISE_UV = '/mise/installs/uv/0.12.24/bin/uv';
+const MISE_PYTHON = '/mise/installs/python/3.14.8/bin/python3';
+const WHICH = { 'which uv': MISE_UV, 'which python3': MISE_PYTHON };
+
+test('a pypi: tool is locked with the uv and the Python of mise first on PATH, never with a uv of the machine', (t) => {
   const toml = '[tools]\nuv = "0.12.24"\npython = "3.14.8"\n"pypi:vulture" = "2.16"\n';
-  const { root, stubs } = checkout(t, toml, { 'mise.lock': lockText(false) });
-  const result = start('toolchain-lock', root, stubs.env);
-  // The stub writes no lock, so the second lock still misses the uv lock and the command fails with the findings.
+  const root = toolchainCheckout(t, { 'mise.toml': toml, 'mise.lock': lockText(false) });
+  miseStub(root, WHICH);
+  const stubs = toolchainStubs(t);
+  // A uv of the machine comes first on the PATH of the caller.
+  const machine = path.join(stubs.directory, 'machine');
+  mkdirSync(machine);
+  writeFileSync(path.join(machine, 'uv'), '#!/bin/sh\necho "the uv of the machine ran" >&2\nexit 1\n', { mode: 0o755 });
+  const log = path.join(stubs.directory, 'env.log');
+  const result = start('toolchain-lock', root, { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}`, STUB_MISE_ENV_LOG: log });
+  // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
   assert.equal(result.status, 1);
-  assert.deepEqual(stubs.calls(), ['mise lock --platform linux-x64,macos-arm64', 'mise install --locked uv python', 'mise lock --platform linux-x64,macos-arm64']);
-  assert.match(result.stderr, /\[toolchain-lock\] mise\.lock is incomplete:\nmise\.lock does not pin uv 0\.12\.24; run make toolchain-lock\n/);
+  assert.deepEqual(stubs.calls(), [
+    'mise lock uv python --platform linux-x64,macos-arm64',
+    'mise install --locked uv python',
+    'mise which uv',
+    'mise which python3',
+    'mise lock --platform linux-x64,macos-arm64',
+  ]);
+  const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { args: string[]; PATH: string; UV_PYTHON?: string });
+  const last = calls.at(-1)!;
+  assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 2), [path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
+  assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');
   assert.match(result.stderr, /mise\.lock pins pypi:vulture 2\.16 without the digest of its uv lock/);
-  writeFileSync(path.join(root, 'mise.toml'), '[tools]\n"pypi:vulture" = "2.16"\n');
+});
+
+test('a pypi: tool without the uv or the Python of mise.toml is refused before any lock', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\n"pypi:vulture" = "2.16"\n');
   const alone = start('toolchain-lock', root, stubs.env);
   assert.equal(alone.status, 1);
   assert.match(alone.stderr, /a pypi: tool of mise\.toml needs the uv and the Python of mise\.toml, which lock it; declare uv and python/);
+  assert.deepEqual(stubs.calls(), []);
 });
 
 test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', () => {
