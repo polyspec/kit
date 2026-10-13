@@ -553,6 +553,55 @@ test('R5: a test file of an implementation that no binding runs fails', TIMEOUT,
   assert.equal(findingAt(findings, 0).place, 'python/tests/test_vector.py');
 });
 
+test('R5: kit fixes the test files of each runner, and a declaration adds to them but never removes one (K75)', TIMEOUT, (t) => {
+  // No implementation declares tests and no testPatterns are declared: the convention of each runner alone selects the files.
+  const conventional = (config: Declaration) => {
+    for (const entry of config.implementations) if (entry.runner !== 'node' && entry.runner !== 'php') delete entry.tests;
+    delete config.testPatterns;
+    return config;
+  };
+  assert.deepEqual(check(t, { edit: conventional }, { execute: false }).findings, []);
+  const { findings } = check(t, {
+    files: {
+      'go/extra_test.go': 'package codec\n',
+      'rust/tests/extra.rs': '#[test]\nfn extra() {}\n',
+      'rust/src/inline.rs': '#[cfg(test)]\nmod tests {\n    #[test]\n    fn inline() {}\n}\n',
+      'ts/src/extra.test.mts': "import test from 'node:test';\n",
+      'php/tests/ExtraTest.php': '<?php\n',
+      'python/tests/test_extra.py': 'import unittest\n',
+      'tools/extra_test.go': 'package tools\n',
+    },
+    edit: conventional,
+  }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'} ${finding.place}`), [
+    'R5 go go/extra_test.go',
+    'R5 rust rust/src/inline.rs',
+    'R5 rust rust/tests/extra.rs',
+    'R5 ts ts/src/extra.test.mts',
+    'R5 php php/tests/ExtraTest.php',
+    'R5 python python/tests/test_extra.py',
+    'R6 - tools/extra_test.go',
+  ]);
+});
+
+test('R5: a file named like a test that its runner does not run, and that no binding runs, fails (K75)', TIMEOUT, (t) => {
+  // A PHP script named *_test.php that imports no PHPUnit is a test that neither the php convention nor a binding runs.
+  const { findings } = check(t, {
+    files: { 'php/scripts/codec_test.php': '<?php\necho "ok\\n";\n', 'python/codec.spec.py': '', 'go/testdata/test_input.json': '{}' },
+  }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation} ${finding.place}`), [
+    'R5 go go/testdata/test_input.json',
+    'R5 php php/scripts/codec_test.php',
+    'R5 python python/codec.spec.py',
+  ]);
+  assert.match(findingAt(findings, 1).message, /\*\*\/\*Test\.php/);
+  // A support glob takes a file named like a test out of the rule; it holds no test.
+  assert.deepEqual(check(t, {
+    files: { 'go/testdata/test_input.json': '{}' },
+    edit: (config) => { config.implementations[0].support = ['go/testdata/**']; return config; },
+  }, { execute: false }).findings, []);
+});
+
 test('R6: a binding whose test lies outside the roots of its implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'php/tests/codec.php': null, 'tests/php/codec.php': FILES['php/tests/codec.php'], 'tests/composer.json': '{}\n', 'tests/vendor/bin/phpunit': '' },
@@ -579,7 +628,7 @@ test('R6: a test of a runner outside the roots of every implementation of that r
   assert.match(findingAt(findings, 1).message, /a go test outside go, the roots of the go implementations, and outside tests\/compare, the comparator roots/);
 });
 
-test('the whole repository is no root, and an implementation has test globs', TIMEOUT, (t) => {
+test('the whole repository is no root, and a declared tests list is not empty', TIMEOUT, (t) => {
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(messages({ edit: (config) => { config.implementations[0].roots = ['.']; config.comparators = ['./']; return config; } }), [
     'declaration: implementation go: the root . is the whole repository; name the directories of the implementation',

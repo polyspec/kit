@@ -16,7 +16,7 @@ export interface ParityImplementation {
   name: string;
   runner: Runner;
   roots: string[];
-  tests: string[];
+  tests?: string[];
   support?: string[];
   command?: string;
   args?: string[];
@@ -73,7 +73,7 @@ export interface ParityConfig {
   profiles: ParityProfile[];
   suites?: string[];
   comparators?: string[];
-  testPatterns: { runner: Runner; globs: string[] }[];
+  testPatterns?: { runner: Runner; globs: string[] }[];
   units: ParityUnit[];
   nativeOnly?: { implementation: string; symbol: string; reason: string }[];
   exclusions?: ParityExclusion[];
@@ -100,6 +100,8 @@ export interface ParityModel {
   admitted: (unit: ParityUnit, implementation: string) => string[];
   notAdmitted: (unit: ParityUnit) => { name: string; list: string[]; omitted: string[] }[];
   snapshots: Map<string, Map<string, boolean>>;
+  tests: Map<string, string[]>;
+  testRunners: Map<string, Runner[]>;
   members: (unit: ParityUnit) => string[];
   exclusion: (unit: ParityUnit, implementation: string) => ParityExclusion | undefined;
 }
@@ -276,6 +278,25 @@ export function resolveReferences(entry: ParityImplementation, env: Environment,
 const GO_TEST = /^func\s+((?:Test|Benchmark|Fuzz)(?![a-z])\w*|Example\w*)\s*\(/gm;
 const CARGO_TEST = /#\[\s*((?:\w+::)*(?:test|bench|test_case|rstest))\b[^\]]*\]/g;
 
+/**
+ * The test files of each runner by kit's convention (S3). A declaration adds files with the tests of an implementation and the
+ * testPatterns of a runner, and never removes one; cargo also runs every .rs file that holds a test attribute.
+ */
+export const CONVENTIONS: Readonly<Record<Runner, readonly string[]>> = {
+  go: ['**/*_test.go'],
+  cargo: ['**/tests/**/*.rs'],
+  node: ['**/*.test.{ts,mts,cts,mjs,cjs,js}'],
+  php: ['**/*Test.php'],
+  python: ['**/test_*.py'],
+};
+
+// The names of test files in the common conventions of every runner: *_test.*, test_*.*, *Test.*, *.test.* and *.spec.*. A file
+// in the roots of an implementation with such a name is a test that a binding runs, unless it is a support file.
+const TEST_NAME = /(?:_test\.[^/]+|(?:^|\/)test_[^/]*\.[^/]+|Test\.[^/]+|\.test\.[^/]+|\.spec\.[^/]+)$/;
+
+/** Whether the name of `file` is the name of a test file in a common convention. */
+export const testNamed = (file: string): boolean => TEST_NAME.test(file);
+
 /** The tests that the native runner of a go or cargo support file would run in `text`, as the names to print. */
 function supportTests(runner: Runner, text: string): string[] {
   if (runner === 'go') return [...text.matchAll(GO_TEST)].map(match => `declares func ${match[1]}, which go test runs`);
@@ -373,16 +394,24 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     }
     if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
   }
-  // A support glob names files in the roots of its implementation that a test glob selects and that hold no test; one that
-  // selects none is stale. A Go or Rust support file holds no function that its native runner would run.
+  // The runners whose convention or declared testPatterns select each file, and the test files of each implementation: those of
+  // its runner in its roots, and those of its tests globs.
+  const testRunners = new Map<string, Runner[]>();
+  for (const file of files) {
+    const runners = (Object.keys(CONVENTIONS) as Runner[]).filter(runner => matchesAny([...CONVENTIONS[runner], ...(config.testPatterns ?? []).filter(pattern => pattern.runner === runner).flatMap(pattern => pattern.globs)], file)
+      || (runner === 'cargo' && file.endsWith('.rs') && readFileSync(path.join(root, file), 'utf8').search(CARGO_TEST) !== -1));
+    if (runners.length) testRunners.set(file, runners);
+  }
+  const tests = new Map(config.implementations.map(entry => [entry.name, [...files].filter(file => matchesAny(entry.tests ?? [], file) || (entry.roots.some(directory => within(directory, file)) && Boolean(testRunners.get(file)?.includes(entry.runner))))]));
+  // A support glob names files in the roots of its implementation that a test glob selects or that are named like a test, and
+  // that hold no test; one that selects none is stale. A Go or Rust support file holds no function that its native runner would run.
   for (const entry of config.implementations) {
-    const testGlobs = [...entry.tests, ...config.testPatterns.filter(pattern => pattern.runner === entry.runner).flatMap(pattern => pattern.globs)];
     for (const file of supportFiles(entry, files)) {
       for (const test of supportTests(entry.runner, readFileSync(path.join(root, file), 'utf8'))) fail(`implementation ${entry.name}: the support file ${file} ${test}; a support file holds no test`);
       if (!entry.roots.some(directory => within(directory, file))) fail(`implementation ${entry.name}: the support file ${file} lies outside ${entry.roots.join(', ')}, the roots of ${entry.name}`);
     }
     for (const glob of entry.support ?? []) {
-      if (![...files].some(file => matchesAny([glob], file) && matchesAny(testGlobs, file))) fail(`implementation ${entry.name}: the support glob ${glob} selects no test file; remove it`);
+      if (![...files].some(file => matchesAny([glob], file) && (matchesAny(entry.tests ?? [], file) || Boolean(testRunners.get(file)?.includes(entry.runner)) || testNamed(file)))) fail(`implementation ${entry.name}: the support glob ${glob} selects no test file; remove it`);
     }
   }
   const patterns: [string, string][] = [
@@ -514,6 +543,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       return list === undefined ? [] : [{ name, list, omitted: (profiles.get(unit.profile) ?? []).filter(member => implementations.has(member) && !list.includes(member)) }];
     }).filter(entry => entry.omitted.length),
     snapshots,
+    tests,
+    testRunners,
     members: unit => (profiles.get(unit.profile) ?? []).filter(name => implementations.has(name)),
     exclusion: (unit, implementation) => exclusions.get(`${unit.id}\0${implementation}`),
   };

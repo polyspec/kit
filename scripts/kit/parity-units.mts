@@ -3,7 +3,7 @@
 // that no unit declares), R5 (a test file that no binding runs), R6 (a binding test outside its implementation), R8 (an
 // exclusion) and R11 (an exported symbol that no unit declares).
 import { matchesAny } from './glob.mts';
-import { finding, within } from './parity-declaration.mts';
+import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mts';
 
 // The declaration of config/parity.json as scripts/kit/schema/parity.schema.json describes it, and the model that
 // readDeclaration builds from it; the parity rules read only the members named here.
@@ -12,7 +12,7 @@ export type ParityImplementation = {
   name: string;
   runner: Runner;
   roots: string[];
-  tests: string[];
+  tests?: string[];
   support?: string[];
   command?: string;
   args?: string[];
@@ -36,7 +36,7 @@ export type ParityConfig = {
   profiles: { name: string; implementations: string[]; reason?: string }[];
   suites?: string[];
   comparators?: string[];
-  testPatterns: { runner: Runner; globs: string[] }[];
+  testPatterns?: { runner: Runner; globs: string[] }[];
   units: ParityUnit[];
   nativeOnly?: { implementation: string; symbol: string; reason: string }[];
   exclusions?: ParityExclusion[];
@@ -49,6 +49,8 @@ export type ParityModel = {
   implementations: ReadonlyMap<string, ParityImplementation>;
   profiles: ReadonlyMap<string, string[]>;
   snapshots: ReadonlyMap<string, ReadonlyMap<string, boolean>>;
+  tests: ReadonlyMap<string, string[]>;
+  testRunners: ReadonlyMap<string, Runner[]>;
   members: (unit: ParityUnit) => string[];
   exclusion: (unit: ParityUnit, implementation: string) => ParityExclusion | undefined;
 };
@@ -91,12 +93,22 @@ export function undeclaredSuites(model: ParityModel, files: Iterable<string>) {
 /** Whether `file` is a support file of an implementation of `runner`: it holds no test of that runner. */
 const supportFile = (model: ParityModel, runner: Runner, file: string) => model.config.implementations.some(implementation => implementation.runner === runner && matchesAny(implementation.support ?? [], file));
 
-/** R5: each test file of an implementation, except its support files, is the test of a binding of that implementation. */
+/**
+ * R5: each test file of an implementation, except its support files, is the test of a binding of that implementation; so is
+ * each file in its roots that is named like a test and that no convention selects (R6 judges a test of another runner), which
+ * its runner does not run unless a binding names it.
+ */
 export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
+  const tests = new Set([...model.tests.values()].flat());
+  const support = (file: string) => model.config.implementations.some(implementation => matchesAny(implementation.support ?? [], file));
   return model.config.implementations.flatMap((implementation) => {
     const bound = new Set(model.config.units.flatMap(unit => unit.bindings ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.test));
-    return [...files].filter(file => matchesAny(implementation.tests, file) && !bound.has(file) && !matchesAny(implementation.support ?? [], file))
+    // readDeclaration gives every implementation its test files.
+    const unbound = model.tests.get(implementation.name)!.filter(file => !bound.has(file) && !matchesAny(implementation.support ?? [], file))
       .map(file => finding('R5', `the test file of ${implementation.name} is the test of no binding, so no check runs it`, { implementation: implementation.name, place: file }));
+    const named = [...files].filter(file => implementation.roots.some(root => within(root, file)) && testNamed(file) && !tests.has(file) && !model.testRunners.has(file) && !bound.has(file) && !support(file))
+      .map(file => finding('R5', `the file is named like a test, and the ${implementation.runner} convention of ${implementation.name} is ${CONVENTIONS[implementation.runner].join(', ')}; name it so, bind it, or declare it a support file`, { implementation: implementation.name, place: file }));
+    return [...unbound, ...named].sort((left, right) => (left.place ?? '').localeCompare(right.place ?? ''));
   });
 }
 
@@ -119,8 +131,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));
   const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !KIT_DIRECTORIES.some(root => within(root, file))).flatMap((file) => {
-    const runners = model.config.testPatterns.filter(pattern => matchesAny(pattern.globs, file)).map(pattern => pattern.runner);
-    return [...new Set(runners)].filter(runner => !supportFile(model, runner, file)).flatMap((runner) => {
+    return (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file)).flatMap((runner) => {
       const roots = model.config.implementations.filter(entry => entry.runner === runner).flatMap(entry => entry.roots);
       if (roots.some(root => within(root, file))) return [];
       return [finding('R6', `a ${runner} test outside ${roots.join(', ') || 'nothing'}, the roots of the ${runner} implementations, and outside ${comparators.join(', ') || 'nothing'}, the comparator roots; move it into the package of its implementation`, { place: file })];
