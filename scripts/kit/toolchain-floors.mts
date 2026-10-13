@@ -4,10 +4,11 @@
 //   composer.json  require.php is ">=<php pin>"; beside a composer.lock, config.platform.php is "<php pin>"
 //   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
 //   go.mod         go is "<go pin>" and no toolchain line, which the go command drops when it equals the go line
+//   Cargo.toml     package.rust-version is "<rust pin>", also through rust-version.workspace = true
 // Each other floor, and a missing one, is a finding that names the file, the key, the pin and the expected value.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
-import { readGoMod, readToml } from './toolchain-files.mts';
+import { readCargoPackages, readGoMod, readToml } from './toolchain-files.mts';
 import type { Pins, Tool } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -54,3 +55,20 @@ export const goModFindings = (root: string, pins: Pins, env: NodeJS.ProcessEnv):
     ...(mod.Toolchain ? [`${file}: toolchain is ${JSON.stringify(mod.Toolchain)}; kit pins go ${pins.go} in the go line, so remove the toolchain line`] : []),
   ];
 });
+
+/**
+ * One line for each Cargo package whose rust-version is not the Rust pin. `cargo metadata` of each Cargo.toml lists the
+ * packages of its workspace, so a package is read once; `env` runs cargo.
+ */
+export function cargoFindings(root: string, pins: Pins, env: NodeJS.ProcessEnv): string[] {
+  const manifests = named(root, 'Cargo.toml');
+  // cargo prints each manifest path below the path that it was given.
+  const base = path.resolve(root);
+  const versions = new Map<string, string | null>();
+  for (const file of manifests) {
+    if (versions.has(file)) continue;
+    for (const entry of readCargoPackages(root, file, env)) versions.set(path.relative(base, entry.manifest_path).split(path.sep).join('/'), entry.rust_version);
+  }
+  // A virtual workspace manifest is no package, so only the manifests of packages have a floor.
+  return manifests.filter(file => versions.has(file)).flatMap(file => floor(file, 'package.rust-version', versions.get(file) ?? undefined, 'rust', pins, pins.rust));
+}
