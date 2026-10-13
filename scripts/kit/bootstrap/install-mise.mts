@@ -25,8 +25,9 @@ export const miseArchiveUrl = (version: string, asset: string): string => `https
 /**
  * The environment in which the tools of mise run from its shims, var/tools/mise/shims, for the checkout `root`: the directories
  * of mise under var/tools/mise, the trusted config of the checkout, only what mise.lock pins and no install on its own (a
- * missing tool is an error until make install-tools), and no uv that downloads a Python. A tool that mise runs from uv gets
- * the Python of mise from mise; the uv of a check gets it from UV_PYTHON (toolsEnvironment of mise-tools.mts).
+ * missing tool is an error until make install-tools), and no uv that downloads a Python; uv keeps its cache in
+ * var/tools/mise. A tool that mise runs from uv gets the Python of mise from mise; the uv of a check gets it from UV_PYTHON
+ * (toolsEnvironment of mise-tools.mts).
  */
 export function miseEnvironment(root: string): Record<string, string> {
   return {
@@ -38,19 +39,19 @@ export function miseEnvironment(root: string): Record<string, string> {
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
+    UV_CACHE_DIR: toolsPath(root, 'mise', 'cache', 'uv'),
   };
 }
 
 /**
- * The environment of mise itself, which installs and locks the tools: miseEnvironment, and the caches of the uv and the Go that
- * build a tool under var/tools/mise, so nothing outside the checkout changes. Go checks every module that it downloads against
- * its checksum database (GOSUMDB, with no module exempt) and changes no go.mod (-mod=readonly); its module cache stays
- * writable (-modcacherw), so var/tools can be removed.
+ * The environment of mise itself, which installs and locks the tools: miseEnvironment, and the module and build caches of the
+ * Go that builds a tool under var/tools/mise, so nothing outside the checkout changes. Go checks every module that it
+ * downloads against its checksum database (GOSUMDB, with no module exempt) and changes no go.mod (-mod=readonly); its module
+ * cache stays writable (-modcacherw), so var/tools can be removed.
  */
 export function miseInstallEnvironment(root: string): Record<string, string> {
   return {
     ...miseEnvironment(root),
-    UV_CACHE_DIR: toolsPath(root, 'mise', 'cache', 'uv'),
     GOPATH: toolsPath(root, 'mise', 'go'),
     GOCACHE: toolsPath(root, 'mise', 'cache', 'go-build'),
     GOFLAGS: '-mod=readonly -modcacherw',
@@ -61,12 +62,15 @@ export function miseInstallEnvironment(root: string): Record<string, string> {
   };
 }
 
-// The text of the wrapper mise: the environment of mise for the checkout, then the binary.
+// The text of the wrapper mise: the environment of mise for the checkout, then the binary. mise links each shim to the mise
+// that PATH names, so the directory of the binary comes first on PATH: a shim that linked this wrapper would run mise itself,
+// since the wrapper drops the name of the shim.
 function miseWrapper(root: string, binary: string, version: string) {
   const variables = miseInstallEnvironment(root);
   const lines = [
     ...Object.entries(variables).map(([name, value]) => `${name}=${quote(value)}`),
-    `export ${Object.keys(variables).join(' ')}`,
+    `PATH=${quote(path.dirname(binary))}:"$PATH"`,
+    `export ${Object.keys(variables).join(' ')} PATH`,
     `exec ${quote(binary)} "$@"`,
   ];
   return wrapperText(`mise ${version} of this checkout`, lines.join('\n'));
