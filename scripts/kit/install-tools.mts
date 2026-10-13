@@ -7,7 +7,8 @@
 // Without arguments every declared tool is installed; with arguments only the named tools, each of which must be declared
 // (uv installs the Python, so a python that is named without uv needs uv installed first; ruff runs with that Python).
 // Python (pythonBuild), npm, Go, ruff, uv, Composer (with a sha256), PHPUnit (the Composer project of config/phpunit), cargo-audit, govulncheck, alint and the symbol extractors of parity (install-symbols.mts) are installed by their own modules; the
-// declarations are read by toolchain-declared.mts, and Go by toolchain-files.mts with the go command of the machine. Each tool is installed only when it is declared, and an install is skipped when the exact
+// declarations are read by toolchain-declared.mts; Go, wanted by a checkout that tracks a go.mod, is the release of the kit pin
+// from its archive (toolchain-pins.json goArchives). Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust and PHP
 // are verified by check-toolchain.mts, not installed. The command prints a line for each step and has no time limit.
 import path from 'node:path';
