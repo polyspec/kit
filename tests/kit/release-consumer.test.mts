@@ -159,7 +159,7 @@ test('install refuses archives other than the archives of the version', (t) => {
   const box = consumerSandbox(t);
   box.lock();
   stop(() => install(box, '0.0.2'), /var\/release\/assets holds \[.*\], the archives of 0\.0\.2 are \[/);
-  stop(() => install(box, '0.0.1', path.join(box.root, 'var/other')), /var\/other holds \[\], the archives of 0\.0\.1 are \[/);
+  stop(() => install(box, '0.0.1', path.join(box.root, 'var/other')), /var\/other does not exist; it holds the archives of 0\.0\.1: \[/);
 });
 
 test('install names each difference of the manifests and locks from the archives', (t) => {
