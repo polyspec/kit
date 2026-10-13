@@ -1,11 +1,14 @@
-// Where a tool of scripts/kit runs: the root of the checkout that holds scripts/kit, and whether a module is the command
-// that Node.js started.
+// Where a tool of kit runs: the root of the repository, which is the working directory, and whether a module is the
+// command that Node.js started.
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The root of the checkout that holds scripts/kit. */
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+/**
+ * The root of the repository: the working directory, which every make target runs in. It is not derived from the location
+ * of the module, since the tools also run from node_modules/@polyspec/kit/dist of a repository.
+ */
+export const ROOT = process.cwd();
 
 /**
  * Whether the module `moduleUrl` (its `import.meta.url`) is the command that Node.js started. Both paths are resolved to their real

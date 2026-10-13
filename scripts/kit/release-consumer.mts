@@ -28,6 +28,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ROOT } from './paths.mts';
 import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from './release.mts';
 import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
 import { fileDigest } from './digest.mts';
@@ -315,7 +316,7 @@ export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: str
 const USAGE = 'usage: node scripts/kit/release-consumer.mts install|lock TAG';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv: string[], { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error }: {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: {
   root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
 } = {}) {
   const [mode, latest, ...rest] = argv;

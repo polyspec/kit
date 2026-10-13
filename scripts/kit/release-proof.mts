@@ -25,6 +25,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ROOT } from './paths.mts';
 import { assetNames, context, latestTag, parseTag } from './release.mts';
 import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
@@ -180,7 +181,7 @@ export function prove(ctx: ReleaseContext, tag: string, step: Step) {
 const USAGE = 'usage: node scripts/kit/release-proof.mts TAG';
 
 /** Runs the command line; the exit status. */
-export function main(argv: string[], { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), env = process.env, print = console.log, error = console.error }: {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: {
   root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void;
 } = {}) {
   const [latest, ...rest] = argv;
