@@ -2,7 +2,7 @@
 // precision (S4). Each manifest is read with the tool of its ecosystem.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { composerFindings, enginesFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { composerFindings, enginesFindings, goModFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
@@ -62,5 +62,20 @@ test('every pyproject.toml with a project table requires-python >= the Python pi
 
 test('a pyproject.toml that is no TOML fails with the file and the error of tomllib', (t) => {
   const root = tree(t, { 'pyproject.toml': '[project\n' });
-  assert.throws(() => pyprojectFindings(root, PINS, process.env), /pyproject\.toml: tomllib cannot read it: .*/);
+  assert.throws(() => pyprojectFindings(root, PINS, process.env), /pyproject\.toml: tomllib of python3 cannot read it \(exit status 1\): .*TOMLDecodeError/s);
+});
+
+// go.mod is read by `go mod edit -json` of the Go on PATH; GOTOOLCHAIN=local keeps it from switching to the declared Go.
+test('every go.mod declares go <the Go pin> and no toolchain line, which the go command drops when it equals the go line', (t) => {
+  const root = tree(t, {
+    'go.mod': 'module example.com/a\n\ngo 1.27.2\n',
+    'packages/b/go.mod': 'module example.com/b\n\ngo 1.21\n',
+    'packages/c/go.mod': 'module example.com/c\n\ngo 1.27\n\ntoolchain go1.27.2\n',
+    'packages/d/go.mod': 'module example.com/d\n\ngo 1.27.2 // the pin of kit\n',
+  });
+  assert.deepEqual(goModFindings(root, PINS, { ...process.env, GOTOOLCHAIN: 'local' }), [
+    'packages/b/go.mod: go is "1.21"; kit pins go 1.27.2, so it must be "1.27.2"',
+    'packages/c/go.mod: go is "1.27"; kit pins go 1.27.2, so it must be "1.27.2"',
+    'packages/c/go.mod: toolchain is "go1.27.2"; kit pins go 1.27.2 in the go line, so remove the toolchain line',
+  ]);
 });
