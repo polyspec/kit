@@ -449,11 +449,11 @@ export function assets(ctx: Context, tag: string): string[] {
   const names = assetNames(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${folder}/${MANIFEST_OF[kind]}`], at(ctx)));
   // The lock of each wheel package is read from the tagged commit, as its manifest is.
-  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelConsumer(config).lock[name], text: run('git', ['show', `${commit}:${wheelConsumer(config).lock[name]}`], at(ctx)) } : null));
+  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelLock(config, name), text: run('git', ['show', `${commit}:${wheelLock(config, name)}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = `${folder}/${MANIFEST_OF[kind]}`;
-    // loadConfig requires buildBackend when a package is a wheel, and locks holds the lock of each wheel at its index.
-    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
+    // loadConfig requires buildBackend when a package is a wheel; sources and locks hold the manifest and the lock of each package at its index.
+    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
     // sources holds the manifest of each package at its index.
     const manifest = JSON.parse(sources[index]!);
     return [
@@ -478,7 +478,8 @@ export function assets(ctx: Context, tag: string): string[] {
         // created holds one file, checked above, and names holds the archive name of each package at its index.
         renameSync(path.join(next, created[0]!), path.join(next, names[index]!));
       } else if (kind === 'wheel') {
-        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: config.buildBackend });
+        // loadConfig requires buildBackend when a package is a wheel.
+        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: config.buildBackend! });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.
@@ -512,6 +513,14 @@ export function assets(ctx: Context, tag: string): string[] {
     rmSync(next, { recursive: true, force: true });
   }
   return names;
+}
+
+/** The lock file of the wheel package `name` in consumers.wheel.lock. */
+function wheelLock(config: ReleaseConfig, name: string): string {
+  const file = wheelConsumer(config).lock[name];
+  // consumerConfigProblems requires a lock of each wheel package.
+  if (file === undefined) throw new Error(`${CONFIG}: consumers.wheel.lock has no lock of the wheel package ${name}`);
+  return file;
 }
 
 /** consumers.wheel of the configuration, which a wheel package needs. */
