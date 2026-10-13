@@ -66,8 +66,9 @@
             ]
           },
           "directory": {
+            "description": "The directory of the package below the root, or . for a package at the root of the repository (kit itself).",
             "type": "string",
-            "pattern": "^[^/\\\\][^\\\\]*[^/\\\\]$"
+            "pattern": "^(\\.|[^/\\\\][^\\\\]*[^/\\\\])$"
           },
           "name": {
             "type": "string",

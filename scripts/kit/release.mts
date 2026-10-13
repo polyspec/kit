@@ -164,13 +164,13 @@ export function loadConfig(root: string): ReleaseConfig {
     if (directories.has(directory)) problems.push(`${CONFIG}: the directory ${directory} holds two packages`);
     names.add(`${kind}:${name}`);
     directories.add(directory);
-    const manifest = `${directory}/${MANIFEST_OF[kind]}`;
+    const manifest = path.posix.join(directory, MANIFEST_OF[kind]);
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
   }
   const wheels = config.packages.filter(item => item.kind === 'wheel').map(({ name }) => name);
   if (wheels.length && !config.buildBackend) problems.push(`${CONFIG}: buildBackend is missing; the wheel packages [${wheels.join(', ')}] need a pinned build backend`);
   if (!wheels.length && config.buildBackend) problems.push(`${CONFIG}: buildBackend is declared but no package is a wheel`);
-  const archived = new Set(config.packages.map(({ directory, kind }) => `${directory}/${MANIFEST_OF[kind]}`));
+  const archived = new Set(config.packages.map(({ directory, kind }) => path.posix.join(directory, MANIFEST_OF[kind])));
   for (const [key, value] of Object.entries(config.manifests)) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
@@ -447,11 +447,11 @@ export function assets(ctx: Context, tag: string): string[] {
   }
   const commit = taggedCommit(ctx, tag);
   const names = assetNames(config, version);
-  const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${folder}/${MANIFEST_OF[kind]}`], at(ctx)));
+  const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
   // The lock of each wheel package is read from the tagged commit, as its manifest is.
   const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelLock(config, name), text: run('git', ['show', `${commit}:${wheelLock(config, name)}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
-    const file = `${folder}/${MANIFEST_OF[kind]}`;
+    const file = path.posix.join(folder, MANIFEST_OF[kind]);
     // loadConfig requires buildBackend when a package is a wheel; sources and locks hold the manifest and the lock of each package at its index.
     if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
     // sources holds the manifest of each package at its index.
@@ -503,7 +503,7 @@ export function assets(ctx: Context, tag: string): string[] {
       // names holds the archive name of each package at its index.
       const packed = packedManifest(ctx, path.join(next, names[index]!));
       return [
-        ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${folder}/${file} of the commit ${commit}`]),
+        ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
         ...manifestProblems(config, kind, JSON.parse(packed), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });

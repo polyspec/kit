@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "repositoryUrl": "https://github.com/polyspec/kit",
+  "changelog": "CHANGELOG.md",
+  "changelogTranslations": [
+    "CHANGELOG.ko.md"
+  ],
+  "checks": [
+    "kit"
+  ],
+  "packages": [
+    {
+      "kind": "npm",
+      "directory": ".",
+      "name": "@polyspec/kit"
+    }
+  ],
+  "manifests": {
+    "package.json": "archive"
+  },
+  "notReleased": {
+    "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit"
+  },
+  "goModules": {}
+}
