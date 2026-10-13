@@ -29,8 +29,8 @@ function output(file: string, shown: string, command: string, args: string[], en
 /** The table of the TOML file `file` of `root`; a file that is no TOML throws with the file and the place of the error. */
 export const readTomlFile = (root: string, file: string): TomlTable => readToml(readFileSync(path.join(root, file), 'utf8'), file);
 
-/** The go.mod `file` of `root` as `go mod edit -json` prints it: the go line and the toolchain line, each when present. */
-export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): { Go?: string; Toolchain?: string } =>
+/** The go.mod `file` of `root` as `go mod edit -json` prints it: the module path, and the go line and the toolchain line, each when present. */
+export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): { Module: { Path: string }; Go?: string; Toolchain?: string } =>
   JSON.parse(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env));
 
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
