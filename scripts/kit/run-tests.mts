@@ -123,7 +123,8 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
         args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, `--test-reporter=${siblingTool(import.meta.url, 'node-reporter')}`, '--test-reporter-destination=stdout', ...args],
       };
     case 'vitest':
-      // npm writes no bin links, so the runner starts the entry of the vitest package with node.
+      // The runner starts the entry of the vitest package with its own node, so vitest runs on the declared Node.js and not on
+      // the node that the shebang of node_modules/.bin/vitest finds on PATH.
       return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', `--testTimeout=${milliseconds}`, `--hookTimeout=${milliseconds}`, `--reporter=${siblingTool(import.meta.url, 'vitest-reporter')}`, ...args] };
     case 'go':
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
