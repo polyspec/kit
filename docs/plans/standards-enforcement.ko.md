@@ -1,5 +1,5 @@
 <!-- doc-id: standards-enforcement -->
-<!-- source-sha256: c4bcd085553d7f872555188ccf4b27adc64c0ea049b67479d5a3fd7fdfd4faba -->
+<!-- source-sha256: eadd0bfbfcf2c8dcb79646ead9c5607ab89ed4cce69fe60f9d42e132456a274f -->
 # Standards enforcement 계획
 
 [English](standards-enforcement.md)
@@ -311,7 +311,7 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
      - Node `engines >=26.11.1`
      - Composer `php >=8.5`
      - `requires-python >=3.14`
-     - go.mod `go 1.27.2`와 `toolchain go1.27.2`
+     - go.mod `go 1.27.2`, `toolchain` 줄 없음: go 명령은 go 줄과 같은 toolchain 줄을 지웁니다
      - `rust-version 1.99.0`
      - TypeScript pin
    - 선언된 예외를 읽는다.
