@@ -1,3 +1,5 @@
+<!-- doc-id: readme -->
+<!-- source-sha256: 8d73c52dd89e86f865b2f27100040f7a71106a270b14d94362cc99061f8b0a71 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -29,10 +31,10 @@
 ## 저장소에서 사용
 
 ```sh
-make install-tools TOOLS=npm   # 복사된 bootstrap으로 packageManager의 npm을 설치합니다(온라인)
-make install-packages          # 그 npm으로 npm ci를 실행하며 @polyspec/kit도 설치됩니다(온라인)
-make kit-sync                  # 설치된 package의 사본을 package-lock.json의 버전으로 씁니다(오프라인)
-make kit-check                 # package를 package-lock.json과, 사본을 package와, 설정을 schema와 비교합니다(오프라인)
+make install-tools TOOLS=npm   # install the npm of packageManager with the copied bootstrap (online)
+make install-packages          # npm ci with that npm, @polyspec/kit included (online)
+make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
+make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
 ```
 
 같은 tag로 `kit-sync`를 다시 실행하면 바뀌는 것이 없습니다. vendored 파일은 kit에서 고쳐 다시 복사하며, 저장소에서 직접 고치지 않습니다.

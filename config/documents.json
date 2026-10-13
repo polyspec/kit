@@ -4,6 +4,11 @@
   "include": [
     "AGENTS.md",
     "PRINCIPLES.md",
+    "README.md",
+    "CHANGELOG.md",
     "docs/**/*.md"
+  ],
+  "changelogs": [
+    "CHANGELOG.md"
   ]
 }
