@@ -199,6 +199,8 @@ test('install fails when a package is installed at another version', (t) => {
   stop(() => install(box), /npm installed fixture-lib 9\.9\.9, expected 0\.0\.1/);
   box.stub({ modes: { npm: '', composer: 'wrong-version' } });
   stop(() => install(box), /composer installed polyspec\/kit-fixture 9\.9\.9, expected 0\.0\.1/);
+  box.stub({ modes: { npm: '', composer: 'no-installed' } });
+  stop(() => install(box), /composer install wrote no vendor\/composer\/installed\.json/);
 });
 
 test('install fails when a smoke command fails and names the package and the command', (t) => {
