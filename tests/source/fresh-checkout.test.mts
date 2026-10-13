@@ -15,13 +15,15 @@ import { copyTracked, runKitTest } from './checkout.mts';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** The failed cases of a kit-test output, each with the indented lines of its error. */
-export function failedCases(output) {
-  const cases = [];
-  let current = null;
+export function failedCases(output: string) {
+  const cases: Array<{ name: string; error: string }> = [];
+  let current: { name: string; error: string } | null = null;
   for (const line of output.split('\n')) {
     const failed = /^\[[^\]]*\] ✖ (tests\/kit\/[^\n]*? › [^\n]*?) \(\d[^)]*\)$/.exec(line);
     if (failed) {
-      current = { name: failed[1], error: '' };
+      const name = failed[1];
+      if (name === undefined) throw new Error(`failedCases: the line names no case: ${line}`);
+      current = { name, error: '' };
       cases.push(current);
     } else if (current && /^\s{2,}\S/.test(line) && !line.startsWith('[')) {
       current.error += `${line.trim()}\n`;

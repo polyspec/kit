@@ -14,10 +14,10 @@ const lines = readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8').spl
 
 /** The `run:` commands of the steps in the order the workflow runs them, each with its line number. */
 const runs = lines.flatMap((line, index) => {
-  const match = /^\s+run: (.+)$/.exec(line);
-  return match ? [{ command: match[1], line: index + 1 }] : [];
+  const command = /^\s+run: (.+)$/.exec(line)?.[1];
+  return command === undefined ? [] : [{ command, line: index + 1 }];
 });
-const step = (command, pattern) => {
+const step = (command: string, pattern: RegExp) => {
   const found = runs.find(run => pattern.test(run.command));
   assert.ok(found, `the workflow runs ${command}`);
   return found;
@@ -39,7 +39,9 @@ test('the release workflow creates the release as a draft, proves it, and makes 
   const undraft = step('make release-undraft', /^make release-undraft TAG="\$TAG"$/);
   assert.ok(publish.line < proof.line, `release-proof (line ${proof.line}) runs after release-publish (line ${publish.line})`);
   assert.ok(proof.line < undraft.line, `release-undraft (line ${undraft.line}) runs after release-proof (line ${proof.line})`);
-  assert.equal(runs.at(-1).command, undraft.command, 'release-undraft is the last step');
+  const last = runs.at(-1);
+  assert.ok(last, 'the workflow runs no step');
+  assert.equal(last.command, undraft.command, 'release-undraft is the last step');
 });
 
 test('no step of the release workflow continues past a failure', () => {

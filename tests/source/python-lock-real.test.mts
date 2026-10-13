@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readPylock } from '../../scripts/kit/pylock.mts';
 import { checkPythonLock, writePythonLock } from '../../scripts/kit/python-lock.mts';
@@ -24,11 +25,11 @@ const PYPROJECT = '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = [\
 const CONSTRAINTS = 'tinylib==0.0.1\nsetuptools==84.0.0\n';
 const TINYLIB_PYPROJECT = '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "tinylib"\nversion = "0.0.1"\nrequires-python = ">=3.10"\ndependencies = [\n  "setuptools==84.0.0",\n]\n';
 const write = () => writePythonLock({ root: ROOT, entry: ENTRY, env: process.env, print: () => {} });
-const abs = file => path.join(ROOT, file);
+const abs = (file: string) => path.join(ROOT, file);
 const lockPath = abs(ENTRY.lock);
 
 /** The sources of the test: the pyproject, the constraints, and the wheels of the find-links directory. */
-function setup(t) {
+function setup(t: TestContext) {
   const dir = abs(DIR);
   rmSync(dir, { recursive: true, force: true });
   t.after(() => {
@@ -60,7 +61,7 @@ test('uv writes a lock from the pyproject with find-links, no machine path is ke
   assert.match(text, /^created-by = "uv"$/m);
   assert.ok(text.includes('path = "links/tinylib-0.0.1-py3-none-any.whl"'), 'a local wheel is a path relative to the lock');
   assert.ok(!text.includes('file:') && !text.includes(ROOT), 'the lock holds no machine path');
-  assert.deepEqual(readPylock(text, ENTRY.lock).packages.map(item => `${item.name}==${item.version}`).sort(), ['setuptools==84.0.0', 'tinylib==0.0.1']);
+  assert.deepEqual(readPylock(text, ENTRY.lock).packages.map((item: { name: string; version: string }) => `${item.name}==${item.version}`).sort(), ['setuptools==84.0.0', 'tinylib==0.0.1']);
   assert.deepEqual(checkPythonLock({ root: ROOT, entry: ENTRY }), []);
 });
 
