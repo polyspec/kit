@@ -40,10 +40,10 @@ export function missingBindings(model: ParityModel) {
     .map(({ unit, implementation }) => finding('R2', `${unit.file ?? `the feature ${unit.id}`} has no binding of ${implementation.name}`, { unit: unit.id, implementation: implementation.name, place: unit.file }));
 }
 
-/** R4: each file of the suite globs is the file of a suite unit. */
+/** R4: each file of the suite globs is the file of a suite unit or lies in the case directory of one. */
 export function undeclaredSuites(model: ParityModel, files: Iterable<string>) {
-  const declared = new Set(model.config.units.map(unit => unit.file));
-  return [...files].filter(file => matchesAny(model.config.suites ?? [], file) && !declared.has(file))
+  const declared = model.config.units.flatMap(unit => (unit.file === undefined ? [] : [unit.file]));
+  return [...files].filter(file => matchesAny(model.config.suites ?? [], file) && !declared.some(name => name === file || within(name, file)))
     .map(file => finding('R4', 'the vector file is the file of no suite unit; declare a unit for it', { place: file }));
 }
 
@@ -75,10 +75,11 @@ const KIT_DIRECTORIES = ['scripts/kit', 'tests/kit'];
 /**
  * R6: the test of each binding lies in a root of its implementation or in a comparator root, and every other file of the test
  * patterns of a runner, except a support file of an implementation of that runner, lies in a root of an implementation of that
- * runner or in a comparator root.
+ * runner, in a comparator root or in a tools root.
  */
 export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const comparators = model.config.comparators ?? [];
+  const tools = (model.config.tools ?? []).map(tool => tool.root);
   const inComparator = (file: string) => comparators.some(root => within(root, file));
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
   const bindings = bound.flatMap(({ unit, entry }) => {
@@ -87,7 +88,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));
-  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !KIT_DIRECTORIES.some(root => within(root, file))).flatMap((file) => {
+  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && ![...KIT_DIRECTORIES, ...tools].some(root => within(root, file))).flatMap((file) => {
     // Conventions overlap (a *.test.ts file is a node and a vitest test), so a file lies in a root of one of its runners.
     const runners = (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file));
     if (!runners.length) return [];

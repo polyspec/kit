@@ -1178,3 +1178,81 @@ test('admit: an implementation that admits no case, a key on no case, an empty l
   assert.match(findings([{ name: 'empty', kinds: ['go', 'go', 'rust', 'ts', 'php', 'python'] }, { name: 'ascii', kinds: all }]).join('\n'), /declaration unit codec: .*case empty lists go twice/);
 });
 
+
+/** The unit width of `config`, the go and rust suite that the K42 cases read in other forms. */
+const widthUnit = (config: Declaration) => config.units.find((unit: { id: string }) => unit.id === 'width');
+
+test('a case path step .~ selects the keys of an object as the case names (K42)', TIMEOUT, (t) => {
+  const keyed = { files: { 'tests/vectors/width.json': JSON.stringify({ narrow: { width: 1 }, wide: { width: 2 } }) }, edit: (config: Declaration) => { widthUnit(config).cases = '$.~'; return config; } };
+  const { findings, ledger } = check(t, keyed);
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case}`), ['go narrow', 'go wide', 'rust narrow', 'rust wide']);
+  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ edit: keyed.edit }), ['declaration: unit width: tests/vectors/width.json: $ is no object']);
+  assert.deepEqual(messages({ files: { 'tests/vectors/width.json': '{}' }, edit: keyed.edit }), ['declaration: unit width: $.~ selects no case in tests/vectors/width.json']);
+  assert.deepEqual(messages({ files: keyed.files, edit: (config) => { widthUnit(config).cases = '$.~.name'; return config; } }).length, 1);
+});
+
+// The case directories of template: tests/cases/<group>/<case>/, each holding the files of its case.
+const CASE_DIRECTORIES = {
+  'tests/cases/echo/html-escape-five-chars/case.json': '{}\n',
+  'tests/cases/echo/html-escape-five-chars/expected.html': '&lt;\n',
+  'tests/cases/echo/bool/case.json': '{}\n',
+  'tests/cases/if/true/input.tpl': 'x\n',
+  'tests/cases/if/true/nested/deeper.json': '{}\n',
+  'tests/vectors/width.json': null,
+  'go/width_test.go': 'PASS TestWidth/echo\nPASS TestWidth/echo/bool\nPASS TestWidth/echo/html-escape-five-chars\nPASS TestWidth/if\nPASS TestWidth/if/true\n',
+};
+const caseDirectories = (config: Declaration) => {
+  Object.assign(widthUnit(config), { file: 'tests/cases', cases: '*/*' });
+  config.suites.push('tests/cases/**');
+  // cargo names no test with a /, so the rust half of the profile is excluded here.
+  widthUnit(config).bindings = widthUnit(config).bindings.filter((entry: { implementation: string }) => entry.implementation === 'go');
+  config.exclusions.push({ unit: 'width', implementation: 'rust', reason: 'cargo names no test with a /', item: 'K42' });
+  return config;
+};
+
+test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, { files: CASE_DIRECTORIES, edit: caseDirectories });
+  assert.deepEqual(keys(findings), ['R8 width rust']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), ['go echo/bool pass', 'go echo/html-escape-five-chars pass', 'go if/true pass']);
+  // A subtest below a case is no case of the suite.
+  const nested = check(t, { files: { ...CASE_DIRECTORIES, 'go/width_test.go': `${CASE_DIRECTORIES['go/width_test.go']}PASS TestWidth/if/true/sub\n` }, edit: caseDirectories });
+  assert.deepEqual(nested.findings.map(finding => `${finding.rule} ${finding.unit}: ${finding.message}`), ['R3 width: not in the suite: if/true/sub', 'R8 width: excluded: cargo names no test with a / (K42)']);
+  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ files: { ...CASE_DIRECTORIES, 'tests/cases/README.md': 'x\n', 'tests/cases/echo/notes.md': 'x\n' }, edit: caseDirectories }), [
+    'declaration: unit width: tests/cases/README.md is a file where the case glob */* matches a directory',
+    'declaration: unit width: tests/cases/echo/notes.md is a file where the case glob */* matches a directory',
+  ]);
+  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '$[*]'; return config; } }), [
+    'declaration: unit width: tests/cases is a directory, so cases is a glob of its case directories, not $[*]',
+  ]);
+  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '**'; return config; } }), [
+    'declaration: unit width: the case glob ** holds **; each / step of the glob matches one directory level',
+  ]);
+  assert.deepEqual(messages({ edit: (config) => { widthUnit(config).cases = '*'; return config; } }), [
+    'declaration: unit width: tests/vectors/width.json is a file, so cases is a path $… of its case names, not *',
+  ]);
+  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = 'none/*'; return config; } }), [
+    'declaration: unit width: none/* selects no case in tests/cases',
+  ]);
+});
+
+test('a tools root holds single-language tooling tests that R6 accepts and every run prints (K42)', TIMEOUT, (t) => {
+  const files = { 'tools/tests/grammar.mjs': "import test from 'node:test';\ntest('grammar', () => {});\n" };
+  assert.deepEqual(check(t, { files }, { execute: false }).findings.map(finding => `${finding.rule} ${finding.place}`), ['R6 tools/tests/grammar.mjs']);
+  const tools = (config: Declaration) => { config.tools = [{ root: 'tools', reason: 'the editor grammar, tested in node only' }]; return config; };
+  const lines: string[] = [];
+  const { findings } = checkParity(repository(t, { files, edit: tools }), { execute: false, env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(findings, []);
+  assert.ok(lines.includes('tools root tools: the editor grammar, tested in node only'), lines.join('\n'));
+  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'go/../go', reason: 'y' }]; return config; } }).length, 1, 'the schema refuses a path with ..');
+  assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'tools', reason: ' ' }]; return config; } }), [
+    'declaration: tools: the root ts/tools overlaps ts, a root of the implementation ts',
+    'declaration: tools: the root tools gives no reason; write why its tests belong to no implementation',
+  ]);
+  assert.deepEqual(messages({ files: { 'tools/tests/codec.mjs': NODE_CODEC }, edit: (config) => { tools(config); binding(config, 'codec', 'ts').test = 'tools/tests/codec.mjs'; return config; } }), [
+    'declaration: tools: the root tools holds tools/tests/codec.mjs, the test of the suite codec in ts',
+  ]);
+});

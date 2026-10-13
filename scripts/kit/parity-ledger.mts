@@ -101,13 +101,16 @@ function runSupport(model: ParityModel, root: string, files: Set<string>, { env,
   }));
 }
 
-/** The two runs of `run`, each recorded in `ledger.runs` under `unit` and `implementation`, with `say` printing each step. */
-function twice(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void): [Attempt, Attempt] {
+/**
+ * The two runs of `run`, each recorded in `ledger.runs` under `unit` and `implementation`, with `say` printing each step; a
+ * reported name that `group` holds is a group of cases, not a case.
+ */
+function twice(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false): [Attempt, Attempt] {
   return [1, 2].map((attempt): Attempt => {
     say(`run ${where.unit} ${where.implementation} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
     const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
     const status = result.error ? null : result.status;
-    const reported = result.error ? [] : outcomesOf(run, result);
+    const reported = result.error ? [] : outcomesOf(run, result).filter(([name]) => !group(name));
     ledger.runs.push({ ...where, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
     return { result, status, cases: new Map(reported), repeated: repeated(reported) };
   }) as [Attempt, Attempt];
@@ -177,7 +180,10 @@ export function runBindings(model: ParityModel, root: string, { env, files, say 
     const expected = model.admitted(unit, implementation.name);
     // The binding runs twice; the same tree gives the same cases with the same results, or the binding does not hold.
     // map gives one attempt for each of the two runs.
-    const [first, second] = twice(run, root, { unit: unit.id, implementation: implementation.name }, ledger, say);
+    // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.
+    const declared = model.cases.get(unit.id) ?? [];
+    const group = (name: string) => implementation.runner === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
+    const [first, second] = twice(run, root, { unit: unit.id, implementation: implementation.name }, ledger, say, group);
     for (const [attempt, { status, cases }] of [first, second].entries()) say(`${unit.id} ${implementation.name} (${attempt + 1} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${named(cases, 'pass').length} of ${expected.length} cases passed`);
     const { result, status, cases } = first;
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
