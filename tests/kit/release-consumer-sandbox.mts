@@ -5,8 +5,8 @@
 //             registry package; `ci` installs the tarballs of the lock into node_modules
 //   composer  `update --no-install` writes a lock of the artifact zips with a shasum; `install` writes vendor/composer/installed.json
 //   gh        `api .../releases` lists state.release (its tag, draft and names); `api .../releases/assets/<id>` writes the archive
-//   uv        `venv --python PY DIR` (var/tools/bin/uv) writes DIR/bin/python with its home in var/tools/uv-python
-//   python3   var/tools/bin/python3 answers its version and runs `-m pip --python DIR/bin/python`; DIR/bin/python answers the
+//   uv        `venv --python PY DIR` (var/tools/mise/shims/uv) writes DIR/bin/python with its home in var/tools/mise
+//   python3   var/tools/mise/shims/python3 answers its version and runs `-m pip --python DIR/bin/python`; DIR/bin/python answers the
 //             smoke command
 //   cargo, go answer from the state
 // No test reaches a registry, GitHub or a network.
@@ -21,7 +21,7 @@ import { releaseSandbox } from './release-sandbox.mts';
 import type { ReleaseSandboxOptions } from './release-sandbox.mts';
 import { PIP_FUNCTIONS } from './wheel-stubs.mts';
 
-// The release of the checkout Python (var/tools/bin/python3) that the stubs report.
+// The release of the checkout Python (var/tools/mise/shims/python3) that the stubs report.
 const CHECKOUT_VERSION = '3.14.8';
 
 // The start of every stub: the state, the call log and a function that saves both and exits.
@@ -145,10 +145,10 @@ if (args[0] === '-c' && args[1].includes('python_version')) {
 finish(mode === 'smoke-fail' ? 1 : 0, mode === 'smoke-fail' ? 'python stub: ModuleNotFoundError' : '');
 `;
 
-// The uv of the checkout, var/tools/bin/uv: it makes the venv with its home in var/tools/uv-python, as uv venv makes it from
+// The uv of the checkout, var/tools/mise/shims/uv: it makes the venv with its home in var/tools/mise, as uv venv makes it from
 // the Python that uv installed.
 const UV = `${PRELUDE}
-const CHECKOUT_BIN = path.join(process.cwd(), 'var/tools/uv-python/cpython-${CHECKOUT_VERSION}-stub/bin');
+const CHECKOUT_BIN = path.join(process.cwd(), 'var/tools/mise/installs/python/${CHECKOUT_VERSION}/bin');
 if (args[0] === 'venv' && args[2] === '--python') {
   const directory = args.at(-1);
   fs.mkdirSync(path.join(directory, 'bin'), { recursive: true });
@@ -158,7 +158,7 @@ if (args[0] === 'venv' && args[2] === '--python') {
 } else finish(1, 'uv stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
-// The checkout Python, var/tools/bin/python3: it answers its version and runs pip with --python into a venv. The venv's pip
+// The checkout Python, var/tools/mise/shims/python3: it answers its version and runs pip with --python into a venv. The venv's pip
 // calls are logged with the call.
 const PYTHON3 = `${PRELUDE}
 ${PIP_FUNCTIONS}
@@ -178,7 +178,7 @@ else finish(1, 'python3 stub: unexpected arguments ' + JSON.stringify(args));
 
 // The python3 on PATH: the checkout's Python never reaches it, so any call here is a failure of the release tools.
 const PATH_PYTHON3 = `${PRELUDE}
-finish(1, 'python3 stub: a python3 of PATH ran with ' + JSON.stringify(args) + '; the release uses var/tools/bin/python3');
+finish(1, 'python3 stub: a python3 of PATH ran with ' + JSON.stringify(args) + '; the release uses var/tools/mise/shims/python3');
 `;
 
 const CARGO = `${PRELUDE}
@@ -209,16 +209,16 @@ export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
-  // The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mts writes: it runs the stub.
-  const python = path.join(box.root, 'var/tools/bin/python3');
+  // The Python of the checkout is var/tools/mise/shims/python3, the shim of mise: it runs the stub.
+  const python = path.join(box.root, 'var/tools/mise/shims/python3');
   mkdirSync(path.dirname(python), { recursive: true });
-  // The Python that uv installed exists as a directory, so the venv's home compares by its real path, as on macOS (/var is
-  // /private/var). var/tools/bin/uv is the wrapper that install-uv.mts writes: it runs the uv stub.
-  mkdirSync(path.join(box.root, `var/tools/uv-python/cpython-${CHECKOUT_VERSION}-stub/bin`), { recursive: true });
+  // The Python that mise installed exists as a directory, so the venv's home compares by its real path, as on macOS (/var is
+  // /private/var). var/tools/mise/shims/uv is the shim of mise: it runs the uv stub.
+  mkdirSync(path.join(box.root, `var/tools/mise/installs/python/${CHECKOUT_VERSION}/bin`), { recursive: true });
   writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'checkout-python3')}' "$@"\n`);
   chmodSync(python, 0o755);
-  writeFileSync(path.join(box.root, 'var/tools/bin/uv'), `#!/bin/sh\nexec '${path.join(bin, 'checkout-uv')}' "$@"\n`);
-  chmodSync(path.join(box.root, 'var/tools/bin/uv'), 0o755);
+  writeFileSync(path.join(box.root, 'var/tools/mise/shims/uv'), `#!/bin/sh\nexec '${path.join(bin, 'checkout-uv')}' "$@"\n`);
+  chmodSync(path.join(box.root, 'var/tools/mise/shims/uv'), 0o755);
   // The published assets: each asset of the release at its URL in the repository and with the sha256 of its file, as GitHub lists them.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
   const source = path.join(box.root, release.ASSETS);

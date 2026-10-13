@@ -2,16 +2,14 @@
 // module proxy, the vulnerabilities that the code calls from govulncheck, and the install of govulncheck into var/tools.
 // go, govulncheck and the proxy are stubs.
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { goRequirements } from '../../scripts/kit/dependency-state.mts';
 import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
-import { installGovulncheck } from '../../scripts/kit/install-govulncheck.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
-import { pinnedGo, toolchainStubs } from './toolchain-stubs.mts';
 
 // A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
 // the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
@@ -91,37 +89,16 @@ test('the review names the install command when govulncheck is not installed', (
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /packages\/fixture-go\/go\.sum: the advisory query failed: var\/tools\/govulncheck\/bin\/govulncheck is not installed; run make install-tools/);
-});
-
-test('govulncheck is installed into var/tools once and a second run installs nothing', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-govulncheck-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  // install-govulncheck builds with var/tools/bin/go, the Go of the kit pin: the go stub of toolchain-stubs.mts, which logs
-  // its calls and writes the govulncheck of the release; the go of PATH fails.
-  const stubs = toolchainStubs(t);
-  const env = pinnedGo(t, stubs, root);
-  const saved = { PATH: process.env.PATH, STUB_LOG: process.env.STUB_LOG };
-  Object.assign(process.env, { PATH: env.PATH, STUB_LOG: env.STUB_LOG });
-  t.after(() => {
-    for (const [key, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  });
-  assert.deepEqual(installGovulncheck({ root, recorded: '1.1.4' }), { installed: true, release: '1.1.4' });
-  assert.equal(existsSync(path.join(root, 'var/tools/govulncheck/bin/govulncheck')), true);
-  assert.deepEqual(installGovulncheck({ root, recorded: '1.1.4' }), { installed: false, release: '1.1.4' });
-  assert.deepEqual(stubs.calls(), ['go install golang.org/x/vuln/cmd/govulncheck@v1.1.4'], 'a second run installs nothing');
+  assert.match(result.stdout, /packages\/fixture-go\/go\.sum: the advisory query failed: var\/tools\/mise\/shims\/govulncheck is not installed; declare go:golang\.org\/x\/vuln\/cmd\/govulncheck in mise\.toml and run make install-tools/);
 });
 
 test('govulncheck scans the packages of each tracked Go module and never the tree under var/ (K53)', (t) => {
   const root = fixture(t);
-  // The checkout's own module, a second lock beside packages/fixture-go, with a toolchain tree under var/tools as install-go leaves it.
+  // The checkout's own module, a second lock beside packages/fixture-go, with a Go tree under var/tools as mise installs it.
   writeFileSync(path.join(root, 'go.mod'), 'module example.com/kit-root\n\ngo 1.21\n\nrequire github.com/google/uuid v1.6.0\n');
   cpSync(path.join(root, 'packages/fixture-go/go.sum'), path.join(root, 'go.sum'));
   writeFileSync(path.join(root, 'main.go'), 'package main\n\nfunc main() {}\n');
-  const goroot = path.join(root, 'var/tools/go/golang.org/toolchain@v0.0.1-go1.27.2.darwin-arm64');
+  const goroot = path.join(root, 'var/tools/mise/installs/go/1.27.2');
   mkdirSync(path.join(goroot, 'src/x'), { recursive: true });
   writeFileSync(path.join(goroot, 'src/go.mod'), 'module std\n\ngo 1.27\n');
   writeFileSync(path.join(goroot, 'src/x/x.go'), 'package x\n');

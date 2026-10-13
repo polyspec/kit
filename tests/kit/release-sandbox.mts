@@ -160,9 +160,9 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   git(root, 'commit', '--quiet', '-m', 'release');
   const commit = git(root, 'rev-parse', 'HEAD');
   git(root, 'update-ref', 'refs/remotes/origin/main', commit);
-  // The Python of the checkout is var/tools/bin/python3, the wrapper of install-python.mts: it runs the pip stub, and the build
+  // The Python of the checkout is var/tools/mise/shims/python3, the shim of mise: it runs the pip stub, and the build
   // backend is the stand-in file in var/tools/wheels, which release-backend.mts writes from its pinned download.
-  const python = path.join(root, 'var/tools/bin/python3');
+  const python = path.join(root, 'var/tools/mise/shims/python3');
   mkdirSync(path.dirname(python), { recursive: true });
   writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
   chmodSync(python, 0o755);

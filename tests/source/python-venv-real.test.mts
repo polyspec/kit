@@ -1,6 +1,6 @@
 // The real venv of this checkout: make python-venv (scripts/kit/python-venv.mts) makes a virtual environment with
-// var/tools/bin/uv from var/tools/bin/python3, both installed by `make install-tools`, and leaves it as uv makes it, its links
-// included. Nothing is stubbed.
+// the uv of mise.toml from its python3 (the shims var/tools/mise/shims/uv and python3, installed by `make install-tools`), and
+// leaves it as uv makes it, its links included. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,8 +22,8 @@ function linksUnder(directory: string): string[] {
 }
 
 test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', { timeout: 300000 }, (t) => {
-  const python = path.join(ROOT, 'var/tools/bin/python3');
-  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS="uv python" installs the Python of pythonBuild`);
+  const python = path.join(ROOT, 'var/tools/mise/shims/python3');
+  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools installs the python of mise.toml`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-real-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
@@ -61,16 +61,16 @@ test('make python-venv run twice leaves the venv unchanged, and refuses an exist
 
 // A virtual environment that uv makes from the checkout Python is accepted as uv makes it (K63): uv links bin/python to the
 // interpreter and bin/python3 to python, and run-tests --venv keeps those links and runs the tests with the environment's
-// interpreter. The uv of config/toolchain.json makes it (var/tools/bin/uv, make install-tools TOOLS=uv). No link is copied,
+// interpreter. The uv of mise.toml makes it (var/tools/mise/shims/uv, make install-tools). No link is copied,
 // removed or rewritten.
 test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', { timeout: 300000 }, (t) => {
-  const python = path.join(ROOT, 'var/tools/bin/python3');
-  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
+  const python = path.join(ROOT, 'var/tools/mise/shims/python3');
+  assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools installs the python of mise.toml`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-uv-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
-  const uv = path.join(ROOT, 'var/tools/bin/uv');
-  assert.ok(existsSync(uv), `${path.relative(ROOT, uv)} is missing; make install-tools TOOLS=uv installs the uv of config/toolchain.json`);
+  const uv = path.join(ROOT, 'var/tools/mise/shims/uv');
+  assert.ok(existsSync(uv), `${path.relative(ROOT, uv)} is missing; make install-tools installs the uv of mise.toml`);
   const made = spawnSync(uv, ['venv', '--python', python, directory], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
   const links = linksUnder(directory);

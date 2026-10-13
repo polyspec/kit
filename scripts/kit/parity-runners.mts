@@ -19,7 +19,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand } from './mise-tools.mts';
 import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
 
@@ -192,7 +192,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
     },
   },
   python: {
-    program: root => toolsPath(root, 'bin', 'python3'),
+    program: root => toolCommand(root, 'python3'),
     // unittest writes its results to standard error; the colors are off, so the lines are plain.
     env: { NO_COLOR: '1', PYTHON_COLORS: '0' },
     run: (root, binding, kind) => ({ args: test => [...test, '-m', 'unittest', '-v', binding.test], cwd: '.', caseOf: kind === 'suite' ? methodCase : itself, read: ({ stderr }, sink) => pythonEvents(sink)(`${stderr}\n`), detail: stderrTail }),

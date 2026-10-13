@@ -1,4 +1,4 @@
-// The dependencies of a wheel with the real Python of this checkout (var/tools/bin/python3) and its pip. The fixture wheel
+// The dependencies of a wheel with the real Python of this checkout (var/tools/mise/shims/python3) and its pip. The fixture wheel
 // kit-app depends on a registry package (kit-reg, from a local index) and on a polyspec archive (kit-lib, given as a file:// URL in
 // place of its GitHub release: the install step checks no host, and this process cannot answer pip while spawnSync blocks it). The lock of kit-app is read by lockRequirements
 // and installed by installWheelFiles: --require-hashes --no-deps --only-binary, then the wheel with --no-deps, then pip check.
@@ -16,7 +16,7 @@ import { installWheelFiles } from '../../scripts/kit/release-consumer.mts';
 import { lockRequirements } from '../../scripts/kit/wheel-dependencies.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PYTHON = path.join(ROOT, 'var/tools/bin/python3');
+const PYTHON = path.join(ROOT, 'var/tools/mise/shims/python3');
 const WHEELS = path.join(ROOT, 'var/tools/wheels');
 const LOCK = 'packages/fixture-python/pylock.wheel.toml';
 const APP = 'kit-app';
@@ -72,7 +72,7 @@ function install(fx: ReturnType<typeof fixture>, requirements: string) {
 
 test('the locked dependencies install with --require-hashes, the wheel with --no-deps, and pip check passes', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
-  assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
+  assert.ok(existsSync(PYTHON), 'var/tools/mise/shims/python3 is installed by make install-tools');
   const requirements = lockRequirements(fx.lock, LOCK);
   assert.equal(requirements, `kit-reg==1.0.0 --hash=sha256:${fileDigest(fx.reg)}\nkit-lib @ ${fx.libUrl} --hash=sha256:${fileDigest(fx.lib)}\n`);
   const { count, steps } = install(fx, requirements);

@@ -1,7 +1,7 @@
 // The symbol extractors of the language-parity check (R1 and R11). An implementation that declares `symbols: { extractor,
 // entry }` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full check; nothing
 // is read from a saved snapshot. Each extractor gives the public symbol ids of `entry`:
-//   python  scripts/kit/symbols/python.py, the standard library's ast, run by var/tools/bin/python3 -I on a package directory
+//   python  scripts/kit/symbols/python.py, the standard library's ast, run by the python3 of mise.toml -I on a package directory
 //           or a module file; ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
 //           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
@@ -22,7 +22,7 @@ import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
 import { ApiModel } from '@microsoft/api-extractor-model';
 import type { ApiItem } from '@microsoft/api-extractor-model';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand } from './mise-tools.mts';
 import { finding } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
 import { execute } from './process.mts';
@@ -189,7 +189,7 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
     if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
     return listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env);
   },
-  python: (root, entry, env) => listed(root, toolsPath(root, 'bin', 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
+  python: (root, entry, env) => listed(root, toolCommand(root, 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
   rust: (root, entry, env) => rustdoc(root, entry, env),
   ts: (root, entry) => apiModel(root, entry),
 };

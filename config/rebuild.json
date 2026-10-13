@@ -27,12 +27,12 @@
       "record": "docs/rebuild/toolchain.md"
     },
     "scripts/kit/bootstrap/install-tool.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
     },
     "scripts/kit/bootstrap/tool-wrappers.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
     },
     "scripts/kit/bootstrap/toolchain-declared.mts": {
       "kind": "record",
@@ -122,41 +122,9 @@
       "kind": "record",
       "record": "docs/rebuild/holder-lock.md"
     },
-    "scripts/kit/install-alint.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-archive.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-cargo-audit.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
     "scripts/kit/install-composer-project.mts": {
       "kind": "ecosystem",
       "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint), with the Composer of mise.toml (K77, K127)"
-    },
-    "scripts/kit/install-composer.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-deadcode.mts": {
-      "kind": "replaced",
-      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-go.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-golangci-lint.mts": {
-      "kind": "replaced",
-      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-govulncheck.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-php-lint.mts": {
       "kind": "ecosystem",
@@ -165,14 +133,6 @@
     "scripts/kit/install-phpunit.mts": {
       "kind": "ecosystem",
       "tool": "composer install of the committed config/phpunit lock"
-    },
-    "scripts/kit/install-python.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-ruff.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-rust.mts": {
       "kind": "ecosystem",
@@ -186,21 +146,9 @@
       "kind": "ecosystem",
       "tool": "mise install --locked of mise.toml and mise.lock (K127), then the installs of kit that mise does not cover: the wheel backend, the Composer projects and the symbol extractors"
     },
-    "scripts/kit/install-uv.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
-    },
     "scripts/kit/install-vscode.mts": {
       "kind": "ecosystem",
       "tool": "@vscode/test-electron downloads the VS Code build of the extension tests (K80)"
-    },
-    "scripts/kit/install-vulture.mts": {
-      "kind": "replaced",
-      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
-    },
-    "scripts/kit/install-wheel-tool.mts": {
-      "kind": "replaced",
-      "reason": "a release installer like those that mise with mise.lock replaces in K127, which is deferred; the K127 measurement predates this tool (K77) and must cover it before the replacement (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/kit-bootstrap.mk": {
       "kind": "policy",

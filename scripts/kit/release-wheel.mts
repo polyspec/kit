@@ -2,13 +2,14 @@
 // build backend, and the checks of pyproject.toml and of the wheel metadata. The build backend is the wheel of the exact
 // requirement that config/release.json buildBackend names, in var/tools/wheels, and its sha256 is checked before each build.
 // A build runs with --no-index and that directory as its only source, so no build reads the network. release-backend.mts
-// fetches the backend; the Python of a build is var/tools/bin/python3, the one that install-python.mts installs.
+// fetches the backend; the Python of a build is the python3 of mise.toml (its shim, mise-tools.mts).
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand } from './mise-tools.mts';
 import { isTable, readToml } from './toml.mts';
 
 /** buildBackend of config/release.json: the pinned requirement of the build backend and the sha256 of its wheel. */
@@ -76,8 +77,8 @@ export function verifyBackend(root: string, requirement: string, sha256: string)
  * at the commit (`git archive`), so the build writes into no checkout; SOURCE_DATE_EPOCH is the time of the commit.
  */
 export function buildWheel({ root, env, commit, directory, output, buildBackend }: { root: string; env: NodeJS.ProcessEnv; commit: string; directory: string; output: string; buildBackend: BuildBackend }): void {
-  const python = toolsPath(root, 'bin', 'python3');
-  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; the wheel is built by the Python of pythonBuild, make install-tools TOOLS=python installs it`);
+  const python = toolCommand(root, 'python3');
+  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; the wheel is built by the Python of mise.toml, declare python there and run make install-tools`);
   verifyBackend(root, buildBackend.requirement, buildBackend.sha256);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-wheel-'));
   try {
@@ -99,8 +100,8 @@ export function buildWheel({ root, env, commit, directory, output, buildBackend 
  * distribution that the wheel vendors is never read. Offline; nothing is installed.
  */
 export function wheelMetadata(root: string, file: string, env: NodeJS.ProcessEnv): WheelMetadata {
-  const python = toolsPath(root, 'bin', 'python3');
-  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; pip reads the metadata of a wheel, make install-tools TOOLS=python installs it`);
+  const python = toolCommand(root, 'python3');
+  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; pip reads the metadata of a wheel with the Python of mise.toml, declare python there and run make install-tools`);
   const report = JSON.parse(run(python, ['-m', 'pip', 'install', '--dry-run', '--no-deps', '--no-index', '--ignore-installed', '--quiet', '--no-input', '--disable-pip-version-check', '--report', '-', file], { cwd: root, env }));
   const installs: { metadata: { name: string; version: string; requires_dist?: string[] } }[] = report.install ?? [];
   const [install] = installs;

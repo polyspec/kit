@@ -3,13 +3,12 @@
 //   go.mod  go mod edit -json of the Go on PATH
 //   Cargo   cargo metadata --no-deps of the cargo on PATH, offline
 //   .npmrc  npm config get of the npm on PATH, in the directory of the file
-// A reader that cannot run or read its file throws an Error that names the file and the cause. The Go and Rust declarations
-// of a checkout are read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before
-// the tools are installed.
+// A reader that cannot run or read its file throws an Error that names the file and the cause. The Rust declaration of a
+// checkout is read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before the
+// tools are installed; the Go release is a tool of mise.toml (toolchain-mise.mts).
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { execute } from './process.mts';
 import { readToml } from './toml.mts';
@@ -58,20 +57,6 @@ export function readNpmConfig(root: string, file: string, keys: string[], env: N
   } finally {
     rmSync(none, { recursive: true, force: true });
   }
-}
-
-/**
- * The Go release that the checkout declares: the go line of the go.mod that config/toolchain.json go names, as an exact
- * release; undefined without the declaration. `env` runs the go command (GOTOOLCHAIN=local keeps it from switching).
- */
-export function declaredGo(root: string, env: NodeJS.ProcessEnv): Declared | undefined {
-  const go = toolchainConfig(root).go as { mod?: unknown } | undefined;
-  if (!go) return undefined;
-  const file = go.mod;
-  if (typeof file !== 'string') throw new Error(`config/toolchain.json go.mod must name a file; it records ${JSON.stringify(file)}`);
-  const version = readGoMod(root, file, env).Go;
-  if (!version || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${file} must declare go as <major>.<minor>.<patch>; it declares ${JSON.stringify(version)}`);
-  return { version, source: `${file} go directive` };
 }
 
 /** The Rust release that the checkout declares: the channel of rust-toolchain.toml, as an exact release; undefined without the file. */

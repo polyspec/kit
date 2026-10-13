@@ -1,4 +1,4 @@
-// Tests of the writer of a Python lock (scripts/kit/python-lock.mts, writePythonLock): it runs var/tools/bin/uv in a temporary
+// Tests of the writer of a Python lock (scripts/kit/python-lock.mts, writePythonLock): it runs the uv of mise.toml (its shim) in a temporary
 // directory with the basenames of the sources and the flags `pip compile <requirements> -c <constraints> --universal
 // --generate-hashes --format pylock.toml -o pylock.toml`, checks the written lock against the sources, and renames it into
 // place only when the check passes. The uv here is a stub that writes the lock text of STUB_LOCK, so no test reaches a network.
@@ -30,12 +30,12 @@ const GOOD = lockText([['requests', '2.34.2'], ['idna', '3.20']]);
 const SOURCES = { 'app/requirements.txt': 'requests==2.34.2\n', 'app/constraints.txt': 'requests==2.34.2\nidna==3.20\n' };
 
 // The options of checkout: the lock text that uv writes, the source files, the lock before the run, the exit status of uv, a
-// stray file that uv writes and config/toolchain.json.
-type CheckoutOptions = { lock?: string; sources?: Record<string, string | Buffer>; existing?: string | null; status?: number; extra?: string | null; toolchain?: Record<string, unknown> };
+// stray file that uv writes and the python of mise.toml (none without it).
+type CheckoutOptions = { lock?: string; sources?: Record<string, string | Buffer>; existing?: string | null; status?: number; extra?: string | null; python?: string | null };
 
-// A checkout with the sources, the uv stub of var/tools/bin and the policy-free entry; the stub logs its arguments and working
+// A checkout with the sources, the uv stub as the shim of mise and the policy-free entry; the stub logs its arguments and working
 // directory, writes STUB_LOCK to its -o file and exits with STUB_STATUS.
-function checkout(t: TestContext, { lock = GOOD, sources = SOURCES, existing = null, status = 0, extra = null, toolchain = { python: '3.14' } }: CheckoutOptions = {}) {
+function checkout(t: TestContext, { lock = GOOD, sources = SOURCES, existing = null, status = 0, extra = null, python = '3.14.8' }: CheckoutOptions = {}) {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-lock-write-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, text] of Object.entries(sources)) {
@@ -43,16 +43,15 @@ function checkout(t: TestContext, { lock = GOOD, sources = SOURCES, existing = n
     writeFileSync(path.join(root, file), text);
   }
   if (existing !== null) writeFileSync(path.join(root, ENTRY.lock), existing);
-  mkdirSync(path.join(root, 'config'), { recursive: true });
-  writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify(toolchain));
+  writeFileSync(path.join(root, 'mise.toml'), `[tools]\n${python === null ? '' : `python = "${python}"\n`}`);
   // A consumer checkout may declare its scripts as ES modules; the stub runs the same in either case.
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type: 'module', packageManager: 'npm@12.2.0' }));
   const text = lock.replaceAll('{{ROOT}}', root);
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   const log = path.join(root, 'uv.log');
-  // The stub is a CommonJS file (.cjs) that the wrapper var/tools/bin/uv runs, so the type of a package.json does not change it.
+  // The stub is a CommonJS file (.cjs) that the shim var/tools/mise/shims/uv runs, so the type of a package.json does not change it.
   const script = path.join(root, 'var/tools/uv-stub.cjs');
-  const stub = path.join(root, 'var/tools/bin/uv');
+  const stub = path.join(root, 'var/tools/mise/shims/uv');
   writeFileSync(stub, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} "$@"\n`);
   writeFileSync(script, `const fs = require('node:fs');
 const args = process.argv.slice(2);
@@ -102,10 +101,10 @@ test('the writer refuses a source that is not written in the declared form befor
   assert.deepEqual(log(), []);
 });
 
-test('the writer refuses a missing uv and names the install of var/tools/bin/uv', (t) => {
+test('the writer refuses a missing uv and names its declaration and install', (t) => {
   const { root } = checkout(t);
-  rmSync(path.join(root, 'var/tools/bin/uv'));
-  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), /var\/tools\/bin\/uv is missing; run make install-tools TOOLS=uv/);
+  rmSync(path.join(root, 'var/tools/mise/shims/uv'));
+  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), /var\/tools\/mise\/shims\/uv is missing; declare uv in mise\.toml and run make install-tools/);
 });
 
 test('the writer refuses a lock that holds a package at another version than its pin, and writes nothing', (t) => {
@@ -157,9 +156,9 @@ test('findLinks makes uv offline and the lock keeps no machine path: a file URL 
   assert.ok(!written.includes(root), 'no checkout path is kept');
 });
 
-test('the lower bound of the resolution is the declared python minor, and a toolchain without one is refused before uv runs', (t) => {
-  const { root, log } = checkout(t, { toolchain: {} });
-  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), /declares no python minor, the lower bound of the resolution/);
+test('the lower bound of the resolution is the minor of the python of mise.toml, and a mise.toml without one is refused before uv runs', (t) => {
+  const { root, log } = checkout(t, { python: null });
+  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), /mise\.toml declares no python, whose minor is the lower bound of the resolution; declare it/);
   assert.deepEqual(log(), []);
 });
 

@@ -4,6 +4,7 @@
   "owners": [
     { "paths": ["scripts/kit/**", "tests/kit/**", "package.json", "package-lock.json", "tsconfig.json", "Makefile"], "targets": ["kit-test", "typecheck", "duplication-check"] },
     { "paths": ["tests/source/*.test.mts"], "tests": ["$path"] },
+    { "paths": ["tests/source/real-tools.mts"], "tests": ["tests/source/layout-real.test.mts", "tests/source/lint-go-real.test.mts", "tests/source/lint-php-real.test.mts", "tests/source/lint-python-real.test.mts", "tests/source/parity-real.test.mts", "tests/source/govulncheck-packages-real.test.mts"] },
     { "paths": ["tests/source/checkout.mts"], "tests": ["tests/source/checkout.test.mts", "tests/source/consumer-layout.test.mts", "tests/source/fresh-checkout.test.mts"] },
     { "paths": ["docs/**", "*.md", "config/documents.json"], "targets": ["documents-check"] },
     { "paths": ["config/commits.json"], "targets": ["commits-check"] },

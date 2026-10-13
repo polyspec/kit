@@ -63,7 +63,7 @@
     },
     {
       "ecosystem": "pypi",
-      "manifest": "config/toolchain.json",
+      "manifest": "mise.toml",
       "package": "ruff",
       "version": "0.17.0",
       "latest": "0.17.0"

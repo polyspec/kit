@@ -1,4 +1,4 @@
-// The metadata of a wheel, read by the real pip of this checkout (var/tools/bin/python3) without installing it: pip names the
+// The metadata of a wheel, read by the real pip of this checkout (var/tools/mise/shims/python3) without installing it: pip names the
 // .dist-info of the distribution itself, so a wheel that vendors another distribution, with its own .dist-info/METADATA
 // inside the package, gives the name, version and Requires-Dist of the wheel only. Nothing reaches a network.
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { wheelMetadata } from '../../scripts/kit/release-wheel.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PYTHON = path.join(ROOT, 'var/tools/bin/python3');
+const PYTHON = path.join(ROOT, 'var/tools/mise/shims/python3');
 
 // A wheel of pkg 1.0 that requires idna and vendors dep 2.0 with its own dist-info under pkg/_vendor.
 const WRITE_WHEEL = `
@@ -25,7 +25,7 @@ with zipfile.ZipFile(sys.argv[1], 'w') as wheel:
 `;
 
 test('the metadata of a wheel that vendors a distribution is the metadata of the wheel only', (t) => {
-  assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
+  assert.ok(existsSync(PYTHON), 'var/tools/mise/shims/python3 is installed by make install-tools');
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-wheel-metadata-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const wheel = path.join(folder, 'pkg-1.0-py3-none-any.whl');

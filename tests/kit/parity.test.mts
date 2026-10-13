@@ -207,7 +207,7 @@ const FILES = {
   'php/vendor/bin/phpunit': '',
   'python/codes.py': 'CONFIG = "CONFIG"\nCODEC_DECODE = "CODEC_DECODE"\n',
   'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n',
-  'var/tools/bin/python3': PY_STUB,
+  'var/tools/mise/shims/python3': PY_STUB,
   // The public symbols that the stubs of the go and python extractors print, and the .d.ts that API Extractor reads for ts.
   'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
   'var/tools/symbols-php/vendor/autoload.php': '<?php\n',
@@ -296,7 +296,7 @@ const CONFIG = {
 function repository(t: TestContext, { files = {}, edit = config => config }: Change = {}) {
   const all = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(edit(structuredClone(CONFIG)), null, 2)}\n` };
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
-  chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
+  chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
   if (all['var/tools/symbols-go/bin/kit-symbols-go'] !== null) chmodSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go'), 0o755);
   return root;
 }
@@ -367,7 +367,7 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
   assert.deepEqual(commands['width rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--lib', '--', '--test-threads=1', 'width::tests::vectors::'] });
   assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'ts/tests/codec.mjs'] });
   assert.deepEqual(commands['codec php'], { cwd: '.', command: ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php'] });
-  assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/bin/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
+  assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/mise/shims/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
 });
 
 test('an implementation declares the command, the arguments and the environment of its runner', TIMEOUT, (t) => {
@@ -726,7 +726,7 @@ test('R3: a binding whose second run executes other cases or other results than 
 
 test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
   const root = repository(t);
-  rmSync(path.join(root, 'var/tools/bin/python3'));
+  rmSync(path.join(root, 'var/tools/mise/shims/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // The python extractor, which the stub implementations use, cannot start either.
   assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python']);

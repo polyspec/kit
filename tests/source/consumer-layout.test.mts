@@ -55,7 +55,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // The npm of packageManager and the mise of config/toolchain.json are the releases that kit installed: the bootstrap keeps a
   // release that is installed, so the first step runs offline and writes the wrappers of the consumer.
   cpSync(path.join(ROOT, 'var/tools/npm'), path.join(consumer, 'var/tools/npm'), { recursive: true });
-  cpSync(path.join(ROOT, 'var/tools/mise'), path.join(consumer, 'var/tools/mise'), { recursive: true });
+  cpSync(path.join(ROOT, 'var/tools/mise-release'), path.join(consumer, 'var/tools/mise-release'), { recursive: true });
   const env = { ...process.env, npm_config_cache: cache, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' };
   const make = (...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: consumer, env, encoding: 'utf8' });
 

@@ -68,7 +68,7 @@ test('a released tag is proven in four steps and each step runs the commands of 
   assert.deepEqual(downloads.map((call: Call) => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
   const [venvCall] = box.calls('checkout-uv').filter((call: Call) => call.args[0] === 'venv');
-  assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/bin/python3')]);
+  assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/mise/shims/python3')]);
   const venv = { args: [null, null, venvCall.args[4]] };
   const [dependencies, install] = box.calls('checkout-python3').filter((call: Call) => call.args.includes('--require-hashes'));
   assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);

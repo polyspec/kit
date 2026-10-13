@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/toolchain.json",
-  "description": "The toolchains that no other file of the checkout declares. Node.js is declared in .node-version, npm in packageManager of package.json, Rust in rust-toolchain.toml; php and python may also be declared in .php-version and .python-version.",
+  "description": "The toolchains that no other file of the checkout declares. Node.js is declared in .node-version, npm in packageManager of package.json, Rust in rust-toolchain.toml, and the tools that mise installs (Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture) in mise.toml with their digests in mise.lock; php may also be declared in .php-version.",
   "type": "object",
   "required": [
     "schema"
@@ -24,25 +24,6 @@
         "pattern": "^\\d+\\.\\d+$"
       }
     },
-    "python": {
-      "description": "The Python minor release of the checks; a patch release of the minor passes.",
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+$"
-    },
-    "pythonBuild": {
-      "description": "The exact Python release of the python minor. install-tools installs it with the uv of the declaration uv (uv python install), which downloads the python-build-standalone build that its release names and checks the build's sha256.",
-      "type": "object",
-      "required": [
-        "version"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        }
-      }
-    },
     "pythonBackend": {
       "description": "The build backend of the Python wheels: the exact requirement of the wheel, and its sha256 from the PyPI release. install-tools downloads it into var/tools/wheels with the digest checked.",
       "type": "object",
@@ -62,26 +43,8 @@
         }
       }
     },
-    "composer": {
-      "description": "The Composer release. With sha256, install-tools installs composer.phar into var/tools; without it, the Composer of the machine is verified.",
-      "type": "object",
-      "required": [
-        "version"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
     "phpunit": {
-      "description": "The PHPUnit release of the PHP tests of kit: install-tools installs the Composer project of config/phpunit (composer.json and composer.lock) into var/tools/phpunit with the declared Composer.",
+      "description": "The PHPUnit release of the PHP tests of kit: install-tools installs the Composer project of config/phpunit (composer.json and composer.lock) into var/tools/phpunit with the Composer of mise.toml.",
       "type": "object",
       "required": [
         "version"
@@ -91,82 +54,11 @@
         "version": {
           "type": "string",
           "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        }
-      }
-    },
-    "go": {
-      "description": "Where the Go release is declared: the go.mod whose go line holds the exact release; go mod edit -json reads it.",
-      "type": "object",
-      "required": [
-        "mod"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "mod": {
-          "type": "string",
-          "pattern": "^([^/\\\\][^\\\\]*/)?go\\.mod$"
-        }
-      }
-    },
-    "ruff": {
-      "description": "The ruff release that install-tools installs into a virtual environment of var/tools: the exact version, and the sha256 of the wheel of each platform key (process.platform-process.arch) that the install downloads, the digest read as 64 lowercase hexadecimal digits.",
-      "type": "object",
-      "required": [
-        "version",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "sha256": {
-          "type": "object",
-          "description": "The sha256 of the ruff wheel of each platform key; the install accepts a wheel of any listed digest and names the platform key of none."
-        }
-      }
-    },
-    "vulture": {
-      "description": "The vulture release that install-tools installs into the virtual environment var/tools/vulture, which make lint-python runs on each Python package: the release as PyPI names it, and the sha256 of its one pure-Python wheel (py3-none-any).",
-      "type": "object",
-      "required": [
-        "version",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+(\\.\\d+)+$"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
-    "uv": {
-      "description": "The uv release that install-tools installs into var/tools/uv: the exact version, and the sha256 of the archive uv-<target>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
-      "type": "object",
-      "required": [
-        "version",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "sha256": {
-          "type": "object",
-          "description": "The sha256 of the uv archive of each platform key; the install refuses an archive of another digest."
         }
       }
     },
     "mise": {
-      "description": "The mise release that the bootstrap installs into var/tools/mise after the npm of packageManager: the exact version, and the sha256 of the archive mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits. mise installs the tools of mise.toml.",
+      "description": "The mise release that the bootstrap installs into var/tools/mise-release after the npm of packageManager: the exact version, and the sha256 of the archive mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits. mise installs the tools of mise.toml into var/tools/mise at the digests of mise.lock.",
       "type": "object",
       "required": [
         "version",
@@ -184,66 +76,16 @@
         }
       }
     },
-    "alint": {
-      "description": "The alint release that install-tools installs into var/tools/alint, which make layout-check runs on config/layout.yml: the exact version, and the sha256 of the archive alint-v<version>-<target>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
-      "type": "object",
-      "required": [
-        "version",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "sha256": {
-          "type": "object",
-          "description": "The sha256 of the alint archive of each platform key; the install refuses an archive of another digest."
-        }
-      }
-    },
-    "cargoAudit": {
-      "description": "The cargo-audit release that install-tools builds into var/tools/cargo-audit.",
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$"
-    },
-    "govulncheck": {
-      "description": "The govulncheck release that install-tools builds into var/tools/govulncheck.",
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$"
-    },
-    "deadcode": {
-      "description": "The golang.org/x/tools release whose cmd/deadcode install-tools builds with go install into var/tools/deadcode, which make lint-go runs in each Go module.",
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$"
-    },
-    "golangciLint": {
-      "description": "The golangci-lint release that install-tools installs into var/tools/golangci-lint, which make lint-go runs with .golangci.yml: the exact version, and the sha256 of the archive golangci-lint-<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
-      "type": "object",
-      "required": [
-        "version",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "sha256": {
-          "type": "object",
-          "description": "The sha256 of the golangci-lint archive of each platform key; the install refuses an archive of another digest."
-        }
-      }
-    },
     "symbolExtractors": {
-      "description": "The symbol extractors of config/parity.json that install-tools builds into var/tools/symbols-<extractor> (scripts/kit/install-symbols.mts): go, the program of scripts/kit/symbols/go on golang.org/x/tools/go/packages; php, the Composer project of scripts/kit/symbols/php with nikic/php-parser, installed with the declared composer.",
+      "description": "The symbol extractors of config/parity.json that install-tools builds into var/tools/symbols-<extractor> (scripts/kit/install-symbols.mts): go, the program of scripts/kit/symbols/go on golang.org/x/tools/go/packages; php, the Composer project of scripts/kit/symbols/php with nikic/php-parser, installed with the Composer of mise.toml.",
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "string",
-        "enum": ["go", "php"]
+        "enum": [
+          "go",
+          "php"
+        ]
       }
     },
     "node": {

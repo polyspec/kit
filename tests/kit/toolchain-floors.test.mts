@@ -81,6 +81,8 @@ test('every pyproject.toml with a project table requires-python >= the Python pi
     'packages/c/pyproject.toml': "project = { name = 'c', requires-python = '>=3.14' } # an inline table and a literal string\n",
     'packages/d/pyproject.toml': '[tool.ruff]\nline-length = 120\n',
     'packages/e/pyproject.toml': '[project]\nname = "e"\n"requires-python" = """>=3.14"""\n',
+    // The tool environment that mise writes for a pypi: tool of mise.lock is no manifest of the repository (K127).
+    '.mise/locks/pypi-vulture/2.16/pyproject.toml': '[project]\nname = "mise-pypi-tool-environment"\nrequires-python = ">=3.9"\n',
   });
   assert.deepEqual(pyprojectFindings(root, new Pinning(PINS)), [
     'packages/b/pyproject.toml: project.requires-python is missing; kit pins python 3.14, so it must be ">=3.14"',

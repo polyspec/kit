@@ -24,7 +24,7 @@ import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
 import { readConfig } from './schema-validate.mts';
 import { readGoMod } from './toolchain-files.mts';
-import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
+import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
 import type { Ecosystem } from './version.mts';
@@ -32,7 +32,7 @@ import type { Ecosystem } from './version.mts';
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
 export const NPM_MANIFEST = 'package.json';
-export const TOOLCHAIN = 'config/toolchain.json';
+export const TOOLCHAIN = 'mise.toml';
 
 /** A polyspec package taken from a GitHub tag, an entry of `taggedNpmPackages` of the policy. */
 export type TaggedRelease = { directory: string; repository: string; tag: string; version: string; fix: string };
@@ -365,10 +365,8 @@ export function readState(root: string, policy: DependencyPolicy) {
       dependencies.push({ ecosystem: 'pypi', manifest: manifestPath, ...requirement, lock: null });
     }
   }
-  // The ruff pin of config/toolchain.json is a PyPI release that the review checks like a requirement of a manifest.
-  // toolchainConfig leaves the value unchecked; the cast reads ruff as toolchain.schema.json declares it, and a ruff that is no
-  // such object gives an undefined version, as before.
-  const ruff = toolchainConfig(root).ruff as { version: string } | undefined;
+  // The ruff of mise.toml is a PyPI release that the review checks like a requirement of a manifest.
+  const ruff = declaredMiseTools(root).ruff;
   if (ruff) dependencies.push({ ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: `==${ruff.version}`, version: ruff.version, lock: null });
   for (const manifestPath of goModules(root)) {
     const requirements = goRequirements(root, manifestPath);

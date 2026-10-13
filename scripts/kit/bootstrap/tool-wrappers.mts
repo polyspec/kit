@@ -30,7 +30,6 @@ export function run(command: string, args: readonly string[], options: SpawnSync
 
 // The arguments that make a tool of var/tools print its release, and the pattern that reads the release from the output.
 export const RELEASE_OUTPUT = {
-  python: { args: ['--version'], pattern: /^Python (\d+\.\d+\.\d+)$/m },
   ruff: { args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m },
   vulture: { args: ['--version'], pattern: /^vulture (\d+(?:\.\d+)+)$/m },
   uv: { args: ['--version'], pattern: /^uv (\d+\.\d+\.\d+) /m },

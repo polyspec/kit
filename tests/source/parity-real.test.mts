@@ -1,37 +1,34 @@
 // The language-parity runs of the real tools of this checkout: node runs its test file with node:test, go and cargo run their
 // native tests, python3 runs unittest and PHPUnit 11 runs the PHP case. Nothing is stubbed; a missing tool fails the case.
-// The tools come from `make install-tools` (python, pythonBackend and phpunit): var/tools/bin/python3 is the Python of the
-// checkout, and var/tools/phpunit/vendor is the Composer project of config/phpunit that holds PHPUnit 11.5.57.
+// The tools come from `make install-tools`: the go, the python3 and the Composer of mise.toml, which a temporary tree runs
+// through shims of its own (real-tools.mts), and var/tools/phpunit/vendor, the Composer project of config/phpunit that holds
+// PHPUnit 11.5.57.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, chmodSync, existsSync, mkdirSync, symlinkSync } from 'node:fs';
+import { existsSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkParity } from '../../scripts/kit/parity.mts';
 import { installExtractor } from '../../scripts/kit/install-symbols.mts';
+import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
+import { sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The directory of the PHPUnit of the checkout: `make install-tools TOOLS=phpunit` installs it into var/tools/phpunit. */
+/** The directory of the PHPUnit of the checkout: `make install-tools` installs it into var/tools/phpunit. */
 function phpunitVendor() {
   const vendor = path.join(ROOT, 'var/tools/phpunit/vendor');
-  if (!existsSync(path.join(vendor, 'bin/phpunit'))) assert.fail(`${path.relative(ROOT, vendor)}/bin/phpunit does not exist; run make install-tools TOOLS="composer phpunit"`);
+  if (!existsSync(path.join(vendor, 'bin/phpunit'))) assert.fail(`${path.relative(ROOT, vendor)}/bin/phpunit does not exist; run make install-tools`);
   return vendor;
 }
 
 /**
- * Gives the temporary tree root the Python of the checkout: Python runs as var/tools/bin/python3 of the checkout, never the
- * Python of PATH, so the tree gets the wrapper that install-tools wrote for this checkout.
+ * Gives the temporary tree root the go, the python3 and the Composer of the checkout as its shims: they run as the tools of
+ * mise.toml, never those of PATH.
  */
-function givePython(root: string) {
-  const wrapper = path.join(ROOT, 'var/tools/bin/python3');
-  if (!existsSync(wrapper)) assert.fail(`${wrapper} does not exist; run make install-tools TOOLS="python pythonBackend"`);
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  copyFileSync(wrapper, path.join(root, 'var/tools/bin/python3'));
-  chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
-}
+const giveTools = (root: string) => sandboxShims(root, ['go', 'python3', 'composer']);
 
 /** The findings of the check of a repository as `<rule> <unit> <implementation>`. */
 const keys = (findings: Array<{ rule: string; unit?: string | undefined; implementation?: string | undefined }>) => findings.map(finding => [finding.rule, finding.unit ?? '-', finding.implementation ?? '-'].join(' '));
@@ -79,9 +76,9 @@ test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs th
     'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    def test_ascii(self):\n        pass\n',
     'config/parity.json': `${JSON.stringify(REAL_CONFIG, null, 2)}\n`,
   });
-  givePython(root);
+  giveTools(root);
   symlinkSync(vendor, path.join(root, 'php/vendor'));
-  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   // Each tool reports its tests in its own order (cargo and unittest sort them), so the order of the cases is not compared.
   assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`).sort(), [
@@ -110,7 +107,7 @@ test('K33 reads real PHPUnit: the configuration of the package applies, and a sk
     }, null, 2)}\n`,
   });
   symlinkSync(vendor, path.join(root, 'php/vendor'));
-  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   const first = findings[0];
   assert.ok(first, 'checkParity found nothing');
@@ -140,8 +137,8 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
     'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    @unittest.expectedFailure\n    def test_known(self):\n        self.fail("not yet")\n',
     'config/parity.json': `${JSON.stringify(UNITTEST_CONFIG, null, 2)}\n`,
   });
-  givePython(root);
-  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  giveTools(root);
+  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec python']);
   const [first] = findings;
   assert.ok(first, 'the check reports the R3 finding');
@@ -179,8 +176,8 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
       }],
     }, null, 2)}\n`,
   });
-  givePython(root);
-  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  giveTools(root);
+  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › nested › bytes pass', 'python test_bytes pass',
@@ -188,7 +185,7 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
 });
 
 /** The findings of a check of `root` as `<rule> <implementation>: <message>`. */
-const lines = (root: string) => checkParity(root, { execute: true, env: process.env, say: () => {} }).findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'}: ${finding.message}`);
+const lines = (root: string) => checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} }).findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'}: ${finding.message}`);
 
 test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, (t) => {
   const declaration = (symbols: string[]) => `${JSON.stringify({
@@ -205,11 +202,11 @@ test('the python extractor reads the public symbols of a package with ast: __all
   };
   const all = ['codec.Codec', 'codec.encode', 'codec.core.Codec', 'codec.core.Codec.decode', 'codec.core.LIMIT', 'codec.core.encode'];
   const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
-  givePython(root);
+  giveTools(root);
   assert.deepEqual(lines(root), []);
   // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
   const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
-  givePython(partial);
+  giveTools(partial);
   assert.deepEqual(lines(partial), [
     'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python/src/codec',
     'R11 python: codec.Codec is public, and no API unit and no nativeOnly entry declares it',
@@ -255,12 +252,8 @@ test('install-tools builds the go extractor, which reads the exported API of a m
       units: [{ id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'go', symbol: 'example.com/codec.Codec' }] }],
     }, null, 2)}\n`,
   });
-  // The extractor builds with var/tools/bin/go, the Go of the kit pin: the wrapper that make install-tools wrote for kit,
-  // which runs the Go installed in kit's var/tools.
-  const go = path.join(ROOT, 'var/tools/bin/go');
-  assert.ok(existsSync(go), `${path.relative(ROOT, go)} is missing; make install-tools installs the Go of the kit pin`);
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  copyFileSync(go, path.join(root, 'var/tools/bin/go'));
+  // The extractor builds with the go of mise.toml, through the shim that giveTools writes.
+  giveTools(root);
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, true);
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, false, 'a second install of the same release builds nothing');
   assert.deepEqual(lines(root), [
@@ -292,11 +285,8 @@ test('install-tools installs the php extractor, which reads the public API of so
     }, null, 2)}\n`,
     'docs/spec/codec.md': '# Codec\n\n## PHP\n',
   });
-  // The Composer of this checkout installs php-parser, with its home and cache.
-  const composer = path.join(ROOT, 'var/tools/composer');
-  if (!existsSync(path.join(composer, 'composer.phar'))) assert.fail(`${composer}/composer.phar does not exist; run make install-tools TOOLS=composer`);
-  mkdirSync(path.join(root, 'var/tools'), { recursive: true });
-  symlinkSync(composer, path.join(root, 'var/tools/composer'));
+  // The Composer of this checkout installs php-parser, with its home and cache in the tree.
+  giveTools(root);
   assert.equal(installExtractor({ root, extractor: 'php' }).installed, true);
   assert.deepEqual(lines(root), [
     'R11 php: Demo\\Codec\\Codec::$name is public, and no API unit and no nativeOnly entry declares it',
@@ -359,7 +349,7 @@ test('K42 reads the case directories of a suite from real go as nested subtests'
       units: [{ id: 'cases', kind: 'suite', profile: 'all', file: 'tests/cases', cases: '*/*', bindings: [{ implementation: 'go', test: 'go/cases_test.go', symbol: 'TestCases' }] }],
     }, null, 2)}\n`,
   });
-  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['echo/bool pass', 'echo/html-escape-five-chars pass', 'if/true pass']);
 });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Lints the Go of the checkout with the golangci-lint and the deadcode of var/tools/bin (`make lint-go`), in the folder of each
-// Go module, a go.mod of the checkout:
+// Lints the Go of the checkout with the golangci-lint and the deadcode of mise.toml, through their shims (`make lint-go`), in
+// the folder of each Go module, a go.mod of the checkout:
 //   - `golangci-lint run --config <root>/.golangci.yml ./...`, the configuration that kit copies: the standard linters and
 //     gomoddirectives, which forbids a replace (the modules of a repository resolve each other through its go.work) and a
 //     toolchain line.
@@ -12,13 +12,14 @@
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
+import { SHIMS } from './mise-tools.mts';
 import { ROOT } from './paths.mts';
 
 /** The steps of the lint of `root`; throws when a tool or .golangci.yml is missing. */
 export function lintSteps(root: string): LintStep[] {
   const modules = foldersOf(root, 'go.mod');
   if (modules.length === 0) return [];
-  const tools = lintCommands(root, 'var/tools/bin', ['golangci-lint', 'deadcode'], 'run make install-tools');
+  const tools = lintCommands(root, SHIMS, ['golangci-lint', 'deadcode'], 'declare golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
   requireConfigurations(root, [['.golangci.yml', 'golangci-lint']]);
   return modules.flatMap(folder => [
     { label: `golangci-lint ${folder}`, command: tools['golangci-lint']!, args: ['run', `--config=${path.join(root, '.golangci.yml')}`, './...'], cwd: folder },
