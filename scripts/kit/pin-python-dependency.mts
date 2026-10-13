@@ -2,7 +2,7 @@
 // Sets the exact pin of a Python requirement in a pyproject.toml (`make dependency-review UPDATE=1` runs it for each
 // PyPI dependency that has a newer stable release):
 //
-//   node scripts/pin-python-dependency.mts <manifest> <package> <version>
+//   node scripts/kit/pin-python-dependency.mts <manifest> <package> <version>
 //
 // It sets the version of each requirement of the package in the dependency arrays of the file ([project] dependencies,
 // [project.optional-dependencies] and [dependency-groups]) that pins it exactly (`==<version>`), and writes the file through a
@@ -27,6 +27,7 @@ export function pinPythonRequirement(text: string, name: string, version: string
   const pin = (requirements: unknown) => {
     if (!Array.isArray(requirements)) return;
     requirements.forEach((requirement: unknown, index) => {
+      // A dependency group may hold an { include-group } table (PEP 735), which pins nothing.
       if (typeof requirement !== 'string') return;
       // pip-requirements-js reads the requirement (PEP 508); one exact `==` pin of the package is set in its written form.
       const parsed = parsePipRequirementsLine(requirement);
@@ -48,7 +49,7 @@ export function pinPythonRequirement(text: string, name: string, version: string
 if (isMain(import.meta.url)) {
   const [manifest, name, version] = process.argv.slice(2);
   if (!manifest || !name || !version) {
-    console.error('usage: node scripts/pin-python-dependency.mts <manifest> <package> <version>');
+    console.error('usage: node scripts/kit/pin-python-dependency.mts <manifest> <package> <version>');
     process.exit(2);
   }
   const file = path.resolve(manifest);
