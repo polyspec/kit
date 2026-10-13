@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: e133db0bedc017c841fae5ad08abc6eabdfb02dcd20743cfa9e5364986c3118e -->
+<!-- source-sha256: 6a3fee0ad3a476c991a835f13c059b8b1c9c05b035aa70e2421484e1492a02e0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -165,3 +165,5 @@
 | K101 | lock에서 `url`이 없는 archive는 `wheel-dependencies`와 `release-proof`의 TypeError가 아니라 finding입니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/wheel-dependencies.mts`, `scripts/kit/release-proof.mts`, 그 test | red test, 그다음 `make kit-test` | [ ] |
 | K102 | `process-group`의 `waitGroupEnd`를 그 test와 함께 지웁니다. 원인: K48이 추가했지만 kit이나 어떤 repository의 tool도 부르지 않았습니다. 불확실한 미래를 위한 API였고, deadline이 없으면 끝나지 않았습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/process-group.mts`, `tests/kit/process-group.test.mts` | `make kit-test`; repository 전체 grep에서 호출이 없음 | [o] |
 | K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
+| K107 | parity 선언 검사는 `symbols`가 없는 API unit을 그 unit을 이름으로 대는 finding으로 거부합니다. 원인: 그런 unit이 선언 검사를 통과한 뒤 `missingImplementations`가 `unit.symbols.find`에서 TypeError로 죽었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/parity-units.mts`, `scripts/kit/parity-declaration.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
+| K108 | toolchain 검사는 PHP가 실행되지 않을 때 fix에 선언된 PHP minor를 이름으로 댑니다. 원인: fix가 PHP 선언에 없는 `.version`을 읽어(PHP는 minor를 선언합니다) "install PHP undefined"라고 했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/check-toolchain.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
