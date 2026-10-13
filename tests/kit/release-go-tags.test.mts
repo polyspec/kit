@@ -11,9 +11,9 @@ import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts'
 
 const REPOSITORY = 'example/kit-fixture';
 const GO_TAG = 'packages/fixture-go/v0.0.1';
-const context = (box) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY } });
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const withModules = (modules) => (root) => {
+const context = (box: { root: string; env: NodeJS.ProcessEnv }) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY } });
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+const withModules = (modules: Record<string, string>) => (root: string) => {
   const config = readJson(root, 'config/release.json');
   writeJson(root, 'config/release.json', { ...config, goModules: modules });
 };
@@ -32,7 +32,8 @@ test('a missing Go module tag fails verify with the git command that creates it,
   assert.deepEqual(release.goTagProblems(context(box), tag), [expected]);
   stop(() => release.verify(context(box), tag), new RegExp(`^v0\\.0\\.1: the commit ${box.commit}: ${expected.replaceAll('.', '\\.')}$`));
   assert.deepEqual(box.state().calls.length, 1, 'verify still reads the check runs, so one run reports every finding');
-  const create = expected.split('Fix: ')[1].split(' && ')[0];
+  const create = expected.split('Fix: ')[1]?.split(' && ')[0];
+  assert.ok(create, `the finding names no git command after "Fix: ": ${expected}`);
   const result = spawnSync('sh', ['-c', create], { cwd: box.root, encoding: 'utf8', env: { ...process.env, GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' } });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(release.goTagProblems(context(box), tag), []);
@@ -73,8 +74,10 @@ test('every missing module is named and only the missing ones', (t) => {
   box.tag('packages/second/v0.0.1');
   const problems = release.goTagProblems(context(box), tag);
   assert.equal(problems.length, 2, problems.join('\n'));
-  assert.match(problems[0], /^the Go module tag packages\/fixture-go\/v0\.0\.1 is missing; a Go proxy resolves example\.com\/a from it/);
-  assert.match(problems[1], /^the Go module tag packages\/third\/deep\/v0\.0\.1 is missing; a Go proxy resolves example\.com\/c from it/);
+  const [first, second] = problems;
+  assert.ok(first !== undefined && second !== undefined, 'goTagProblems named fewer than two problems');
+  assert.match(first, /^the Go module tag packages\/fixture-go\/v0\.0\.1 is missing; a Go proxy resolves example\.com\/a from it/);
+  assert.match(second, /^the Go module tag packages\/third\/deep\/v0\.0\.1 is missing; a Go proxy resolves example\.com\/c from it/);
 });
 
 test('a Go module tag releases that module alone and needs no sibling tag', (t) => {
@@ -98,7 +101,7 @@ test('a repository without a Go module needs no Go module tag', (t) => {
 test('the go-tags step prints each finding and exits with 1, or prints one line and exits with 0', (t) => {
   const box = releaseSandbox(t);
   box.tag('v0.0.1');
-  const cli = (...args) => spawnSync(process.execPath, ['scripts/kit/release.mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const cli = (...args: string[]) => spawnSync(process.execPath, ['scripts/kit/release.mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   let result = cli('go-tags', 'v0.0.1');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /\[release\] go-tags v0\.0\.1: the Go module tag packages\/fixture-go\/v0\.0\.1 is missing/);
@@ -113,7 +116,7 @@ test('the go-tags step prints each finding and exits with 1, or prints one line 
 test('make release-go-tags takes the tag of the environment', (t) => {
   const box = releaseSandbox(t);
   box.release('0.0.1');
-  const make = (...args) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const without = make('release-go-tags');
   assert.equal(without.status, 2);
   assert.match(without.stdout + without.stderr, /release-go-tags: TAG is required, for example make release-go-tags TAG=v0\.0\.1/);

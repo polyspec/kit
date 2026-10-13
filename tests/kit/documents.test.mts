@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../scripts/kit/check-documents.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
@@ -12,9 +13,9 @@ import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { pair, put, tree } from './tree.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
-const run = (root, config = CONFIG) => check(root, config).findings;
-const has = (findings, text) => assert.ok(findings.some(line => line === text), `expected ${text}\nin\n${findings.join('\n')}`);
-const hasPart = (findings, ...parts) => assert.ok(findings.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${findings.join('\n')}`);
+const run = (root: string, config: Parameters<typeof check>[1] = CONFIG): string[] => check(root, config).findings;
+const has = (findings: string[], text: string) => assert.ok(findings.some(line => line === text), `expected ${text}\nin\n${findings.join('\n')}`);
+const hasPart = (findings: string[], ...parts: string[]) => assert.ok(findings.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${findings.join('\n')}`);
 
 test('a pair with the same doc-id, revision, anchors, fences and links passes', (t) => {
   const body = '<a id="intro"></a>\nSee [other](other.md#title) and [site](https://example.org).\n\n```sh\nmake check\n```\n';
@@ -73,7 +74,7 @@ test('sections: explicit anchors must be equal and unique', (t) => {
 test('fences: blocks must be equal, closed and keep their info string', (t) => {
   const en = '```sh\nmake check\n```\n\n~~~\nplain\n~~~\n';
   assert.deepEqual(run(tree(t, pair('a.md', 'alpha', en))), []);
-  const body = (text) => tree(t, pair('a.md', 'alpha', en, text));
+  const body = (text: string) => tree(t, pair('a.md', 'alpha', en, text));
   hasPart(run(body('```sh\nmake test\n```\n\n~~~\nplain\n~~~\n')), 'a.ko.md:', ': fences: the fenced code block 1 differs from a.md');
   hasPart(run(body('```bash\nmake check\n```\n\n~~~\nplain\n~~~\n')), 'fences: the fenced code block 1 differs');
   hasPart(run(body('```sh\nmake check\n```\n')), 'fences: the fenced code block 2 differs', 'the files have 1 and 2 blocks');
@@ -127,10 +128,12 @@ test('interpolation: {{ outside a code block fails in the selected documents', (
 
 const FOUR_STATES = ['[ ]', '[~]', '[o]', '[!]'];
 const TABLE = { path: 'plan.md', translation: 'plan.ko.md', format: 'table', idPattern: 'T[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)*', states: FOUR_STATES, active: '[~]' };
+// A tracker of config/checklist.json, as the tests write it.
+type Tracker = { path: string; translation?: string | undefined; format: string; idPattern: string; states: string[]; active: string };
 const LIST = { path: 'plan.md', translation: 'plan.ko.md', format: 'list', idPattern: '[A-Z][A-Za-z0-9.-]*', states: FOUR_STATES, active: '[~]' };
-const checklist = (rows, extra = '') => `# Plan\n\n${extra}| ID | Task | State |\n| --- | --- | --- |\n${rows}\n`;
-const withChecklist = (t, en, ko = en, config = TABLE) => tree(t, { ...pair(config.path, 'plan', en.replace(/^# Plan\n/, '').trimStart(), ko.replace(/^# Plan\n/, '').trimStart()) });
-const run2 = (root, list = TABLE) => {
+const checklist = (rows: string, extra = '') => `# Plan\n\n${extra}| ID | Task | State |\n| --- | --- | --- |\n${rows}\n`;
+const withChecklist = (t: TestContext, en: string, ko = en, config: Tracker = TABLE) => tree(t, { ...pair(config.path, 'plan', en.replace(/^# Plan\n/, '').trimStart(), ko.replace(/^# Plan\n/, '').trimStart()) });
+const run2 = (root: string, list: Tracker = TABLE) => {
   put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [list] }) });
   return run(root);
 };
@@ -156,6 +159,7 @@ test('checklist table: a marker outside the state and a line that is not a task 
   for (const marker of ['[ ]', '[~]']) hasPart(found, 'checklist-marker: the state marker ' + marker + ' is not the state of a task');
   hasPart(found, 'checklist-state: the state of T1.2 is "[x]"');
   const cell = found.find(line => line.startsWith('plan.md:') && line.includes('marker [~]'));
+  assert.ok(cell, `no finding of plan.md names the marker [~]:\n${found.join('\n')}`);
   assert.match(cell, /^plan\.md:8:16: checklist-marker/, cell);
 });
 
@@ -219,8 +223,8 @@ test('checklist: an invalid config/checklist.json is a finding of the document c
 });
 
 const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, columns: [{ index: 1, enum: ['planned', 'implemented'] }, { index: 3, pattern: '\\]\\([^)]+\\)' }] };
-const table = rows => `| ID | Status | Note | Evidence |\n| --- | --- | --- | --- |\n${rows}\n`;
-const withTable = (t, en, ko = en) => tree(t, pair('features.md', 'features', en, ko));
+const table = (rows: string) => `| ID | Status | Note | Evidence |\n| --- | --- | --- | --- |\n${rows}\n`;
+const withTable = (t: TestContext, en: string, ko = en) => tree(t, pair('features.md', 'features', en, ko));
 
 test('status-table: declared cells and values pass and are equal in both languages', (t) => {
   const rows = '| parse | implemented | Parse | [g](g.md) |\n| print | planned | Print | [g](g.md) |';
@@ -291,7 +295,11 @@ test('link: a site reads the VitePress slug and the {#id} of a heading, a reposi
   const links = '[a](b.md#_1-5-restore) [b](b.md#external-docs) [c](b.md#query-plan-more) [d](b.md#15-restore)\n';
   const root = tree(t, { ...pair('a.md', 'alpha', links), ...pair('b.md', 'bee', target) });
   const plain = run(root).filter(line => line.includes('does not define'));
-  assert.deepEqual([...new Set(plain.map(line => /#[\w-]+/.exec(line)[0]))], ['#_1-5-restore', '#external-docs', '#query-plan-more']);
+  assert.deepEqual([...new Set(plain.map(line => {
+    const anchor = /#[\w-]+/.exec(line);
+    if (!anchor) throw new Error(`the finding names no anchor: ${line}`);
+    return anchor[0];
+  }))], ['#_1-5-restore', '#external-docs', '#query-plan-more']);
   const site = run(root, { ...CONFIG, siteLinks: true }).filter(line => line.includes('does not define'));
   assert.deepEqual(site, [], site.join('\n'));
 });

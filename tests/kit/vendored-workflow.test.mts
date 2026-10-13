@@ -7,24 +7,25 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { check, LOCK } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const GIT = ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com'];
-const git = (args, cwd) => {
+const git = (args: string[], cwd: string) => {
   const result = spawnSync('git', [...GIT, ...args], { cwd, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 };
-const write = (root, file, text) => {
+const write = (root: string, file: string, text: string) => {
   mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
   writeFileSync(path.join(root, file), text);
 };
 const WORKFLOW = 'on: push\njobs:\n  release:\n    steps:\n      - run: make release-publish\n';
 
 // A kit repository whose tag v0.0.1 holds a vendored script and the release workflow source.
-function kitRepository(t) {
+function kitRepository(t: TestContext) {
   const repository = mkdtempSync(path.join(tmpdir(), 'kit-source-'));
   t.after(() => rmSync(repository, { recursive: true, force: true }));
   initRepository(repository, '-b', 'main');
@@ -37,7 +38,7 @@ function kitRepository(t) {
   return repository;
 }
 
-const consumer = t => {
+const consumer = (t: TestContext) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-consumer-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
@@ -61,7 +62,9 @@ test('kit-check fails when a consumer workflow differs from the vendored release
   write(root, '.github/workflows/release.yml', WORKFLOW.replace('make release-publish', 'make release-publish\n      - run: make release-proof'));
   const findings = check(root);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0], /^\.github\/workflows\/release\.yml: sha256 is [0-9a-f]{64}, the lock records [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
+  const [finding] = findings;
+  assert.ok(finding !== undefined, 'kit-check found nothing');
+  assert.match(finding, /^\.github\/workflows\/release\.yml: sha256 is [0-9a-f]{64}, the lock records [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
 });
 
 test('kit-check fails when the vendored release workflow is missing', (t) => {
@@ -71,5 +74,7 @@ test('kit-check fails when the vendored release workflow is missing', (t) => {
   rmSync(path.join(root, '.github/workflows/release.yml'));
   const findings = check(root);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0], /^\.github\/workflows\/release\.yml: the vendored file is missing; expected sha256 [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
+  const [finding] = findings;
+  assert.ok(finding !== undefined, 'kit-check found nothing');
+  assert.match(finding, /^\.github\/workflows\/release\.yml: the vendored file is missing; expected sha256 [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
 });

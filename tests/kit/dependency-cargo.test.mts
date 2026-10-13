@@ -25,7 +25,7 @@ test('the review records the Cargo lock with its advisories, and the gate then n
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows https:\/\/rustsec\.org\/advisories\/RUSTSEC-2099-0001\. Fix: make dependency-review UPDATE=1\.$/m);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: advisory RUSTSEC-2099-0002 \(unmaintained\) itoa is unmaintained /m);
   const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.find(item => item.lock === 'packages/fixture-rust/Cargo.lock').advisories.map(item => item.id), ['RUSTSEC-2099-0001', 'RUSTSEC-2099-0002']);
+  assert.deepEqual(record.locks.find((item: { lock: string }) => item.lock === 'packages/fixture-rust/Cargo.lock').advisories.map((item: { id: string }) => item.id), ['RUSTSEC-2099-0001', 'RUSTSEC-2099-0002']);
   const gated = gate(root);
   assert.equal(gated.status, 1);
   assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review of .+ found advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows /m);

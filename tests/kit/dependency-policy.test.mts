@@ -11,7 +11,7 @@ import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 
-const findings = result => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
+const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
 test('the gate passes on the fixture and queries no registry', (t) => {
   const root = fixture(t);
@@ -56,7 +56,7 @@ test('the review records the fixture, and a second run writes the same record', 
   assert.equal(second.status, 0, second.stdout + second.stderr);
   const twice = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
   assert.deepEqual({ ...twice, reviewed: null }, { ...once, reviewed: null });
-  assert.deepEqual(twice.dependencies.map(item => [item.ecosystem, item.package, item.version]), [
+  assert.deepEqual(twice.dependencies.map((item: { ecosystem: string; package: string; version: string }) => [item.ecosystem, item.package, item.version]), [
     ['npm', 'is-number', '7.0.0'], ['npm', 'semver', '7.6.0'], ['composer', 'psr/log', '3.0.2'], ['pypi', 'click', '8.1.7'], ['pypi', 'setuptools', '84.0.0'], ['go', 'github.com/google/uuid', 'v1.6.0'],
   ]);
 });
@@ -70,13 +70,13 @@ test('the mutation check rejects every mutation of the fixture', (t) => {
 
 test('the mutation check applies to the ecosystems of the repository: no Composer platform, and a record that starts with a Python dependency', (t) => {
   const root = fixture(t);
-  const edit = (file, change) => {
-    const data = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+  const edit = <T,>(file: string, change: (data: T) => void) => {
+    const data: T = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
     change(data);
     writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
   };
-  edit('config/dependency-policy.json', (policy) => { policy.composerPlatforms = []; });
-  edit('config/dependency-review.json', (record) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
+  edit('config/dependency-policy.json', (policy: { composerPlatforms: string[] }) => { policy.composerPlatforms = []; });
+  edit('config/dependency-review.json', (record: { dependencies: Array<{ ecosystem: string }> }) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
   const result = spawnSync(process.execPath, ['scripts/kit/check-dependency-policy-mutation.mts'], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
@@ -94,13 +94,13 @@ test('a package that the root overrides install from a URL is not reviewed again
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.equal(record.dependencies.some(entry => entry.package === 'is-number'), false);
+  assert.equal(record.dependencies.some((entry: { package: string }) => entry.package === 'is-number'), false);
 });
 
 // A package beside the fixture, at tools/sub, with its own lock: it links fixture-lib as a local package, and the lock records
 // the version `lockVersion` of it (fixture-lib has version 0.0.0).
 const SUB_LOCK = 'tools/sub/package-lock.json';
-const addSubPackage = (root, lockVersion) => {
+const addSubPackage = (root: string, lockVersion: string) => {
   mkdirSync(path.join(root, 'tools/sub'), { recursive: true });
   const dependencies = { 'fixture-lib': 'file:../../packages/fixture-lib' };
   writeFileSync(path.join(root, 'tools/sub/package.json'), `${JSON.stringify({ name: 'fixture-sub', version: '0.0.0', private: true, dependencies }, null, 2)}\n`);
@@ -110,7 +110,7 @@ const addSubPackage = (root, lockVersion) => {
     '../../packages/fixture-lib': { version: lockVersion },
   } }, null, 2)}\n`);
 };
-const addPolicyLock = (root) => {
+const addPolicyLock = (root: string) => {
   const policy = JSON.parse(readFileSync(path.join(root, 'config/dependency-policy.json'), 'utf8'));
   policy.npmLocks.push(SUB_LOCK);
   writeFileSync(path.join(root, 'config/dependency-policy.json'), `${JSON.stringify(policy, null, 2)}\n`);
@@ -120,10 +120,12 @@ test('the gate reads every npm lock that the policy names: a stale lock of a sec
   const root = fixture(t);
   addSubPackage(root, '0.0.1');
   addPolicyLock(root);
-  const local = line => line.startsWith('[dependency-policy] tools/sub/package.json fixture-lib:');
+  const local = (line: string) => line.startsWith('[dependency-policy] tools/sub/package.json fixture-lib:');
   const stale = findings(gate(root)).filter(local);
   assert.equal(stale.length, 1, `the gate read no stale lock of tools/sub: ${stale.join('\n')}`);
-  assert.match(stale[0], /^\[dependency-policy\] tools\/sub\/package\.json fixture-lib: tools\/sub\/package-lock\.json records version 0\.0\.1, packages\/fixture-lib has version 0\.0\.0\./);
+  const first = stale[0];
+  assert.ok(first !== undefined, 'the gate printed no finding of tools/sub');
+  assert.match(first, /^\[dependency-policy\] tools\/sub\/package\.json fixture-lib: tools\/sub\/package-lock\.json records version 0\.0\.1, packages\/fixture-lib has version 0\.0\.0\./);
   addSubPackage(root, '0.0.0');
   assert.deepEqual(findings(gate(root)).filter(local), []);
 });
@@ -139,7 +141,7 @@ test('the review records and audits every npm lock that the policy names', (t) =
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.map(entry => entry.lock).filter(lock => lock.endsWith('package-lock.json')), ['package-lock.json', SUB_LOCK]);
+  assert.deepEqual(record.locks.map((entry: { lock: string }) => entry.lock).filter((lock: string) => lock.endsWith('package-lock.json')), ['package-lock.json', SUB_LOCK]);
   assert.equal(stub.calls().filter(call => call.startsWith('npm audit ')).length, 2, stub.calls().join('\n'));
 });
 

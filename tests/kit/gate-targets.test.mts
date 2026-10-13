@@ -5,13 +5,14 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { git, run } from './gates-checkout.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-function repository(t) {
+function repository(t: TestContext) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-gate-targets-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(path.join(directory, 'scripts/kit'), { recursive: true });
@@ -21,7 +22,7 @@ function repository(t) {
   return directory;
 }
 
-const commands = (directory, ...args) => {
+const commands = (directory: string, ...args: string[]) => {
   const made = run(directory, 'make', ['--no-print-directory', '-n', ...args]);
   assert.equal(made.status, 0, made.stderr);
   return made.stdout.split('\n').filter(Boolean);
@@ -58,7 +59,7 @@ test('a make invocation sets core.hooksPath in a checkout that tracks the pre-pu
 test('the dependency targets run the gate, its mutation check and the review with the flags that the variables name', (t) => {
   const directory = repository(t);
   // make leaves the spaces of an empty $(if) in a printed recipe line, so the lines are compared with single spaces and no edge spaces.
-  const lines = (...args) => commands(directory, ...args).map(line => line.trim().replace(/\s+/g, ' '));
+  const lines = (...args: string[]) => commands(directory, ...args).map(line => line.trim().replace(/\s+/g, ' '));
   assert.deepEqual(lines('dependency-policy-check'), ['node scripts/kit/check-dependency-policy.mts']);
   assert.deepEqual(lines('dependency-policy-mutation-check'), ['node scripts/kit/check-dependency-policy-mutation.mts']);
   assert.deepEqual(lines('dependency-review'), ['node scripts/kit/dependency-review.mts']);
