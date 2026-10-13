@@ -46,3 +46,13 @@ test('the CI workflow installs the packages with the pinned npm and then checks 
 test('the CI workflow bootstraps in the order of a repository: the npm of packageManager, npm ci, then the other tools (K71-2)', () => {
   assert.deepEqual(runs.slice(0, 3), ['make install-tools TOOLS=npm', 'var/tools/bin/npm ci', 'make install-tools'], 'the first steps');
 });
+
+test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
+  // The Composer projects of kit (config/phpunit, config/php-lint) require the PHP of the pin; the runner's own PHP is
+  // older, so the workflow installs the declared release first (CI run 38438896766 failed on PHP 8.3.6).
+  assert.equal(readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim(), '8.5');
+  const setup = text.indexOf('php-version-file: .php-version');
+  const tools = text.indexOf('run: make install-tools\n');
+  assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
+  assert.ok(tools > setup, 'install-tools runs after the PHP of .php-version is installed');
+});

@@ -22,6 +22,12 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
+      # shivammathur/setup-php 2.40.0: the PHP of .php-version, which the Composer projects of kit (config/phpunit,
+      # config/php-lint) require; the runner's own PHP is older.
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version-file: .php-version
+          tools: none
       # The bootstrap order of a repository (K71-2): the npm of packageManager first, then the packages of package-lock.json
       # with it, then the other tools.
       - name: install npm
