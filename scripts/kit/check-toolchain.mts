@@ -12,7 +12,8 @@
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
 // every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor
 // (toolchain-floors.mts), or the channel of an exception of config/toolchain.json whose scope holds the file
-// (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings.
+// (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings, and so
+// is a key of an .npmrc that keeps npm from linking.
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
@@ -23,7 +24,7 @@ import { execute } from './process.mts';
 import { declaredGo, declaredRust } from './toolchain-files.mts';
 import { PINS } from './toolchain-pins.mts';
 import { Pinning, readExceptions } from './toolchain-exceptions.mts';
-import { floorFindings, pinFindings } from './toolchain-floors.mts';
+import { floorFindings, npmrcFindings, pinFindings } from './toolchain-floors.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -137,13 +138,15 @@ if (isMain(import.meta.url)) {
     const pins = pinFindings(declared, pinning);
     const floors = floorFindings(ROOT, pinning, env);
     const excepted = [...malformed, ...pinning.stale()];
+    const links = npmrcFindings(ROOT, env);
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...pins, ...floors, ...excepted]) console.error(`[check-toolchain] ${line}`);
+    for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
     if (pins.length > 0) console.error(`[check-toolchain] ${pins.length} declarations differ from the pins of kit`);
     if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
     if (excepted.length > 0) console.error(`[check-toolchain] ${excepted.length} findings of the exceptions of config/toolchain.json`);
-    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0) process.exitCode = 1;
+    if (links.length > 0) console.error(`[check-toolchain] ${links.length} keys of .npmrc keep npm from linking`);
+    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
     // The declarations and the check fail with an Error.

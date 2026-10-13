@@ -9,10 +9,12 @@
 //   Cargo.toml     package.rust-version is "<rust pin>", also through rust-version.workspace = true
 //   package.json   typescript of each dependency field is "<typescript pin>"; every typescript of a package-lock.json is the pin
 // A floor may also equal the channel of a declared exception whose scope holds the file (toolchain-exceptions.mts). Each other
-// floor, and a missing one, is a finding that names the file, the key, the pin and the expected value.
+// floor, and a missing one, is a finding that names the file, the key, the pin and the expected value. Beside the floors,
+// an .npmrc may not keep npm from linking (S1: our rules never block the links of npm): install-links=true and
+// bin-links=false fail, read by npm in the directory of the file.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
-import { readCargoPackages, readGoMod, readToml } from './toolchain-files.mts';
+import { readCargoPackages, readGoMod, readNpmConfig, readToml } from './toolchain-files.mts';
 import type { Pinning } from './toolchain-exceptions.mts';
 import type { Tool } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -126,3 +128,16 @@ export const floorFindings = (root: string, pinning: Pinning, env: NodeJS.Proces
   ...cargoFindings(root, pinning, env),
   ...typescriptFindings(root, pinning),
 ];
+
+// The npm keys that keep npm from linking, the value that does, and what npm then does instead.
+const LINK_BLOCKERS: Record<string, [string, string]> = {
+  'install-links': ['true', 'npm packs each file: dependency instead of linking it'],
+  'bin-links': ['false', 'npm does not link the bins of the packages'],
+};
+
+/** One line for each key of a tracked .npmrc that keeps npm from linking; `env` runs npm. */
+export const npmrcFindings = (root: string, env: NodeJS.ProcessEnv): string[] => named(root, '.npmrc').flatMap((file) => {
+  const values = readNpmConfig(root, file, Object.keys(LINK_BLOCKERS), env);
+  return Object.entries(LINK_BLOCKERS).filter(([key, [blocking]]) => values[key] === blocking)
+    .map(([key, [blocking, effect]]) => `${file}: ${key} is ${blocking}, so ${effect}; remove the key`);
+});

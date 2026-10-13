@@ -2,10 +2,12 @@
 //   TOML    tomllib of the Python on PATH (pyproject.toml, rust-toolchain.toml), printed as JSON
 //   go.mod  go mod edit -json of the Go on PATH
 //   Cargo   cargo metadata --no-deps of the cargo on PATH, offline
+//   .npmrc  npm config get of the npm on PATH, in the directory of the file
 // A reader that cannot run or read its file throws an Error that names the file and the cause. The Go and Rust declarations
 // of a checkout are read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before
 // the tools are installed.
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
@@ -15,8 +17,8 @@ import { execute } from './process.mts';
 const TOML_TO_JSON = 'import json, sys, tomllib\nwith open(sys.argv[1], "rb") as file: print(json.dumps(tomllib.load(file), default=str))';
 
 // The output of `command` with `args` that reads `file`; an Error names the file, the reader `shown` and the cause.
-function output(file: string, shown: string, command: string, args: string[], env: NodeJS.ProcessEnv): string {
-  const result = execute(command, args, { env });
+function output(file: string, shown: string, command: string, args: string[], env: NodeJS.ProcessEnv, cwd?: string): string {
+  const result = execute(command, args, { env, cwd });
   if (result.error) throw new Error(`${file}: ${shown} cannot start: ${result.error.message}`);
   if (result.status !== 0) {
     const ended = result.signal ? `ended by signal ${result.signal}` : `exit status ${result.status}`;
@@ -36,6 +38,23 @@ export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): {
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
 export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; rust_version: string | null }[] =>
   JSON.parse(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env)).packages;
+
+/**
+ * The value of each npm configuration key of `keys` that the .npmrc `file` of `root` gives the project of its directory, as
+ * `npm config get` prints it there. The configuration of the user, of npm itself and of the environment does not count:
+ * the npm_config_ variables are removed, and the user and global files are named where none exists.
+ */
+export function readNpmConfig(root: string, file: string, keys: string[], env: NodeJS.ProcessEnv): Record<string, string> {
+  const none = mkdtempSync(path.join(tmpdir(), 'kit-npmrc-'));
+  try {
+    const project = Object.fromEntries(Object.entries(env).filter(([key]) => !/^npm_config_/i.test(key)));
+    const isolated = { ...project, npm_config_userconfig: path.join(none, 'user'), npm_config_globalconfig: path.join(none, 'global') };
+    const cwd = path.join(root, path.dirname(file));
+    return Object.fromEntries(keys.map(key => [key, output(file, `\`npm config get ${key}\``, 'npm', ['config', 'get', key], isolated, cwd).trim()]));
+  } finally {
+    rmSync(none, { recursive: true, force: true });
+  }
+}
 
 /**
  * The Go release that the checkout declares: the go line of the go.mod that config/toolchain.json go names, as an exact
