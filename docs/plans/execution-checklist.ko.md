@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 221b1a8de5373974789e83615271f049aa6e5944f294e88aa3984bdb018b0dc0 -->
+<!-- source-sha256: 9e8eb2c1184f0e37875852df3e961ab29c1d7e0bc07d41df429e989044a552c7 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -170,7 +170,7 @@
 | K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K107 | parity 선언 검사는 `symbols`가 없는 API unit을 그 unit을 이름으로 대는 finding으로 거부합니다. 원인: 그런 unit이 선언 검사를 통과한 뒤 `missingImplementations`가 `unit.symbols.find`에서 TypeError로 죽었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/parity-units.mts`, `scripts/kit/parity-declaration.mts`, 그 test | red test, 그다음 소유 검사 | [o] |
 | K108 | toolchain 검사는 PHP가 실행되지 않을 때 fix에 선언된 PHP minor를 이름으로 댑니다. 원인: fix가 PHP 선언에 없는 `.version`을 읽어(PHP는 minor를 선언합니다) "install PHP undefined"라고 했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/check-toolchain.mts`, 그 test | red test, 그다음 소유 검사 | [o] |
-| K109 | `release-consumer-config`는 wheel package가 있는데 `consumers`가 없는 release config를 빠진 절을 이름으로 대는 problem으로 거부합니다. 원인: `consumerConfigProblems`가 `consumers`가 없으면 검사를 건너뛰어 그런 config가 `loadConfig`를 통과했고, `release assets`가 이름 있는 error로 멈췄으며(K71-1 전에는 TypeError) release-consumer도 같은 이유로 실패할 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 소유 검사 | [ ] |
+| K109 | `release-consumer-config`는 wheel package가 있는데 `consumers`가 없는 release config를 빠진 절을 이름으로 대는 problem으로 거부합니다. 원인: `consumerConfigProblems`가 `consumers`가 없으면 검사를 건너뛰어 그런 config가 `loadConfig`를 통과했고, `release assets`가 이름 있는 error로 멈췄으며(K71-1 전에는 TypeError) release-consumer도 같은 이유로 실패할 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 소유 검사 | [o] |
 | K110 | `tests/kit/sandbox-repository.test.mts`는 kit test의 모든 Git repository가 `initRepository`로 만들어지는지를 `.mts` test 파일에 대해 검사하며, 파일을 읽었음을 단언합니다. 원인: K71-1이 이름을 바꾼 뒤에도 scan이 `.mjs` 파일을 골라 빈 선택으로 통과했습니다. K71-1 type 작업(E 그룹)에서 찾았습니다. | `tests/kit/sandbox-repository.test.mts` | 다른 방법으로 repository를 만드는 test에서 scan이 실패하고, 그다음 통과 | [o] |
 | K111 | 철회했습니다. dependency-cruiser와 그 `.mts` parser로서의 TypeScript 6(S4 예외)으로 import를 따라 바뀐 경로에 닿는 test를 고르려 했습니다. kit은 tool의 package 하나이므로 `scripts/kit` 아래의 변경은 `kit-test`와 `typecheck`가 소유합니다; 그것을 더 좁히려고 의존과 version 예외를 들이는 것은 요구를 채우는 가장 단순한 구현이 아닙니다(K105). | — | — | [-] |
 | K112 | schema 검증은 `additionalProperties: false` 아래에서 `Object.prototype` member 이름(`toString`, `constructor`, `hasOwnProperty`, `__proto__`)의 key를 거부하며, `required`는 자기 key를 검사합니다. 원인: `schema-validate`가 key를 `in`으로 시험했습니다. K73의 ajv 비교에서 찾았습니다. K73의 ajv 교체로 고치며, case는 그 test에 들어갑니다. | K73 schema test | `schema-validate`에서 실패하고 ajv에서 통과하는 case | [ ] |
