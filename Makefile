@@ -37,6 +37,5 @@ rebuild-check: ## Check that every tool of config/rebuild.json paths has its cla
 	node scripts/kit/rebuild-check.mts
 
 .PHONY: duplication-check
-# jscpd skips parity-units.mts until K75, which owns it, removes the two blocks of parity-declaration.mts that it repeats (S8).
 duplication-check: ## Fail while a piece of 6 lines or more of scripts/kit exists twice (jscpd); offline after npm ci
-	node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console --ignore "**/parity-units.mts" scripts/kit
+	node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console scripts/kit
