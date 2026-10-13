@@ -31,8 +31,8 @@ The files that stay copies, because they must exist before the package is instal
 
 - `scripts/kit/kit-bootstrap.mk`: stops with an error that names `make install-tools TOOLS=npm` and `make install-packages`
   while `node_modules/@polyspec/kit/dist/kit.mk` is absent; otherwise it includes it. No silent `-include`.
-- The installer of the pinned npm and its imports (`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`; 197
-  lines today) under `scripts/kit/bootstrap/`, run by `make install-tools TOOLS=npm` before `npm ci`. The pinned npm must
+- The installer of the pinned npm and its imports (`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`, and
+  `toolchain-declared`, the one reader of `packageManager` and `.node-version`) under `scripts/kit/bootstrap/`, run by `make install-tools TOOLS=npm` before `npm ci`. The pinned npm must
   install the lock, because another npm can rewrite or refuse it (S4: tools run at their pins).
 - `.github/workflows/release.yml`, `PRINCIPLES.md(.ko)` and the lint configuration (K77): fixed paths that their tools read.
 
@@ -121,7 +121,7 @@ K79 and reference no kit path yet.
 - `kit-bootstrap.mk` defines `install-tools` for `TOOLS=npm` only and `install-packages` while the package is absent, and
   stops any other goal with `node_modules/@polyspec/kit/dist/kit.mk is missing; run make install-tools TOOLS=npm, then make
   install-packages`.
-- The five bootstrap modules move to `scripts/kit/bootstrap/` in kit, and the other tools import them there: one copy,
+- The six bootstrap modules move to `scripts/kit/bootstrap/` in kit, and the other tools import them there: one copy,
   never two. They ship as sources (run outside `node_modules`) and build into `dist/bootstrap/`.
 - The copy items are declared in `package.json` as `"kit": { "copies": { "<repository path>": "<package path>" } }`,
   each source also in `files`. `kit.json` is removed: `package.json` is the one source of kit's version and its copies.

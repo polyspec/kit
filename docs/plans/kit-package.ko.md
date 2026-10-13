@@ -1,5 +1,5 @@
 <!-- doc-id: kit-package -->
-<!-- source-sha256: 17070c7c9da65368806df70f2f1a29954d616ede8846193921d867e437fec0ab -->
+<!-- source-sha256: f66a2df8c1ac4a5518fcd141ff463ca5a6bb970d29b0dcedc59e7e47c1eee9b6 -->
 # package인 kit (K71-2)
 
 [English](kit-package.md)
@@ -32,7 +32,8 @@ package가 설치되기 전에 있어야 하거나 고정된 경로에 있어야
 
 - `scripts/kit/kit-bootstrap.mk`: `node_modules/@polyspec/kit/dist/kit.mk`가 없으면 `make install-tools TOOLS=npm`과
   `make install-packages`를 이름으로 대는 error로 멈추고, 있으면 include합니다. 조용한 `-include`는 쓰지 않습니다.
-- pin된 npm의 installer와 그 import(`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`; 지금 197줄)를
+- pin된 npm의 installer와 그 import(`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`, 그리고 `packageManager`와
+  `.node-version`의 유일한 reader인 `toolchain-declared`)를
   `scripts/kit/bootstrap/` 아래에 두고, `npm ci` 전에 `make install-tools TOOLS=npm`으로 실행합니다. 다른 npm은 lock을 다시
   쓰거나 거부할 수 있으므로 pin된 npm이 lock을 설치해야 합니다(S4: tool은 pin에서 돕니다).
 - `.github/workflows/release.yml`, `PRINCIPLES.md(.ko)`, lint 설정(K77): 그 tool이 읽는 고정 경로.
@@ -115,7 +116,7 @@ flowmark(`~/Projects/flowmark`, kit v0.0.34); ssr과 template-benchmark는 K79�
 - tool의 `ROOT`는 module 자신의 위치에서 얻은 경로가 아니라 작업 directory, 즉 모든 make target이 도는 repository root입니다.
 - `kit-bootstrap.mk`는 package가 없을 때 `TOOLS=npm`만 받는 `install-tools`와 `install-packages`를 정의하고, 다른 goal은
   `node_modules/@polyspec/kit/dist/kit.mk is missing; run make install-tools TOOLS=npm, then make install-packages`로 멈춥니다.
-- bootstrap module 다섯은 kit 안에서 `scripts/kit/bootstrap/`으로 옮기고 다른 tool은 거기서 import합니다: copy는 하나이며
+- bootstrap module 여섯은 kit 안에서 `scripts/kit/bootstrap/`으로 옮기고 다른 tool은 거기서 import합니다: copy는 하나이며
   둘이 아닙니다. source로 배포되고(`node_modules` 밖에서 실행) `dist/bootstrap/`으로도 build됩니다.
 - copy 항목은 `package.json`에 `"kit": { "copies": { "<repository 경로>": "<package 경로>" } }`로 선언하고, 각 원본은 `files`에도
   있습니다. `kit.json`은 지웁니다: `package.json`이 kit version과 copy의 유일한 원천입니다.
