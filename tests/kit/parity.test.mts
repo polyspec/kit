@@ -644,6 +644,19 @@ test('R1: an API unit whose symbol an extractor does not give, or that declares 
   assert.deepEqual(check(t, { files: { 'rust/symbols.txt': '' } }, { execute: false }).findings, []);
 });
 
+test('the ts extractor reads a declaration of the ES2015+ library, such as ReadonlyMap, from a folder without TypeScript (K129)', TIMEOUT, (t) => {
+  // The repository has no node_modules, tsconfig or @types, and the check runs in it, as a consumer runs kit.
+  const root = repository(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (table?: ReadonlyMap<string, number>) => number;') } });
+  const cwd = process.cwd();
+  process.chdir(root);
+  try {
+    const found = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
+    assert.deepEqual(keys(found), [], found.map(item => item.message).join('\n'));
+  } finally {
+    process.chdir(cwd);
+  }
+});
+
 test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, (t) => {
   const without = check(t, {
     edit: config => {
