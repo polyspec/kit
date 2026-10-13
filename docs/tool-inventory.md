@@ -26,7 +26,7 @@ repositories (lines).
 
 ## Decisions
 
-- Every tool is Node (`.mjs`). The Python tools of ordered-json are replaced and deleted.
+- Every tool is Node: a TypeScript source (`.mts`) of scripts/kit, which the build writes as `.mjs` into dist. The Python tools of ordered-json are replaced and deleted.
 - A repository differs from another only in `config/*.json`; a tool has no repository name or path in its code.
 - `github-ruleset` is not vendored: the 0.x rule has no pull request and no ruleset, so the file and its Make targets are
   removed in template and hyper.
