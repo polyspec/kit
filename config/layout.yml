@@ -72,6 +72,8 @@ rules:
       - "!go.work"
       - "!go.work.sum"
       - "!.golangci.yml"
+      - "!.oxlintrc.json"
+      - "!knip.json"
 
   - id: layout-no-pythonpath
     paths:
