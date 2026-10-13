@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8e964be19986a20f3750af971e19627c50433fda153ca99addd7bf1ae5017e9c -->
+<!-- source-sha256: 5d49f38580c815c51c155ca1bd5e31fba262a0070b57f9d6255ccb3cb8922b42 -->
 
 # 도구 목록
 
@@ -27,7 +27,7 @@
 
 ## 결정
 
-- 모든 도구는 Node(`.mjs`)입니다. ordered-json의 Python 도구는 대체하고 삭제합니다.
+- 모든 도구는 Node입니다: scripts/kit의 TypeScript source(`.mts`)이고, build가 dist에 `.mjs`로 씁니다. ordered-json의 Python 도구는 대체하고 삭제합니다.
 - 저장소끼리 다른 것은 `config/*.json`뿐입니다. 도구의 코드에는 저장소 이름이나 경로를 넣지 않습니다.
 - `github-ruleset`은 vendored하지 않습니다. 0.x 규칙에는 pull request도 ruleset도 없으므로 template과 hyper에서 파일과 Make
   target을 제거합니다.
