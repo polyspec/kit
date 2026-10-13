@@ -2,7 +2,6 @@
 // and the command that runs them. Each rule has a passing and a failing case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import {  } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
