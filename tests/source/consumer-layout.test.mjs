@@ -1,7 +1,7 @@
 // The vendored tests in the layout of a consumer. kit vendors scripts/kit and tests/kit to every repository, and a consumer
 // holds neither workflows/ (its workflow is the vendored copy .github/workflows/release.yml) nor tests/source. A vendored test
 // that reads a kit-only path passes in kit and fails in every consumer, as K66 did on v0.0.29. This case builds that layout
-// from the tracked files of the kit (with the installed tools of var/, which the consumer has after make install-tools) and
+// from the tracked files of the kit (with the installed tools of var/tools, which the consumer has after make install-tools) and
 // runs the vendored tests there.
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { copyTracked, runKitTest } from './checkout.mjs';
+import { copyInstalledTools, copyTracked, runKitTest } from './checkout.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The paths of the kit that no consumer holds: the source of each vendored file, and the kit's own tests.
@@ -24,7 +24,7 @@ test('the vendored tests pass in the layout of a consumer', (t) => {
     mkdirSync(path.join(sandbox, path.dirname(copy)), { recursive: true });
     cpSync(path.join(ROOT, source), path.join(sandbox, copy));
   }
-  cpSync(path.join(ROOT, 'var'), path.join(sandbox, 'var'), { recursive: true });
+  copyInstalledTools(ROOT, sandbox);
   // The consumer's own command: make kit-test runs the vendored tests through the kit's test runner.
   const { status, output, passed } = runKitTest(sandbox);
   assert.ok(passed > 0, 'the vendored tests ran');
