@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 5eb85360022c68478b92136e382bb631016630d5a88b8069d78b8e542e15a368 -->
+<!-- source-sha256: fc97ab5831bb7ca4e87c0ef0eb29079567dfcd11944db6bc14309ffbc7e1df74 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -152,3 +152,4 @@
 | K81 | vendored test는 `make install-tools`가 제공하는 어떤 것도 필요로 하지 않습니다(K90에 이어). 원인: flowmark는 toolchain을 선언하지 않아 Python을 설치할 수 없고, 그 kit-test가 `var/tools/bin/python3`를 요구하는 `tests/kit/parity.test.mjs`의 실제 unittest case R3에서 실패했습니다. K90은 그런 case가 명령을 지목하면 실패해도 된다고 했지만, 그 toolchain이 없는 소비자는 그 명령을 실행할 수 없습니다. | `tests/source/fresh-checkout.test.mjs`가 `var/` 없는 checkout에서 모든 vendored test의 통과를 요구합니다; R3는 `givePython` helper 하나와 함께 `tests/source/parity-real.test.mjs`로 옮깁니다 | RED: fresh-checkout test가 정확히 R3에서 실패했습니다; GREEN: 통과하며, `make kit-test`와 `make source-test`가 통과합니다 증거: v0.0.34의 flowmark에서 kit-test는 R3 하나에서만 실패했다; 여기서 fresh-checkout test는 이동 전 정확히 R3에서 실패했고 이동 후 통과하며, R3는 tests/source/parity-real.test.mjs에서 통과한다. | [o] |
 | K82 | kit의 CI가 kit commit의 모든 gate를 실행합니다: test 말고도 `documents-check`와 그 실행의 commit에 대한 `commits-check`. 원인: `.github/workflows/ci.yml`이 install-tools, kit-test, source-test만 실행해서, documents-check에 실패한 b415ad8(conflict 뒤 revision marker 둘)이 CI를 통과했습니다. | 두 step과 전체 history checkout을 가진 `.github/workflows/ci.yml`; `tests/source/ci-workflow.test.mjs` | RED: 변경 전 workflow test가 두 case 모두 실패했습니다; GREEN: 둘 다 통과하며 `make commits-check RANGE=0f290df..HEAD`가 통과합니다 | [o] |
 | K83 | kit-sync는 tag가 아닌 ref를 거부합니다. 원인: flowmark의 `.kit/kit.lock.json`이 kit worktree의 branch인 `"tag": "feat/fifth-state-K13"`를 기록해서, 소비자의 vendored tool이 어떤 release에서도 오지 않았습니다. | kit-sync는 `--tag`를 `refs/tags/<name>`으로만 해석하고 그 밖의 것은 이름을 대며 거부합니다 | RED 먼저: branch 이름으로 한 sync가 거부됩니다; tag로 한 sync는 통과합니다 | [ ] |
+| K84 | PRINCIPLES가 code와 문서의 언어를 정합니다: 주석, identifier, log, error message, test 이름, commit message는 영어, 문서는 영어와 한국어 쌍. 원인: 주석은 영어라는 owner 규칙이 flowmark의 AGENTS에만 있었고, orm의 AGENTS는 반대(주석은 한국어)를 적었습니다. | PRINCIPLES.md(+ko), 기준 | `make documents-check` | [o] |

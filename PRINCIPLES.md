@@ -36,6 +36,8 @@ in kit, with its grounding.
   `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`, and is deleted as soon as it is merged
   into main. Test or experiment code that cannot merge is cherry-picked when it is worth keeping and otherwise discarded,
   always before the commit; when it cannot be removed at once, a checklist sub-item states the condition of its removal.
+- Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
+  English, each with a Korean twin that writes technical terms in English.
 
 ## Design
 
