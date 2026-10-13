@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { isTable, readToml } from './toml.mts';
 
 /** buildBackend of config/release.json: the pinned requirement of the build backend and the sha256 of its wheel. */
 export interface BuildBackend {
@@ -36,25 +37,15 @@ export function backendName(requirement: string): string {
   return wheelName(found[1]!, found[2]!);
 }
 
-// The text of the TOML table `[heading]`, up to the next table.
-const tableOf = (text: string, heading: string): string => new RegExp(`^\\[${heading}\\]\\s*$([\\s\\S]*?)(?=^\\[|(?![\\s\\S]))`, 'm').exec(text)?.[1] ?? '';
-
-/** The string value of `key` in the TOML table `heading` of `text`, or null. */
-export const tomlString = (text: string, heading: string, key: string): string | null => new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, 'm').exec(tableOf(text, heading))?.[1] ?? null;
-
-/** The strings of `requires` in the [build-system] table of a pyproject.toml. */
-export function buildRequires(text: string): string[] {
-  const array = /^requires\s*=\s*\[([\s\S]*?)\]/m.exec(tableOf(text, 'build-system'))?.[1] ?? '';
-  // The group takes part in every match.
-  return [...array.matchAll(/"([^"]*)"/g)].map(match => match[1]!);
-}
-
 /** The problems of the pyproject.toml `file` of a wheel package: its project name and its build backend, which is only the pinned requirement. */
 export function sourceProblems({ file, text, name, requirement }: { file: string; text: string; name: string; requirement: string }): string[] {
   const problems: string[] = [];
-  const declared = tomlString(text, 'project', 'name');
+  const data = readToml(text, file);
+  const project = data.project;
+  const buildSystem = data['build-system'];
+  const declared = isTable(project) && typeof project.name === 'string' ? project.name : null;
   if (declared !== name) problems.push(`${file}: name ${declared ?? 'none'}, config/release.json declares ${name}`);
-  const requires = buildRequires(text);
+  const requires = isTable(buildSystem) ? buildSystem.requires ?? [] : [];
   if (JSON.stringify(requires) !== JSON.stringify([requirement])) problems.push(`${file}: build-system.requires is ${JSON.stringify(requires)}, the buildBackend pins ${requirement}`);
   return problems;
 }

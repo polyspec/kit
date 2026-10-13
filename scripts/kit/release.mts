@@ -38,7 +38,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { releaseOf } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
-import { buildWheel, metadataProblems, sourceProblems, tomlString, wheelMetadata, wheelName } from './release-wheel.mts';
+import { isTable, readToml } from './toml.mts';
+import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { readConfig } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -280,7 +281,8 @@ export function manifestVersion(file: string): string | null {
   if (name === 'VERSION') return text.trim() || null;
   const heading = name === 'Cargo.toml' ? 'package' : name === 'pyproject.toml' ? 'project' : null;
   if (heading === null) throw new Stop(`${name}: not a manifest of a release`);
-  return tomlString(text, heading, 'version');
+  const table = readToml(text, file)[heading];
+  return isTable(table) && typeof table.version === 'string' ? table.version : null;
 }
 
 /** The body of the section `## version` of the change log `file`, without the anchor of the next section. */
