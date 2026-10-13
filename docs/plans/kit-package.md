@@ -29,8 +29,8 @@ rebuilt tools with libraries that the package declares.
 
 The files that stay copies, because they must exist before the package is installed or must sit at a fixed path:
 
-- `scripts/kit/kit-bootstrap.mk`: stops with an error that names `make install-tools TOOLS=npm` and `var/tools/bin/npm ci`
-  while `node_modules/@polyspec/kit/kit.mk` is absent; otherwise it includes it. No silent `-include`.
+- `scripts/kit/kit-bootstrap.mk`: stops with an error that names `make install-tools TOOLS=npm` and `make install-packages`
+  while `node_modules/@polyspec/kit/dist/kit.mk` is absent; otherwise it includes it. No silent `-include`.
 - The installer of the pinned npm and its imports (`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`; 197
   lines today) under `scripts/kit/bootstrap/`, run by `make install-tools TOOLS=npm` before `npm ci`. The pinned npm must
   install the lock, because another npm can rewrite or refuse it (S4: tools run at their pins).
@@ -58,32 +58,34 @@ CI and the release workflow run in that order; the consumer-layout successor tes
 
 - `package.json`: name `@polyspec/kit`, `type: module`, `exports` of the tool modules a repository may import, no `bin`
   unless a tool is run by name, and an explicit `files` list, so the tarball is reviewable and kit-check has a fixed list:
-  `dist/`, `kit.mk`, `schema/`, and the copied files `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*`,
+  `dist/` (the build also copies `scripts/kit/kit.mk` and `scripts/kit/schema/` into it, so the tools find `$(KIT)/schema`
+  and a repository includes `node_modules/@polyspec/kit/dist/kit.mk`), and the copied files `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*`,
   `workflows/release.yml`, `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `config/layout.kit.yml` (K76) and the lint configuration
   files of K77 as they land.
 - `tsconfig.build.json`: `scripts/kit/**/*.mts` to `dist/` with `rewriteRelativeImportExtensions`; `tsc` 7.
 - Sources stay in `scripts/kit/` (the kit repository runs them directly, as today); `dist/` is a build output, ignored by
   git.
 - The release builds the tarball with `npm pack` and attaches it to the GitHub release, as the polyspec packages do
-  (`config/release.json` of kit declares the package); a repository pins the asset URL and its integrity.
+  (`config/release.json` of kit declares the package, with work steps 3–4); a repository pins the asset URL and its
+  integrity.
 - kit's own Makefile includes `scripts/kit/kit.mk` with `KIT := scripts/kit` and runs the sources; a repository's
   `kit-bootstrap.mk` sets `KIT := node_modules/@polyspec/kit/dist`. `kit.mk` names every tool as `$(KIT)/<tool>`, with the
   extension that matches (`.mts` in kit, `.mjs` in dist).
 
 ## Checks
 
-- `kit-check` compares the copied files with the files of the installed package of the same version, and fails while the
-  version package-lock resolves for `@polyspec/kit` differs from the version recorded in the copies.
+- `kit-check` compares the copied files with the files of the installed package byte for byte, and fails while the version of
+  the installed package differs from the version package-lock resolves for `@polyspec/kit`.
 - The consumer-layout successor test packs kit, primes an npm cache with the tarball and its dependencies, installs it
   offline into a sandbox consumer, and runs the bootstrap order and the gate targets there.
 - `kit-test` runs in kit only.
 
 ## Order of work
 
-1. Package build and release asset (`tsconfig.build.json`, `package.json`, `config/release.json` of kit).
+1. Package build (`tsconfig.build.json`, `package.json`).
 2. `kit.mk` with `$(KIT)`, `kit-bootstrap.mk`, the bootstrap copies, `kit-sync` and `kit-check` from the installed package.
 3. The consumer-layout successor test, offline.
-4. kit's CI and release workflow in the bootstrap order.
+4. kit's CI and release workflow in the bootstrap order, and kit's `config/release.json` with its release asset.
 5. One kit release; the repositories switch in K79, each announced to its owning session.
 
 Until the release that carries the switch, the copies stay at their paths, so no repository breaks before it moves.
@@ -106,6 +108,28 @@ K79 and reference no kit path yet.
   versions, and a tool path is not (agreed with the kit maintainer session).
 - This document lands as the first commit of K71-2, before the work that depends on it; K71-1 stays the rename and the
   types.
+
+### Rulings of the work (2026-10-13)
+
+- `kit.mk` runs every tool as `node $(KIT)/<tool>.$(KIT_EXT)` and stops with an error while either is unset. kit's Makefile
+  sets `KIT := scripts/kit` and `KIT_EXT := mts`; `kit-bootstrap.mk` sets `KIT := node_modules/@polyspec/kit/dist` and
+  `KIT_EXT := mjs`. `kit-test` moves from `kit.mk` to kit's Makefile, since a repository no longer holds `tests/kit`.
+- A tool that starts another tool names it through one helper of `paths.mts`, the directory and the extension of the
+  calling module, so it works from the sources and from `dist`.
+- `ROOT` of the tools is the working directory, the repository root that every make target runs in, not a path derived
+  from the module's own location.
+- `kit-bootstrap.mk` defines `install-tools` for `TOOLS=npm` only and `install-packages` while the package is absent, and
+  stops any other goal with `node_modules/@polyspec/kit/dist/kit.mk is missing; run make install-tools TOOLS=npm, then make
+  install-packages`.
+- The five bootstrap modules move to `scripts/kit/bootstrap/` in kit, and the other tools import them there: one copy,
+  never two. They ship as sources (run outside `node_modules`) and build into `dist/bootstrap/`.
+- The copy items are declared in `package.json` as `"kit": { "copies": { "<repository path>": "<package path>" } }`,
+  each source also in `files`. `kit.json` is removed: `package.json` is the one source of kit's version and its copies.
+- `kit-check` needs no recorded version in a copy: it fails while the installed package version differs from the version
+  package-lock resolves, and while a copy differs byte for byte from the installed package's file. Both together tie
+  the copies to the locked version.
+- kit's own `config/release.json` and its release asset follow with the consumer-layout successor (work step 3–4): the
+  package directory is the repository root, which the release schema does not accept today.
 
 ## Dependencies of kit in a consumer
 
