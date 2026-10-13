@@ -157,6 +157,7 @@ test('on macOS the start time is the lstart of ps in the C locale', () => {
   const host = fakeHost('darwin', { commands: { ps: { status: 0, stdout: 'Mon Oct  5 00:00:00 2026\n', stderr: '' } } });
   assert.equal(processStart(42, host), 'Mon Oct  5 00:00:00 2026');
   assert.deepEqual(host.calls, [['kill', 42], ['execute', 'ps', '-o', 'lstart=', '-p', '42', 'C']]);
+  assert.throws(() => processStart(42, fakeHost('darwin', { commands: { ps: { status: 0, stdout: '\n', stderr: '' } } })), /ps ended with status 0 and printed no start time/);
   assert.equal(processStart(42, fakeHost('darwin', { commands: { ps: { status: 1, stdout: '', stderr: '' } } })), null);
 });
 

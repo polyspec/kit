@@ -96,7 +96,10 @@ function commandStart(host: Host, command: string, args: string[], statuses: Rec
   // `in` read a null status as the key `null`, which no map holds; the value exists for a status that is in the map.
   if (result.status !== null && result.status in statuses) return statuses[result.status]!;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}: ${result.stderr.trim()}`);
-  return result.stdout.trim() || null;
+  // A status of `statuses` names an ended process, so a status 0 without a start time is no answer.
+  const start = result.stdout.trim();
+  if (!start) throw new Error(`${command} ended with status 0 and printed no start time: ${JSON.stringify(result.stderr.trim())}`);
+  return start;
 }
 
 /**
