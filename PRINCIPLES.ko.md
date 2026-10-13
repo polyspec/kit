@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: f6cc2970d1ba810aab2918a6a10adbd6cf4948a26f5c4df2b0bbc66574c7afcb -->
+<!-- source-sha256: 78af798b6358b7e104651338cdb23029e4675db639ed0844f746cf59e49cf9d7 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -50,6 +50,9 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   다른 문제를 만들어 해결하지 않습니다.
 - 복구, 적용, 변환은 멱등입니다; 변경은 polling으로 찾지 않고 event로 게시합니다; 경로는 선언된 root에서 선언적으로
   결정합니다; multi-platform은 필수 요구이며 platform 꼼수 없이 채웁니다.
+- 끝이 정해지지 않은 loop로 주기적으로 살피는 script는 쓰지 않습니다: sleep을 넣은 `until`이나 `while`, `gh run list`를
+  감싼 loop, watchdog 모두 쓰지 않습니다. 기다림은 자기 일이 끝을 정하는 명령 하나입니다: `gh run watch <id> --exit-status`,
+  완료가 알려지는 background 명령, 또는 그 일을 하는 세션의 메시지.
 
 ## 검증
 
