@@ -233,6 +233,13 @@ test('status-table: declared cells and values pass and are equal in both languag
   assert.deepEqual(run(root, { ...CONFIG, statusTables: [FEATURES] }), []);
 });
 
+test('status-table: the rows are the rows of the GFM tables: an indented row counts, a row in a fenced example does not (K130)', () => {
+  const text = `${table('  | parse | planned | x | [e](e.md) |')}\n\`\`\`md\n| print | planned | x | [e](e.md) |\n\`\`\`\n`;
+  const { findings, rows } = readStatusTable(text, FEATURES);
+  assert.deepEqual(findings, []);
+  assert.deepEqual(rows, [{ id: 'parse', values: ['planned'], line: 3 }]);
+});
+
 test('status-table: a line that is only | has no first cell, so it is skipped as a line whose first cell is no ID (K103)', () => {
   // The ID pattern of FEATURES matches the text "undefined", which a line without cells was tested as.
   const { findings, rows } = readStatusTable(table('| parse | planned | x | [e](e.md) |\n|'), FEATURES);
