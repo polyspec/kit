@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 329a737745d15539a6ba7f98419b1daff59f248ce149262f5be4bd4520583444 -->
+<!-- source-sha256: ebb7e253ccd0de3bcdc173c532b69a98613b0998b051952dd8aa83be38a1bd14 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -123,3 +123,21 @@
 | K67 | kit은 release 전에 vendor하는 test를 소비자 배치에서 실행합니다: 검사가 tree를 sandbox 소비자에 sync하고(workflow는 `.github/workflows/release.yml`, script와 test는 `scripts/kit`와 `tests/kit` 아래) 그곳에서 `node --test tests/kit`를 실행합니다. 원인: kit이 vendor하는 test를 자기 배치에서만 실행했으므로 K66-1이 v0.0.29에 실려 나갔습니다. | `tests/source/consumer-layout.test.mjs` | `make source-test`: case는 추적 파일로 소비자 배치를 만들고(`workflows/`와 `tests/source/` 없이, workflow는 `.github/workflows/release.yml`에, `var/`의 설치된 tool과 함께) 그곳에서 `make kit-test`를 실행하며 test가 실행되었는지 확인한다; K66 test를 되돌리면 `tests/kit/release-workflow.test.mjs`를 밝히며 실패하고, 없으면 통과한다(3회). sandbox 실행 한 번에서 `tests/kit/dependency-cargo.test.mjs`가 한 번 실패했다; sandbox 3회와 단독 5회에서 다시 일어나지 않았으며 원인은 확정되지 않았다. | [o] |
 | K66-2 | release workflow 자신의 case는 kit이 kit 전용 파일에 이미 정해 둔 자리 `tests/source`에 둡니다("kit은 workflows/를 vendor하지 않으므로 kit만 이 case를 실행한다"): release-tools 바로 뒤의 PATH 단계와 그 앞의 PHP 설치가 `tests/source/release-workflow.test.mjs`에 들어가고, `tests/kit/release-tools-path.test.mjs`는 vendor되는 make target `release-tools-path`만 남깁니다. K66-1의 두 경로 읽기는 제거합니다. 원인: K66이 그 규칙을 어기고 kit 전용 case를 vendor되는 test에 넣었고, K66-1은 case를 옮기는 대신 증상을 고쳤습니다. | `tests/source/release-workflow.test.mjs`, `tests/kit/release-tools-path.test.mjs` | `make source-test`(새 case 둘은 K66 이전 workflow에서 실패)와 `node --test tests/kit` | [o] |
 | K68 | kit은 모든 polyspec repository의 작업 원칙 `PRINCIPLES.md`와 그 한국어 쌍을 담고 `vendoredFiles`로 같은 경로에 vendor하므로, 모든 소비자가 같은 text를 가지며 `make kit-check`는 차이가 있으면 실패합니다; AGENTS.md의 Purpose가 그것을 적고, kit 자신의 생태계 규칙은 다시 적지 않고 원칙을 가리킵니다. 원인: owner의 원칙이 어떤 repository에는 적혀 있고 다른 곳에는 없어(생태계 규칙은 kit에만, 꼼수 금지는 flowmark에만, 나머지는 어디에도 없음) repository마다 다른 규칙으로 일했습니다. | `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `kit.json`, `config/documents.json`, `AGENTS.md` | `make kit-test`와 `make source-test`(소비자 배치 case가 원칙을 소비자 경로로 sync한다); `node scripts/kit/check-documents.mjs` | [o] |
+
+## Standards enforcement
+
+계획은 [standards-enforcement.ko.md](standards-enforcement.ko.md)입니다. 각 항목은 자기 red test나 fixture로 시작합니다.
+
+| ID | 작업 | 산출물 | 검증 | 상태 |
+|---|---|---|---|---|
+| K69 | standards enforcement 계획(적대적 사실 검증과 적대적 설계 검증 뒤의 개정 2)을 기록하고 그 kit 항목을 등록합니다. | `docs/plans/standards-enforcement.md(.ko)`, 이 절 | `node scripts/kit/check-documents.mjs` | [o] |
+| K70 | owner의 기준 S1–S9를 `PRINCIPLES.md`에 담아, 모든 소비자가 vendor된 사본으로 갖게 합니다. | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs`; `make kit-test` | [ ] |
+| K71 | kit을 TypeScript package로 만듭니다(S9): source는 `.ts`이고 `tsc` 7이 `erasableSyntaxOnly`로 검사합니다; package는 JS와 `.d.ts`로 build되고 `bin`과 자기 lock을 가지며, pin된 devDependency 하나로 소비됩니다; byte copy는 `release.yml`, `PRINCIPLES.md`, lint 설정에만 남습니다. 전환이 착지할 때까지 vendor 경로는 유지하며, 먼저 repository들에 알립니다. | kit source, `package.json`, lock, `kit.json` | `tsc --noEmit`; `make kit-test`; `make source-test`(consumer-layout case가 package를 설치) | [ ] |
+| K72 | run-tests는 마지막 test 뒤에도 끝나지 않은 node test 파일을 열린 handle 이름과 함께 실패시키고, 그다음 `--test-force-exit`을 지웁니다; `test-load-check.mjs`와 그 test는 필요가 반증된 뒤 지웁니다. | `scripts/kit/run-tests`, 그 test | red 먼저: top-level await 뒤에 등록한 test가 실행되어야 하고, handle이 새는 파일은 기한으로 실패해야 합니다; 그다음 `tests/kit/dependency-cargo.test.mjs`를 포함해 `make kit-test`와 `make source-test` | [ ] |
+| K73 | kit이 재발명한 tool을 교체합니다: `schema-validate`는 ajv, `glob`은 picomatch(`dot: true`), `pylock`과 `dependency-state`의 pyproject 읽기는 smol-toml, 생태계별 version comparator, commitlint, JUnit/JSON reporter 출력; `.npmrc` 전제는 같은 release에서 지웁니다. | `scripts/kit/*`, test | 교체마다 실패하는 kit test로 시작(glob은 `.github/…`와 `docs/.vitepress/…`); `make kit-test` | [ ] |
+| K74 | 자체 구현을 유지하는 kit tool마다(toolchain 설치, changelog, git hook, duplication, library 없는 version 비교, 통과하는 library가 없을 때의 PEP 508 parsing) 계획이 이름 붙인 생태계 tool과 비교한 rebuild 기록을 씁니다. | `docs/rebuild/*.md(.ko)` | `node scripts/kit/check-documents.mjs`; 외부 형식을 parse하는 kit tool마다 기록이 있는지 보는 check | [ ] |
+| K75 | parity를 확장합니다: native runner가 통과시킨 id와 대조하는 feature unit, repository가 넓힐 수는 있어도 좁힐 수 없는 runner별 고정 test 파일 규약, symbol snapshot(Rust는 선언된 pin nightly), profile 이유의 spec anchor, `PYTHONPATH`와 repository 밖 경로를 거부하는 schema. | `scripts/kit/parity*`, schema, test | 새 규칙마다 fixture가 먼저 실패; `make kit-test` | [ ] |
+| K76 | S5와 S7의 layout tool: rebuild 기록이 먼저 alint를 비교합니다; tool은 root allowlist, package tree, go.mod module path, 금지 경로, S9 예외 밖의 비-TypeScript 인프라 script를 검사합니다. | tool 또는 alint 설정, schema, test | 위반 fixture가 먼저 실패; `make kit-test` | [ ] |
+| K77 | lint 설정을 배포합니다: phpcs PSR-12, phpstan disallowed-calls, composer.json policy schema; `unsafe_code = "deny"`를 둔 Rust `[workspace.lints]`; gomoddirectives를 둔 golangci-lint; root 설정으로 도는 TID251 ruff; oxlint + oxlint-tsgolint; knip, deadcode, vulture; `.editorconfig`. | lint 설정 파일, `kit.json` | 검증에서 찾은 false green마다 실패하는 fixture가 먼저(`--strict-psr`에 추가 class, `importlib` `sys.path`, 중첩 `[tool.ruff]`, `transmute_copy`, `apiReport` 없는 문서 없는 export) | [ ] |
+| K78 | toolchain check를 확장합니다(S4): kit이 배포하는 pin, pin 정밀도로 pin과 같은 하한, 범위·이유·재시도 조건을 가진 선언된 예외(generator-svelte TypeScript 6, 추출용 Rust nightly), TypeScript key, npm link를 막는 `.npmrc` key 거부. | `scripts/kit/check-toolchain*`, `config/toolchain.json` schema, test | 위반 fixture가 먼저 실패; `make kit-test` | [ ] |
+| K79 | K71–K78을 kit release 하나로 내고 모든 repository를 한 번에 옮깁니다(crudui, hyper, template, fsm, ordered-json, orm; ssr과 template-benchmark는 첫 도입). 각각 시작 전에 소유 session에 알립니다. | release, 각 repository의 sync | 각 repository의 `make check`가 자기 red 목록(계획 §2)을 자기 checklist에 기록 | [ ] |
