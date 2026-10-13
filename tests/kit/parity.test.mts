@@ -115,12 +115,12 @@ process.exit(exit);
 
 // The stub of Python (`python3 <args> -m unittest -v <test>`), which writes its verbose results to standard error: a line
 // `<method> (<module>.<class>.<method>) ... ok` for each `PASS <method>` line of the test file, `FAIL` for a `FAIL` line.
-// With REQUIRE_PYTHONPATH it reports nothing and exits with 3 unless PYTHONPATH is python/src and -B is its first argument.
+// With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument.
 const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 const file = args[args.length - 1];
-if (process.env.REQUIRE_PYTHONPATH && !(process.env.PYTHONPATH === 'python/src' && args[0] === '-B')) process.exit(3);
+if (process.env.REQUIRE_SOURCE && !(process.env.CODEC_SOURCE === 'python/src' && args[0] === '-B')) process.exit(3);
 let exit = 0;
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
   const test = /^(PASS|FAIL) (\\S+)$/.exec(line);
@@ -329,7 +329,7 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
 test('an implementation declares the command, the arguments and the environment of its runner', TIMEOUT, (t) => {
   const declare = (withEnvironment: boolean) => (config: Declaration) => {
     const implementation = (name: string) => config.implementations.find((entry: { name: string }) => entry.name === name);
-    Object.assign(implementation('python'), { command: 'python/.venv/bin/python', args: ['-B'], env: withEnvironment ? [{ name: 'PYTHONPATH', value: 'python/src' }, { name: 'REQUIRE_PYTHONPATH', value: '1' }] : [{ name: 'REQUIRE_PYTHONPATH', value: '1' }] });
+    Object.assign(implementation('python'), { command: 'python/.venv/bin/python', args: ['-B'], env: withEnvironment ? [{ name: 'CODEC_SOURCE', value: 'python/src' }, { name: 'REQUIRE_SOURCE', value: '1' }] : [{ name: 'REQUIRE_SOURCE', value: '1' }] });
     implementation('php').args = ['-d', 'extension=php/modules/codec.so'];
     implementation('go').args = ['-tags', 'parity'];
     implementation('rust').args = ['--features', 'vectors'];
@@ -345,7 +345,7 @@ test('an implementation declares the command, the arguments and the environment 
   assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
   assert.deepEqual(commands['codec go'], ['go', 'test', '-tags', 'parity', '-json', '-count=1', '-run', '^TestCodec$', './']);
   assert.deepEqual(commands['codec rust'], ['cargo', 'test', '--features', 'vectors', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--test-threads=1', 'vectors::']);
-  assert.equal(process.env.REQUIRE_PYTHONPATH, undefined, 'the environment of an implementation reaches only its runs');
+  assert.equal(process.env.REQUIRE_SOURCE, undefined, 'the environment of an implementation reaches only its runs');
   const other = repository(t, { files, edit: declare(false) });
   chmodSync(path.join(other, 'python/.venv/bin/python'), 0o755);
   const missing = checkParity(other, { execute: true, env: ENV, say: () => {} }).findings;
@@ -356,7 +356,7 @@ test('an implementation declares the command, the arguments and the environment 
 test('a runner value references the invoking environment as ${NAME}, resolved when the bindings run and never printed', TIMEOUT, (t) => {
   const declare = (config: Declaration) => {
     const implementation = (name: string) => config.implementations.find((entry: { name: string }) => entry.name === name);
-    Object.assign(implementation('python'), { command: '${PARITY_VENV}/bin/python', args: ['-B'], env: [{ name: 'PYTHONPATH', value: '${PARITY_PYTHON}/src' }, { name: 'REQUIRE_PYTHONPATH', value: '1' }] });
+    Object.assign(implementation('python'), { command: '${PARITY_VENV}/bin/python', args: ['-B'], env: [{ name: 'CODEC_SOURCE', value: '${PARITY_PYTHON}/src' }, { name: 'REQUIRE_SOURCE', value: '1' }] });
     implementation('php').args = ['-d', 'extension=${PARITY_PHP}/codec.so'];
     return config;
   };
@@ -380,7 +380,7 @@ test('a runner value references the invoking environment as ${NAME}, resolved wh
   assert.deepEqual(messages({ ...env, PARITY_VENV: '' }), ['R3 codec python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string']);
   const other = repository(t, { files, edit: (config) => { declare(config).implementations.find((entry: { name: string }) => entry.name === 'python').env[0].value = '${PARITY_PYTHON:-python}/src'; return config; } });
   assert.deepEqual(checkParity(other, { execute: false, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: implementation python: env PYTHONPATH holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
+    'declaration: implementation python: env CODEC_SOURCE holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
   ]);
   const empty = repository(t, { files, edit: (config) => { declare(config).implementations.find((entry: { name: string }) => entry.name === 'python').command = ''; return config; } });
   assert.deepEqual(checkParity(empty, { execute: true, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
@@ -588,6 +588,37 @@ test('the whole repository is no root, and an implementation has test globs', TI
   assert.deepEqual(messages({ edit: (config) => { config.implementations[0].tests = []; return config; } }), [
     'declaration: config/parity.json: /implementations/0/tests must NOT have fewer than 1 items {"limit":1}',
   ]);
+});
+
+test('the schema rejects PYTHONPATH and every path that leaves the repository; a resolved reference may not leave it either (K75)', TIMEOUT, (t) => {
+  const places = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${/\$\S*/.exec(finding.message)?.[0]}`);
+  const python = (config: Declaration) => config.implementations.find((entry: { name: string }) => entry.name === 'python');
+  assert.deepEqual(places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration $.implementations[4].env[0].name']);
+  assert.deepEqual(places((config) => {
+    config.implementations[0].roots = ['go', '../shared'];
+    python(config).command = '/usr/bin/python3';
+    python(config).args = ['-d', 'extension=../modules/codec.so', '--root=/opt/codec', '~/codec'];
+    python(config).env = [{ name: 'CODEC_SOURCE', value: 'python/../../src' }];
+    config.units[0].file = '../vectors/codec.json';
+    config.comparators = ['/srv/compare'];
+    return config;
+  }), [
+    'declaration $.implementations[0].roots[1]',
+    'declaration $.implementations[4].command',
+    'declaration $.implementations[4].args[1]',
+    'declaration $.implementations[4].args[2]',
+    'declaration $.implementations[4].args[3]',
+    'declaration $.implementations[4].env[0].value',
+    'declaration $.comparators[0]',
+    'declaration $.units[0].file',
+  ]);
+  // A path inside the repository, a name on PATH, a version range and a reference stay valid.
+  assert.deepEqual(places((config) => { python(config).command = 'python3'; python(config).args = ['-X', 'dev', '--range=1..2', '${PARITY_ARGS}']; return config; }), []);
+  const root = repository(t, { edit: (config) => { python(config).command = '${PARITY_VENV}/bin/python'; return config; } });
+  const outside = checkParity(root, { execute: true, env: { ...ENV, PARITY_VENV: path.dirname(root) }, say: () => {} }).findings;
+  assert.deepEqual(keys(outside), ['R3 codec python']);
+  assert.match(findingAt(outside, 0).message, /cannot start: command/);
+  assert.ok(findingAt(outside, 0).message.includes(path.dirname(root)) === false, 'the value of a reference is never printed');
 });
 
 test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {

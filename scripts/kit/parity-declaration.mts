@@ -218,37 +218,57 @@ const REFERENCE = /\$\{([^}]*)(\}?)/g;
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
- * `value` with each ${NAME} replaced by its value in `env`. A form that is no reference is an error of `where`; without `env`
- * only the forms are checked, and with it an unset or empty name is an error too.
+ * The first path of `value` that leaves the checkout `root`: a word (the parts between =, : and whitespace) that starts with ~,
+ * an absolute path outside `root`, or a path with a .. segment; or undefined. The schema rejects such a path written in the
+ * declaration, and this rejects one that a reference brings in.
  */
-function expand(value: string, env: Environment | undefined, where: string, fail: (message: string) => void): string {
-  return value.replace(REFERENCE, (whole: string, name: string, close: string) => {
+function leavingPath(value: string, root: string): string | undefined {
+  return value.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
+}
+
+/**
+ * `value` with each ${NAME} replaced by its value in `env`. A form that is no reference is an error of `where`; without `env`
+ * only the forms are checked, and with it an unset or empty name is an error too, and so is a value whose path leaves `root`.
+ */
+function expand(value: string, env: Environment | undefined, where: string, fail: (message: string) => void, root = ''): string {
+  let referenced = false;
+  const expanded = value.replace(REFERENCE, (whole: string, name: string, close: string) => {
     if (!close || !NAME.test(name)) fail(`${where} holds ${whole}, which is no reference; a reference is \${NAME} and has no default`);
     else if (!env) return whole;
     else if (env[name] === undefined) fail(`${where} references ${whole}, which the environment does not set`);
     else if (env[name] === '') fail(`${where} references ${whole}, which the environment sets to an empty string`);
-    else return env[name];
+    else {
+      referenced = true;
+      return env[name];
+    }
     return whole;
   });
+  // The value of a reference is never printed, so the error names the value as declared.
+  if (referenced && leavingPath(expanded, root) !== undefined) fail(`${where} ${value} resolves to a path that leaves the repository; a runner path lies inside the checkout`);
+  return expanded;
 }
 
-/** The implementation with the references of its command, args and env values expanded from `env`, or only checked without it. */
-function expanded(entry: ParityImplementation, env: Environment | undefined, fail: (message: string) => void): ParityImplementation {
+/**
+ * The implementation with the references of its command, args and env values expanded from `env`, each value kept inside the
+ * checkout `root`, or only checked without `env`.
+ */
+function expanded(entry: ParityImplementation, env: Environment | undefined, fail: (message: string) => void, root = ''): ParityImplementation {
   return {
     ...entry,
-    ...(entry.command === undefined ? {} : { command: expand(entry.command, env, 'command', fail) }),
-    ...(entry.args === undefined ? {} : { args: entry.args.map(arg => expand(arg, env, 'args', fail)) }),
-    ...(entry.env === undefined ? {} : { env: entry.env.map(variable => ({ ...variable, value: expand(variable.value, env, `env ${variable.name}`, fail) })) }),
+    ...(entry.command === undefined ? {} : { command: expand(entry.command, env, 'command', fail, root) }),
+    ...(entry.args === undefined ? {} : { args: entry.args.map(arg => expand(arg, env, 'args', fail, root)) }),
+    ...(entry.env === undefined ? {} : { env: entry.env.map(variable => ({ ...variable, value: expand(variable.value, env, `env ${variable.name}`, fail, root) })) }),
   };
 }
 
 /**
- * The implementation with its references resolved from the invoking environment `env`, for the runs of its bindings:
- * `{ implementation, errors }`, each error naming the value and the name that is unset or empty.
+ * The implementation with its references resolved from the invoking environment `env`, for the runs of its bindings in the
+ * checkout `root`: `{ implementation, errors }`, each error naming the value and the name that is unset or empty, or the value
+ * whose resolved path leaves `root`.
  */
-export function resolveReferences(entry: ParityImplementation, env: Environment): { implementation: ParityImplementation; errors: string[] } {
+export function resolveReferences(entry: ParityImplementation, env: Environment, root: string): { implementation: ParityImplementation; errors: string[] } {
   const errors: string[] = [];
-  return { implementation: expanded(entry, env, message => errors.push(message)), errors };
+  return { implementation: expanded(entry, env, message => errors.push(message), root), errors };
 }
 
 // The test functions that go test runs (testing: Test, Benchmark and Fuzz followed by no lower-case letter, and Example) and
