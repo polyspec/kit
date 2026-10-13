@@ -201,9 +201,9 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
         latest.set(key, { error: answer.error });
         continue;
       }
-      // A module without a stable release has nothing newer than the version that go.mod requires.
-      // A result without an error message has its value.
-      latest.set(key, { latest: stableDescending('go', answer.value!.Versions ?? [])[0] ?? dependency.version });
+      // A result without an error message has its value; go list leaves out Versions for a module without a tagged release.
+      const stable = stableDescending('go', answer.value!.Versions ?? [])[0];
+      latest.set(key, stable ? { latest: stable } : { error: `go list -m -versions reported no stable release of ${dependency.package}` });
       continue;
     }
     if (dependency.ecosystem === 'pypi') {

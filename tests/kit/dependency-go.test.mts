@@ -67,6 +67,17 @@ test('the review reports a newer stable release of a Go module and the gate read
   assert.equal(gate(root).status, 0);
 });
 
+test('a Go module without a stable release is an error of its query, not a module at its latest release', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v2.0.0-rc.1'] } });
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /go list -m -versions reported no stable release of github\.com\/google\/uuid/);
+});
+
 test('the review records the Go advisories, and the update plan raises the module and tidies its directory', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
