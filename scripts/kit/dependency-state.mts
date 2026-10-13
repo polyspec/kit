@@ -165,7 +165,7 @@ export const goModules = (root: string): string[] => checkedFiles(root).filter(f
  * under var/tools, which is not part of the module. As `./...` does, a directory whose name begins with `.` or `_`, or
  * is `testdata` or `vendor`, is skipped, and so is a directory below a nested module (a go.mod of its own).
  */
-export function goPackagePatterns(root: string, lock: string) {
+export function goPackagePatterns(root: string, lock: string): string[] {
   const module = path.posix.dirname(lock);
   const within = (directory: string, base: string) => base === '.' || directory === base || directory.startsWith(`${base}/`);
   const nested = goModules(root).map(file => path.posix.dirname(file)).filter(directory => directory !== module && within(directory, module));
@@ -346,7 +346,9 @@ export function readState(root: string, policy: DependencyPolicy) {
     }
   }
   // The ruff pin of config/toolchain.json is a PyPI release that the review checks like a requirement of a manifest.
-  const ruff = toolchainConfig(root).ruff;
+  // toolchainConfig leaves the value unchecked; the cast reads ruff as toolchain.schema.json declares it, and a ruff that is no
+  // such object gives an undefined version, as before.
+  const ruff = toolchainConfig(root).ruff as { version: string } | undefined;
   if (ruff) dependencies.push({ ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: `==${ruff.version}`, version: ruff.version, lock: null });
   for (const manifestPath of goModules(root)) {
     const requirements = goRequirements(readFileSync(path.join(root, manifestPath), 'utf8'));

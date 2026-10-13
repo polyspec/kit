@@ -168,7 +168,7 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   const result = progress.close('suite');
   assert.deepEqual({ ...result, cases: undefined }, { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true, cases: undefined });
   assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['a', 'pass'], ['b', 'skip']]);
-  assert.equal(result.cases[0].elapsedMs, 10);
+  assert.equal(result.cases[0]!.elapsedMs, 10); // The cases are asserted above.
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), result);
   assert.match(lines.at(-1)!, /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/); // close wrote its summary line.
 
