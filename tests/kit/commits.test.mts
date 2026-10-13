@@ -71,7 +71,9 @@ test('the commits of a range are checked and each finding names the commit', (t)
   const findings = rangeFindings(root, 'HEAD~2..HEAD', CONFIG);
   const bad = git('rev-parse', '--short', 'HEAD~1').stdout.trim();
   assert.equal(findings.length, 1);
-  assert.match(findings[0], new RegExp(`^${bad}\\w*: commit-subject: the subject is "bad subject"`));
+  const first = findings[0];
+  assert.ok(first !== undefined, 'rangeFindings found nothing');
+  assert.match(first, new RegExp(`^${bad}\\w*: commit-subject: the subject is "bad subject"`));
   assert.deepEqual(rangeFindings(root, 'HEAD', CONFIG), [], 'HEAD alone is the last commit');
   assert.throws(() => rangeFindings(root, 'nonsense', CONFIG), /the range "nonsense" is not <base>\.\.<head>/);
   assert.throws(() => rangeFindings(root, 'nothere..HEAD', CONFIG), /the range nothere\.\.HEAD does not resolve in this checkout: .*; fetch its commits/);
@@ -151,7 +153,9 @@ test('commit-changelog: a commit that moves an item to its done state also chang
   ]);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0], /: commit-changelog: the commit moves S1 to \[o\] in plan\.md but does not change CHANGELOG\.ko\.md; record the item in the changelog of both languages$/);
+  const first = findings[0];
+  assert.ok(first !== undefined, 'rangeFindings found nothing');
+  assert.match(first, /: commit-changelog: the commit moves S1 to \[o\] in plan\.md but does not change CHANGELOG\.ko\.md; record the item in the changelog of both languages$/);
 });
 
 test('commit-items: a commit changes the state of at most one item, and a row it adds is not a change', (t) => {
@@ -162,7 +166,9 @@ test('commit-items: a commit changes the state of at most one item, and a row it
   ]);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0], /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
+  const first = findings[0];
+  assert.ok(first !== undefined, 'rangeFindings found nothing');
+  assert.match(first, /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
 });
 
 test('the item rules of the commit-msg hook compare the index with HEAD', (t) => {

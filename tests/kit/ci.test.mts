@@ -164,7 +164,9 @@ test('a report writer never throws and records a failed write', (t) => {
   writer.append(path.join(root, 'blocker/y.md'), 'x');
   writer.write(path.join(root, 'ok/z.json'), '{}');
   assert.equal(writer.errors.length, 2);
-  assert.match(writer.errors[0], /^report write failed: .*blocker\/x\.json: /);
+  const first = writer.errors[0];
+  assert.ok(first !== undefined, 'the report writer recorded no error');
+  assert.match(first, /^report write failed: .*blocker\/x\.json: /);
   assert.equal(readFileSync(path.join(root, 'ok/z.json'), 'utf8'), '{}');
 });
 
