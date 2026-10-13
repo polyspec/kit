@@ -37,6 +37,12 @@ export interface LedgerCase {
   outcome: string;
 }
 
+/** The ledger of the runs and the cases of the bindings. */
+export interface Ledger {
+  runs: LedgerRun[];
+  cases: LedgerCase[];
+}
+
 /** One of the two runs of a binding. */
 interface Attempt {
   result: SpawnSyncReturns<string>;
@@ -111,7 +117,7 @@ function twice(run: BindingCommand & { shown: string }, root: string, where: { u
  * R3 of the feature units: the test file of each feature binding runs twice as a whole, once for all the features that bind it
  * in its implementation, and each id passes in both runs, once in each, and the runs exit with 0.
  */
-function runFeatures(model: ParityModel, root: string, ledger: { runs: LedgerRun[]; cases: LedgerCase[] }, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
+function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
   // The bindings of each test file of an implementation, in declaration order.
   const files = new Map<string, { implementation: ParityImplementation; test: string; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
@@ -155,8 +161,8 @@ function runFeatures(model: ParityModel, root: string, ledger: { runs: LedgerRun
  * The ledger `{ runs, cases }` of every bound suite pair, the R3 findings, and the R5 findings of the support files that
  * report cases; `say` prints a line for each step.
  */
-export function runBindings(model: ParityModel, root: string, { env, files, say }: { env: Environment; files: Set<string>; say: (line: string) => void }): { ledger: { runs: LedgerRun[]; cases: LedgerCase[] }; findings: Finding[] } {
-  const ledger: { runs: LedgerRun[]; cases: LedgerCase[] } = { runs: [], cases: [] };
+export function runBindings(model: ParityModel, root: string, { env, files, say }: { env: Environment; files: Set<string>; say: (line: string) => void }): { ledger: Ledger; findings: Finding[] } {
+  const ledger: Ledger = { runs: [], cases: [] };
   const findings: Finding[] = [];
   for (const { unit, implementation } of pairs(model, 'suite')) {
     if (unit.bindings === undefined) throw new Error(`config/parity.json: the suite unit ${unit.id} has no bindings; readDeclaration reports it before the bindings run`);
