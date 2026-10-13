@@ -46,7 +46,14 @@ test('npm pack packs exactly the files of package.json files and the files npm a
   assert.deepEqual(packed.files.map(file => file.path).sort(), expected);
 });
 
-test('a repository that installs the tarball imports @polyspec/kit/tracked-files and runs check-documents from dist as from the source', (t) => {
+// The tool APIs of kit that a repository imports; generic needs (globs, schemas, processes) come from their ecosystem
+// libraries, not from kit's internals.
+const EXPORTED = ['tracked-files', 'test-hooks', 'test-progress', 'run-tests', 'holder-lock'];
+// install-vscode needs its optional peer @vscode/test-electron, which only a repository with VS Code integration tests
+// installs: the export resolves, and without the peer the import fails naming it.
+const PEER_EXPORTED = { 'install-vscode': '@vscode/test-electron' };
+
+test('a repository that installs the tarball imports the tool APIs of @polyspec/kit and runs check-documents from dist as from the source', (t) => {
   const copy = builtCopy(t);
   const packs = mkdtempSync(path.join(tmpdir(), 'kit-pack-'));
   t.after(() => rmSync(packs, { recursive: true, force: true }));
@@ -65,11 +72,21 @@ test('a repository that installs the tarball imports @polyspec/kit/tracked-files
   const installed = path.join(consumer, 'node_modules/@polyspec/kit');
   // The consumer installs the packages; it links none of kit's (AGENTS: this repository creates no symbolic link).
   for (const [entry] of installedLockEntries(runtimePackage)) assert.ok(!lstatSync(path.join(consumer, entry)).isSymbolicLink(), `${entry} of the consumer is a link`);
-  const exported = run(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/tracked-files'); process.stdout.write(JSON.stringify([import.meta.resolve('@polyspec/kit/tracked-files'), Object.keys(m).sort()]));"], consumer);
-  const [resolved, names] = JSON.parse(exported);
-  assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, 'dist/tracked-files.mjs')));
-  const source = run(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(path.join(ROOT, 'scripts/kit/tracked-files.mts'))}); process.stdout.write(JSON.stringify(Object.keys(m).sort()));`], ROOT);
-  assert.deepEqual(names, JSON.parse(source));
+  // The modules that repositories import from kit (K79): each resolves to its dist file and exports what the source does.
+  for (const module of EXPORTED) {
+    const exported = run(process.execPath, ['--input-type=module', '-e', `const m = await import('@polyspec/kit/${module}'); process.stdout.write(JSON.stringify([import.meta.resolve('@polyspec/kit/${module}'), Object.keys(m).sort()]));`], consumer);
+    const [resolved, names] = JSON.parse(exported);
+    assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, `dist/${module}.mjs`)), module);
+    const source = run(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(path.join(ROOT, `scripts/kit/${module}.mts`))}); process.stdout.write(JSON.stringify(Object.keys(m).sort()));`], ROOT);
+    assert.deepEqual(names, JSON.parse(source), module);
+  }
+  for (const [module, peer] of Object.entries(PEER_EXPORTED)) {
+    const resolved = run(process.execPath, ['--input-type=module', '-e', `process.stdout.write(import.meta.resolve('@polyspec/kit/${module}'))`], consumer);
+    assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, `dist/${module}.mjs`)), module);
+    const imported = spawnSync(process.execPath, ['--input-type=module', '-e', `await import('@polyspec/kit/${module}')`], { cwd: consumer, encoding: 'utf8' });
+    assert.notEqual(imported.status, 0, `${module} imports without its peer ${peer}`);
+    assert.match(imported.stderr, new RegExp(peer.replace('/', '\\/')), module);
+  }
   const fromDist = spawnSync(process.execPath, [path.join(installed, 'dist/check-documents.mjs')], { cwd: ROOT, encoding: 'utf8' });
   const fromSource = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/check-documents.mts')], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(fromSource.status, 0, fromSource.stderr);

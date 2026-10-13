@@ -9,6 +9,26 @@
       "types": "./dist/tracked-files.d.mts",
       "default": "./dist/tracked-files.mjs"
     },
+    "./test-hooks": {
+      "types": "./dist/test-hooks.d.mts",
+      "default": "./dist/test-hooks.mjs"
+    },
+    "./test-progress": {
+      "types": "./dist/test-progress.d.mts",
+      "default": "./dist/test-progress.mjs"
+    },
+    "./run-tests": {
+      "types": "./dist/run-tests.d.mts",
+      "default": "./dist/run-tests.mjs"
+    },
+    "./holder-lock": {
+      "types": "./dist/holder-lock.d.mts",
+      "default": "./dist/holder-lock.mjs"
+    },
+    "./install-vscode": {
+      "types": "./dist/install-vscode.d.mts",
+      "default": "./dist/install-vscode.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
