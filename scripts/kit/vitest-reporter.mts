@@ -4,28 +4,62 @@ import path from 'node:path';
 import { createProgress } from './test-progress.mts';
 import { ROOT } from './paths.mts';
 
+// Vitest is no dependency of kit, so these describe the members of its reporter API that this reporter reads.
+interface ReportedError {
+  message: string;
+  stack?: string;
+}
+
+/** A test module, suite or case: a module has moduleId, a suite and a case have module and fullName. */
+interface ReportedEntity {
+  moduleId?: string;
+  module?: { moduleId: string };
+  fullName?: string;
+}
+
+interface ReportedModule extends ReportedEntity {
+  errors: () => readonly ReportedError[];
+  diagnostic: () => { duration: number };
+  state: () => string;
+}
+
+interface ReportedSuite extends ReportedEntity {
+  errors: () => readonly ReportedError[];
+  state: () => string;
+}
+
+interface ReportedCase extends ReportedEntity {
+  result: () => { state: string; errors?: readonly ReportedError[] };
+  diagnostic: () => { duration: number } | undefined;
+}
+
 // An error with its message: the stack of a timed-out hook does not hold the message.
-const errorText = errors => errors.map(error => {
+const errorText = (errors: readonly ReportedError[]): string => errors.map(error => {
   const text = error.stack ?? error.message;
   return error.message && !text.includes(error.message) ? `${error.message}\n${text}` : text;
 }).join('\n');
 
 export default class ProgressReporter {
-  onInit() {
-    this.progress = createProgress({ write: text => process.stdout.write(text) });
+  // onInit sets these before Vitest reports anything; declare keeps the class without fields of its own.
+  declare progress: ReturnType<typeof createProgress>;
+  declare suites: Set<string>;
+
+  onInit(): void {
+    this.progress = createProgress({ write: (text: string) => process.stdout.write(text) });
     this.suites = new Set();
   }
 
-  id(entity) {
-    const file = path.relative(ROOT, entity.module?.moduleId ?? entity.moduleId);
+  id(entity: ReportedEntity): string {
+    // A module has moduleId, and a suite and a case have module.
+    const file = path.relative(ROOT, entity.module?.moduleId ?? entity.moduleId!);
     return entity.fullName ? `${file} › ${entity.fullName.replaceAll(' > ', ' › ')}` : file;
   }
 
-  onTestModuleStart(testModule) {
+  onTestModuleStart(testModule: ReportedModule): void {
     this.progress.start(this.id(testModule), { group: true });
   }
 
-  onTestModuleEnd(testModule) {
+  onTestModuleEnd(testModule: ReportedModule): void {
     const id = this.id(testModule);
     const errors = testModule.errors();
     const duration = testModule.diagnostic().duration;
@@ -34,12 +68,12 @@ export default class ProgressReporter {
   }
 
   // A suite is a group, so the failure of its own hooks is printed with its elapsed time.
-  onTestSuiteReady(testSuite) {
+  onTestSuiteReady(testSuite: ReportedSuite): void {
     this.suites.add(this.id(testSuite));
     this.progress.start(this.id(testSuite), { group: true });
   }
 
-  onTestSuiteResult(testSuite) {
+  onTestSuiteResult(testSuite: ReportedSuite): void {
     const id = this.id(testSuite);
     // Vitest reports a skipped suite without its start.
     if (!this.suites.delete(id)) this.progress.start(id, { group: true });
@@ -49,11 +83,11 @@ export default class ProgressReporter {
     else this.progress.pass(id);
   }
 
-  onTestCaseReady(testCase) {
+  onTestCaseReady(testCase: ReportedCase): void {
     this.progress.start(this.id(testCase));
   }
 
-  onTestCaseResult(testCase) {
+  onTestCaseResult(testCase: ReportedCase): void {
     const id = this.id(testCase);
     const result = testCase.result();
     const duration = testCase.diagnostic()?.duration;
@@ -62,7 +96,7 @@ export default class ProgressReporter {
     else this.progress.fail(id, duration, errorText(result.errors ?? []));
   }
 
-  onTestRunEnd(testModules, unhandledErrors) {
+  onTestRunEnd(testModules: readonly ReportedModule[], unhandledErrors: readonly ReportedError[]): void {
     for (const error of unhandledErrors) this.progress.line(`✖ unhandled error: ${error.stack ?? error.message}`);
     // A failure that vitest does not count, such as a run of zero tests, fails the process too.
     if (!this.progress.close('vitest').ok) process.exitCode = 1;

@@ -26,47 +26,87 @@ const CALLER = ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES'];
 // A target name is a word of letters, digits, dots, underscores and hyphens that starts with a letter or a digit, so it names its log file without escaping and make takes it for a target.
 export const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-export const logPath = (directory, target) => path.join(directory, 'targets', `${target}.log`);
+/** A target in the record of a run. */
+export interface TargetRecord {
+  name: string;
+  status: 'pending' | 'running' | 'passed' | 'failed';
+  log: string;
+  started?: string;
+  ended?: string;
+  elapsedMs?: number;
+  failures?: string[];
+  warnings?: string[];
+}
+
+/** record.json of a run. */
+export interface RunRecord {
+  title: string;
+  tree: string;
+  environment?: Record<string, string>;
+  result: 'incomplete' | 'passed' | 'failed';
+  started: string;
+  ended: string | null;
+  targets: TargetRecord[];
+  reportErrors?: string[];
+  error?: never;
+}
+
+/** A record that could not be read, with the file and the reason. */
+export interface UnreadRecord {
+  error: `${string}: ${string}`;
+}
+
+/** A writer of report files; see reportWriter. */
+export interface ReportWriter {
+  errors: string[];
+  write: (file: string, text: string) => void;
+  append: (file: string, text: string) => void;
+}
+
+/** The output streams of make. */
+type Stream = 'stdout' | 'stderr';
+
+export const logPath = (directory: string, target: string): string => path.join(directory, 'targets', `${target}.log`);
 
 /** The id of the tree of HEAD in `root`, or `unknown (<reason>)`. */
-export function treeId(root) {
+export function treeId(root: string): string {
   try {
     return git(root, 'rev-parse', 'HEAD^{tree}').trim();
   } catch (error) {
-    return `unknown (${error.message})`;
+    return `unknown (${(error as Error).message})`;
   }
 }
 
 /** A writer of report files that never throws: a failed write is printed and kept in `errors`. */
-export function reportWriter(print) {
-  const errors = [];
-  const attempt = (file, action) => {
+export function reportWriter(print: (line: string) => void): ReportWriter {
+  const errors: string[] = [];
+  const attempt = (file: string, action: () => void) => {
     try {
       mkdirSync(path.dirname(file), { recursive: true });
       action();
     } catch (error) {
-      const message = `report write failed: ${file}: ${error.code ?? error.message}`;
+      const message = `report write failed: ${file}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`;
       errors.push(message);
       print(`[report] ${message}`);
     }
   };
   return {
     errors,
-    write: (file, text) => attempt(file, () => {
+    write: (file: string, text: string) => attempt(file, () => {
       writeAtomic(file, text);
     }),
-    append: (file, text) => attempt(file, () => appendFileSync(file, text)),
+    append: (file: string, text: string) => attempt(file, () => appendFileSync(file, text)),
   };
 }
 
 /** Starts the report of a run: the directory holds only the files of this run. */
-export function startReport(directory) {
+export function startReport(directory: string): void {
   rmSync(directory, { recursive: true, force: true });
   mkdirSync(path.join(directory, 'targets'), { recursive: true });
 }
 
 /** Cuts the log at `file` above LIMIT_BYTES to its head and its last TAIL_BYTES, with a line that says so. */
-export function capLog(file, limit = LIMIT_BYTES, tail = TAIL_BYTES) {
+export function capLog(file: string, limit = LIMIT_BYTES, tail = TAIL_BYTES): boolean {
   const size = statSync(file).size;
   if (size <= limit) return false;
   const bytes = readFileSync(file);
@@ -100,9 +140,9 @@ const WARNING = /^WARNING /;
  * as the output of a passing test that starts a failing server, are not the failure. Otherwise they are the lines that state a
  * failure in their order, else the last lines. At most FAILURE_LINES lines.
  */
-export function failureLines(lines, exit) {
+export function failureLines(lines: string[], exit: string): string[] {
   const plain = lines.map(line => line.replace(ANSI, ''));
-  const marked = [];
+  const marked: string[] = [];
   let detail = false;
   for (const line of plain) {
     if (/✖/.test(line)) {
@@ -117,12 +157,12 @@ export function failureLines(lines, exit) {
 }
 
 /** The lines of a passing target that start with `WARNING `: measured and reported, never a failure. */
-export function warningLines(lines) {
+export function warningLines(lines: string[]): string[] {
   return lines.map(line => line.replace(ANSI, '')).filter(line => WARNING.test(line)).slice(0, FAILURE_LINES);
 }
 
 /** Whether the `exit` text that runLogged resolves is a pass of `target`. */
-export const targetPassed = (target, exit) => exit === `make ${target} exited with status 0`;
+export const targetPassed = (target: string, exit: string): boolean => exit === `make ${target} exited with status 0`;
 
 /**
  * Runs `make -k <target>` in `root`, which keeps going after a failed prerequisite, and writes its output to the log file
@@ -130,38 +170,47 @@ export const targetPassed = (target, exit) => exit === `make ${target} exited wi
  * standard error never joins on one line. `output(text, stream)` receives it too. Resolves the lines and how make ended:
  * `make <target> exited with status 0` is a pass.
  */
-export function runLogged({ root, target, log, writer, output, make = 'make', env = process.env }) {
+export function runLogged({ root, target, log, writer, output, make = 'make', env = process.env }: {
+  root: string;
+  target: string;
+  log: string;
+  writer: Pick<ReportWriter, 'errors'>;
+  output: (text: string, stream: Stream) => void;
+  make?: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<{ lines: string[]; exit: string }> {
   return new Promise((resolve) => {
     const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !CALLER.includes(name)));
     const command = ['--no-print-directory', '-k', target];
     mkdirSync(path.dirname(log), { recursive: true });
     const descriptor = openSync(log, 'w');
-    const lines = [];
-    const put = (text) => {
-      try { writeSync(descriptor, text); } catch (error) { writer.errors.push(`report write failed: ${log}: ${error.code ?? error.message}`); }
+    const lines: string[] = [];
+    const put = (text: string) => {
+      try { writeSync(descriptor, text); } catch (error) { writer.errors.push(`report write failed: ${log}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`); }
     };
     put(`${make} ${command.join(' ')}\n`);
     const child = spawn(make, command, { cwd: root, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
     const pending = { stdout: '', stderr: '' };
-    const pass = (name, complete) => {
+    const pass = (name: Stream, complete: string[]) => {
       if (!complete.length) return;
       const text = `${complete.join('\n')}\n`;
       output(text, name);
       put(text);
       lines.push(...complete);
     };
-    const take = name => (data) => {
+    const take = (name: Stream) => (data: Buffer) => {
       const parts = `${pending[name]}${data}`.split('\n');
-      pending[name] = parts.pop();
+      // split returns at least one part.
+      pending[name] = parts.pop()!;
       pass(name, parts);
     };
     child.stdout.on('data', take('stdout'));
     child.stderr.on('data', take('stderr'));
     let ended = false;
-    const finish = (exit) => {
+    const finish = (exit: string) => {
       if (ended) return;
       ended = true;
-      for (const name of ['stdout', 'stderr']) {
+      for (const name of ['stdout', 'stderr'] as const) {
         if (pending[name] !== '') pass(name, [pending[name]]);
         pending[name] = '';
       }
@@ -174,15 +223,15 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
   });
 }
 
-const cell = text => String(text).replaceAll('|', '\\|').replaceAll('\n', ' ');
+const cell = (text: unknown): string => String(text).replaceAll('|', '\\|').replaceAll('\n', ' ');
 
 /**
  * The summary page of a record, or of a run that recorded nothing (`record` null or `{ error }`). `steps` are the results of
  * the setup steps of the job (`toJSON(steps)` of GitHub Actions): each that did not succeed is named.
  */
-export function render({ title, record, steps = {} }) {
+export function render({ title, record, steps = {} }: { title: string; record: RunRecord | UnreadRecord | null; steps?: Record<string, unknown> }): string {
   const lines = [`# ${title}`, ''];
-  const setup = Object.entries(steps).filter(([, step]) => step && typeof step === 'object');
+  const setup = Object.entries(steps).filter((entry): entry is [string, { outcome?: unknown }] => Boolean(entry[1]) && typeof entry[1] === 'object');
   const failedSetup = setup.filter(([, step]) => step.outcome !== 'success' && step.outcome !== 'skipped');
   if (!record || record.error) {
     lines.push(`**${title} recorded no run**${record?.error ? ` (${record.error})` : ''}: it stopped before its first target, or the step did not run. The log of that step shows why.`, '');
@@ -197,7 +246,7 @@ export function render({ title, record, steps = {} }) {
     if (failedSetup.length) lines.push('');
   }
   if (record && !record.error) {
-    const count = (...statuses) => record.targets.filter(target => statuses.includes(target.status)).length;
+    const count = (...statuses: TargetRecord['status'][]) => record.targets.filter(target => statuses.includes(target.status)).length;
     const warned = record.targets.flatMap(target => (target.warnings ?? []).map(warning => `- ${target.name}: ${warning}`));
     lines.push(`${count('passed')} of ${record.targets.length} targets passed, ${count('failed')} failed, ${count('running', 'pending')} not finished${warned.length ? `, ${warned.length} warning${warned.length === 1 ? '' : 's'}` : ''}.`, '');
     lines.push('| Target | Result | Time |', '| --- | --- | --- |');

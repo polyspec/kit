@@ -13,9 +13,61 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, phpunitEvents, pythonEvents, tapEvents } from './test-output.mts';
 import { toolsPath } from './tool-wrappers.mts';
+import type { Environment, ParityBinding, ParityImplementation, Runner } from './parity-declaration.mts';
+
+/** A test that a parser of test-output.mts reports: the name of the progress and the name of the tool. */
+interface ReportedTest {
+  id: string;
+  name: string;
+}
+
+/** The sink of the parsers of test-output.mts, as its header describes it. */
+interface Sink {
+  start: (test: ReportedTest, options?: { group: boolean }) => void;
+  pass: (test: ReportedTest, ms?: number) => void;
+  fail: (test: ReportedTest, ms?: number, text?: string) => void;
+  skip: (test: ReportedTest) => void;
+  todo: (test: ReportedTest) => void;
+  line: (text: string) => void;
+  raw: (text: string) => void;
+}
+
+/** The output of a finished run. */
+export interface RunOutput {
+  stdout: string;
+  stderr: string;
+}
+
+/** The outcome of a case as the output reports it. */
+export type Outcome = 'pass' | 'fail' | 'skip';
+
+/** How a binding runs and how its output is read; see RUNNERS. */
+export interface BindingRun {
+  error?: never;
+  args: (test: string[]) => string[];
+  cwd: string;
+  caseOf: (name: string) => string | undefined;
+  read: (output: RunOutput, sink: Sink) => void;
+  detail: (output: RunOutput) => string[];
+}
+
+/** A binding that cannot run, with the sentence that says why; a sentence is never empty. */
+export interface RunError {
+  error: `${string} ${string}`;
+}
+
+/** A runner of RUNNERS. */
+interface RunnerOf {
+  program: (root: string) => string;
+  env?: Record<string, string>;
+  run: (root: string, binding: ParityBinding, unit: string) => BindingRun | RunError;
+}
+
+/** The run of a binding that runOf gives: the command, its arguments and its environment. */
+export type BindingCommand = Omit<BindingRun, 'args' | 'error'> & { error?: never; args: string[]; command: string; env: Environment };
 
 /** The directory of the nearest `marker` file above `file` (repository-relative), or undefined when the repository has none. */
-function nearest(root, file, marker) {
+function nearest(root: string, file: string, marker: string): string | undefined {
   for (let directory = path.posix.dirname(file); ; directory = path.posix.dirname(directory)) {
     if (existsSync(path.join(root, directory, marker))) return directory;
     if (directory === '.') return undefined;
@@ -23,25 +75,25 @@ function nearest(root, file, marker) {
 }
 
 /** A sink that keeps nothing, for the parsers that are read only for what they collect. */
-const SILENT = { start() {}, pass() {}, fail() {}, skip() {}, todo() {}, line() {}, raw() {} };
+const SILENT: Sink = { start() {}, pass() {}, fail() {}, skip() {}, todo() {}, line() {}, raw() {} };
 
 /** Calls `handler` with each line of `text`. */
-const eachLine = (text, handler) => text.split('\n').forEach(handler);
+const eachLine = (text: string, handler: (line: string) => void): void => text.split('\n').forEach(handler);
 
 /** The last three lines of standard error, which explain a run that failed. */
-const stderrTail = ({ stderr }) => stderr.trim().split('\n').slice(-3).filter(Boolean);
+const stderrTail = ({ stderr }: RunOutput): string[] => stderr.trim().split('\n').slice(-3).filter(Boolean);
 
 /** The part of a test name after `prefix`, or undefined when the name lies outside the binding. */
-const after = (prefix, name) => (name.startsWith(prefix) ? name.slice(prefix.length) : undefined);
+const after = (prefix: string, name: string): string | undefined => (name.startsWith(prefix) ? name.slice(prefix.length) : undefined);
 
 /** The name of a unittest or PHPUnit test method: `test_<case>` names the case `<case>`; another name is the case itself. */
-const methodCase = name => (name.startsWith('test_') ? name.slice(5) : name);
+const methodCase = (name: string): string => (name.startsWith('test_') ? name.slice(5) : name);
 
 // Each runner: the program that it starts unless the implementation declares `command`, the environment that it sets over the
 // check's environment, and `run`, which gives the arguments and the working directory of a binding and how its output is read.
 // `caseOf` names the case of a native test name, or undefined when the test is no case of the binding; `read` feeds the output
 // to a sink (test-output.mts); `detail` lists the lines that explain a failed run.
-const RUNNERS = {
+const RUNNERS: Record<Runner, RunnerOf> = {
   go: {
     program: () => 'go',
     run(root, binding) {
@@ -56,7 +108,7 @@ const RUNNERS = {
         read: ({ stdout }, sink) => eachLine(stdout, goEvents(sink)),
         // The compiler output of a package that does not build, then the standard error.
         detail: ({ stdout, stderr }) => {
-          const build = [];
+          const build: string[] = [];
           eachLine(stdout, goEvents(SILENT, build));
           return [...build, ...stderr.split('\n').map(line => line.trim()).filter(Boolean)];
         },
@@ -108,9 +160,9 @@ const RUNNERS = {
  * The outcomes that the output of a run reports for the binding: `[name, outcome]` pairs, one for each case event in the order
  * of the output. A case that the binding does not name is left out here, and R3 judges the names that remain.
  */
-export function outcomesOf(run, output) {
-  const outcomes = [];
-  const record = outcome => (test) => {
+export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: RunOutput): [string, Outcome][] {
+  const outcomes: [string, Outcome][] = [];
+  const record = (outcome: Outcome) => (test: ReportedTest) => {
     const name = run.caseOf(test.name);
     if (name !== undefined) outcomes.push([name, outcome]);
   };
@@ -125,7 +177,7 @@ export function outcomesOf(run, output) {
  * detail }` with `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `detail(output)` the
  * lines that explain a failed run; or `{ error }`. A `command` with a / is a path relative to `root`, or an absolute path.
  */
-export function runOf(implementation, root, binding, unit, base) {
+export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: ParityBinding, unit: string, base: Environment): BindingCommand | RunError {
   const runner = RUNNERS[implementation.runner];
   const run = runner.run(root, binding, unit);
   if (run.error) return run;

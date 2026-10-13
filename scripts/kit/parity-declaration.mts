@@ -8,6 +8,105 @@ import { readConfig } from './schema-validate.mts';
 
 export const DECLARATION = 'config/parity.json';
 
+/** The runner of an implementation or a test pattern. */
+export type Runner = 'go' | 'cargo' | 'node' | 'php' | 'python';
+
+/** An implementation of the declaration (parity.schema.json). */
+export interface ParityImplementation {
+  name: string;
+  runner: Runner;
+  roots: string[];
+  tests: string[];
+  support?: string[];
+  command?: string;
+  args?: string[];
+  env?: { name: string; value: string }[];
+  symbols?: string;
+  errors?: { file: string; pattern: string };
+}
+
+/** A profile of the declaration. */
+export interface ParityProfile {
+  name: string;
+  implementations: string[];
+  reason?: string;
+}
+
+/** The native test of an implementation in a suite unit. */
+export interface ParityBinding {
+  implementation: string;
+  test: string;
+  symbol?: string;
+}
+
+/** The symbol id of an implementation in an API unit. */
+export interface ParitySymbol {
+  implementation: string;
+  symbol: string;
+}
+
+/** A unit of the declaration: a suite of shared cases or an API symbol. */
+export interface ParityUnit {
+  id: string;
+  kind: 'suite' | 'api';
+  profile: string;
+  file?: string;
+  cases?: string;
+  admit?: string;
+  bindings?: ParityBinding[];
+  symbols?: ParitySymbol[];
+}
+
+/** A unit that an implementation of its profile does not hold yet. */
+export interface ParityExclusion {
+  unit: string;
+  implementation: string;
+  reason: string;
+  item: string;
+}
+
+/** config/parity.json as parity.schema.json describes it. */
+export interface ParityConfig {
+  schema: 1;
+  comment?: string;
+  implementations: ParityImplementation[];
+  profiles: ParityProfile[];
+  suites?: string[];
+  comparators?: string[];
+  testPatterns: { runner: Runner; globs: string[] }[];
+  units: ParityUnit[];
+  nativeOnly?: { implementation: string; symbol: string; reason: string }[];
+  exclusions?: ParityExclusion[];
+  errors?: { profile: string; catalog: { file: string; pattern: string } };
+  languageLists?: { file: string; pattern: string; profile: string }[];
+  documents?: { globs: string[]; nouns: string[] };
+}
+
+/** A profile narrower than every implementation, with the implementations it omits and its reason. */
+export interface NarrowProfile {
+  name: string;
+  omitted: string[];
+  reason: string;
+}
+
+/** The declaration resolved against the tree; readDeclaration describes it. */
+export interface ParityModel {
+  config: ParityConfig;
+  implementations: Map<string, ParityImplementation>;
+  profiles: Map<string, string[]>;
+  narrow: NarrowProfile[];
+  cases: Map<string, string[]>;
+  admit: (unit: ParityUnit) => string | undefined;
+  admitted: (unit: ParityUnit, implementation: string) => string[];
+  notAdmitted: (unit: ParityUnit) => { name: string; list: string[]; omitted: string[] }[];
+  snapshots: Map<string, Map<string, boolean>>;
+  members: (unit: ParityUnit) => string[];
+  exclusion: (unit: ParityUnit, implementation: string) => ParityExclusion | undefined;
+}
+
+/** The environment that the references of a runner value read. */
+export type Environment = Readonly<Record<string, string | undefined>>;
+
 /** The name of each rule, printed after its number. */
 export const RULES = {
   declaration: 'declaration',
@@ -24,30 +123,50 @@ export const RULES = {
   R11: 'undeclared-public',
 };
 
+/** A rule of the check, a key of RULES. */
+export type Rule = keyof typeof RULES;
+
+/** What a finding names besides its rule and message. */
+export interface FindingPlace {
+  unit?: string | undefined;
+  implementation?: string | undefined;
+  place?: string | undefined;
+}
+
+/** A finding of the check. */
+export interface Finding {
+  rule: Rule;
+  unit: string | undefined;
+  implementation: string | undefined;
+  place: string | undefined;
+  message: string;
+}
+
 /** A finding of `rule` with the unit, implementation and place (a file or file:line) it names, when it names them. */
-export const finding = (rule, message, { unit, implementation, place } = {}) => ({ rule, unit, implementation, place, message });
+export const finding = (rule: Rule, message: string, { unit, implementation, place }: FindingPlace = {}): Finding => ({ rule, unit, implementation, place, message });
 
 /** The finding as a line: `<rule> <name> [<unit>] [<implementation>] [<place>]: <message>`. */
-export const findingLine = item => `${[item.rule, RULES[item.rule], item.unit, item.implementation, item.place].filter(Boolean).join(' ')}: ${item.message}`;
+export const findingLine = (item: Finding): string => `${[item.rule, RULES[item.rule], item.unit, item.implementation, item.place].filter(Boolean).join(' ')}: ${item.message}`;
 
 /** The words that the first group of the matches of `pattern` (a multiline regular expression) holds in `text`, each with its line. */
-export function captured(text, pattern) {
+export function captured(text: string, pattern: string): { text: string; line: number }[] {
   return [...text.matchAll(new RegExp(pattern, 'gm'))].map(match => ({ text: match[1] ?? '', line: text.slice(0, match.index).split('\n').length }));
 }
 
 /** How `found` differs from `expected`: `missing <names>; not in <source>: <names>`, or an empty string when the sets are equal. */
-export function difference(expected, found, source) {
+export function difference(expected: readonly string[], found: readonly string[], source: string): string {
   const missing = expected.filter(name => !found.includes(name));
   const extra = found.filter(name => !expected.includes(name));
   return [missing.length && `missing ${missing.join(', ')}`, extra.length && `not in ${source}: ${extra.join(', ')}`].filter(Boolean).join('; ');
 }
 
 /** The error of a pattern of the declaration that is no regular expression or has no group, or undefined. */
-function patternError(source) {
+function patternError(source: string): string | undefined {
   try {
-    return new RegExp(`${source}|`).exec('').length < 2 ? `the pattern ${source} has no group` : undefined;
+    // The empty alternative always matches '', so exec finds a match.
+    return new RegExp(`${source}|`).exec('')!.length < 2 ? `the pattern ${source} has no group` : undefined;
   } catch (error) {
-    return `the pattern ${source} is no regular expression: ${error.message}`;
+    return `the pattern ${source} is no regular expression: ${(error as SyntaxError).message}`;
   }
 }
 
@@ -55,13 +174,13 @@ function patternError(source) {
  * The case names that the path `cases` ($ followed by .<key> and [*] steps) selects in `value`, with an error for each step that
  * finds nothing. `entries` pairs each name with `parent`, the object or array that holds it, which carries the admit list of its case.
  */
-export function casesOf(value, cases) {
-  let selected = [{ value, where: '$', parent: undefined }];
-  const errors = [];
+export function casesOf(value: unknown, cases: string): { names: string[]; entries: CaseEntry[]; errors: string[] } {
+  let selected: Selected[] = [{ value, where: '$', parent: undefined }];
+  const errors: string[] = [];
   for (const [step, key] of cases.slice(1).matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)|\[\*\]/g)) {
-    selected = selected.flatMap(({ value: item, where }) => {
+    selected = selected.flatMap(({ value: item, where }): Selected[] => {
       if (key !== undefined) {
-        if (item && typeof item === 'object' && !Array.isArray(item) && key in item) return [{ value: item[key], where: `${where}${step}`, parent: item }];
+        if (item && typeof item === 'object' && !Array.isArray(item) && key in item) return [{ value: (item as Record<string, unknown>)[key], where: `${where}${step}`, parent: item as Record<string, unknown> }];
         errors.push(`${where} has no ${key}`);
         return [];
       }
@@ -71,15 +190,28 @@ export function casesOf(value, cases) {
     });
   }
   for (const { value: name, where } of selected) if (typeof name !== 'string' || !name) errors.push(`${where} is no case name`);
-  const entries = selected.filter(entry => typeof entry.value === 'string' && entry.value).map(entry => ({ name: entry.value, parent: entry.parent }));
+  const entries = selected.filter((entry): entry is Selected & { value: string } => typeof entry.value === 'string' && entry.value !== '').map(entry => ({ name: entry.value, parent: entry.parent }));
   return { names: entries.map(entry => entry.name), entries, errors };
 }
 
+/** A value that a step of a case path selects, with where it lies and the object or array that holds it. */
+interface Selected {
+  value: unknown;
+  where: string;
+  parent: Record<string, unknown> | unknown[] | undefined;
+}
+
+/** A case name with the object or array that holds it. */
+export interface CaseEntry {
+  name: string;
+  parent: Record<string, unknown> | unknown[] | undefined;
+}
+
 /** Whether `file` lies in the directory `root`. */
-export const within = (root, file) => file.startsWith(`${root.replace(/\/+$/, '')}/`);
+export const within = (root: string, file: string): boolean => file.startsWith(`${root.replace(/\/+$/, '')}/`);
 
 /** Whether the directory `root` is the whole repository. */
-const wholeRepository = root => /^(?:\.?\/*|\.\/+\.?)$/.test(root);
+const wholeRepository = (root: string): boolean => /^(?:\.?\/*|\.\/+\.?)$/.test(root);
 
 // A reference to the invoking environment in a runner value is ${NAME}; any other ${ form, such as a default, is no reference.
 const REFERENCE = /\$\{([^}]*)(\}?)/g;
@@ -89,8 +221,8 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * `value` with each ${NAME} replaced by its value in `env`. A form that is no reference is an error of `where`; without `env`
  * only the forms are checked, and with it an unset or empty name is an error too.
  */
-function expand(value, env, where, fail) {
-  return value.replace(REFERENCE, (whole, name, close) => {
+function expand(value: string, env: Environment | undefined, where: string, fail: (message: string) => void): string {
+  return value.replace(REFERENCE, (whole: string, name: string, close: string) => {
     if (!close || !NAME.test(name)) fail(`${where} holds ${whole}, which is no reference; a reference is \${NAME} and has no default`);
     else if (!env) return whole;
     else if (env[name] === undefined) fail(`${where} references ${whole}, which the environment does not set`);
@@ -101,7 +233,7 @@ function expand(value, env, where, fail) {
 }
 
 /** The implementation with the references of its command, args and env values expanded from `env`, or only checked without it. */
-function expanded(entry, env, fail) {
+function expanded(entry: ParityImplementation, env: Environment | undefined, fail: (message: string) => void): ParityImplementation {
   return {
     ...entry,
     ...(entry.command === undefined ? {} : { command: expand(entry.command, env, 'command', fail) }),
@@ -114,8 +246,8 @@ function expanded(entry, env, fail) {
  * The implementation with its references resolved from the invoking environment `env`, for the runs of its bindings:
  * `{ implementation, errors }`, each error naming the value and the name that is unset or empty.
  */
-export function resolveReferences(entry, env) {
-  const errors = [];
+export function resolveReferences(entry: ParityImplementation, env: Environment): { implementation: ParityImplementation; errors: string[] } {
+  const errors: string[] = [];
   return { implementation: expanded(entry, env, message => errors.push(message)), errors };
 }
 
@@ -125,17 +257,17 @@ const GO_TEST = /^func\s+((?:Test|Benchmark|Fuzz)(?![a-z])\w*|Example\w*)\s*\(/g
 const CARGO_TEST = /#\[\s*((?:\w+::)*(?:test|bench|test_case|rstest))\b[^\]]*\]/g;
 
 /** The tests that the native runner of a go or cargo support file would run in `text`, as the names to print. */
-function supportTests(runner, text) {
+function supportTests(runner: Runner, text: string): string[] {
   if (runner === 'go') return [...text.matchAll(GO_TEST)].map(match => `declares func ${match[1]}, which go test runs`);
   if (runner === 'cargo') return [...text.matchAll(CARGO_TEST)].map(match => `holds ${match[0]}, which cargo test runs`);
   return [];
 }
 
 /** The support files of `entry` among `files`. */
-export const supportFiles = (entry, files) => [...files].filter(file => matchesAny(entry.support ?? [], file));
+export const supportFiles = (entry: ParityImplementation, files: Iterable<string>): string[] => [...files].filter(file => matchesAny(entry.support ?? [], file));
 
 /** The JSON value of a tracked file, or an error of the declaration. */
-function readTrackedJson(root, files, file, where, errors) {
+function readTrackedJson(root: string, files: ReadonlySet<string>, file: string, where: string, errors: Finding[]): unknown {
   if (!files.has(file)) {
     errors.push(finding('declaration', `${where}: ${file} does not exist`, { place: DECLARATION }));
     return undefined;
@@ -143,14 +275,14 @@ function readTrackedJson(root, files, file, where, errors) {
   try {
     return JSON.parse(readFileSync(path.join(root, file), 'utf8'));
   } catch (error) {
-    errors.push(finding('declaration', `${where}: ${file} is no JSON: ${error.message}`, { place: DECLARATION }));
+    errors.push(finding('declaration', `${where}: ${file} is no JSON: ${(error as Error).message}`, { place: DECLARATION }));
     return undefined;
   }
 }
 
 /** The symbols of a snapshot: a map from each id to whether it is exported, or errors for an entry without a boolean exported. */
-function snapshotOf(value, file, errors) {
-  const symbols = new Map();
+function snapshotOf(value: unknown, file: string, errors: Finding[]): Map<string, boolean> {
+  const symbols = new Map<string, boolean>();
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     errors.push(finding('declaration', `${file} is no object of symbols`, { place: file }));
     return symbols;
@@ -168,25 +300,26 @@ function snapshotOf(value, file, errors) {
  * the implementations of the unit's profile, and `exclusion(unit, implementation)`. The environment references of the runner
  * values are checked as forms only; the runs resolve them (resolveReferences).
  */
-export function readDeclaration(root, files) {
+export function readDeclaration(root: string, files: ReadonlySet<string>): { errors: Finding[]; model?: ParityModel } {
   if (!existsSync(path.join(root, DECLARATION))) return { errors: [finding('declaration', `${DECLARATION} does not exist; declare the implementations and units there (scripts/kit/schema/parity.schema.json)`)] };
-  let read;
+  let read: ReturnType<typeof readConfig>;
   try {
     read = readConfig(root, DECLARATION, 'parity.schema.json');
   } catch (error) {
-    return { errors: [finding('declaration', `${DECLARATION} is no JSON: ${error.message}`, { place: DECLARATION })] };
+    return { errors: [finding('declaration', `${DECLARATION} is no JSON: ${(error as Error).message}`, { place: DECLARATION })] };
   }
-  if (read.errors.length) return { errors: read.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
-  const config = read.value;
-  const errors = [];
-  const fail = message => errors.push(finding('declaration', message, { place: DECLARATION }));
-  const implementations = new Map();
+  if (read.errors.length) return { errors: read.errors.map((message: string) => finding('declaration', message, { place: DECLARATION })) };
+  // Validated against parity.schema.json above.
+  const config = read.value as ParityConfig;
+  const errors: Finding[] = [];
+  const fail = (message: string) => errors.push(finding('declaration', message, { place: DECLARATION }));
+  const implementations = new Map<string, ParityImplementation>();
   for (const entry of config.implementations) {
     if (implementations.has(entry.name)) fail(`the implementation ${entry.name} is declared twice`);
     implementations.set(entry.name, entry);
     expanded(entry, undefined, message => fail(`implementation ${entry.name}: ${message}`));
   }
-  const profiles = new Map();
+  const profiles = new Map<string, string[]>();
   for (const profile of config.profiles) {
     if (profiles.has(profile.name)) fail(`the profile ${profile.name} is declared twice`);
     profiles.set(profile.name, profile.implementations);
@@ -200,7 +333,8 @@ export function readDeclaration(root, files) {
   for (const profile of narrow) {
     if (!profile.reason) fail(`profile ${profile.name} omits ${profile.omitted.join(', ')} and gives no reason; write the reason in reason`);
     const users = config.units.filter(unit => unit.profile === profile.name);
-    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${users[0].id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
+    // users[0] below exists: it is read only when users holds one unit.
+    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${users[0]!.id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
   }
   for (const entry of config.implementations) {
     if (!config.profiles.some(profile => profile.implementations.includes(entry.name))) fail(`the implementation ${entry.name} is in no profile, so no unit applies to it`);
@@ -210,8 +344,8 @@ export function readDeclaration(root, files) {
     for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
-  const knownProfile = (name, where) => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
-  const snapshots = new Map();
+  const knownProfile = (name: string, where: string): boolean => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
+  const snapshots = new Map<string, Map<string, boolean>>();
   for (const entry of config.implementations) {
     if (entry.symbols !== undefined) {
       const value = readTrackedJson(root, files, entry.symbols, `implementation ${entry.name}`, errors);
@@ -231,23 +365,24 @@ export function readDeclaration(root, files) {
       if (![...files].some(file => matchesAny([glob], file) && matchesAny(testGlobs, file))) fail(`implementation ${entry.name}: the support glob ${glob} selects no test file; remove it`);
     }
   }
-  const patterns = [
-    ...config.implementations.filter(entry => entry.errors).map(entry => [`implementation ${entry.name}`, entry.errors.pattern]),
-    ...(config.errors ? [['errors catalog', config.errors.catalog.pattern]] : []),
-    ...(config.languageLists ?? []).map(list => [`languageLists ${list.file}`, list.pattern]),
+  const patterns: [string, string][] = [
+    ...config.implementations.filter((entry): entry is ParityImplementation & { errors: { file: string; pattern: string } } => entry.errors !== undefined).map((entry): [string, string] => [`implementation ${entry.name}`, entry.errors.pattern]),
+    ...(config.errors ? [['errors catalog', config.errors.catalog.pattern] as [string, string]] : []),
+    ...(config.languageLists ?? []).map((list): [string, string] => [`languageLists ${list.file}`, list.pattern]),
   ];
   for (const [where, source] of patterns) {
     const error = patternError(source);
     if (error) fail(`${where}: ${error}`);
   }
-  const units = new Map();
-  const cases = new Map();
-  const admissions = new Map();
+  const units = new Map<string, ParityUnit>();
+  const cases = new Map<string, string[]>();
+  const admissions = new Map<string, Map<string, string[]>>();
   for (const unit of config.units) {
     if (units.has(unit.id)) fail(`the unit ${unit.id} is declared twice`);
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
-    const members = knownProfile(unit.profile, where) ? profiles.get(unit.profile) : [];
+    // A known profile is in profiles.
+    const members = knownProfile(unit.profile, where) ? profiles.get(unit.profile)! : [];
     const owned = unit.kind === 'suite' ? unit.bindings ?? [] : unit.symbols ?? [];
     const misplaced = unit.kind === 'suite' ? ['symbols'] : ['file', 'cases', 'bindings', 'admit'];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
@@ -258,7 +393,8 @@ export function readDeclaration(root, files) {
       seen.add(entry.implementation);
     }
     if (unit.kind === 'api') {
-      for (const name of members) if (implementations.has(name) && !implementations.get(name).symbols) fail(`${where}: the implementation ${name} declares no symbols snapshot`);
+      // has(name) holds before get(name).
+      for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols snapshot`);
       continue;
     }
     for (const key of ['file', 'cases', 'bindings']) if (!(key in unit)) fail(`${where}: a unit of kind suite needs ${key}`);
@@ -267,7 +403,8 @@ export function readDeclaration(root, files) {
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
       const runner = implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
-      else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
+      // A go binding without symbol took the branch above.
+      else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol!)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
     }
     const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
     if (!unit.file || !unit.cases) continue;
@@ -285,7 +422,7 @@ export function readDeclaration(root, files) {
     }
     cases.set(unit.id, found.names);
     if (unit.admit !== undefined) {
-      const admitted = new Map();
+      const admitted = new Map<string, string[]>();
       let carriers = 0;
       for (const { name, parent } of found.entries) {
         if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
@@ -313,7 +450,7 @@ export function readDeclaration(root, files) {
     if (!implementations.has(entry.implementation)) fail(`nativeOnly names ${entry.implementation}, which is no implementation`);
     else if (!snapshots.get(entry.implementation)?.get(entry.symbol)) fail(`nativeOnly: ${entry.symbol} is not an exported symbol of ${entry.implementation}; remove the entry`);
   }
-  const exclusions = new Map();
+  const exclusions = new Map<string, ParityExclusion>();
   for (const entry of config.exclusions ?? []) {
     const unit = units.get(entry.unit);
     const key = `${entry.unit}\0${entry.implementation}`;
@@ -332,7 +469,8 @@ export function readDeclaration(root, files) {
     if (!files.has(list.file)) fail(`languageLists: ${list.file} does not exist`);
   }
   // The case names of a suite that `implementation` runs: every case, except those whose admit list omits it.
-  const admitted = (unit, implementation) => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || admissions.get(unit.id).get(name).includes(implementation));
+  // The second operand runs only when the admissions of the unit hold the name.
+  const admitted = (unit: ParityUnit, implementation: string): string[] => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || admissions.get(unit.id)!.get(name)!.includes(implementation));
   // An implementation of the profile of an admit suite that admits no case runs nothing: it leaves the profile, or R8 excludes
   // it. An excluded one is already an R8 finding, so it is not repeated here.
   for (const unit of config.units.filter(entry => entry.kind === 'suite' && entry.admit !== undefined && cases.has(entry.id))) {
@@ -341,7 +479,7 @@ export function readDeclaration(root, files) {
       fail(`unit ${unit.id}: no case of ${unit.file} admits ${name}, so the suite runs nothing for it; take ${name} out of the profile ${unit.profile}, or exclude it under R8 with its reason and item`);
     }
   }
-  const model = {
+  const model: ParityModel = {
     config,
     implementations,
     profiles,
