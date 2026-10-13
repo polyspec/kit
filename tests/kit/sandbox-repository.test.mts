@@ -64,8 +64,23 @@ test('a push into a bare sandbox repository starts no git maintenance there', (t
   assert.deepEqual(maintenance(trace), []);
 });
 
+/** The test files of `directory` that the scan reads, and those of them that run git init themselves. */
+function callersOf(directory: string) {
+  const scanned = readdirSync(directory).sort().filter(name => name.endsWith('.mts') && name !== 'sandbox-repository.mts' && name !== 'sandbox-repository.test.mts');
+  const callers = scanned.filter(name => /['"]init['"]/.test(readFileSync(path.join(directory, name), 'utf8')));
+  return { scanned, callers };
+}
+
 test('every Git repository of the kit tests is created through initRepository', () => {
-  const callers = readdirSync(HERE).filter(name => name.endsWith('.mjs') && name !== 'sandbox-repository.mts' && name !== 'sandbox-repository.test.mts')
-    .filter(name => /['"]init['"]/.test(readFileSync(path.join(HERE, name), 'utf8')));
+  const { scanned, callers } = callersOf(HERE);
+  // An empty selection would pass without reading anything, as it did after the tools were renamed (K110).
+  assert.ok(scanned.length > 0, 'the scan read no test file of tests/kit');
   assert.deepEqual(callers, [], 'these files run git init themselves');
+});
+
+test('the scan names a test file that runs git init itself', (t) => {
+  const directory = sandbox(t, 'kit-sandbox-scan-');
+  writeFileSync(path.join(directory, 'fake.test.mts'), "import { spawnSync } from 'node:child_process';\nspawnSync('git', ['init', 'x']);\n");
+  writeFileSync(path.join(directory, 'other.test.mts'), "import { initRepository } from './sandbox-repository.mts';\ninitRepository('x');\n");
+  assert.deepEqual(callersOf(directory), { scanned: ['fake.test.mts', 'other.test.mts'], callers: ['fake.test.mts'] });
 });
