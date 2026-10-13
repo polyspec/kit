@@ -3,7 +3,7 @@
 // and the configuration.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -172,6 +172,19 @@ test('commit-items: a commit changes the state of at most one item, and a row it
   const first = findings[0];
   assert.ok(first !== undefined, 'rangeFindings found nothing');
   assert.match(first, /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
+});
+
+test('a tracker that a revision lacks reads as empty, and any other failure of git show names the revision and the file', (t) => {
+  const { root, git } = tracked(t, [
+    ['docs(core): Start (#S1)', { 'README.md': 'x\n' }],
+    ['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[ ]']]) }],
+    ['docs(plan): Start S1 (#S1)', { 'plan.md': plan([['S1', '[~]']]) }],
+  ]);
+  assert.deepEqual(rangeFindings(root, 'HEAD~2..HEAD', TRACKED), [], 'the parent of the second commit has no plan.md');
+  // The blob of plan.md at HEAD~1 is a loose object; without it, git show fails although the tree names the file.
+  const blob = git('rev-parse', 'HEAD~1:plan.md').stdout.trim();
+  rmSync(path.join(root, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+  assert.throws(() => rangeFindings(root, 'HEAD~1..HEAD', TRACKED), /git show [0-9a-f]+\^:plan\.md failed: .*/);
 });
 
 test('the item rules of the commit-msg hook compare the index with HEAD', (t) => {
