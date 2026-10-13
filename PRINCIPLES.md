@@ -102,7 +102,7 @@ tool lands, a standard binds the work as written here.
 - S7 Test placement: a test of a basic feature lives in the package and repository that own the feature; a consumer keeps
   only tests from the consumer's point of view.
 - S8 Reporting oddities is the second bullet of "Responsibility"; no tool can enforce it. What S8 adds: every exception,
-  profile and rebuild record carries its reason and the owner's required review.
+  profile and rebuild record carries its reason, in the place where it is declared.
 - S9 Cross-language orchestration and checks, kit included, are written in TypeScript, checked by `tsc` with
   `erasableSyntaxOnly`. Exceptions: a harness that drives one language's implementation is a test of that language; a
   language-specific static check is a plugin of that ecosystem's analyzer; a symbol extractor runs that ecosystem's tool.
