@@ -239,3 +239,67 @@ export function lineBlocks(text: string): LineBlock[] {
   });
   return blocks;
 }
+
+/**
+ * A passage of prose: a paragraph, a heading or a table row, with its first line. Its text is the source of the block with
+ * every character that is no prose blanked (inline code, HTML, the markers of a quote, autolinks, bare URLs, and all of a link
+ * or an image but its text), so that each character keeps its line. The first paragraph of the items of one list shares
+ * the number `list`; a table row has `table`.
+ */
+export type Passage = { text: string; line: number; table: boolean; list: number | undefined };
+
+const blankRange = (chars: string[], from: number, to: number) => {
+  for (let index = Math.max(from, 0); index < Math.min(to, chars.length); index += 1) if (chars[index] !== '\n') chars[index] = ' ';
+};
+
+/** The passages of prose of `text` in order, as the Markdown tree reads them; code, HTML blocks and front matter hold none. */
+export function prosePassages(text: string): Passage[] {
+  const tree = parse(text);
+  const passages: Passage[] = [];
+  const lists = new Map<unknown, number>();
+  visit(tree, (node, _index, parent) => {
+    if (node.type !== 'paragraph' && node.type !== 'heading' && node.type !== 'tableRow') return;
+    const place = placeOf(node);
+    const chars = [...text.slice(place.start, place.end)];
+    const at = (offset: number) => offset - place.start;
+    visit(node, (inner) => {
+      if (inner === node) return;
+      const range = placeOf(inner);
+      if (inner.type === 'inlineCode' || inner.type === 'html' || inner.type === 'footnoteReference') blankRange(chars, at(range.start), at(range.end));
+      else if (inner.type === 'link' || inner.type === 'linkReference') {
+        const first = inner.children[0];
+        const last = inner.children.at(-1);
+        // An autolink <url> and a bare URL start with no [; their text is the URL, which is no prose.
+        if (text[range.start] !== '[' || !first || !last) blankRange(chars, at(range.start), at(range.end));
+        else {
+          blankRange(chars, at(range.start), at(placeOf(first).start));
+          blankRange(chars, at(placeOf(last).end), at(range.end));
+        }
+      } else if (inner.type === 'image' || inner.type === 'imageReference') {
+        // The alt text of an image stands between ![ and the first ] that is followed by ( or [.
+        const close = text.slice(range.start, range.end).search(/\](?:\(|\[|$)/);
+        blankRange(chars, at(range.start), at(range.start) + 2);
+        blankRange(chars, at(range.start) + Math.max(close, 2), at(range.end));
+      }
+    });
+    // The markers of a quote on the further lines of the block.
+    const joined = chars.join('').replace(/\n[ \t]*(?:>[ \t]?)+/g, line => line.replace(/[^\n]/g, ' '));
+    let list: number | undefined;
+    if (node.type === 'paragraph' && parent?.type === 'listItem' && parent.children[0] === node) {
+      const owner = listOf(tree, parent);
+      if (!lists.has(owner)) lists.set(owner, lists.size + 1);
+      list = lists.get(owner);
+    }
+    passages.push({ text: joined, line: place.startLine, table: node.type === 'tableRow', list });
+  });
+  return passages;
+}
+
+// The list node that holds `item`.
+function listOf(tree: ReturnType<typeof parse>, item: unknown): unknown {
+  let found: unknown;
+  visit(tree, 'list', (list) => {
+    if ((list.children as unknown[]).includes(item)) found = list;
+  });
+  return found;
+}
