@@ -22,10 +22,17 @@ test('a stale marker is replaced and a missing marker follows the doc-id line, s
   assert.deepEqual(stampAll(root, CONFIG), { changed: [], failed: [] });
 });
 
+test('an English document without its Korean file fails and names the file, not a skipped pair', (t) => {
+  const root = tree(t, { ...pair('a.md', 'alpha'), 'b.md': '<!-- doc-id: beta -->\n# Title\n' });
+  assert.deepEqual(stampAll(root, CONFIG), { changed: [], failed: ['b.ko.md is missing; translate b.md into it'] });
+  put(root, { 'b.md': null, 'c.ko.md': '<!-- doc-id: gamma -->\n# Title\n' });
+  assert.deepEqual(stampAll(root, CONFIG).failed, ['c.md is missing; it is the source of c.ko.md']);
+});
+
 test('a Korean file without a doc-id line fails and is not changed; a marker in a code block is not the marker', (t) => {
   const root = tree(t, pair('a.md', 'alpha'));
   put(root, { 'a.ko.md': '# Title\n' });
-  assert.deepEqual(stampAll(root, CONFIG), { changed: [], failed: ['a.ko.md'] });
+  assert.deepEqual(stampAll(root, CONFIG), { changed: [], failed: ['a.ko.md has no <!-- doc-id: ... --> line; add the doc-id of the English file first'] });
   assert.equal(readFileSync(path.join(root, 'a.ko.md'), 'utf8'), '# Title\n');
   const text = '<!-- doc-id: x -->\n```\n<!-- source-sha256: old -->\n```\n';
   assert.equal(stamped(text, 'new'), '<!-- doc-id: x -->\n<!-- source-sha256: new -->\n```\n<!-- source-sha256: old -->\n```\n');
