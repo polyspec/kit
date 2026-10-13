@@ -134,8 +134,10 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
 
   for (const { directory, manifest: manifestPath, lock } of state.manifests) {
     const manifest = readJson(root, manifestPath);
-    const lockEntry = state.npmLocks.get(lock).packages?.[directory === '.' ? '' : directory] ?? {};
-    for (const kind of ['dependencies', 'devDependencies']) {
+    const npmLock = state.npmLocks.get(lock);
+    if (!npmLock) throw new Error(`${lock}: readState read no npm lock for ${manifestPath}, whose lock it names`);
+    const lockEntry = npmLock.packages?.[directory === '.' ? '' : directory] ?? {};
+    for (const kind of ['dependencies', 'devDependencies'] as const) {
       const inManifest = manifest[kind] ?? {};
       const inLock = lockEntry[kind] ?? {};
       for (const name of new Set([...Object.keys(inManifest), ...Object.keys(inLock)])) {

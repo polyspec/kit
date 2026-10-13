@@ -50,7 +50,12 @@ export function installTools({ root = ROOT, tools = null, print = () => {} }: { 
   if (pythonBuild && wanted('python')) step('python', () => installPython({ root, declared: pythonBuild, print }));
   if (pythonBackend && wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print }); return { installed }; });
   if (ruff && wanted('ruff')) step('ruff', () => installRuff({ root, declared: ruff, print }));
-  if (composer && wanted('composer')) step('composer', () => installComposer({ root, declared: composer, print }));
+  if (composer && wanted('composer')) {
+    const { sha256 } = composer;
+    // wanted holds a declared sha256; one that is no text is refused here by name.
+    if (typeof sha256 !== 'string') throw new Error(`config/toolchain.json composer.sha256 is ${JSON.stringify(sha256)}, not the text of a sha256`);
+    step('composer', () => installComposer({ root, declared: { ...composer, sha256 }, print }));
+  }
   if (phpunit && wanted('phpunit')) step('phpunit', () => installPhpunit({ root, declared: phpunit, print }));
   if (cargoAudit && wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: cargoAudit.version, print }));
   if (govulncheck && wanted('govulncheck')) step('govulncheck', () => installGovulncheck({ root, recorded: govulncheck.version, print }));

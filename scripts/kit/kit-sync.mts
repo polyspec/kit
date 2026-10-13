@@ -85,7 +85,7 @@ export function sync({ root, repository, tag }: { root: string; repository: stri
         }
       }
     }
-    const files = Object.fromEntries(entries.map(({ file, from }) => [file, fileDigest(path.join(clone, from))]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    const files = Object.fromEntries(entries.map(({ file, from }): [string, string] => [file, fileDigest(path.join(clone, from))]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     const lock = jsonText({ schema: 1, repository, tag, commit, files });
     if (!existsSync(path.join(root, LOCK)) || readFileSync(path.join(root, LOCK), 'utf8') !== lock) {
       writeAtomic(path.join(root, LOCK), lock);

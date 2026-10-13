@@ -20,6 +20,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
 import { CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, twinFindings } from './checklist.mts';
+import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mts';
 import { readStatusTable } from './status-table.mts';
@@ -36,6 +37,7 @@ const PRIVATE_PATH = /(?:\/(?:Users|home)\/[^/\s"'<>`)]+\/|[A-Za-z]:\\Users\\[^\
 
 /** The configuration of config/documents.json (scripts/kit/schema/documents.schema.json). */
 export type DocumentsConfig = {
+  schema?: number;
   include: string[];
   exclude?: string[];
   siteLinks?: boolean;
@@ -195,7 +197,7 @@ export function check(root: string, config: DocumentsConfig) {
       else run(name, read(name));
     }
   };
-  let checklists = [];
+  let checklists: Tracker[] = [];
   if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
     try { checklists = loadChecklists(root).trackers; } catch (error) {
       // loadConfig fails with an Error.
@@ -209,7 +211,8 @@ export function check(root: string, config: DocumentsConfig) {
       for (const entry of result.findings) add(name, entry);
       results.push(result.items);
     });
-    if (results.length === 2) for (const entry of twinFindings(results[0], results[1], list, { strict: true })) add(list.translation, entry);
+    // Two results are those of the tracker and of its translation.
+    if (results.length === 2) for (const entry of twinFindings(results[0]!, results[1]!, list, { strict: true })) add(list.translation!, entry);
   }
   for (const table of config.statusTables ?? []) {
     const results: [string, ReturnType<typeof readStatusTable>['rows']][] = [];

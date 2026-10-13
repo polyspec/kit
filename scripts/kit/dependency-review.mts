@@ -21,6 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readState } from './dependency-state.mts';
+import type { Dependency } from './dependency-state.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
 import { isMain, ROOT } from './paths.mts';
@@ -32,18 +33,6 @@ import { compareParts, dottedParts, isPrerelease, older, stableDescending } from
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
 const say = (text: string) => process.stdout.write(`[dependency-review] ${text}\n`);
-
-/** A registry dependency of readState (dependency-state.mts), with the fields that the review reads. */
-export interface Dependency {
-  ecosystem: string;
-  manifest: string;
-  package: string;
-  kind: string;
-  spec: string;
-  version: string | null;
-  lock: string | null;
-  createdBy?: string | null;
-}
 
 /** The state of readState (dependency-state.mts), with the fields that the review reads. */
 interface ReviewState {
@@ -444,7 +433,7 @@ export function review(root: string) {
 
 // The fix of a newer release: the ruff pin of config/toolchain.json is set by hand, with the sha256 of its wheels, because
 // the sha256 is read from the registry of each platform; every other manifest is updated by `make dependency-review UPDATE=1`.
-export const fixOf = (dependency: Pick<Newer, 'manifest' | 'package' | 'latest'> & Partial<Pick<Newer, 'kind' | 'lock' | 'createdBy'>>): string => {
+export const fixOf = (dependency: Newer): string => {
   if (dependency.manifest === TOOLCHAIN) return `set ruff in ${TOOLCHAIN} to ${dependency.latest} with the sha256 of each wheel, then make install-tools`;
   if (dependency.kind === 'lock') return lockFix(dependency.lock, dependency.createdBy, dependency.package);
   return UPDATE;

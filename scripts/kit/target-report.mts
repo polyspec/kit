@@ -54,6 +54,7 @@ export interface RunRecord {
 /** A record that could not be read, with the file and the reason. */
 export interface UnreadRecord {
   error: `${string}: ${string}`;
+  title?: never;
 }
 
 /** A writer of report files; see reportWriter. */
