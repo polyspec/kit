@@ -5,12 +5,12 @@
 // directories in var/), and a real unittest case in tests/kit/parity.test.mts failed in flowmark, which cannot install
 // the Python it asked for.
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, runKitTest } from './checkout.mts';
+import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, NPM, primedCache, run, runKitTest } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -53,10 +53,11 @@ test('in a checkout without var/, every vendored test passes', { timeout: KIT_TE
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
   commitSandbox(sandbox);
-  // A fresh checkout has run npm ci, which the tools need since K73, and not make install-tools, which creates var/. The
-  // node_modules of kit is a link here, which the /node_modules/ of .gitignore, a directory pattern, does not match.
-  appendFileSync(path.join(sandbox, '.git/info/exclude'), '/node_modules\n');
-  symlinkSync(path.join(ROOT, 'node_modules'), path.join(sandbox, 'node_modules'));
+  // A fresh checkout has run the bootstrap's npm ci, which the tools need since K73, and not make install-tools, which
+  // creates var/. npm ci runs offline with the npm of packageManager, from a cache primed with the packages of the lock.
+  run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], sandbox);
+  // The fresh checkout installs its packages; it links none (AGENTS: this repository creates no symbolic link).
+  assert.ok(!lstatSync(path.join(sandbox, 'node_modules')).isSymbolicLink(), 'node_modules of the fresh checkout is a link');
   const { output, passed } = await runKitTest(sandbox, t.signal);
   assert.ok(passed > 0, 'the vendored tests ran');
   assert.deepEqual(failedCases(output).map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
