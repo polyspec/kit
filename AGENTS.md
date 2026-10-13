@@ -41,6 +41,8 @@ and states only its own rules. The rules below are kit's own.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
+  A stub never runs a command that a stub or a mise shim provides (go, composer, npm, node, php, python, uv, mise), since a
+  shim outside its checkout runs the next command of PATH; the archivers of the machine are allowed (`tests/kit/stubs.test.mts`).
 - A repository declares the tools that it installs in `mise.toml` (Go, Python, uv, ruff, alint, golangci-lint, deadcode,
   govulncheck, cargo-audit, Composer, vulture), writes their digests into `mise.lock` with `make toolchain-lock` and installs
   them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap; a consumer that publishes a

@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 1af8ae1dcf376afabd0a476202d59a0ff2f541fb3b1ccaee2f0ebb24d8bd0b49 -->
+<!-- source-sha256: 3c455fc991b160562fffa2956aff22f0129bd6bb9e30864bc265a680b1de7973 -->
 # 개발
 
 [English](AGENTS.md)
@@ -37,6 +37,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   같은 부분이 두 번 있으면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
+  stub은 stub이나 mise shim이 제공하는 명령(go, composer, npm, node, php, python, uv, mise)을 실행하지 않습니다. checkout 밖의
+  shim은 PATH의 다음 명령을 실행하기 때문입니다. machine의 archiver는 허용됩니다(`tests/kit/stubs.test.mts`).
 - 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture)를
   `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
   target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. wheel을 배포하는 consumer는 config/toolchain.json에

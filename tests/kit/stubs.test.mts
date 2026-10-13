@@ -14,10 +14,11 @@ import { versionStubs } from './toolchain-stubs.mts';
 const HERE = import.meta.dirname;
 const ROOT = path.resolve(HERE, '../..');
 
-// The files that write the stubs of tools that a checkout pins or provides.
+// The files that write the stubs of tools that a checkout pins or provides. They start no process at all; the stubs of other
+// files may run the archivers of the machine (zip, unzip, tar), which no stub or shim provides.
 const STUB_SOURCES = ['registry.mts', 'toolchain-stubs.mts'];
 
-test('no stub source starts a process', () => {
+test('no stub runs a command that a stub or a mise shim provides (go, composer, npm, node, php, python, uv, mise): the version and registry stub sources start no process', () => {
   for (const file of STUB_SOURCES) {
     const text = readFileSync(path.join(HERE, file), 'utf8');
     const found = text.split('\n').map((line, index) => [index + 1, line] as const).filter(([, line]) => /child_process|\bspawn|(?<!\.)\bexec(File)?(Sync)?\(/.test(line));
