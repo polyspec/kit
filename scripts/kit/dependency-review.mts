@@ -494,7 +494,7 @@ function print(result: { notes: string[]; lines: string[] }) {
   for (const line of result.lines) say(`${line}.`);
   say(result.lines.length
     ? `${result.lines.length} finding${result.lines.length === 1 ? '' : 's'}`
-    : 'no newer stable release without an exception and no advisory');
+    : 'no newer stable release without an exception and no advisory without an exception');
 }
 
 if (isMain(import.meta.url)) {
