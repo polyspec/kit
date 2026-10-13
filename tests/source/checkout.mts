@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,62 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /** The npm of packageManager, which make install-tools TOOLS=npm installs; the tests pack with it, not with a machine npm. */
 export const NPM = path.join(ROOT, 'var/tools/bin/npm');
+
+/** An entry of package-lock.json of kit. */
+export type LockEntry = { version: string; resolved: string; integrity: string; dev?: boolean; devOptional?: boolean };
+
+/** The entries of package-lock.json of kit that `keep` accepts, as [node_modules/<name>, entry]. */
+export function lockEntries(keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] {
+  const packages = JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, LockEntry>;
+  return Object.entries(packages).filter(([entry, item]) => entry !== '' && keep(item));
+}
+
+/**
+ * The entries of lockEntries(keep) that the npm ci of this checkout installed: an optional package of another platform is
+ * not installed here, and an npm ci from the primed cache skips it as this one did.
+ */
+export const installedLockEntries = (keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] =>
+  lockEntries(keep).filter(([entry]) => existsSync(path.join(ROOT, entry)));
+
+/**
+ * Whether a package of package-lock.json of kit is one that kit depends on at run time. A devOptional package, such as
+ * @types/node, is a dev dependency of kit and only an optional peer of a dependency, which npm ci of a consumer leaves out.
+ */
+export const runtimePackage = (item: LockEntry): boolean => !item.dev && !item.devOptional;
+
+/**
+ * The package.json (with the fields of `manifest`) and package-lock.json of a consumer that installs the packed kit
+ * `packed` as a dev dependency by the URL of its release asset, as config/release.json names it (release.mts archiveName),
+ * with the packages that kit depends on at run time at the versions of its package-lock.
+ */
+export function kitConsumer(packed: { version: string; integrity: string }, manifest: Record<string, unknown> = {}) {
+  const kit = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/polyspec-kit-npm-${packed.version}.tgz`;
+  const devDependencies = { '@polyspec/kit': asset };
+  const lock = {
+    name: 'consumer', lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'consumer', devDependencies, ...(manifest.engines ? { engines: manifest.engines } : {}) },
+      'node_modules/@polyspec/kit': { version: packed.version, resolved: asset, integrity: packed.integrity, dev: true, license: kit.license, dependencies: kit.dependencies, engines: kit.engines },
+      ...Object.fromEntries(lockEntries(runtimePackage).map(([entry, item]) => [entry, { ...item, dev: true }])),
+    },
+  };
+  return { manifest: { name: 'consumer', private: true, ...manifest, devDependencies }, lock };
+}
+
+/**
+ * Adds each package of `entries` to the npm cache `cache`, from the npm cache of this checkout, which its npm ci filled:
+ * npm pack --offline writes the registry tarball of each, whose integrity is the one of package-lock, into `work`. An npm ci
+ * with `--offline --cache <cache>` then reads no registry.
+ */
+export function primeCache(cache: string, work: string, entries: readonly [string, LockEntry][]): void {
+  for (const [entry, item] of entries) {
+    const name = entry.split('node_modules/').at(-1)!;
+    const dependency: { filename: string } | undefined = JSON.parse(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work))[name];
+    assert.ok(dependency, `npm pack printed no ${name}`);
+    run(NPM, ['cache', 'add', path.join(work, dependency.filename), '--cache', cache], work);
+  }
+}
 
 /** The entry of @polyspec/kit in the output of `npm pack --json`, which npm 12 keys by the name of the package. */
 export function packedKit(output: string): { version: string; filename: string; integrity: string; files: { path: string }[] } {
