@@ -68,3 +68,10 @@ test('kit declares every Rust nightly that parity-real runs, which make install-
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
   assert.ok(runs.indexOf('make install-tools') < runs.indexOf('make source-test'), 'make install-tools runs before make source-test');
 });
+
+test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustup installs it with the channel (K77)', () => {
+  // The runner's Rust has no clippy component (CI run 38448878705); rustup installs the components that the toolchain file
+  // declares when `rustup toolchain install` reads it.
+  const toolchain = readFileSync(path.join(ROOT, 'rust-toolchain.toml'), 'utf8');
+  assert.match(toolchain, /^components = \[[^\]]*"clippy"[^\]]*\]$/m);
+});
