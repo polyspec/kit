@@ -56,6 +56,12 @@ test('a repository that installs the tarball imports @polyspec/kit/tracked-files
   mkdirSync(installed, { recursive: true });
   run('tar', ['-xzf', path.join(packs, packed.filename), '-C', installed, '--strip-components=1'], packs);
   writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ name: 'consumer', private: true, type: 'module' }));
+  // The tools import the packages of dependencies (K73); the consumer resolves each to the one that kit's npm ci installed,
+  // whose own dependencies resolve from there. consumer-layout.test installs them from the lock instead.
+  for (const name of Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies)) {
+    mkdirSync(path.dirname(path.join(consumer, 'node_modules', name)), { recursive: true });
+    symlinkSync(path.join(ROOT, 'node_modules', name), path.join(consumer, 'node_modules', name));
+  }
   const exported = run(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/tracked-files'); process.stdout.write(JSON.stringify([import.meta.resolve('@polyspec/kit/tracked-files'), Object.keys(m).sort()]));"], consumer);
   const [resolved, names] = JSON.parse(exported);
   assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, 'dist/tracked-files.mjs')));
