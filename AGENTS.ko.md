@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: bd906e868da96359307b470eaeeaef789f9362d3b44476e12a02e0f008c02c47 -->
+<!-- source-sha256: 50decd8027e1cd0d7af391d6306a2ccd69d3ad239952f05d23cd458d83d50949 -->
 # 개발
 
 [English](AGENTS.md)
@@ -80,7 +80,11 @@ kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y
 package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make kit-sync`를 실행해 릴리스를 채택합니다.
 
 릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
-`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 이 commit은 `main`에 들어가고 CI가 success로 끝납니다. (2) 그
+`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 릴리스 commit은 소비자 lock도 담습니다: `make release-assets
+TAG=vX.Y.Z` 다음 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)를 실행하고, 그것이 `tests/release-consumer/*/`에 쓴 manifest와
+lock을 버전 변경과 함께, 또는 tag 전의 다음 commit으로 commit합니다(docs/tool-inventory.md, Consumer install of the release
+archives, 1단계와 2단계). draft의 증명은 그 lock으로 archive를 설치하므로, lock이 없는 tag는 실패합니다. 이 commit은 `main`에
+들어가고 CI가 success로 끝납니다. tag는 CI가 success로 끝났고 그 lock을 담은 commit에만 붙입니다. (2) 그
 commit의 annotated tag `vX.Y.Z`를 push합니다. (3) push가 `.github/workflows/release.yml`을 실행합니다. 이 파일은 vendor되는
 `workflows/release.yml` 그대로이며, `config/release.json`이 선언한 `@polyspec/kit`의 npm archive를 만들어 GitHub Release에
 draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
