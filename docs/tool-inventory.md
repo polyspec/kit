@@ -699,7 +699,8 @@ Left as it is, with the reason:
   does (task K11-1).
 - The message that a configuration file is missing, in the commands `check-commits`, `check-documents` and `owner-check`, names
   the purpose of the file; the three sentences differ.
-- `kit-check.walk` reads the vendored directories from the disk, ignored files included, where `trackedFiles` reads the Git view.
+- `kit-check` reads only the copies that `kit.copies` of the installed package names, from the disk; `trackedFiles` reads the
+  Git view.
 - The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
 
 ## Python lint (K8.4)
