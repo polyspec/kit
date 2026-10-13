@@ -1,0 +1,339 @@
+{
+  "schema": 1,
+  "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
+  "paths": [
+    "scripts/kit/**/*.mts",
+    "scripts/kit/*.mk",
+    "tests/kit/duplication.test.mts"
+  ],
+  "tools": {
+    "scripts/kit/bootstrap/bootstrap-npm.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
+    },
+    "scripts/kit/bootstrap/digest.mts": {
+      "kind": "ecosystem",
+      "tool": "node:crypto"
+    },
+    "scripts/kit/bootstrap/files.mts": {
+      "kind": "ecosystem",
+      "tool": "node:fs"
+    },
+    "scripts/kit/bootstrap/install-npm.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
+    },
+    "scripts/kit/bootstrap/install-tool.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/bootstrap/tool-wrappers.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/bootstrap/toolchain-declared.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
+    },
+    "scripts/kit/changelog.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/changelog.md"
+    },
+    "scripts/kit/check-cargo-downloads.mts": {
+      "kind": "ecosystem",
+      "tool": "cargo fetch --locked --offline"
+    },
+    "scripts/kit/check-commits.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/check-commits.md"
+    },
+    "scripts/kit/check-dependency-policy-mutation.mts": {
+      "kind": "policy",
+      "reason": "the mutation gate of polyspec's dependency policy: it proves that the policy check fails on each planted violation; no ecosystem tool checks a policy of ours"
+    },
+    "scripts/kit/check-dependency-policy.mts": {
+      "kind": "policy",
+      "reason": "the gate of polyspec's dependency policy over the review records and the locks; it compares versions through version.mts, which K73 replaces"
+    },
+    "scripts/kit/check-documents.mts": {
+      "kind": "policy",
+      "reason": "polyspec's document rules: translation pairs, revisions, relative links and anchors, site interpolation; its Markdown reading is markdown.mts"
+    },
+    "scripts/kit/check-toolchain.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
+    },
+    "scripts/kit/checklist.mts": {
+      "kind": "policy",
+      "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
+    },
+    "scripts/kit/ci-passed.mts": {
+      "kind": "policy",
+      "reason": "the result of the last job of a polyspec CI workflow over the results of the other jobs"
+    },
+    "scripts/kit/ci-targets.mts": {
+      "kind": "policy",
+      "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
+    },
+    "scripts/kit/dependency-review.mts": {
+      "kind": "replaced",
+      "reason": "parseJsonStream, a hand-written splitter of the govulncheck JSON stream, moves to stream-json 3.7.0 with jsonStreaming (same objects on the K74 samples), or to govulncheck -format sarif; version comparison moves to the K73 comparators; the queries run npm, composer, go and cargo tools"
+    },
+    "scripts/kit/dependency-state.mts": {
+      "kind": "replaced",
+      "reason": "the pyproject regexes move to smol-toml (K73); the lock files are JSON or read by their tools"
+    },
+    "scripts/kit/documents-stamp.mts": {
+      "kind": "policy",
+      "reason": "writes the revision marker of polyspec's translation pairs"
+    },
+    "scripts/kit/findings.mts": {
+      "kind": "policy",
+      "reason": "the finding shape of kit's document checks"
+    },
+    "scripts/kit/full-run.mts": {
+      "kind": "policy",
+      "reason": "the guard of polyspec's full suite: a holder lock and the record of the run"
+    },
+    "scripts/kit/git-hooks.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/git-hooks.md"
+    },
+    "scripts/kit/git.mts": {
+      "kind": "ecosystem",
+      "tool": "git"
+    },
+    "scripts/kit/github-release.mts": {
+      "kind": "ecosystem",
+      "tool": "gh"
+    },
+    "scripts/kit/glob.mts": {
+      "kind": "replaced",
+      "reason": "picomatch replaces it (K73)"
+    },
+    "scripts/kit/holder-lock.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/holder-lock.md"
+    },
+    "scripts/kit/install-alint.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-cargo-audit.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-composer.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-go.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-govulncheck.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-phpunit.mts": {
+      "kind": "ecosystem",
+      "tool": "composer install of the committed config/phpunit lock"
+    },
+    "scripts/kit/install-python.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-ruff.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-tools.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/install-uv.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+    },
+    "scripts/kit/kit-bootstrap.mk": {
+      "kind": "policy",
+      "reason": "the bootstrap order of a repository before the package @polyspec/kit is installed (K71-2)"
+    },
+    "scripts/kit/kit-check.mts": {
+      "kind": "policy",
+      "reason": "ties the copies of a repository to the version of @polyspec/kit that package-lock resolves (K71-2); npm checks the installed package, not the copies"
+    },
+    "scripts/kit/kit-sync.mts": {
+      "kind": "policy",
+      "reason": "writes the copies that the package @polyspec/kit declares in kit.copies (K71-2); npm installs the package, and no npm tool writes files of a package into the repository"
+    },
+    "scripts/kit/kit.mk": {
+      "kind": "policy",
+      "reason": "the make targets of polyspec that run the tools of kit"
+    },
+    "scripts/kit/lint-python.mts": {
+      "kind": "ecosystem",
+      "tool": "ruff"
+    },
+    "scripts/kit/markdown.mts": {
+      "kind": "replaced",
+      "reason": "mdast-util-from-markdown 2.0.3 with micromark-extension-gfm 3.0.0 reads the fences, links and tables, github-slugger 2.0.0 the GitHub heading anchors and @mdit-vue/shared 3.0.2 slugify the VitePress anchors: the same result on 650 Markdown files and 4607 headings of 9 repositories, apart from front matter (needs mdast-util-frontmatter), GFM bare URLs and one escaped # where the libraries follow CommonMark (replacement item to register)"
+    },
+    "scripts/kit/node-reporter.mts": {
+      "kind": "ecosystem",
+      "tool": "node:test reporter API"
+    },
+    "scripts/kit/owner-check.mts": {
+      "kind": "replaced",
+      "reason": "the reading of Makefile targets and prerequisites moves to GNU make's database (make -pRrq): kit's regex reads a target-specific variable as a prerequisite (crudui, hyper, orm, template), does not expand variables (fsm) and misses generated targets (fsm, orm); the declaration and the selection stay (replacement item to register)"
+    },
+    "scripts/kit/parity-declaration.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-errors.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-ledger.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-runners.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-text.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity-units.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/parity.mts": {
+      "kind": "policy",
+      "reason": "the language-parity check of polyspec, classified with K75"
+    },
+    "scripts/kit/paths.mts": {
+      "kind": "ecosystem",
+      "tool": "node:path and process.cwd"
+    },
+    "scripts/kit/pin-python-dependency.mts": {
+      "kind": "replaced",
+      "reason": "@decimalturn/toml-patch rewrites the pin while keeping the text: the same output as kit on 57 pins of 30 pyproject.toml files (replacement item to register)"
+    },
+    "scripts/kit/process-group.mts": {
+      "kind": "ecosystem",
+      "tool": "process.kill"
+    },
+    "scripts/kit/process.mts": {
+      "kind": "ecosystem",
+      "tool": "node:child_process"
+    },
+    "scripts/kit/push-gate.mts": {
+      "kind": "policy",
+      "reason": "the push gate over polyspec's checklist trackers"
+    },
+    "scripts/kit/pylock.mts": {
+      "kind": "replaced",
+      "reason": "smol-toml replaces parseToml (K73)"
+    },
+    "scripts/kit/python-lock.mts": {
+      "kind": "replaced",
+      "reason": "pip-requirements-js replaces the PEP 508 parser (K73); the pin policy on top stays"
+    },
+    "scripts/kit/python-venv.mts": {
+      "kind": "ecosystem",
+      "tool": "uv venv"
+    },
+    "scripts/kit/rebuild-check.mts": {
+      "kind": "policy",
+      "reason": "checks the classes of config/rebuild.json, polyspec's S1 declaration"
+    },
+    "scripts/kit/release-backend.mts": {
+      "kind": "ecosystem",
+      "tool": "pip download of the declared wheels"
+    },
+    "scripts/kit/release-consumer-config.mts": {
+      "kind": "policy",
+      "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
+    },
+    "scripts/kit/release-consumer.mts": {
+      "kind": "policy",
+      "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
+    },
+    "scripts/kit/release-proof.mts": {
+      "kind": "policy",
+      "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
+    },
+    "scripts/kit/release-tools.mts": {
+      "kind": "ecosystem",
+      "tool": "the installers of the release toolchains"
+    },
+    "scripts/kit/release-wheel.mts": {
+      "kind": "replaced",
+      "reason": "the pyproject regexes move to smol-toml (K73); the METADATA moves to pip install --dry-run --report: kit's unzip pattern also reads the METADATA of vendored packages, 13 of them in the setuptools 84.0.0 wheel (replacement item to register)"
+    },
+    "scripts/kit/release.mts": {
+      "kind": "policy",
+      "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
+    },
+    "scripts/kit/run-tests.mts": {
+      "kind": "ecosystem",
+      "tool": "node --test, vitest, go test, cargo test, PHPUnit and unittest"
+    },
+    "scripts/kit/schema-validate.mts": {
+      "kind": "replaced",
+      "reason": "ajv replaces it (K73)"
+    },
+    "scripts/kit/status-table.mts": {
+      "kind": "policy",
+      "reason": "polyspec's status tables; the table reading is markdown.mts"
+    },
+    "scripts/kit/target-report.mts": {
+      "kind": "policy",
+      "reason": "the report of a run of make targets, polyspec's CI contract"
+    },
+    "scripts/kit/test-exit-deadline.mts": {
+      "kind": "ecosystem",
+      "tool": "node:test after hook"
+    },
+    "scripts/kit/test-hooks.mts": {
+      "kind": "ecosystem",
+      "tool": "node:test before and after hooks"
+    },
+    "scripts/kit/test-output.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/test-output.md"
+    },
+    "scripts/kit/test-progress.mts": {
+      "kind": "policy",
+      "reason": "the progress lines that every runner prints, polyspec's output contract"
+    },
+    "scripts/kit/time.mts": {
+      "kind": "ecosystem",
+      "tool": "Date"
+    },
+    "scripts/kit/tracked-files.mts": {
+      "kind": "ecosystem",
+      "tool": "git ls-files"
+    },
+    "scripts/kit/version.mts": {
+      "kind": "replaced",
+      "reason": "semver and @renovatebot/pep440 per ecosystem replace it (K73); kit compares no Composer versions"
+    },
+    "scripts/kit/vitest-reporter.mts": {
+      "kind": "ecosystem",
+      "tool": "vitest reporter API"
+    },
+    "scripts/kit/wheel-dependencies.mts": {
+      "kind": "replaced",
+      "reason": "the Requires-Dist lines move to pip install --dry-run --report and their PEP 508 reading to pip-requirements-js (K73) (replacement item to register)"
+    },
+    "tests/kit/duplication.test.mts": {
+      "kind": "replaced",
+      "reason": "jscpd 5.3.3 (min-lines 6) finds what the test finds and also 4 cross-file clones inside functions that the test misses (replacement item to register)"
+    }
+  }
+}
