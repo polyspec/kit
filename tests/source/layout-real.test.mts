@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
-const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json', 'config/composer.schema.json'];
+const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json', 'config/composer.schema.json', 'config/cargo.schema.json'];
 const ALINT = path.join(ROOT, 'var/tools/bin/alint');
 
 // The map of the repository demo: the component codec has ports, and the root tests/ holds the parity runner.
@@ -37,6 +37,9 @@ rules:
 // The autoload of a library (S2): PSR-4 for the package, autoload-dev PSR-4 for its tests, files for namespaced functions.
 const PSR4 = { autoload: { 'psr-4': { 'Polyspec\\Demo\\': 'src/' }, files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Polyspec\\Demo\\Tests\\': 'tests/' } } };
 
+// The lints of a Rust workspace (config/cargo.schema.json).
+const WORKSPACE_LINTS = '[workspace.lints.rust]\nunsafe_code = "deny"\n\n[workspace.lints.clippy]\nallow_attributes_without_reason = "deny"\n';
+
 // A repository that follows the layout: its path dependencies stay inside it, and a Go module at v2 ends in /v2.
 const GOOD: Record<string, string> = {
   'README.md': '# demo\n',
@@ -50,8 +53,9 @@ const GOOD: Record<string, string> = {
   'packages/ts/package.json': JSON.stringify({ name: '@polyspec/demo', dependencies: { '@polyspec/demo-codec': 'file:../codec/ts' } }),
   'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.uv.sources]\ndemo-codec = { path = "../codec/python" }\n',
   'packages/codec/python/pyproject.toml': '[project]\nname = "polyspec-demo-codec"\n',
-  'packages/rust/Cargo.toml': '[package]\nname = "demo"\n\n[dependencies]\ncodec = { path = "../codec/rust" }\n',
-  'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n',
+  'Cargo.toml': `[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n\n${WORKSPACE_LINTS}`,
+  'packages/rust/Cargo.toml': '[package]\nname = "demo"\n\n[lints]\nworkspace = true\n\n[dependencies]\ncodec = { path = "../codec/rust" }\n',
+  'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n\n[lints]\nworkspace = true\n',
   'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: '../codec/php' }], ...PSR4 }),
   'packages/codec/php/composer.json': JSON.stringify({ name: 'polyspec/demo-codec', ...PSR4 }),
   // An extension that PIE builds and a consumer project hold no classes of their own.
@@ -79,7 +83,7 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'layout-go-replace', files: { 'packages/go/go.mod': `module github.com/polyspec/demo/packages/go\n\nreplace example.com/x => ${OUTSIDE}\n` } },
   { rule: 'layout-npm-file', files: { 'packages/ts/package.json': JSON.stringify({ name: '@polyspec/demo', dependencies: { x: `file:${OUTSIDE}` } }) } },
   { rule: 'layout-python-path', files: { 'packages/python/pyproject.toml': `[project]\nname = "polyspec-demo"\n\n[tool.uv.sources]\nx = { path = "${OUTSIDE}" }\n` } },
-  { rule: 'layout-cargo-path', files: { 'packages/rust/Cargo.toml': `[package]\nname = "demo"\n\n[dependencies]\nx = { path = "${OUTSIDE}" }\n` } },
+  { rule: 'layout-cargo-path', files: { 'packages/rust/Cargo.toml': `[package]\nname = "demo"\n\n[lints]\nworkspace = true\n\n[dependencies]\nx = { path = "${OUTSIDE}" }\n` } },
   { rule: 'layout-composer-path', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: OUTSIDE }], ...PSR4 }) } },
   { rule: 'layout-infrastructure-typescript', files: { 'scripts/build.py': 'print("build")\n' } },
   { rule: 'layout-infrastructure-shebang', files: { 'scripts/run': '#!/bin/sh\necho run\n' } },
@@ -89,6 +93,11 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', type: 'library', autoload: PSR4.autoload }) } },
   { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', autoload: { files: ['src/functions.php'] }, 'autoload-dev': PSR4['autoload-dev'] }) } },
   { rule: 'lint-composer-policy', files: { 'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-ext', type: 'php-ext', autoload: { classmap: ['stubs/'] } }) } },
+  // A workspace denies unsafe code and an allow without its reason, and every package takes the lints of its workspace.
+  { rule: 'lint-cargo-lints', files: { 'Cargo.toml': '[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n' } },
+  { rule: 'lint-cargo-lints', files: { 'Cargo.toml': `[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n\n${WORKSPACE_LINTS.replace('"deny"', '"warn"')}` } },
+  { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n' } },
+  { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n\n[lints.rust]\nunsafe_code = "allow"\n' } },
   // The Python lint runs ruff with the root ruff.toml, which a nested configuration would escape in an editor or a plain ruff run.
   { rule: 'lint-ruff-nested', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' } },
   { rule: 'lint-ruff-files', files: { 'packages/python/ruff.toml': '[lint]\nselect = ["E"]\n' } },
