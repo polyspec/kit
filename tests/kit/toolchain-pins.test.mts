@@ -16,6 +16,11 @@ test('kit ships the decided pins: Node.js, Go, Rust and TypeScript by release, P
   assert.deepEqual(readPins(JSON.parse(readFileSync(SHIPPED, 'utf8'))), PINS);
 });
 
+test('kit declares its own Rust at the pin, which the rustup step of its CI installs for the cargo of its checks', () => {
+  const declared = readFileSync(path.join(path.dirname(SHIPPED), '../../rust-toolchain.toml'), 'utf8');
+  assert.match(declared, new RegExp(`^channel = "${PINS.rust.replaceAll('.', '\\.')}"$`, 'm'));
+});
+
 test('a pin of the wrong precision, a missing pin or an unknown key fails with the key and the value', () => {
   assert.throws(() => readPins({ ...PINS, node: '26.11' }), /toolchain-pins\.json must record node as <major>\.<minor>\.<patch>; it records "26\.11"/);
   assert.throws(() => readPins({ ...PINS, python: '3.14.8' }), /toolchain-pins\.json must record python as <major>\.<minor>; it records "3\.14\.8"/);
