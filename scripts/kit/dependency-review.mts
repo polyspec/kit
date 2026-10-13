@@ -113,12 +113,15 @@ function run(command: string, args: string[], cwd: string, statuses?: number[]):
   }
 }
 
-function query<T>(command: string, args: string[], cwd: string, statuses?: number[]): Answer<T> {
+// The JSON that `command` prints, or { error }. An empty output is an error, unless `empty` is the documented answer of the
+// command that prints nothing.
+function query<T>(command: string, args: string[], cwd: string, statuses?: number[], empty?: T): Answer<T> {
   const result = run(command, args, cwd, statuses);
   if (result.error) return result;
+  // A result without an error message has stdout.
+  if (!result.stdout!.trim()) return empty === undefined ? { error: `${command} ${args.join(' ')} printed no JSON: the output is empty` } : { value: empty };
   try {
-    // A result without an error message has stdout.
-    return { value: result.stdout!.trim() ? JSON.parse(result.stdout!) : {} };
+    return { value: JSON.parse(result.stdout!) };
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     return { error: `${command} ${args.join(' ')} printed no JSON: ${error.message}` };
@@ -339,8 +342,9 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     const directory = path.posix.dirname(lock);
     const lockData = readJson(root, lock);
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
-    // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package.
-    const answer = query<ComposerAudit>('composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3]);
+    // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
+    // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.
+    const answer = query<ComposerAudit>('composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {});
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;
