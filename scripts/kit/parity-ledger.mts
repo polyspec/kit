@@ -9,39 +9,13 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import path from 'node:path';
 import { execute } from './process.mts';
 import { finding, resolveReferences, supportFiles } from './parity-declaration.mts';
+import type { Environment, Finding, ParityBinding, ParityImplementation, ParityModel } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
+import type { BindingCommand, Outcome, RunError } from './parity-runners.mts';
 import { pairs } from './parity-units.mts';
 
-/** An implementation of config/parity.json, with the fields that the ledger reads. */
-interface Implementation {
-  name: string;
-  runner: string;
-  command?: string;
-}
-
-/** The model of config/parity.json (parity-declaration.mts), with the fields that the ledger reads. */
-interface Model {
-  config: { implementations: Implementation[] };
-  admitted(unit: unknown, implementation: string): string[];
-}
-
-/** A run of runOf (parity-runners.mts), with the fields that the ledger reads. */
-interface Run {
-  command: string;
-  args: string[];
-  cwd: string;
-  env: NodeJS.ProcessEnv;
-  detail: (output: SpawnSyncReturns<string>) => string[];
-}
-
-// A run that cannot start: its message, which is never empty.
-type Failed = { error: string } & { [K in keyof Run | 'shown']?: undefined };
-
 /** A run with `shown`, its command line as declared, or a run that cannot start. */
-type ResolvedRun = (Run & { shown: string; error?: undefined }) | Failed;
-
-/** A finding of parity-declaration.mts. */
-type Finding = ReturnType<typeof finding>;
+type ResolvedRun = (BindingCommand & { shown: string }) | RunError;
 
 /** A run of the ledger. */
 export interface LedgerRun {
@@ -66,15 +40,15 @@ export interface LedgerCase {
 interface Attempt {
   result: SpawnSyncReturns<string>;
   status: number | null;
-  cases: Map<string, string>;
+  cases: Map<string, Outcome>;
   repeated: string[];
 }
 
 /** The names of `cases` (a map from case to outcome) whose outcome is `outcome`. */
-const named = (cases: Map<string, string>, outcome: string) => [...cases].filter(([, value]) => value === outcome).map(([name]) => name);
+const named = (cases: Map<string, Outcome>, outcome: Outcome) => [...cases].filter(([, value]) => value === outcome).map(([name]) => name);
 
 /** The names that `reported` (the `[name, outcome]` pairs of one run, in order) report more than once. */
-const repeated = (reported: [string, string][]) => [...new Set(reported.map(([name]) => name).filter((name, index, names) => names.indexOf(name) !== index))];
+const repeated = (reported: [string, Outcome][]) => [...new Set(reported.map(([name]) => name).filter((name, index, names) => names.indexOf(name) !== index))];
 
 /** How the second run differs from the first: its exit status, and each case with another result or in one run only. */
 function differences(first: Attempt, second: Attempt): string[] {
@@ -91,15 +65,15 @@ function differences(first: Attempt, second: Attempt): string[] {
  * The run of `binding` in the implementation `declared` with its environment references resolved from `env`: the run of
  * runOf, with `shown`, the command line as declared (a reference is printed, never its value), or `{ error }`.
  */
-function resolvedRun(declared: Implementation, root: string, binding: { test: string }, unit: string, env: NodeJS.ProcessEnv): ResolvedRun {
+function resolvedRun(declared: ParityImplementation, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, unit: string, env: Environment): ResolvedRun {
   const { implementation, errors } = resolveReferences(declared, env);
   if (errors.length) return { error: `cannot start: ${errors.join('; ')}` };
-  const run: (Run & { error?: undefined }) | Failed = runOf(implementation, root, binding, unit, env);
+  const run = runOf(implementation, root, binding, unit, env);
   if (run.error) return run;
-  // The run of the declared implementation starts as the resolved run does: only the references differ.
-  const shown: Run = runOf(declared, root, binding, unit, env);
-  // A run without an error message is a Run.
-  return { ...(run as Run), shown: [declared.command ?? shown.command, ...shown.args].join(' ') };
+  const shown = runOf(declared, root, binding, unit, env);
+  // The runner of a binding does not read the references, so the declared run starts where the resolved run does.
+  if (shown.error) throw new Error(`${declared.name}: the run as declared cannot start while the resolved run starts: ${shown.error}`);
+  return { ...run, shown: [declared.command ?? shown.command, ...shown.args].join(' ') };
 }
 
 // The runners whose support files the check runs: a file runner reports its cases by printing them, so a support file of one
@@ -107,16 +81,15 @@ function resolvedRun(declared: Implementation, root: string, binding: { test: st
 const FILE_RUNNERS = new Set(['node', 'php', 'python']);
 
 /** R5 of the support files: each support file of a node, php or python implementation runs once and reports no case. */
-function runSupport(model: Model, root: string, files: Set<string>, { env, say }: { env: NodeJS.ProcessEnv; say: (line: string) => void }): Finding[] {
+function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
   return model.config.implementations.filter(implementation => FILE_RUNNERS.has(implementation.runner)).flatMap(implementation => supportFiles(implementation, files).flatMap((file) => {
     const where = { implementation: implementation.name, place: file };
     const run = resolvedRun(implementation, root, { test: file }, '', env);
     if (run.error) return [finding('R3', run.error, where)];
     say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
-    // A run without an error message has its command, args and cwd.
-    const result = execute(run.command!, run.args!, { cwd: path.join(root, run.cwd!), env: run.env });
+    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
     if (result.error) return [finding('R5', `the support file could not run: ${run.shown}: ${result.error.message}`, where)];
-    const reported = outcomesOf(run, result).map(([name]: [string, string]) => name);
+    const reported = outcomesOf(run, result).map(([name]) => name);
     return reported.length ? [finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where)] : [];
   }));
 }
@@ -125,11 +98,12 @@ function runSupport(model: Model, root: string, files: Set<string>, { env, say }
  * The ledger `{ runs, cases }` of every bound suite pair, the R3 findings, and the R5 findings of the support files that
  * report cases; `say` prints a line for each step.
  */
-export function runBindings(model: Model, root: string, { env, files, say }: { env: NodeJS.ProcessEnv; files: Set<string>; say: (line: string) => void }): { ledger: { runs: LedgerRun[]; cases: LedgerCase[] }; findings: Finding[] } {
+export function runBindings(model: ParityModel, root: string, { env, files, say }: { env: Environment; files: Set<string>; say: (line: string) => void }): { ledger: { runs: LedgerRun[]; cases: LedgerCase[] }; findings: Finding[] } {
   const ledger: { runs: LedgerRun[]; cases: LedgerCase[] } = { runs: [], cases: [] };
   const findings: Finding[] = [];
   for (const { unit, implementation } of pairs(model, 'suite')) {
-    const binding = unit.bindings.find((entry: { implementation: string }) => entry.implementation === implementation.name);
+    if (unit.bindings === undefined) throw new Error(`config/parity.json: the suite unit ${unit.id} has no bindings; readDeclaration reports it before the bindings run`);
+    const binding = unit.bindings.find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
     const where = { unit: unit.id, implementation: implementation.name, place: binding.test };
     const run = resolvedRun(implementation, root, binding, unit.id, env);
@@ -142,13 +116,11 @@ export function runBindings(model: Model, root: string, { env, files, say }: { e
     // map gives one attempt for each of the two runs.
     const [first, second] = [1, 2].map((attempt): Attempt => {
       say(`run ${unit.id} ${implementation.name} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
-      // A run without an error message has its command, args and cwd.
-      const result = execute(run.command!, run.args!, { cwd: path.join(root, run.cwd!), env: run.env });
+      const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
       const status = result.error ? null : result.status;
-      const reported: [string, string][] = result.error ? [] : outcomesOf(run, result);
+      const reported = result.error ? [] : outcomesOf(run, result);
       const cases = new Map(reported);
-      // A run without an error message has its command, args and cwd.
-      ledger.runs.push({ unit: unit.id, implementation: implementation.name, attempt, command: run.command!, args: run.args!, cwd: run.cwd!, status });
+      ledger.runs.push({ unit: unit.id, implementation: implementation.name, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
       say(`${unit.id} ${implementation.name} (${attempt} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${named(cases, 'pass').length} of ${expected.length} cases passed`);
       return { result, status, cases, repeated: repeated(reported) };
     }) as [Attempt, Attempt];
@@ -156,8 +128,7 @@ export function runBindings(model: Model, root: string, { env, files, say }: { e
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
     const problems = [
       result.error && `${run.shown} could not start: ${result.error.message}`,
-      // A run without an error message has its detail.
-      !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail!(result).length ? `: ${run.detail!(result).join(' | ')}` : ''}`,
+      !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
       named(cases, 'fail').length && `failed: ${named(cases, 'fail').join(', ')}`,
       named(cases, 'skip').length && `skipped: ${named(cases, 'skip').join(', ')}`,
       `not executed: ${expected.filter(name => !cases.has(name)).join(', ')}`,

@@ -29,6 +29,7 @@
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 import { parseArgs } from 'node:util';
 import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.mts';
+import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
@@ -37,7 +38,7 @@ import { isMain, ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
-export type ParityFinding = { rule: string; unit?: string; implementation?: string; place?: string; message: string };
+export type ParityFinding = Finding;
 /** A run of a binding in the ledger of parity-ledger.mts runBindings. */
 export type LedgerRun = { unit: string; implementation: string; attempt: number; command: string; args: string[]; cwd: string; status: number | null };
 /** A case that a run of a binding reported, with its outcome. */
