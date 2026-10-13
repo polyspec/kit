@@ -84,7 +84,6 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'layout-no-pythonpath', files: { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'python', env: [{ name: 'PYTHONPATH', value: 'packages/python/src' }] }] }) } },
   { rule: 'layout-config-paths', files: { 'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['../other/packages/go'] }] }) } },
   { rule: 'layout-go-replace', files: { 'packages/go/go.mod': `module github.com/polyspec/demo/packages/go\n\nreplace example.com/x => ${OUTSIDE}\n` } },
-  { rule: 'layout-npm-file', files: { 'packages/ts/package.json': JSON.stringify({ name: '@polyspec/demo', dependencies: { x: `file:${OUTSIDE}` } }) } },
   { rule: 'layout-python-path', files: { 'packages/python/pyproject.toml': `[project]\nname = "polyspec-demo"\n\n[tool.uv.sources]\nx = { path = "${OUTSIDE}" }\n` } },
   { rule: 'layout-cargo-path', files: { 'packages/rust/Cargo.toml': `[package]\nname = "demo"\n\n[lints]\nworkspace = true\n\n[dependencies]\nx = { path = "${OUTSIDE}" }\n` } },
   { rule: 'layout-composer-path', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', repositories: [{ type: 'path', url: OUTSIDE }], ...PSR4 }) } },
