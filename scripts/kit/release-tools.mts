@@ -20,7 +20,7 @@ import { isMain, ROOT, siblingTool } from './paths.mts';
 export type ToolsConfig = {
   packages: { kind: string }[];
   consumers?: { npm?: unknown; composer?: unknown; wheel?: unknown };
-  goModules?: Record<string, string>;
+  goModules: Record<string, string>;
   proof?: { gitTag?: Record<string, unknown> };
 };
 /** The output of a step: `print` receives the stdout of the command and `error` its stderr. */
@@ -37,7 +37,7 @@ export function toolsFor(config: ToolsConfig) {
     needed.add('python');
     needed.add('pythonBackend');
   }
-  if (Object.keys(config.goModules ?? {}).length) needed.add('go');
+  if (Object.keys(config.goModules).length) needed.add('go');
   const order = ['npm', 'composer', 'uv', 'python', 'pythonBackend', 'go'];
   return { install: order.filter(name => needed.has(name)), rust: Object.keys(config.proof?.gitTag ?? {}).length > 0 };
 }
