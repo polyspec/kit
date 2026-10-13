@@ -27,31 +27,66 @@ import { git } from './git.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
+/** A rule of config/owner-checks.json (scripts/kit/schema/owner-checks.schema.json): globs of paths and the checks that own them. */
+export type OwnerRule = {
+  paths: string[];
+  targets?: string[];
+  scripts?: string[];
+  workspaces?: string[];
+  prefixes?: string[];
+  tests?: string[];
+  variable?: string;
+};
+
+/** The declaration of config/owner-checks.json. */
+export type OwnerDeclaration = {
+  always?: string[];
+  testTarget?: string;
+  fullSuite?: string[];
+  owners: OwnerRule[];
+  inputs?: { check: string; paths: string[] }[];
+};
+
+/** The scripts of the root package.json and the workspaces and package directories that have a test script. */
+export type NpmProject = { scripts: Record<string, string>; workspaces: string[]; prefixes: string[] };
+
+/** The npm project with the Makefile text. */
+export type Project = NpmProject & { makefile: string };
+
+/** A check as the name that `inputs` uses, its make target when it is one, and the command that runs it. */
+export type Check = { name: string; target?: string; command: string; args: string[] };
+
+/** Whether the path of the checkout exists. */
+type Exists = (file: string) => boolean;
+
 /** The text of `Makefile` and, recursively, of the files that it includes, so a target of an included file is known. */
-export function makefileText(root, file = 'Makefile', seen = new Set()) {
+export function makefileText(root: string, file = 'Makefile', seen = new Set<string>()): string {
   if (seen.has(file) || !existsSync(path.join(root, file))) return '';
   seen.add(file);
   const text = readFileSync(path.join(root, file), 'utf8');
-  const included = [...text.matchAll(/^-?include\s+([^\s$]+)\s*$/gm)].map(match => match[1]);
+  // The group of the pattern is not optional, so every match holds it.
+  const included = [...text.matchAll(/^-?include\s+([^\s$]+)\s*$/gm)].map(match => match[1]!);
   return [text, ...included.map(name => makefileText(root, name, seen))].join('\n');
 }
 
 /** The make targets of the Makefile text. */
-function makeTargets(makefile) {
-  return new Set([...makefile.matchAll(/^([a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*):(?!=)/gm)].flatMap(match => match[1].split(' ')));
+function makeTargets(makefile: string) {
+  // The group of the pattern is not optional, so every match holds it.
+  return new Set([...makefile.matchAll(/^([a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*):(?!=)/gm)].flatMap(match => match[1]!.split(' ')));
 }
 
 /** The prerequisites of each target of the Makefile text. */
-function makePrerequisites(makefile) {
-  const prerequisites = new Map();
+function makePrerequisites(makefile: string) {
+  const prerequisites = new Map<string, string[]>();
   for (const match of makefile.matchAll(/^([a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*):(?!=)([^#\n]*)/gm)) {
-    for (const name of match[1].split(' ')) prerequisites.set(name, [...(prerequisites.get(name) ?? []), ...match[2].trim().split(/\s+/).filter(Boolean)]);
+    // Neither group of the pattern is optional, so every match holds both.
+    for (const name of match[1]!.split(' ')) prerequisites.set(name, [...(prerequisites.get(name) ?? []), ...match[2]!.trim().split(/\s+/).filter(Boolean)]);
   }
   return prerequisites;
 }
 
 /** The targets that `target` runs: itself and its prerequisites, transitively. */
-function closure(target, prerequisites, result = new Set()) {
+function closure(target: string, prerequisites: Map<string, string[]>, result = new Set<string>()): Set<string> {
   if (result.has(target)) return result;
   result.add(target);
   for (const prerequisite of prerequisites.get(target) ?? []) closure(prerequisite, prerequisites, result);
@@ -59,21 +94,22 @@ function closure(target, prerequisites, result = new Set()) {
 }
 
 /** The targets of the suite, in order: the words of `CHECK_TARGETS := ...` in the Makefile text. */
-export function suiteTargets(makefile) {
+export function suiteTargets(makefile: string) {
   return (makefile.match(/^CHECK_TARGETS\s*[:?]?=\s*(.*)$/m)?.[1] ?? '').split(/\s+/).filter(Boolean);
 }
 
 /** The targets that run the full suite: those the declaration names and those whose recipe starts full-run.mts. */
-export function fullSuiteTargets(makefile, declared = []) {
+export function fullSuiteTargets(makefile: string, declared: string[] = []) {
   const result = new Set(declared);
   for (const match of makefile.matchAll(/^([a-zA-Z0-9_-]+):(?!=)[^\n]*\n((?:\t[^\n]*\n?)*)/gm)) {
-    if (/scripts\/(?:kit\/)?full-run\.mts/.test(match[2])) result.add(match[1]);
+    // Neither group of the pattern is optional, so every match holds both.
+    if (/scripts\/(?:kit\/)?full-run\.mts/.test(match[2]!)) result.add(match[1]!);
   }
   return result;
 }
 
 /** The checks of a rule, each as the name that `inputs` uses and the command that runs it. */
-export function ruleChecks(rule) {
+export function ruleChecks(rule: OwnerRule): Check[] {
   return [
     ...(rule.targets ?? []).map(target => ({ name: `make ${target}`, target, command: 'make', args: ['--no-print-directory', target] })),
     ...(rule.scripts ?? []).map(script => ({ name: `npm run ${script}`, command: 'npm', args: ['run', script] })),
@@ -82,15 +118,15 @@ export function ruleChecks(rule) {
   ];
 }
 
-const compile = declaration => declaration.owners.map(rule => ({ ...rule, expressions: rule.paths.map(globExpression) }));
+const compile = (declaration: OwnerDeclaration) => declaration.owners.map(rule => ({ ...rule, expressions: rule.paths.map(globExpression) }));
 
 /**
  * The errors of the declaration against the tracked paths, the Makefile text and the npm manifests. `project` holds
  * `makefile`, `scripts` (the scripts of the root package.json), `workspaces` and `prefixes` (the names and directories
  * with a test script).
  */
-export function validate(declaration, tracked, project, exists) {
-  const errors = [];
+export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists) {
+  const errors: string[] = [];
   const targets = makeTargets(project.makefile);
   const fullSuite = fullSuiteTargets(project.makefile, declaration.fullSuite);
   const suite = suiteTargets(project.makefile);
@@ -98,7 +134,8 @@ export function validate(declaration, tracked, project, exists) {
   for (const rule of rules) {
     const label = rule.paths.join(' ');
     rule.paths.forEach((glob, index) => {
-      if (!tracked.some(file => rule.expressions[index].test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
+      // expressions holds the expression of each glob of paths at its index.
+      if (!tracked.some(file => rule.expressions[index]!.test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
     for (const target of rule.targets ?? []) {
       if (!targets.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} is not a target of the Makefile or of a file it includes`);
@@ -120,12 +157,13 @@ export function validate(declaration, tracked, project, exists) {
   // `inputs` names the paths that a check reads. For each of them a rule must select the check, or for a make target a
   // target that runs it as a prerequisite, so a change of the path runs a check that reads it.
   const prerequisites = makePrerequisites(project.makefile);
-  const runs = new Map();
-  const selects = (rule, check) => ruleChecks(rule).some(({ name, target }) => {
+  const runs = new Map<string, Set<string>>();
+  const selects = (rule: OwnerRule, check: string) => ruleChecks(rule).some(({ name, target }) => {
     if (name === check) return true;
     if (!target || !check.startsWith('make ')) return false;
     if (!runs.has(target)) runs.set(target, closure(target, prerequisites));
-    return runs.get(target).has(check.slice('make '.length));
+    // The line above sets every missing target.
+    return runs.get(target)!.has(check.slice('make '.length));
   });
   const known = new Set([...targets].map(target => `make ${target}`).concat(
     Object.keys(project.scripts).map(script => `npm run ${script}`),
@@ -153,13 +191,13 @@ export function validate(declaration, tracked, project, exists) {
  * order of the declaration), the test files, and the reasons. A removed path that no rule owns selects nothing; an existing
  * path that no rule owns is unowned.
  */
-export function select(declaration, changed, order = [], exists = () => true) {
+export function select(declaration: OwnerDeclaration, changed: string[], order: string[] = [], exists: Exists = () => true) {
   const rules = compile(declaration);
-  const checks = new Map();
+  const checks = new Map<string, Check>();
   const selected = new Set(declaration.always ?? []);
-  const variables = new Map();
-  const reasons = [];
-  const unowned = [];
+  const variables = new Map<string, Record<string, string[]>>();
+  const reasons: string[] = [];
+  const unowned: string[] = [];
   for (const file of changed) {
     const matched = rules.filter(rule => rule.expressions.some(expression => expression.test(file)));
     if (!matched.length && !exists(file)) reasons.push(`${file} -> nothing: the path was removed and no rule owns it`);
@@ -180,7 +218,7 @@ export function select(declaration, changed, order = [], exists = () => true) {
       for (const test of tests) selected.add(test);
     }
   }
-  const position = check => (check.target && order.includes(check.target) ? order.indexOf(check.target) : order.length);
+  const position = (check: Check) => (check.target && order.includes(check.target) ? order.indexOf(check.target) : order.length);
   const ordered = [...checks.values()].map((check, index) => ({ check, index })).sort((a, b) => position(a.check) - position(b.check) || a.index - b.index);
   const result = ordered.map(({ check }) => {
     const assignments = Object.entries(variables.get(check.name) ?? {}).map(([name, files]) => `${name}=${files.join(' ')}`);
@@ -190,15 +228,15 @@ export function select(declaration, changed, order = [], exists = () => true) {
 }
 
 /** The scripts of the root package.json and the workspaces and package directories that have a test script. */
-export function npmProject(root, tracked) {
+export function npmProject(root: string, tracked: string[]): NpmProject {
   const manifestFile = path.join(root, 'package.json');
   if (!existsSync(manifestFile)) return { scripts: {}, workspaces: [], prefixes: [] };
-  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  const manifest: { workspaces?: string[] | { packages?: string[] }; scripts?: Record<string, string> } = JSON.parse(readFileSync(manifestFile, 'utf8'));
   const globs = (Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces?.packages ?? []).map(globExpression);
-  const workspaces = [];
-  const prefixes = [];
+  const workspaces: string[] = [];
+  const prefixes: string[] = [];
   for (const file of tracked.filter(name => name.endsWith('/package.json'))) {
-    const packageManifest = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+    const packageManifest: { name?: string; scripts?: Record<string, string> } = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
     if (!packageManifest.scripts?.test) continue;
     const directory = path.dirname(file);
     if (globs.some(glob => glob.test(directory)) && packageManifest.name) workspaces.push(packageManifest.name);
@@ -207,17 +245,17 @@ export function npmProject(root, tracked) {
   return { scripts: manifest.scripts ?? {}, workspaces, prefixes };
 }
 
-const gitLines = (root, ...args) => git(root, ...args).split('\n').filter(Boolean);
+const gitLines = (root: string, ...args: string[]): string[] => git(root, ...args).split('\n').filter(Boolean);
 
 /** The changed paths of `values` (`paths`, `base`): the given ones, or those changed since the revision or since HEAD. */
-export function changedPaths(root, values) {
+export function changedPaths(root: string, values: { paths?: string | undefined; base?: string | undefined }) {
   if (values.paths !== undefined) return values.paths.split(/\s+/).filter(Boolean);
   const changed = gitLines(root, 'diff', '--name-only', values.base ?? 'HEAD');
   return [...new Set([...changed, ...gitLines(root, 'ls-files', '--others', '--exclude-standard')])].sort();
 }
 
 /** The commands that run the selection: the checks, then one run of the selected test files. */
-export function commandsOf(selection, declaration) {
+export function commandsOf(selection: { checks: Check[]; tests: string[] }, declaration: Pick<OwnerDeclaration, 'testTarget'>): Check[] {
   if (!selection.tests.length) return selection.checks;
   const tests = declaration.testTarget
     ? { name: `make ${declaration.testTarget} TESTS=${selection.tests.join(' ')}`, command: 'make', args: ['--no-print-directory', declaration.testTarget, `TESTS=${selection.tests.join(' ')}`] }
@@ -225,10 +263,10 @@ export function commandsOf(selection, declaration) {
   return [...selection.checks, tests];
 }
 
-const say = text => console.log(`[owner-check] ${text}`);
-const complain = text => console.error(`[owner-check] ${text}`);
+const say = (text: string) => console.log(`[owner-check] ${text}`);
+const complain = (text: string) => console.error(`[owner-check] ${text}`);
 
-function step(root, { name, command, args }) {
+function step(root: string, { name, command, args }: Check) {
   say(`start ${name}`);
   const started = performance.now();
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' });
@@ -245,7 +283,7 @@ if (isMain(import.meta.url)) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);
     process.exit(1);
   }
-  const declaration = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
+  const declaration: OwnerDeclaration = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
   const tracked = trackedFiles(root);
   const project = { makefile: makefileText(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);

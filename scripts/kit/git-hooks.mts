@@ -23,7 +23,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 exec node scripts/kit/push-gate.mts hook
 `;
 
-function configuredHooksPath(root) {
+function configuredHooksPath(root: string) {
   const run = gitResult(root, 'config', 'core.hooksPath');
   if (run.error) throw run.error;
   // git config exits with 1 when the key is not set.
@@ -31,7 +31,7 @@ function configuredHooksPath(root) {
 }
 
 /** Why a hook of the checkout `root` is not installed, with the fix, or null when every hook of `hooks` is installed. */
-export function hooksIssue(root, hooks = loadConfig(root).hooks) {
+export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hooks) {
   const configured = configuredHooksPath(root);
   if (configured !== HOOKS_PATH) {
     return `core.hooksPath is ${configured ? `"${configured}"` : 'not set'}, not ${HOOKS_PATH}, so Git does not run the hooks; run make hooks`;
@@ -52,8 +52,8 @@ export function hooksIssue(root, hooks = loadConfig(root).hooks) {
  * Installs the hooks of the checkout `root`: sets core.hooksPath, writes pre-push when it differs, and makes each listed
  * hook that exists executable. Returns the lines of what it changed, empty when nothing changed.
  */
-export function installHooks(root, hooks = loadConfig(root).hooks) {
-  const changes = [];
+export function installHooks(root: string, hooks: string[] = loadConfig(root).hooks) {
+  const changes: string[] = [];
   const configured = configuredHooksPath(root);
   if (configured !== HOOKS_PATH) {
     const run = gitResult(root, 'config', 'core.hooksPath', HOOKS_PATH);
