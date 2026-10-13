@@ -34,6 +34,8 @@ test('ROOT is the working directory: a tool run from a copy outside the reposito
   const outside = mkdtempSync(path.join(tmpdir(), 'paths-outside-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   cpSync(path.join(ROOT, 'scripts/kit'), path.join(outside, 'tools'), { recursive: true });
+  // The copy finds the packages of kit beside it, as the dist of an installed package finds its dependencies.
+  symlinkSync(path.join(ROOT, 'node_modules'), path.join(outside, 'node_modules'));
   const en = english('guide', 'Some text.\n');
   const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en) });
   const root = spawnSync(process.execPath, ['--input-type=module', '-e', `const { ROOT } = await import(${JSON.stringify(path.join(outside, 'tools/paths.mts'))}); process.stdout.write(ROOT);`], { cwd: repository, encoding: 'utf8' });
