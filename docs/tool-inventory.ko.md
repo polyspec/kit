@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0aebc8516588e1eaab24a5a306bde3eed6e07e5c8e55d2d5b70345f12b986834 -->
+<!-- source-sha256: 99371ea29c27b6c6288afdb8fdc6bcbb5510ec370907aa7970f86d92ce75863c -->
 
 # 도구 목록
 
@@ -622,7 +622,7 @@ finding 하나입니다.
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
 | `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review, check-dependency-policy |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
-| `markdown.mts` | `tableCells` | checklist의 `cells`와 status-table의 `rowCells`; `changelog.sections`의 fence 탐색은 이제 `scanFences`를 씀. fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
+| `markdown.mts` | `lineBlocks`, `headings` | `|`로 시작하는 모든 줄을 읽던 checklist의 `cells`와 status-table의 `rowCells`(K130: tree의 행과 list item), `changelog.sections`와 release notes의 `## ` 줄(K130: tree의 heading). fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |

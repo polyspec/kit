@@ -9,7 +9,7 @@
 // and never an empty result: the gate refuses a push whose items it cannot read.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { tableCells } from './markdown.mts';
+import { lineBlocks } from './markdown.mts';
 import { readConfig } from './schema-validate.mts';
 
 export const CONFIG = 'config/checklist.json';
@@ -60,7 +60,6 @@ interface ListEntry {
 }
 
 const DEFAULT_ID = '[A-Za-z][A-Za-z0-9.-]*';
-const SEPARATOR_CELL = /^:?-{3,}:?$/;
 const LIST_ITEM = /^( *)- (\[[^\]]*\]) (\S+)\s*(.*)$/;
 
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema or a rule of the tools. */
@@ -83,7 +82,6 @@ export function loadConfig(root: string): ChecklistConfig {
 
 const MARKER = /\[[ ~o!xX-]\]/g;
 const DOCUMENT_MARKER = /^<!-- (?:doc-id|source-sha256): \S+ -->$/;
-const HEADING = /^#{1,6} \S/;
 const TABLE_BYPASS = /^\[!\] (?:cause|원인): \S.*; (?:retry|재시도): \S.*$/;
 const TABLE_IMPOSSIBLE = /^\[-\] (?:cause|원인): \S.*$/;
 const BYPASSED = '[!]';
@@ -94,7 +92,6 @@ const ID_CELL = /^(\S+)(?:\s+`[^`]*`)?$/;
 
 const stateOf = (cell: string): string => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
 const firstSentence = (text: string): string => /^(.+?\.)(?:\s|$)/.exec(text)?.[1] ?? text.trim();
-const isSeparator = (row: { text: string }[]): boolean => row.length > 0 && row.every(cell => SEPARATOR_CELL.test(cell.text.trim()));
 const listOf = (words: string[]): string => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`);
 
 /** A finding as one sentence: `line 3: ...` when it has a line. */
@@ -142,18 +139,23 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
     items.push({ ...item, line: number });
   };
   const lines = text.replace(/\n$/, '').split('\n');
+  // What each line is, as the Markdown tree reads it (markdown.mts): a task is a row of a table or an item of a list, never a
+  // line of a fenced block or a paragraph.
+  const blocks = lineBlocks(text);
   let current: ListEntry | null = null;
   const lists: ListEntry[] = [];
   lines.forEach((line, index) => {
     const number = index + 1;
     const indent = Math.max(line.search(/\S/), 0);
     let place = -1;
-    let allowed = line.trim() === '' || HEADING.test(line) || DOCUMENT_MARKER.test(line);
+    // lineBlocks reads every line of the text, and lines holds no line after the last.
+    const block = blocks[index]!;
+    let allowed = block.kind === 'blank' || block.kind === 'heading' || (block.kind === 'html' && DOCUMENT_MARKER.test(line));
     if (format === 'table') {
-      const row = line.trimStart().startsWith('|') ? tableCells(line) : [];
+      const row = block.kind === 'tableRow' ? block.cells : [];
       const first = row[0]?.text.trim() ?? '';
       const task = ID_CELL.exec(first)?.[1];
-      if (isSeparator(row) || (row.length > 0 && (first === 'ID' || isSeparator(tableCells(lines[index + 1] ?? ''))))) {
+      if (block.kind === 'tableHeader' || block.kind === 'tableDelimiter') {
         allowed = true;
       } else if (task && id.test(task)) {
         allowed = true;
@@ -183,7 +185,7 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
         strictOnly(number, indent + 1, 'checklist-line', `${where}; a checklist holds only tasks, so its plan and notes belong in another document`);
       }
     } else {
-      const attempt = /^ *- \[/.test(line);
+      const attempt = block.kind === 'listItem' && /^ *- \[/.test(line);
       // Every group of LIST_ITEM takes part in a match.
       const entry = LIST_ITEM.exec(line) as [string, string, string, string, string] | null;
       if (attempt && entry && id.test(entry[3])) {
@@ -195,11 +197,11 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
         lists.push(current);
       } else if (attempt) {
         plainOnly(number, 'checklist-line', `${JSON.stringify(line.trim())} is not an item of the form "- [state] ID text"`);
-      } else if (current && /^ +\S/.test(line) && indent > current.indent) {
+      } else if (current && (block.kind === 'listContinuation' || (block.kind === 'listItem' && indent > current.indent))) {
         allowed = true;
         current.text += `\n${line}`;
       }
-      if (HEADING.test(line)) current = null;
+      if (block.kind === 'heading') current = null;
       if (!allowed) strictOnly(number, indent + 1, 'checklist-line', 'the line is not a heading, a task item "- [ ] <ID> text" or the continuation of one; a checklist holds only tasks');
     }
     if (strict) {

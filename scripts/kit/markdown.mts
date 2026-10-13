@@ -185,35 +185,57 @@ export function headings(text: string): Heading[] {
   });
 }
 
-/** A row of a GFM table: its line and the source of each cell, trimmed, as the author wrote it (markup and escapes kept). */
-export type TableRow = { line: number; cells: string[] };
+/** A cell of a table row: its source between the pipes, untrimmed, and the column (0-based) of the line at which it begins. */
+export type LineCell = { text: string; start: number };
 
 /**
- * The rows of the GFM tables of `text`, the header row included, in order. A row has the cells that its line writes, also
- * more than the header has; a line inside a fenced block, a quote's code or any other block that is no table is no row.
+ * What a line of a document is, as the Markdown tree reads it: blank, a heading, HTML, a table header row, a delimiter row,
+ * a body row with its cells, the first line of a list item, a further line of a list item, or another block (a paragraph,
+ * code, a quote).
  */
-export function tableRows(text: string): TableRow[] {
-  const rows: TableRow[] = [];
-  visit(parse(text), 'tableRow', (row) => {
-    const cells = row.children.map((cell) => {
-      const first = cell.children[0];
-      const last = cell.children.at(-1);
-      return first && last ? text.slice(placeOf(first).start, placeOf(last).end).trim() : '';
-    });
-    rows.push({ line: placeOf(row).startLine, cells });
-  });
-  return rows;
-}
+export type LineBlock =
+  | { kind: 'blank' | 'heading' | 'html' | 'tableHeader' | 'tableDelimiter' | 'listItem' | 'listContinuation' | 'other' }
+  | { kind: 'tableRow'; cells: LineCell[] };
 
-/** The cells of a table row split on `|` that is not escaped, with the column (0-based) at which each begins. */
-export function tableCells(line: string): { text: string; start: number }[] {
-  const result: { text: string; start: number }[] = [];
-  let start = line.indexOf('|') + 1;
-  for (let index = start; index < line.length; index += 1) {
-    if (line[index] === '|' && line[index - 1] !== '\\') {
-      result.push({ text: line.slice(start, index), start });
-      start = index + 1;
-    }
-  }
-  return line.trimEnd().endsWith('|') ? result : [...result, { text: line.slice(start), start }];
+/** The block of each line of `text` (index 0 is line 1); a nested list item has its own first line. */
+export function lineBlocks(text: string): LineBlock[] {
+  const lines = text.split('\n');
+  const blocks: LineBlock[] = lines.map(line => ({ kind: line.trim() === '' ? 'blank' : 'other' }));
+  const mark = (from: number, to: number, block: LineBlock) => {
+    for (let line = from; line <= to; line += 1) if (blocks[line - 1]?.kind !== 'blank') blocks[line - 1] = block;
+  };
+  const tree = parse(text);
+  visit(tree, 'listItem', (item) => {
+    const place = placeOf(item);
+    mark(place.startLine + 1, place.endLine, { kind: 'listContinuation' });
+  });
+  visit(tree, 'listItem', (item) => {
+    blocks[placeOf(item).startLine - 1] = { kind: 'listItem' };
+  });
+  visit(tree, (node) => {
+    if (node.type === 'heading') mark(placeOf(node).startLine, placeOf(node).endLine, { kind: 'heading' });
+    if (node.type === 'html') mark(placeOf(node).startLine, placeOf(node).endLine, { kind: 'html' });
+  });
+  visit(tree, 'table', (table) => {
+    const place = placeOf(table);
+    mark(place.startLine, place.endLine, { kind: 'tableDelimiter' });
+    table.children.forEach((row, index) => {
+      const line = placeOf(row).startLine;
+      if (index === 0) {
+        blocks[line - 1] = { kind: 'tableHeader' };
+        return;
+      }
+      const cells = row.children.map((cell, cellIndex) => {
+        const at = placeOf(cell);
+        let start = at.start;
+        let end = at.end;
+        let column = at.column - 1;
+        if (text[start] === '|') { start += 1; column += 1; }
+        if (cellIndex === row.children.length - 1 && end > start && text[end - 1] === '|') end -= 1;
+        return { text: text.slice(start, end), start: column };
+      });
+      blocks[line - 1] = { kind: 'tableRow', cells };
+    });
+  });
+  return blocks;
 }

@@ -77,6 +77,20 @@ test('a list is read by its items, with sub-items and the first sentence as the 
   ]);
 });
 
+test('the items are the rows and list items of the Markdown tree: a row or an item in a fenced example is none (K130)', () => {
+  const fence = (body: string) => `\n\`\`\`md\n${body}\n\`\`\`\n`;
+  const table = parseTracker(`${TABLE_TEXT}${fence('| ID | Task | Done |\n|---|---|---|\n| T9 | An example row | [~] |')}`, TABLE);
+  assert.deepEqual(table.errors, []);
+  assert.deepEqual(table.items.map(item => item.id), ['T1', 'T1.2', 'T1.2-1', 'T2']);
+  const list = parseTracker(`${LIST_TEXT}${fence('- [~] T9 An example item.')}`, LIST);
+  assert.deepEqual(list.errors, []);
+  assert.deepEqual(list.items.map(item => item.id), ['T1', 'T2', 'T2.1', 'T3']);
+  // The strict reading reports the lines of the fence: a checklist holds only tasks.
+  const strict = readChecklist(`${LIST_TEXT}${fence('- [~] T9 An example item.')}`, LIST, { strict: true });
+  assert.deepEqual(strict.items.map(item => item.id), ['T1', 'T2', 'T2.1', 'T3']);
+  assert.deepEqual(strict.findings.map(({ line, rule }) => [line, rule]), [[11, 'checklist-line'], [12, 'checklist-line'], [12, 'checklist-marker'], [13, 'checklist-line']]);
+});
+
 test('the lenient reading ignores the prose of a list document that the strict reading reports', () => {
   const text = `# Items\n\nFree text before the list.\n\n${LIST_TEXT}\nmore free text\n`;
   assert.deepEqual(parseTracker(text, LIST).errors, []);
