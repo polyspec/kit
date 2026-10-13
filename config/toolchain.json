@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; golangci-lint from its release archive and the deadcode of golang.org/x/tools with go install, which the real Go lint test runs; the digests are the uv and alint archives of each platform and the backend wheel.",
+  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; golangci-lint from its release archive and the deadcode of golang.org/x/tools with go install, which the real Go lint test runs; and, with rustup, the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs; the digests are the uv and alint archives of each platform and the backend wheel.",
   "python": "3.14",
   "pythonBuild": {
     "version": "3.14.8"
@@ -56,5 +56,14 @@
   },
   "phpunit": {
     "version": "11.5.57"
-  }
+  },
+  "exceptions": [
+    {
+      "tool": "rust",
+      "channel": "nightly-2026-10-01",
+      "scope": ".",
+      "reason": "the rust symbol extractor of parity, kit's own tool, reads rustdoc JSON, which only a nightly writes (rust-lang/rust#76578)",
+      "retry": "rustdoc JSON is stable"
+    }
+  ]
 }
