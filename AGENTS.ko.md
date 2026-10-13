@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 3c455fc991b160562fffa2956aff22f0129bd6bb9e30864bc265a680b1de7973 -->
+<!-- source-sha256: bd906e868da96359307b470eaeeaef789f9362d3b44476e12a02e0f008c02c47 -->
 # 개발
 
 [English](AGENTS.md)
@@ -28,8 +28,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   직접 고치지 않으며, 고치면 `make kit-check`가 바뀐 파일이나 빠진 파일로 실패합니다.
 - [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 kit의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
-- 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
-  path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
+- 이 저장소는 symbolic link를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다. 이 저장소가
+  쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
+  머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
   테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
   sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).
