@@ -20,7 +20,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpat
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY } from './dependency-state.mts';
-import { parseToml, readPylock } from './pylock.mts';
+import { parseToml, readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
 import { toolsPath } from './tool-wrappers.mts';
 import { declaredToolchain } from './toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
@@ -33,28 +33,44 @@ const PIN = new RegExp(`^(${NAME_PATTERN})==([A-Za-z0-9][A-Za-z0-9._+!-]*)$`);
 const ARCHIVE = new RegExp(`^(${NAME_PATTERN})\\s*@\\s*(\\S+?)#sha256=([0-9a-f]{64})$`);
 const FILE_URL = /url = "(file:[^"]*)"/g;
 
+/** A specifier of a requirement, such as >=2.30. */
+type Specifier = { op: string; version: string };
+/** A direct requirement: a name with its specifiers, or name @ url; `where` is its place and `line` its number. */
+export type Requirement = { name: string; url: string | null; specifiers: Specifier[]; line: number; where: string };
+/** A pin of a constraints file: name==version, or name @ url#sha256=<digest> for an archive. */
+export type Pin = { name: string; version: string; line: number; url?: undefined; sha256?: undefined } | { name: string; url: string; sha256: string; line: number; version?: undefined };
+/** An entry of pythonLocks in config/dependency-policy.json: the lock and its sources. */
+export type LockEntry = { lock: string; source: { requirements: string; constraints: string; findLinks?: string } };
+/** Adds a finding with its fix. */
+type Add = (message: string, fix: string) => void;
+/** A TOML table: an object that is not an array. */
+const isTable = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 /** The name of a package as PEP 503 compares it: lower case, and each run of - _ . as one -. */
-export const normalize = name => name.toLowerCase().replace(/[-_.]+/g, '-');
-const withoutFragment = url => url.replace(/#.*$/, '');
+export const normalize = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
+const withoutFragment = (url: string) => url.replace(/#.*$/, '');
 // The lines of a file that hold a requirement or a pin: blank lines and comments are skipped; the line number is kept.
-const entriesOf = text => text.split('\n').map((raw, index) => ({ text: raw.trim(), line: index + 1 })).filter(item => item.text !== '' && !item.text.startsWith('#'));
+const entriesOf = (text: string) => text.split('\n').map((raw, index) => ({ text: raw.trim(), line: index + 1 })).filter(item => item.text !== '' && !item.text.startsWith('#'));
 // An error that names the fix of its own, so the finding says what to write.
-const failWith = (message, fix) => Object.assign(new Error(message), { fix });
+const failWith = (message: string, fix: string) => Object.assign(new Error(message), { fix });
 
 /**
  * One requirement as { name, url, specifiers: [{ op, version }], line, where }: a name with an optional extra list and a range of
  * specifiers (name, name==2.34.2, name>=2.30,<3), or name @ url. A marker after `;` is not read for the pin. An option or any
  * other form throws with `where`, the place of the requirement.
  */
-function parseRequirementText(line, where, number) {
+function parseRequirementText(line: string, where: string, number: number): Requirement {
   if (line.startsWith('-')) throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
-  const match = REQUIREMENT.exec(line.split(';')[0].trim());
+  // split returns at least one item, so the text before the first ; exists.
+  const match = REQUIREMENT.exec(line.split(';')[0]!.trim()) as (RegExpExecArray & [string, string]) | null;
   if (!match) throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
   const [, name, , url, rest] = match;
   if (url !== undefined) return { name, url, specifiers: [], line: number, where };
-  const body = rest.trim().replace(/^\((.*)\)$/, '$1').trim();
+  // REQUIREMENT matches either @ url or the rest of the line, so rest is set when url is not.
+  const body = rest!.trim().replace(/^\((.*)\)$/, '$1').trim();
   const specifiers = body === '' ? [] : body.split(',').map((item) => {
-    const found = SPECIFIER.exec(item.trim());
+    // Both groups of SPECIFIER are required, so a match holds them.
+    const found = SPECIFIER.exec(item.trim()) as (RegExpExecArray & [string, string, string]) | null;
     if (!found || found[1] === '===' || !RELEASE.test(found[2])) throw new Error(`${where}: ${line} is not read; a specifier is ==, !=, >=, <=, >, < or ~= with a release such as 2.30, and no wildcard or pre-release`);
     if (found[1] === '~=' && found[2].split('.').length < 2) throw new Error(`${where}: ${line} is not read; ~= needs two release segments, such as ~=2.30`);
     return { op: found[1], version: found[2] };
@@ -63,7 +79,7 @@ function parseRequirementText(line, where, number) {
 }
 
 /** The direct requirements of a requirements file, one per line; the errors name the line. */
-export function parseRequirements(text, file) {
+export function parseRequirements(text: string, file: string) {
   return entriesOf(text).map(({ text: line, line: number }) => parseRequirementText(line, `${file} line ${number}`, number));
 }
 
@@ -71,15 +87,15 @@ export function parseRequirements(text, file) {
  * The direct requirements of a pyproject.toml: its static [project].dependencies. A pyproject that lists dependencies in
  * [project].dynamic is refused, since the direct requirements are then not in the file.
  */
-export function parseProjectDependencies(text, file) {
-  let data;
+export function parseProjectDependencies(text: string, file: string) {
+  let data: Record<string, unknown>;
   try {
     data = parseToml(text);
   } catch (error) {
-    throw failWith(`${file} ${error.message}`, `write a pyproject.toml that the reader of kit reads`);
+    throw failWith(`${file} ${(error as Error).message}`, `write a pyproject.toml that the reader of kit reads`);
   }
   const project = data.project;
-  if (project === undefined || project === null || typeof project !== 'object' || Array.isArray(project)) {
+  if (!isTable(project)) {
     throw failWith(`${file}: there is no [project] table`, `add [project] with dependencies to ${file}`);
   }
   if (Array.isArray(project.dynamic) && project.dynamic.includes('dependencies')) {
@@ -96,18 +112,19 @@ export function parseProjectDependencies(text, file) {
  * The pins of a constraints file: [{ name, version, line }] for name==version, and [{ name, url, sha256, line }] for
  * name @ url#sha256=<digest>. Any other line throws with its number, so a constraint never leaves a package unpinned.
  */
-export function parseConstraints(text, file) {
-  return entriesOf(text).map(({ text: line, line: number }) => {
-    const pin = PIN.exec(line);
+export function parseConstraints(text: string, file: string) {
+  return entriesOf(text).map(({ text: line, line: number }): Pin => {
+    // The groups of PIN and ARCHIVE are required, so a match holds them.
+    const pin = PIN.exec(line) as (RegExpExecArray & [string, string, string]) | null;
     if (pin) return { name: pin[1], version: pin[2], line: number };
-    const archive = ARCHIVE.exec(line);
+    const archive = ARCHIVE.exec(line) as (RegExpExecArray & [string, string, string, string]) | null;
     if (archive) return { name: archive[1], url: archive[2], sha256: archive[3], line: number };
     throw new Error(`${file} line ${number}: ${line} is not name==version or a direct reference with #sha256`);
   });
 }
 
 // The release order of PEP 440 for releases such as 2.30.1: a missing segment is zero.
-function compareReleases(a, b) {
+function compareReleases(a: string, b: string) {
   const x = a.split('.').map(Number);
   const y = b.split('.').map(Number);
   for (let index = 0; index < Math.max(x.length, y.length); index += 1) {
@@ -118,7 +135,7 @@ function compareReleases(a, b) {
 }
 
 /** Whether a pinned version satisfies one specifier. A version that is not a release satisfies == and != by its text only. */
-function satisfies(version, { op, version: wanted }) {
+function satisfies(version: string, { op, version: wanted }: Specifier) {
   if (!RELEASE.test(version)) {
     if (op === '==') return version === wanted;
     if (op === '!=') return version !== wanted;
@@ -140,50 +157,52 @@ function satisfies(version, { op, version: wanted }) {
   }
 }
 
-const pinLabel = pin => (pin.version === undefined ? pin.name : `${pin.name}==${pin.version}`);
-const requirementLabel = requirement => (requirement.url !== null ? `${requirement.name} @ ${requirement.url}` : `${requirement.name}${requirement.specifiers.map(item => `${item.op}${item.version}`).join(',')}`);
-const pinnedAs = pin => (pin.version !== undefined ? `${pin.name} ${pin.version}` : `the archive ${pin.url}`);
+const pinLabel = (pin: Pin) => (pin.version === undefined ? pin.name : `${pin.name}==${pin.version}`);
+const requirementLabel = (requirement: Requirement) => (requirement.url !== null ? `${requirement.name} @ ${requirement.url}` : `${requirement.name}${requirement.specifiers.map(item => `${item.op}${item.version}`).join(',')}`);
+const pinnedAs = (pin: Pin) => (pin.version !== undefined ? `${pin.name} ${pin.version}` : `the archive ${pin.url}`);
 
 // The requirements of a source: a pyproject.toml gives its [project].dependencies, any other file gives its lines.
-const parseRequirementSource = (file, text) => (path.basename(file) === 'pyproject.toml' ? parseProjectDependencies(text, file) : parseRequirements(text, file));
+const parseRequirementSource = (file: string, text: string) => (path.basename(file) === 'pyproject.toml' ? parseProjectDependencies(text, file) : parseRequirements(text, file));
 
 // The sources parsed: { pins, requirements, findings }; a source that does not parse yields its findings only.
-function parseSources({ requirements, constraints, text }) {
-  const findings = [];
-  let pins = null;
-  let reqs = null;
+function parseSources({ requirements, constraints, text }: { requirements: string; constraints: string; text: { requirements: string; constraints: string } }) {
+  const findings: string[] = [];
+  let pins: Pin[] | null = null;
+  let reqs: Requirement[] | null = null;
   try {
     pins = parseConstraints(text.constraints, constraints);
   } catch (error) {
-    findings.push(`${error.message}. Fix: write name==version in ${constraints}, or name @ url#sha256=<digest> for a polyspec archive`);
+    findings.push(`${(error as Error).message}. Fix: write name==version in ${constraints}, or name @ url#sha256=<digest> for a polyspec archive`);
   }
   try {
     reqs = parseRequirementSource(requirements, text.requirements);
   } catch (error) {
-    findings.push(`${error.message}. Fix: ${error.fix ?? `write the requirement in a form that ${requirements} reads`}`);
+    findings.push(`${(error as Error).message}. Fix: ${(error as Error & { fix?: string }).fix ?? `write the requirement in a form that ${requirements} reads`}`);
   }
   return { pins, requirements: reqs, findings };
 }
 
 // The findings of a lock text against its parsed sources: each sentence names the file, the package and the fix. The local
 // files of the lock (a path relative to the lock) are read from `root`, so the check holds on the checkout only.
-function compare({ root, lock, lockText, requirements, constraints, pins, reqs }) {
-  const findings = [];
-  const add = (message, fix) => findings.push(`${message}. Fix: ${fix}`);
-  const pinned = new Map();
+function compare({ root, lock, lockText, requirements, constraints, pins, reqs }: {
+  root: string; lock: string; lockText: string; requirements: string; constraints: string; pins: Pin[]; reqs: Requirement[];
+}) {
+  const findings: string[] = [];
+  const add: Add = (message, fix) => findings.push(`${message}. Fix: ${fix}`);
+  const pinned = new Map<string, Pin>();
   for (const pin of pins) {
     const key = normalize(pin.name);
     if (pinned.has(key)) add(`${constraints} line ${pin.line}: ${pin.name} is pinned twice`, `keep one pin of ${pin.name} in ${constraints}`);
     pinned.set(key, pin);
   }
-  let locked;
+  let locked: PylockPackage[];
   try {
     locked = readPylock(lockText, lock).packages;
   } catch (error) {
-    add(error.message, `write ${lock} with make python-lock`);
+    add((error as Error).message, `write ${lock} with make python-lock`);
     return findings;
   }
-  const lockedByKey = new Map();
+  const lockedByKey = new Map<string, PylockPackage>();
   for (const item of locked) {
     const key = normalize(item.name);
     const shown = `${item.name} ${item.version}`;
@@ -233,8 +252,9 @@ function compare({ root, lock, lockText, requirements, constraints, pins, reqs }
 }
 
 // The findings of one local file of a registry package: its path is relative to the lock, the file exists and holds the sha256.
-function localFileFindings({ root, lock, shown, file, add }) {
+function localFileFindings({ root, lock, shown, file, add }: { root: string; lock: string; shown: string; file: PylockFile; add: Add }) {
   if (file.path === null) return;
+  if (typeof file.path !== 'string') throw new Error(`${lock}: ${shown} file path is ${JSON.stringify(file.path)}, which is no path`);
   if (path.isAbsolute(file.path)) {
     add(`${lock}: ${shown} file ${file.path} is an absolute path; the lock holds each local file by a path relative to ${lock}`, `make python-lock with findLinks, which writes the paths relative to ${lock}`);
     return;
@@ -255,7 +275,7 @@ function localFileFindings({ root, lock, shown, file, add }) {
 }
 
 // The text of a source or the lock at `root`; a file that is missing is a finding, and null is returned.
-function read(root, file, findings, fix) {
+function read(root: string, file: string, findings: string[], fix: string) {
   if (!existsSync(path.join(root, file))) {
     findings.push(`${file} is missing. Fix: ${fix}`);
     return null;
@@ -268,9 +288,9 @@ function read(root, file, findings, fix) {
  * finding names the file, the package and the fix. An empty list means the lock holds exactly the pins, every requirement is
  * satisfied, every archive matches its pin, every registry file has a sha256, and every local file exists with that sha256.
  */
-export function checkPythonLock({ root, entry }) {
+export function checkPythonLock({ root, entry }: { root: string; entry: LockEntry }) {
   const { lock, source } = entry;
-  const findings = [];
+  const findings: string[] = [];
   const requirements = read(root, source.requirements, findings, `create ${source.requirements}`);
   const constraints = read(root, source.constraints, findings, `create ${source.constraints}`);
   const lockText = read(root, lock, findings, `write ${lock} with make python-lock`);
@@ -278,11 +298,12 @@ export function checkPythonLock({ root, entry }) {
   const text = { requirements, constraints };
   const parsed = parseSources({ requirements: source.requirements, constraints: source.constraints, text });
   if (parsed.findings.length > 0) return parsed.findings;
+  if (parsed.pins === null || parsed.requirements === null) throw new Error(`${lock}: the sources ${source.requirements} and ${source.constraints} gave no finding and no parsed pins or requirements`);
   return compare({ root, lock, lockText, requirements: source.requirements, constraints: source.constraints, pins: parsed.pins, reqs: parsed.requirements });
 }
 
 /** The entries of pythonLocks of config/dependency-policy.json at `root`; a policy with none fails, so no lock is skipped silently. */
-export function pythonLockEntries(root) {
+export function pythonLockEntries(root: string): LockEntry[] {
   const file = path.join(root, POLICY);
   if (!existsSync(file)) throw new Error(`${POLICY} is missing; declare pythonLocks in it, each lock with its source`);
   const entries = JSON.parse(readFileSync(file, 'utf8')).pythonLocks ?? [];
@@ -291,7 +312,7 @@ export function pythonLockEntries(root) {
 }
 
 // The findLinks directory of a source: a directory inside the checkout that exists.
-function findLinksOf(root, lock, findLinks) {
+function findLinksOf(root: string, lock: string, findLinks: string) {
   if (path.isAbsolute(findLinks) || path.normalize(findLinks).split(path.sep)[0] === '..') throw new Error(`${lock}: findLinks ${findLinks} is outside the checkout; name a directory inside it`);
   // The wheels of findLinks belong to the package of the lock, so the lock names each by a path inside that directory.
   const relative = path.relative(path.dirname(lock), path.normalize(findLinks));
@@ -303,9 +324,9 @@ function findLinksOf(root, lock, findLinks) {
 
 // uv writes each local wheel as a file URL with the checkout path. The writer replaces it by the path of the wheel relative to the
 // lock, so the lock holds no machine path; any other file URL is refused.
-function relativeLocalPaths(text, root, lock) {
+function relativeLocalPaths(text: string, root: string, lock: string) {
   const lockDirectory = path.join(realpathSync(root), path.dirname(lock));
-  const rewritten = text.replace(FILE_URL, (_, url) => `path = "${path.relative(lockDirectory, fileURLToPath(url)).split(path.sep).join('/')}"`);
+  const rewritten = text.replace(FILE_URL, (_: string, url: string) => `path = "${path.relative(lockDirectory, fileURLToPath(url)).split(path.sep).join('/')}"`);
   if (rewritten.includes('file:')) throw new Error(`${lock}: uv wrote a file URL that is not a wheel of findLinks; the lock would hold a machine path. Fix: remove the local source from ${lock}`);
   return rewritten;
 }
@@ -315,11 +336,11 @@ function relativeLocalPaths(text, root, lock) {
  * not parse, a uv that fails and a lock that the check refuses throw with their findings, and the lock of the checkout is replaced
  * only by a lock that passed.
  */
-export function writePythonLock({ root, entry, env = process.env, print = () => {} }) {
+export function writePythonLock({ root, entry, env = process.env, print = () => {} }: { root: string; entry: LockEntry; env?: NodeJS.ProcessEnv; print?: (text: string) => void }) {
   const uv = toolsPath(root, 'bin', 'uv');
   if (!existsSync(uv)) throw new Error(`${path.relative(root, uv)} is missing; run make install-tools TOOLS=uv`);
   const { lock, source } = entry;
-  const names = [path.basename(source.requirements), path.basename(source.constraints)];
+  const names: [string, string] = [path.basename(source.requirements), path.basename(source.constraints)];
   if (names[0] === names[1] || names.includes('pylock.toml')) throw new Error(`${lock}: the requirements and the constraints need two different names, neither pylock.toml; name them differently`);
   const linksDirectory = source.findLinks === undefined ? null : findLinksOf(root, lock, source.findLinks);
   // The lower bound of the universal resolution is the declared Python minor: without --python-version, uv takes it from an
@@ -349,6 +370,7 @@ export function writePythonLock({ root, entry, env = process.env, print = () => 
     if (!existsSync(output)) throw new Error(`${shown} wrote no pylock.toml`);
     const written = relativeLocalPaths(readFileSync(output, 'utf8'), root, lock);
     writeFileSync(output, written);
+    if (early.pins === null || early.requirements === null) throw new Error(`${lock}: the sources ${source.requirements} and ${source.constraints} gave no finding and no parsed pins or requirements`);
     const findings = compare({ root, lock, lockText: written, requirements: source.requirements, constraints: source.constraints, pins: early.pins, reqs: early.requirements });
     if (findings.length > 0) throw new Error(findings.join('\n'));
     mkdirSync(path.dirname(path.join(root, lock)), { recursive: true });
@@ -371,7 +393,7 @@ if (isMain(import.meta.url)) {
           writePythonLock({ root: ROOT, entry, print: text => console.log(`[python-lock] ${text}`) });
           console.log(`[python-lock] wrote ${entry.lock}`);
         } catch (error) {
-          console.error(`[python-lock] ${entry.lock} failed: ${error.message}`);
+          console.error(`[python-lock] ${entry.lock} failed: ${(error as Error).message}`);
           failed = true;
         }
       } else {
@@ -382,7 +404,7 @@ if (isMain(import.meta.url)) {
     }
     if (command === 'check') console.log(failed ? `[python-lock] ${entries.length} lock(s) checked, some differ from their sources` : `[python-lock] ${entries.length} lock(s) match their sources`);
   } catch (error) {
-    console.error(`[python-lock] ${error.message}`);
+    console.error(`[python-lock] ${(error as Error).message}`);
     failed = true;
   }
   if (failed) process.exitCode = 1;

@@ -18,7 +18,7 @@ const LOCK = 'packages/fixture-python/pylock.toml';
 const GIT_LOCK = 'packages/fixture-python/pylock.git.toml';
 const GIT_TEXT = 'lock-version = "1.0"\ncreated-by = "uv"\nrequires-python = ">=3.11"\n\n[[packages]]\nname = "pip-tools"\nversion = "7.4.1"\nvcs = { type = "git", url = "https://github.com/jazzband/pip-tools", requested-revision = "7.4.1", commit-id = "COMMIT" }\n';
 // Adds the git lock to the policy and to the review record of the checkout, with the commit of the lock.
-function withGitLock(root, commit = PIP_TOOLS_COMMIT) {
+function withGitLock(root: string, commit = PIP_TOOLS_COMMIT) {
   writeFileSync(path.join(root, GIT_LOCK), GIT_TEXT.replace('COMMIT', commit));
   const policy = JSON.parse(readFileSync(path.join(root, 'config/dependency-policy.json'), 'utf8'));
   policy.pythonLocks.push({ lock: GIT_LOCK, source: { requirements: 'packages/fixture-python/requirements.txt', constraints: 'packages/fixture-python/constraints.txt' } });
@@ -28,9 +28,9 @@ function withGitLock(root, commit = PIP_TOOLS_COMMIT) {
   writeFileSync(path.join(root, 'config/dependency-review.json'), JSON.stringify(record, null, 2) + '\n');
   return root;
 }
-const findings = result => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
-const lockText = root => readFileSync(path.join(root, LOCK), 'utf8');
-const writeLock = (root, text) => writeFileSync(path.join(root, LOCK), text);
+const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
+const lockText = (root: string) => readFileSync(path.join(root, LOCK), 'utf8');
+const writeLock = (root: string, text: string) => writeFileSync(path.join(root, LOCK), text);
 const CLICK_WHEEL_HASH = 'hashes = { sha256 = "ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28" }';
 const PIP_TOOLS_COMMIT = '60ebdf5d1625cb63d0b94326035e0aa209659f4d';
 
@@ -39,8 +39,10 @@ test('the parser reads the tables of a uv export: registry files with their hash
   const lock = readPylock(lockText(root), LOCK);
   assert.equal(lock.lockVersion, '1.0');
   assert.equal(lock.createdBy, 'uv');
-  const [click] = lock.packages;
-  const pipTools = readPylock(GIT_TEXT.replace('COMMIT', PIP_TOOLS_COMMIT), GIT_LOCK).packages[0];
+  // The fixture lock holds click first; without it, reading its fields fails the case as before.
+  const click = lock.packages[0]!;
+  // GIT_TEXT holds the package pip-tools.
+  const pipTools = readPylock(GIT_TEXT.replace('COMMIT', PIP_TOOLS_COMMIT), GIT_LOCK).packages[0]!;
   assert.equal(click.kind, 'registry');
   assert.equal(click.name, 'click');
   assert.equal(click.version, '8.1.7');
@@ -101,7 +103,7 @@ test('the gate reads only lock-version 1.0 and fails on any other format', (t) =
 test('the review records the git pin of the lock, and the gate fails when the record names another commit', (t) => {
   const root = withGitLock(fixture(t));
   const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  record.vcs = record.vcs.map(item => ({ ...item, commitId: '0'.repeat(40) }));
+  record.vcs = record.vcs.map((item: Record<string, unknown>) => ({ ...item, commitId: '0'.repeat(40) }));
   writeFileSync(path.join(root, 'config/dependency-review.json'), `${JSON.stringify(record, null, 2)}\n`);
   const result = gate(root);
   assert.equal(result.status, 1);
@@ -140,13 +142,13 @@ test('the review reports the PyPI advisories of a registry package at its locked
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-python\/pylock\.toml click 8\.1\.7: advisory GHSA-test-0001 \(vulnerability\) test advisory https:\/\/example\.org\/advisory\. Fix: regenerate packages\/fixture-python\/pylock\.toml with uv:/m);
   const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  const locked = record.locks.find(entry => entry.lock === LOCK);
-  assert.deepEqual(locked.advisories.map(item => [item.package, item.version, item.id]), [['click', '8.1.7', 'GHSA-test-0001']]);
+  const locked = record.locks.find((entry: { lock: string }) => entry.lock === LOCK);
+  assert.deepEqual(locked.advisories.map((item: { package: string; version: string; id: string }) => [item.package, item.version, item.id]), [['click', '8.1.7', 'GHSA-test-0001']]);
 });
 
 test('the policy names a PEP 751 lock only by pylock.toml or pylock.<name>.toml, at the root or below it', () => {
   const schema = JSON.parse(readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../scripts/kit/schema/dependency-policy.schema.json'), 'utf8'));
-  const policy = lock => ({ schema: 1, composerPlatforms: [], pythonManifests: [], pythonLocks: [{ lock, source: { requirements: "requirements.txt", constraints: "constraints.txt" } }], npmLocks: [], exceptions: [] });
+  const policy = (lock: string) => ({ schema: 1, composerPlatforms: [], pythonManifests: [], pythonLocks: [{ lock, source: { requirements: "requirements.txt", constraints: "constraints.txt" } }], npmLocks: [], exceptions: [] });
   for (const lock of ['pylock.toml', 'packages/x-python/pylock.toml', 'pylock.dev.toml']) assert.deepEqual(validate(policy(lock), schema), [], lock);
   for (const lock of ['uv.lock', 'requirements.txt', 'packages/x/pylock.lock', '/pylock.toml']) assert.notDeepEqual(validate(policy(lock), schema), [], lock);
 });
