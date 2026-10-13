@@ -70,7 +70,7 @@ function install(fx: ReturnType<typeof fixture>, requirements: string) {
   return { count, steps };
 }
 
-test('the locked dependencies install with --require-hashes, the wheel with --no-deps, and pip check passes', (t: TestContext) => {
+test('the locked dependencies install with --require-hashes, the wheel with --no-deps, and pip check passes', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
   const requirements = lockRequirements(fx.lock, LOCK);
@@ -78,9 +78,9 @@ test('the locked dependencies install with --require-hashes, the wheel with --no
   const { count, steps } = install(fx, requirements);
   assert.equal(count, 1);
   assert.deepEqual(steps, ['wheel dependencies pip install of 2 requirements', 'wheel pip install of 1 packages', 'wheel pip check passed', `wheel ${APP} 0.0.1: python -c import kit_app, kit_lib, kit_reg`]);
-}, { timeout: 900000 });
+});
 
-test('an incomplete lock fails pip check and names the missing dependency', (t: TestContext) => {
+test('an incomplete lock fails pip check and names the missing dependency', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   const requirements = `kit-lib @ ${fx.libUrl} --hash=sha256:${fileDigest(fx.lib)}\n`;
   assert.throws(() => install(fx, requirements), (error) => {
@@ -88,16 +88,16 @@ test('an incomplete lock fails pip check and names the missing dependency', (t: 
     assert.match(error.message, /-m pip --python .* check exited with 1: .*kit-app 0\.0\.1 requires kit-reg, which is not installed/s);
     return true;
   });
-}, { timeout: 900000 });
+});
 
-test('dependencies installed from local copies with the same bytes pass pip check with the wheel installed --no-deps', (t: TestContext) => {
+test('dependencies installed from local copies with the same bytes pass pip check with the wheel installed --no-deps', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   const requirements = `${fx.reg} --hash=sha256:${fileDigest(fx.reg)}\n${fx.lib} --hash=sha256:${fileDigest(fx.lib)}\n`;
   const { steps } = install(fx, requirements);
   assert.deepEqual(steps.slice(0, 3), ['wheel dependencies pip install of 2 requirements', 'wheel pip install of 1 packages', 'wheel pip check passed']);
-}, { timeout: 900000 });
+});
 
-test('the resolver of pip reads a direct-URL requirement and accepts an installed copy of the same version', (t: TestContext) => {
+test('the resolver of pip reads a direct-URL requirement and accepts an installed copy of the same version', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   const requirements = `${fx.reg} --hash=sha256:${fileDigest(fx.reg)}\n${fx.lib} --hash=sha256:${fileDigest(fx.lib)}\n`;
   install(fx, requirements);
@@ -107,4 +107,4 @@ test('the resolver of pip reads a direct-URL requirement and accepts an installe
   assert.equal(resolved.status, 0, resolved.stderr);
   assert.match(resolved.stdout, /Processing .*kit_lib-0\.0\.1-py3-none-any\.whl/);
   assert.match(resolved.stdout, /kit-lib is already installed with the same version as the provided wheel/);
-}, { timeout: 900000 });
+});

@@ -6,7 +6,6 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
@@ -22,7 +21,7 @@ function linksUnder(directory: string): string[] {
   });
 }
 
-test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', (t: TestContext) => {
+test('make python-venv makes a venv with uv from the checkout Python, with the links of uv, and run-tests accepts it', { timeout: 300000 }, (t) => {
   const python = path.join(ROOT, 'var/tools/bin/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS="uv python" installs the Python of pythonBuild`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-real-'));
@@ -39,11 +38,11 @@ test('make python-venv makes a venv with uv from the checkout Python, with the l
   assert.equal(probe.status, 0, probe.stderr);
   assert.equal(JSON.parse(probe.stdout), directory, 'the interpreter runs with the environment as its prefix');
   assert.ok(lstatSync(path.join(directory, 'pyvenv.cfg')).isFile());
-}, { timeout: 300000 });
+});
 
 // The run is idempotent: a second run over a venv it made changes nothing and reports it; an existing directory that is not
 // such a venv is an error with its reason, and is neither removed nor repaired.
-test('make python-venv run twice leaves the venv unchanged, and refuses an existing directory that is not its venv', (t: TestContext) => {
+test('make python-venv run twice leaves the venv unchanged, and refuses an existing directory that is not its venv', { timeout: 300000 }, (t) => {
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-twice-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const directory = path.join(folder, 'venv');
@@ -58,13 +57,13 @@ test('make python-venv run twice leaves the venv unchanged, and refuses an exist
   writeFileSync(path.join(other, 'keep.txt'), 'x');
   assert.throws(() => makeVenv({ root: ROOT, directory: other }), /other exists and is not a venv of the checkout Python: .*no pyvenv\.cfg/);
   assert.ok(existsSync(path.join(other, 'keep.txt')), 'the refused directory was changed');
-}, { timeout: 300000 });
+});
 
 // A virtual environment that uv makes from the checkout Python is accepted as uv makes it (K63): uv links bin/python to the
 // interpreter and bin/python3 to python, and run-tests --venv keeps those links and runs the tests with the environment's
 // interpreter. The uv of config/toolchain.json makes it (var/tools/bin/uv, make install-tools TOOLS=uv). No link is copied,
 // removed or rewritten.
-test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', (t: TestContext) => {
+test('run-tests --venv accepts and runs a venv that uv made from the checkout Python, with its links as uv made them', { timeout: 300000 }, (t) => {
   const python = path.join(ROOT, 'var/tools/bin/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-venv-uv-'));
@@ -89,4 +88,4 @@ test('run-tests --venv accepts and runs a venv that uv made from the checkout Py
   assert.equal(ran.status, 0, `${ran.stdout}${ran.stderr}`);
   assert.match(ran.stdout, /test_prefix/);
   assert.deepEqual(linksUnder(directory), links, 'the links of uv are kept as uv made them');
-}, { timeout: 300000 });
+});

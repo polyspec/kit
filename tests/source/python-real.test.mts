@@ -8,7 +8,6 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { declaredToolchain } from '../../scripts/kit/toolchain-declared.mts';
 import { buildWheel, wheelName } from '../../scripts/kit/release-wheel.mts';
@@ -29,7 +28,7 @@ test('config/toolchain.json declares the pythonBuild of the kit and the pinned b
   });
 });
 
-test('the fixture wheel is built with the real Python and the pinned setuptools, and installs into a clean venv with --require-hashes', async (t: TestContext) => {
+test('the fixture wheel is built with the real Python and the pinned setuptools, and installs into a clean venv with --require-hashes', { timeout: 900000 }, async (t) => {
   const { installWheelFiles } = await import('../../scripts/kit/release-consumer.mts');
   const python = path.join(ROOT, 'var/tools/bin/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools installs the Python of pythonBuild`);
@@ -46,4 +45,4 @@ test('the fixture wheel is built with the real Python and the pinned setuptools,
   const count = installWheelFiles({ root: ROOT, env, folder, version: '0.0.0', directory: output, names: ['kit-fixture'], smoke: { 'kit-fixture': ['python', '-c', 'import kit_fixture'] }, step: (text: string) => steps.push(text) });
   assert.equal(count, 1);
   assert.deepEqual(steps, ['wheel pip install of 1 packages', 'wheel pip check passed', 'wheel kit-fixture 0.0.0: python -c import kit_fixture']);
-}, { timeout: 900000 });
+});

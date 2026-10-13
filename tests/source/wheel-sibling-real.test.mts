@@ -56,16 +56,16 @@ function fixture(t: TestContext) {
   return { folder, env, wheels, reference, val, gen: `${GEN.replaceAll('-', '_')}-${VERSION}-py3-none-any.whl` };
 }
 
-test('the wheels of a release install in one --no-deps command from their files, and pip check passes', (t: TestContext) => {
+test('the wheels of a release install in one --no-deps command from their files, and pip check passes', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
   const steps: string[] = [];
   const count = installWheelFiles({ root: ROOT, env: fx.env, folder: fx.folder, version: VERSION, directory: fx.wheels, names: [GEN, VAL], smoke: { [GEN]: ['python', '-c', 'import kit_gen, kit_val'], [VAL]: ['python', '-c', 'import kit_val'] }, step: (text: string) => steps.push(text) });
   assert.equal(count, 2);
   assert.deepEqual(steps, ['wheel pip install of 2 packages', 'wheel pip check passed', `wheel ${GEN} ${VERSION}: python -c import kit_gen, kit_val`, `wheel ${VAL} ${VERSION}: python -c import kit_val`]);
-}, { timeout: 900000 });
+});
 
-test('with the dependencies resolved, pip reads the sibling reference and does not take the local wheel of the same distribution', (t: TestContext) => {
+test('with the dependencies resolved, pip reads the sibling reference and does not take the local wheel of the same distribution', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
   // The checkout Python is managed by uv and marked externally managed (PEP 668), so pip resolves for a venv of it.
   const venv = path.join(fx.folder, 'venv');
@@ -77,4 +77,4 @@ test('with the dependencies resolved, pip reads the sibling reference and does n
   // of the same name is given in the same command. pip names that file in either form it prints: `Processing <file> (from ...)`
   // (macOS) or `No such file or directory: '<file>'` (Linux, pip 26.2.1).
   assert.ok(output.includes(fileURLToPath(fx.reference)), output);
-}, { timeout: 900000 });
+});
