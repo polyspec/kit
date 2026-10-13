@@ -101,18 +101,21 @@ test('every Cargo package declares rust-version as the Rust pin, also through it
   ]);
 });
 
+// A lock resolves the typescript that a manifest of the repository declares at the top level or in the node_modules of a
+// workspace; a copy nested under another package, such as the TypeScript 5.9.3 that API Extractor bundles, is that tool's.
 test('every package.json that names typescript names the TypeScript pin, and every lock resolves it to the pin', (t) => {
   const root = tree(t, {
     'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
-    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'node_modules/x/node_modules/typescript': { version: '6.0.3' } } }),
+    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'node_modules/@microsoft/api-extractor/node_modules/typescript': { version: '5.9.3' }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
     'packages/a/package.json': json({ dependencies: { typescript: '^7.0.2' }, peerDependencies: { typescript: '>=6' } }),
     'packages/b/package.json': json({ name: 'b' }),
     'packages/c/package.json': json({ optionalDependencies: { typescript: '7.0.2' } }),
-    'packages/c/package-lock.json': json({ packages: { 'node_modules/typescript-plugin': { version: '1.0.0' } } }),
+    'packages/c/package-lock.json': json({ packages: { 'node_modules/typescript-plugin': { version: '1.0.0' }, 'node_modules/typescript': { version: '6.0.3' } } }),
   });
   assert.deepEqual(typescriptFindings(root, new Pinning(PINS)), [
-    'package-lock.json: packages["node_modules/x/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+    'package-lock.json: packages["packages/w/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
     'packages/a/package.json: dependencies.typescript is "^7.0.2"; kit pins typescript 7.0.2, so it must be "7.0.2"',
     'packages/a/package.json: peerDependencies.typescript is ">=6"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+    'packages/c/package-lock.json: packages["node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
   ]);
 });

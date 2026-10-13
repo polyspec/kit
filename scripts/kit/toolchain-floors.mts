@@ -7,7 +7,8 @@
 //   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
 //   go.mod         go is "<go pin>" and no toolchain line, which the go command drops when it equals the go line
 //   Cargo.toml     package.rust-version is "<rust pin>", also through rust-version.workspace = true
-//   package.json   typescript of each dependency field is "<typescript pin>"; every typescript of a package-lock.json is the pin
+//   package.json   typescript of each dependency field is "<typescript pin>"; the typescript that a package-lock.json resolves
+//                  at its top level or for a workspace is the pin, and a copy nested under another package is that package's
 // A floor may also equal the channel of a declared exception whose scope holds the file (toolchain-exceptions.mts). Each other
 // floor, and a missing one, is a finding that names the file, the key, the pin and the expected value. Beside the floors,
 // an .npmrc may not keep npm from linking (S1: our rules never block the links of npm): install-links=true and
@@ -100,6 +101,16 @@ export function cargoFindings(root: string, pinning: Pinning, env: NodeJS.Proces
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 
+// Whether the package-lock.json key `key` is the typescript that a manifest of the repository declares: the top-level
+// node_modules/typescript or that of a workspace (<workspace>/node_modules/typescript). A copy nested under another package
+// (node_modules/<package>/node_modules/typescript) is that tool's own, such as the TypeScript that API Extractor bundles, and
+// our pin is never forced onto it (S1).
+function declaredTypescript(key: string): boolean {
+  if (!key.endsWith('node_modules/typescript')) return false;
+  const owner = key.slice(0, -'node_modules/typescript'.length);
+  return owner === '' || (owner.endsWith('/') && !owner.split('/').includes('node_modules'));
+}
+
 /** One line for each package.json that names typescript other than the TypeScript pin, and each locked typescript of another release. */
 export function typescriptFindings(root: string, pinning: Pinning): string[] {
   const files = checkedFiles(root);
@@ -112,7 +123,7 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
     }
     if (name === 'package-lock.json') {
       const packages: Record<string, { version?: unknown }> = readJson(root, file).packages ?? {};
-      return Object.entries(packages).filter(([key]) => key === 'node_modules/typescript' || key.endsWith('/node_modules/typescript'))
+      return Object.entries(packages).filter(([key]) => declaredTypescript(key))
         .flatMap(([key, entry]) => pinning.check(file, `packages[${JSON.stringify(key)}].version`, entry.version, 'typescript'));
     }
     return [];
