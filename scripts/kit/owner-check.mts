@@ -255,8 +255,11 @@ export function select(declaration: OwnerDeclaration, changed: string[], order: 
 export function npmProject(root: string, tracked: string[]): NpmProject {
   const manifestFile = path.join(root, 'package.json');
   if (!existsSync(manifestFile)) return { scripts: {}, workspaces: [], prefixes: [] };
-  const manifest: { workspaces?: string[] | { packages?: string[] }; scripts?: Record<string, string> } = JSON.parse(readFileSync(manifestFile, 'utf8'));
-  const globs = (Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces?.packages ?? []).map(globExpression);
+  const manifest: { workspaces?: unknown; scripts?: Record<string, string> } = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  // npm reads workspaces as a list of paths and globs (package.json of npm 7 and later); a package without it has none.
+  const declared = manifest.workspaces ?? [];
+  if (!Array.isArray(declared) || !declared.every(item => typeof item === 'string')) throw new Error(`package.json: workspaces is ${JSON.stringify(declared)}; npm reads a list of paths and globs`);
+  const globs = declared.map(globExpression);
   const workspaces: string[] = [];
   const prefixes: string[] = [];
   for (const file of tracked.filter(name => name.endsWith('/package.json'))) {
