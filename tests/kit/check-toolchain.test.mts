@@ -108,6 +108,17 @@ test('a command that is missing or prints no release is a mismatch that names th
   assert.match(result.stderr, /composer: `composer --version --no-ansi` failed \(.*\).*; config\/toolchain\.json composer declares 2\.10\.3; fix: install Composer 2\.10\.3, or declare its sha256/);
 });
 
+test('a version command ended by a signal names the signal, not an exit status (K118)', (t) => {
+  const { root, stubs } = setup(t);
+  const killed = path.join(stubs.directory, 'bin', 'npm');
+  writeFileSync(killed, '#!/usr/bin/env node\nprocess.kill(process.pid, "SIGKILL");\n');
+  chmodSync(killed, 0o755);
+  const [mismatch] = toolchainMismatches(['npm'], { root, env: stubs.env });
+  assert.match(mismatch ?? '', /^npm: `npm --version` failed \(ended by signal SIGKILL\); packageManager of package\.json declares 12\.2\.0/);
+  const stubbed = toolchainMismatches(['npm'], { root, run: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' }) });
+  assert.match(stubbed[0] ?? '', /`npm --version` failed \(ended by signal SIGTERM\)/);
+});
+
 test('a tool that cannot run names the declared release in its fix: the minors of PHP, the exact version of the others (K108)', (t) => {
   const { root, stubs } = setup(t, { ...OUTPUTS, php: null, composer: null });
   const result = check(root, stubs.env, 'php', 'composer');
