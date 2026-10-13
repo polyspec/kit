@@ -27,14 +27,12 @@ test('every declaration equals its pin at the pin\'s precision; each other names
   const declared = {
     node: { version: '26.8.1', source: '.node-version' },
     rust: { version: '1.98.1', source: 'rust-toolchain.toml channel' },
-    go: { version: '1.27.1', source: 'go.mod go directive' },
     php: { minors: ['8.4', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.13', source: '.python-version' },
   };
   assert.deepEqual(pinFindings(declared, PINS), [
     '.node-version declares node 26.8.1; kit pins node 26.11.1, so declare 26.11.1',
     'rust-toolchain.toml channel declares rust 1.98.1; kit pins rust 1.99.0, so declare 1.99.0',
-    'go.mod go directive declares go 1.27.1; kit pins go 1.27.2, so declare 1.27.2',
     'config/toolchain.json php declares php 8.4; kit pins php 8.5, so declare 8.5',
     '.python-version declares python 3.13; kit pins python 3.14, so declare 3.14',
   ]);

@@ -19,6 +19,7 @@ import { govulncheckCommand } from './install-govulncheck.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
+import { declaredGo } from './toolchain-files.mts';
 import { PINS, pinFindings } from './toolchain-pins.mts';
 import { composerFindings, enginesFindings, goModFindings, pyprojectFindings } from './toolchain-floors.mts';
 
@@ -33,9 +34,10 @@ export type Run = (command: string, args: string[]) => RunResult;
 /** The options of a check: the checkout, the environment of the version commands, and how a command starts. */
 export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: Run | undefined };
 
-// A declared tool as declaredToolchain of toolchain-declared.mts returns it: an exact release, or minor releases.
+// A declared tool as declaredToolchain of toolchain-declared.mts, or declaredGo of toolchain-files.mts, returns it: an exact
+// release, or minor releases.
 type DeclaredTool = { version?: string; minor?: string; minors?: string[]; source: string };
-const declaredTools = (root: string): Record<string, DeclaredTool | undefined> => declaredToolchain(root);
+const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), go: declaredGo(root, env) });
 
 type Probe = { command: (root: string) => string; args: string[]; pattern: RegExp; fix: (version: string | undefined) => string };
 
@@ -93,7 +95,7 @@ export function toolchainVersions(tools: string[] = TOOLS, { root = ROOT, env = 
 
 /** One line for each of `tools` that does not run at its declared version; `run` starts a command and returns `{ status, stdout, stderr, error }`. */
 export function toolchainMismatches(tools: string[], { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
-  const declared = declaredTools(root);
+  const declared = declaredTools(root, env);
   const mismatches: string[] = [];
   for (const tool of tools) {
     if (!probes[tool]) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
@@ -122,12 +124,13 @@ const expectation = (entry: DeclaredTool) => (entry.minors ?? (entry.minor ? [en
 if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
-    const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredTools(ROOT)[tool]);
+    const env = toolchainEnvironment(ROOT);
+    const declared = declaredTools(ROOT, env);
+    const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in config/toolchain.json, .node-version, .php-version, .python-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
     // Every declaration and every floor equals the pin of kit, whichever tools run.
     const pins = pinFindings(declaredToolchain(ROOT), PINS);
-    const env = toolchainEnvironment(ROOT);
     const floors = [...enginesFindings(ROOT, PINS), ...composerFindings(ROOT, PINS), ...pyprojectFindings(ROOT, PINS, env), ...goModFindings(ROOT, PINS, env)];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors]) console.error(`[check-toolchain] ${line}`);

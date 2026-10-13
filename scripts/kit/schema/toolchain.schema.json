@@ -95,7 +95,7 @@
       }
     },
     "go": {
-      "description": "Where the Go release is declared: the go.mod that holds its toolchain line or go directive, and optionally a file that holds the exact release.",
+      "description": "Where the Go release is declared: the go.mod whose go line holds the exact release; go mod edit -json reads it.",
       "type": "object",
       "required": [
         "mod"
@@ -105,10 +105,6 @@
         "mod": {
           "type": "string",
           "pattern": "^([^/\\\\][^\\\\]*/)?go\\.mod$"
-        },
-        "versionFile": {
-          "type": "string",
-          "pattern": "^[^/][^\\\\]*$"
         }
       }
     },
