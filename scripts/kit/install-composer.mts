@@ -3,9 +3,9 @@
 // composer.phar with that digest is kept. A Composer declared without a digest is verified by check-toolchain, not installed.
 import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
-import { fileDigest } from './digest.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
+import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 
 /** Installs the declared Composer `{ version, sha256 }` into var/tools/composer of `root` and writes the wrapper. */
 export function installComposer({ root, declared, print = () => {} }: { root: string; declared: { version: string; sha256: string }; print?: (text: string) => void }) {

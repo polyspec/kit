@@ -8,10 +8,10 @@
 //   node scripts/kit/install-cargo-audit.mts
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './install-tool.mts';
+import { installOnce } from './bootstrap/install-tool.mts';
 import { isMain, ROOT } from './paths.mts';
-import { printedRelease, run, toolsPath } from './tool-wrappers.mts';
-import { recordedRelease } from './toolchain-declared.mts';
+import { printedRelease, run, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { recordedRelease } from './bootstrap/toolchain-declared.mts';
 
 /** The installation directory of cargo-audit under `root`. */
 export const cargoAuditPrefix = (root: string = ROOT): string => toolsPath(root, 'cargo-audit');

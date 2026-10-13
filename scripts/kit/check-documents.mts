@@ -27,8 +27,8 @@ import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, ROOT } from './paths.mts';
-import { sha256 } from './digest.mts';
-import { readJson } from './files.mts';
+import { sha256 } from './bootstrap/digest.mts';
+import { readJson } from './bootstrap/files.mts';
 
 export const CONFIG = 'config/documents.json';
 const DOC_ID = /<!-- doc-id: ([^>]*?) -->/g;

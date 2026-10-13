@@ -12,7 +12,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, phpunitEvents, pythonEvents, tapEvents, type Sink, type TestRef } from './test-output.mts';
-import { toolsPath } from './tool-wrappers.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import type { Environment, ParityBinding, ParityImplementation, Runner } from './parity-declaration.mts';
 
 /** The output of a finished run. */

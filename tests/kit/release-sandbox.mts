@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout } from './checkout.mts';
-import { sha256 } from '../../scripts/kit/digest.mts';
+import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
 

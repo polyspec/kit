@@ -25,7 +25,7 @@ import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } fro
 import type { ProcessStart } from './holder-lock.mts';
 import { FAILURE_LINES, logPath, runLogged, startReport, TARGET_NAME, targetPassed } from './target-report.mts';
 import { isMain, ROOT } from './paths.mts';
-import { readJson, writeJson } from './files.mts';
+import { readJson, writeJson } from './bootstrap/files.mts';
 import { git } from './git.mts';
 import { now, seconds } from './time.mts';
 

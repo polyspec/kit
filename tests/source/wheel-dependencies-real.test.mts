@@ -11,7 +11,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { fileDigest } from '../../scripts/kit/digest.mts';
+import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import { installWheelFiles } from '../../scripts/kit/release-consumer.mts';
 import { lockRequirements } from '../../scripts/kit/wheel-dependencies.mts';
 

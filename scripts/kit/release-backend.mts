@@ -13,11 +13,11 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileDigest } from './digest.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { context } from './release.mts';
 import { BACKEND_DIRECTORY } from './release-wheel.mts';
 import { run, Stop } from './process.mts';
-import { toolsPath } from './tool-wrappers.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;

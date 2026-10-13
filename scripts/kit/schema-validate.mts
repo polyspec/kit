@@ -4,7 +4,7 @@
 // scripts/kit/schema/<name>.schema.json.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readJson } from './files.mts';
+import { readJson } from './bootstrap/files.mts';
 
 /** The directory of the schemas of kit. */
 export const SCHEMAS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema');

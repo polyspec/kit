@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { sha256, fileDigest } from '../../scripts/kit/digest.mts';
+import { sha256, fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import * as release from '../../scripts/kit/release.mts';
 import * as wheel from '../../scripts/kit/release-wheel.mts';
 import * as backend from '../../scripts/kit/release-backend.mts';

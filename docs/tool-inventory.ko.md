@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: df1495b1fc7a1d54fe944ebed251b12f705955c509b1b8fa475236d468b611af -->
+<!-- source-sha256: fb0762c7d98a632fee44be199b83965158f60618c9e87ff7130dc78b196e0a4c -->
 
 # 도구 목록
 
@@ -35,7 +35,7 @@
 ## Toolchain (K8.2)
 
 `scripts/kit/install-tools.mts`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mts`는 실행 중인
-도구를 선언과 대조합니다. `scripts/kit/toolchain-declared.mts`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
+도구를 선언과 대조합니다. `scripts/kit/bootstrap/toolchain-declared.mts`가 선언을 읽고, 설치하는 도구마다 module이 하나씩 있습니다
 (`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
 `install-cargo-audit.mts`, `install-govulncheck.mts`를 씁니다). 모든 installer는 `install-tool.mts`를 씁니다. release를 대상
 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을

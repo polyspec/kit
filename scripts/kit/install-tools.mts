@@ -16,13 +16,13 @@ import { installComposer } from './install-composer.mts';
 import { installPhpunit } from './install-phpunit.mts';
 import { installGo } from './install-go.mts';
 import { installGovulncheck } from './install-govulncheck.mts';
-import { installNpm } from './install-npm.mts';
+import { installNpm } from './bootstrap/install-npm.mts';
 import { installPython } from './install-python.mts';
 import { installBackend } from './release-backend.mts';
 import { installRuff } from './install-ruff.mts';
 import { installUv } from './install-uv.mts';
-import { declaredToolchain } from './toolchain-declared.mts';
-import type { DeclaredToolchain } from './toolchain-declared.mts';
+import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
+import type { DeclaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
 const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck', 'alint'];

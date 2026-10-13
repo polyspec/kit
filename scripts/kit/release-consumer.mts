@@ -31,12 +31,12 @@ import { fileURLToPath } from 'node:url';
 import { ROOT } from './paths.mts';
 import { ASSETS, archiveName, assetNames, context, latestTag, parseTag } from './release.mts';
 import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
-import { fileDigest } from './digest.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { wheelName } from './release-wheel.mts';
 import { lockRequirements, wheelLocks } from './wheel-dependencies.mts';
-import { toolsPath } from './tool-wrappers.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { makeVenv } from './python-venv.mts';
-import { readJson, writeAtomic } from './files.mts';
+import { readJson, writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
 

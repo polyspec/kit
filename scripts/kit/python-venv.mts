@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
-import { run, toolsPath } from './tool-wrappers.mts';
+import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 
 const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or var/tools/bin/uv venv --python var/tools/bin/python3 ${directory}`;
 

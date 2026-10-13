@@ -31,7 +31,7 @@ import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.m
 import { run, Stop } from './process.mts';
 import { installConsumers, type ReleaseContext } from './release-consumer.mts';
 import { readPylock, type PylockPackage } from './pylock.mts';
-import { fileDigest } from './digest.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, repositoryOf, siblingLinks, siblingsOf, wheelLocks } from './wheel-dependencies.mts';
 

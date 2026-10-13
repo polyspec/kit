@@ -26,8 +26,8 @@ import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
-import { fileDigest } from './digest.mts';
-import { readJson, writeJson } from './files.mts';
+import { fileDigest } from './bootstrap/digest.mts';
+import { readJson, writeJson } from './bootstrap/files.mts';
 import { compareParts, dottedParts, isPrerelease, older, stableDescending } from './version.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.

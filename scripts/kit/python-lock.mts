@@ -21,8 +21,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POLICY } from './dependency-state.mts';
 import { parseToml, readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
-import { toolsPath } from './tool-wrappers.mts';
-import { declaredToolchain } from './toolchain-declared.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
 const NAME_PATTERN = '[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?';

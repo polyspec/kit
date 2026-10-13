@@ -12,8 +12,8 @@ import { POLICY, RECORD, UPDATE, dependencyKey, lockEcosystem, lockFix, localSpe
 import { isPrerelease, older } from './version.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
-import { fileDigest } from './digest.mts';
-import { readJson } from './files.mts';
+import { fileDigest } from './bootstrap/digest.mts';
+import { readJson } from './bootstrap/files.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,

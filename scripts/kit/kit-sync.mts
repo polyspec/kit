@@ -13,8 +13,8 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { LOCK, vendoredFilesOf, walk } from './kit-check.mts';
 import { isMain, ROOT } from './paths.mts';
-import { fileDigest } from './digest.mts';
-import { jsonText, readJson, writeAtomic } from './files.mts';
+import { fileDigest } from './bootstrap/digest.mts';
+import { jsonText, readJson, writeAtomic } from './bootstrap/files.mts';
 import { git, gitResult } from './git.mts';
 
 export const DEFAULT_REPOSITORY = 'https://github.com/polyspec/kit';

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { declaredToolchain } from '../../scripts/kit/toolchain-declared.mts';
+import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { buildWheel, wheelName } from '../../scripts/kit/release-wheel.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

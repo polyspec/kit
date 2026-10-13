@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 /** The interpreter of the uv-managed Python `version` of the checkout, or undefined when uv has not installed it. */
 function managedPython(uv: string, version: string, root: string): string | undefined {
