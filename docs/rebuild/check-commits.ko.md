@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-check-commits -->
-<!-- source-sha256: bd99faa7e5266d0d2d903f43bbff8d72619e294eb80165426cdad74477c72ed0 -->
+<!-- source-sha256: 19102e4d75d70042d44f20e501512eea2507425b2b09d769a645dae252562877 -->
 # 재구현 기록: check-commits
 
 [English](check-commits.md)
@@ -18,7 +18,7 @@ VERDICTS 6절).
 | M1 | header는 config/commits.json의 type으로 된 `type(scope): Subject (#id)`입니다 |
 | M2 | Subject는 ASCII 대문자로 시작하고, `(#id)` 앞에 마침표가 없으며, 최대 `subjectMax` 글자입니다 |
 | M3 | 빈 줄 다음의 body는 줄마다 최대 `bodyMax` 글자이며, 긴 단어 하나는 예외입니다 |
-| I1 | commit-items: commit은 자신이 이름을 대는 item의 checklist 행을 바꿉니다 |
+| I1 | commit-items: commit은 checklist item 하나의 상태만 바꿉니다. commit이 추가한 행은 변경이 아닙니다 |
 | I2 | commit-changelog: item을 끝내는 commit은 changelog와 그 번역도 바꿉니다 |
 
 ## 평가한 도구

@@ -16,7 +16,7 @@ Verdict: **none fits.** kit keeps `check-commits.mts`. Measured for K73 (scratch
 | M1 | the header is `type(scope): Subject (#id)` with a type of config/commits.json |
 | M2 | the Subject starts with an ASCII capital, has no period before `(#id)` and at most `subjectMax` characters |
 | M3 | a blank line, then a body whose lines have at most `bodyMax` characters, except a single long word |
-| I1 | commit-items: a commit changes the checklist rows of the items it names |
+| I1 | commit-items: a commit changes the state of at most one checklist item; a row that it adds is not a change |
 | I2 | commit-changelog: a commit that finishes an item also changes the changelog and its translation |
 
 ## Tools evaluated
