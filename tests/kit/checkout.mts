@@ -1,6 +1,7 @@
 // Helpers of the dependency tests: a copy of tests/kit/fixture with the tools, as a Git repository of a temporary
 // directory, so that each tool reads its own checkout, and the commands that run the gate and the review in it.
 import { spawnSync } from 'node:child_process';
+import type { TestContext } from 'node:test';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -13,7 +14,7 @@ const ROOT = path.resolve(HERE, '../..');
 const FIXTURE = path.join(HERE, 'fixture');
 
 /** A copy of the fixture with scripts/kit, removed with `t.after`. */
-export function fixtureCheckout(t) {
+export function fixtureCheckout(t: Pick<TestContext, 'after'>) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-checkout-'));
   t.after(() => removeSandbox(directory));
   cpSync(FIXTURE, directory, { recursive: true });
@@ -23,14 +24,17 @@ export function fixtureCheckout(t) {
   return directory;
 }
 
-export const gate = (root, env = process.env) => spawnSync(process.execPath, ['scripts/kit/check-dependency-policy.mts'], { cwd: root, encoding: 'utf8', env });
-export const review = (root, args, env) => spawnSync(process.execPath, ['scripts/kit/dependency-review.mts', ...args], { cwd: root, encoding: 'utf8', env });
+export const gate = (root: string, env: NodeJS.ProcessEnv = process.env) => spawnSync(process.execPath, ['scripts/kit/check-dependency-policy.mts'], { cwd: root, encoding: 'utf8', env });
+export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync(process.execPath, ['scripts/kit/dependency-review.mts', ...args], { cwd: root, encoding: 'utf8', env });
+
+/** The JSON report of `cargo audit --json`, as far as the stub reads it. */
+export type CargoAuditReport = { vulnerabilities: { found: boolean; count: number; list: unknown[] }; warnings: Record<string, unknown> };
 
 /**
  * Installs a stub of cargo-audit into var/tools/cargo-audit/bin of `root`: it prints `cargo-audit 0.22.2` for --version and
  * the JSON `report` for an audit, and exits 1 when the report lists a vulnerability, as cargo-audit does.
  */
-export function installCargoAuditStub(root, report = { vulnerabilities: { found: false, count: 0, list: [] }, warnings: {} }) {
+export function installCargoAuditStub(root: string, report: CargoAuditReport = { vulnerabilities: { found: false, count: 0, list: [] }, warnings: {} }) {
   const bin = path.join(root, 'var/tools/cargo-audit/bin');
   mkdirSync(bin, { recursive: true });
   const file = path.join(bin, 'cargo-audit');
@@ -47,7 +51,7 @@ else { console.log(JSON.stringify(report)); process.exit(report.vulnerabilities.
  * -version and the JSON `messages` one after the other for a scan, and exits 0 as govulncheck -json does. Each scan
  * appends its working directory and arguments to var/tools/govulncheck/calls.log (govulncheckCalls reads it).
  */
-export function installGovulncheckStub(root, messages = []) {
+export function installGovulncheckStub(root: string, messages: unknown[] = []) {
   const prefix = path.join(root, 'var/tools/govulncheck');
   const bin = path.join(prefix, 'bin');
   mkdirSync(bin, { recursive: true });
@@ -65,7 +69,7 @@ else {
 }
 
 /** The scans that the govulncheck stub of `root` ran, in order: { cwd, args }. */
-export function govulncheckCalls(root) {
+export function govulncheckCalls(root: string): Array<{ cwd: string; args: string[] }> {
   const log = path.join(root, 'var/tools/govulncheck/calls.log');
   return existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
 }

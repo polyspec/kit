@@ -12,8 +12,8 @@ import { fixtureCheckout, installCargoAuditStub, installGovulncheckStub, review 
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const cleanups = [];
-const t = { after: callback => cleanups.push(callback) };
+const cleanups: Array<() => void> = [];
+const t = { after: (callback: () => void) => cleanups.push(callback) };
 try {
   const root = fixtureCheckout(t);
   installCargoAuditStub(root);

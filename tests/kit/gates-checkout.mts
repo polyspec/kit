@@ -1,9 +1,11 @@
 // Helpers of the tests of the gates: a Git checkout in a temporary directory that holds the tools of scripts/kit, the
 // configuration and the checklist of the fixture, and a bare repository as its remote `origin`.
 import { spawnSync } from 'node:child_process';
+import type { SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
 
@@ -16,41 +18,44 @@ export const TRANSLATION = 'docs/plans/execution-checklist.ko.md';
 // The commit rules of the checkout: the same rules as the kit repository's config/commits.json.
 export const COMMITS = { schema: 1, types: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'], subjectMax: 50, bodyMax: 72 };
 
-export function run(cwd, command, args, options = {}) {
+export function run(cwd: string, command: string, args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> = {}) {
   return spawnSync(command, args, { cwd, encoding: 'utf8', ...options });
 }
 
-export function git(cwd, ...args) {
+export function git(cwd: string, ...args: string[]) {
   const result = run(cwd, 'git', args);
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${result.stderr}`);
   return result.stdout.trim();
 }
 
 /** Commits the index as it is and returns the commit. */
-export function commitIndex(cwd, message) {
+export function commitIndex(cwd: string, message: string) {
   git(cwd, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', message);
   return git(cwd, 'rev-parse', 'HEAD');
 }
 
 /** Commits every change of the working tree and returns the commit. */
-export function commitAll(cwd, message) {
+export function commitAll(cwd: string, message: string) {
   git(cwd, 'add', '--all');
   return commitIndex(cwd, message);
 }
 
 /** The checklist of the fixture with the first task in the state `state`, in English and in Korean. */
-export function checklists(state) {
-  const read = name => readFileSync(path.join(FIXTURE, name), 'utf8');
-  const set = text => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, `$1| ${state} |`);
+export function checklists(state: string) {
+  const read = (name: string) => readFileSync(path.join(FIXTURE, name), 'utf8');
+  const set = (text: string) => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, `$1| ${state} |`);
   return { english: set(read(CHECKLIST)), korean: set(read(TRANSLATION)) };
 }
+
+/** The options of checkout: the state of the first task, the checklist configuration and the extra files. */
+type CheckoutOptions = { state?: string; config?: unknown; files?: Record<string, string> };
 
 /**
  * A checkout `work` with scripts/kit, config/checklist.json (or `config`), the checklists in the state `state` (the second
  * task of the fixture) and the files of `files`, written over them, and the remote `origin` in `remote`; nothing is committed.
  * Removed with `t.after`.
  */
-export function checkout(t, { state = '[ ]', config = null, files = {} } = {}) {
+export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config = null, files = {} }: CheckoutOptions = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-gates-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const work = path.join(directory, 'work');
@@ -77,7 +82,7 @@ export function checkout(t, { state = '[ ]', config = null, files = {} } = {}) {
 }
 
 /** A checkout with the hooks installed through `git-hooks install` and everything committed. */
-export function prepared(t, options) {
+export function prepared(t: Pick<TestContext, 'after'>, options?: CheckoutOptions) {
   const made = checkout(t, options);
   const installed = run(made.work, process.execPath, ['scripts/kit/git-hooks.mts', 'install']);
   if (installed.status !== 0) throw new Error(`git-hooks install failed: ${installed.stderr}`);

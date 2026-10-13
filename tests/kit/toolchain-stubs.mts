@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { TestContext } from 'node:test';
 import { UV_TARGETS, uvArchiveUrl } from '../../scripts/kit/install-uv.mts';
 
 const HEADER = `#!/usr/bin/env node
@@ -64,7 +65,7 @@ if (args[0] === 'mod') {
 `;
 
 // The bytes of the ruff wheel of a release: `pip download` writes them under the name of the wheel of the requirement.
-export const ruffWheel = version => `ruff ${version} wheel stand-in\n`;
+export const ruffWheel = (version: string) => `ruff ${version} wheel stand-in\n`;
 
 // The Python that the uv stub installs: it prints STUB_PYTHON_SHOWS (3.14.8) and downloads the ruff wheel of the requirement
 // file of `pip download`.
@@ -78,7 +79,7 @@ else if (args[1] === 'pip' && args[2] === 'download') {
 
 // The uv of a release archive: \`python install\` writes the stub Python under UV_PYTHON_INSTALL_DIR and \`python find\` names it,
 // \`venv\` makes a venv whose home is that Python, and \`pip install\` puts the command of the ruff wheel beside the venv's python.
-const uvSource = version => `${HEADER}
+const uvSource = (version: string) => `${HEADER}
 const installed = (release) => path.join(process.env.UV_PYTHON_INSTALL_DIR, 'cpython-' + release + '-stub', 'bin', 'python' + release.split('.').slice(0, 2).join('.'));
 if (args[0] === '--version') console.log('uv ' + (process.env.STUB_UV_SHOWS ?? ${JSON.stringify(version)}) + ' (stub 2026-01-01)');
 else if (args[0] === 'python' && args[1] === 'find') {
@@ -119,11 +120,13 @@ export const UV_VERSION = '0.12.24';
  * The uv declaration of this platform and the release archive of the stub uv that it names: the archive is written into a
  * temporary directory that is removed with `t.after`, and its digest is the declared one. `url` is the download.
  */
-export function uvRelease(t, version = UV_VERSION) {
+export function uvRelease(t: Pick<TestContext, 'after'>, version = UV_VERSION) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-release-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const key = `${process.platform}-${process.arch}`;
-  const target = UV_TARGETS[key];
+  const targets: Record<string, string> = UV_TARGETS;
+  const target = targets[key];
+  if (target === undefined) throw new Error(`uvRelease: UV_TARGETS has no uv target for ${key}`);
   mkdirSync(path.join(directory, `uv-${target}`));
   writeFileSync(path.join(directory, `uv-${target}`, 'uv'), uvSource(version), { mode: 0o755 });
   const archive = path.join(directory, 'archive.tar.gz');
@@ -133,12 +136,12 @@ export function uvRelease(t, version = UV_VERSION) {
 }
 
 /** The directory of stubs and the environment that puts them first on PATH; the directory is removed with \`t.after\`. */
-export function toolchainStubs(t, { downloads = {}, extra = {} } = {}) {
+export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, extra = {} }: { downloads?: Record<string, string>; extra?: Record<string, string> } = {}) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-stubs-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
   mkdirSync(bin);
-  for (const [name, source] of [['npm', NPM], ['go', GO], ['cargo', CARGO], ['curl', CURL]]) {
+  for (const [name, source] of [['npm', NPM], ['go', GO], ['cargo', CARGO], ['curl', CURL]] as const) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
@@ -154,7 +157,7 @@ export function toolchainStubs(t, { downloads = {}, extra = {} } = {}) {
  * holds the arguments and the GOTOOLCHAIN and RUSTUP_AUTO_INSTALL it ran with. The environment has the stubs first on PATH,
  * followed by the directory of this Node.js and the system directories only, so a tool that is not stubbed is absent.
  */
-export function versionStubs(t, outputs) {
+export function versionStubs(t: Pick<TestContext, 'after'>, outputs: Record<string, string | null>) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-versions-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');

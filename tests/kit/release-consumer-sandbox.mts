@@ -13,10 +13,12 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import type { TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { fileDigest } from '../../scripts/kit/digest.mts';
 import { releaseSandbox } from './release-sandbox.mts';
+import type { ReleaseSandboxOptions } from './release-sandbox.mts';
 import { PIP_FUNCTIONS } from './wheel-stubs.mts';
 
 // The release of the checkout Python (var/tools/bin/python3) that the stubs report.
@@ -187,7 +189,7 @@ if (args[0] === 'list' && args[1] === '-m') {
 const STUBS = { npm: NPM, composer: COMPOSER, gh: GH, python3: PATH_PYTHON3, 'checkout-python3': PYTHON3, 'checkout-uv': UV, cargo: CARGO, go: GO };
 
 /** The sandbox at `version` with its release tags, the archives of the tag in var/release/assets and the stubs of the tools. */
-export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
+export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1', ...options }: ReleaseSandboxOptions = {}) {
   const box = releaseSandbox(t, { version, ...options });
   const tag = box.release(version);
   const ctx = (extra = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: 'example/kit-fixture' }, ...extra });
@@ -211,7 +213,7 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
   // The published assets: each asset of the release at its URL in the repository and with the sha256 of its file, as GitHub lists them.
   const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
   const source = path.join(box.root, release.ASSETS);
-  const published = Object.fromEntries(names.map(name => [name, { url: `${config.repositoryUrl}/releases/download/${tag}/${name}`, digest: `sha256:${fileDigest(path.join(source, name))}` }]));
+  const published = Object.fromEntries(names.map((name: string) => [name, { url: `${config.repositoryUrl}/releases/download/${tag}/${name}`, digest: `sha256:${fileDigest(path.join(source, name))}` }]));
   writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source, published }, venvPython: VENV_PYTHON, version }));
   // The remote of the repository URL is the sandbox itself, so git ls-remote reads real tags.
   const env = {
@@ -233,15 +235,15 @@ export function consumerSandbox(t, { version = '0.0.1', ...options } = {}) {
     ctx: (extra = {}) => release.context(box.root, { env, ...extra }),
     state: () => JSON.parse(readFileSync(stateFile, 'utf8')),
     /** Sets the stub behavior (`modes`: tool to mode) and the names that the release lists. */
-    stub(change) {
+    stub(change: { modes?: Record<string, string>; [field: string]: unknown }) {
       const state = JSON.parse(readFileSync(stateFile, 'utf8'));
       writeFileSync(stateFile, JSON.stringify({ ...state, ...change, modes: { ...state.modes, ...change.modes } }));
     },
-    calls: (tool) => JSON.parse(readFileSync(stateFile, 'utf8')).calls.filter(call => call.tool === tool),
+    calls: (tool: string) => JSON.parse(readFileSync(stateFile, 'utf8')).calls.filter((call: { tool: string }) => call.tool === tool),
     /** Writes the manifests and locks of the consumer projects for the tag. */
     lock: () => consumer.lockConsumers(sandbox.ctx(), tag),
     /** Runs a command of the sandbox with the stub environment. */
-    exec: (command, args) => spawnSync(command, args, { cwd: box.root, env, encoding: 'utf8' }),
+    exec: (command: string, args: string[]) => spawnSync(command, args, { cwd: box.root, env, encoding: 'utf8' }),
   };
   return sandbox;
 }
