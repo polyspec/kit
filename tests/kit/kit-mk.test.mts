@@ -18,7 +18,7 @@ test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none nam
   const tools = recipes.filter(line => /\bnode /.test(line));
   assert.ok(tools.length > 0, 'kit.mk has no recipe that runs node');
   assert.deepEqual(recipes.filter(line => line.includes('scripts/kit')), [], 'these recipes name scripts/kit');
-  assert.deepEqual(tools.filter(line => !/\bnode \$\(KIT\)\/[a-z-]+\.\$\(KIT_EXT\)/.test(line)), [], 'these recipes run node without $(KIT)/<tool>.$(KIT_EXT)');
+  assert.deepEqual(tools.filter(line => !/\bnode \$\(KIT\)\/(?:bootstrap\/)?[a-z-]+\.\$\(KIT_EXT\)/.test(line)), [], 'these recipes run node without $(KIT)/<tool>.$(KIT_EXT) or $(KIT)/bootstrap/<tool>.$(KIT_EXT)');
 });
 
 test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT name', () => {
