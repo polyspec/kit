@@ -34,6 +34,21 @@ test('install-tools has mise install every tool of mise.lock in the checkout, an
   assert.match(result.stdout, new RegExp(`^\\[install-tools\\] ${path.join(root, 'var/tools/bin/mise').replaceAll('.', '\\.')} install --locked$`, 'm'));
 });
 
+test('a second install-tools with var/tools/bin and the shims first on PATH is a clean no-op (K127)', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\nuv = "0.12.24"\npython = "3.14.8"\n');
+  // As under make: var/tools/bin and the shims of mise come first on PATH, and a python3 of the shims is present. kit does not
+  // look a Python up among installations, so no second interpreter on PATH can make a run fail (as uv python list did).
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/mise/shims/python3'), '#!/bin/sh\necho "the python3 of the shims ran" >&2\nexit 1\n', { mode: 0o755 });
+  const env = { ...stubs.env, PATH: [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims'), stubs.env.PATH].join(path.delimiter) };
+  const first = start('install-tools', root, env);
+  const second = start('install-tools', root, env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(second.stdout, first.stdout, 'the second run does what the first did: mise install --locked, which mise keeps');
+  assert.deepEqual(stubs.calls(), ['mise install --locked', 'mise install --locked']);
+});
+
 test('a mise install that fails stops install-tools with the error of mise, before any install of kit', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'b'.repeat(64) } }) });
   const result = start('install-tools', root, { ...stubs.env, STUB_MISE_FAILS: 'ruff@0.17.0 is not in the lockfile' });
