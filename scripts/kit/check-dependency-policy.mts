@@ -8,7 +8,7 @@
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { POLICY, RECORD, UPDATE, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState } from './dependency-state.mts';
+import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState } from './dependency-state.mts';
 import { isPrerelease, older } from './version.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
@@ -27,7 +27,8 @@ export const RULES = {
   record: 'every registry dependency and every lock has an entry in the review record that matches the committed manifests and locks',
   latest: 'a registry dependency is locked at the latest stable release known at its review, unless the policy holds an exception for it',
   stale: 'an exception names a dependency that its review found at the latest stable release',
-  advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package)',
+  advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package), unless advisoryExceptions of the policy accepts it with its reason and removal condition',
+  staleAdvisory: 'an advisory exception names an advisory that the review of its lock found',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
@@ -83,6 +84,15 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     if (exceptions.has(key)) add('policy', key, 'the exception is declared twice', `remove the duplicate from ${POLICY}`);
     if (!declared.has(key)) add('policy', key, 'the exception names no registry dependency of its manifest', `remove the exception from ${POLICY} or name the manifest that declares the dependency`);
     exceptions.set(key, exception);
+  }
+
+  const accepted = advisoryExceptions(policy);
+  const seen = new Set<string>();
+  for (const exception of policy.advisoryExceptions ?? []) {
+    const key = advisoryKey(String(exception.lock), String(exception.package), String(exception.advisory));
+    if (!completeAdvisoryException(exception)) add('policy', POLICY, `the advisory exception ${exception.advisory} of ${exception.lock} ${exception.package} lacks a lock, package, advisory, reason or removal condition`, `complete the exception in ${POLICY}`);
+    if (seen.has(key)) add('policy', key, 'the advisory exception is declared twice', `remove the duplicate from ${POLICY}`);
+    seen.add(key);
   }
 
   for (const platform of policy.composerPlatforms) {
@@ -186,6 +196,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     const actual = fileDigest(path.join(root, lock));
     if (entry.sha256 !== actual) add('record', lock, `the lock changed after the review of ${record.reviewed}: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
     for (const advisory of entry.advisories ?? []) {
+      if (accepted.has(advisoryKey(lock, advisory.package, advisory.id))) continue;
       const fix = lockEcosystem(lock) === 'pypi'
         ? lockFix(lock, pythonLock(lock).createdBy, advisory.package)
         : `${UPDATE}, which updates the affected package and records the review`;
@@ -193,6 +204,13 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     }
   }
   for (const lock of recordedLocks.keys()) if (!state.locks.includes(lock)) add('record', lock, 'the review record names a lock that the checkout does not review', REVIEW);
+  // An advisory exception names an advisory that the review recorded for its lock; otherwise it is stale.
+  for (const exception of accepted.values()) {
+    const advisories = recordedLocks.get(exception.lock)?.advisories ?? [];
+    if (!advisories.some(advisory => advisory.package === exception.package && advisory.id === exception.advisory)) {
+      add('staleAdvisory', `${exception.lock} ${exception.package}`, `the review of ${record.reviewed} found no advisory ${exception.advisory}, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
+    }
+  }
 
   // A git package of a lock is pinned by its commit: the record holds the same URL, requested revision and commit as the lock.
   const pinned = new Map(state.vcs.map(item => [`${item.lock} ${item.package}`, item]));
@@ -230,6 +248,17 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   return findings;
 }
 
+/** The line of each advisory of the review record of `root` that advisoryExceptions of its policy accepts, with its reason. */
+export function acceptedAdvisories(root: string): string[] {
+  if (!existsSync(path.join(root, RECORD))) return [];
+  const accepted = advisoryExceptions(readJson(root, POLICY));
+  const record: ReviewRecord = readJson(root, RECORD);
+  return (record.locks ?? []).flatMap(entry => (entry.advisories ?? []).flatMap((advisory) => {
+    const exception = accepted.get(advisoryKey(entry.lock, advisory.package, advisory.id));
+    return exception ? [`[dependency-policy] ${entry.lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title} ${acceptedText(exception)}`] : [];
+  }));
+}
+
 /** The line of a finding. */
 export const findingLine = (finding: Finding) => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
 
@@ -242,6 +271,8 @@ if (isMain(import.meta.url)) {
   // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
   const root = args.length ? path.resolve(args[1]!) : ROOT;
   const findings = check(root);
+  const accepted = acceptedAdvisories(root);
+  for (const line of accepted) process.stdout.write(`${line}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);
@@ -249,5 +280,5 @@ if (isMain(import.meta.url)) {
   }
   const record = readJson(root, RECORD);
   const policy = readJson(root, POLICY);
-  process.stdout.write(`[dependency-policy] ${record.dependencies.length} registry dependencies and ${record.locks.length} locks match the review of ${record.reviewed}; ${policy.exceptions.length} stable-version exceptions; no advisory\n`);
+  process.stdout.write(`[dependency-policy] ${record.dependencies.length} registry dependencies and ${record.locks.length} locks match the review of ${record.reviewed}; ${policy.exceptions.length} stable-version exceptions; ${accepted.length ? `${accepted.length} accepted ${accepted.length === 1 ? 'advisory' : 'advisories'}` : 'no advisory'}\n`);
 }

@@ -157,6 +157,26 @@ export const UPDATE = 'make dependency-review UPDATE=1';
 /** The key of a dependency in the policy and the record. */
 export const dependencyKey = ({ ecosystem, manifest, package: name }: { ecosystem: string; manifest: string; package: string }) => `${ecosystem}:${manifest}:${name}`;
 
+/**
+ * An entry of advisoryExceptions of the policy: an advisory of a package of a lock that no release fixes, accepted with its
+ * reason until its removal condition holds. The review and the gate print an accepted advisory, never pass it in silence.
+ */
+export type AdvisoryException = { lock: string; package: string; advisory: string; reason: string; removalCondition: string };
+
+/** The key of the advisory `id` of the package `name` of `lock`. */
+export const advisoryKey = (lock: string, name: string, id: string) => `${lock} ${name} ${id}`;
+
+/** Whether `exception` names its lock, package, advisory, reason and removal condition, each as text that is not blank. */
+export const completeAdvisoryException = (exception: Record<string, unknown>): exception is AdvisoryException =>
+  ['lock', 'package', 'advisory', 'reason', 'removalCondition'].every(field => typeof exception[field] === 'string' && exception[field].trim() !== '');
+
+/** The complete advisory exceptions of `policy` by advisoryKey; an incomplete one accepts nothing and the gate names it. */
+export const advisoryExceptions = (policy: { advisoryExceptions?: Record<string, unknown>[] }): Map<string, AdvisoryException> =>
+  new Map((policy.advisoryExceptions ?? []).filter(completeAdvisoryException).map(exception => [advisoryKey(exception.lock, exception.package, exception.advisory), exception]));
+
+/** The text that names an advisory as accepted by `exception`, with its reason and removal condition. */
+export const acceptedText = (exception: AdvisoryException) => `is accepted by advisoryExceptions of ${POLICY}: ${exception.reason}; remove it when ${exception.removalCondition}`;
+
 /** The go.mod files of the checkout: every go.mod that is tracked or new and not ignored. */
 export const goModules = (root: string): string[] => checkedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
 

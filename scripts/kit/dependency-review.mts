@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
-import { POLICY, RECORD, TOOLCHAIN, UPDATE, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readState } from './dependency-state.mts';
+import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readState } from './dependency-state.mts';
 import type { Dependency } from './dependency-state.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
@@ -389,20 +389,34 @@ export function review(root: string) {
       lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(item)}`);
     } else if (exceptions.has(key)) lines.push(`${subject} ${dependency.version}: the exception of ${POLICY} is stale, ${answer.latest} is the latest stable release. Fix: remove the exception from ${POLICY}`);
   }
+  // An accepted advisory is printed as a note with its reason; an exception that the review of its lock does not find is stale.
+  const accepted = advisoryExceptions(policy);
+  const used = new Set<string>();
   for (const lock of state.locks) {
     // advisories answers every lock of the state.
     const answer = audits.get(lock)!;
     if (answer.error) {
       lines.push(`${lock}: the advisory query failed: ${answer.error}. Fix: run make dependency-review again when the advisory database answers`);
+      for (const key of accepted.keys()) if (key.startsWith(`${lock} `)) used.add(key);
       continue;
     }
     // A result without an error message has its advisories.
     for (const advisory of answer.advisories!) {
+      const key = advisoryKey(lock, advisory.package, advisory.id);
+      const exception = accepted.get(key);
+      if (exception) {
+        used.add(key);
+        notes.push(`${lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''} ${acceptedText(exception)}`);
+        continue;
+      }
       found.push({ lock, ...advisory });
       // readState holds each Python lock of the locks in pythonLocks.
       const fix = lockEcosystem(lock) === 'pypi' ? lockFix(lock, state.pythonLocks.find(item => item.lock === lock)!.createdBy, advisory.package) : UPDATE;
       lines.push(`${lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}. Fix: ${fix}`);
     }
+  }
+  for (const [key, exception] of accepted) {
+    if (!used.has(key)) lines.push(`${exception.lock} ${exception.package}: the advisory exception ${exception.advisory} of ${POLICY} is stale, the review found no such advisory. Fix: remove the exception from ${POLICY}`);
   }
   const record = {
     schema: 1,
