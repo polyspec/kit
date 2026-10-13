@@ -359,3 +359,11 @@ test('the make target install-tools runs the tool, online through ONLINE', () =>
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/install-tools.mts');
 });
+
+test('install-tools TOOLS=npm runs the bootstrap installer, which needs no package, also in kit (K71-2)', () => {
+  // In kit, `make install-tools TOOLS=npm` is the first step of a checkout: install-tools.mts imports modules that import the
+  // packages of package-lock.json, which npm ci installs only after it.
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'install-tools', 'TOOLS=npm', 'ONLINE=online-wrapper'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap-npm.mts');
+});
