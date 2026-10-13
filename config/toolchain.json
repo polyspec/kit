@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; the digests are the uv and alint archives of each platform and the backend wheel.",
+  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; golangci-lint from its release archive and the deadcode of golang.org/x/tools with go install, which the real Go lint test runs; the digests are the uv and alint archives of each platform and the backend wheel.",
   "python": "3.14",
   "pythonBuild": {
     "version": "3.14.8"
@@ -40,6 +40,16 @@
     "version": "2.16",
     "sha256": "6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee"
   },
+  "golangciLint": {
+    "version": "2.14.0",
+    "sha256": {
+      "darwin-arm64": "5ef5f36a7147e91dc58ef9ef4d11bb7bad5ead0c76eb6c01327a73c641d1dcc3",
+      "darwin-x64": "a5667c1c3536be1740133213e1e822bfb8f0d98ea12903174d6d5f635e4ed68d",
+      "linux-arm64": "ee7ec5f3453d15ddf106fae5a4d6c71737712348a979d1fe9cd52ec7ea299bae",
+      "linux-x64": "ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab"
+    }
+  },
+  "deadcode": "0.52.0",
   "composer": {
     "version": "2.10.3",
     "sha256": "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6"

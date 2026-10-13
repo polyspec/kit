@@ -1,4 +1,4 @@
-// The install of a tool from the release archive of its platform (uv, alint, Go): the archive of the declared release for the
+// The install of a tool from the release archive of its platform (uv, alint, golangci-lint, Go): the archive of the declared release for the
 // target of this platform is downloaded, refused unless its sha256 is the digest that config/toolchain.json declares for the
 // platform, unpacked as it is into a directory beside the target and renamed into place (install-tool.mts), and the wrapper
 // of var/tools/bin is written. An installed release is kept.
@@ -11,7 +11,7 @@ import { bootstrapEnvironment, run, toolsPath, writeWrapper } from './bootstrap/
 /** What an archive install of a tool needs: the release and its digests, the archive of each target and the wrappers. */
 export type ArchiveTool = {
   /** The name of the tool: the folder under var/tools and the label of the messages. */
-  tool: 'uv' | 'alint' | 'go';
+  tool: 'uv' | 'alint' | 'golangci-lint' | 'go';
   /** Where the digests are declared, as the messages name it, such as `config/toolchain.json uv`. */
   source: string;
   root: string;

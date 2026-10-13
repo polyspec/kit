@@ -13,6 +13,8 @@
 //   vulture      config/toolchain.json vulture: the release as PyPI names it and the sha256 of its one pure-Python wheel
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
+//   golangciLint config/toolchain.json golangciLint: the exact version and the sha256 of the release archive of each platform
+//   deadcode     config/toolchain.json deadcode: the release of golang.org/x/tools whose deadcode go install builds
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
 //   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
@@ -45,6 +47,8 @@ export type DeclaredToolchain = {
   python?: { minor: string; source: string };
   uv?: PlatformRelease;
   alint?: PlatformRelease;
+  golangciLint?: PlatformRelease;
+  deadcode?: Declared;
   pythonBuild?: Declared;
   pythonBackend?: { requirement: string; sha256: string; source: string };
   composer?: Declared & { sha256: unknown };
@@ -101,9 +105,9 @@ function pythonBuild(value: unknown, minor: string | undefined, uv: PlatformRele
 }
 
 // The release of a tool that is downloaded per platform: its exact version and the sha256 of the `file` of each platform key,
-// each read as 64 hexadecimal digits. uv and alint install from their release archive, ruff from its wheel, which
+// each read as 64 hexadecimal digits. uv, alint and golangci-lint install from their release archive, ruff from its wheel, which
 // install-tools installs into a virtual environment.
-function platformRelease(key: 'uv' | 'alint' | 'ruff', file: 'archive' | 'wheel', value: unknown): PlatformRelease {
+function platformRelease(key: 'uv' | 'alint' | 'golangciLint' | 'ruff', file: 'archive' | 'wheel', value: unknown): PlatformRelease {
   const source = `config/toolchain.json ${key}`;
   const version = field(value, 'version');
   if (!matches(EXACT, version)) throw new Error(`${source} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(version)}`);
@@ -179,6 +183,7 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   }
   if (config.uv) declared.uv = platformRelease('uv', 'archive', config.uv);
   if (config.alint) declared.alint = platformRelease('alint', 'archive', config.alint);
+  if (config.golangciLint) declared.golangciLint = platformRelease('golangciLint', 'archive', config.golangciLint);
   if (config.pythonBuild) {
     declared.pythonBuild = pythonBuild(config.pythonBuild, declared.python?.minor, declared.uv);
   }
@@ -194,7 +199,7 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   if (existsSync(path.join(root, 'config/php-lint/composer.lock'))) {
     declared.phpLint = { lock: fileDigest(path.join(root, 'config/php-lint/composer.lock')), manifest: 'config/php-lint/composer.json', source: 'config/php-lint/composer.lock' };
   }
-  for (const key of ['cargoAudit', 'govulncheck'] as const) {
+  for (const key of ['cargoAudit', 'govulncheck', 'deadcode'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
   if (config.symbolExtractors !== undefined) {

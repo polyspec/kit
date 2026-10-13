@@ -35,6 +35,7 @@ export const RELEASE_OUTPUT = {
   vulture: { args: ['--version'], pattern: /^vulture (\d+(?:\.\d+)+)$/m },
   uv: { args: ['--version'], pattern: /^uv (\d+\.\d+\.\d+) /m },
   alint: { args: ['--version'], pattern: /^alint (\d+\.\d+\.\d+) /m },
+  'golangci-lint': { args: ['version'], pattern: /^golangci-lint has version (\d+\.\d+\.\d+) /m },
   phpunit: { args: ['--version'], pattern: /^PHPUnit (\d+\.\d+\.\d+) /m },
   cargoAudit: { args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m },
   govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },

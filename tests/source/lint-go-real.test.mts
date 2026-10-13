@@ -68,7 +68,7 @@ function lintOf(root: string): { failed: string[]; output: string } {
 }
 
 test('the Go lint passes on modules that resolve each other through go.work and whose tests reach their code', (t) => {
-  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; install the tools of the checkout`);
+  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; make install-tools TOOLS="golangciLint deadcode" installs it`);
   const { failed, output } = lintOf(repository(t));
   assert.deepEqual(failed, [], output);
 });

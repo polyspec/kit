@@ -194,6 +194,30 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
+    "deadcode": {
+      "description": "The golang.org/x/tools release whose cmd/deadcode install-tools builds with go install into var/tools/deadcode, which make lint-go runs in each Go module.",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "golangciLint": {
+      "description": "The golangci-lint release that install-tools installs into var/tools/golangci-lint, which make lint-go runs with .golangci.yml: the exact version, and the sha256 of the archive golangci-lint-<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
+      "type": "object",
+      "required": [
+        "version",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "sha256": {
+          "type": "object",
+          "description": "The sha256 of the golangci-lint archive of each platform key; the install refuses an archive of another digest."
+        }
+      }
+    },
     "symbolExtractors": {
       "description": "The symbol extractors of config/parity.json that install-tools builds into var/tools/symbols-<extractor> (scripts/kit/install-symbols.mts): go, the program of scripts/kit/symbols/go on golang.org/x/tools/go/packages; php, the Composer project of scripts/kit/symbols/php with nikic/php-parser, installed with the declared composer.",
       "type": "array",
