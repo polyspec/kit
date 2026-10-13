@@ -1,19 +1,20 @@
-// The real Python lint: lint-python.mts runs the ruff and the vulture of var/tools/bin on a
+// The real Python lint: lint-python.mts runs the ruff and the vulture of mise.toml on a
 // repository that holds the ruff.toml of this checkout. A repository that follows S3 passes; each violation planted into a copy
 // of it fails with the rule or the finding that names it, including the false greens of the plan's verification. Nothing is
 // stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-python.mts';
+import { installedBinary, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const TOOLS = ['ruff', 'vulture'].map(name => path.join(ROOT, 'var/tools/bin', name));
+const TOOLS = ['ruff', 'vulture'];
 
 // A Python package whose code is used by its test, run against the installed package.
 const GOOD: Record<string, string> = {
@@ -49,14 +50,13 @@ function write(root: string, files: Record<string, string>) {
   }
 }
 
-/** A repository in a temporary folder: GOOD with `files` over it, the ruff.toml of this checkout and its tools in var/tools/bin. */
+/** A repository in a temporary folder: GOOD with `files` over it, the ruff.toml of this checkout and the shims of its tools. */
 function repository(t: TestContext, files: Record<string, string> = {}): string {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-python-real-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write(root, { ...GOOD, ...files });
   copyFileSync(path.join(ROOT, 'ruff.toml'), path.join(root, 'ruff.toml'));
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  for (const tool of TOOLS) symlinkSync(tool, path.join(root, 'var/tools/bin', path.basename(tool)));
+  sandboxShims(root, TOOLS);
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   return root;
@@ -70,7 +70,7 @@ function lintOf(root: string): { failed: string[]; output: string } {
 }
 
 test('the Python lint passes on a package that follows S3 and uses its code', (t) => {
-  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; make install-tools TOOLS="ruff vulture" installs it`);
+  for (const tool of TOOLS) assert.ok(existsSync(installedBinary(tool)), `the ${tool} of mise.toml is missing; make install-tools installs it`);
   const { failed, output } = lintOf(repository(t));
   assert.deepEqual(failed, [], output);
 });

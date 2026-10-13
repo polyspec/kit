@@ -20,9 +20,9 @@ const SPEC = "import test from 'node:test';\n";
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
 const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool('run-tests'), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
-// The Python of a checkout is var/tools/bin/python3, the wrapper that install-python.mts writes: a test writes its stub there.
+// The Python of a checkout is var/tools/mise/shims/python3, the shim of mise: a test writes its stub there.
 function pythonStub(root: string, script: string) {
-  const file = path.join(root, 'var/tools/bin/python3');
+  const file = path.join(root, 'var/tools/mise/shims/python3');
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
   chmodSync(file, 0o755);
@@ -138,7 +138,7 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'] }, '/r'), { command: '/r/p/vendor/bin/phpunit', args: ['--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtension: '/r/e.so' }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/bin/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
   try {
     assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [] }, '/r').command, '/elsewhere/bin/phpunit');
@@ -376,7 +376,7 @@ test('a tool that cannot start fails with its command and the fix', async (t) =>
   const missing = path.join(tmpdir(), 'kit-no-such-directory');
   const result = await inProcess(t, ['go', './...'], { path: missing });
   assert.equal(result.status, 1);
-  assert.match(result.text, /✖ go \. \.\/\.\.\.: cannot start go: .*; run make install-tools, which installs Go into var\/tools/);
+  assert.match(result.text, /✖ go \. \.\/\.\.\.: cannot start go: .*; declare go in mise\.toml and run make install-tools, which installs it into var\/tools\/mise/);
   const phpunit = await inProcess(t, ['phpunit'], { path: missing });
   assert.match(phpunit.text, /cannot start .*vendor\/bin\/phpunit: .*; run composer install in \./);
 });
@@ -389,7 +389,7 @@ test('a PHP extension that is not built fails before the tool starts', async (t)
 
 // The hanging stub keeps a live timer and never ends on its own, so only the runner's timeout stops it. The deadline of this
 // test is far above the expected stop.
-test('python tests run through var/tools/bin/python3, pass, fail and stop at their timeout', { timeout: 100_000 }, async (t) => {
+test('python tests run through var/tools/mise/shims/python3, pass, fail and stop at their timeout', { timeout: 100_000 }, async (t) => {
   const passing = pythonRoot(t, `process.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');`);
   const passed = await inProcess(t, ['python', 'tests'], { root: passing });
   assert.equal(passed.status, 0, passed.text);
@@ -403,7 +403,7 @@ test('python tests run through var/tools/bin/python3, pass, fail and stop at the
   const hanging = pythonRoot(t, `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
   const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { root: hanging });
   assert.equal(hung.status, 1, hung.text);
-  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/bin\/python3 -m unittest`/);
+  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/python3 -m unittest`/);
 
   const empty = pythonRoot(t, `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
   const none = await inProcess(t, ['python', 'tests'], { root: empty });
@@ -411,14 +411,14 @@ test('python tests run through var/tools/bin/python3, pass, fail and stop at the
   assert.match(none.text, /no test ran/);
 });
 
-// A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/uv-python as its home and
+// A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/mise as its home and
 // bin/python is a stub that prints unittest output; `home` overrides the named home.
 function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
   const root = tree(t);
-  mkdirSync(path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin'), { recursive: true });
+  mkdirSync(path.join(root, 'var/tools/mise/installs/python/3.14.8/bin'), { recursive: true });
   const venv = path.join(root, 'pkg/.venv');
   mkdirSync(path.join(venv, 'bin'), { recursive: true });
-  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home ?? path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin')}\nversion = 3.14.8\n`);
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${home ?? path.join(root, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion = 3.14.8\n`);
   writeFileSync(path.join(venv, 'bin/python'), `#!/usr/bin/env node\nprocess.stderr.write('test_a (t.T.test_a) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 1 test in 0.001s\\n\\nOK\\n');\n`);
   chmodSync(path.join(venv, 'bin/python'), 0o755);
   return root;
@@ -438,11 +438,11 @@ test('--venv refuses an environment that is not one or comes from another Python
   const missing = tree(t);
   const none = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: missing });
   assert.equal(none.status, 1, none.text);
-  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/bin\/uv venv --python var\/tools\/bin\/python3 pkg\/\.venv/);
+  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/mise\/shims\/uv venv --python var\/tools\/mise\/shims\/python3 pkg\/\.venv/);
   const other = venvRoot(t, { home: '/usr/bin' });
   const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
   assert.equal(foreign.status, 1, foreign.text);
-  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/uv-python\)/);
+  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/mise\)/);
 });
 
 // The links of an environment are the behavior of the tool that made it, such as uv's bin/python3 -> python (K63): run-tests
@@ -456,10 +456,10 @@ test('--venv accepts an environment with the symbolic links of the tool that mad
   assert.equal(readlinkSync(path.join(linked, 'pkg/.venv/bin/python3')), 'python', 'the link is kept as it was made');
 });
 
-test('a var/tools/bin/python3 that cannot start fails with the fix', async (t) => {
+test('a var/tools/mise/shims/python3 that cannot start fails with the fix', async (t) => {
   const result = await inProcess(t, ['python', 'tests'], { root: tree(t) });
   assert.equal(result.status, 1);
-  assert.match(result.text, /✖ python \. tests: cannot start .*var\/tools\/bin\/python3: .*; declare pythonBuild in config\/toolchain\.json and run make install-tools TOOLS=python/);
+  assert.match(result.text, /✖ python \. tests: cannot start .*var\/tools\/mise\/shims\/python3: .*; declare python in mise\.toml and run make install-tools, which installs it into var\/tools\/mise/);
 });
 
 test('inputsDigest hashes the tracked and new non-ignored files under the paths and fails on a path without files', (t) => {

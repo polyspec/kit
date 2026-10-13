@@ -5,6 +5,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { isMain } from './paths.mts';
+import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -42,7 +43,8 @@ export const packageOwner = (packages: readonly string[]) => (file: string): str
 export function runLint(name: string, steps: readonly LintStep[], root: string, print: (text: string) => unknown): string[] {
   const failed: string[] = [];
   for (const step of steps) {
-    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd) });
+    // A step runs the tools of mise.toml from their shims, in the environment of mise of the checkout.
+    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env: toolsEnvironment(root) });
     const output = `${result.stdout}${result.stderr}`;
     print(output);
     const failure = result.error?.message ?? (result.status !== 0 ? `exit status ${result.status}` : step.quiet && output.trim() ? 'a finding' : undefined);

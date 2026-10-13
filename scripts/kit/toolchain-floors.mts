@@ -1,7 +1,7 @@
 // The toolchain declarations and the manifest floors of a checkout, each compared with the pin of kit at the pin's precision
-// (S4). The declarations are .node-version, the channel of rust-toolchain.toml, the php minors and the python minor; the Go
-// declaration is the go line of a go.mod, compared below in every go.mod. The manifests are the files of checkedFiles, so
-// the vendored fixture of kit and the installed directories are not read:
+// (S4). The declarations are .node-version, the channel of rust-toolchain.toml, the php minors, and the go and the python of
+// mise.toml (the minor of python); the go line of every go.mod is compared below. The manifests are the files of checkedFiles, so
+// the vendored fixture of kit and the installed directories are not read, nor the tool environments of mise in .mise:
 //   package.json   engines.node is ">=<node pin>"
 //   composer.json  require.php is ">=<php pin>"; beside a composer.lock, config.platform.php is "<php pin>"
 //   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
@@ -26,18 +26,20 @@ export type PinnedDeclarations = {
   node?: { version: string; source: string } | undefined;
   rust?: { version: string; source: string } | undefined;
   php?: { minors: string[]; source: string } | undefined;
-  python?: { minor: string; source: string } | undefined;
+  python?: { version: string; source: string } | undefined;
+  go?: { version: string; source: string } | undefined;
 };
 
 /** One line for each declaration of `declared` that differs from its pin; an undeclared tool is not required. */
 export function pinFindings(declared: PinnedDeclarations, pinning: Pinning): string[] {
   const values: [Tool, string[], string][] = [];
-  for (const tool of ['node', 'rust'] as const) {
+  for (const tool of ['node', 'rust', 'go'] as const) {
     const entry = declared[tool];
     if (entry) values.push([tool, [entry.version], entry.source]);
   }
   if (declared.php) values.push(['php', declared.php.minors, declared.php.source]);
-  if (declared.python) values.push(['python', [declared.python.minor], declared.python.source]);
+  // Python is pinned by minor release, and mise.toml declares the exact release, whose minor is compared.
+  if (declared.python) values.push(['python', [declared.python.version.split('.').slice(0, 2).join('.')], `${declared.python.source} minor`]);
   // A source is the declaring file, then the key that holds the release when the file holds more than the release.
   return values.flatMap(([tool, versions, source]) => {
     const [file = source, ...key] = source.split(' ');
@@ -45,7 +47,9 @@ export function pinFindings(declared: PinnedDeclarations, pinning: Pinning): str
   });
 }
 
-const named = (root: string, name: string): string[] => checkedFiles(root).filter(file => path.posix.basename(file) === name);
+// The manifests of the repository named `name`. .mise holds the tool environments that mise writes for the pypi: tools of
+// mise.lock (K127), which are mise's, not manifests of the repository.
+const named = (root: string, name: string): string[] => checkedFiles(root).filter(file => path.posix.basename(file) === name && !file.startsWith('.mise/'));
 
 /** One line for each package.json whose engines.node is not `>=` the Node.js pin. */
 export const enginesFindings = (root: string, pinning: Pinning): string[] => named(root, 'package.json')

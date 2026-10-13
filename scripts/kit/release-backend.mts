@@ -18,6 +18,7 @@ import { context } from './release.mts';
 import { BACKEND_DIRECTORY } from './release-wheel.mts';
 import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand } from './mise-tools.mts';
 import { isMain, ROOT } from './paths.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;
@@ -38,8 +39,8 @@ const wheelsOf = (directory: string, name: string, version: string) => (existsSy
  * has a listed digest is kept, so a second run changes nothing. Returns { installed, file }.
  */
 export function installBackend({ root, env, requirement, digests, source, print = () => {} }: { root: string; env: NodeJS.ProcessEnv; requirement: string; digests: unknown[]; source: string; print?: (text: string) => void }) {
-  const python = toolsPath(root, 'bin', 'python3');
-  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; make install-tools TOOLS=python installs the Python of pythonBuild`);
+  const python = toolCommand(root, 'python3');
+  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; declare python in mise.toml and run make install-tools`);
   const found = REQUIREMENT.exec(requirement);
   if (!found) throw new Stop(`${source} must record requirement as name==version; it records ${JSON.stringify(requirement)}`);
   // Both groups of REQUIREMENT are required, so a match holds them.

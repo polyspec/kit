@@ -11,8 +11,8 @@
 // check can tell a record of the current files from a stale one.
 //
 // --venv runs the python tool with the interpreter of a virtual environment, so a package's tests import its own installed
-// dependencies. The environment must come from the Python of the checkout: its pyvenv.cfg names a directory of var/tools/uv-python
-// as its home (install-tools installs that Python with uv). Any other environment is refused before the tool starts. Its
+// dependencies. The environment must come from the Python of the checkout: its pyvenv.cfg names a directory of var/tools/mise
+// as its home (install-tools installs that Python with mise). Any other environment is refused before the tool starts. Its
 // symbolic links are accepted as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mts) makes such
 // an environment with `uv venv`.
 //
@@ -31,7 +31,7 @@ import { createProgress } from './test-progress.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand as miseCommand } from './mise-tools.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, ROOT, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
@@ -68,10 +68,10 @@ type Counts = { ran: number; skipped: number; [key: string]: unknown };
 const INSTALL: Record<string, (options: { cwd: string }) => string> = {
   node: () => 'install the Node.js release of .node-version',
   vitest: () => 'run make install',
-  go: () => 'run make install-tools, which installs Go into var/tools',
+  go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
   phpunit: ({ cwd }) => `run composer install in ${path.relative(ROOT, cwd) || '.'}`,
-  python: () => 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python, which installs var/tools/bin/python3',
+  python: () => 'declare python in mise.toml and run make install-tools, which installs it into var/tools/mise',
 };
 
 export function parseArguments(argv: string[], root = ROOT) {
@@ -143,7 +143,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
       // `discover` argument unittest would read `discover` as a test name.
-      return { command: venv ? path.join(venv, 'bin', 'python') : toolsPath(root, 'bin', 'python3'), args: ['-m', 'unittest', ...args, '-v'] };
+      return { command: venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3'), args: ['-m', 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }

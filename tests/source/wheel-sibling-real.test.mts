@@ -1,4 +1,4 @@
-// A sibling of a release with the real Python of this checkout (var/tools/bin/python3) and its pip. The fixture wheel
+// A sibling of a release with the real Python of this checkout (var/tools/mise/shims/python3) and its pip. The fixture wheel
 // kit-gen requires kit-val, a wheel of the same release, by a direct reference without a hash, as a release names it; the
 // reference points at a file that does not exist in this process, so no case reaches a network. The install of the release's
 // wheels in one command with --no-deps takes both from their files and pip check passes. Given the reference and the local
@@ -16,7 +16,7 @@ import { installWheelFiles } from '../../scripts/kit/release-consumer.mts';
 import { makeVenv } from '../../scripts/kit/python-venv.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PYTHON = path.join(ROOT, 'var/tools/bin/python3');
+const PYTHON = path.join(ROOT, 'var/tools/mise/shims/python3');
 const WHEELS = path.join(ROOT, 'var/tools/wheels');
 const GEN = 'kit-gen';
 const VAL = 'kit-val';
@@ -58,7 +58,7 @@ function fixture(t: TestContext) {
 
 test('the wheels of a release install in one --no-deps command from their files, and pip check passes', { timeout: 900000 }, (t) => {
   const fx = fixture(t);
-  assert.ok(existsSync(PYTHON), 'var/tools/bin/python3 is installed by make install-tools');
+  assert.ok(existsSync(PYTHON), 'var/tools/mise/shims/python3 is installed by make install-tools');
   const steps: string[] = [];
   const count = installWheelFiles({ root: ROOT, env: fx.env, folder: fx.folder, version: VERSION, directory: fx.wheels, names: [GEN, VAL], smoke: { [GEN]: ['python', '-c', 'import kit_gen, kit_val'], [VAL]: ['python', '-c', 'import kit_val'] }, step: (text: string) => steps.push(text) });
   assert.equal(count, 2);

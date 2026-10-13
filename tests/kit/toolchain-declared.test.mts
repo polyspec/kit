@@ -1,5 +1,7 @@
 // Tests of the toolchain configuration: the schema accepts each representative shape and names a wrong value, and
-// declaredToolchain reads every declaring file of the bootstrap (the lint tools: toolchain-lint.test.mts) and fails with the file, the expected form and the actual value.
+// declaredToolchain reads every declaring file of the bootstrap and of the tools that mise does not install (the PHP lint:
+// toolchain-lint.test.mts; the tools of mise.toml: toolchain-mise.test.mts) and fails with the file, the expected form and
+// the actual value.
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,19 +16,17 @@ const DIGEST = 'a'.repeat(128);
 
 test('the schema accepts every representative toolchain configuration', () => {
   const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
-  assert.deepEqual(names, ['toolchain-composer-digest.json', 'toolchain-files-only.json', 'toolchain-full.json']);
+  assert.deepEqual(names, ['toolchain-files-only.json', 'toolchain-full.json']);
   for (const name of names) assert.deepEqual(validate(JSON.parse(fixtureConfig(name)), SCHEMA), [], name);
 });
 
-test('the schema names an unknown key, a wrong shape and a malformed version', () => {
-  const errors = validate({ schema: 1, extra: 1, php: '8.5', composer: '2.10.3', go: {}, cargoAudit: '0.22', python: '3', node: { 'windows.zip': 'x' } }, SCHEMA);
+test('the schema names an unknown key, a wrong shape and a malformed version; a tool of mise.toml is an unknown key', () => {
+  const errors = validate({ schema: 1, extra: 1, php: '8.5', phpunit: { version: '11.5' }, python: '3.14', node: { 'windows.zip': 'x' } }, SCHEMA);
   assert.deepEqual(errors, [
     '/ must NOT have additional properties {"additionalProperty":"extra"}',
+    '/ must NOT have additional properties {"additionalProperty":"python"}',
     '/php must be array {"type":"array"}, value "8.5"',
-    '/python must match pattern "^\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+$"}, value "3"',
-    '/composer must be object {"type":"object"}, value "2.10.3"',
-    `/go must have required property 'mod' {"missingProperty":"mod"}`,
-    '/cargoAudit must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "0.22"',
+    '/phpunit/version must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "11.5"',
     '/node must NOT have additional properties {"additionalProperty":"windows.zip"}',
   ]);
 });
@@ -35,26 +35,25 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
   const root = toolchainCheckout(t, {
     'config/toolchain.json': fixtureConfig('toolchain-full.json'),
     '.node-version': '26.8.1\n',
-    '.python-version': '3.14\n',
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
   });
+  const mise = JSON.parse(fixtureConfig('toolchain-full.json')).mise;
   assert.deepEqual(declaredToolchain(root), {
     node: { version: '26.8.1', source: '.node-version' },
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
-    python: { minor: '3.14', source: 'config/toolchain.json python' },
-    composer: { version: '2.10.3', sha256: undefined, source: 'config/toolchain.json composer' },
-    cargoAudit: { version: '0.22.2', source: 'config/toolchain.json cargoAudit' },
-    govulncheck: { version: '1.1.4', source: 'config/toolchain.json govulncheck' },
+    mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
+    pythonBackend: { requirement: 'setuptools==84.0.0', sha256: '51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670', source: 'config/toolchain.json pythonBackend' },
+    phpunit: { version: '11.5.57', manifest: 'config/phpunit/composer.json', source: 'config/toolchain.json phpunit' },
+    symbolExtractors: { extractors: ['go', 'php'], source: 'config/toolchain.json symbolExtractors' },
   });
 });
 
-test('declaredToolchain reads the version files when the configuration lists nothing', (t) => {
+test('declaredToolchain reads the version files when the configuration lists nothing; Python is a tool of mise.toml', (t) => {
   const root = toolchainCheckout(t, { '.php-version': '8.5\n', '.python-version': '3.14\n', 'package.json': '{ "packageManager": "npm@12.2.0" }' });
   assert.deepEqual(declaredToolchain(root), {
     npm: { version: '12.2.0', sha512: undefined, source: 'packageManager of package.json' },
     php: { minors: ['8.5'], source: '.php-version' },
-    python: { minor: '3.14', source: '.python-version' },
   });
 });
 
@@ -63,23 +62,15 @@ test('a declaration that is malformed or contradicts another fails with the file
     [{ '.node-version': '26.8\n' }, /\.node-version must record the Node\.js release as <major>\.<minor>\.<patch>; it records "26\.8"/],
     [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "python": "3.14" }', '.python-version': '3.13\n' }, /\.python-version declares 3\.13, but config\/toolchain\.json python declares 3\.14/],
     [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "uv": { "version": "0.12", "sha256": {} } }' }, /config\/toolchain\.json uv must record version as <major>\.<minor>\.<patch>; it records "0\.12"/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "uv": { "version": "0.12.24", "sha256": {} } }' }, /config\/toolchain\.json uv must record the sha256 of the uv archive of each platform, for example linux-x64; it records none/],
+    [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10", "sha256": {} } }' }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records "2026\.10"/],
+    [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10.8", "sha256": {} } }' }, /config\/toolchain\.json mise must record the sha256 of the mise archive of each platform, for example linux-x64; it records none/],
     // A version is text: a JSON number or a list whose text matches is refused (K98).
     [{ 'package.json': '{ "packageManager": ["npm@12.2.0"] }' }, /package\.json packageManager is \["npm@12\.2\.0"\], expected npm@/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "python": 3.14 }' }, /config\/toolchain\.json must record python as <major>\.<minor>; it records 3\.14/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "cargoAudit": ["0.22.2"] }' }, /config\/toolchain\.json must record cargoAudit as <major>\.<minor>\.<patch>; it records \["0\.22\.2"\]/],
-    [{ 'config/toolchain.json': `{ "schema": 1, "uv": { "version": ["0.12.24"], "sha256": { "linux-x64": "${'a'.repeat(64)}" } } }` }, /config\/toolchain\.json uv must record version as <major>\.<minor>\.<patch>; it records \["0\.12\.24"\]/],
+    [{ 'config/toolchain.json': '{ "schema": 1, "phpunit": { "version": 11.5 } }' }, /config\/toolchain\.json phpunit must record the PHPUnit release as <major>\.<minor>\.<patch>; it records 11\.5/],
+    [{ 'config/toolchain.json': `{ "schema": 1, "mise": { "version": ["2026.10.8"], "sha256": { "linux-x64": "${'a'.repeat(64)}" } } }` }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records \["2026\.10\.8"\]/],
   ];
   for (const [files, message] of cases) assert.throws(() => declaredToolchain(toolchainCheckout(t, files)), message);
-});
-
-test('uv is declared by its exact version and the sha256 of its archive of each platform, read as the uv of install-tools', (t) => {
-  const digest = 'b'.repeat(64);
-  const root = toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, uv: { version: '0.12.11', sha256: { 'linux-x64': digest } } }) });
-  assert.deepEqual(declaredToolchain(root).uv, { version: '0.12.11', sha256: { 'linux-x64': digest }, source: 'config/toolchain.json uv' });
 });
 
 test('declaredToolchain reads the symbol extractors that install-tools builds, and names a list of unknown ones (K75)', (t) => {

@@ -1,15 +1,36 @@
 {
   "schema": 1,
-  "comment": "The shape of a repository that lists PHP minors and declares every installed tool.",
-  "php": ["8.2", "8.5"],
-  "python": "3.14",
-  "composer": { "version": "2.10.3" },
-  "go": { "mod": "packages/fixture-go/go.mod" },
-  "ruff": { "version": "0.16.10", "sha256": { "linux-x64": "f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a", "darwin-arm64": "3031a4a2e8e7b8a46f70be45f198c35a11ece509a94b80334d8d397a33c67550" } },
-  "cargoAudit": "0.22.2",
-  "govulncheck": "1.1.4",
+  "comment": "The shape of a repository that lists PHP minors, declares mise and the tools that mise does not install.",
+  "php": [
+    "8.2",
+    "8.5"
+  ],
+  "mise": {
+    "version": "2026.10.8",
+    "sha256": {
+      "linux-x64": "e908ea27810ae358c9a9a7d897ea10197bdc38d39839243e1b36acc31cbef868",
+      "darwin-arm64": "8228699f316dc17931beb86f7a1aac70e4685535430441492ff4e857c72535ad"
+    }
+  },
+  "pythonBackend": {
+    "requirement": "setuptools==84.0.0",
+    "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
+  },
+  "phpunit": {
+    "version": "11.5.57"
+  },
+  "symbolExtractors": [
+    "go",
+    "php"
+  ],
   "exceptions": [
-    { "tool": "rust", "channel": "nightly-2026-10-01", "scope": ".", "reason": "parity extracts the Rust symbols with rustdoc JSON, which needs nightly", "retry": "rustdoc JSON is stable (rust-lang/rust#76578)" }
+    {
+      "tool": "rust",
+      "channel": "nightly-2026-10-01",
+      "scope": ".",
+      "reason": "parity extracts the Rust symbols with rustdoc JSON, which needs nightly",
+      "retry": "rustdoc JSON is stable (rust-lang/rust#76578)"
+    }
   ],
   "node": {
     "linux-x64.tar.gz": "b2b76660fa4ded4e0b2a41ee3c0c651cd52ea8170ead91ebac1e147ac3d55643",

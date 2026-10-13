@@ -14,8 +14,8 @@
 // operator of its manifest, and updates the packages with an advisory; `npm dedupe` then installs one version of each
 // npm package that one version satisfies, since an install for one workspace keeps the release of the root; then it
 // reviews and records again.
-// The advisories of the Cargo locks come from the cargo-audit of var/tools (scripts/kit/install-cargo-audit.mts, which
-// `make install-tools` runs) and the RustSec advisory database. A PyPI dependency is pinned exactly in its pyproject.toml,
+// The advisories of the Cargo locks come from the cargo-audit of mise.toml (its shim, mise-tools.mts; `make install-tools`
+// installs it) and the RustSec advisory database, and those of the Go locks from the govulncheck of mise.toml. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mts.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -23,8 +23,8 @@ import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState } from './dependency-state.mts';
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
-import { cargoAuditCommand } from './install-cargo-audit.mts';
-import { govulncheckCommand } from './install-govulncheck.mts';
+import { toolCommand } from './mise-tools.mts';
+import { MISE_TOOLS } from './toolchain-mise.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -271,10 +271,10 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   // cargo-audit reads the RustSec advisory database from a clone in .tools; the first lock fetches it.
   let fetched = false;
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'cargo')) {
-    const command = cargoAuditCommand(root);
+    const command = toolCommand(root, MISE_TOOLS.cargoAudit.command);
     const args: string[] = ['audit', '--db', path.join(root, 'var', 'tools', 'rustsec-advisory-db'), ...(fetched ? ['--no-fetch'] : []), '--file', path.join(root, lock), '--json'];
     // cargo-audit exits with 1 when it finds a vulnerability.
-    const answer: Answer<CargoAudit> = existsSync(command) ? query(command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; run make install-tools` };
+    const answer: Answer<CargoAudit> = existsSync(command) ? query(command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.cargoAudit.key} in mise.toml and run make install-tools` };
     fetched ||= !answer.error;
     if (answer.error) {
       result.set(lock, { error: answer.error });
@@ -313,9 +313,9 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     result.set(lock, failure ? { error: failure } : { advisories: list });
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'go')) {
-    const command = govulncheckCommand(root);
+    const command = toolCommand(root, MISE_TOOLS.govulncheck.command);
     if (!existsSync(command)) {
-      result.set(lock, { error: `${path.relative(root, command)} is not installed; run make install-tools` });
+      result.set(lock, { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.govulncheck.key} in mise.toml and run make install-tools` });
       continue;
     }
     const packages = goPackages(root, lock);
@@ -437,10 +437,10 @@ export function review(root: string) {
   return { lines, notes, newer, advisories: found, record, complete };
 }
 
-// The fix of a newer release: the ruff pin of config/toolchain.json is set by hand, with the sha256 of its wheels, because
-// the sha256 is read from the registry of each platform; every other manifest is updated by `make dependency-review UPDATE=1`.
+// The fix of a newer release: the ruff of mise.toml is set by hand, and make toolchain-lock pins the digests of its archives;
+// every other manifest is updated by `make dependency-review UPDATE=1`.
 export const fixOf = (dependency: Newer): string => {
-  if (dependency.manifest === TOOLCHAIN) return `set ruff in ${TOOLCHAIN} to ${dependency.latest} with the sha256 of each wheel, then make install-tools`;
+  if (dependency.manifest === TOOLCHAIN) return `set ruff in ${TOOLCHAIN} to ${dependency.latest}, then make toolchain-lock and make install-tools`;
   if (dependency.kind === 'lock') return lockFix(dependency.lock, dependency.createdBy, dependency.package);
   return UPDATE;
 };

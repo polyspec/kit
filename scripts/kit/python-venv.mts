@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 // Makes a virtual environment of the checkout's Python with the uv of the checkout (`make python-venv DIR=<directory>`), and
-// holds the rule that run-tests --venv checks (venvProblem): the environment comes from a Python that the uv of the checkout
-// installed (var/tools/uv-python, install-python.mts). The environment is left as uv makes it, its symbolic links included:
+// holds the rule that run-tests --venv checks (venvProblem): the environment comes from the Python that mise installed for the
+// checkout (under var/tools/mise, from mise.toml). The environment is left as uv makes it, its symbolic links included:
 // they are uv's behavior.
 //
 //   node scripts/kit/python-venv.mts <directory>
 //
 // The run is idempotent: an existing directory that already is a venv of the checkout Python (run-tests' rule and the same
 // Python version) is accepted unchanged; any other existing directory is an error with its reason and is neither removed nor
-// repaired. An absent directory is made with `var/tools/bin/uv venv --python var/tools/bin/python3`, and the environment is
+// repaired. An absent directory is made with `uv venv --python python3`, both the shims of mise.toml, and the environment is
 // checked by venvProblem. A failure removes the directory that this run made, so no partial environment is left behind.
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
 
-const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or var/tools/bin/uv venv --python var/tools/bin/python3 ${directory}`;
+const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
 
 /** Whether `file` lies in `directory`, both read through their links. */
 function inside(file: string, directory: string): boolean {
@@ -27,7 +28,7 @@ function inside(file: string, directory: string): boolean {
 
 /**
  * Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may: its pyvenv.cfg names as
- * its home a directory of var/tools/uv-python, where the uv of the checkout installs the Python. Its symbolic links are not
+ * its home a directory of var/tools/mise, where mise installs the Python of mise.toml. Its symbolic links are not
  * checked: they are the behavior of the tool that made it.
  */
 export function venvProblem(venv: string, root: string = ROOT): string | undefined {
@@ -37,7 +38,7 @@ export function venvProblem(venv: string, root: string = ROOT): string | undefin
   if (!existsSync(config)) return `${relative} is not a virtual environment (no pyvenv.cfg); ${make}`;
   // The group takes part in every match.
   const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1]!.trim();
-  const installs = toolsPath(root, 'uv-python');
+  const installs = toolsPath(root, 'mise');
   if (!home || !inside(home, installs)) {
     return `${relative} was made from ${home ?? 'no home'}, not from a Python of this checkout (${path.relative(root, installs)}); ${make}`;
   }
@@ -58,7 +59,7 @@ export function existingVenvProblem(directory: string, root: string = ROOT, env:
   const interpreter = path.join(directory, 'bin/python');
   if (!existsSync(interpreter)) return `${relative} has no bin/python`;
   const venv = pythonVersion(interpreter, env);
-  const checkout = pythonVersion(toolsPath(root, 'bin', 'python3'), env);
+  const checkout = pythonVersion(toolCommand(root, 'python3'), toolsEnvironment(root, env));
   if (venv !== checkout) return `${relative} runs Python ${venv}, the checkout Python is ${checkout}`;
   return undefined;
 }
@@ -70,10 +71,10 @@ export function existingVenvProblem(directory: string, root: string = ROOT, env:
  */
 export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }: { root?: string; directory: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void }): void {
   const relative = path.relative(root, directory);
-  const python = toolsPath(root, 'bin', 'python3');
-  const uv = toolsPath(root, 'bin', 'uv');
-  for (const [file, fix] of [[uv, 'declare uv in config/toolchain.json and run make install-tools TOOLS=uv'], [python, 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python']] satisfies [string, string][]) {
-    if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing; ${fix}`);
+  const python = toolCommand(root, 'python3');
+  const uv = toolCommand(root, 'uv');
+  for (const [file, tool] of [[uv, 'uv'], [python, 'python']] satisfies [string, string][]) {
+    if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing; declare ${tool} in mise.toml and run make install-tools`);
   }
   if (lstatSync(directory, { throwIfNoEntry: false }) !== undefined) {
     const problem = existingVenvProblem(directory, root, env);
@@ -81,7 +82,7 @@ export function makeVenv({ root = ROOT, directory, env = process.env, print = ()
     print(`${relative} unchanged: a venv of the checkout Python`);
     return;
   }
-  run(uv, ['venv', '--quiet', '--python', python, directory], { cwd: root, env }, print);
+  run(uv, ['venv', '--quiet', '--python', python, directory], { cwd: root, env: toolsEnvironment(root, env) }, print);
   try {
     const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(problem);

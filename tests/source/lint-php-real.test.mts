@@ -11,9 +11,11 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-php.mts';
+import { installedBinary } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const TOOLS = ['phpcs', 'phpstan', 'composer'].map(name => path.join(ROOT, 'var/tools/bin', name));
+// phpcs and phpstan are the wrappers of the Composer project config/php-lint; Composer is the one of mise.toml.
+const TOOLS = ['phpcs', 'phpstan'].map(name => path.join(ROOT, 'var/tools/bin', name));
 const COMPOSER_HOME = path.join(ROOT, 'var/tools/composer/home');
 
 const php = (body: string) => `<?php\n\ndeclare(strict_types=1);\n\nnamespace Polyspec\\Demo;\n\n${body}`;
@@ -45,7 +47,7 @@ function write(root: string, files: Record<string, string>) {
   }
 }
 
-const composer = (cwd: string, ...args: string[]) => spawnSync(path.join(ROOT, 'var/tools/bin/composer'), ['--no-interaction', ...args], { cwd, encoding: 'utf8', env: { ...process.env, COMPOSER_HOME } });
+const composer = (cwd: string, ...args: string[]) => spawnSync(installedBinary('composer'), ['--no-interaction', ...args], { cwd, encoding: 'utf8', env: { ...process.env, COMPOSER_HOME } });
 
 /** A repository in a temporary folder: GOOD with `files` over it, the PHP lint files of this checkout, its tools and the autoloader of its package. */
 function repository(t: TestContext, files: Record<string, string> = {}): string {
@@ -54,7 +56,7 @@ function repository(t: TestContext, files: Record<string, string> = {}): string 
   write(root, { ...GOOD, ...files });
   for (const file of ['phpcs.xml.dist', 'phpstan.dist.neon']) copyFileSync(path.join(ROOT, file), path.join(root, file));
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  for (const tool of TOOLS.slice(0, 2)) symlinkSync(tool, path.join(root, 'var/tools/bin', path.basename(tool)));
+  for (const tool of TOOLS) symlinkSync(tool, path.join(root, 'var/tools/bin', path.basename(tool)));
   const dump = composer(path.join(root, 'packages/php'), 'dump-autoload', '--quiet');
   assert.equal(dump.status, 0, dump.stderr);
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });

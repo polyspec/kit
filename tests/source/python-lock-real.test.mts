@@ -1,4 +1,4 @@
-// The Python lock with the real uv of this checkout (var/tools/bin/uv, `make install-tools TOOLS=uv`), fully offline. The
+// The Python lock with the real uv of this checkout (the uv of mise.toml, `make install-tools`), fully offline. The
 // direct requirements are the [project].dependencies of a pyproject.toml; the wheels are local: the pinned setuptools wheel of
 // var/tools/wheels and a pure-Python wheel built here with the pinned Python from a source tree, both in a directory of the
 // test under var/. The writer locks them with findLinks, the offline check passes, and a version drift or an unpinned
@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { readPylock } from '../../scripts/kit/pylock.mts';
 import { checkPythonLock, writePythonLock } from '../../scripts/kit/python-lock.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = `var/python-lock-real-${process.pid}`;
@@ -45,7 +46,7 @@ function setup(t: TestContext) {
   writeFileSync(abs(`${DIR}/tinylib/tinylib/__init__.py`), '__version__ = "0.0.1"\n');
   copyFileSync(abs('var/tools/wheels/setuptools-84.0.0-py3-none-any.whl'), abs(`${DIR}/links/setuptools-84.0.0-py3-none-any.whl`));
   // The pinned Python builds the wheel with its build environment under var/, and no pip cache outside var/.
-  const built = spawnSync(toolsPath(ROOT, 'bin', 'python3'), ['-m', 'pip', 'wheel', '--no-deps', '--no-index', '--no-cache-dir', '--disable-pip-version-check', '--find-links', toolsPath(ROOT, 'wheels'), '-w', abs(`${DIR}/links`), abs(`${DIR}/tinylib`)], {
+  const built = spawnSync(toolCommand(ROOT, 'python3'), ['-m', 'pip', 'wheel', '--no-deps', '--no-index', '--no-cache-dir', '--disable-pip-version-check', '--find-links', toolsPath(ROOT, 'wheels'), '-w', abs(`${DIR}/links`), abs(`${DIR}/tinylib`)], {
     cwd: abs(DIR), encoding: 'utf8', env: { ...process.env, TMPDIR: abs(`${DIR}/tmp`) },
   });
   assert.equal(built.status, 0, built.stderr);
@@ -54,7 +55,7 @@ function setup(t: TestContext) {
 
 test('uv writes a lock from the pyproject with find-links, no machine path is kept, and the offline check passes on it', (t) => {
   setup(t);
-  assert.match(readFileSync(toolsPath(ROOT, 'bin', 'uv'), 'utf8'), /^#!\/bin\/sh\n/, 'var/tools/bin/uv is the wrapper of the pinned uv');
+  assert.ok(existsSync(toolCommand(ROOT, 'uv')), 'var/tools/mise/shims/uv is the shim of the uv of mise.toml');
   assert.deepEqual(write(), { file: ENTRY.lock });
   const text = readFileSync(lockPath, 'utf8');
   assert.match(text, /^lock-version = "1\.0"$/m);

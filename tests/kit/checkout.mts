@@ -30,11 +30,11 @@ export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) =>
 export type CargoAuditReport = { vulnerabilities: { found: boolean; count: number; list: unknown[] }; warnings: Record<string, unknown> };
 
 /**
- * Installs a stub of cargo-audit into var/tools/cargo-audit/bin of `root`: it prints `cargo-audit 0.22.2` for --version and
+ * Installs a stub of cargo-audit as the shim of mise of `root`, var/tools/mise/shims/cargo-audit: it prints `cargo-audit 0.22.2` for --version and
  * the JSON `report` for an audit, and exits 1 when the report lists a vulnerability, as cargo-audit does.
  */
 export function installCargoAuditStub(root: string, report: CargoAuditReport = { vulnerabilities: { found: false, count: 0, list: [] }, warnings: {} }) {
-  const bin = path.join(root, 'var/tools/cargo-audit/bin');
+  const bin = path.join(root, 'var/tools/mise/shims');
   mkdirSync(bin, { recursive: true });
   const file = path.join(bin, 'cargo-audit');
   writeFileSync(file, `#!/usr/bin/env node
@@ -46,13 +46,12 @@ else { console.log(JSON.stringify(report)); process.exit(report.vulnerabilities.
 }
 
 /**
- * Installs a stub of govulncheck into var/tools/govulncheck/bin of `root`: it prints `Scanner: govulncheck@v1.1.4` for
- * -version and the SARIF `report` for a scan, and exits 0 as govulncheck -format sarif does. Each scan
- * appends its working directory and arguments to var/tools/govulncheck/calls.log (govulncheckCalls reads it).
+ * Installs a stub of govulncheck as the shim of mise of `root`, var/tools/mise/shims/govulncheck: it prints
+ * `Scanner: govulncheck@v1.1.4` for -version and the SARIF `report` for a scan, and exits 0 as govulncheck -format sarif does.
+ * Each scan appends its working directory and arguments to var/tools/govulncheck-calls.log (govulncheckCalls reads it).
  */
 export function installGovulncheckStub(root: string, report: unknown = { version: '2.1.0', runs: [{ tool: { driver: { name: 'govulncheck', rules: [] } }, results: [] }] }) {
-  const prefix = path.join(root, 'var/tools/govulncheck');
-  const bin = path.join(prefix, 'bin');
+  const bin = path.join(root, 'var/tools/mise/shims');
   mkdirSync(bin, { recursive: true });
   const file = path.join(bin, 'govulncheck');
   writeFileSync(file, `#!/usr/bin/env node
@@ -60,7 +59,7 @@ const { appendFileSync } = require('node:fs');
 const report = ${JSON.stringify(report)};
 if (process.argv.includes('-version')) console.log('Go: go1.27.0\\nScanner: govulncheck@v1.1.4\\nDB: https://vuln.go.dev');
 else {
-  appendFileSync(${JSON.stringify(path.join(prefix, 'calls.log'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
+  appendFileSync(${JSON.stringify(path.join(root, 'var/tools/govulncheck-calls.log'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
   console.log(JSON.stringify(report, null, 2));
 }
 `);
@@ -69,6 +68,6 @@ else {
 
 /** The scans that the govulncheck stub of `root` ran, in order: { cwd, args }. */
 export function govulncheckCalls(root: string): Array<{ cwd: string; args: string[] }> {
-  const log = path.join(root, 'var/tools/govulncheck/calls.log');
+  const log = path.join(root, 'var/tools/govulncheck-calls.log');
   return existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
 }

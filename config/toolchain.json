@@ -1,58 +1,9 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; golangci-lint from its release archive and the deadcode of golang.org/x/tools with go install, which the real Go lint test runs; and, with rustup, the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs; the digests are the uv and alint archives of each platform and the backend wheel.",
-  "python": "3.14",
-  "pythonBuild": {
-    "version": "3.14.8"
-  },
+  "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) after the npm of packageManager; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the build backend of the Python wheels (pythonBackend, by the sha256 of its wheel) and the Composer project of config/phpunit (phpunit), and, with rustup, the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs.",
   "pythonBackend": {
     "requirement": "setuptools==84.0.0",
     "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
-  },
-  "uv": {
-    "version": "0.12.24",
-    "sha256": {
-      "darwin-arm64": "0c4346de7abdb49495b393b9ec809fe387aa43e586be20fecb972216c1e71732",
-      "darwin-x64": "4fa82e37cb94767661f532b001e470b67a186c7260e305bd84ddb78fd545c0b6",
-      "linux-arm64": "5231be65f496304623895dacdbf1de8504fec90303684bdf05805aa34414dd21",
-      "linux-x64": "b4dfaef47d491a7296981f8374a4595f55dbf84e8937c8ecd2983574d8bb3da6"
-    }
-  },
-  "alint": {
-    "version": "0.18.2",
-    "sha256": {
-      "darwin-arm64": "ccfb4d13c6001b6ee5d31f2e139ce3e9710df54ba75c5601ef2a96be9ad8d4b2",
-      "darwin-x64": "23dc62149aacc8168f922e35e067a244d3c715725182322dcc3564129968dd8c",
-      "linux-arm64": "133ae54580b1c84d6aa1641d72448267241064ee9c5be119bb649f6acad9e005",
-      "linux-x64": "ce1f182bf3205aceab62fad40dbdd7502de638ed89cbb4fef10320803384ff9b"
-    }
-  },
-  "ruff": {
-    "version": "0.17.0",
-    "sha256": {
-      "darwin-arm64": "cbf7149e0927dc3295d5d64679a4765576eef71b00782b2ae969ef82274d6bb9",
-      "darwin-x64": "5f0ca4a40f81403689c04f12966e22f44e329ae362072d8f1587b7bda87f603b",
-      "linux-arm64": "13ee90156522998c3037059d8f66885c8adeeaf7643bdce2caceee196ecd23e0",
-      "linux-x64": "bc73e7c133e82d55b5f15897b2a442d72c0cb4a0c886c46801ce3c247150b60c"
-    }
-  },
-  "vulture": {
-    "version": "2.16",
-    "sha256": "6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee"
-  },
-  "golangciLint": {
-    "version": "2.14.0",
-    "sha256": {
-      "darwin-arm64": "5ef5f36a7147e91dc58ef9ef4d11bb7bad5ead0c76eb6c01327a73c641d1dcc3",
-      "darwin-x64": "a5667c1c3536be1740133213e1e822bfb8f0d98ea12903174d6d5f635e4ed68d",
-      "linux-arm64": "ee7ec5f3453d15ddf106fae5a4d6c71737712348a979d1fe9cd52ec7ea299bae",
-      "linux-x64": "ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab"
-    }
-  },
-  "deadcode": "0.52.0",
-  "composer": {
-    "version": "2.10.3",
-    "sha256": "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6"
   },
   "phpunit": {
     "version": "11.5.57"

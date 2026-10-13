@@ -17,7 +17,7 @@
 // repository by name and version only: no `integrity` for an npm entry and an empty `shasum` for a Composer entry. A lock
 // changes only with a version or a dependency, and `lock` runs on the release commit before the tag is pushed.
 // `lock` resolves version ranges, so it is the one step that reads a registry; no check runs it.
-// A `wheel` package is installed into a clean virtual environment of var/tools/bin/python3: its dependencies from the lock of
+// A `wheel` package is installed into a clean virtual environment of the python3 of mise.toml: its dependencies from the lock of
 // consumers.wheel.lock (`pip install --require-hashes --no-deps --only-binary :all:`, the online step of the proof), then the wheels
 // of all wheel packages in one command from their files (`pip install --no-index --require-hashes --no-deps`, each named with the
 // sha256 of its file), then `pip check`, which fails on a lock that lacks a dependency. The command names every wheel of the release,
@@ -33,7 +33,7 @@ import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './r
 import { fileDigest } from './bootstrap/digest.mts';
 import { wheelName } from './release-wheel.mts';
 import { lockRequirements, wheelLocks } from './wheel-dependencies.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolCommand } from './mise-tools.mts';
 import { makeVenv } from './python-venv.mts';
 import { readJson, writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
@@ -234,7 +234,7 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   }
   const bin = path.join(venv, 'bin');
   const python = path.join(bin, 'python');
-  const checkoutPython = toolsPath(root, 'bin', 'python3');
+  const checkoutPython = toolCommand(root, 'python3');
   const venvEnv = { ...env, PATH: `${bin}${path.delimiter}${env.PATH}`, VIRTUAL_ENV: venv };
   if (requirements !== '') {
     const dependencies = path.join(project, 'dependencies.txt');

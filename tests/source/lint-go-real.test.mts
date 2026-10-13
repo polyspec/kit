@@ -1,18 +1,20 @@
-// The real Go lint: lint-go.mts runs the golangci-lint and the deadcode of var/tools/bin on a repository that holds the
+// The real Go lint: lint-go.mts runs the golangci-lint and the deadcode of mise.toml on a repository that holds the
 // .golangci.yml of this checkout and whose modules resolve each other through its go.work. A module whose code is reached by
 // its tests passes; each violation planted into a copy fails with the linter or the finding that names it. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-go.mts';
+import { installedBinary, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const TOOLS = ['golangci-lint', 'deadcode'].map(name => path.join(ROOT, 'var/tools/bin', name));
+// deadcode and golangci-lint load the packages with the go of mise.toml, so the repository gets its shim too.
+const TOOLS = ['golangci-lint', 'deadcode', 'go'];
 
 const MOD = 'packages/go/go.mod';
 const DEMO = 'packages/go/demo.go';
@@ -53,8 +55,7 @@ function repository(t: TestContext, files: Record<string, string> = {}): string 
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write(root, { ...GOOD, ...files });
   copyFileSync(path.join(ROOT, '.golangci.yml'), path.join(root, '.golangci.yml'));
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  for (const tool of TOOLS) symlinkSync(tool, path.join(root, 'var/tools/bin', path.basename(tool)));
+  sandboxShims(root, TOOLS);
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   return root;
@@ -68,7 +69,7 @@ function lintOf(root: string): { failed: string[]; output: string } {
 }
 
 test('the Go lint passes on modules that resolve each other through go.work and whose tests reach their code', (t) => {
-  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; make install-tools TOOLS="golangciLint deadcode" installs it`);
+  for (const tool of TOOLS) assert.ok(existsSync(installedBinary(tool)), `the ${tool} of mise.toml is missing; make install-tools installs it`);
   const { failed, output } = lintOf(repository(t));
   assert.deepEqual(failed, [], output);
 });

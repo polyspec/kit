@@ -1,7 +1,7 @@
 // Tests of the Python lint: it runs ruff check and ruff format --check on the checkout with the root ruff.toml and the var
 // directory excluded, then vulture on the Python files of each package, from the package folder and with the confidence of
-// kit; every step runs after a failure of an earlier one, and a missing declaration, tool or ruff.toml fails with the fix.
-// ruff and vulture are stubs.
+// kit; every step runs after a failure of an earlier one, and a missing tool or ruff.toml fails with the fix. ruff and vulture
+// are stubs as the shims of mise.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,7 +21,7 @@ const FILES: Record<string, string> = {
   'packages/docs/README.md': '# docs\n',
 };
 
-function checkout(t: TestContext, { declared = true, installed = ['ruff', 'vulture'], failing = '', omit = '' }: { declared?: boolean; installed?: string[]; failing?: string; omit?: string } = {}) {
+function checkout(t: TestContext, { installed = ['ruff', 'vulture'], failing = '', omit = '' }: { installed?: string[]; failing?: string; omit?: string } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-python-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, text] of Object.entries(FILES)) {
@@ -30,17 +30,14 @@ function checkout(t: TestContext, { declared = true, installed = ['ruff', 'vultu
     writeFileSync(path.join(root, file), text);
   }
   writeFileSync(path.join(root, '.gitignore'), 'var/\n*.log\n');
-  mkdirSync(path.join(root, 'config'));
-  const digest = 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a';
-  writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify(declared ? { schema: 1, ruff: { version: '0.16.10', sha256: { 'linux-x64': digest } }, vulture: { version: '2.16', sha256: digest } } : { schema: 1 }));
   const log = path.join(root, 'calls.log');
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   for (const tool of installed) {
-    writeFileSync(path.join(root, 'var/tools/bin', tool), `#!/bin/sh
+    writeFileSync(path.join(root, 'var/tools/mise/shims', tool), `#!/bin/sh
 echo "${tool} $* [$(basename "$PWD")]" >> "${log}"
 ${failing ? `case "${tool} $1" in "${failing}"*) echo "found a problem" >&2; exit 1;; esac` : ''}
 `);
-    chmodSync(path.join(root, 'var/tools/bin', tool), 0o755);
+    chmodSync(path.join(root, 'var/tools/mise/shims', tool), 0o755);
   }
   initRepository(root);
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
@@ -67,9 +64,8 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(vulture.root, () => {}), ['vulture packages/python']);
 });
 
-test('an undeclared tool, a missing tool and a missing ruff.toml fail with their fix', (t) => {
-  assert.throws(() => lintSteps(checkout(t, { declared: false }).root), /config\/toolchain\.json declares no ruff; declare ruff with its version and the sha256 of its wheels/);
-  assert.throws(() => lintSteps(checkout(t, { installed: ['vulture'] }).root), /var\/tools\/bin\/ruff is missing; run make install-tools/);
-  assert.throws(() => lintSteps(checkout(t, { installed: ['ruff'] }).root), /var\/tools\/bin\/vulture is missing; run make install-tools/);
+test('a missing tool and a missing ruff.toml fail with their fix', (t) => {
+  assert.throws(() => lintSteps(checkout(t, { installed: ['vulture'] }).root), /var\/tools\/mise\/shims\/ruff is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
+  assert.throws(() => lintSteps(checkout(t, { installed: ['ruff'] }).root), /var\/tools\/mise\/shims\/vulture is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'ruff.toml' }).root), /ruff\.toml is missing; it is the ruff configuration that kit copies into every repository \(make kit-sync\)/);
 });

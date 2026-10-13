@@ -4,7 +4,7 @@
 // and a constraints file that pins every package of the lock, transitive ones too, as name==version, or as name @ url#sha256=<digest>
 // for a polyspec archive. A source may name findLinks, a directory of the checkout with local wheels.
 //
-//   node scripts/kit/python-lock.mts write     every lock, resolved by var/tools/bin/uv (make python-lock; ONLINE, or offline with findLinks)
+//   node scripts/kit/python-lock.mts write     every lock, resolved by the uv of mise.toml (make python-lock; ONLINE, or offline with findLinks)
 //   node scripts/kit/python-lock.mts check     every lock, compared with its sources, with no network (make python-lock-check)
 //
 // The writer runs `uv pip compile <requirements> -c <constraints> --universal --generate-hashes --format pylock.toml -o
@@ -25,7 +25,8 @@ import { POLICY } from './dependency-state.mts';
 import { readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
-import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
+import { toolCommand } from './mise-tools.mts';
+import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, ROOT } from './paths.mts';
 
 const RELEASE = /^\d+(?:\.\d+)*$/;
@@ -323,21 +324,21 @@ function relativeLocalPaths(text: string, root: string, lock: string) {
 }
 
 /**
- * Writes the lock of `entry` with var/tools/bin/uv, as the header describes, and returns { file: entry.lock }. A source that does
+ * Writes the lock of `entry` with the uv of mise.toml, as the header describes, and returns { file: entry.lock }. A source that does
  * not parse, a uv that fails and a lock that the check refuses throw with their findings, and the lock of the checkout is replaced
  * only by a lock that passed.
  */
 export function writePythonLock({ root, entry, env = process.env, print = () => {} }: { root: string; entry: LockEntry; env?: NodeJS.ProcessEnv; print?: (text: string) => void }) {
-  const uv = toolsPath(root, 'bin', 'uv');
-  if (!existsSync(uv)) throw new Error(`${path.relative(root, uv)} is missing; run make install-tools TOOLS=uv`);
+  const uv = toolCommand(root, 'uv');
+  if (!existsSync(uv)) throw new Error(`${path.relative(root, uv)} is missing; declare uv in mise.toml and run make install-tools`);
   const { lock, source } = entry;
   const names: [string, string] = [path.basename(source.requirements), path.basename(source.constraints)];
   if (names[0] === names[1] || names.includes('pylock.toml')) throw new Error(`${lock}: the requirements and the constraints need two different names, neither pylock.toml; name them differently`);
   const linksDirectory = source.findLinks === undefined ? null : findLinksOf(root, lock, source.findLinks);
   // The lower bound of the universal resolution is the declared Python minor: without --python-version, uv takes it from an
   // interpreter that it finds on the machine, so the lock would depend on the machine.
-  const python = declaredToolchain(root).python?.minor;
-  if (python === undefined) throw new Error(`${lock}: config/toolchain.json declares no python minor, the lower bound of the resolution; declare it`);
+  const python = declaredMiseTools(root).python?.version.split('.').slice(0, 2).join('.');
+  if (python === undefined) throw new Error(`${lock}: mise.toml declares no python, whose minor is the lower bound of the resolution; declare it`);
   const text = {
     requirements: readFileSync(path.join(root, source.requirements), 'utf8'),
     constraints: readFileSync(path.join(root, source.constraints), 'utf8'),
