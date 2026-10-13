@@ -38,7 +38,7 @@
     "url": "git+https://github.com/polyspec/kit.git"
   },
   "engines": {
-    "node": ">=26.8.1"
+    "node": ">=26.11.1"
   },
   "scripts": {
     "build": "make build",
