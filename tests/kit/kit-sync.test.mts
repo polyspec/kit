@@ -121,5 +121,7 @@ test('the package.json of kit declares its copies: the bootstrap, the release wo
   assert.equal(copies['.github/workflows/release.yml'], 'workflows/release.yml');
   for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md']) assert.equal(copies[file], file);
   assert.deepEqual(Object.values(copies).filter(from => !existsSync(path.join(ROOT, from))), [], 'these copies have no file in kit');
+  const files: string[] = manifest.files ?? [];
+  assert.deepEqual(Object.values(copies).filter(from => !files.some(entry => entry === from || (entry.endsWith('/') && from.startsWith(entry)))), [], 'these copies are not in files of package.json, so the package lacks them');
   assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
 });
