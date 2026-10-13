@@ -8,6 +8,7 @@
     { "paths": ["docs/**", "*.md", "config/documents.json"], "targets": ["documents-check"] },
     { "paths": ["config/commits.json"], "targets": ["commits-check"] },
     { "paths": ["config/rebuild.json", "docs/rebuild/**"], "targets": ["rebuild-check", "documents-check"] },
+    { "paths": ["config/dependency-policy.json", "config/dependency-review.json"], "targets": ["dependency-policy-check"] },
     { "paths": ["config/toolchain.json", ".node-version", "rust-toolchain.toml"], "targets": ["toolchain-check", "kit-test"] },
     { "paths": ["config/phpunit/**"], "targets": ["kit-test"] },
     { "paths": ["config/php-lint/**"], "targets": ["kit-test"], "tests": ["tests/source/lint-php-real.test.mts"] },
