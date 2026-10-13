@@ -78,6 +78,8 @@ rules:
       - "!ruff.toml"
       - "!phpcs.xml.dist"
       - "!phpstan.dist.neon"
+      - "!Cargo.toml"
+      - "!Cargo.lock"
     message: "S5: a file at the root that the layout does not declare; move it into a root folder or declare it in config/layout.yml"
 
   # S5: packages/ holds the runtime ports of the main spec; a repository adds its components to the list.
@@ -210,6 +212,15 @@ rules:
     paths: ["**/composer.json", "!tests/kit/fixture/**"]
     schema_path: config/composer.schema.json
     message: "S2: a composer.json maps no classmap or PSR-0, and a library maps autoload and autoload-dev by PSR-4"
+
+  # The Rust lint (make lint-rust): a workspace denies unsafe code and an allow attribute without its reason, and every
+  # package takes the lints of its workspace (config/cargo.schema.json).
+  - id: lint-cargo-lints
+    kind: json_schema_passes
+    level: error
+    paths: ["**/Cargo.toml", "!tests/kit/fixture/**"]
+    schema_path: config/cargo.schema.json
+    message: "a workspace denies unsafe_code and clippy::allow_attributes_without_reason, and a package says lints.workspace = true"
 
   # The Python lint (make lint-python) runs ruff with the root ruff.toml. A nested ruff configuration would escape it in an
   # editor or a plain ruff run, where the nearest configuration applies.
