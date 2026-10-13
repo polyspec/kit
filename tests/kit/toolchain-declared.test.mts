@@ -23,13 +23,13 @@ test('the schema accepts every representative toolchain configuration', () => {
 test('the schema names an unknown key, a wrong shape and a malformed version', () => {
   const errors = validate({ schema: 1, extra: 1, php: '8.5', composer: '2.10.3', go: {}, cargoAudit: '0.22', python: '3', node: { 'windows.zip': 'x' } }, SCHEMA);
   assert.deepEqual(errors, [
-    '$.extra is not in the schema',
-    '$.php is string, the schema requires array',
-    '$.composer is string, the schema requires object',
-    '$.go lacks mod, the schema requires it',
-    '$.cargoAudit is "0.22", the schema requires a match of ^\\d+\\.\\d+\\.\\d+$',
-    '$.python is "3", the schema requires a match of ^\\d+\\.\\d+$',
-    '$.node.windows.zip is not in the schema',
+    '/ must NOT have additional properties {"additionalProperty":"extra"}',
+    '/php must be array {"type":"array"}, value "8.5"',
+    '/python must match pattern "^\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+$"}, value "3"',
+    '/composer must be object {"type":"object"}, value "2.10.3"',
+    `/go must have required property 'mod' {"missingProperty":"mod"}`,
+    '/cargoAudit must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "0.22"',
+    '/node must NOT have additional properties {"additionalProperty":"windows.zip"}',
   ]);
 });
 

@@ -51,5 +51,8 @@
       "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
       "config/layout.kit.yml": "config/layout.kit.yml"
     }
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
   }
 }

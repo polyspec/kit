@@ -58,13 +58,13 @@ test('the schema accepts the configuration of the fixture and names each error o
   const config = readJson(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', { ...config, schema: 2, extra: 1, packages: [{ kind: 'pip', directory: '/abs', name: 'x' }] });
   const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json'));
-  assert.ok(findings.some(line => line.includes('$.schema is 2, the schema requires 1')), findings.join('\n'));
-  assert.ok(findings.some(line => line.includes('$.extra is not in the schema')), findings.join('\n'));
-  assert.ok(findings.some(line => line.includes('$.packages[0].kind is "pip", the schema allows "npm", "composer"')), findings.join('\n'));
-  assert.ok(findings.some(line => line.includes('$.packages[0].directory is "/abs"')), findings.join('\n'));
+  assert.ok(findings.some(line => line.includes('/schema must be equal to constant {"allowedValue":1}, value 2')), findings.join('\n'));
+  assert.ok(findings.some(line => line.includes('/ must NOT have additional properties {"additionalProperty":"extra"}')), findings.join('\n'));
+  assert.ok(findings.some(line => line.includes('/packages/0/kind must be equal to one of the allowed values {"allowedValues":["npm","composer","wheel"]}, value "pip"')), findings.join('\n'));
+  assert.ok(findings.some(line => line.startsWith('config/release.json: /packages/0/directory must match pattern') && line.includes('value "/abs"')), findings.join('\n'));
   const { changelog, ...without } = config;
   writeJson(box.root, 'config/release.json', without);
-  assert.ok(checkConfig(box.root).some(line => line.includes('$ lacks changelog')));
+  assert.ok(checkConfig(box.root).some(line => line.includes(`/ must have required property 'changelog' {"missingProperty":"changelog"}`)));
   assert.ok(changelog);
 });
 
@@ -90,7 +90,7 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
   stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
   stop(load(c => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
-  stop(load(c => ({ ...original, schema: 3 })), /\$\.schema is 3, the schema requires 1/);
+  stop(load(c => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
 });
