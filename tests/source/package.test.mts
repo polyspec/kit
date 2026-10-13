@@ -9,33 +9,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { builtCopy, run, walk } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-
-// The files below `directory`, relative to it, in sorted order.
-function walk(directory: string, prefix = ''): string[] {
-  return readdirSync(path.join(directory, prefix), { withFileTypes: true }).flatMap(entry => {
-    const relative = path.posix.join(prefix, entry.name);
-    return entry.isDirectory() ? walk(directory, relative) : [relative];
-  }).sort();
-}
-
-const run = (command: string, args: string[], cwd: string) => {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 26 });
-  assert.equal(result.status, 0, `${command} ${args.join(' ')} in ${cwd}: ${result.error?.message ?? ''}${result.stdout}${result.stderr}`);
-  return result.stdout;
-};
-
-// A copy of the tracked and new files of the checkout with its installed node_modules, built with make build.
-function builtCopy(t: { after: (fn: () => void) => void }) {
-  const copy = mkdtempSync(path.join(tmpdir(), 'kit-package-'));
-  t.after(() => rmSync(copy, { recursive: true, force: true }));
-  const files = run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], ROOT).split('\n').filter(Boolean);
-  for (const file of files) if (existsSync(path.join(ROOT, file))) cpSync(path.join(ROOT, file), path.join(copy, file));
-  symlinkSync(path.join(ROOT, 'node_modules'), path.join(copy, 'node_modules'));
-  run('make', ['--no-print-directory', 'build'], copy);
-  return copy;
-}
 
 test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imports, with kit.mk and the schemas', (t) => {
   const copy = builtCopy(t);
