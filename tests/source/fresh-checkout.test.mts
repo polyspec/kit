@@ -48,11 +48,11 @@ test('failedCases reads each failed case with its error, and no passed case', ()
   ]);
 });
 
-test('in a checkout without var/, every vendored test passes', (t) => {
+test('in a checkout without var/, every vendored test passes', async (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox);
-  const { output, passed } = runKitTest(sandbox);
+  const { output, passed } = await runKitTest(sandbox, t.signal);
   assert.ok(passed > 0, 'the vendored tests ran');
   assert.deepEqual(failedCases(output).map(failed => `${failed.name}\n  ${failed.error.split('\n')[0]}`), []);
 });
