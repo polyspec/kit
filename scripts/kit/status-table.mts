@@ -3,7 +3,7 @@
 // column that has a closed set of values (the other columns are translated text).
 import { finding } from './findings.mts';
 import type { Finding } from './findings.mts';
-import { tableCells } from './markdown.mts';
+import { tableRows } from './markdown.mts';
 
 /** A column of a status table that has a closed set of values or a pattern. */
 export type StatusColumn = { index: number; enum?: readonly string[] | undefined; pattern?: string | undefined };
@@ -24,13 +24,11 @@ export function readStatusTable(text: string, spec: StatusTableSpec): { findings
   const findings: Finding[] = [];
   const rows: StatusRow[] = [];
   const seen = new Map<string, number>();
-  text.split('\n').forEach((line, index) => {
-    if (!line.startsWith('|')) return;
-    const cells = tableCells(line).map(cell => cell.text.trim());
-    // A line whose first cell is no ID is not a row; a line that is only `|` has no first cell.
+  // The rows of the GFM tables of the text (markdown.mts); a row whose first cell is no ID, such as the header, is not a row
+  // of the status table, and a row without cells has no first cell.
+  for (const { line: number, cells } of tableRows(text)) {
     const rowId = cells[0];
-    if (rowId === undefined || !id.test(rowId)) return;
-    const number = index + 1;
+    if (rowId === undefined || !id.test(rowId)) continue;
     if (cells.length !== spec.cells) findings.push(finding(number, 'status-table', `the row ${rowId} has ${cells.length} cells; expected ${spec.cells}`));
     if (seen.has(rowId)) findings.push(finding(number, 'status-table', `the row ${rowId} repeats the ID of line ${seen.get(rowId)}`));
     else seen.set(rowId, number);
@@ -44,7 +42,7 @@ export function readStatusTable(text: string, spec: StatusTableSpec): { findings
       if (column.pattern && !new RegExp(column.pattern).test(value)) findings.push(finding(number, 'status-table', `the row ${rowId} has ${JSON.stringify(value)} in cell ${column.index + 1}; expected a match of ${column.pattern}`));
     }
     rows.push({ id: rowId, values, line: number });
-  });
+  }
   if (!rows.length) findings.push(finding(1, 'status-table', `the table has no row whose first cell matches ${spec.idPattern}`));
   return { findings, rows };
 }

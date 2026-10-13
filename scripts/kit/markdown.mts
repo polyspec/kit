@@ -165,6 +165,26 @@ export function headingAnchors(text: string, { site = false }: { site?: boolean 
   return result;
 }
 
+/** A row of a GFM table: its line and the source of each cell, trimmed, as the author wrote it (markup and escapes kept). */
+export type TableRow = { line: number; cells: string[] };
+
+/**
+ * The rows of the GFM tables of `text`, the header row included, in order. A row has the cells that its line writes, also
+ * more than the header has; a line inside a fenced block, a quote's code or any other block that is no table is no row.
+ */
+export function tableRows(text: string): TableRow[] {
+  const rows: TableRow[] = [];
+  visit(parse(text), 'tableRow', (row) => {
+    const cells = row.children.map((cell) => {
+      const first = cell.children[0];
+      const last = cell.children.at(-1);
+      return first && last ? text.slice(placeOf(first).start, placeOf(last).end).trim() : '';
+    });
+    rows.push({ line: placeOf(row).startLine, cells });
+  });
+  return rows;
+}
+
 /** The cells of a table row split on `|` that is not escaped, with the column (0-based) at which each begins. */
 export function tableCells(line: string): { text: string; start: number }[] {
   const result: { text: string; start: number }[] = [];
