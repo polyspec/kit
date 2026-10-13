@@ -4,7 +4,7 @@
 // runs alone; the installer first requires the running node to be the release of .node-version.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -64,4 +64,22 @@ test('with the node of .node-version and no package.json the copied installer na
   const { run } = copied(t, { '.node-version': `${process.versions.node}\n` });
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.stderr, '[bootstrap-npm] package.json is missing; its packageManager pins the npm to install\n');
+});
+
+test('printedRelease reads only a missing command as no installation: another error and an output without a release fail', async (t) => {
+  const { printedRelease } = await import('../../scripts/kit/bootstrap/tool-wrappers.mts');
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-printed-release-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  assert.equal(printedRelease(path.join(directory, 'missing'), 'uv'), undefined);
+  const command = path.join(directory, 'uv');
+  writeFileSync(command, '#!/bin/sh\necho "uv twelve"\n', { mode: 0o755 });
+  assert.throws(() => printedRelease(command, 'uv'), /uv --version printed no release: "uv twelve"$/);
+  const closed = path.join(directory, 'closed');
+  mkdirSync(closed);
+  chmodSync(closed, 0o000);
+  try {
+    assert.throws(() => printedRelease(path.join(closed, 'uv'), 'uv'), { code: 'EACCES' });
+  } finally {
+    chmodSync(closed, 0o755);
+  }
 });
