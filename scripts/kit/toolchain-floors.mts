@@ -8,7 +8,8 @@
 //   go.mod         go is "<go pin>" and no toolchain line, which the go command drops when it equals the go line
 //   Cargo.toml     package.rust-version is "<rust pin>", also through rust-version.workspace = true
 //   package.json   typescript of each dependency field is "<typescript pin>"; the typescript that a package-lock.json resolves
-//                  at its top level or for a workspace is the pin, and a copy nested under another package is that package's
+//                  at its top level or for a workspace that declares it is the pin, and one that npm hoists or nests for
+//                  another package is that package's
 // A floor may also equal the channel of a declared exception whose scope holds the file (toolchain-exceptions.mts). Each other
 // floor, and a missing one, is a finding that names the file, the key, the pin and the expected value. Beside the floors,
 // an .npmrc may not keep npm from linking (S1: our rules never block the links of npm): install-links=true and
@@ -103,14 +104,17 @@ export function cargoFindings(root: string, pinning: Pinning, env: NodeJS.Proces
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 
-// Whether the package-lock.json key `key` is the typescript that a manifest of the repository declares: the top-level
-// node_modules/typescript or that of a workspace (<workspace>/node_modules/typescript). A copy nested under another package
-// (node_modules/<package>/node_modules/typescript) is that tool's own, such as the TypeScript that API Extractor bundles, and
-// our pin is never forced onto it (S1).
-function declaredTypescript(key: string): boolean {
+// Whether the package-lock.json entry `key` is the typescript that a package of the repository declares: the
+// node_modules/typescript of the lock's root or of a workspace (<workspace>/node_modules/typescript), when the lock's entry
+// of that package ('' or <workspace>) names typescript in a dependency field. A typescript that npm hoists for another
+// package, such as the TypeScript 5.9.3 of API Extractor, and a copy nested under another package are that tool's own, and
+// our pin is never forced onto them (S1).
+function declaredTypescript(key: string, packages: Record<string, Record<string, unknown>>): boolean {
   if (!key.endsWith('node_modules/typescript')) return false;
   const owner = key.slice(0, -'node_modules/typescript'.length);
-  return owner === '' || (owner.endsWith('/') && !owner.split('/').includes('node_modules'));
+  if (owner !== '' && (!owner.endsWith('/') || owner.split('/').includes('node_modules'))) return false;
+  const declared = packages[owner.replace(/\/$/, '')] ?? {};
+  return DEPENDENCY_FIELDS.some(field => (declared[field] as Record<string, unknown> | undefined)?.typescript !== undefined);
 }
 
 /** One line for each package.json that names typescript other than the TypeScript pin, and each locked typescript of another release. */
@@ -124,10 +128,10 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
         .flatMap(field => pinning.check(file, `${field}.typescript`, manifest[field].typescript, 'typescript'));
     }
     if (name === 'package-lock.json') {
-      const packages: Record<string, { version?: unknown }> = readJson(root, file).packages ?? {};
+      const packages: Record<string, Record<string, unknown>> = readJson(root, file).packages ?? {};
       // An entry belongs to the folder of its workspace (packages/w/node_modules/typescript to packages/w), and an exception
       // scoped to that workspace covers it; a top-level entry belongs to the folder of the lock.
-      return Object.entries(packages).filter(([key]) => declaredTypescript(key))
+      return Object.entries(packages).filter(([key]) => declaredTypescript(key, packages))
         .flatMap(([key, entry]) => pinning.check(file, `packages[${JSON.stringify(key)}].version`, entry.version, 'typescript', undefined, {
           scope: path.posix.join(path.posix.dirname(file), key.slice(0, -'node_modules/typescript'.length)).replace(/\/$/, ''),
         }));

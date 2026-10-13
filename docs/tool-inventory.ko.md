@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5d6475de2cbc3ed1f023d10df410c08b83fc4c32cf16d341b9e9bc7f13177345 -->
+<!-- source-sha256: dac2f867cbdd74159bea320b6e898dfd8efcd8e4dfa18ad66151a95d438e708b -->
 
 # 도구 목록
 
@@ -98,7 +98,7 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
-| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript`. 다른 package 아래에 중첩된 사본(API Extractor가 내장한 TypeScript 등)은 그 도구의 것입니다(S1) | TypeScript pin |
+| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript` 중 그 lock 항목(`""` 또는 workspace)이 `typescript`를 선언한 것. npm이 다른 package를 위해 hoist하거나 그 아래에 중첩한 typescript(API Extractor의 TypeScript 등)는 그 도구의 것입니다(S1) | TypeScript pin |
 
 - `config/toolchain.json`의 `exceptions`는 편차를 `{ tool, channel, scope, reason, retry }`로 선언합니다(S8). scope는 `.`
   또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. workspace의 lock 항목은 lock이 아니라 그 workspace의

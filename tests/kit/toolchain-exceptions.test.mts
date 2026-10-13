@@ -20,7 +20,7 @@ const svelte = (t: TestContext, exceptions: unknown[]) => tree(t, {
   'config/toolchain.json': json({ schema: 1, exceptions }),
   'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
   'packages/generator-svelte/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
-  'packages/generator-svelte/package-lock.json': json({ packages: { 'node_modules/typescript': { version: '6.0.3' } } }),
+  'packages/generator-svelte/package-lock.json': json({ packages: { '': { devDependencies: { typescript: '6.0.3' } }, 'node_modules/typescript': { version: '6.0.3' } } }),
   'packages/other/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
 });
 

@@ -100,7 +100,7 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
 | `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
 | `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
-| `typescript` of each dependency field of a `package.json`, and the `typescript` that a `package-lock.json` resolves at its top level or for a workspace; a copy nested under another package, such as the TypeScript that API Extractor bundles, is that tool's (S1) | the TypeScript pin |
+| `typescript` of each dependency field of a `package.json`, and the `typescript` that a `package-lock.json` resolves at its top level or for a workspace whose lock entry (`""` or the workspace) declares `typescript`; a typescript that npm hoists for another package or nests under it, such as the TypeScript of API Extractor, is that tool's (S1) | the TypeScript pin |
 
 - `exceptions` of `config/toolchain.json` declares a deviation as `{ tool, channel, scope, reason, retry }` (S8): the scope is
   `.` or a directory of the checkout, and a value under it may equal the channel; a lock entry of a workspace is under the
