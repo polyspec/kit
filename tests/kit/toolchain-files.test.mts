@@ -2,7 +2,7 @@
 // form that a regular expression misread before (a comment after the value) reads as the tool reads it.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { declaredGo } from '../../scripts/kit/toolchain-files.mts';
+import { declaredGo, declaredRust } from '../../scripts/kit/toolchain-files.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 const GO_ENV = { ...process.env, GOTOOLCHAIN: 'local' };
@@ -21,4 +21,19 @@ test('a go line that is not a release, or a go.mod that go cannot read, fails wi
   assert.throws(() => declaredGo(broken, GO_ENV), /packages\/a\/go\.mod: `go mod edit -json` cannot read it \(exit status 1\): /);
   const missing = toolchainCheckout(t, { 'config/toolchain.json': GO_CONFIG });
   assert.throws(() => declaredGo(missing, GO_ENV), /packages\/a\/go\.mod: `go mod edit -json` cannot read it/);
+});
+
+test('the Rust release is the channel of rust-toolchain.toml, read by tomllib', (t) => {
+  const commented = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0" # the pin of kit\nprofile = "minimal"\n' });
+  assert.deepEqual(declaredRust(commented, process.env), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
+  const inline = toolchainCheckout(t, { 'rust-toolchain.toml': "toolchain = { channel = '1.99.0' }\n" });
+  assert.deepEqual(declaredRust(inline, process.env), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
+  assert.equal(declaredRust(toolchainCheckout(t, {}), process.env), undefined, 'without rust-toolchain.toml, Rust is not declared');
+});
+
+test('a channel that is no release fails with the file and the value', (t) => {
+  const stable = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' });
+  assert.throws(() => declaredRust(stable, process.env), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares "stable"/);
+  const none = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nprofile = "minimal"\n' });
+  assert.throws(() => declaredRust(none, process.env), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares undefined/);
 });

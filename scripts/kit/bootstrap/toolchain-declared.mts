@@ -2,7 +2,6 @@
 // and the declaring file, so that an install and a check name the file in a message:
 //   node         .node-version
 //   npm          packageManager of package.json: npm@<version>, optionally +sha512.<digest of the registry tarball>
-//   rust         channel of rust-toolchain.toml
 //   php          config/toolchain.json php (minor releases), else .php-version
 //   python       config/toolchain.json python (minor release), else .python-version
 //   pythonBuild  config/toolchain.json pythonBuild: the exact Python release of the python minor, which the declared uv installs
@@ -14,8 +13,8 @@
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
-// Go is read by toolchain-files.mts with the go command, after the bootstrap.
-// A tool is declared when its file exists (node, rust) or its config key is present; an undeclared tool is absent from the
+// Go and Rust are read by toolchain-files.mts with the tools of their ecosystems, after the bootstrap.
+// A tool is declared when its file exists (node) or its config key is present; an undeclared tool is absent from the
 // result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -34,7 +33,6 @@ export type PlatformRelease = { version: string; sha256: Record<string, unknown>
 export type DeclaredToolchain = {
   node?: Declared;
   npm?: Declared & { sha512: string | undefined };
-  rust?: Declared;
   php?: { minors: string[]; source: string };
   python?: { minor: string; source: string };
   uv?: PlatformRelease;
@@ -137,10 +135,6 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     if (!match) throw new Error(`package.json packageManager is ${JSON.stringify(manager)}, expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>`);
     // The first group always takes part in a match.
     declared.npm = { version: match[1]!, sha512: match[2], source: 'packageManager of package.json' };
-  }
-  if (existsSync(path.join(root, 'rust-toolchain.toml'))) {
-    const channel = /^\s*channel\s*=\s*"([^"]*)"\s*$/m.exec(read(root, 'rust-toolchain.toml'))?.[1];
-    declared.rust = { version: exact('rust-toolchain.toml', 'channel', channel), source: 'rust-toolchain.toml channel' };
   }
   const phpFile = existsSync(path.join(root, '.php-version')) ? minor('.php-version', 'the PHP minor release', read(root, '.php-version').trim()) : undefined;
   if (config.php) {

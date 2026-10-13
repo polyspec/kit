@@ -112,7 +112,7 @@ test('the commands of var/tools/bin run before those of PATH, and the toolchain 
 });
 
 test('a command that is missing or prints no release is a mismatch that names the command and the declared version', (t) => {
-  const { root, stubs } = setup(t, { npm: 'twelve', go: 'go1.27.1', composer: null });
+  const { root, stubs } = setup(t, { ...OUTPUTS, npm: 'twelve', composer: null });
   const result = check(root, stubs.env, 'npm', 'composer');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /npm: no release in the output of `npm --version`: "twelve"; packageManager of package\.json declares 12\.2\.0; fix: make install-tools/);

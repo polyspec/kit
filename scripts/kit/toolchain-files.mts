@@ -1,9 +1,10 @@
 // The readers of the manifests whose format an ecosystem tool reads, so that kit parses none of them itself (S1):
 //   TOML    tomllib of the Python on PATH (pyproject.toml, rust-toolchain.toml), printed as JSON
 //   go.mod  go mod edit -json of the Go on PATH
-// A reader that cannot run or read its file throws an Error that names the file and the cause. The Go declaration of a
-// checkout is read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before the
-// tools are installed.
+// A reader that cannot run or read its file throws an Error that names the file and the cause. The Go and Rust declarations
+// of a checkout are read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before
+// the tools are installed.
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
@@ -43,4 +44,13 @@ export function declaredGo(root: string, env: NodeJS.ProcessEnv): Declared | und
   const version = readGoMod(root, file, env).Go;
   if (!version || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${file} must declare go as <major>.<minor>.<patch>; it declares ${JSON.stringify(version)}`);
   return { version, source: `${file} go directive` };
+}
+
+/** The Rust release that the checkout declares: the channel of rust-toolchain.toml, as an exact release; undefined without the file. */
+export function declaredRust(root: string, env: NodeJS.ProcessEnv): Declared | undefined {
+  if (!existsSync(path.join(root, 'rust-toolchain.toml'))) return undefined;
+  // tomllib returns a table for a TOML document; toolchain, when present, is a table too.
+  const channel = (readToml(root, 'rust-toolchain.toml', env) as { toolchain?: { channel?: unknown } }).toolchain?.channel;
+  if (typeof channel !== 'string' || !/^\d+\.\d+\.\d+$/.test(channel)) throw new Error(`rust-toolchain.toml must declare toolchain.channel as <major>.<minor>.<patch>; it declares ${JSON.stringify(channel)}`);
+  return { version: channel, source: 'rust-toolchain.toml channel' };
 }

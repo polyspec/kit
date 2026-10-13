@@ -39,12 +39,10 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     '.node-version': '26.8.1\n',
     '.python-version': '3.14\n',
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
-    'rust-toolchain.toml': '[toolchain]\nchannel = "1.98.1"\nprofile = "minimal"\n',
   });
   assert.deepEqual(declaredToolchain(root), {
     node: { version: '26.8.1', source: '.node-version' },
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
-    rust: { version: '1.98.1', source: 'rust-toolchain.toml channel' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.14', source: 'config/toolchain.json python' },
     composer: { version: '2.10.3', sha256: undefined, source: 'config/toolchain.json composer' },
@@ -68,7 +66,6 @@ test('a declaration that is malformed or contradicts another fails with the file
     [{ '.node-version': '26.8\n' }, /\.node-version must record the Node\.js release as <major>\.<minor>\.<patch>; it records "26\.8"/],
     [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
-    [{ 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' }, /rust-toolchain\.toml must record channel as <major>\.<minor>\.<patch>; it records "stable"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "python": "3.14" }', '.python-version': '3.13\n' }, /\.python-version declares 3\.13, but config\/toolchain\.json python declares 3\.14/],
     [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],
     [{ 'config/toolchain.json': '{ "schema": 1, "ruff": { "version": "0.16", "sha256": {} } }' }, /config\/toolchain\.json ruff must record version as <major>\.<minor>\.<patch>; it records "0\.16"/],
