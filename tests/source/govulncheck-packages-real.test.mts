@@ -35,7 +35,7 @@ test('the advisory query names the buildable packages of the module, and the rea
   assert.equal(spawnSync('go', ['version'], { encoding: 'utf8' }).status, 0, 'go is not on PATH');
 
   const { list, error } = goPackages(root, 'go.sum');
-  assert.equal(error, undefined, error);
+  if (error !== undefined) assert.fail(error);
   assert.deepEqual(list, ['example.com/kit-real', 'example.com/kit-real/x']);
   // The real go loads every named package without the -e of the query, so govulncheck receives no failing pattern.
   const loaded = spawnSync('go', ['list', ...list], { cwd: root, encoding: 'utf8' });
