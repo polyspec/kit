@@ -1225,7 +1225,8 @@ that states something of a part of the implementations names the others in the s
 the methods; PHP and Python resolve them at call time"). The items of one Markdown list, with the same marker and indent and
 no other passage between them, are one list when each item names exactly one implementation; three or more such names hold when
 they together are a profile. An implementation is named by its name or by a name of its `prose` (`"prose": ["PHP extension"]`
-for `php-extension`), in any case; a prose name that is a name of another implementation is a declaration finding.
+for `php-extension`), in any case; a prose name that is a name of another implementation, or a repeated prose name, is a
+declaration finding.
 
 The catalog pattern applies to each line of the catalog that is not blank and is not a comment (a line that starts with `#` or
 `//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,

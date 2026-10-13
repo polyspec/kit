@@ -1034,6 +1034,10 @@ test('R10: a bullet list of one implementation per item is one list, and a decla
     'declaration: implementation go: the prose name Rust is also a name of rust',
   ]);
   assert.deepEqual(messages((config) => { config.implementations[0].prose = [' Go']; return config; }).length, 1);
+  // A prose name is declared once: a repeated one breaks the schema.
+  assert.deepEqual(messages((config) => { config.implementations[0].prose = ['Golang', 'Golang']; return config; }), [
+    'declaration: config/parity.json: /implementations/0/prose must NOT have duplicate items (items ## 1 and 0 are identical) {"i":0,"j":1}',
+  ]);
 });
 
 test('R11: a public symbol that no API unit and no native-only entry declares, and a stale native-only entry, fail (K75)', TIMEOUT, (t) => {
