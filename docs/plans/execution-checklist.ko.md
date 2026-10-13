@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: e33b183ffe41b2b7fb91380c278a0fa554a8ef69f6300e0095e0a6bf0262453d -->
+<!-- source-sha256: 221b1a8de5373974789e83615271f049aa6e5944f294e88aa3984bdb018b0dc0 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -165,7 +165,7 @@
 | K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [o] |
 | K99 | `release-consumer-config`는 text가 아닌 `proof.gitTag` kind를 거부합니다. 원인: `in`과 index가 `["rust"]`를 `"rust"`로 바꾸어 list가 통과했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K100 | TOML reader는 array 아래 table의 TOML 규칙을 지킵니다: `a = [[1]]` 다음의 `[a.x]`는 내부 array에 key를 두는 것이 아니라 error입니다. 원인: `parseToml`이 array의 마지막 항목을 확인 없이 table로 썼습니다. reader는 K73에서 smol-toml로 대체되며, 이 입력은 대체의 test에 들어갑니다. | K73 TOML test | 옛 reader에서 실패하고 대체에서 통과하는 case | [ ] |
-| K101 | lock에서 `url`이 없는 archive는 `wheel-dependencies`와 `release-proof`의 TypeError가 아니라 finding입니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/wheel-dependencies.mts`, `scripts/kit/release-proof.mts`, 그 test | red test, 그다음 `make kit-test` | [ ] |
+| K101 | lock에서 `url`이 없는 archive는 `wheel-dependencies`와 `release-proof`의 TypeError가 아니라 finding입니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/wheel-dependencies.mts`, `scripts/kit/release-proof.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K102 | `process-group`의 `waitGroupEnd`를 그 test와 함께 지웁니다. 원인: K48이 추가했지만 kit이나 어떤 repository의 tool도 부르지 않았습니다. 불확실한 미래를 위한 API였고, deadline이 없으면 끝나지 않았습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/process-group.mts`, `tests/kit/process-group.test.mts` | `make kit-test`; repository 전체 grep에서 호출이 없음 | [o] |
 | K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K107 | parity 선언 검사는 `symbols`가 없는 API unit을 그 unit을 이름으로 대는 finding으로 거부합니다. 원인: 그런 unit이 선언 검사를 통과한 뒤 `missingImplementations`가 `unit.symbols.find`에서 TypeError로 죽었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/parity-units.mts`, `scripts/kit/parity-declaration.mts`, 그 test | red test, 그다음 소유 검사 | [o] |
