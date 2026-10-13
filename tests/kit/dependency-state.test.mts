@@ -25,6 +25,8 @@ test('an npm version satisfies a range by the rules of npm', () => {
   assert.equal(npmSatisfies('3.0.0-rc.1', '>=2.0.0'), false);
   assert.equal(npmSatisfies('3.0.0-rc.1', '>=3.0.0-rc.0'), true);
   assert.equal(npmSatisfies('not a version', '^1.0.0'), null);
+  assert.equal(npmSatisfies('1.2.3', '>=01.2.3'), null, 'a leading zero makes no version, so npm reads no range');
+  assert.equal(npmSatisfies('1.2.3', 'npm:other@^1.0.0'), true, 'an alias names the range of its package');
 });
 
 test('a package installed at two versions that one version satisfies is reported once', () => {
