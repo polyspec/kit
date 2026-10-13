@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: aff6ac563abf67c14b880ea550b061d03ad879c490970da53b42059a78c6ef2e -->
+<!-- source-sha256: ea24d6f2e9d897b42055c4bc2fd2a4390e73383eb18b660c6aac9caef65ca4d3 -->
 
 # 도구 목록
 
@@ -94,7 +94,7 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
 |---|---|
 | `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `python` | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
-| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin |
+| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.5.0`), dependency-policy가 요구하는 형식 |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |

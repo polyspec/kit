@@ -52,7 +52,8 @@ export const enginesFindings = (root: string, pinning: Pinning): string[] => nam
 
 /**
  * One line for each composer.json whose require.php is not `>=` the PHP pin, and for each one beside a composer.lock
- * whose config.platform.php is not the pin: Composer resolves the lock of a root package for that platform.
+ * whose config.platform.php is not the pin or a patch release of it: Composer resolves the lock of a root package for that
+ * platform.
  */
 export function composerFindings(root: string, pinning: Pinning): string[] {
   const locks = new Set(named(root, 'composer.lock'));
@@ -61,7 +62,8 @@ export function composerFindings(root: string, pinning: Pinning): string[] {
     const locked = locks.has(path.posix.join(path.posix.dirname(file), 'composer.lock'));
     return [
       ...pinning.check(file, 'require.php', manifest.require?.php, 'php', release => `>=${release}`),
-      ...(locked ? pinning.check(file, 'config.platform.php', manifest.config?.platform?.php, 'php') : []),
+      // dependency-policy writes the platform as <major>.<minor>.<patch>, which names the pin at its <major>.<minor> precision.
+      ...(locked ? pinning.check(file, 'config.platform.php', manifest.config?.platform?.php, 'php', undefined, { patch: true }) : []),
     ];
   });
 }

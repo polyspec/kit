@@ -40,9 +40,26 @@ test('every composer.json requires php >= the pin, and a locked one sets config.
   });
   assert.deepEqual(composerFindings(root, new Pinning(PINS)), [
     'composer.json: require.php is "^8.2"; kit pins php 8.5, so it must be ">=8.5"',
-    'composer.json: config.platform.php is "8.2.0"; kit pins php 8.5, so it must be "8.5"',
+    'composer.json: config.platform.php is "8.2.0"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
     'packages/b/composer.json: require.php is missing; kit pins php 8.5, so it must be ">=8.5"',
-    'packages/c/composer.json: config.platform.php is missing; kit pins php 8.5, so it must be "8.5"',
+    'packages/c/composer.json: config.platform.php is missing; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
+  ]);
+});
+
+// dependency-policy requires the platform of a lock as <major>.<minor>.<patch>; the floor compares it at the precision of the
+// PHP pin, <major>.<minor>, so 8.5.0 is the pin 8.5 and 8.4.1 is not.
+test('config.platform.php is compared at the precision of the PHP pin', (t) => {
+  const root = tree(t, {
+    'packages/a/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.5.0' } } }),
+    'packages/a/composer.lock': '{}',
+    'packages/b/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.4.1' } } }),
+    'packages/b/composer.lock': '{}',
+    'packages/c/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.5.x' } } }),
+    'packages/c/composer.lock': '{}',
+  });
+  assert.deepEqual(composerFindings(root, new Pinning(PINS)), [
+    'packages/b/composer.json: config.platform.php is "8.4.1"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
+    'packages/c/composer.json: config.platform.php is "8.5.x"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
   ]);
 });
 
