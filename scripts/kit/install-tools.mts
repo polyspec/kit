@@ -23,34 +23,51 @@ import { installUv } from './install-uv.mts';
 import { declaredToolchain } from './toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
+/** The declarations of declaredToolchain (toolchain-declared.mts) that install-tools reads. */
+interface Declared {
+  pythonBuild?: unknown;
+  pythonBackend?: { requirement: string; sha256: string; source: string };
+  npm?: unknown;
+  go?: unknown;
+  ruff?: unknown;
+  uv?: unknown;
+  composer?: { sha256?: string };
+  phpunit?: unknown;
+  cargoAudit?: { version: string };
+  govulncheck?: { version: string };
+}
+
 const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck'];
 
 /**
  * Installs the declared tools into var/tools of `root`, or only `tools` (names of TOOLS, each declared); returns the names of
  * the tools it installed.
  */
-export function installTools({ root = ROOT, tools = null, print = () => {} } = {}) {
-  const declared = declaredToolchain(root);
-  const present = {
+export function installTools({ root = ROOT, tools = null, print = () => {} }: { root?: string; tools?: string[] | null; print?: (text: string) => void } = {}): string[] {
+  const declared: Declared = declaredToolchain(root);
+  const present: Record<string, unknown> = {
     python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: declared.go, ruff: declared.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck,
   };
   for (const name of tools ?? []) {
     if (!TOOLS.includes(name)) throw new Error(`unknown tool ${name}; the tools are ${TOOLS.join(', ')}`);
     if (!present[name]) throw new Error(`${name} is not declared; declare it in config/toolchain.json or in its file, or leave it out of the tools to install`);
   }
-  const wanted = name => present[name] && (tools === null || tools.length === 0 || tools.includes(name));
-  const installed = [];
-  const step = (name, tool) => { if (tool().installed) installed.push(name); };
+  const wanted = (name: string) => present[name] && (tools === null || tools.length === 0 || tools.includes(name));
+  const installed: string[] = [];
+  const step = (name: string, tool: () => { installed: unknown }) => { if (tool().installed) installed.push(name); };
   if (wanted('npm')) step('npm', () => installNpm({ root, declared: declared.npm, print }));
   if (wanted('go')) step('go', () => installGo({ root, declared: declared.go, print }));
   if (wanted('uv')) step('uv', () => installUv({ root, declared: declared.uv, print }));
   if (wanted('python')) step('python', () => installPython({ root, declared: declared.pythonBuild, print }));
-  if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend.requirement, digests: [declared.pythonBackend.sha256], source: declared.pythonBackend.source, print }); return { installed }; });
+  // wanted holds only a declared tool.
+  if (wanted('pythonBackend')) step('pythonBackend', () => { const { installed } = installBackend({ root, env: process.env, requirement: declared.pythonBackend!.requirement, digests: [declared.pythonBackend!.sha256], source: declared.pythonBackend!.source, print }); return { installed }; });
   if (wanted('ruff')) step('ruff', () => installRuff({ root, declared: declared.ruff, print }));
   if (wanted('composer')) step('composer', () => installComposer({ root, declared: declared.composer, print }));
   if (wanted('phpunit')) step('phpunit', () => installPhpunit({ root, declared: declared.phpunit, print }));
-  if (wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: declared.cargoAudit.version, print }));
-  if (wanted('govulncheck')) step('govulncheck', () => installGovulncheck({ root, recorded: declared.govulncheck.version, print }));
+  // wanted holds only a declared tool.
+  if (wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: declared.cargoAudit!.version, print }));
+  // wanted holds only a declared tool.
+  if (wanted('govulncheck')) step('govulncheck', () => installGovulncheck({ root, recorded: declared.govulncheck!.version, print }));
   return installed;
 }
 
@@ -58,6 +75,7 @@ if (isMain(import.meta.url)) {
   try {
     installTools({ tools: process.argv.slice(2), print: text => console.log(`[install-tools] ${text}`) });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     console.error(`[install-tools] ${error.message}`);
     process.exitCode = 1;
   }

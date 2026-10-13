@@ -14,26 +14,39 @@ import { isMain, ROOT } from './paths.mts';
 const REVISION = /<!-- source-sha256: [^>]*? -->/;
 const DOC_ID = /<!-- doc-id: [^>]*? -->/;
 
+/** The fields of config/documents.json that select the pairs. */
+export interface DocumentsConfig {
+  include: string[];
+  exclude?: string[];
+}
+
+/** A line of the prose of a document (markdown.mts proseLines): its number and its text. */
+interface ProseLine {
+  line: number;
+  text: string;
+}
+
 /** The text of a Korean document with the marker `<!-- source-sha256: ${sha} -->`, or null when it has no doc-id line. */
-export function stamped(text, sha) {
+export function stamped(text: string, sha: string): string | null {
   const marker = `<!-- source-sha256: ${sha} -->`;
   const lines = text.split('\n');
   const prose = proseLines(text);
-  const existing = prose.find(entry => REVISION.test(entry.text));
+  const existing = prose.find((entry: ProseLine) => REVISION.test(entry.text));
   if (existing) {
-    lines[existing.line - 1] = lines[existing.line - 1].replace(REVISION, marker);
+    // existing is a line of text, so lines holds it.
+    lines[existing.line - 1] = lines[existing.line - 1]!.replace(REVISION, marker);
     return lines.join('\n');
   }
-  const id = prose.find(entry => DOC_ID.test(entry.text));
+  const id = prose.find((entry: ProseLine) => DOC_ID.test(entry.text));
   if (!id) return null;
   lines.splice(id.line, 0, marker);
   return lines.join('\n');
 }
 
 /** Stamps every Korean document of the pairs; returns `{ changed, failed }` lists of file names. */
-export function stampAll(root, config) {
-  const changed = [];
-  const failed = [];
+export function stampAll(root: string, config: DocumentsConfig): { changed: string[]; failed: string[] } {
+  const changed: string[] = [];
+  const failed: string[] = [];
   for (const english of documentsOf(root, config)) {
     const korean = english.replace(/\.md$/, '.ko.md');
     if (!existsSync(path.join(root, english)) || !existsSync(path.join(root, korean))) continue;

@@ -29,35 +29,45 @@ const SHORT = 12;
 
 const RULE = 'A push happens only when no item of a tracker is in its active state; work in progress does not reach the remote.';
 const COMMIT_FIX = 'Amend each listed commit that the remote does not hold yet, then push again; this gate does not rewrite a pushed commit.';
+// The configuration of config/checklist.json and the commit rules of config/commits.json, as their loaders read them.
+type ChecklistConfig = ReturnType<typeof loadConfig>;
+type CommitRules = ReturnType<typeof loadCommitRules>;
+
+/** A place whose trackers the gate reads: its name and the reader of its files. */
+export interface Source {
+  where: string;
+  read: (file: string) => string;
+}
+
 const FIX = 'Finish each listed item in a commit with its documentation and tests, or move it to a state that does not block, such as bypassed with its cause and retry condition; then push again.';
 
 /**
  * Inspects the trackers of `sources`, each `{ where, read }` where `read(file)` returns the text of a file or throws why it
  * cannot. Returns the lines of the refusal, or an empty array when no item is in an active state.
  */
-export function inspect(config, sources) {
-  const active = [];
-  const unreadable = [];
+export function inspect(config: ChecklistConfig, sources: Source[]): string[] {
+  const active: string[] = [];
+  const unreadable: string[] = [];
   for (const { where, read } of sources) {
     const found = inspectTrackers(config, read);
     for (const item of found.active) active.push(`  ${where}: ${item.file} ${item.id} ${item.title}`);
     for (const problem of found.problems) unreadable.push(`  ${where}: ${problem}`);
   }
-  const lines = [];
+  const lines: string[] = [];
   if (unreadable.length > 0) lines.push('push refused: the push gate cannot read the trackers (config/checklist.json)', ...unreadable, 'The gate refuses a push whose trackers it cannot read; fix the cause and push again.');
   if (active.length > 0) lines.push(`push refused: ${active.length} item${active.length === 1 ? ' is' : 's are'} in the active state (${blockingSentence(config)})`, ...active, RULE, FIX);
   return lines;
 }
 
 // The reader of the files of a commit, which names the commit and the file that it lacks.
-const committed = (root, sha) => (file) => {
+const committed = (root: string, sha: string) => (file: string): string => {
   const shown = gitResult(root, 'show', `${sha}:${file}`);
   if (shown.error) throw shown.error;
   if (shown.status !== 0) throw new Error(`the commit has no ${file}: ${shown.stderr.trim()}`);
   return shown.stdout;
 };
 
-const working = root => (file) => {
+const working = (root: string) => (file: string): string => {
   if (!existsSync(path.join(root, file))) throw new Error(`${file} does not exist in the working tree`);
   return readFileSync(path.join(root, file), 'utf8');
 };
@@ -66,27 +76,28 @@ const working = root => (file) => {
  * The finding lines of the commits that a push of `localSha` to a ref at `remoteSha` sends. A new ref (zero remote sha) sends
  * the commits that no remote ref holds; an update sends the commits after the remote sha.
  */
-function pushedFindings(root, localSha, remoteSha, rules) {
+function pushedFindings(root: string, localSha: string, remoteSha: string, rules: CommitRules): string[] {
   if (NO_OBJECT.test(remoteSha)) return findingLines(root, logMessages(root, [localSha, '--not', '--remotes'], `${localSha} without the remote refs`), rules);
   return findingLines(root, logMessages(root, [`${remoteSha}..${localSha}`], `${remoteSha}..${localSha}`), rules);
 }
 
 /** The refusal lines of the commit findings of a push, empty when there is none. */
-function commitRefusal(findings) {
+function commitRefusal(findings: string[]): string[] {
   if (findings.length === 0) return [];
   return [`push refused: ${findings.length} commit finding${findings.length === 1 ? '' : 's'} (config/commits.json)`, ...findings.map(finding => `  ${finding}`), COMMIT_FIX];
 }
 
 /** The refusal lines of a push: `input` holds the lines that Git passes to the pre-push hook. */
-export function hook(root, input) {
+export function hook(root: string, input: string): string[] {
   const config = loadConfig(root);
   const rules = loadCommitRules(root);
-  const sources = [];
-  const findings = [];
+  const sources: Source[] = [];
+  const findings: string[] = [];
   for (const line of input.split('\n').filter(entry => entry.trim())) {
     const fields = line.trim().split(/\s+/);
     if (fields.length !== 4) throw new Error(`the pre-push input line ${JSON.stringify(line)} is not "<local ref> <local sha> <remote ref> <remote sha>"`);
-    const [localRef, localSha, , remoteSha] = fields;
+    // The check above holds four fields.
+    const [localRef, localSha, , remoteSha] = fields as [string, string, string, string];
     // A deleted ref pushes no commit.
     if (NO_OBJECT.test(localSha)) continue;
     sources.push({ where: `${localRef} ${localSha.slice(0, SHORT)}`, read: committed(root, localSha) });
@@ -97,7 +108,7 @@ export function hook(root, input) {
 }
 
 /** The failure lines of the commit `rev`, or an empty array, with the commit that `rev` names. */
-export function commit(root, rev) {
+export function commit(root: string, rev: string): { sha: string; lines: string[] } {
   const config = loadConfig(root);
   const resolved = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
   if (resolved.status !== 0) return { sha: rev, lines: [`push refused: ${rev} is not a commit of this repository`] };
@@ -113,7 +124,7 @@ export function commit(root, rev) {
 }
 
 // A GitHub annotation holds the message on one line; % and the line breaks are escaped as GitHub requires.
-const annotation = line => `::error::${line.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`;
+const annotation = (line: string) => `::error::${line.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`;
 
 if (isMain(import.meta.url)) {
   const root = ROOT;
@@ -123,6 +134,7 @@ if (isMain(import.meta.url)) {
     try {
       lines = hook(root, readFileSync(0, 'utf8'));
     } catch (error) {
+      if (!(error instanceof Error)) throw error;
       // A gate that cannot decide does not allow the push.
       lines = [`push refused: the push gate failed: ${error.message}`];
     }
@@ -131,9 +143,12 @@ if (isMain(import.meta.url)) {
   } else if (mode === 'commit' && args.length === 1) {
     let result;
     try {
-      result = commit(root, args[0]);
+      // The condition of this branch holds one argument.
+      result = commit(root, args[0]!);
     } catch (error) {
-      result = { sha: args[0], lines: [`push refused: the push gate failed: ${error.message}`] };
+      if (!(error instanceof Error)) throw error;
+      // The condition of this branch holds one argument.
+      result = { sha: args[0]!, lines: [`push refused: the push gate failed: ${error.message}`] };
     }
     for (const line of result.lines) {
       console.error(line);

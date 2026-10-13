@@ -35,10 +35,65 @@ export const LOCK = 'var/full-run.lock';
 export const REPORT = 'var/report/full-run';
 const KEY_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
-const notPassed = record => record.targets.filter(target => target.status !== 'passed').map(target => target.name);
-const describeKeys = keys => (Object.keys(keys).length === 0 ? 'no keys' : Object.entries(keys).map(([name, value]) => `${name}=${value}`).join(', '));
-const sameKeys = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
-const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+/** The keys of a run: `--key name=value` by name. */
+export type Keys = Record<string, string>;
+
+/** A target of the record: its status (pending, running, passed or failed), its times and the last lines of a failure. */
+export interface TargetRecord {
+  name: string;
+  status: string;
+  started?: string;
+  ended?: string | null;
+  elapsedMs?: number | null;
+  lastLines?: string[];
+}
+
+/** A rerun of the targets that did not pass, recorded in the record of the full run. */
+export interface RerunRecord {
+  started: string;
+  ended: string | null;
+  targets: string[];
+  result: string;
+}
+
+/** The record var/full-run.json of the last full run; a record of an older guard may lack `keys`. */
+export interface FullRunRecord {
+  tree: string;
+  commit: string;
+  keys?: Keys;
+  result: string;
+  pid: number;
+  processStart: string | null;
+  started: string;
+  ended: string | null;
+  targets: TargetRecord[];
+  reruns: RerunRecord[];
+  failed?: string[];
+}
+
+/** The fields of a record that decide reads; pid names the holder of an incomplete record. */
+export type DecidedRecord = Pick<FullRunRecord, 'tree' | 'commit' | 'keys' | 'result' | 'started'> & {
+  pid?: number;
+  targets: Pick<TargetRecord, 'name' | 'status'>[];
+};
+
+/** The result of a target: whether it passed and the last lines of its output. */
+export interface TargetResult {
+  passed: boolean;
+  lastLines: string[];
+}
+
+/** The decision of the guard: whether it runs, why, and the targets it runs. */
+export interface Decision {
+  run: boolean;
+  reason: string;
+  targets: string[];
+}
+
+const notPassed = (record: DecidedRecord) => record.targets.filter(target => target.status !== 'passed').map(target => target.name);
+const describeKeys = (keys: Keys) => (Object.keys(keys).length === 0 ? 'no keys' : Object.entries(keys).map(([name, value]) => `${name}=${value}`).join(', '));
+const sameKeys = (a: Keys | undefined, b: Keys | undefined) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 /**
  * Decides whether the guard runs. `mode` is `run` or `rerun-failed`; `keys` the keys of this run; `active` the items in an
@@ -46,8 +101,19 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
  * installed, or null; `dirty` the `git status --porcelain` lines; `tree` the current tree; `record` the record of the last
  * run or null; `running` whether the holder of an incomplete record still runs. Returns `{ run, reason, targets }`.
  */
-export function decide({ mode, targets = [], keys = {}, active = [], problems = [], hooks = null, dirty = [], tree, record = null, running = false }) {
-  const refuse = reason => ({ run: false, reason, targets: [] });
+export function decide({ mode, targets = [], keys = {}, active = [], problems = [], hooks = null, dirty = [], tree, record = null, running = false }: {
+  mode: string;
+  targets?: string[];
+  keys?: Keys;
+  active?: { file: string; id: string; title: string }[];
+  problems?: string[];
+  hooks?: string | null;
+  dirty?: string[];
+  tree: string;
+  record?: DecidedRecord | null;
+  running?: boolean;
+}): Decision {
+  const refuse = (reason: string) => ({ run: false, reason, targets: [] });
   if (problems.length > 0) return refuse(`the trackers of config/checklist.json cannot be read, so no item is known to be out of its active state:\n${problems.map(line => `  ${line}`).join('\n')}`);
   if (active.length > 0) {
     return refuse(`${plural(active.length, 'item')} in an active state; the full suite runs once, when every item is out of its active state:\n${active.map(item => `  ${item.file} ${item.id} ${item.title}`).join('\n')}`);
@@ -79,23 +145,23 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
   return { run: true, reason: `the full run of tree ${tree} started ${record.started} has ${plural(open.length, 'target')} that did not pass: ${open.join(', ')}`, targets: open };
 }
 
-function readRecord(root) {
+function readRecord(root: string): FullRunRecord | null {
   const file = path.join(root, RECORD);
   return existsSync(file) ? readJson(file) : null;
 }
 
 // The record is written to a file of this process and renamed, so a reader never sees a partial record.
-const writeRecord = (root, record) => writeJson(path.join(root, RECORD), record);
+const writeRecord = (root: string, record: FullRunRecord) => writeJson(path.join(root, RECORD), record);
 
 /**
  * Runs `make -k <target>` in `root` through the same runner as the CI report (target-report.mts `runLogged`): its output goes
  * to the terminal as complete lines and to the log of the target in `directory`. Resolves `{ passed, lastLines }`: whether make
  * ended with status 0, and the last FAILURE_LINES lines of its output in the order of arrival. A failed write of the log throws.
  */
-async function runMakeTarget(root, target, directory) {
+async function runMakeTarget(root: string, target: string, directory: string): Promise<TargetResult> {
   if (!TARGET_NAME.test(target)) throw new Error(`the target name ${JSON.stringify(target)} does not match ${TARGET_NAME}`);
-  const writer = { errors: [] };
-  const { lines, exit } = await runLogged({ root, target, log: logPath(directory, target), writer, output: (text, stream) => process[stream].write(text) });
+  const writer: { errors: string[] } = { errors: [] };
+  const { lines, exit } = await runLogged({ root, target, log: logPath(directory, target), writer, output: (text: string, stream: 'stdout' | 'stderr') => process[stream].write(text) });
   if (writer.errors.length) throw new Error(writer.errors.join('; '));
   return { passed: targetPassed(target, exit), lastLines: lines.slice(-FAILURE_LINES) };
 }
@@ -104,7 +170,14 @@ async function runMakeTarget(root, target, directory) {
  * Inspects the checkout, decides and runs. `runTarget(name)` resolves `{ passed, lastLines }` of a target. Returns the exit
  * status: 0 when the full result of the tree is passed, 1 otherwise.
  */
-export async function fullRun({ root, mode, targets = [], keys = {}, runTarget = name => runMakeTarget(root, name, path.join(root, REPORT)), print = line => console.log(line) }) {
+export async function fullRun({ root, mode, targets = [], keys = {}, runTarget = name => runMakeTarget(root, name, path.join(root, REPORT)), print = line => console.log(line) }: {
+  root: string;
+  mode: string;
+  targets?: string[];
+  keys?: Keys;
+  runTarget?: (name: string) => Promise<TargetResult>;
+  print?: (line: string) => void;
+}): Promise<number> {
   let held;
   try {
     held = acquireHolderLock(path.join(root, LOCK), { checkout: root, command: `full-run ${mode}` });
@@ -121,9 +194,16 @@ export async function fullRun({ root, mode, targets = [], keys = {}, runTarget =
 }
 
 // Decides and runs while the guard holds the lock of the record.
-async function guardedRun({ root, mode, targets, keys, runTarget, print }) {
+async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
+  root: string;
+  mode: string;
+  targets: string[];
+  keys: Keys;
+  runTarget: (name: string) => Promise<TargetResult>;
+  print: (line: string) => void;
+}): Promise<number> {
   const config = loadConfig(root);
-  const found = inspectTrackers(config, file => readFileSync(path.join(root, file), 'utf8'));
+  const found = inspectTrackers(config, (file: string) => readFileSync(path.join(root, file), 'utf8'));
   const dirty = git(root, 'status', '--porcelain', '--untracked-files=all').split('\n').filter(Boolean);
   const tree = git(root, 'rev-parse', 'HEAD^{tree}').trim();
   const commit = git(root, 'rev-parse', 'HEAD').trim();
@@ -134,17 +214,19 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }) {
   if (!decision.run) return 1;
 
   const own = { pid: process.pid, processStart: processStart(process.pid) };
-  const current = mode === 'run'
+  const current: FullRunRecord = mode === 'run'
     ? { tree, commit, keys, result: 'incomplete', ...own, started: now(), ended: null, targets: targets.map(name => ({ name, status: 'pending' })), reruns: [] }
-    : { ...record, result: 'incomplete', ...own };
-  const rerun = mode === 'run' ? null : { started: now(), ended: null, targets: decision.targets, result: 'incomplete' };
+    // decide runs rerun-failed only with a record of the current tree.
+    : { ...record!, result: 'incomplete', ...own };
+  const rerun: RerunRecord | null = mode === 'run' ? null : { started: now(), ended: null, targets: decision.targets, result: 'incomplete' };
   if (rerun) current.reruns.push(rerun);
   writeRecord(root, current);
   if (mode === 'run') startReport(path.join(root, REPORT));
 
   const begin = Date.now();
   for (const [index, name] of decision.targets.entries()) {
-    const target = current.targets.find(entry => entry.name === name);
+    // Each target of the decision is a target of the record: the targets of a run, or those of the record that did not pass.
+    const target = current.targets.find(entry => entry.name === name)!;
     Object.assign(target, { status: 'running', started: now(), ended: null, elapsedMs: null });
     delete target.lastLines;
     writeRecord(root, current);
@@ -173,25 +255,29 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }) {
 }
 
 /** The mode, the keys and the targets of the arguments of the command line; throws the usage when they do not fit. */
-export function parseArguments(args) {
+export function parseArguments(args: string[]): { mode: string; keys: Keys; targets: string[] } {
   const [mode, ...rest] = args;
-  const keys = {};
-  const targets = [];
+  const keys: Keys = {};
+  const targets: string[] = [];
   for (let index = 0; index < rest.length; index += 1) {
     if (rest[index] === '--key') {
-      const [name, ...value] = (rest[index + 1] ?? '').split('=');
+      // split returns at least one part.
+      const [name, ...value] = (rest[index + 1] ?? '').split('=') as [string, ...string[]];
       if (!KEY_NAME.test(name) || value.length === 0 || value.join('=') === '') throw new Error(`--key takes name=value, with a name of letters, digits, _ and -; got ${JSON.stringify(rest[index + 1])}`);
       if (name in keys) throw new Error(`--key ${name} is given twice`);
       keys[name] = value.join('=');
       index += 1;
-    } else if (TARGET_NAME.test(rest[index]) && !targets.includes(rest[index])) {
-      targets.push(rest[index]);
+    // index is below rest.length.
+    } else if (TARGET_NAME.test(rest[index]!) && !targets.includes(rest[index]!)) {
+      // index is below rest.length.
+      targets.push(rest[index]!);
     } else {
       throw new Error(`${JSON.stringify(rest[index])} is not a target name that is given once (${TARGET_NAME})`);
     }
   }
   if (!((mode === 'run' && targets.length > 0) || (mode === 'rerun-failed' && targets.length === 0))) throw new Error(USAGE);
-  return { mode, keys, targets };
+  // The check above admits only the mode run or rerun-failed.
+  return { mode: mode!, keys, targets };
 }
 
 if (isMain(import.meta.url)) {
@@ -199,12 +285,14 @@ if (isMain(import.meta.url)) {
   try {
     parsed = parseArguments(process.argv.slice(2));
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     console.error(error.message === USAGE ? USAGE : `${error.message}\n${USAGE}`);
     process.exit(2);
   }
   try {
     process.exitCode = await fullRun({ root: ROOT, ...parsed });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     console.error(`[full-run] failed: ${error.message}`);
     process.exitCode = 1;
   }
