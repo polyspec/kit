@@ -59,3 +59,37 @@ in kit, with its grounding.
 - A question is asked only when it is needed: not already decided or evident, not asked by habit, not a way to leave
   something out, never confusing; and a needed question is never left out. A decision that a new milestone reopens is
   asked again.
+
+## Repository standards
+
+The owner approved these standards on 2026-10-13. Each is enforced by a tool that fails on a violation; the tools, their
+order and the predicted failures are in [the standards enforcement plan](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement.md), which stays in kit. Until its
+tool lands, a standard binds the work as written here.
+
+- S1 No rebuilds: follow each ecosystem's rules and use its tools and libraries as they are. Our own rules govern only
+  what we create and never block an outside tool's behavior, such as the links npm creates. Our own implementation of
+  something an ecosystem could provide needs a rebuild record (`docs/rebuild/<tool>.md`): the requirement, the tools searched and
+  why none fits.
+- S2 PHP: one class per file; PSR-4 for the package and `autoload-dev` for tests; no `classmap`; `files` only for
+  namespaced functions and constants; no `spl_autoload_register` and no runtime `ClassLoader` registration; generated code
+  follows PSR-1 and PSR-4; tests run on PHPUnit.
+- S3 Tests run only on the ecosystem's standard runner (`node --test` or vitest, PHPUnit, `go test`, `cargo test` or
+  nextest, unittest), with no runner protocol, `check()` helper or file chain of our own, and against installed packages:
+  no `PYTHONPATH`, no `sys.path` change, no path that leaves the repository.
+- S4 Versions: a version is chosen only after every locked dependency is shown to work with it; the latest LTS where the
+  ecosystem has one, otherwise the latest stable release the dependencies support, or a newer non-LTS close to the LTS.
+  The declared floor equals the pinned toolchain at the pin's precision, every repository uses the same pins, an exception
+  is declared with its scope, reason and retry condition, and nothing falls back silently to a source build.
+- S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
+  `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
+  `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix.
+- S6 Language parity: every implementation of a repository tests the same feature units, vectors and API at the same
+  level. A permanent difference is a declared profile whose reason cites a spec anchor; an exclusion is debt that fails
+  until removed.
+- S7 Test placement: a test of a basic feature lives in the package and repository that own the feature; a consumer keeps
+  only tests from the consumer's point of view.
+- S8 Reporting oddities is the second bullet of "Responsibility"; no tool can enforce it. What S8 adds: every exception,
+  profile and rebuild record carries its reason and the owner's required review.
+- S9 Cross-language orchestration and checks, kit included, are written in TypeScript, checked by `tsc` with
+  `erasableSyntaxOnly`. Exceptions: a harness that drives one language's implementation is a test of that language; a
+  language-specific static check is a plugin of that ecosystem's analyzer; a symbol extractor runs that ecosystem's tool.
