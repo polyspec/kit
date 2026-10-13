@@ -1,12 +1,10 @@
-// The vendored tests in a fresh checkout (K90, K81, K127). A vendored test runs in every consumer. One that runs a tool of
-// mise.toml runs the pinned tool, never one of the machine: the dependency tests forward go mod edit and composer validate
-// to the go and the Composer that the checkout installed (tests/kit/registry.mts). So a fresh checkout runs the documented
-// install first, as a consumer and CI do: make install-tools TOOLS=npm (npm and mise), make install-packages, make
-// install-tools (the tools of mise.lock), then make kit-test. The installs download, so this test runs ONLINE, as CI does:
-// mise keeps its downloads in the var/tools/mise of the checkout, which the wrapper of mise sets, so the sandbox cannot use the
-// cache of this checkout without a second setting of its own. A test that wrote under var/ without creating it failed with a
-// bare ENOENT (python-lock-check.test.mts made its temporary directories in var/), and a real unittest case in
-// tests/kit/parity.test.mts failed in flowmark, which cannot install the Python it asked for.
+// The vendored tests in a fresh checkout (K90, K81, K127). A vendored test runs in every consumer and needs only node and the
+// stubs of the tools that it reads. The fresh checkout runs the documented install, as a consumer and CI do: make
+// install-tools TOOLS=npm (npm and mise), make install-packages, make install-tools (the tools of mise.lock), then make
+// kit-test. The installs download, so this test runs ONLINE, as CI does: the wrapper of mise keeps its downloads in the
+// var/tools/mise of each checkout, and the sandbox has no clean way to read the cache of this one. A test that wrote under
+// var/ without creating it failed with a bare ENOENT (python-lock-check.test.mts made its temporary directories in var/), and
+// a real unittest case in tests/kit/parity.test.mts failed in flowmark, which cannot install the Python it asked for.
 import assert from 'node:assert/strict';
 import { lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

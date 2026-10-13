@@ -1,80 +1,61 @@
-// The stub registries of the dependency tests (tests/kit/registry.mts). The composer and go stubs run the real composer and go,
-// which REAL_COMPOSER and REAL_GO name, for the commands they do not answer: the pinned tools of the checkout under test, or
-// none while they are not installed. A stub never forwards to a stub.
+// The stub registries of the dependency tests (tests/kit/registry.mts). The go and composer stubs answer go mod edit and
+// composer validate from the records of the real tools (tests/kit/tool-records.json), never by running a tool, so a vendored
+// test needs neither go nor Composer; tests/source/tool-records-real.test.mts proves the records against the pinned tools.
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { SHIMS, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
-import { stubRegistries } from './registry.mts';
+import { fixtureCheckout, gate } from './checkout.mts';
+import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 
-const ROOT = path.resolve(import.meta.dirname, '../..');
+const FIXTURE = path.resolve(import.meta.dirname, 'fixture');
 
-test('a checkout without its pinned tools gives no REAL_COMPOSER or REAL_GO, and each stub names the install', (t) => {
-  // The checkout has no var/tools: neither mise nor its tools are installed.
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-registry-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const stub = stubRegistries(t, { root });
-  assert.equal('REAL_COMPOSER' in stub.env, false, `REAL_COMPOSER is ${JSON.stringify(stub.env.REAL_COMPOSER)}`);
-  assert.equal('REAL_GO' in stub.env, false, `REAL_GO is ${JSON.stringify(stub.env.REAL_GO)}`);
-  const bin = stub.env.PATH?.split(path.delimiter)[0];
-  assert.ok(bin, 'the stub environment has no PATH');
-  const composer = spawnSync(process.execPath, [path.join(bin, 'composer'), 'validate'], { cwd: root, env: stub.env, encoding: 'utf8' });
-  assert.equal(composer.status, 1);
-  assert.equal(composer.stderr, 'composer is not installed; run make install-tools (the stub cannot forward `composer validate`)\n');
-  const go = spawnSync(process.execPath, [path.join(bin, 'go'), 'mod', 'edit', '-json', 'go.mod'], { cwd: root, env: stub.env, encoding: 'utf8' });
-  assert.equal(go.status, 1);
-  assert.equal(go.stderr, 'go is not installed; run make install-tools (the stub cannot forward `go mod edit -json go.mod`)\n');
-});
-
-test('a stub refuses a REAL_GO or REAL_COMPOSER that reaches the stub again, and ends', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-registry-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const stub = stubRegistries(t, { root });
-  const bin = stub.env.PATH?.split(path.delimiter)[0];
-  assert.ok(bin, 'the stub environment has no PATH');
-  for (const [name, args] of [['go', ['mod', 'edit', '-json', 'go.mod']], ['composer', ['validate']]] as const) {
-    const variable = name === 'go' ? 'REAL_GO' : 'REAL_COMPOSER';
-    const itself: { status: number | null; stderr: string } = spawnSync(process.execPath, [path.join(bin, name), ...args], { cwd: root, env: { ...stub.env, [variable]: path.join(bin, name) }, encoding: 'utf8', timeout: 10_000 });
-    assert.equal(itself.status, 1, `${name}: ${itself.stderr}`);
-    assert.equal(itself.stderr, `the ${name} stub reached itself through ${variable} ${path.join(bin, name)}; ${variable} must name a ${name} that is no stub\n`);
-  }
-});
-
-// The go stub forwards go mod edit to the real go of REAL_GO. Under kit.mk the shims of mise come first on PATH, and a shim of
-// go run outside the checkout, as the stub runs in a fixture, finds no version of mise and runs the next go of PATH: the stub
-// itself, which forwards again without end (K127). The run is bounded: the stub starts in a process group of its own, which
-// the case ends after 5 s, and the case counts its processes.
-test('the go stub forwards go mod edit to the go of the checkout, which is no stub and no shim, and ends (K127)', async (t) => {
+test('a go mod edit or composer validate without a record fails with the request, never runs a tool, and is noted as a miss', (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-registry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  writeFileSync(path.join(directory, 'go.mod'), 'module example.com/a\n\ngo 1.27.2\n');
-  const saved = { ...process.env };
-  Object.assign(process.env, toolsEnvironment(ROOT));
-  let stub;
-  try {
-    stub = stubRegistries(t);
-  } finally {
-    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
-    Object.assign(process.env, saved);
-  }
+  writeFileSync(path.join(directory, 'go.mod'), 'module example.com/unrecorded\n\ngo 1.27.2\n');
+  writeFileSync(path.join(directory, 'composer.json'), '{ "name": "example/unrecorded" }\n');
+  const misses = path.join(directory, 'misses.jsonl');
+  const stub = stubRegistries(t);
   const bin = stub.env.PATH?.split(path.delimiter)[0];
   assert.ok(bin, 'the stub environment has no PATH');
-  const child = spawn(process.execPath, [path.join(bin, 'go'), 'mod', 'edit', '-json', path.join(directory, 'go.mod')], { cwd: directory, env: stub.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  let stdout = '';
-  child.stdout.setEncoding('utf8').on('data', (text: string) => { stdout += text; });
-  const ended = await Promise.race([
-    new Promise<number | null>(resolve => child.once('exit', code => resolve(code))),
-    new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 5000)),
+  // No go and no composer but the stubs: a stub that ran a tool would fail to start it.
+  const env = { ...stub.env, STUB_TOOL_MISSES: misses, PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) };
+  const go = spawnSync(path.join(bin, 'go'), ['mod', 'edit', '-json', path.join(directory, 'go.mod')], { cwd: directory, env, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(go.status, 1);
+  assert.equal(go.stderr, `go stub: no record for go mod edit -json ${path.join(directory, 'go.mod')}\n`);
+  const composer = spawnSync(path.join(bin, 'composer'), ['validate', '--no-check-publish'], { cwd: directory, env, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(composer.status, 1);
+  assert.equal(composer.stderr, 'composer stub: no record for composer validate --no-check-publish\n');
+  assert.deepEqual(readFileSync(misses, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [
+    { tool: 'go', args: ['mod', 'edit', '-json'], files: { 'go.mod': 'module example.com/unrecorded\n\ngo 1.27.2\n' } },
+    { tool: 'composer', args: ['validate', '--no-check-publish'], files: { 'composer.json': '{ "name": "example/unrecorded" }\n', 'composer.lock': null } },
   ]);
-  const members = spawnSync('ps', ['-A', '-o', 'pgid='], { encoding: 'utf8' }).stdout.split('\n').filter(line => Number(line.trim()) === child.pid).length;
-  if (ended === 'timeout') process.kill(-child.pid!, 'SIGKILL');
-  assert.notEqual(ended, 'timeout', `go mod edit through the stub did not end within 5 s; its process group held ${members} processes (REAL_GO ${stub.env.REAL_GO})`);
-  assert.equal(ended, 0);
-  assert.equal(JSON.parse(stdout).Go, '1.27.2');
-  for (const [name, value] of [['REAL_GO', stub.env.REAL_GO], ['REAL_COMPOSER', stub.env.REAL_COMPOSER]]) {
-    assert.ok(value === undefined || !(value.includes('kit-dependency-registry-') || value.startsWith(path.join(ROOT, SHIMS))), `${name} is ${value}, a stub or a shim`);
-  }
+});
+
+test('the go stub answers go mod edit of the fixture from the record of the real go', (t) => {
+  const stub = stubRegistries(t);
+  const bin = stub.env.PATH?.split(path.delimiter)[0];
+  assert.ok(bin, 'the stub environment has no PATH');
+  const file = path.join(FIXTURE, 'packages/fixture-go/go.mod');
+  const go = spawnSync(path.join(bin, 'go'), ['mod', 'edit', '-json', file], { env: stub.env, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(go.status, 0, go.stderr);
+  assert.equal(JSON.parse(go.stdout).Module.Path, 'example.com/kit-fixture-go');
+});
+
+// A vendored test runs in every consumer, and a consumer may install no Go and no Composer: the stubs stand in for them, so
+// the gate of the fixture, which reads its go.mod with go mod edit and checks its Composer manifest with composer validate,
+// passes with neither on PATH (K127).
+test('the gate of the fixture passes with the stubs and no go and no composer on PATH', (t) => {
+  const root = fixtureCheckout(t);
+  const stub = stubRegistries(t);
+  stub.registry(FIXTURE_REGISTRY);
+  const bin = stub.env.PATH?.split(path.delimiter)[0];
+  assert.ok(bin, 'the stub environment has no PATH');
+  const env = { ...stub.env, PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) };
+  for (const command of ['go', 'composer']) assert.equal(spawnSync('sh', ['-c', `command -v ${command}`], { env, encoding: 'utf8' }).stdout.trim(), path.join(bin, command), `${command} of PATH is the stub alone`);
+  const result = gate(root, env);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });

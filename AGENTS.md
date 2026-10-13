@@ -45,10 +45,10 @@ and states only its own rules. The rules below are kit's own.
   govulncheck, cargo-audit, Composer, vulture), writes their digests into `mise.lock` with `make toolchain-lock` and installs
   them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap; a consumer that publishes a
   wheel also declares `pythonBackend` in config/toolchain.json. A vendored test checks a consumer's declaration only against
-  this rule. A vendored test that runs a pinned tool, such as the go and the Composer that the dependency tests forward to,
-  needs `make install-tools` first: a fresh checkout runs `make install-tools TOOLS=npm`, `make install-packages` and
-  `make install-tools` before `make kit-test`, and a missing tool fails with that install. The kit's own tests of its real Python and wheel path are in `tests/source`: kit-sync does not vendor them, `make
-  source-test` runs them, and CI runs them after `make kit-test`.
+  this rule. The vendored dependency tests read go and Composer through stubs that answer from records of the real tools,
+  never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor
+  them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
+  them after `make kit-test`.
 - kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`. Every recipe of kit.mk runs with the environment of mise of the
   checkout and with var/tools/bin and the shims of mise first on PATH. A machine or CI runner provides the two toolchains

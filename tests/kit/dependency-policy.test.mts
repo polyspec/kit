@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
 
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { tool } from './kit-tools.mts';
@@ -64,7 +64,7 @@ test('the review records the fixture, and a second run writes the same record', 
 
 test('the mutation check rejects every mutation of the fixture', (t) => {
   const root = fixture(t);
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: process.env });
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /4 mutations rejected/);
 });
@@ -78,7 +78,7 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   };
   edit('config/dependency-policy.json', (policy: { composerPlatforms: string[] }) => { policy.composerPlatforms = []; });
   edit('config/dependency-review.json', (record: { dependencies: Array<{ ecosystem: string }> }) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: process.env });
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
