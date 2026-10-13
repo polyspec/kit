@@ -35,10 +35,11 @@ const TEST_PINS = { node: NODE, python: '3.14', php: '8.5', go: '1.27.1', rust: 
 const pinned = (root: string, pins: Record<string, string> = TEST_PINS) => writeFileSync(path.join(root, 'scripts/kit/toolchain-pins.json'), JSON.stringify({ ...pins, goArchives: GO_ARCHIVES }));
 const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
 // A checkout with a copy of the tools of kit and the pins of TEST_PINS. The pins are a file beside the tools, so the test runs
-// a copy whose pins it writes; the copy finds the packages of kit beside it, as the dist of an installed package does.
+// a copy whose pins it writes; the copy finds the packages of kit beside it, as the dist of an installed package does. The
+// symbol extractors of parity stay out: their manifests carry the pins of kit, not TEST_PINS, and the check runs none of them.
 const kitCheckout = (t: TestContext, files: Record<string, string> = {}) => {
   const root = toolchainCheckout(t, files);
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
+  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true, filter: source => source !== path.join(KIT, 'symbols') });
   symlinkSync(path.resolve(KIT, '../../node_modules'), path.join(root, 'node_modules'));
   pinned(root);
   return root;
