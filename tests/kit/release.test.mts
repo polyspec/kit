@@ -234,6 +234,9 @@ test('the section is the release notes without the anchor of the next section', 
   const box = releaseSandbox(t, { changelog: '# Changelog\n\n## 0.0.2\n\n- Two.\n\n<a id="001"></a>\n\n## 0.0.1\n\n- One.\n- Uno.\n\n<a id="000"></a>\n' });
   assert.equal(release.releaseNotes(context(box), 'v0.0.1'), '- One.\n- Uno.\n');
   assert.equal(release.releaseNotes(context(box), 'v0.0.2'), '- Two.\n');
+  // A ## line in a fenced block is no heading, so the section runs on to the next heading of the document (K130).
+  writeFileSync(path.join(box.root, 'CHANGELOG.md'), '# Changelog\n\n## 0.0.1 ##\n\n- One:\n\n```md\n## example\n```\n\n## 0.0.0\n\n- Old.\n');
+  assert.equal(release.releaseNotes(context(box), 'v0.0.1'), '- One:\n\n```md\n## example\n```\n');
 });
 
 test('a section over the limit of GitHub becomes a link to the section, and a section at the limit stays whole', (t) => {
