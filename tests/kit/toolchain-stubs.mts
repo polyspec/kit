@@ -2,7 +2,7 @@
 // commands write (an npm tree, a downloaded file), so the bootstrap runs offline and a test reads the calls it made; miseStub
 // writes the wrapper var/tools/bin/mise of a checkout as a stub that logs its arguments. The files the stubs write are Node
 // scripts, so a wrapper of var/tools/bin can be run.
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
@@ -68,22 +68,13 @@ export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, 
   return { env, directory, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
 
-// The first argument of each reader of manifests that a version stub passes to the real command: npm config, of the npm of
-// the bootstrap. go mod edit is answered from the records of the real go (registry.mts), never by running a go.
-const READERS: Record<string, string> = { npm: 'config' };
-
-// The real command `name` on the PATH of the test, or null.
-function realCommand(name: string): string | null {
-  return (process.env.PATH ?? '').split(path.delimiter).filter(Boolean).map(directory => path.join(directory, name)).find(file => existsSync(file)) ?? null;
-}
-
 /**
  * Stubs of version commands: each command of `outputs` ({ name: text }) prints its text for any arguments (a command whose text
  * is `null` exits with status 1, as a command that fails to run), and the log line
  * holds the arguments and the GOTOOLCHAIN and RUSTUP_AUTO_INSTALL it ran with. The environment has the stubs first on PATH,
  * followed by the directory of this Node.js and the system directories only, so a tool that is not stubbed is absent. The
- * readers of manifests are no version commands: `go mod edit` answers from the records of the real go (TOOL_ANSWER of
- * registry.mts), and `npm config` (READERS) runs the real npm of the PATH of the test, unlogged, and fails without one.
+ * reader of manifests `go mod edit` is no version command: it answers from the records of the real go (TOOL_ANSWER of
+ * registry.mts). A stub never starts a process (stubs.test.mts).
  */
 export function versionStubs(t: Pick<TestContext, 'after'>, outputs: Record<string, string | null>) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-versions-')));
@@ -93,7 +84,6 @@ export function versionStubs(t: Pick<TestContext, 'after'>, outputs: Record<stri
   const log = path.join(directory, 'calls.log');
   writeFileSync(log, '');
   for (const [name, text] of Object.entries(outputs)) {
-    const reader = READERS[name];
     writeFileSync(path.join(bin, name), `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
@@ -101,11 +91,6 @@ ${name === 'go' ? `${TOOL_ANSWER}
 if (process.argv[2] === 'mod' && process.argv[3] === 'edit') {
   const args = process.argv.slice(2);
   answer('go', args.slice(0, -1), { 'go.mod': fs.readFileSync(args[args.length - 1], 'utf8') }, args);
-}` : ''}
-${reader ? `if (process.argv[2] === ${JSON.stringify(reader)}) {
-  const real = ${JSON.stringify(realCommand(name))};
-  if (!real) { console.error('stub: no real ${name} on the PATH of the test'); process.exit(1); }
-  process.exit(require('node:child_process').spawnSync(real, process.argv.slice(2), { stdio: 'inherit' }).status ?? 1);
 }` : ''}
 fs.appendFileSync(process.env.STUB_LOG, path.basename(process.argv[1]) + ' ' + process.argv.slice(2).join(' ') + ' [GOTOOLCHAIN=' + process.env.GOTOOLCHAIN + ' RUSTUP_AUTO_INSTALL=' + process.env.RUSTUP_AUTO_INSTALL + ']\\n');
 ${text === null ? 'console.error("stub: the command fails"); process.exit(1);' : `console.log(${JSON.stringify(text)});`}

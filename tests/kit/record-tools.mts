@@ -8,7 +8,7 @@
 //
 //   node tests/kit/record-tools.mts
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -33,6 +33,17 @@ export function pinnedTool(command: string): string {
   return found.stdout.trim();
 }
 
+// The directories that hold the stubs of the tests (the temporary directory) and the shims and wrappers of this checkout: a
+// shim outside a checkout that pins its tool runs the next command of the same name on PATH, so neither is on the PATH of a
+// pinned tool.
+const STUB_ROOTS = [...new Set([tmpdir(), realpathSync(tmpdir()), ROOT])];
+
+/** The PATH of the pinned tool `tool`: its own directory, then the PATH of the caller without a directory of STUB_ROOTS. */
+function toolPath(tool: string): string {
+  const inside = (entry: string) => STUB_ROOTS.some(root => path.resolve(entry) === root || path.resolve(entry).startsWith(root + path.sep));
+  return [path.dirname(tool), ...(process.env.PATH ?? '').split(path.delimiter).filter(entry => entry && !inside(entry))].join(path.delimiter);
+}
+
 /** What the real tool prints for `request`: its files are written into a directory of their own, in which it runs. */
 export function runRequest(request: ToolRequest): ToolRecord {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-tool-record-'));
@@ -41,8 +52,9 @@ export function runRequest(request: ToolRequest): ToolRecord {
     // go mod edit names its go.mod; composer validate reads the files of its working directory, offline and with a home of
     // its own.
     const args = request.tool === 'go' ? [...request.args, path.join(directory, 'go.mod')] : request.args;
-    const env = { ...process.env, COMPOSER_DISABLE_NETWORK: '1', COMPOSER_HOME: path.join(directory, '.composer-home'), COMPOSER_NO_INTERACTION: '1' };
-    const result = spawnSync(pinnedTool(request.tool), args, { cwd: directory, env, encoding: 'utf8' });
+    const tool = pinnedTool(request.tool);
+    const env = { ...process.env, PATH: toolPath(tool), COMPOSER_DISABLE_NETWORK: '1', COMPOSER_HOME: path.join(directory, '.composer-home'), COMPOSER_NO_INTERACTION: '1' };
+    const result = spawnSync(tool, args, { cwd: directory, env, encoding: 'utf8' });
     if (result.error) throw new Error(`${request.tool} ${args.join(' ')} could not start: ${result.error.message}`);
     // A path of the temporary directory is no part of a record.
     const local = (text: string) => text.replaceAll(directory, '.');
