@@ -10,7 +10,8 @@
 // declared by minor release, so a patch release of the minor passes and the running patch is the evidence of the run; every other
 // tool is compared by its exact release. Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
-// every declaration also equals the pin that kit ships (toolchain-pins.mts), and each other declaration is a finding.
+// every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor: engines.node of
+// every package.json is `>=` the Node.js pin. Each other declaration or floor is a finding.
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
@@ -21,6 +22,7 @@ import { execute } from './process.mts';
 import { readJson } from './bootstrap/files.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { PINS, pinFindings } from './toolchain-pins.mts';
+import type { Pins } from './toolchain-pins.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -117,18 +119,13 @@ export function toolchainMismatches(tools: string[], { root = ROOT, env = toolch
   return mismatches;
 }
 
-/**
- * One line for each package.json of the checkout whose engines.node is not `>=` the release of .node-version: the pin of
- * Node.js is .node-version, and the floor of every package equals it. Without .node-version nothing is required.
- */
-export function enginesFindings(root: string): string[] {
-  const pin = declaredToolchain(root).node?.version;
-  if (pin === undefined) return [];
-  const floor = `>=${pin}`;
+/** One line for each package.json of the checkout whose engines.node is not `>=` the Node.js pin of kit: the floor of every package equals the pin. */
+export function enginesFindings(root: string, pins: Pins): string[] {
+  const floor = `>=${pins.node}`;
   return checkedFiles(root).filter(file => path.posix.basename(file) === 'package.json').flatMap((file) => {
     const engines: unknown = readJson(root, file).engines?.node;
     if (engines === floor) return [];
-    return [`${file}: engines.node is ${engines === undefined ? 'missing' : JSON.stringify(engines)}; .node-version pins ${pin}, so it must be "${floor}"`];
+    return [`${file}: engines.node is ${engines === undefined ? 'missing' : JSON.stringify(engines)}; kit pins node ${pins.node}, so it must be "${floor}"`];
   });
 }
 
@@ -140,16 +137,15 @@ if (isMain(import.meta.url)) {
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredTools(ROOT)[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in config/toolchain.json, .node-version, .php-version, .python-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
-    // The floor of every package is the Node.js pin, so it is checked with node.
-    const engines = tools.includes('node') ? enginesFindings(ROOT) : [];
-    // Every declaration equals the pin of kit, whichever tools run.
+    // Every declaration and every floor equals the pin of kit, whichever tools run.
     const pins = pinFindings(declaredToolchain(ROOT), PINS);
+    const floors = enginesFindings(ROOT, PINS);
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...engines, ...pins]) console.error(`[check-toolchain] ${line}`);
+    for (const line of [...mismatches, ...pins, ...floors]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
-    if (engines.length > 0) console.error(`[check-toolchain] ${engines.length} package.json files declare an engines.node other than the floor of .node-version`);
     if (pins.length > 0) console.error(`[check-toolchain] ${pins.length} declarations differ from the pins of kit`);
-    if (mismatches.length > 0 || engines.length > 0 || pins.length > 0) process.exitCode = 1;
+    if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
+    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
     // The declarations and the check fail with an Error.

@@ -7,6 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { enginesFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
+import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { versionStubs } from './toolchain-stubs.mts';
@@ -181,27 +182,28 @@ test('uv is probed by its version line, and a uv of another release names the de
   assert.deepEqual(toolchainMismatches(['uv'], { root, env: older.env }), ['uv: 0.12.10 runs here and config/toolchain.json uv declares 0.12.11; fix: make install-tools, and var/tools/bin first on PATH']);
 });
 
-// engines.node of every package.json is the floor of the Node.js pin: `>=` the release of .node-version (one source per pin).
-test('every package.json of the checkout declares engines.node as >= the release of .node-version', (t) => {
+// engines.node of every package.json is the floor of the Node.js pin of kit: `>=` the pin.
+test('every package.json of the checkout declares engines.node as >= the Node.js pin of kit', (t) => {
   const root = tree(t, {
     '.node-version': '26.8.1\n',
     'package.json': JSON.stringify({ packageManager: 'npm@12.2.0', engines: { node: '>=26.0.0' } }),
     'packages/a/package.json': JSON.stringify({ name: 'a' }),
-    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.8.1' } }),
+    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.11.1' } }),
+    'packages/c/package.json': JSON.stringify({ name: 'c', engines: { node: '>=26.8.1' } }),
     'tests/kit/fixture/package.json': JSON.stringify({ name: 'fixture' }),
   });
-  assert.deepEqual(enginesFindings(root), [
-    'package.json: engines.node is ">=26.0.0"; .node-version pins 26.8.1, so it must be ">=26.8.1"',
-    'packages/a/package.json: engines.node is missing; .node-version pins 26.8.1, so it must be ">=26.8.1"',
-  ]);
-  assert.deepEqual(enginesFindings(tree(t, { 'package.json': JSON.stringify({ packageManager: 'npm@12.2.0' }) })), [], 'without .node-version no engines.node is required');
+  assert.deepEqual(enginesFindings(root, PINS), [
+    'package.json: engines.node is ">=26.0.0"; kit pins node 26.11.1, so it must be ">=26.11.1"',
+    'packages/a/package.json: engines.node is missing; kit pins node 26.11.1, so it must be ">=26.11.1"',
+    'packages/c/package.json: engines.node is ">=26.8.1"; kit pins node 26.11.1, so it must be ">=26.11.1"',
+  ], 'the floor is the pin of kit, not .node-version');
 });
 
-test('the check of node fails on an engines.node that is not the floor of the pin', (t) => {
+test('the check fails on an engines.node that is not the floor of the pin, whichever tools run', (t) => {
   const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=20" } }' });
-  const result = check(root, stubs.env, 'node');
+  const result = check(root, stubs.env, 'npm');
   assert.equal(result.status, 1, result.stdout);
-  assert.match(result.stderr, new RegExp(`\\[check-toolchain\\] package\\.json: engines\\.node is ">=20"; \\.node-version pins ${NODE.replaceAll('.', '\\.')}, so it must be ">=${NODE.replaceAll('.', '\\.')}"`));
+  assert.match(result.stderr, new RegExp(`\\[check-toolchain\\] package\\.json: engines\\.node is ">=20"; kit pins node ${NODE.replaceAll('.', '\\.')}, so it must be ">=${NODE.replaceAll('.', '\\.')}"`));
 });
 
 test('a declaration that differs from the pin of kit fails the check, whichever tools run (S4)', (t) => {
