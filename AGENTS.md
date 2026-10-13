@@ -9,6 +9,10 @@ kit holds the tools that every polyspec repository shares: the release, dependen
 tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/` (listed in `kit.json`), written by
 `make kit-sync`; a repository differs from another only in `config/*.json`. kit depends on no repository.
 
+kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md) and its Korean twin,
+and vendors them at the same paths, so every repository holds the same principles; each repository's AGENTS.md links to them
+and states only its own rules. The rules below are kit's own.
+
 ## Rules
 
 - English documents are canonical. Every document has a `.ko.md` file with the same information; edit both in the same
@@ -19,9 +23,9 @@ tools. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/
   `config/<name>.json` with a schema in `scripts/kit/schema/`. The schema validator supports only the keywords it lists.
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
   `make kit-check` fails on a changed, missing or unexpected vendored file.
-- Do not rebuild what an existing outside tool or library already does. Use the standard tool of its ecosystem as it is
-  (for example uv for Python interpreters, environments and locks, Composer for PHP dependencies), and accept its own
-  behavior, such as the symbolic links that it creates; our rules govern what we create.
+- The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,
+  environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
+  creates, is accepted; our rules govern what we create.
 - This repository creates no symbolic link and no relative path: not in its tracked files, configuration, scripts or
   generated output. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
