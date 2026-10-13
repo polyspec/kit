@@ -17,7 +17,39 @@ const state = JSON.parse(fs.readFileSync(process.env.STUB_STATE, 'utf8'));
 const args = process.argv.slice(2);
 state.calls.push(args);
 let status = 0;
-if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
+const method = args.includes('--method') ? args[args.indexOf('--method') + 1] : 'GET';
+const byId = args.map(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/(\\d+)$/.exec(arg)).find(Boolean);
+const upload = args.map(arg => /^https:\\/\\/uploads\\.[^/]+\\/repos\\/[^/]+\\/[^/]+\\/releases\\/(\\d+)\\/assets\\?name=(.+)$/.exec(arg)).find(Boolean);
+state.byId = state.byId ?? {};
+if (args[0] === 'api' && args.some(arg => /\\/git\\/ref\\/tags\\//.test(arg))) {
+  if (state.missingTag) { console.error('gh: Not Found (HTTP 404)'); status = 1; }
+  else console.log('refs/tags/x');
+} else if (args[0] === 'api' && method === 'POST' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases$/.test(arg))) {
+  // A draft that was just created: the API returns its id, and the list does not show it yet.
+  if (state.failRelease) { console.error('gh: release failed'); status = 1; }
+  else {
+    const field = name => args.find(arg => arg.startsWith(name + '='));
+    const tag = field('tag_name').slice('tag_name='.length);
+    state.notes = fs.readFileSync(field('body').slice('body=@'.length), 'utf8');
+    state.created = { tag, name: field('name').slice('name='.length), draft: field('draft').slice('draft='.length) };
+    state.byId['42'] = { id: 42, tag_name: tag, draft: true, assets: [] };
+    console.log(JSON.stringify({ id: 42, upload_url: 'https://uploads.example.com/repos/polyspec/kit-fixture/releases/42/assets{?name,label}' }));
+  }
+} else if (args[0] === 'api' && upload) {
+  const release = state.byId[upload[1]];
+  release.assets.push({ id: release.assets.length + 1, name: decodeURIComponent(upload[2]), url: null, digest: null });
+  state.uploads = [...(state.uploads ?? []), { name: decodeURIComponent(upload[2]), input: args[args.indexOf('--input') + 1], type: args[args.indexOf('-H') + 1] }];
+  console.log('1');
+} else if (args[0] === 'api' && byId && method === 'PATCH') {
+  state.byId[byId[1]].draft = false;
+  state.patched = [...(state.patched ?? []), args];
+} else if (args[0] === 'api' && byId && method === 'DELETE') {
+  state.deleted = [...(state.deleted ?? []), byId[1]];
+} else if (args[0] === 'api' && byId) {
+  const release = state.byId[byId[1]];
+  if (!release) { console.error('gh: Not Found (HTTP 404)'); status = 1; }
+  else console.log(JSON.stringify(release));
+} else if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
   for (const release of state.releases ?? []) console.log(JSON.stringify(release));
 } else if (args[0] === 'api' && args[1] === '--paginate') {
   for (const run of state.checkRuns) console.log(JSON.stringify([run.id, run.name, run.status, run.conclusion]));
