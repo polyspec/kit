@@ -1,4 +1,7 @@
 {
   "name": "kit-release-consumer",
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=26.11.1"
+  }
 }
