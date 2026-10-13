@@ -704,14 +704,81 @@ Left as it is, with the reason:
 ## Python lint (K8.4)
 
 The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
-`scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded, ruff is the one of
-`var/tools/bin` at the version `ruff` of `config/toolchain.json` declares, and the rules are the `[tool.ruff]` tables of the
-pyproject.toml files of the checkout, so the result does not depend on the ruff configuration of a machine. Both steps run after
-a failure of the first. An undeclared ruff and a missing ruff fail with their fix.
+`scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded and with
+`--config ruff.toml`, the configuration that kit copies (Lint configuration, K77), and ruff is the one of `var/tools/bin` at
+the version `ruff` of `config/toolchain.json` declares, so the result does not depend on the ruff configuration of a machine.
+Every step runs after a failure of an earlier one. An undeclared or missing tool fails with its fix.
 
 The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff, and the
 dependency review reads the pin of `config/toolchain.json` as a PyPI dependency; a newer ruff is set by hand with the sha256 of its
 wheels.
+
+## Lint configuration (K77)
+
+kit holds the lint configuration of every repository and a runner for each language (standards plan, §1 item 5). A
+configuration that a tool reads from a fixed path is a file of kit that a repository holds as a copy; each runner passes it
+explicitly. A rule that lives inside a manifest, which kit cannot copy, is a rule of `config/layout.kit.yml` that `make
+layout-check` runs with alint, mostly a `json_schema_passes` rule with a JSON Schema of `config/`. The false greens of the
+plan's verification are fixtures of the real tests `tests/source/lint-<language>-real.test.mts`, each of which fails on its
+violation; every tool is the latest stable release, checked on the pins of S4.
+
+| Language | Tools (pin) | Configuration | Runner |
+|---|---|---|---|
+| Python | ruff 0.17.0, vulture 2.16 (`config/toolchain.json`, wheels) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: ruff with `--config ruff.toml`; vulture at confidence 60 on the Python files of each package, from its folder |
+| PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with its `vendor/autoload.php` |
+| Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked -- -D warnings` in each workspace |
+| Go | golangci-lint 2.14.0 (release archive), deadcode of golang.org/x/tools 0.52.0 (`go install`) | `.golangci.yml` | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
+| TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (devDependencies) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
+| All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
+
+The make targets and the copies (`kit.copies`) are wired on the kit package.
+
+### Decisions
+
+- **Composer policy and nested configurations by alint.** The plan named ajv for the composer.json policy schema. alint, which
+  kit already pins, validates JSON, TOML and YAML against a JSON Schema (`json_schema_passes`) and queries TOML
+  (`toml_path_absent`), so S1 forbids a validator of kit.
+- **S2.** PSR-1 `MultipleClasses` of phpcs holds one class per file: `composer dump-autoload --optimize --strict-psr` passes a
+  file whose first class matches its name and drops the others in silence (a fixture). The stubs of an extension
+  (`*.stub.php`) are excluded, since gen_stub.php reads every class of an extension from one file. PHPStan runs only the
+  disallowed calls (`customRulesetUsed`): `spl_autoload_register`, also through a string variable, and every method of
+  `Composer\Autoload\ClassLoader`; extension-installer registers the extension, so the configuration names no path. The
+  policy schema forbids `classmap` and PSR-0 and requires `autoload.psr-4` and `autoload-dev.psr-4` of a library; a php-ext
+  and a project hold no classes of their own.
+- **S3, Python.** TID251 bans `sys.path`, `importlib.import_module` and the loaders of a file path. ruff resolves qualified
+  names statically, so `importlib.import_module("sys").path` escaped the `sys.path` ban (a fixture); an import statement
+  names every module that a test needs. With `--config` ruff ignores a nested configuration, but an editor or a plain run
+  applies the nearest one, so a nested `[tool.ruff]`, `ruff.toml` or `.ruff.toml` fails instead of having to extend the root.
+- **Dead code.** vulture runs at its default confidence 60, which a package cannot raise. A package keeps code that only its
+  consumers use by an entry of its `vulture_whitelist.py` (the format of `vulture --make-whitelist`) with its reason (S8);
+  `[tool.vulture]` may only `exclude` generated code, each path with its reason. deadcode runs with `-test`, so the tests of a
+  library are its roots and an exported function that no test reaches is a finding; deadcode exits 0 when it reports one, so
+  its runner fails on any output. knip names the node:test files of S3 as entries, since a repository runs them through make.
+- **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
+  `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
+  a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says
+  `lints.workspace = true`, so every package must, and a package outside a workspace fails.
+- **Go.** gomoddirectives forbids every `replace`: the modules of a repository resolve each other through its `go.work`, and
+  a released go.mod never holds a replace that its consumers would not see. It also forbids a toolchain line, since `go mod
+  tidy` removes one equal to the go directive. forbidigo is left out: no standard names a Go API to forbid, and its default
+  bans `fmt.Print` of every CLI.
+- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. API
+  Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
+  API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
+  `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report
+  (`etc/<package>.api.md`).
+- **Root files.** The layout allows `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
+  `knip.json`, `.editorconfig`, the Rust workspace (`Cargo.toml`, `Cargo.lock`) and the Go workspace (`go.work`,
+  `go.work.sum`) at the root.
+
+### Limitations
+
+- ruff cannot see `__import__("sys").path` or `getattr(sys, "path")`: the module and the attribute are chosen at run time. No
+  ruff rule covers them.
+- The reason of a vulture whitelist entry and of an `exclude` path is a comment that review checks; no tool reads it.
+- `npm audit` reports the moderate advisory GHSA-hp3w-g68c-fv3c of sprintf-js 1.0.3, which API Extractor pulls in through
+  argparse 1.0.10; it covers every release of sprintf-js.
+
 ## Consumer install of the release archives (K5.4)
 
 `scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the

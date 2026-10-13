@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 913b16692cbe9e7efad4963c4824fb233c52635ecee43e3bc4b9685d31ebc240 -->
+<!-- source-sha256: 9c487b28e95ec51393d10a9bafc8ea9a3b7b997184c45148f19bb06025d8a5e1 -->
 
 # 도구 목록
 
@@ -646,13 +646,75 @@ finding 하나입니다.
 ## Python lint (K8.4)
 
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
-`scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션을 주고 실행하며, `var/tools/bin`의
-ruff이고 버전은 config/toolchain.json의 `ruff` `version`입니다. 규칙은 checkout의 pyproject.toml 파일들의 `[tool.ruff]` table이므로
-결과가 머신의 ruff 설정에 의존하지 않습니다. 첫 단계가 실패해도 두 단계를 모두 실행합니다. ruff가 선언되지 않았거나 설치되지
-않았으면 고치는 방법과 함께 실패합니다.
+`scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션과
+`--config ruff.toml`로 실행하며, ruff.toml은 kit이 복사하는 설정입니다(Lint 설정, K77). ruff는 `var/tools/bin`의 ruff이고 버전은
+config/toolchain.json의 `ruff` `version`이므로 결과가 머신의 ruff 설정에 의존하지 않습니다. 앞 단계가 실패해도 모든 단계를
+실행합니다. 선언되지 않았거나 설치되지 않은 도구는 고치는 방법과 함께 실패합니다.
 
 ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이브러리는 `Requires-Dist`에 ruff를 두지 않으며, dependency review는
 config/toolchain.json의 pin을 PyPI dependency로 읽습니다. 새 ruff는 wheel의 sha256과 함께 손으로 설정합니다.
+
+## Lint 설정 (K77)
+
+kit은 모든 저장소의 lint 설정과 언어마다 runner 하나를 가집니다(standards plan, §1 항목 5). 도구가 고정 경로에서 읽는 설정은
+kit의 파일이고, 저장소는 그 사본을 가집니다. 각 runner는 그 설정을 명시적으로 넘깁니다. kit이 복사할 수 없는 manifest 안에 사는
+규칙은 `config/layout.kit.yml`의 규칙이며, `make layout-check`가 alint로 실행합니다. 대부분 `config/`의 JSON Schema를 쓰는
+`json_schema_passes` 규칙입니다. plan의 검증에서 나온 false green은 real test `tests/source/lint-<language>-real.test.mts`의
+fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구는 최신 stable release이고 S4의 pin에서 확인했습니다.
+
+| 언어 | 도구 (pin) | 설정 | Runner |
+|---|---|---|---|
+| Python | ruff 0.17.0, vulture 2.16 (`config/toolchain.json`, wheel) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
+| PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 `vendor/autoload.php`로 PHPStan |
+| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings` |
+| Go | golangci-lint 2.14.0 (release archive), golang.org/x/tools 0.52.0의 deadcode (`go install`) | `.golangci.yml` | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
+| TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (devDependencies) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
+| 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
+
+make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다.
+
+### 결정
+
+- **Composer policy와 중첩 설정은 alint로.** plan은 composer.json policy schema에 ajv를 지정했습니다. kit이 이미 pin한
+  alint는 JSON, TOML, YAML을 JSON Schema로 검증하고(`json_schema_passes`) TOML을 조회하므로(`toml_path_absent`), S1에 따라 kit의
+  validator를 만들지 않습니다.
+- **S2.** phpcs의 PSR-1 `MultipleClasses`가 파일당 class 하나를 지킵니다. `composer dump-autoload --optimize --strict-psr`는 첫
+  class가 파일 이름과 맞으면 통과시키고 나머지를 조용히 버립니다(fixture). extension의 stub(`*.stub.php`)은 제외합니다.
+  gen_stub.php는 extension의 모든 class를 한 파일에서 읽기 때문입니다. PHPStan은 금지된 호출만 실행합니다
+  (`customRulesetUsed`): 문자열 변수를 거친 것을 포함한 `spl_autoload_register`와 `Composer\Autoload\ClassLoader`의 모든
+  method입니다. extension-installer가 extension을 등록하므로 설정은 경로를 적지 않습니다. policy schema는 `classmap`과 PSR-0을
+  금지하고, library에는 `autoload.psr-4`와 `autoload-dev.psr-4`를 요구합니다. php-ext와 project는 자기 class가 없습니다.
+- **S3, Python.** TID251은 `sys.path`, `importlib.import_module`, 파일 경로 loader를 금지합니다. ruff는 qualified name을 정적으로
+  풀기 때문에 `importlib.import_module("sys").path`가 `sys.path` 금지를 빠져나갔습니다(fixture). 테스트에 필요한 module은 import
+  문이 모두 적습니다. `--config`를 주면 ruff는 중첩 설정을 무시하지만 editor나 그냥 실행한 ruff는 가장 가까운 설정을 적용하므로,
+  중첩 `[tool.ruff]`, `ruff.toml`, `.ruff.toml`은 root를 extend하게 하는 대신 실패합니다.
+- **Dead code.** vulture는 기본 confidence 60으로 실행하며 package가 올릴 수 없습니다. consumer만 쓰는 code는 package의
+  `vulture_whitelist.py`(`vulture --make-whitelist` 형식) 항목과 그 이유로 유지합니다(S8). `[tool.vulture]`는 생성된 code만
+  `exclude`할 수 있으며 각 경로에 이유를 답니다. deadcode는 `-test`로 실행하므로 library의 테스트가 root이고, 어떤 테스트도
+  닿지 않는 exported function은 finding입니다. deadcode는 finding을 보고해도 0으로 끝나므로 runner는 출력이 있으면 실패합니다.
+  저장소는 node:test 파일을 make로 실행하므로 knip은 S3의 node:test 파일을 entry로 둡니다.
+- **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
+  `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
+  crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로
+  모든 package가 그렇게 적어야 하며, workspace 밖의 package는 실패합니다.
+- **Go.** gomoddirectives는 모든 `replace`를 금지합니다. 저장소의 module은 `go.work`로 서로를 찾으며, 배포한 go.mod는 consumer가
+  보지 못하는 replace를 가지지 않습니다. `go mod tidy`가 go directive와 같은 toolchain 줄을 지우므로 toolchain 줄도 금지합니다.
+  forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
+- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. API
+  Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
+  설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
+  줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다.
+- **Root 파일.** layout은 root에 `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
+  `knip.json`, `.editorconfig`, Rust workspace(`Cargo.toml`, `Cargo.lock`), Go workspace(`go.work`, `go.work.sum`)를 허용합니다.
+
+### 한계
+
+- ruff는 `__import__("sys").path`나 `getattr(sys, "path")`를 보지 못합니다. module과 attribute가 실행 시점에 정해집니다. 이를
+  다루는 ruff 규칙은 없습니다.
+- vulture whitelist 항목과 `exclude` 경로의 이유는 review가 확인하는 주석이며, 이를 읽는 도구는 없습니다.
+- `npm audit`는 API Extractor가 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory GHSA-hp3w-g68c-fv3c를
+  보고합니다. 이 advisory는 sprintf-js의 모든 release에 해당합니다.
+
 ## Release archive의 consumer 설치 (K5.4)
 
 `scripts/kit/release-consumer.mts install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다
