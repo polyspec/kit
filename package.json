@@ -61,6 +61,7 @@
     "picomatch": "4.0.7",
     "pip-requirements-js": "1.0.3",
     "semver": "7.8.5",
-    "smol-toml": "1.9.1"
+    "smol-toml": "1.9.1",
+    "tap-parser": "18.3.4"
   }
 }

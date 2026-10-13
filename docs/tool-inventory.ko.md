@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 48448522d04e67a2132fa144daadda74c0abcffb6c7d59525676a9642649efc0 -->
+<!-- source-sha256: d6780821e61535391a668852b93e0c971de12638ad75accd1bb94cac8267bbce -->
 
 # 도구 목록
 
@@ -925,7 +925,7 @@ Make target: `parity-check`는 binding을 실행하고 모든 rule을 검사합�
 | `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
 | `parity-ledger.mts` | R3: binding 실행과 ledger |
 | `parity-runners.mts` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
-| `test-output.mts` | node:test(TAP), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
+| `test-output.mts` | node:test(TAP, 이름의 escape `\#`와 `\\`를 읽는 tap-parser로 읽음; K125), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
 | `parity-errors.mts` | R7 |
 | `parity-text.mts` | R9, R10 |
 

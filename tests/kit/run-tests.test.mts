@@ -277,10 +277,40 @@ test('the python events report an expected failure as todo, which is no pass (K4
 
 test('the tap events report a TODO test as todo, which is no pass (K47)', () => {
   const { calls, sink } = recording();
-  const feed = tapEvents(sink);
-  feed('not ok 1 - known # TODO not yet');
-  feed('ok 2 - plain');
+  tapEvents(sink, 'TAP version 13\nnot ok 1 - known # TODO not yet\nok 2 - plain\n1..2\n');
   assert.deepEqual(calls, ['todo known', 'pass plain']);
+});
+
+test('the tap events read the TAP escapes of a test name: \\# is # and \\\\ is \\ (K125)', () => {
+  const { calls, sink } = recording();
+  tapEvents(sink, 'TAP version 13\nok 1 - a \\# b\nok 2 - c \\\\ d\n1..2\n');
+  assert.deepEqual(calls, ['pass a # b', 'pass c \\ d']);
+});
+
+test('the tap events report each test at the top as a whole, skipped tests, the last test without a plan, and the failure of a test', () => {
+  const failures: string[] = [];
+  const { calls, sink } = recording();
+  const text = [
+    'TAP version 13',
+    '# Subtest: group',
+    '    # Subtest: inner',
+    '    not ok 1 - inner',
+    '      ---',
+    '      duration_ms: 1.5',
+    "      error: 'expected 1'",
+    '      ...',
+    '    1..1',
+    'not ok 1 - group',
+    '  ---',
+    '  duration_ms: 2.5',
+    "  error: '1 subtest failed'",
+    '  ...',
+    'ok 2 - later # SKIP not here',
+    'ok 3 - last',
+  ].join('\n');
+  tapEvents({ ...sink, fail: (test, ms, failure) => { failures.push(`${test.id} ${ms} ${failure}`); sink.fail(test); } }, text);
+  assert.deepEqual(calls, ['fail group', 'skip later', 'pass last']);
+  assert.deepEqual(failures, ['group 2.5 1 subtest failed']);
 });
 
 test('the phpunit events of a skipped test pass it as skipped only, as PHPUnit reports it (K47)', () => {
@@ -521,14 +551,17 @@ test('a node file of 89 tests reports every test when the reporter reads its eve
   const tests = Array.from({ length: 89 }, (_, index) => `test('case ${index}', () => {});`).join('\n');
   const root = checkout(t, { 'tests/many.test.mjs': `${SPEC}${tests}\n` });
   // The reporter spends 5 ms on each event, so the reports queue up while the file's process ends. The runner takes the
-  // reporter beside its own module, so this test runs a copy of the tools whose reporter it slows down.
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  const reporter = path.join(root, 'scripts/kit/node-reporter.mts');
+  // reporter beside its own module, so this test runs a copy of the tools whose reporter it slows down. The copy lies in
+  // var/ of this checkout (ignored by Git), where Node.js finds the dependencies of kit in its node_modules.
+  const tools = path.join(KIT, `../../var/test-slow-reporter-${process.pid}`);
+  t.after(() => rmSync(tools, { recursive: true, force: true }));
+  cpSync(KIT, path.join(tools, 'scripts/kit'), { recursive: true });
+  const reporter = path.join(tools, 'scripts/kit/node-reporter.mts');
   const source = readFileSync(reporter, 'utf8');
   const lagged = source.replace('const { type, data } = event;', 'const { type, data } = event;\n    for (const end = Date.now() + 5; Date.now() < end;);');
   assert.notEqual(lagged, source);
   writeFileSync(reporter, lagged);
-  const result = spawnSync(process.execPath, [path.join(root, 'scripts/kit/run-tests.mts'), 'node', '--', 'tests/many.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [path.join(tools, 'scripts/kit/run-tests.mts'), 'node', '--', 'tests/many.test.mjs'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, output(result));
   assert.equal(result.stdout.match(/✔ tests\/many\.test\.mjs › case \d+ /g)?.length, 89, output(result));
   assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 timed out, 0 skipped/);
