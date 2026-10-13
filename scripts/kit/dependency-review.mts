@@ -64,10 +64,17 @@ export type Newer = Dependency & { latest: string | null | undefined };
 type PlannedDependency = Pick<Newer, 'ecosystem' | 'manifest' | 'package' | 'spec' | 'latest'> & Partial<Pick<Newer, 'kind' | 'lock'>>;
 type PlannedAdvisory = Pick<FoundAdvisory, 'lock' | 'package'>;
 
-/** A message of govulncheck -json, with the fields that the review reads. */
-export interface GovulncheckMessage {
-  osv?: { id: string; summary?: string };
-  finding?: { osv: string; trace?: { function?: string; module: string; version: string }[] };
+/**
+ * The SARIF report of govulncheck (`-format sarif`), with the fields that the review reads: a rule for each vulnerability
+ * that the scan found, and a result for each, whose code flows exist when the code calls the vulnerable function. The last
+ * location of a code flow is the vulnerable function, and its `module` is `<module>@<version>`.
+ */
+export interface GovulncheckSarif {
+  version?: string;
+  runs: {
+    tool: { driver: { name?: string; rules?: { id: string; fullDescription?: { text: string } }[] } };
+    results?: { ruleId: string; codeFlows?: { threadFlows: { locations: { module?: string }[] }[] }[] }[];
+  }[];
 }
 
 // The output of a command, or the message of its failure; a message is never empty.
@@ -148,49 +155,25 @@ export function highestStableRelease(releases: Record<string, unknown[]>): strin
   return stable.sort(pep440Descending)[0] ?? null;
 }
 
-/** The JSON objects that a command prints one after the other (govulncheck -json), in order. */
-export function parseJsonStream(text: string): GovulncheckMessage[] {
-  const objects: GovulncheckMessage[] = [];
-  let depth = 0;
-  let start = -1;
-  let inString = false;
-  let escaped = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (char === '\\') escaped = true;
-      else if (char === '"') inString = false;
-      continue;
-    }
-    if (char === '"') inString = true;
-    else if (char === '{') {
-      if (depth === 0) start = index;
-      depth += 1;
-    } else if (char === '}') {
-      depth -= 1;
-      if (depth === 0) objects.push(JSON.parse(text.slice(start, index + 1)));
-    }
-  }
-  return objects;
-}
-
-/** The advisories of the vulnerabilities that the code calls, from the messages of govulncheck -json, one per advisory and module. */
-export function goAdvisories(messages: GovulncheckMessage[]): Advisory[] {
-  // The filter keeps the messages that have an osv.
-  const details = new Map(messages.filter(message => message.osv).map(message => [message.osv!.id, message.osv!]));
+/** The advisories of the vulnerabilities that the code calls, from the SARIF report of govulncheck, one per advisory and module. */
+export function goAdvisories(report: GovulncheckSarif): Advisory[] {
   const seen = new Set<string>();
   const list: Advisory[] = [];
-  for (const { finding } of messages) {
-    const frame = finding?.trace?.[0];
-    // A finding without a function is a vulnerability in a module or package that the code does not call.
-    if (!frame?.function) continue;
-    // frame is a frame of finding, so finding is present.
-    const key = `${finding!.osv}:${frame.module}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    // frame is a frame of finding, so finding is present.
-    list.push({ package: frame.module, version: frame.version, id: finding!.osv, severity: 'vulnerability', title: details.get(finding!.osv)?.summary ?? finding!.osv, url: `https://pkg.go.dev/vuln/${finding!.osv}` });
+  for (const run of report.runs) {
+    const titles = new Map((run.tool.driver.rules ?? []).map(rule => [rule.id, rule.fullDescription?.text]));
+    for (const result of run.results ?? []) {
+      // A result without a code flow is a vulnerability in a module or package that the code does not call.
+      for (const flow of result.codeFlows ?? []) {
+        const called = flow.threadFlows[0]?.locations.at(-1)?.module;
+        if (!called) continue;
+        const at = called.lastIndexOf('@');
+        const [module, version] = [called.slice(0, at), called.slice(at + 1)];
+        const key = `${result.ruleId}:${module}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push({ package: module, version, id: result.ruleId, severity: 'vulnerability', title: titles.get(result.ruleId) ?? result.ruleId, url: `https://pkg.go.dev/vuln/${result.ruleId}` });
+      }
+    }
   }
   return list;
 }
@@ -344,13 +327,13 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       result.set(lock, { advisories: [] });
       continue;
     }
-    const answer = run(command, ['-json', ...list], path.join(root, path.posix.dirname(lock)));
+    const answer = run(command, ['-format', 'sarif', ...list], path.join(root, path.posix.dirname(lock)));
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;
     }
     // A result without an error message has stdout.
-    result.set(lock, { advisories: goAdvisories(parseJsonStream(answer.stdout!)) });
+    result.set(lock, { advisories: goAdvisories(JSON.parse(answer.stdout!)) });
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
     const directory = path.posix.dirname(lock);
