@@ -78,10 +78,12 @@ export class Pinning {
   /**
    * The finding of the value `key` of `file`, which holds `actual` where `form` writes a release of `tool` as its value; none
    * when it is the form of the pin or of the channel of an exception that covers the file, which counts as used. With
-   * `patch`, a value that names a patch release of the pin's <major>.<minor> (8.5.0 of the pin 8.5) is that release too.
+   * `patch`, a value that names a patch release of the pin's <major>.<minor> (8.5.0 of the pin 8.5) is that release too. The
+   * exceptions are those whose scope holds `scope`, the file unless the value belongs to another path, such as the workspace
+   * of a lock entry.
    */
-  check(file: string, key: string, actual: unknown, tool: Tool, form: (release: string) => string = release => release, { patch = false }: { patch?: boolean } = {}): string[] {
-    const exceptions = this.covering(tool, file);
+  check(file: string, key: string, actual: unknown, tool: Tool, form: (release: string) => string = release => release, { patch = false, scope = file }: { patch?: boolean; scope?: string } = {}): string[] {
+    const exceptions = this.covering(tool, scope);
     const names = (release: string) => actual === form(release) || (patch && typeof actual === 'string' && new RegExp(`^${form(release).replaceAll('.', '\\.')}\\.\\d+$`).test(actual));
     if (names(this.pins[tool])) return [];
     const exception = exceptions.find(entry => names(entry.channel));
