@@ -8,7 +8,7 @@
 // `<environment>/bin/python -m <tool>`: the console script that pip writes names the interpreter of the temporary directory
 // of the install in its first line, which no longer exists once the directory is renamed into place.
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './bootstrap/install-tool.mts';
 import { installBackend } from './release-backend.mts';
@@ -23,12 +23,17 @@ export type WheelTool = { name: keyof typeof RELEASE_OUTPUT; folder: string; mod
 // The command of `tool` in the environment `directory`: the program and the arguments before the arguments of a call.
 const commandOf = (tool: WheelTool, directory: string): string[] => (tool.module ? [path.join(directory, 'bin/python'), '-m', tool.name] : [path.join(directory, 'bin', tool.name)]);
 
-// The release that the command of `tool` in `directory` prints, or undefined when the environment has no such command.
+// The release that the command of `tool` in `directory` prints, or undefined when the environment has no such command (ENOENT);
+// an output without the release throws.
 function releaseIn(tool: WheelTool, directory: string): string | undefined {
   const [program, ...prefix] = commandOf(tool, directory) as [string, ...string[]];
-  if (!existsSync(program) || (tool.module && !existsSync(path.join(directory, 'bin', tool.name)))) return undefined;
+  const absent = (file: string) => !statSync(file, { throwIfNoEntry: false });
+  if (absent(program) || (tool.module && absent(path.join(directory, 'bin', tool.name)))) return undefined;
   const { args, pattern } = RELEASE_OUTPUT[tool.name];
-  return pattern.exec(execFileSync(program, [...prefix, ...args], { encoding: 'utf8' }))?.[1];
+  const output = execFileSync(program, [...prefix, ...args], { encoding: 'utf8' });
+  const release = pattern.exec(output)?.[1];
+  if (release === undefined) throw new Error(`${[program, ...prefix, ...args].join(' ')} printed no release: ${JSON.stringify(output.trim())}`);
+  return release;
 }
 
 /** Installs the wheel tool `tool` at the declared `{ version, digests, source }` into var/tools/<folder> of `root` and writes the wrapper. */

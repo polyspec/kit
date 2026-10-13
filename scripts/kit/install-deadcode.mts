@@ -5,17 +5,23 @@
 // installation is the version of golang.org/x/tools that `go version -m` reads from the binary. Nothing is installed into the
 // machine.
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './bootstrap/install-tool.mts';
 import { quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
 const commandIn = (prefix: string): string => path.join(prefix, 'bin', 'deadcode');
 
-/** The golang.org/x/tools release of the deadcode binary in `prefix`, which `go version -m` reads, or undefined when none is installed. */
+/**
+ * The golang.org/x/tools release of the deadcode binary in `prefix`, which `go version -m` reads, or undefined when the binary
+ * does not exist (ENOENT); an output without the release throws.
+ */
 function releaseIn(prefix: string): string | undefined {
-  if (!existsSync(commandIn(prefix))) return undefined;
-  return /^\s*mod\s+golang\.org\/x\/tools\s+v(\d+\.\d+\.\d+)\s/m.exec(execFileSync('go', ['version', '-m', commandIn(prefix)], { encoding: 'utf8' }))?.[1];
+  if (!statSync(commandIn(prefix), { throwIfNoEntry: false })) return undefined;
+  const output = execFileSync('go', ['version', '-m', commandIn(prefix)], { encoding: 'utf8' });
+  const release = /^\s*mod\s+golang\.org\/x\/tools\s+v(\d+\.\d+\.\d+)\s/m.exec(output)?.[1];
+  if (release === undefined) throw new Error(`go version -m ${commandIn(prefix)} printed no release of golang.org/x/tools: ${JSON.stringify(output.trim())}`);
+  return release;
 }
 
 /** Installs deadcode of golang.org/x/tools `recorded` into var/tools/deadcode of `root` and writes the wrapper. */
