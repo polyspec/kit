@@ -3,7 +3,9 @@
 // runs them; this test runs each recorded request with the pinned go and Composer of this checkout (`mise which`, make
 // install-tools first) and requires what the record says. make kit-tool-record writes the records.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { runRequest } from '../kit/record-tools.mts';
 import type { ToolRecord } from '../kit/record-tools.mts';
@@ -21,3 +23,27 @@ for (const record of records) {
     assert.deepEqual(runRequest(request), record);
   });
 }
+
+// The pinned tools run by the absolute path of mise which, and the PATH that they run with holds no directory of a stub: a
+// stub directory first on the PATH of the caller, as kit-test has one, does not run (K127).
+test('a request runs no command of a stub directory on the PATH of the caller', (t) => {
+  const stubs = mkdtempSync(path.join(tmpdir(), 'kit-record-stubs-'));
+  t.after(() => rmSync(stubs, { recursive: true, force: true }));
+  const marker = path.join(stubs, 'ran');
+  for (const name of ['go', 'php', 'composer', 'mise']) {
+    writeFileSync(path.join(stubs, name), `#!/bin/sh\necho ${name} >> '${marker}'\nexit 1\n`);
+    chmodSync(path.join(stubs, name), 0o755);
+  }
+  const saved = process.env.PATH;
+  process.env.PATH = `${stubs}${path.delimiter}${saved}`;
+  try {
+    for (const tool of ['go', 'composer']) {
+      const record = records.find(entry => entry.tool === tool)!;
+      const { status, stdout, stderr, ...request } = record;
+      assert.deepEqual(runRequest(request), record);
+    }
+  } finally {
+    process.env.PATH = saved;
+  }
+  assert.equal(existsSync(marker) ? readFileSync(marker, 'utf8') : '', '');
+});
