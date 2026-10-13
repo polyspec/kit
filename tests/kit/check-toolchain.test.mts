@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
@@ -27,9 +28,10 @@ const OUTPUTS = {
   composer: 'Composer version 2.10.3 2026-01-01 00:00:00',
   ruff: 'ruff 0.16.10',
 };
-const check = (root, env, ...tools) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
 // The Python of the checkout is var/tools/bin/python3, the wrapper that install-python.mts writes; here it runs the stub.
-const setup = (t, outputs = OUTPUTS, files = FILES) => {
+// A null output makes the stub of the command fail.
+const setup = (t: TestContext, outputs: Record<string, string | null> = OUTPUTS, files: Record<string, string> = FILES) => {
   const root = toolchainCheckout(t, files);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
@@ -126,6 +128,7 @@ test('toolchainVersions reports an unreadable tool as unavailable', (t) => {
   const { root, stubs } = setup(t, { npm: '12.2.0', composer: null });
   const versions = toolchainVersions(['npm', 'composer'], { root, env: { ...stubs.env, PATH: stubs.env.PATH } });
   assert.equal(versions.npm, '12.2.0');
+  assert.ok(versions.composer !== undefined);
   assert.match(versions.composer, /^unavailable: `composer --version --no-ansi` failed/);
 });
 

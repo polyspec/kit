@@ -8,12 +8,13 @@ import test from 'node:test';
 import { npmDuplicates, npmSatisfies, pythonRequirements } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate } from './checkout.mts';
 
-const edit = (root, file, change) => {
+// The data is the parsed JSON of a fixture file, whose shape each test edits as it needs.
+const edit = (root: string, file: string, change: (data: any) => void) => {
   const data = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
   change(data);
   writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
 };
-const findings = result => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
+const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
 test('an npm version satisfies a range by the rules of npm', () => {
   assert.equal(npmSatisfies('1.2.3', '^1.0.0'), true);
@@ -36,7 +37,7 @@ test('a package installed at two versions that one version satisfies is reported
   } };
   const lines = npmDuplicates(lock);
   assert.equal(lines.length, 1, lines.join('\n'));
-  assert.match(lines[0], /shared/);
+  assert.match(lines[0]!, /shared/); // The length is asserted above.
 });
 
 test('the gate fails when a workspace package has another version than its lock entry', (t) => {
@@ -71,7 +72,7 @@ test('a package that npm installed as a copy (install-links) is a package of the
 
 test('a package required as file:<directory> is the package of that directory, and another directory fails', (t) => {
   const root = fixture(t);
-  const require = (spec) => {
+  const require = (spec: string) => {
     edit(root, 'packages/fixture-app/package.json', (manifest) => { manifest.dependencies['fixture-lib'] = spec; });
     edit(root, 'package-lock.json', (lock) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
     return findings(gate(root)).filter(line => line.includes('fixture-lib'));
