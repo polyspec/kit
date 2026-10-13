@@ -407,8 +407,9 @@ export function review(root: string) {
     // The condition checks that exceptions has the key.
     if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${exceptions.get(key)!.reason}`);
     else if (outdated) {
-      newer.push({ ...dependency, latest: answer.latest });
-      lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(dependency)}`);
+      const item = { ...dependency, latest: answer.latest };
+      newer.push(item);
+      lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(item)}`);
     } else if (exceptions.has(key)) lines.push(`${subject} ${dependency.version}: the exception of ${POLICY} is stale, ${answer.latest} is the latest stable release. Fix: remove the exception from ${POLICY}`);
   }
   for (const lock of state.locks) {
