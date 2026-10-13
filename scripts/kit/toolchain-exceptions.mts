@@ -77,18 +77,20 @@ export class Pinning {
 
   /**
    * The finding of the value `key` of `file`, which holds `actual` where `form` writes a release of `tool` as its value; none
-   * when it is the form of the pin or of the channel of an exception that covers the file, which counts as used.
+   * when it is the form of the pin or of the channel of an exception that covers the file, which counts as used. With
+   * `patch`, a value that names a patch release of the pin's <major>.<minor> (8.5.0 of the pin 8.5) is that release too.
    */
-  check(file: string, key: string, actual: unknown, tool: Tool, form: (release: string) => string = release => release): string[] {
+  check(file: string, key: string, actual: unknown, tool: Tool, form: (release: string) => string = release => release, { patch = false }: { patch?: boolean } = {}): string[] {
     const exceptions = this.covering(tool, file);
-    if (actual === form(this.pins[tool])) return [];
-    const exception = exceptions.find(entry => actual === form(entry.channel));
+    const names = (release: string) => actual === form(release) || (patch && typeof actual === 'string' && new RegExp(`^${form(release).replaceAll('.', '\\.')}\\.\\d+$`).test(actual));
+    if (names(this.pins[tool])) return [];
+    const exception = exceptions.find(entry => names(entry.channel));
     if (exception) {
       this.used.add(exception);
       return [];
     }
     const allowed = exceptions.map(entry => ` and the exception of ${entry.scope} allows ${entry.channel}`).join('');
-    const expected = [this.pins[tool], ...exceptions.map(entry => entry.channel)].map(release => JSON.stringify(form(release))).join(' or ');
+    const expected = [this.pins[tool], ...exceptions.map(entry => entry.channel)].flatMap(release => [JSON.stringify(form(release)), ...(patch ? [JSON.stringify(`${form(release)}.<patch>`)] : [])]).join(' or ');
     return [`${file}: ${key} is ${actual === undefined ? 'missing' : JSON.stringify(actual)}; kit pins ${tool} ${this.pins[tool]}${allowed}, so it must be ${expected}`];
   }
 

@@ -96,7 +96,7 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
 |---|---|
 | `.node-version`, `channel` of `rust-toolchain.toml`, `php` and `python` | the pin |
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
-| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin |
+| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.5.0`), the form that dependency-policy requires |
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
 | `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
 | `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
