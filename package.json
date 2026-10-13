@@ -107,7 +107,6 @@
     "pip-requirements-js": "1.0.3",
     "semver": "7.8.5",
     "smol-toml": "1.9.1",
-    "tap-parser": "18.3.4",
     "unist-util-visit": "5.1.0"
   },
   "peerDependencies": {
