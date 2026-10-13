@@ -3,10 +3,11 @@
 //   package.json   engines.node is ">=<node pin>"
 //   composer.json  require.php is ">=<php pin>"; beside a composer.lock, config.platform.php is "<php pin>"
 //   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
+//   go.mod         go is "<go pin>" and no toolchain line, which the go command drops when it equals the go line
 // Each other floor, and a missing one, is a finding that names the file, the key, the pin and the expected value.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
-import { readToml } from './toolchain-files.mts';
+import { readGoMod, readToml } from './toolchain-files.mts';
 import type { Pins, Tool } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -43,4 +44,13 @@ export const pyprojectFindings = (root: string, pins: Pins, env: NodeJS.ProcessE
   // tomllib returns a table for a TOML document; project, when present, is a table too.
   const project = (readToml(root, file, env) as { project?: Record<string, unknown> }).project;
   return project ? floor(file, 'project.requires-python', project['requires-python'], 'python', pins, `>=${pins.python}`) : [];
+});
+
+/** One line for each go.mod whose go line is not the Go pin, and for each with a toolchain line; `env` runs the go command. */
+export const goModFindings = (root: string, pins: Pins, env: NodeJS.ProcessEnv): string[] => named(root, 'go.mod').flatMap((file) => {
+  const mod = readGoMod(root, file, env);
+  return [
+    ...floor(file, 'go', mod.Go, 'go', pins, pins.go),
+    ...(mod.Toolchain ? [`${file}: toolchain is ${JSON.stringify(mod.Toolchain)}; kit pins go ${pins.go} in the go line, so remove the toolchain line`] : []),
+  ];
 });
