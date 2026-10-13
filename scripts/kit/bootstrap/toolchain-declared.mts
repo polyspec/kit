@@ -8,6 +8,7 @@
 //   pythonBackend config/toolchain.json pythonBackend: the requirement name==version of the build backend of the Python wheels and its sha256
 //   composer     config/toolchain.json composer
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
+//   phpLint      config/php-lint/composer.lock: the PHP lint of kit, whose release is the sha256 of the lock
 //   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
@@ -19,6 +20,7 @@
 // result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileDigest } from './digest.mts';
 
 /** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
 export type InstalledExtractor = 'go' | 'php';
@@ -47,6 +49,7 @@ export type DeclaredToolchain = {
   composer?: Declared & { sha256: unknown };
   ruff?: PlatformRelease;
   phpunit?: Declared & { manifest: string };
+  phpLint?: { lock: string; manifest: string; source: string };
   cargoAudit?: Declared;
   govulncheck?: Declared;
   symbolExtractors?: { extractors: InstalledExtractor[]; source: string };
@@ -174,6 +177,9 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   }
   if (config.ruff) declared.ruff = platformRelease('ruff', 'wheel', config.ruff);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
+  if (existsSync(path.join(root, 'config/php-lint/composer.lock'))) {
+    declared.phpLint = { lock: fileDigest(path.join(root, 'config/php-lint/composer.lock')), manifest: 'config/php-lint/composer.json', source: 'config/php-lint/composer.lock' };
+  }
   for (const key of ['cargoAudit', 'govulncheck'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
