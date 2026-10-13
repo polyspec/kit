@@ -81,7 +81,9 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     GOINSECURE: '',
   };
   for (const [name, value] of Object.entries(expected)) assert.match(text, new RegExp(`^${name}=${escape(`'${value}'`)}$`, 'm'), name);
-  assert.match(text, new RegExp(`^export ${Object.keys(expected).join(' ')}$`, 'm'));
+  // mise links its shims to the mise that PATH names, so the directory of the binary comes first, before this wrapper.
+  assert.match(text, new RegExp(`^PATH=${escape(`'${path.join(tools, 'mise-release/mise/bin')}'`)}:"\\$PATH"$`, 'm'));
+  assert.match(text, new RegExp(`^export ${Object.keys(expected).join(' ')} PATH$`, 'm'));
   assert.match(text, new RegExp(`^exec ${escape(`'${path.join(tools, 'mise-release/mise/bin/mise')}'`)} "\\$@"$`, 'm'));
   assert.equal(text.includes(homedir()), false, 'the wrapper names no directory of the home');
   const second = bootstrap(root, stubs.env);
