@@ -22,8 +22,8 @@ import { checkedFiles } from './tracked-files.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
-/** The outcome of a version command, as `execute` returns it. */
-export type RunResult = { status: number | null; stdout: string; stderr?: string | undefined; error?: Error | undefined };
+/** The outcome of a version command, as `execute` returns it; a command ended by a signal has the status null and the signal. */
+export type RunResult = { status: number | null; signal?: NodeJS.Signals | null | undefined; stdout: string; stderr?: string | undefined; error?: Error | undefined };
 
 /** Starts `command` with `args` and returns its outcome. */
 export type Run = (command: string, args: string[]) => RunResult;
@@ -74,7 +74,8 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
   const shown = `${path.relative(root, command(root)).startsWith('..') ? command(root) : path.relative(root, command(root))} ${args.join(' ')}`;
   if (result.error || result.status !== 0) {
     const detail = String(result.stderr ?? '').trim();
-    return { error: `\`${shown}\` failed (${result.error?.message ?? `exit status ${result.status}`})${detail ? `: ${detail}` : ''}` };
+    const ended = result.signal ? `ended by signal ${result.signal}` : `exit status ${result.status}`;
+    return { error: `\`${shown}\` failed (${result.error?.message ?? ended})${detail ? `: ${detail}` : ''}` };
   }
   const release = pattern.exec(result.stdout)?.[1];
   return release ? { release } : { error: `no release in the output of \`${shown}\`: ${JSON.stringify(result.stdout.trim())}` };
