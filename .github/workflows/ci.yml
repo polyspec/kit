@@ -22,13 +22,17 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
+      # The bootstrap order of a repository (K71-2): the npm of packageManager first, then the packages of package-lock.json
+      # with it, then the other tools.
+      - name: install npm
+        run: make install-tools TOOLS=npm
+      # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
+      - name: install packages
+        run: var/tools/bin/npm ci
       # install-tools installs the uv of config/toolchain.json, the Python of pythonBuild with that uv and the pythonBackend into
       # var/tools; the wheel and venv tests run that uv and that Python.
       - name: install tools
         run: make install-tools
-      # The npm of packageManager, which install-tools installed, installs TypeScript and the Node types from package-lock.json.
-      - name: install packages
-        run: var/tools/bin/npm ci
       # tsc checks the types of the tools and tests (tsconfig.json, K71-1).
       - name: typecheck
         run: make typecheck

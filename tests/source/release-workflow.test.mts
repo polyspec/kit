@@ -64,3 +64,7 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.match(body, /coverage: none/);
   assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
 });
+
+test('the release workflow bootstraps the package before release-tools: the npm of packageManager, then install-packages (K71-2)', () => {
+  assert.deepEqual(runs.slice(0, 3).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tools']);
+});
