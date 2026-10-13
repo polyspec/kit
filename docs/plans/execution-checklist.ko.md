@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 8a1e4419f989c61320aef674122780be9c616ddb5e0fc534d3160683a11d9c61 -->
+<!-- source-sha256: b7d8830f7b27f3cf5f69ffefe5011506cfc988cfc8c89277611bf4bcf916c644 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -189,5 +189,6 @@
 | K125 | test-output이 TAP을 tap-parser로 읽습니다. 원인: kit은 test 이름의 TAP escape `\#`를 그대로 두는데 TAP은 이를 제거합니다(K74). libtest, unittest, TeamCity는 kit의 reader를 유지합니다(docs/rebuild/test-output). | `scripts/kit/test-output.mts`, tests | a red TAP name with `\#`; the unit tests | [ ] |
 | K126 | tests/kit/duplication.test.mts 대신 jscpd `--min-lines 6`이 중복을 찾습니다. kit의 detector가 놓친 파일 간 clone 4개(parity-declaration/parity-units 두 번, release-consumer/release-proof, release-consumer/release-tools)를 찾으며, 각각 제거하거나 이유와 함께 선언합니다(K74). | `tests/kit/duplication.test.mts`, jscpd config, the cloned modules | jscpd red on the 4 clones, then green; the unit tests | [ ] |
 | K127 | toolchain의 release installer(install-go, -uv, -ruff, -python, -cargo-audit, -govulncheck, -composer, install-tool, install-tools, tool-wrappers)를 mise와 mise.lock으로 바꾸고, npm bootstrap, repository가 설치하지 않는 tool의 검증, go.mod 검사만 남깁니다(docs/rebuild/toolchain). K74가 측정한 빈틈은 항목 안에서 결정합니다: version으로만 pin되는 govulncheck와 npm, checksum 없는 Composer, macos-arm64의 x86_64 cargo-audit, python-build-standalone release. | the install modules, `config/toolchain.json`, mise.lock, tests | a red case per gap closed or declared; the unit tests | [ ] |
+| K127-1 | `feat/mise-toolchain-K127` 브랜치(worktree `kit-mise-toolchain-K127`, ab149f5: bootstrap이 platform별 sha256으로 mise를 설치)는 K127이 미뤄진 동안 남깁니다. K127이 ab149f5를 받는 브랜치에서 재개되거나 K127이 철회되면 지웁니다. K127의 측정은 그 행의 후속에 기록합니다. | `feat/mise-toolchain-K127` | the branch and worktree are gone once the condition holds | [ ] |
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
