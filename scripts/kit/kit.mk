@@ -4,16 +4,14 @@
 ifeq ($(and $(KIT),$(KIT_EXT)),)
 $(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or set both as the Makefile of kit does)
 endif
-KIT_REPOSITORY ?= https://github.com/polyspec/kit
 ONLINE ?=
 
 .PHONY: kit-sync kit-check
 
-kit-sync: ## Copy the vendored files of kit at KIT_TAG into this checkout; ONLINE, it clones KIT_REPOSITORY
-	@test -n "$(KIT_TAG)" || { echo "kit-sync: KIT_TAG is required, for example make kit-sync KIT_TAG=v0.0.1"; exit 1; }
-	$(ONLINE) node $(KIT)/kit-sync.$(KIT_EXT) --tag $(KIT_TAG) --repository $(KIT_REPOSITORY)
+kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its package.json), the version of package-lock.json; offline
+	node $(KIT)/kit-sync.$(KIT_EXT)
 
-kit-check: ## Check the vendored files against .kit/kit.lock.json and the configuration against its schemas; offline
+kit-check: ## Check the installed @polyspec/kit against package-lock.json, the copies against it and the configuration against its schemas; offline
 	node $(KIT)/kit-check.$(KIT_EXT)
 
 # --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.

@@ -189,5 +189,5 @@ test('kit-check validates config/checklist.json against its schema', (t) => {
   const root = checkout(t, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [{ path: 'a.md', format: 'table', active: '[~]', extra: 1 }] }) });
   mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
   cpSync(path.join(HERE, '../../scripts/kit/schema/checklist.schema.json'), path.join(root, 'scripts/kit/schema/checklist.schema.json'));
-  assert.deepEqual(checkConfig(root), ['config/checklist.json: $.trackers[0].extra is not in the schema. Rule: scripts/kit/schema/checklist.schema.json']);
+  assert.deepEqual(checkConfig(root), ['config/checklist.json: $.trackers[0].extra is not in the schema. Rule: the schema checklist.schema.json of @polyspec/kit']);
 });

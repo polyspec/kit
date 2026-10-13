@@ -15,5 +15,21 @@
   "devDependencies": {
     "@types/node": "26.6.5",
     "typescript": "7.0.2"
+  },
+  "kit": {
+    "copies": {
+      "scripts/kit/kit-bootstrap.mk": "scripts/kit/kit-bootstrap.mk",
+      "scripts/kit/bootstrap/bootstrap-npm.mts": "scripts/kit/bootstrap/bootstrap-npm.mts",
+      "scripts/kit/bootstrap/digest.mts": "scripts/kit/bootstrap/digest.mts",
+      "scripts/kit/bootstrap/files.mts": "scripts/kit/bootstrap/files.mts",
+      "scripts/kit/bootstrap/install-npm.mts": "scripts/kit/bootstrap/install-npm.mts",
+      "scripts/kit/bootstrap/install-tool.mts": "scripts/kit/bootstrap/install-tool.mts",
+      "scripts/kit/bootstrap/tool-wrappers.mts": "scripts/kit/bootstrap/tool-wrappers.mts",
+      "scripts/kit/bootstrap/toolchain-declared.mts": "scripts/kit/bootstrap/toolchain-declared.mts",
+      ".github/workflows/release.yml": "workflows/release.yml",
+      "PRINCIPLES.md": "PRINCIPLES.md",
+      "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
+      "config/layout.kit.yml": "config/layout.kit.yml"
+    }
   }
 }

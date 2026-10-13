@@ -1,218 +1,125 @@
-// Tests of kit-sync and kit-check (scripts/kit): a kit repository of a temporary directory is cloned at a tag, its
-// vendored files are copied into a consumer checkout, and the lock and the check agree. No test uses the network.
+// Tests of kit-sync and kit-check (scripts/kit): a repository holds copies of files of the installed package @polyspec/kit,
+// which its package.json declares as `kit.copies`. kit-sync writes them from the package of node_modules, and kit-check
+// fails while that package is not the version that package-lock.json resolves, or while a copy differs from its file of the
+// package. The package here is a stub directory under node_modules; no test runs npm or uses the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { check, LOCK } from '../../scripts/kit/kit-check.mts';
-import { DEFAULT_REPOSITORY, parseSyncArguments, sync } from '../../scripts/kit/kit-sync.mts';
-import { initRepository } from './sandbox-repository.mts';
+import { check, isSource } from '../../scripts/kit/kit-check.mts';
+import { sync } from '../../scripts/kit/kit-sync.mts';
+import { tree } from './tree.mts';
 
 const KIT_SYNC = path.join(import.meta.dirname, '../../scripts/kit/kit-sync.mts');
+const KIT_CHECK = path.join(import.meta.dirname, '../../scripts/kit/kit-check.mts');
+const COPIES = { 'scripts/kit/kit-bootstrap.mk': 'scripts/kit/kit-bootstrap.mk', '.github/workflows/release.yml': 'workflows/release.yml' };
+const FILES = { 'scripts/kit/kit-bootstrap.mk': 'KIT := node_modules/@polyspec/kit/dist\n', 'workflows/release.yml': 'on: push\n' };
 
-// Runs the command of kit-sync with `args`. `git` is a stub on PATH that logs its arguments to STUB_LOG and fails, so no clone
-// reaches the network and `clones` holds the argument lists of the git calls that the command made.
-function syncCommand(t: TestContext, args: string[]) {
-  const bin = mkdtempSync(path.join(tmpdir(), 'kit-sync-bin-'));
-  t.after(() => rmSync(bin, { recursive: true, force: true }));
-  const log = path.join(bin, 'git.log');
-  writeFileSync(path.join(bin, 'git'), '#!/usr/bin/env node\nrequire(\'node:fs\').appendFileSync(process.env.STUB_LOG, JSON.stringify(process.argv.slice(2)) + \'\\n\');\nprocess.exit(1);\n', { mode: 0o755 });
-  const result = spawnSync(process.execPath, [KIT_SYNC, ...args], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log },
-  });
-  const clones = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
-  return { status: result.status, stderr: result.stderr, clones };
-}
-
-const GIT = ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com'];
-const git = (args: string[], cwd: string) => {
-  const result = spawnSync('git', [...GIT, ...args], { cwd, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  return result.stdout;
-};
 const write = (root: string, file: string, text: string) => {
   mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
   writeFileSync(path.join(root, file), text);
 };
 
-// A kit repository whose tags v0.0.1, v0.0.2 and v0.0.3 hold the given files.
-function kitRepository(t: TestContext, releases: Record<string, Record<string, string | null>>) {
-  const repository = mkdtempSync(path.join(tmpdir(), 'kit-source-'));
-  t.after(() => rmSync(repository, { recursive: true, force: true }));
-  initRepository(repository, '-b', 'main');
-  for (const [tag, files] of Object.entries(releases)) {
-    for (const [file, text] of Object.entries(files)) {
-      if (text === null) rmSync(path.join(repository, file));
-      else write(repository, file, text);
-    }
-    git(['add', '-A'], repository);
-    git(['commit', '--quiet', '--allow-empty', '-m', tag], repository);
-    git(['tag', tag], repository);
+/**
+ * A repository whose package-lock.json resolves @polyspec/kit `locked` (none for null) and whose node_modules holds the package
+ * at `installed` (none for null) with `copies` and the files `files`.
+ */
+function repository(t: TestContext, { locked = '0.1.0', installed = '0.1.0', copies = COPIES, files = FILES }: { locked?: string | null; installed?: string | null; copies?: Record<string, string>; files?: Record<string, string> } = {}) {
+  const root = tree(t, { 'package.json': `${JSON.stringify({ name: 'consumer', private: true, devDependencies: { '@polyspec/kit': locked ?? '0.1.0' } })}\n` });
+  const packages: Record<string, unknown> = { '': { name: 'consumer' } };
+  if (locked !== null) packages['node_modules/@polyspec/kit'] = { version: locked, dev: true };
+  write(root, 'package-lock.json', `${JSON.stringify({ name: 'consumer', lockfileVersion: 3, packages })}\n`);
+  if (installed !== null) {
+    write(root, 'node_modules/@polyspec/kit/package.json', `${JSON.stringify({ name: '@polyspec/kit', version: installed, kit: { copies } })}\n`);
+    for (const [file, text] of Object.entries(files)) write(root, path.join('node_modules/@polyspec/kit', file), text);
   }
-  return repository;
+  return root;
 }
 
-const consumer = (t: TestContext) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-consumer-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  return root;
-};
-
-const manifest = { 'kit.json': JSON.stringify({ schema: 1, vendored: ['scripts/kit', 'tests/kit'] }) + '\n' };
-
-test('the first sync copies the vendored files and the lock agrees with them', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n', 'tests/kit/tool.test.mjs': 'test\n' } });
-  const root = consumer(t);
-  const changes = sync({ root, repository, tag: 'v0.0.1' });
-  assert.deepEqual(changes.filter(line => line.startsWith('added')).sort(), ['added kit.json', 'added scripts/kit/tool.mjs', 'added tests/kit/tool.test.mjs']);
-  assert.ok(changes.includes(`written ${LOCK}`));
-  assert.deepEqual(check(root), []);
-  const lock = JSON.parse(readFileSync(path.join(root, LOCK), 'utf8'));
-  assert.equal(lock.tag, 'v0.0.1');
-  assert.deepEqual(Object.keys(lock.files).sort(), ['kit.json', 'scripts/kit/tool.mjs', 'tests/kit/tool.test.mjs']);
-});
-
-test('a sync refuses a ref that is not a tag, names it and writes nothing (K83)', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
-  git(['branch', 'feat/branch-K13'], repository);
-  const root = consumer(t);
-  assert.throws(() => sync({ root, repository, tag: 'feat/branch-K13' }), /feat\/branch-K13 is not a tag of /);
-  assert.equal(existsSync(path.join(root, LOCK)), false);
-  assert.equal(existsSync(path.join(root, 'kit.json')), false);
-});
-
-test('a sync refuses a branch that has the name of a tag and is cloned in its place (K83)', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
-  git(['commit', '--quiet', '--allow-empty', '-m', 'after'], repository);
-  git(['branch', 'v0.0.1'], repository);
-  const root = consumer(t);
-  assert.throws(() => sync({ root, repository, tag: 'v0.0.1' }), /v0\.0\.1 is not a tag of /);
-  assert.equal(existsSync(path.join(root, LOCK)), false);
-});
-
-test('a second sync at the same tag changes nothing and writes the same lock', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'export const v = 1;\n' } });
-  const root = consumer(t);
-  sync({ root, repository, tag: 'v0.0.1' });
-  const lock = readFileSync(path.join(root, LOCK), 'utf8');
-  assert.deepEqual(sync({ root, repository, tag: 'v0.0.1' }), []);
-  assert.equal(readFileSync(path.join(root, LOCK), 'utf8'), lock);
-});
-
-test('a sync to a new tag writes the changed file, and a file that kit removed is removed', (t) => {
-  const repository = kitRepository(t, {
-    'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'v1\n', 'scripts/kit/old.mjs': 'old\n' },
-    'v0.0.2': { 'scripts/kit/tool.mjs': 'v2\n', 'scripts/kit/old.mjs': null },
-  });
-  const root = consumer(t);
-  sync({ root, repository, tag: 'v0.0.1' });
-  const changes = sync({ root, repository, tag: 'v0.0.2' });
-  assert.ok(changes.includes('written scripts/kit/tool.mjs'), changes.join('\n'));
-  assert.ok(changes.includes('removed scripts/kit/old.mjs'), changes.join('\n'));
-  assert.equal(existsSync(path.join(root, 'scripts/kit/old.mjs')), false);
+test('the first sync writes each copy from the installed package, and a second sync writes nothing', (t) => {
+  const root = repository(t);
+  assert.deepEqual(sync(root), ['added scripts/kit/kit-bootstrap.mk', 'added .github/workflows/release.yml']);
+  assert.equal(readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8'), 'on: push\n');
+  assert.equal(readFileSync(path.join(root, 'scripts/kit/kit-bootstrap.mk'), 'utf8'), FILES['scripts/kit/kit-bootstrap.mk']);
+  assert.deepEqual(sync(root), []);
   assert.deepEqual(check(root), []);
 });
 
-test('kit-check names a changed vendored file, a missing one and an unexpected one, with expected and actual values', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { ...manifest, 'scripts/kit/tool.mjs': 'v1\n', 'scripts/kit/other.mjs': 'o\n' } });
-  const root = consumer(t);
-  sync({ root, repository, tag: 'v0.0.1' });
-  write(root, 'scripts/kit/tool.mjs', 'edited\n');
-  rmSync(path.join(root, 'scripts/kit/other.mjs'));
-  write(root, 'scripts/kit/extra.mjs', 'unexpected\n');
-  const findings = check(root);
-  assert.equal(findings.length, 3, findings.join('\n'));
-  assert.match(findings[0]!, /^scripts\/kit\/other\.mjs: the vendored file is missing; expected sha256 [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
-  assert.match(findings[1]!, /^scripts\/kit\/tool\.mjs: sha256 is [0-9a-f]{64}, the lock records [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
-  assert.match(findings[2]!, /^scripts\/kit\/extra\.mjs: the file is not in the lock\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
-  sync({ root, repository, tag: 'v0.0.1' });
+test('a sync writes a copy that differs from the package, and only that copy', (t) => {
+  const root = repository(t);
+  sync(root);
+  write(root, '.github/workflows/release.yml', 'on: pull_request\n');
+  assert.deepEqual(sync(root), ['written .github/workflows/release.yml']);
+  assert.equal(readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8'), 'on: push\n');
+});
+
+test('a sync refuses a package that is not the version of package-lock.json, a lock without the package and a missing install', (t) => {
+  assert.throws(() => sync(repository(t, { installed: '0.0.9' })), { message: 'node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages' });
+  assert.throws(() => sync(repository(t, { locked: null })), { message: 'package-lock.json resolves no @polyspec/kit. Fix: add @polyspec/kit to devDependencies and run make install-packages' });
+  assert.throws(() => sync(repository(t, { installed: null })), { message: 'node_modules/@polyspec/kit is not installed; package-lock.json resolves 0.1.0. Fix: make install-packages' });
+});
+
+test('a copy whose path leaves its directory is refused, and nothing is written', (t) => {
+  const root = repository(t, { copies: { '../outside.txt': 'workflows/release.yml' } });
+  assert.throws(() => sync(root), { message: 'kit.copies path "../outside.txt" is not a relative path inside its directory' });
+  assert.equal(existsSync(path.join(root, '../outside.txt')), false);
+});
+
+test('kit-check names a copy that differs and a copy that is missing, with the version and the fix', (t) => {
+  const root = repository(t);
+  sync(root);
+  write(root, 'scripts/kit/kit-bootstrap.mk', 'changed\n');
+  writeFileSync(path.join(root, '.github/workflows/release.yml'), '');
+  assert.deepEqual(check(root), [
+    'scripts/kit/kit-bootstrap.mk: differs from node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk of @polyspec/kit 0.1.0. Fix: make kit-sync',
+    '.github/workflows/release.yml: differs from node_modules/@polyspec/kit/workflows/release.yml of @polyspec/kit 0.1.0. Fix: make kit-sync',
+  ]);
+  const missing = repository(t);
+  assert.deepEqual(check(missing), [
+    'scripts/kit/kit-bootstrap.mk: the copy of @polyspec/kit 0.1.0 is missing. Fix: make kit-sync',
+    '.github/workflows/release.yml: the copy of @polyspec/kit 0.1.0 is missing. Fix: make kit-sync',
+  ]);
+});
+
+test('kit-check fails while the installed package is not the version that package-lock.json resolves', (t) => {
+  const root = repository(t, { installed: '0.0.9' });
+  assert.deepEqual(check(root), ['node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages']);
+  assert.deepEqual(check(repository(t, { locked: null })), ['package-lock.json resolves no @polyspec/kit. Fix: add @polyspec/kit to devDependencies and run make install-packages']);
+  assert.deepEqual(check(repository(t, { installed: null })), ['node_modules/@polyspec/kit is not installed; package-lock.json resolves 0.1.0. Fix: make install-packages']);
+});
+
+test('kit itself is the source of the copies: its check reads its configuration only', (t) => {
+  const root = tree(t, { 'package.json': `${JSON.stringify({ name: '@polyspec/kit', version: '0.1.0' })}\n` });
+  assert.equal(isSource(root), true);
   assert.deepEqual(check(root), []);
 });
 
-test('kit-check fails when the lock is missing and names the fix', (t) => {
-  assert.deepEqual(check(consumer(t)), [`${LOCK}: the lock is missing. Fix: make kit-sync KIT_TAG=<tag>`]);
+test('the commands run in the repository of their working directory and print the changes and the findings', (t) => {
+  const root = repository(t);
+  const synced = spawnSync(process.execPath, [KIT_SYNC], { cwd: root, encoding: 'utf8' });
+  assert.equal(synced.status, 0, synced.stderr);
+  assert.equal(synced.stdout, '[kit-sync] added scripts/kit/kit-bootstrap.mk\n[kit-sync] added .github/workflows/release.yml\n[kit-sync] 2 changes from @polyspec/kit 0.1.0\n');
+  const again = spawnSync(process.execPath, [KIT_SYNC], { cwd: root, encoding: 'utf8' });
+  assert.equal(again.stdout, '[kit-sync] unchanged: @polyspec/kit 0.1.0\n');
+  const checked = spawnSync(process.execPath, [KIT_CHECK], { cwd: root, encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.equal(checked.stdout, '[kit-check] the configuration matches its schemas and the copies match @polyspec/kit 0.1.0\n');
+  const refused = spawnSync(process.execPath, [KIT_SYNC, '--tag', 'v0.1.0'], { cwd: root, encoding: 'utf8' });
+  assert.equal(refused.status, 2, refused.stdout);
+  assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: the version is the one that package-lock.json resolves. Usage: node scripts/kit/kit-sync.mts\n');
 });
 
-test('without --repository, the tag is cloned from DEFAULT_REPOSITORY', (t) => {
-  const { status, clones } = syncCommand(t, ['--tag', 'v0.0.1']);
-  assert.equal(clones.length, 1, JSON.stringify(clones));
-  assert.equal(clones[0].at(-2), DEFAULT_REPOSITORY);
-  assert.equal(status, 1);
-});
-
-test('with --repository, the tag is cloned from the given repository', (t) => {
-  const { clones } = syncCommand(t, ['--tag', 'v0.0.1', '--repository', '/kits/local']);
-  assert.equal(clones.length, 1, JSON.stringify(clones));
-  assert.equal(clones[0].at(-2), '/kits/local');
-});
-
-test('an option without a value, or followed by another option, fails with the usage and status 2 before any clone', (t) => {
-  const usage = /usage: node scripts\/kit\/kit-sync\.mts --tag <tag> \[--repository <url or path>\]/;
-  for (const [args, option] of [
-    [['--tag', 'v0.0.1', '--repository'], '--repository'],
-    [['--repository', '--tag', 'v0.0.1'], '--repository'],
-    [['--tag', '--repository', 'https://example.com/kit'], '--tag'],
-    [['--tag'], '--tag'],
-  ] satisfies [string[], string][]) {
-    const { status, stderr, clones } = syncCommand(t, args);
-    assert.equal(status, 2, `${args.join(' ')}: ${stderr}`);
-    assert.ok(stderr.includes(option), `${args.join(' ')} names ${option}: ${stderr}`);
-    assert.match(stderr, usage, args.join(' '));
-    assert.deepEqual(clones, [], args.join(' '));
-  }
-});
-
-test('a missing --tag fails with status 2 before any clone', (t) => {
-  const { status, stderr, clones } = syncCommand(t, ['--repository', 'https://example.com/kit']);
-  assert.equal(status, 2);
-  assert.match(stderr, /--tag is required/);
-  assert.deepEqual(clones, []);
-});
-
-test('parseSyncArguments reads the tag, and the repository is DEFAULT_REPOSITORY unless --repository is given', () => {
-  assert.deepEqual(parseSyncArguments(['--tag', 'v0.0.1']), { tag: 'v0.0.1', repository: DEFAULT_REPOSITORY });
-  assert.deepEqual(parseSyncArguments(['--tag=v0.0.1', '--repository', '/kits/local']), { tag: 'v0.0.1', repository: '/kits/local' });
-});
-
-test('parseSyncArguments names the option that has no value, and the tag that is missing', () => {
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--repository']), /--repository/);
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--repository', '--tag']), /--repository/);
-  assert.throws(() => parseSyncArguments(['--tag', '', '--repository', 'x']), /--tag is required/);
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--repository=']), /--repository has no value/);
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--bogus']), /Unknown option '--bogus'/);
-});
-
-test('the command syncs a tag from the repository of --repository and prints the changes', (t) => {
-  const repository = kitRepository(t, { 'v0.0.1': { 'kit.json': JSON.stringify({ schema: 1, vendored: [] }) + '\n' } });
-  const root = consumer(t);
-  cpSync(path.join(import.meta.dirname, '../../scripts/kit'), path.join(root, 'scripts/kit'), { recursive: true });
-  // The script is named by its real path: Node runs a module by the path that its import.meta.url gives, after symlinks.
-  const script = path.join(realpathSync(root), 'scripts/kit/kit-sync.mts');
-  const result = spawnSync(process.execPath, [script, '--tag', 'v0.0.1', '--repository', repository], { encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `[kit-sync] added kit.json\n[kit-sync] written ${LOCK}\n[kit-sync] 2 changes from v0.0.1\n`);
-  assert.deepEqual(check(root), []);
-});
-
-test('parseSyncArguments rejects a repeated option and names it, instead of taking one of the values', () => {
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--tag', 'v0.0.2']), /--tag is given more than once\. usage:/);
-  assert.throws(() => parseSyncArguments(['--tag', 'v0.0.1', '--repository', 'a', '--repository', 'b']), /--repository is given more than once\. usage:/);
-  assert.throws(() => parseSyncArguments(['--tag=v0.0.1', '--tag=v0.0.1']), /--tag is given more than once/);
-});
-
-test('a repeated option fails with the usage and status 2 before any clone', (t) => {
-  for (const [args, option] of [
-    [['--tag', 'v0.0.1', '--tag', 'v0.0.2'], '--tag'],
-    [['--tag', 'v0.0.1', '--repository', 'a', '--repository', 'b'], '--repository'],
-  ] satisfies [string[], string][]) {
-    const { status, stderr, clones } = syncCommand(t, args);
-    assert.equal(status, 2, `${args.join(' ')}: ${stderr}`);
-    assert.ok(stderr.includes(`${option} is given more than once`), stderr);
-    assert.match(stderr, /usage: node scripts\/kit\/kit-sync\.mts/);
-    assert.deepEqual(clones, [], args.join(' '));
-  }
+test('the package.json of kit declares its copies: the bootstrap, the release workflow and the principles, each a file of kit', () => {
+  const ROOT = path.join(import.meta.dirname, '../..');
+  const manifest = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const copies: Record<string, string> = manifest.kit?.copies ?? {};
+  const bootstrap = readdirSync(path.join(ROOT, 'scripts/kit/bootstrap')).sort().map(name => `scripts/kit/bootstrap/${name}`);
+  assert.ok(bootstrap.length > 0, 'scripts/kit/bootstrap holds no file');
+  for (const file of ['scripts/kit/kit-bootstrap.mk', ...bootstrap]) assert.equal(copies[file], file, `${file} is not a copy of itself`);
+  assert.equal(copies['.github/workflows/release.yml'], 'workflows/release.yml');
+  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md']) assert.equal(copies[file], file);
+  assert.deepEqual(Object.values(copies).filter(from => !existsSync(path.join(ROOT, from))), [], 'these copies have no file in kit');
+  assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
 });

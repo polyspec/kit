@@ -25,7 +25,7 @@ test('the schemas accept the configuration of the fixture', (t) => {
   const policy = path.join(root, 'config/dependency-policy.json');
   writeFileSync(policy, JSON.stringify({ schema: 2, composerPlatforms: [], pythonManifests: [], pythonLocks: [], npmLocks: [], exceptions: [], extra: true }));
   const findings = checkConfig(root);
-  assert.ok(findings.some(line => line === 'config/dependency-policy.json: $.schema is 2, the schema requires 1. Rule: scripts/kit/schema/dependency-policy.schema.json'), findings.join('\n'));
+  assert.ok(findings.some(line => line === 'config/dependency-policy.json: $.schema is 2, the schema requires 1. Rule: the schema dependency-policy.schema.json of @polyspec/kit'), findings.join('\n'));
   assert.ok(findings.some(line => line.startsWith('config/dependency-policy.json: $.extra is not in the schema')), findings.join('\n'));
   rmSync(policy);
   assert.deepEqual(checkConfig(root), [], 'a repository without a declared configuration file has no finding');

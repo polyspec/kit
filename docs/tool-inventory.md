@@ -165,8 +165,8 @@ no rebuild record for it; this section records the choice.
 
 - `make layout-check` runs `var/tools/bin/alint check --config config/layout.yml .` (offline). `config/toolchain.json` `alint`
   pins the release and the sha256 of the archive of each platform; `install-alint.mts` installs it like uv.
-- `config/layout.kit.yml` holds the common rules and templates. It is a vendored file (kit.json `vendoredFiles`), so kit-sync
-  copies it and kit-check holds its hash; a repository never edits it. It lies in `config/` because alint reads an `extends:`
+- `config/layout.kit.yml` holds the common rules and templates. It is a copy (`kit.copies` of package.json), so kit-sync
+  writes it from the installed package and kit-check compares it byte for byte; a repository never edits it. It lies in `config/` because alint reads an `extends:`
   target only from the folder of the config that names it.
 - `config/layout.yml` of a repository extends it and adds its map: the instances of the templates `no-repository-prefix` and
   `go-module-path` with its name, one `component-ports` instance for each component with ports, and overrides by rule id (its
@@ -770,8 +770,8 @@ fails that run and the release stays a draft. A developer may run it for any rel
 
 ### Release workflow, tools and draft (K38)
 
-- `workflows/release.yml` is the source of `vendoredFiles` in kit.json, which maps it to `.github/workflows/release.yml`: `make kit-sync`
-  copies it and records its sha256 in the lock, and `make kit-check` fails on a difference.
+- `workflows/release.yml` is the source of the copy `.github/workflows/release.yml` (`kit.copies` of package.json): `make kit-sync`
+  writes it from the installed package, and `make kit-check` fails on a difference.
 - `make release-tools` (`scripts/kit/release-tools.mts`) derives the install-tools names from config/release.json: npm for an npm package or
   consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
   `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then

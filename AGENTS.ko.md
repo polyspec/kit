@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 8d1389661195bfcc961ad5f80d310234d46bb7d46ad72f7c26ef4ce224a55383 -->
+<!-- source-sha256: 75db61bb274bb49d174a0241263b8dc41f7025d062218110d106dd3afcab7d42 -->
 # 개발
 
 [English](AGENTS.md)
@@ -7,7 +7,7 @@
 ## 목적
 
 kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, push-gate, 문서, 설치 도구입니다. 저장소는 `scripts/kit/`와
-`tests/kit/`(`kit.json`에 나열)의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
+`tests/kit/` 대신 package `@polyspec/kit`을 설치하고, 그 `package.json`의 `kit.copies`가 나열하는 파일의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
 `config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다.
 
 kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
@@ -54,14 +54,14 @@ subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`
 
 ## 릴리스
 
-kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `kit.json`이 tree의 버전을 가집니다. 저장소는
-`make kit-sync KIT_TAG=vX.Y.Z`로 릴리스를 채택합니다.
+kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `package.json`이 tree의 버전을 가집니다. 저장소는
+package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make kit-sync`를 실행해 릴리스를 채택합니다.
 
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
 이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
 
-kit은 `workflows/release.yml`을 kit.json의 `vendoredFiles`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`을 그 PATH에 올립니다), `make release-publish`(draft release), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
+kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`을 그 PATH에 올립니다), `make release-publish`(draft release), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의
