@@ -1,7 +1,8 @@
 // The release workflow source of kit (workflows/release.yml), which kit-sync vendors to every consumer as
 // .github/workflows/release.yml. The order is fixed: the tools of the repository are installed first; the release is created
-// as a draft; the draft is proved; the release is made public only after the proof passed. kit does not vendor workflows/,
-// so only the kit runs this case.
+// as a draft; the draft is proved; the release is made public only after the proof passed. The steps after release-tools
+// run on the tools it installed, and the Composer proof runs on the PHP of .php-version. kit does not vendor workflows/, so
+// only the kit runs this case.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -43,4 +44,21 @@ test('the release workflow creates the release as a draft, proves it, and makes 
 
 test('no step of the release workflow continues past a failure', () => {
   assert.ok(!lines.some(line => /continue-on-error/.test(line)), 'a failed step fails the run');
+});
+
+test('the release workflow puts the installed tools on PATH right after release-tools', () => {
+  const tools = runs.findIndex(run => /^make release-tools$/.test(run.command));
+  assert.notEqual(tools, -1, 'the workflow runs make release-tools');
+  assert.equal(runs[tools + 1]?.command, 'make release-tools-path', 'release-tools-path is the next run after release-tools');
+});
+
+test('the release workflow sets up the PHP of .php-version without a coverage driver, before release-tools', () => {
+  const uses = lines.findIndex(line => /^\s+- uses: shivammathur\/setup-php@[0-9a-f]{40}$/.test(line));
+  assert.notEqual(uses, -1, 'a setup-php step pinned to a commit');
+  const end = lines.findIndex((line, index) => index > uses && /^\s+- /.test(line));
+  const body = lines.slice(uses, end).join('\n');
+  assert.match(body, /if: \$\{\{ hashFiles\('\.php-version'\) != '' \}\}/);
+  assert.match(body, /php-version-file: \.php-version/);
+  assert.match(body, /coverage: none/);
+  assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
 });
