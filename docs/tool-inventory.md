@@ -135,7 +135,8 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
   uv downloads the python-build-standalone build that its pinned release names for the version (uv 0.12.24 names 3.14.8 of
   20261003), checks the sha256 that uv records for it and installs it into `var/tools/uv-python` as uv lays it out, its links
   included (the minor directory `cpython-3.14-<platform>` is a link of uv to the patch directory). `--no-bin` writes no command
-  outside that directory. `uv python find --managed-python --no-project <version>` names the interpreter, and the wrapper
+  outside that directory. `uv python list --only-installed --managed-python --output-format json <version>` names the
+  interpreter (an empty list: none is installed; a failure of uv fails the install), and the wrapper
   `var/tools/bin/python3` runs it by that absolute path; a second run finds it and installs nothing. uv marks its Python as
   externally managed (PEP 668), so pip installs only into a venv of it. `check-toolchain`, run-tests and release-proof run
   `var/tools/bin/python3`, never the Python of PATH. A package whose tests import its own installed dependencies runs them with

@@ -97,14 +97,17 @@ else if (args[1] === 'pip' && args[2] === 'download') {
 }
 `;
 
-// The uv of a release archive: \`python install\` writes the stub Python under UV_PYTHON_INSTALL_DIR and \`python find\` names it,
+// The uv of a release archive: \`python install\` writes the stub Python under UV_PYTHON_INSTALL_DIR and \`python list\` names it,
 // \`venv\` makes a venv whose home is that Python, and \`pip install\` puts the command of the ruff wheel beside the venv's python.
 const uvSource = (version: string) => `${HEADER}
 const installed = (release) => path.join(process.env.UV_PYTHON_INSTALL_DIR, 'cpython-' + release + '-stub', 'bin', 'python' + release.split('.').slice(0, 2).join('.'));
 if (args[0] === '--version') console.log('uv ' + (process.env.STUB_UV_SHOWS ?? ${JSON.stringify(version)}) + ' (stub 2026-01-01)');
-else if (args[0] === 'python' && args[1] === 'find') {
-  if (!fs.existsSync(installed(args.at(-1)))) process.exit(2);
-  console.log(installed(args.at(-1)));
+else if (args[0] === 'python' && args[1] === 'list' && process.env.STUB_UV_PYTHON_FAILS) {
+  console.error(process.env.STUB_UV_PYTHON_FAILS);
+  process.exit(2);
+} else if (args[0] === 'python' && args[1] === 'list') {
+  const release = args.at(-1);
+  console.log(JSON.stringify(fs.existsSync(installed(release)) ? [{ version: release, path: installed(release) }] : []));
 } else if (args[0] === 'python' && args[1] === 'install') script(installed(args.at(-1)), ${JSON.stringify(PYTHON.slice(PYTHON.indexOf('\n') + 1))});
 else if (args[0] === 'venv') {
   const directory = args.at(-1);

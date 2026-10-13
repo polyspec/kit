@@ -2,21 +2,23 @@
 // (var/tools/bin/uv, install-uv.mts), and writes the wrapper python3 in var/tools/bin. `uv python install` downloads the
 // python-build-standalone build that the pinned uv release names for the version, checks its sha256 and installs it into
 // var/tools/uv-python (UV_PYTHON_INSTALL_DIR of the wrapper) as uv lays it out, its links included; --no-bin writes no
-// command outside that directory. `uv python find` names the installed interpreter, which the wrapper runs by its absolute
+// command outside that directory. `uv python list` names the installed interpreter, which the wrapper runs by its absolute
 // path. uv keeps an installed release, and the Python of the machine is never used or changed.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
-/** The interpreter of the uv-managed Python `version` of the checkout, or undefined when uv has not installed it. */
+/**
+ * The interpreter of the uv-managed Python `version` of the checkout, or undefined when uv has not installed it: the entries
+ * that `uv python list --only-installed --managed-python --output-format json` prints, with each path relative to the checkout.
+ * A failed command throws with its output.
+ */
 function managedPython(uv: string, version: string, root: string): string | undefined {
-  try {
-    const found = execFileSync(uv, ['python', 'find', '--managed-python', '--no-project', version], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    return found || undefined;
-  } catch {
-    return undefined;
-  }
+  const listed: { version: string; path: string }[] = JSON.parse(execFileSync(uv, ['python', 'list', '--only-installed', '--managed-python', '--output-format', 'json', version], { cwd: root, encoding: 'utf8' }));
+  const found = listed.filter(entry => entry.version === version);
+  if (found.length > 1) throw new Error(`${path.relative(root, uv)} python list names ${found.length} installations of Python ${version}: ${found.map(entry => entry.path).join(', ')}`);
+  return found[0] && path.resolve(root, found[0].path);
 }
 
 /** Installs the declared Python `{ version }` with the uv of var/tools and writes the wrapper var/tools/bin/python3. */

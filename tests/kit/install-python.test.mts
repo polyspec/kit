@@ -1,5 +1,5 @@
 // Tests of scripts/kit/install-python.mts and its install-tools step: the Python of pythonBuild is installed by the uv of the
-// checkout (`uv python install --no-bin`) into var/tools/uv-python, found with `uv python find`, wrapped as var/tools/bin/python3,
+// checkout (`uv python install --no-bin`) into var/tools/uv-python, found with `uv python list`, wrapped as var/tools/bin/python3,
 // and kept by a second run. uv is the stub of a release archive (toolchain-stubs.mts); no test reaches the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -25,9 +25,9 @@ test('the declared Python is installed by uv, wrapped as var/tools/bin/python3, 
   assert.match(first.stdout, /\[install-tools\] Python: none is installed in var\/tools\/uv-python; installing 3\.14\.8/);
   assert.match(first.stdout, /\[install-tools\] Python: installed 3\.14\.8 in var\/tools\/uv-python/);
   assert.deepEqual(uvCalls(stubs), [
-    'uv python find --managed-python --no-project 3.14.8',
+    'uv python list --only-installed --managed-python --output-format json 3.14.8',
     'uv python install --no-bin 3.14.8',
-    'uv python find --managed-python --no-project 3.14.8',
+    'uv python list --only-installed --managed-python --output-format json 3.14.8',
   ]);
   const interpreter = path.join(root, 'var/tools/uv-python/cpython-3.14.8-stub/bin/python3.14');
   assert.match(readFileSync(path.join(root, 'var/tools/bin/python3'), 'utf8'), new RegExp(`exec '${interpreter.replaceAll('.', '\\.')}' "\\$@"`));
@@ -44,6 +44,16 @@ test('a Python whose release differs from the declaration fails with both releas
   const result = install(root, toolchainStubs(t, { downloads: { [uv.url]: uv.archive }, extra: { STUB_PYTHON_SHOWS: '3.14.7' } }).env, 'uv', 'python');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /the installation of Python 3\.14\.8 by var\/tools\/bin\/uv prints 3\.14\.7; expected 3\.14\.8/);
+});
+
+test('a uv that cannot read its installed Pythons fails with its error, before any install', (t) => {
+  const uv = uvRelease(t);
+  const root = toolchainCheckout(t, { 'config/toolchain.json': config({ python: '3.14', pythonBuild: { version: '3.14.8' }, uv: uv.declared }) });
+  const stubs = toolchainStubs(t, { downloads: { [uv.url]: uv.archive }, extra: { STUB_UV_PYTHON_FAILS: 'error: the uv cache is broken' } });
+  const result = install(root, stubs.env, 'uv', 'python');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /error: the uv cache is broken/);
+  assert.equal(uvCalls(stubs).filter((line: string) => line.includes('python install')).length, 0, 'nothing is installed');
 });
 
 test('Python without the installed uv names the install of uv', (t) => {
