@@ -3,44 +3,49 @@
 // Whether the newest version equals the version of the manifests is checked by the release check, which reads the manifests.
 
 import { finding } from './findings.mts';
+import type { Finding } from './findings.mts';
 import { scanFences } from './markdown.mts';
 import { compareParts, dottedParts } from './version.mts';
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 
 /** The `## ` headings of `text` with their lines, outside fenced blocks. */
-export function sections(text) {
+export function sections(text: string): { title: string; line: number }[] {
   const { fenced } = scanFences(text);
   return text.split('\n').flatMap((line, index) => {
     const heading = fenced[index] ? null : /^## (.*)$/.exec(line);
-    return heading ? [{ title: heading[1].trim(), line: index + 1 }] : [];
+    return heading ? [{ title: heading[1]!.trim(), line: index + 1 }] : []; // The group always takes part in a match.
   });
 }
 
-const changelogFinding = (line, message) => finding(line, 'changelog', message);
+const changelogFinding = (line: number, message: string): Finding => finding(line, 'changelog', message);
 
 /** The findings of one changelog `text`. */
-export function changelogFindings(text) {
-  const found = [];
+export function changelogFindings(text: string): Finding[] {
+  const found: Finding[] = [];
   const headings = sections(text);
   if (headings[0]?.title !== 'Unreleased') {
     found.push(changelogFinding(headings[0]?.line ?? 1, `the first section is ${headings[0] ? `## ${headings[0].title}` : 'missing'}; write the changes that no release contains under ## Unreleased at the top`));
   }
   const unreleased = headings.filter(heading => heading.title === 'Unreleased');
-  if (unreleased.length > 1) found.push(changelogFinding(unreleased[1].line, `## Unreleased appears ${unreleased.length} times; keep one at the top`));
+  // The length check makes the second heading exist.
+  if (unreleased.length > 1) found.push(changelogFinding(unreleased[1]!.line, `## Unreleased appears ${unreleased.length} times; keep one at the top`));
   const released = headings.filter(heading => heading.title !== 'Unreleased');
   for (const heading of released) {
     if (!SEMVER.test(heading.title)) found.push(changelogFinding(heading.line, `the section ## ${heading.title} is neither ## Unreleased nor a released version X.Y.Z`));
   }
   const versions = released.filter(heading => SEMVER.test(heading.title));
   versions.slice(1).forEach((heading, index) => {
-    if (compareParts(dottedParts(versions[index].title), dottedParts(heading.title)) <= 0) found.push(changelogFinding(heading.line, `the section ## ${heading.title} follows ## ${versions[index].title}; the newer version comes first and each version appears once`));
+    // versions[index] precedes heading, so it exists.
+    const previous = versions[index]!;
+    // Every title of versions matches SEMVER, so its parts are not null.
+    if (compareParts(dottedParts(previous.title)!, dottedParts(heading.title)!) <= 0) found.push(changelogFinding(heading.line, `the section ## ${heading.title} follows ## ${previous.title}; the newer version comes first and each version appears once`));
   });
   return found;
 }
 
 /** The findings of the Korean changelog `korean` against the English one `english`: the same sections in the same order. */
-export function changelogPairFindings(english, korean) {
+export function changelogPairFindings(english: string, korean: string): Finding[] {
   const en = sections(english).map(heading => heading.title);
   const ko = sections(korean).map(heading => heading.title);
   if (en.join('\n') === ko.join('\n')) return [];

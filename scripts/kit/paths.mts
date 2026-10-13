@@ -12,4 +12,6 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  * files before the comparison, so a command named through a link of its directory is that module; the comparison never reads a
  * link as a different file, which would make the tool skip its work and exit 0.
  */
-export const isMain = moduleUrl => Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(moduleUrl));
+export const isMain = (moduleUrl: string): boolean =>
+  // Boolean() above checked process.argv[1]; TypeScript does not narrow through Boolean().
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]!) === realpathSync(fileURLToPath(moduleUrl));
