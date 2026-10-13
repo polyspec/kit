@@ -224,6 +224,21 @@ function archiveRelease(t: Pick<TestContext, 'after'>, tool: { name: string; tar
   return { declared, url: tool.url(version, target), archive, key, target, folder };
 }
 
+/**
+ * The wrapper var/tools/bin/mise of the checkout `root` as a stub: it appends its arguments to STUB_LOG and prints `output`
+ * for `which`; with STUB_MISE_FAILS it fails, as a `mise install --locked` that mise.lock does not allow.
+ */
+export function miseStub(root: string, output: Record<string, string> = {}) {
+  const file = path.join(root, 'var/tools/bin/mise');
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${HEADER}
+if (process.env.STUB_MISE_FAILS) { console.error('mise ERROR ' + process.env.STUB_MISE_FAILS); process.exit(1); }
+const shown = ${JSON.stringify(output)}[args.join(' ')];
+if (shown !== undefined) console.log(shown);
+`, { mode: 0o755 });
+  return file;
+}
+
 /** The directory of stubs and the environment that puts them first on PATH; the directory is removed with \`t.after\`. */
 export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, extra = {} }: { downloads?: Record<string, string>; extra?: Record<string, string> } = {}) {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-toolchain-stubs-')));

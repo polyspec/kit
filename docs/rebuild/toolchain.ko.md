@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: 967c6dee50a32d7bc1b5627d4de47fbd667e14aaa72c2c5dfe1dc2f6809ce0e5 -->
+<!-- source-sha256: c1977d5d5befe0a094d5b7df38d2da7e65257b90110371f7ca1b8dcf3f8d7309 -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -9,7 +9,8 @@ toolchain의 검증은 **맞는 도구 없음**입니다. 이 기록은 남는 �
 
 ## 대상
 
-- `scripts/kit/bootstrap/bootstrap-npm.mts`
+- `scripts/kit/bootstrap/bootstrap.mts`
+- `scripts/kit/bootstrap/install-mise.mts`
 - `scripts/kit/bootstrap/install-npm.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
 - `scripts/kit/check-toolchain.mts`

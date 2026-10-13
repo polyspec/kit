@@ -2,8 +2,8 @@
 // installs the mise release that config/toolchain.json mise declares into var/tools/mise-release. The archive of the platform
 // is downloaded with its sha256 checked and unpacked, and the wrapper var/tools/bin/mise keeps every directory of mise, and the
 // Go and uv caches of its installs, under var/tools/mise, trusts the config of the checkout, installs only what mise.lock pins
-// and never on its own, and has uv use the Python of mise and Go check every module against the checksum database. A second run installs nothing; another
-// digest is refused with both digests. curl is a PATH stub that copies the archive of the test, so no test reaches a network.
+// and never on its own, keeps uv from downloading a Python, and has Go check every module against the checksum database. A
+// second run installs nothing; another digest is refused with both digests. curl is a PATH stub that copies the archive of the test, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -70,7 +70,6 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_TRUSTED_CONFIG_PATHS: root,
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
-    UV_PYTHON: path.join(tools, 'mise/shims/python3'),
     UV_PYTHON_DOWNLOADS: 'never',
     UV_CACHE_DIR: path.join(tools, 'mise/cache/uv'),
     GOPATH: path.join(tools, 'mise/go'),

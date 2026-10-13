@@ -6,7 +6,7 @@
     "scripts/kit/*.mk"
   ],
   "tools": {
-    "scripts/kit/bootstrap/bootstrap-npm.mts": {
+    "scripts/kit/bootstrap/bootstrap.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
     },
@@ -17,6 +17,10 @@
     "scripts/kit/bootstrap/files.mts": {
       "kind": "ecosystem",
       "tool": "node:fs"
+    },
+    "scripts/kit/bootstrap/install-mise.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/toolchain.md"
     },
     "scripts/kit/bootstrap/install-npm.mts": {
       "kind": "record",
@@ -132,7 +136,7 @@
     },
     "scripts/kit/install-composer-project.mts": {
       "kind": "ecosystem",
-      "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint), with the Composer that install-composer.mts pins (K77)"
+      "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint), with the Composer of mise.toml (K77, K127)"
     },
     "scripts/kit/install-composer.mts": {
       "kind": "replaced",
@@ -179,8 +183,8 @@
       "tool": "go build of scripts/kit/symbols/go at its go.mod and go.sum, and composer install of the scripts/kit/symbols/php lock (K75)"
     },
     "scripts/kit/install-tools.mts": {
-      "kind": "replaced",
-      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+      "kind": "ecosystem",
+      "tool": "mise install --locked of mise.toml and mise.lock (K127), then the installs of kit that mise does not cover: the wheel backend, the Composer projects and the symbol extractors"
     },
     "scripts/kit/install-uv.mts": {
       "kind": "replaced",
@@ -241,6 +245,10 @@
     "scripts/kit/markdown.mts": {
       "kind": "ecosystem",
       "tool": "mdast-util-from-markdown with micromark-extension-gfm and the frontmatter extension reads the Markdown, github-slugger the GitHub anchors and @mdit-vue/shared slugify the VitePress anchors (K120)"
+    },
+    "scripts/kit/mise-tools.mts": {
+      "kind": "ecosystem",
+      "tool": "the shims of mise (var/tools/mise/shims), which run the releases of mise.lock (K127)"
     },
     "scripts/kit/node-reporter.mts": {
       "kind": "ecosystem",
@@ -340,7 +348,7 @@
     },
     "scripts/kit/release-tools.mts": {
       "kind": "ecosystem",
-      "tool": "the installers of the release toolchains"
+      "tool": "install-tools (mise install --locked) and rustup for the release toolchains"
     },
     "scripts/kit/release-wheel.mts": {
       "kind": "ecosystem",
@@ -405,6 +413,14 @@
     "scripts/kit/toolchain-lint.mts": {
       "kind": "policy",
       "reason": "reads the declarations of the lint tools in config/toolchain.json and config/php-lint/composer.lock after the bootstrap (K77); the install of each tool has its own class here"
+    },
+    "scripts/kit/toolchain-lock.mts": {
+      "kind": "ecosystem",
+      "tool": "mise lock for linux-x64 and macos-arm64, and mise install --locked of uv and python for the uv lock of a pypi: tool (K127)"
+    },
+    "scripts/kit/toolchain-mise.mts": {
+      "kind": "policy",
+      "reason": "polyspec's rule that mise.lock pins every tool of mise.toml by the sha256 of its archive of each platform, a go: tool excepted for the checksum database of Go; mise.toml and mise.lock are read by smol-toml (K127)"
     },
     "scripts/kit/toolchain-pins.mts": {
       "kind": "policy",

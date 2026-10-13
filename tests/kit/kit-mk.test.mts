@@ -3,11 +3,12 @@
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -33,6 +34,16 @@ test('kit.mk stops while KIT or KIT_EXT is unset', () => {
     assert.equal(dry.status, 2, `${args.join(' ')}: ${dry.stdout}`);
     assert.match(dry.stderr, /kit\.mk needs KIT and KIT_EXT; include it through kit-bootstrap\.mk, or set both as the Makefile of kit does/, args.join(' '));
   }
+});
+
+test('every recipe runs with the environment of mise of the checkout, and with var/tools/bin and the shims first on PATH (K127)', (t) => {
+  // make names the directory by its real path.
+  const root = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n` }));
+  const shown = spawnSync('make', ['--no-print-directory', 'show'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: '/usr/bin:/bin' } });
+  assert.equal(shown.status, 0, shown.stderr);
+  const env = Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+  for (const [name, value] of Object.entries(miseEnvironment(root))) assert.equal(env[name], value, name);
+  assert.equal(env.PATH, [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
 });
 
 test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {

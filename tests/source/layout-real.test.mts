@@ -1,9 +1,9 @@
-// The real layout check: make layout-check runs the alint of var/tools (make install-tools TOOLS=alint) on a repository whose
+// The real layout check: make layout-check runs the alint of mise.toml (make install-tools) on a repository whose
 // config/layout.yml extends the config/layout.kit.yml of this checkout with its map. A repository that follows S5, S7 and S9
 // passes; each violation planted into a copy of it fails with the rule that names it. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
 const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json', 'config/composer.schema.json', 'config/cargo.schema.json'];
-const ALINT = path.join(ROOT, 'var/tools/bin/alint');
+// The alint binary that mise installed for this checkout, which the shim of a sandbox runs.
+const ALINT = spawnSync(path.join(ROOT, 'var/tools/bin/mise'), ['which', 'alint'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
 
 // The map of the repository demo: the component codec has ports, and the root tests/ holds the parity runner.
 const LAYOUT = `version: 1
@@ -117,9 +118,9 @@ function write(root: string, files: Record<string, string>) {
 }
 
 /**
- * A repository in a temporary folder: GOOD with `files` over it, the layout files and kit.mk of this checkout, the alint of
- * this checkout as its var/tools/bin/alint, and a folder outside it that the planted paths name, so a path leaves a
- * repository whose target exists.
+ * A repository in a temporary folder: GOOD with `files` over it, the layout files and kit.mk of this checkout, a script that
+ * runs the alint of this checkout as its shim var/tools/mise/shims/alint, and a folder outside it that the planted paths
+ * name, so a path leaves a repository whose target exists.
  */
 function repository(t: { after: (fn: () => void) => void }, files: Record<string, string> = {}): string {
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-layout-real-'));
@@ -129,8 +130,8 @@ function repository(t: { after: (fn: () => void) => void }, files: Record<string
   write(root, { ...GOOD, ...files });
   for (const file of KIT_FILES) copyFileSync(path.join(ROOT, file), path.join(root, file));
   cpSync(path.join(ROOT, 'scripts/kit/kit.mk'), path.join(root, 'scripts/kit/kit.mk'));
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  symlinkSync(ALINT, path.join(root, 'var/tools/bin/alint'));
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/mise/shims/alint'), `#!/bin/sh\nexec '${ALINT}' "$@"\n`, { mode: 0o755 });
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   return root;
@@ -139,14 +140,14 @@ function repository(t: { after: (fn: () => void) => void }, files: Record<string
 const layoutCheck = (root: string) => spawnSync('make', ['--no-print-directory', 'layout-check'], { cwd: root, encoding: 'utf8' });
 
 test('make layout-check passes on a repository that follows the layout', (t) => {
-  assert.ok(existsSync(ALINT), `${path.relative(ROOT, ALINT)} is missing; make install-tools TOOLS=alint installs the alint of config/toolchain.json`);
+  assert.ok(ALINT !== '' && existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
   const result = layoutCheck(repository(t));
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /all rules passed/);
 });
 
 test('make layout-check fails on each planted violation with the rule that names it', (t) => {
-  assert.ok(existsSync(ALINT), `${path.relative(ROOT, ALINT)} is missing; make install-tools TOOLS=alint installs the alint of config/toolchain.json`);
+  assert.ok(ALINT !== '' && existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
   for (const { rule, files } of VIOLATIONS) {
     const result = layoutCheck(repository(t, files));
     const output = `${result.stdout}${result.stderr}`;

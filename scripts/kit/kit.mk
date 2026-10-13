@@ -6,6 +6,20 @@ $(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or se
 endif
 ONLINE ?=
 
+# The tools of mise.toml (K127) run from the shims of mise, var/tools/mise/shims, which need the environment of mise of the
+# checkout (miseEnvironment of scripts/kit/bootstrap/install-mise.mts): every recipe runs with it, and with var/tools/bin
+# (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH.
+export MISE_DATA_DIR := $(CURDIR)/var/tools/mise
+export MISE_CACHE_DIR := $(CURDIR)/var/tools/mise/cache
+export MISE_STATE_DIR := $(CURDIR)/var/tools/mise/state
+export MISE_CONFIG_DIR := $(CURDIR)/var/tools/mise/config
+export MISE_TRUSTED_CONFIG_PATHS := $(CURDIR)
+export MISE_LOCKED := 1
+export MISE_AUTO_INSTALL := 0
+export UV_PYTHON_DOWNLOADS := never
+MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_TRUSTED_CONFIG_PATHS MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS
+export PATH := $(CURDIR)/var/tools/bin:$(CURDIR)/var/tools/mise/shims:$(PATH)
+
 .PHONY: kit-sync kit-check
 
 kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its package.json), the version of package-lock.json; offline
@@ -21,30 +35,35 @@ cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the r
 
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 	$(ONLINE) node $(KIT)/check-cargo-downloads.$(KIT_EXT) --fetch
-# Toolchains (K8.2): install-tools installs the declared npm, Go, ruff and uv (with the sha256 of their wheels), Composer (with a sha256), cargo-audit and
-# govulncheck into var/tools; ONLINE, because it downloads. Nothing on the machine changes. Put var/tools/bin first on PATH.
-# toolchain-check compares the running tools with the declarations and fails with the expected and the running version.
-.PHONY: install-tools toolchain-check
+# Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
+# tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend, the Composer
+# projects, the symbol extractors); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
+# the checkout changes. toolchain-check compares the running tools with the declarations and fails with the expected and the
+# running version.
+.PHONY: install-tools toolchain-lock toolchain-check
 
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
-install-tools: ## Install the toolchains that the checkout declares into var/tools; TOOLS limits the tools; ONLINE
+install-tools: ## Install the tools of mise.lock with mise, and the tools that mise does not install, into var/tools; TOOLS=npm runs the bootstrap; ONLINE
 ifeq ($(TOOLS),npm)
-	$(ONLINE) node $(KIT)/bootstrap/bootstrap-npm.$(KIT_EXT)
+	$(ONLINE) node $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
 	$(ONLINE) node $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 endif
+
+toolchain-lock: ## Write mise.lock: the digests of the tools of mise.toml for linux-x64 and macos-arm64, with mise lock; ONLINE
+	$(ONLINE) node $(KIT)/toolchain-lock.$(KIT_EXT)
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
 	node $(KIT)/check-toolchain.$(KIT_EXT) $(TOOLS)
 
 # ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
-# alint (config/toolchain.json alint, installed by install-tools) checks the tree against config/layout.yml, which extends
+# alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
 # the common rules of kit in the vendored config/layout.kit.yml with the map of the repository.
 .PHONY: layout-check
-layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of var/tools; offline
-	@test -x var/tools/bin/alint || { echo "layout-check: var/tools/bin/alint is missing; run make install-tools TOOLS=alint"; exit 1; }
-	var/tools/bin/alint check --config config/layout.yml --color never --compact .
+layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml; offline
+	@test -x var/tools/mise/shims/alint || { echo "layout-check: var/tools/mise/shims/alint is missing; run make install-tools"; exit 1; }
+	var/tools/mise/shims/alint check --config config/layout.yml --color never --compact .
 # ---- The gates: Git hooks, push gate and guard of the full run ------------------------------------------------------
 # scripts/kit/git-hooks.mts, push-gate.mts and full-run.mts read config/checklist.json. The target that runs the full suite
 # is the repository's own: it calls `node $(KIT)/full-run.$(KIT_EXT) run <target>...` with the targets of its suite.
@@ -118,9 +137,12 @@ release-tools: ## Install the tools that config/release.json needs for the relea
 	$(ONLINE) node $(KIT)/release-tools.$(KIT_EXT)
 
 
-release-tools-path: ## Append var/tools/bin to GITHUB_PATH for the steps that follow; the release workflow runs it after release-tools
+release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH and the environment of mise to GITHUB_ENV for the steps that follow; the release workflow runs it after release-tools
 	@test -n "$$GITHUB_PATH" || { echo 'release-tools-path: GITHUB_PATH is not set; run it in the release workflow between steps'; exit 1; }
+	@test -n "$$GITHUB_ENV" || { echo 'release-tools-path: GITHUB_ENV is not set; run it in the release workflow between steps'; exit 1; }
+	@echo "$$PWD/var/tools/mise/shims" >> "$$GITHUB_PATH"
 	@echo "$$PWD/var/tools/bin" >> "$$GITHUB_PATH"
+	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
 
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }

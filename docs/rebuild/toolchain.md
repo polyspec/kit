@@ -9,7 +9,8 @@ on 2026-10-13.
 
 ## Covers
 
-- `scripts/kit/bootstrap/bootstrap-npm.mts`
+- `scripts/kit/bootstrap/bootstrap.mts`
+- `scripts/kit/bootstrap/install-mise.mts`
 - `scripts/kit/bootstrap/install-npm.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
 - `scripts/kit/check-toolchain.mts`

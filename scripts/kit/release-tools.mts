@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json:
 //
-//   npm, composer, uv, python, pythonBackend, go   install-tools installs them into var/tools: a package or consumer of that
-//                                                  kind, a wheel (uv, the python that uv installs and its build backend) or a Go module
-//   rust                                       a git-tag manifest of the proof: the channel of rust-toolchain.toml is installed
-//                                              with rustup, as make install does, and check-toolchain checks rustc against it
+//   install-tools  a Composer package or consumer, a wheel or a Go module: install-tools installs the tools of mise.lock (the
+//                  Composer, the Python and the Go of mise.toml) and the build backend of the wheels into var/tools; npm, which
+//                  an npm package needs, is the npm of the bootstrap, which installed the packages that this command runs from
+//   rust           a git-tag manifest of the proof: the channel of rust-toolchain.toml is installed with rustup, as make
+//                  install does, and check-toolchain checks rustc against it
 //
 // A step that fails stops the command with its output and the fix. Nothing is listed by hand: the configuration of a repository
 // decides the tools, so the proof does not fail on a tool it did not install.
@@ -26,20 +27,11 @@ export type ToolsConfig = {
 /** The output of a step: `print` receives the stdout of the command and `error` its stderr. */
 type Output = { print: (text: string) => void; error: (text: string) => void };
 
-/** The install-tools names that the configuration needs, in the order of install-tools, and whether it needs Rust. */
+/** Whether the configuration needs the tools of install-tools (a Composer package or consumer, a wheel, a Go module) and Rust. */
 export function toolsFor(config: ToolsConfig) {
   const kinds = new Set(config.packages.map(({ kind }) => kind));
-  const needed = new Set<string>();
-  if (kinds.has('npm') || config.consumers?.npm) needed.add('npm');
-  if (kinds.has('composer') || config.consumers?.composer) needed.add('composer');
-  if (kinds.has('wheel') || config.consumers?.wheel) {
-    needed.add('uv');
-    needed.add('python');
-    needed.add('pythonBackend');
-  }
-  if (Object.keys(config.goModules).length) needed.add('go');
-  const order = ['npm', 'composer', 'uv', 'python', 'pythonBackend', 'go'];
-  return { install: order.filter(name => needed.has(name)), rust: Object.keys(config.proof?.gitTag ?? {}).length > 0 };
+  const install = kinds.has('composer') || kinds.has('wheel') || Boolean(config.consumers?.composer) || Boolean(config.consumers?.wheel) || Object.keys(config.goModules).length > 0;
+  return { install, rust: Object.keys(config.proof?.gitTag ?? {}).length > 0 };
 }
 
 /** Runs `command` in `root`, forwards its output on success and failure, and stops with the status and output when it fails. */
@@ -74,15 +66,15 @@ export function main(argv: string[], { root = ROOT, env = process.env, print = c
   try {
     const { config } = context(root, { env });
     const { install, rust } = toolsFor(config);
-    if (install.length) {
-      print(`[release-tools] install-tools ${install.join(' ')}`);
-      step(process.execPath, [siblingTool(import.meta.url, 'install-tools'), ...install], { cwd: root, env, print, error });
+    if (install) {
+      print('[release-tools] install-tools');
+      step(process.execPath, [siblingTool(import.meta.url, 'install-tools')], { cwd: root, env, print, error });
     }
     if (rust) {
       print('[release-tools] rust: rustup installs the channel of rust-toolchain.toml');
       prepareRust(root, { env, print, error });
     }
-    print(`[release-tools] the tools of the release are ready: ${[...install, ...(rust ? ['rust'] : [])].join(' ') || 'none'}`);
+    print(`[release-tools] the tools of the release are ready: ${[...(install ? ['install-tools'] : []), ...(rust ? ['rust'] : [])].join(' ') || 'none'}`);
   } catch (failure) {
     error(`[release-tools] failed: ${stepFailure(failure)}`);
     return 1;
