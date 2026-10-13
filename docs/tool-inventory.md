@@ -316,8 +316,8 @@ Dropped behaviors:
 
 `scripts/kit/run-tests.mjs` replaces `run-tests.mjs` of template, crudui and hyper and `test.py` of ordered-json. Its progress
 reporters are `test-progress.mjs`, `node-reporter.mjs` and `vitest-reporter.mjs`, and its parsers of the go, cargo, PHPUnit and
-unittest output are in `test-output.mjs`, which the language-parity check reads with the same functions (K47); `test-load-check.mjs` is preloaded into
-each node test file and `test-hooks.mjs` is the `setup` and `teardown` helper of tests.
+unittest output are in `test-output.mjs`, which the language-parity check reads with the same functions (K47); `test-exit-deadline.mjs` is preloaded into
+each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mjs` is the `setup` and `teardown` helper of tests.
 
 Merged behaviors:
 
