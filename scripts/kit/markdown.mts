@@ -165,6 +165,23 @@ export function headingAnchors(text: string, { site = false }: { site?: boolean 
   return result;
 }
 
+/**
+ * A heading of the top level of a document: its depth, its title as text, its first and last line, and the HTML of the
+ * block right before it (such as an anchor `<a id="x"></a>`), or null when the block before it is no HTML.
+ */
+export type Heading = { depth: number; title: string; line: number; endLine: number; htmlBefore: string | null };
+
+/** The headings of the top level of `text` in order, ATX and setext; a `#` line in a fenced block or an HTML block is none. */
+export function headings(text: string): Heading[] {
+  const blocks = parse(text).children;
+  return blocks.flatMap((node, index) => {
+    if (node.type !== 'heading') return [];
+    const before = blocks[index - 1];
+    const place = placeOf(node);
+    return [{ depth: node.depth, title: toString(node, { includeHtml: false }).trim(), line: place.startLine, endLine: place.endLine, htmlBefore: before?.type === 'html' ? before.value : null }];
+  });
+}
+
 /** A row of a GFM table: its line and the source of each cell, trimmed, as the author wrote it (markup and escapes kept). */
 export type TableRow = { line: number; cells: string[] };
 

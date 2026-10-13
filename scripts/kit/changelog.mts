@@ -5,17 +5,13 @@
 import semver from 'semver';
 import { finding } from './findings.mts';
 import type { Finding } from './findings.mts';
-import { scanFences } from './markdown.mts';
+import { headings } from './markdown.mts';
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 
-/** The `## ` headings of `text` with their lines, outside fenced blocks. */
+/** The level-2 headings of `text` with their lines, as the Markdown tree reads them (markdown.mts). */
 export function sections(text: string): { title: string; line: number }[] {
-  const { fenced } = scanFences(text);
-  return text.split('\n').flatMap((line, index) => {
-    const heading = fenced[index] ? null : /^## (.*)$/.exec(line);
-    return heading ? [{ title: heading[1]!.trim(), line: index + 1 }] : []; // The group always takes part in a match.
-  });
+  return headings(text).filter(heading => heading.depth === 2).map(({ title, line }) => ({ title, line }));
 }
 
 const changelogFinding = (line: number, message: string): Finding => finding(line, 'changelog', message);
