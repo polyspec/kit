@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { builtCopy, run, walk } from './checkout.mts';
+import { builtCopy, NPM, packedKit, run, walk } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -42,15 +42,15 @@ test('npm pack packs exactly the files of package.json files and the files npm a
   });
   // npm adds the manifest and every README* and LICENSE* file of the package root whatever files says.
   const expected = [...new Set([...declared, 'package.json', 'README.md', 'README.ko.md', 'LICENSE'])].sort();
-  const [packed] = JSON.parse(run('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], copy));
-  assert.deepEqual(packed.files.map((file: { path: string }) => file.path).sort(), expected);
+  const packed = packedKit(run(NPM, ['pack', '--dry-run', '--json', '--ignore-scripts'], copy));
+  assert.deepEqual(packed.files.map(file => file.path).sort(), expected);
 });
 
 test('a repository that installs the tarball imports @polyspec/kit/tracked-files and runs check-documents from dist as from the source', (t) => {
   const copy = builtCopy(t);
   const packs = mkdtempSync(path.join(tmpdir(), 'kit-pack-'));
   t.after(() => rmSync(packs, { recursive: true, force: true }));
-  const [packed] = JSON.parse(run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', packs], copy));
+  const packed = packedKit(run(NPM, ['pack', '--json', '--ignore-scripts', '--pack-destination', packs], copy));
   const consumer = path.join(packs, 'consumer');
   const installed = path.join(consumer, 'node_modules/@polyspec/kit');
   mkdirSync(installed, { recursive: true });

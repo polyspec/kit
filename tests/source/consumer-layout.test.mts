@@ -9,10 +9,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { builtCopy, commitSandbox, run } from './checkout.mts';
+import { builtCopy, commitSandbox, NPM, packedKit, run } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const NPM = path.join(ROOT, 'var/tools/bin/npm');
 const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const NODE = process.versions.node;
 // The packages that kit depends on at run time, as its package-lock resolves them: [node_modules/<name>, entry].
@@ -25,9 +24,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const work = mkdtempSync(path.join(tmpdir(), 'kit-consumer-'));
   t.after(() => rmSync(work, { recursive: true, force: true }));
   // The tarball of kit and an npm cache that holds it, so the install reads no registry and no release.
-  // npm 12 prints the packed packages by name.
-  const packed: { version: string; filename: string; integrity: string } | undefined = JSON.parse(run(NPM, ['pack', '--json', '--ignore-scripts', '--pack-destination', work], copy))['@polyspec/kit'];
-  assert.ok(packed, 'npm pack printed no @polyspec/kit');
+  const packed = packedKit(run(NPM, ['pack', '--json', '--ignore-scripts', '--pack-destination', work], copy));
   const tarball = path.join(work, packed.filename);
   const cache = path.join(work, 'npm-cache');
   run(NPM, ['cache', 'add', tarball, '--cache', cache], work);

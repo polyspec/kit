@@ -10,6 +10,16 @@ import { initRepository } from '../kit/sandbox-repository.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
+/** The npm of packageManager, which make install-tools TOOLS=npm installs; the tests pack with it, not with a machine npm. */
+export const NPM = path.join(ROOT, 'var/tools/bin/npm');
+
+/** The entry of @polyspec/kit in the output of `npm pack --json`, which npm 12 keys by the name of the package. */
+export function packedKit(output: string): { version: string; filename: string; integrity: string; files: { path: string }[] } {
+  const packed = JSON.parse(output)['@polyspec/kit'];
+  assert.ok(packed, `npm pack --json names no @polyspec/kit: ${output}`);
+  return packed;
+}
+
 // The files below `directory`, relative to it, in sorted order.
 export function walk(directory: string, prefix = ''): string[] {
   return readdirSync(path.join(directory, prefix), { withFileTypes: true }).flatMap(entry => {
