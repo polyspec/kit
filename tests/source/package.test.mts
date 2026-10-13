@@ -1,5 +1,5 @@
 // kit as the npm package @polyspec/kit (K71-2): make build emits the tools of scripts/kit as JavaScript into dist/ with
-// kit.mk and the schemas, npm pack packs exactly the declared files, and a repository that installs the tarball imports
+// kit.mk, the schemas and the symbol extractors, npm pack packs exactly the declared files, and a repository that installs the tarball imports
 // the exported module and runs a tool from dist with the result of the source. The checks run on a copy of the checkout,
 // so neither the build nor the pack writes into this checkout.
 import assert from 'node:assert/strict';
@@ -26,6 +26,10 @@ test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imp
   const schemas = walk(path.join(ROOT, 'scripts/kit/schema'));
   assert.ok(schemas.length > 0);
   for (const schema of schemas) assert.equal(readFileSync(path.join(copy, 'dist/schema', schema), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/schema', schema), 'utf8'), `dist/schema/${schema}`);
+  // The symbol extractors of parity are programs of their ecosystems, which dist/parity-symbols.mjs runs from dist/symbols.
+  const extractors = walk(path.join(ROOT, 'scripts/kit/symbols'));
+  assert.ok(extractors.length > 0);
+  for (const extractor of extractors) assert.equal(readFileSync(path.join(copy, 'dist/symbols', extractor), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/symbols', extractor), 'utf8'), `dist/symbols/${extractor}`);
 });
 
 test('npm pack packs exactly the files of package.json files and the files npm always packs', (t) => {

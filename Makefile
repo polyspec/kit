@@ -22,11 +22,12 @@ kit-fixture-record: ## Write the review record of tests/kit/fixture with the stu
 	node tests/kit/record-fixture.mts
 
 .PHONY: build typecheck
-build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk and the schemas; offline after npm ci
+build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors; offline after npm ci
 	rm -rf dist
 	node_modules/.bin/tsc -p tsconfig.build.json
 	cp scripts/kit/kit.mk dist/kit.mk
 	cp -R scripts/kit/schema dist/schema
+	cp -R scripts/kit/symbols dist/symbols
 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	node_modules/.bin/tsc -p tsconfig.json
