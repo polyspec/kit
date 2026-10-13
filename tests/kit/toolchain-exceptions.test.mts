@@ -80,8 +80,8 @@ test('the schema of config/toolchain.json requires every field of an exception a
   const { retry, ...noRetry } = SVELTE;
   assert.equal(retry, 'the Svelte tools admit TypeScript 7');
   assert.deepEqual(validate({ schema: 1, exceptions: [noRetry, { ...NIGHTLY, tool: 'java', reason: '' }] }, SCHEMA), [
-    '$.exceptions[0] lacks retry, the schema requires it',
-    '$.exceptions[1].tool is "java", the schema allows "node", "python", "php", "go", "rust", "typescript"',
-    '$.exceptions[1].reason is "", the schema requires at least 1 characters',
+    `/exceptions/0 must have required property 'retry' {"missingProperty":"retry"}`,
+    '/exceptions/1/tool must be equal to one of the allowed values {"allowedValues":["node","python","php","go","rust","typescript"]}, value "java"',
+    '/exceptions/1/reason must NOT have fewer than 1 characters {"limit":1}, value ""',
   ]);
 });
