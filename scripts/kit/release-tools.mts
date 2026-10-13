@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { context } from './release.mts';
 import { Stop } from './process.mts';
+import { siblingTool } from './paths.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,7 +62,7 @@ export function prepareRust(root: string, { env = process.env, print = console.l
   const file = path.join(root, 'rust-toolchain.toml');
   if (!existsSync(file)) throw new Stop('rust-toolchain.toml is missing; the git-tag proof needs the Rust channel that it declares. Fix: write channel in rust-toolchain.toml');
   step('rustup', ['toolchain', 'install', '--no-self-update'], { cwd: root, env, print, error });
-  step(process.execPath, [path.join(root, 'scripts/kit/check-toolchain.mts'), 'rust'], { cwd: root, env, print, error });
+  step(process.execPath, [siblingTool(import.meta.url, 'check-toolchain'), 'rust'], { cwd: root, env, print, error });
 }
 
 const USAGE = 'usage: node scripts/kit/release-tools.mts';
@@ -77,7 +78,7 @@ export function main(argv: string[], { root = path.resolve(HERE, '../..'), env =
     const { install, rust } = toolsFor(config);
     if (install.length) {
       print(`[release-tools] install-tools ${install.join(' ')}`);
-      step(process.execPath, [path.join(root, 'scripts/kit/install-tools.mts'), ...install], { cwd: root, env, print, error });
+      step(process.execPath, [siblingTool(import.meta.url, 'install-tools'), ...install], { cwd: root, env, print, error });
     }
     if (rust) {
       print('[release-tools] rust: rustup installs the channel of rust-toolchain.toml');

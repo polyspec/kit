@@ -244,7 +244,7 @@ test('the command line locks, installs, ends a Go module tag without an install 
 
 test('make release-consumer-lock and release-consumer take the tag of the environment', (t) => {
   const box = consumerSandbox(t);
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   for (const target of ['release-consumer', 'release-consumer-lock']) {
     const without = make(target);
     assert.equal(without.status, 2);

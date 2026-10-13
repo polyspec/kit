@@ -751,7 +751,7 @@ test('a declaration that names what does not exist or holds a stale entry fails,
 test('make parity-check and parity-declarations-check pass without a finding; parity.mts exits 1 on one', TIMEOUT, (t) => {
   const root = repository(t);
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  const make = (target: string) => spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', target], { cwd: root, env: ENV, encoding: 'utf8' });
+  const make = (target: string) => spawnSync('make', ['--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', target], { cwd: root, env: ENV, encoding: 'utf8' });
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);

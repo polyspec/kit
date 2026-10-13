@@ -24,7 +24,7 @@ import { POLICY, RECORD, TOOLCHAIN, UPDATE, dependencyKey, goPackagePatterns, lo
 import type { Dependency } from './dependency-state.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, ROOT, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './digest.mts';
 import { readJson, writeJson } from './files.mts';
@@ -461,7 +461,7 @@ export function updatePlan({ newer, advisories: found }: { newer: PlannedDepende
     } else if (dependency.ecosystem === 'go') {
       plan.push({ command: 'go', args: ['get', `${dependency.package}@${dependency.latest}`], cwd: path.posix.dirname(dependency.manifest) });
     } else if (dependency.ecosystem === 'pypi') {
-      plan.push({ command: 'node', args: ['scripts/kit/pin-python-dependency.mts', dependency.manifest, dependency.package, version], cwd: '.' });
+      plan.push({ command: 'node', args: [siblingTool(import.meta.url, 'pin-python-dependency'), dependency.manifest, dependency.package, version], cwd: '.' });
     } else {
       plan.push({ command: 'composer', args: ['require', ...(dependency.kind === 'require-dev' ? ['--dev'] : []), '--update-with-dependencies', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: path.posix.dirname(dependency.manifest) });
     }
