@@ -106,6 +106,14 @@ test('a command that is missing or prints no release is a mismatch that names th
   assert.match(result.stderr, /composer: `composer --version --no-ansi` failed \(.*\).*; config\/toolchain\.json composer declares 2\.10\.3; fix: install Composer 2\.10\.3, or declare its sha256/);
 });
 
+test('a tool that cannot run names the declared release in its fix: the minors of PHP, the exact version of the others (K108)', (t) => {
+  const { root, stubs } = setup(t, { ...OUTPUTS, php: null, composer: null });
+  const result = check(root, stubs.env, 'php', 'composer');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /php: `php -n -r .*` failed .*; config\/toolchain\.json php declares 8\.2 or 8\.5; fix: install PHP 8\.2 or 8\.5\n/);
+  assert.match(result.stderr, /composer: `composer --version --no-ansi` failed .*; config\/toolchain\.json composer declares 2\.10\.3; fix: install Composer 2\.10\.3, or declare its sha256/);
+});
+
 test('the tools to check come from the arguments; an undeclared tool, an unknown tool or no declaration fails', (t) => {
   const { root, stubs } = setup(t);
   const named = check(root, stubs.env, 'npm');
