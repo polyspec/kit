@@ -22,6 +22,7 @@ import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredGo, declaredRust } from './toolchain-files.mts';
+import { declaredLintTools } from './toolchain-lint.mts';
 import { PINS } from './toolchain-pins.mts';
 import { Pinning, readExceptions } from './toolchain-exceptions.mts';
 import { floorFindings, npmrcFindings, pinFindings } from './toolchain-floors.mts';
@@ -37,10 +38,10 @@ export type Run = (command: string, args: string[]) => RunResult;
 /** The options of a check: the checkout, the environment of the version commands, and how a command starts. */
 export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: Run | undefined };
 
-// A declared tool as declaredToolchain of toolchain-declared.mts, or declaredGo and declaredRust of toolchain-files.mts, return it: an exact
-// release, or minor releases.
+// A declared tool as declaredToolchain of toolchain-declared.mts, declaredLintTools of toolchain-lint.mts, or declaredGo and
+// declaredRust of toolchain-files.mts, return it: an exact release, or minor releases.
 type DeclaredTool = { version?: string; minor?: string; minors?: string[]; source: string };
-const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), go: declaredGo(root, env), rust: declaredRust(root) });
+const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), ...declaredLintTools(root), go: declaredGo(root, env), rust: declaredRust(root) });
 
 type Probe = { command: (root: string) => string; args: string[]; pattern: RegExp; fix: (version: string | undefined) => string };
 
