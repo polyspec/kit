@@ -3,8 +3,7 @@
   "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
   "paths": [
     "scripts/kit/**/*.mts",
-    "scripts/kit/*.mk",
-    "tests/kit/duplication.test.mts"
+    "scripts/kit/*.mk"
   ],
   "tools": {
     "scripts/kit/bootstrap/bootstrap-npm.mts": {
@@ -25,11 +24,11 @@
     },
     "scripts/kit/bootstrap/install-tool.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/bootstrap/tool-wrappers.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/bootstrap/toolchain-declared.mts": {
       "kind": "record",
@@ -59,6 +58,10 @@
       "kind": "policy",
       "reason": "polyspec's document rules: translation pairs, revisions, relative links and anchors, site interpolation; its Markdown reading is markdown.mts"
     },
+    "scripts/kit/check-editor-boundaries.mts": {
+      "kind": "ecosystem",
+      "tool": "amaro turns TypeScript into JavaScript, acorn and acorn-walk find the imports and eslint-scope the undeclared globals; the boundaries are polyspec's rules in config/editor-boundaries.json (K80)"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
@@ -76,12 +79,12 @@
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
     },
     "scripts/kit/dependency-review.mts": {
-      "kind": "replaced",
-      "reason": "parseJsonStream, a hand-written splitter of the govulncheck JSON stream, moves to stream-json 3.7.0 with jsonStreaming (same objects on the K74 samples), or to govulncheck -format sarif; version comparison moves to the K73 comparators; the queries run npm, composer, go and cargo tools"
+      "kind": "ecosystem",
+      "tool": "npm, composer, go and cargo report the releases and advisories, and govulncheck its findings as SARIF (K124)"
     },
     "scripts/kit/dependency-state.mts": {
-      "kind": "replaced",
-      "reason": "the pyproject regexes move to smol-toml (K73); the lock files are JSON or read by their tools"
+      "kind": "ecosystem",
+      "tool": "smol-toml reads the pyproject manifests through toml.mts (K73); the locks are JSON or are read by their ecosystem tools"
     },
     "scripts/kit/documents-stamp.mts": {
       "kind": "policy",
@@ -108,8 +111,8 @@
       "tool": "gh"
     },
     "scripts/kit/glob.mts": {
-      "kind": "replaced",
-      "reason": "picomatch replaces it (K73)"
+      "kind": "ecosystem",
+      "tool": "picomatch matches the globs (K73)"
     },
     "scripts/kit/holder-lock.mts": {
       "kind": "record",
@@ -117,23 +120,27 @@
     },
     "scripts/kit/install-alint.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+    },
+    "scripts/kit/install-archive.mts": {
+      "kind": "replaced",
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-cargo-audit.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-composer.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-go.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-govulncheck.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-phpunit.mts": {
       "kind": "ecosystem",
@@ -141,19 +148,23 @@
     },
     "scripts/kit/install-python.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-ruff.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-tools.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
     },
     "scripts/kit/install-uv.mts": {
       "kind": "replaced",
-      "reason": "mise with mise.lock installs this release with the sha256 of each platform (docs/rebuild/toolchain.md; replacement item to register)"
+      "reason": "mise with mise.lock replaces the release installers in K127, which is deferred; until it lands kit installs the release itself (docs/rebuild/toolchain.md)"
+    },
+    "scripts/kit/install-vscode.mts": {
+      "kind": "ecosystem",
+      "tool": "@vscode/test-electron downloads the VS Code build of the extension tests (K80)"
     },
     "scripts/kit/kit-bootstrap.mk": {
       "kind": "policy",
@@ -176,16 +187,16 @@
       "tool": "ruff"
     },
     "scripts/kit/markdown.mts": {
-      "kind": "replaced",
-      "reason": "mdast-util-from-markdown 2.0.3 with micromark-extension-gfm 3.0.0 reads the fences, links and tables, github-slugger 2.0.0 the GitHub heading anchors and @mdit-vue/shared 3.0.2 slugify the VitePress anchors: the same result on 650 Markdown files and 4607 headings of 9 repositories, apart from front matter (needs mdast-util-frontmatter), GFM bare URLs and one escaped # where the libraries follow CommonMark (replacement item to register)"
+      "kind": "ecosystem",
+      "tool": "mdast-util-from-markdown with micromark-extension-gfm and the frontmatter extension reads the Markdown, github-slugger the GitHub anchors and @mdit-vue/shared slugify the VitePress anchors (K120)"
     },
     "scripts/kit/node-reporter.mts": {
       "kind": "ecosystem",
       "tool": "node:test reporter API"
     },
     "scripts/kit/owner-check.mts": {
-      "kind": "replaced",
-      "reason": "the reading of Makefile targets and prerequisites moves to GNU make's database (make -pRrq): kit's regex reads a target-specific variable as a prerequisite (crudui, hyper, orm, template), does not expand variables (fsm) and misses generated targets (fsm, orm); the declaration and the selection stay (replacement item to register)"
+      "kind": "policy",
+      "reason": "the owner rules of config/owner-checks.json are polyspec's; the targets, prerequisites and recipes come from GNU make's database, make -pRrq (K121)"
     },
     "scripts/kit/parity-declaration.mts": {
       "kind": "policy",
@@ -220,8 +231,8 @@
       "tool": "node:path and process.cwd"
     },
     "scripts/kit/pin-python-dependency.mts": {
-      "kind": "replaced",
-      "reason": "@decimalturn/toml-patch rewrites the pin while keeping the text: the same output as kit on 57 pins of 30 pyproject.toml files (replacement item to register)"
+      "kind": "ecosystem",
+      "tool": "@decimalturn/toml-patch rewrites the pin and keeps the text (K122)"
     },
     "scripts/kit/process-group.mts": {
       "kind": "ecosystem",
@@ -236,12 +247,12 @@
       "reason": "the push gate over polyspec's checklist trackers"
     },
     "scripts/kit/pylock.mts": {
-      "kind": "replaced",
-      "reason": "smol-toml replaces parseToml (K73)"
+      "kind": "ecosystem",
+      "tool": "smol-toml reads the PEP 751 locks through toml.mts (K73)"
     },
     "scripts/kit/python-lock.mts": {
-      "kind": "replaced",
-      "reason": "pip-requirements-js replaces the PEP 508 parser (K73); the pin policy on top stays"
+      "kind": "ecosystem",
+      "tool": "pip-requirements-js reads the PEP 508 requirements (K73); the pin policy on top is kit's rule"
     },
     "scripts/kit/python-venv.mts": {
       "kind": "ecosystem",
@@ -272,8 +283,8 @@
       "tool": "the installers of the release toolchains"
     },
     "scripts/kit/release-wheel.mts": {
-      "kind": "replaced",
-      "reason": "the pyproject regexes move to smol-toml (K73); the METADATA moves to pip install --dry-run --report: kit's unzip pattern also reads the METADATA of vendored packages, 13 of them in the setuptools 84.0.0 wheel (replacement item to register)"
+      "kind": "ecosystem",
+      "tool": "pip install --dry-run --report reads the METADATA of a wheel (K123) and smol-toml the pyproject (K73)"
     },
     "scripts/kit/release.mts": {
       "kind": "policy",
@@ -284,8 +295,8 @@
       "tool": "node --test, vitest, go test, cargo test, PHPUnit and unittest"
     },
     "scripts/kit/schema-validate.mts": {
-      "kind": "replaced",
-      "reason": "ajv replaces it (K73)"
+      "kind": "ecosystem",
+      "tool": "ajv (Ajv2020) validates the configs against the schemas (K73)"
     },
     "scripts/kit/status-table.mts": {
       "kind": "policy",
@@ -315,25 +326,41 @@
       "kind": "ecosystem",
       "tool": "Date"
     },
+    "scripts/kit/toml.mts": {
+      "kind": "ecosystem",
+      "tool": "smol-toml reads every TOML file of kit, the one TOML reader (K73)"
+    },
+    "scripts/kit/toolchain-exceptions.mts": {
+      "kind": "policy",
+      "reason": "the declared exceptions to the pins, each with its scope, reason and retry condition (S4, S8, K78)"
+    },
+    "scripts/kit/toolchain-files.mts": {
+      "kind": "ecosystem",
+      "tool": "go mod edit -json reads go.mod, cargo metadata the Cargo manifests, npm config get the .npmrc keys, and smol-toml through toml.mts the TOML manifests (K78)"
+    },
+    "scripts/kit/toolchain-floors.mts": {
+      "kind": "policy",
+      "reason": "the floors of the manifests must equal the pins (S4, K78); the manifests are read by their ecosystem tools through toolchain-files.mts"
+    },
+    "scripts/kit/toolchain-pins.mts": {
+      "kind": "policy",
+      "reason": "the toolchain pins of polyspec that kit ships (S4, K78)"
+    },
     "scripts/kit/tracked-files.mts": {
       "kind": "ecosystem",
       "tool": "git ls-files"
     },
     "scripts/kit/version.mts": {
-      "kind": "replaced",
-      "reason": "semver and @renovatebot/pep440 per ecosystem replace it (K73); kit compares no Composer versions"
+      "kind": "ecosystem",
+      "tool": "semver for npm and Go and @renovatebot/pep440 for PyPI compare the versions (K73); kit compares no Composer versions"
     },
     "scripts/kit/vitest-reporter.mts": {
       "kind": "ecosystem",
       "tool": "vitest reporter API"
     },
     "scripts/kit/wheel-dependencies.mts": {
-      "kind": "replaced",
-      "reason": "the Requires-Dist lines move to pip install --dry-run --report and their PEP 508 reading to pip-requirements-js (K73) (replacement item to register)"
-    },
-    "tests/kit/duplication.test.mts": {
-      "kind": "replaced",
-      "reason": "jscpd 5.3.3 (min-lines 6) finds what the test finds and also 4 cross-file clones inside functions that the test misses (replacement item to register)"
+      "kind": "ecosystem",
+      "tool": "pip install --dry-run --report reads the Requires-Dist of a wheel (K123) and pip-requirements-js their PEP 508 form (K73)"
     }
   }
 }

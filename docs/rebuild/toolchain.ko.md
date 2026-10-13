@@ -1,10 +1,10 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: 65411d87d2d28cc87c2d9c3afb5b6191516b83aab8bfde8d4a4b4f7d673c9449 -->
+<!-- source-sha256: a8e6ac641f3e27d8967644e0f825b9788770efdd9850bab5e3a5902f5689a1fb -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
 
-판정: release installer는 mise와 그 lock으로 **교체**합니다(등록할 item). npm bootstrap과, 저장소가 설치하지 않는
+판정: release installer는 mise와 그 lock으로 **교체**합니다(K127, 보류: 그때까지 kit이 release를 직접 설치합니다). npm bootstrap과, 저장소가 설치하지 않는
 toolchain의 검증은 **맞는 도구 없음**입니다. 이 기록은 남는 부분을 다룹니다. 2026-10-13에 측정했습니다.
 
 ## 대상
