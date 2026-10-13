@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: b57239c7d3a30f1a20f3644973cceca7238d783388f1a4408fb62500ffb60762 -->
+<!-- source-sha256: ca566948a48976ca043152cd5feea79140859ecc848266e70606c28fabd050cc -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -157,7 +157,7 @@
 | K84 | PRINCIPLES가 code와 문서의 언어를 정합니다: 주석, identifier, log, error message, test 이름, commit message는 영어, 문서는 영어와 한국어 쌍. 원인: 주석은 영어라는 owner 규칙이 flowmark의 AGENTS에만 있었고, orm의 AGENTS는 반대(주석은 한국어)를 적었습니다. | PRINCIPLES.md(+ko), 기준 | `make documents-check` | [o] |
 | K94 | `release.mts` `latestTag`는 release tag `vX.Y.Z`만 비교합니다. 원인: `v[0-9]*`에 맞는 `v1.2`나 `v1.2.3-rc1` 같은 tag가 비교에서 NaN을 내어 순서가 불안정했고 latest가 틀릴 수 있었습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release.mts`, 그 test | 섞인 tag의 red test, 그다음 `make kit-test` | [o] |
 | K95 | `dependency-review`는 latest version을 넣은 dependency로 fix 문구를 만듭니다. 원인: review가 latest를 넣기 전의 dependency를 넘겨 toolchain ruff의 fix가 "set ruff in config/toolchain.json to undefined"가 되었고, test는 latest를 직접 넣어 이를 놓쳤습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/dependency-review.mts`, 그 test | review 경로를 거친 red test, 그다음 `make kit-test` | [o] |
-| K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 뺍니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [~] |
+| K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 빼고, composer stub은 넘길 명령을 그 명령의 이름을 대는 줄과 함께 실패시킵니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [o] |
 | K97 | `tests/source`의 real test는 option을 함수 앞에 넘깁니다(`test(name, { timeout }, fn)`). 원인: test 10개가 함수 뒤에 `{ timeout }`을 넘겼고 node:test는 그것을 무시하므로 timeout이 적용되지 않았습니다. K71-1 type 작업에서 찾았습니다(TS2559). | `tests/source/*-real.test.mts` | `make typecheck`(전에는 TS2559), `make source-test` | [o] |
 | K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [o] |
 | K99 | `release-consumer-config`는 text가 아닌 `proof.gitTag` kind를 거부합니다. 원인: `in`과 index가 `["rust"]`를 `"rust"`로 바꾸어 list가 통과했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |

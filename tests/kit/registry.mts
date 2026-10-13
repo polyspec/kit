@@ -62,6 +62,7 @@ if (args[0] === 'outdated') {
   process.exit(Array.isArray(report.advisories) ? 0 : 1);
 } else {
   // Other commands (validate) run the real composer, which reads the files of the checkout only.
+  if (!process.env.REAL_COMPOSER) { console.error('composer is not installed; the stub cannot forward \`composer ' + args.join(' ') + '\`'); process.exit(1); }
   const { spawnSync } = require('node:child_process');
   process.exit(spawnSync(process.env.REAL_COMPOSER, args, { stdio: 'inherit' }).status ?? 1);
 }
