@@ -69,13 +69,19 @@ function apiModel(root: string, entry: string): Extracted {
   if (!existsSync(file)) return { error: `${entry} does not exist` };
   const project = packageOf(file);
   if (project === undefined) return { error: `no package.json lies above ${entry}` };
+  // The compiler options of the package's own tsconfig.json; without one, the standard library of ESNext and no @types, so
+  // that a declaration of the ES2015+ library, such as ReadonlyMap, resolves and the folder that the check runs in adds nothing.
+  const tsconfig = path.join(project, 'tsconfig.json');
+  const compiler = existsSync(tsconfig)
+    ? { tsconfigFilePath: tsconfig }
+    : { overrideTsconfig: { compilerOptions: { target: 'esnext', lib: ['esnext'], types: [], skipLibCheck: true } } };
   const output = mkdtempSync(path.join(tmpdir(), 'kit-parity-api-'));
   try {
     const config = ExtractorConfig.prepare({
       configObject: {
         projectFolder: project,
         mainEntryPointFilePath: file,
-        compiler: { overrideTsconfig: { compilerOptions: { skipLibCheck: true } } },
+        compiler,
         docModel: { enabled: true, apiJsonFilePath: path.join(output, 'api.json') },
         apiReport: { enabled: false },
         dtsRollup: { enabled: false },
