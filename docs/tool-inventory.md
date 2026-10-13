@@ -1279,13 +1279,13 @@ nothing, so it leaves the profile or is excluded with its reason and item.
 
 | Key | Content |
 |---|---|
-| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `php`, `python`), `prose` (the names that documents write for it, which R10 reads), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (the snapshot), `errors` (`file`, `pattern`: the generated codes) |
+| `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose` (the names that documents write for it, which R10 reads), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (`extractor`, one of `go`, `php`, `python`, `rust`, `ts`, and `entry`, the path it reads; Symbol extractors), `errors` (`file`, `pattern`: the generated codes) |
 | `profiles` | `name`, the `implementations` that it groups, and `reason`, which a profile narrower than every implementation needs |
 | `suites` | globs of the shared vector files |
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
 | `tools` | `root` and `reason` of each directory of single-language tooling tests that implement no contract, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; a root that overlaps an implementation root or holds the test of a binding is a declaration finding |
 | `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite` or `api`) and `profile`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, what lies inside a case not examined and a matched file a declaration finding; a go binding reports such a name as nested subtests) and `bindings` (`implementation`, `test`, `symbol`). An API unit has `symbols` (`implementation`, `symbol`). |
+| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `profile`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, what lies inside a case not examined and a matched file a declaration finding; a go binding reports such a name as nested subtests) and `bindings` (`implementation`, `test`, `symbol`). An API unit has `symbols` (`implementation`, `symbol`). |
 | `nativeOnly` | `implementation`, `symbol` and `reason` of an exported symbol that only one implementation has |
 | `exclusions` | `unit`, `implementation`, `reason` and `item`, the checklist item that removes the exclusion |
 | `errors` | `profile` and `catalog` (`file`, `pattern`) |
@@ -1295,8 +1295,8 @@ nothing, so it leaves the profile or is excluded with its reason and item.
 A pattern is a regular expression that is applied to each line (flags `gm`), and its first group is the value. A count is digits,
 an English number word up to twelve or `both`, or a Korean native numeral up to 열, followed by one of the nouns after a space, a
 hyphen (`four-client`) or a Korean counter (`6개 언어`, `여섯 개 언어`, `세 가지 언어`). A list is three or more implementation
-names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The snapshot of an implementation is a JSON object
-that maps each symbol id to an object with a boolean `exported`.
+names, joined by `,`, `and`, `or`, `/`, `및`, or the particles `와` and `과`. The extractor of an implementation gives the ids of
+its public symbols (Symbol extractors).
 
 R10 reads the prose of a document in passages, on the Markdown reader of `scripts/kit/markdown.mts`: a paragraph or a list item
 with the lines that continue it, a block quote without its markers, an ATX heading (`#` to `######` and a space), or a table
@@ -1331,20 +1331,20 @@ profile with what it omits and its reason. At least two units use it; a one-unit
 2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
    `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, and a test method
    `test_<case>` in PHPUnit and unittest. A binding prints no line for the check.
-3. Make the extractor of each implementation write its snapshot with `exported`, and generate the error codes of each
-   implementation from the catalog.
+3. Declare `symbols` (`extractor`, `entry`) of each implementation, and generate the error codes of each implementation from
+   the catalog.
 4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
-   lands. Run them after the checks that regenerate the symbol snapshots and the error-code artifacts (the trust boundary). The
-   `make kit-sync` copy already holds the targets.
+   lands. Run them after the checks that regenerate the error-code artifacts (the trust boundary). The kit.mk of the installed
+   package already holds the targets.
 
 ```json
 {
   "schema": 1,
   "implementations": [
     { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
-      "symbols": "contracts/symbols/go.json", "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
+      "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": "contracts/symbols/python.json", "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+      "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
   "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
