@@ -175,10 +175,10 @@ export function copyInstalledTools(root: string, sandbox: string) {
  * SIGINT, which is passed on to the group and then to this process as before. A SIGKILL of this process reaches no handler.
  */
 export async function runKitTest(cwd: string, signal: AbortSignal) {
-  const child = spawn('make', ['--no-print-directory', 'kit-test'], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const pgid = child.pid;
-  assert.ok(pgid !== undefined, `make kit-test did not start in ${cwd}`);
-  const end = () => signalGroup(pgid, 'SIGTERM');
+  // The handlers come before the spawn: make runs as soon as it is forked, so a signal that arrives once the run has begun
+  // finds them, and it ends the group even before spawn returns to this process.
+  let pgid: number | undefined;
+  const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM'));
   const forward = (received: NodeJS.Signals) => {
     end();
     stop();
@@ -193,6 +193,10 @@ export async function runKitTest(cwd: string, signal: AbortSignal) {
   signal.addEventListener('abort', end);
   process.once('SIGTERM', forward);
   process.once('SIGINT', forward);
+  const child = spawn('make', ['--no-print-directory', 'kit-test'], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  pgid = child.pid;
+  if (pgid === undefined) stop();
+  assert.ok(pgid !== undefined, `make kit-test did not start in ${cwd}`);
   const stdout: string[] = [];
   const stderr: string[] = [];
   child.stdout.setEncoding('utf8').on('data', (text: string) => stdout.push(text));
