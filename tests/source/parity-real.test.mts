@@ -110,7 +110,9 @@ test('K33 reads real PHPUnit: the configuration of the package applies, and a sk
   symlinkSync(vendor, path.join(root, 'php/vendor'));
   const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec php']);
-  assert.equal(findings[0].message, 'skipped: skipped, incomplete');
+  const first = findings[0];
+  assert.ok(first, 'checkParity found nothing');
+  assert.equal(first.message, 'skipped: skipped, incomplete');
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'flag pass', 'skipped skip', 'incomplete skip']);
 });
 

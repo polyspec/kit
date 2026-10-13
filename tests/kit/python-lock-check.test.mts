@@ -79,7 +79,9 @@ test('a lock whose packages are exactly the pins of the constraints, with a sha2
 test('a transitive package that the constraints leave unpinned is refused, and the finding names it', (t) => {
   const result = findings(t, { 'app/constraints.txt': 'requests==2.34.2\n', 'app/requirements.txt': 'requests==2.34.2\n' });
   assert.equal(result.length, 1, result.join('\n'));
-  assert.match(result[0], /^app\/pylock\.toml: idna 3\.20 is in the lock and has no pin in app\/constraints\.txt\. Fix: /);
+  const first = result[0];
+  assert.ok(first !== undefined, 'checkPythonLock found nothing');
+  assert.match(first, /^app\/pylock\.toml: idna 3\.20 is in the lock and has no pin in app\/constraints\.txt\. Fix: /);
 });
 
 test('a package that the constraints pin and the lock lacks is refused, and the finding names it', (t) => {
@@ -132,7 +134,9 @@ test('a pyproject.toml that lists dependencies in [project].dynamic is refused, 
   const dynamic = PYPROJECT.replace('version = "0.0.0"\n', 'version = "0.0.0"\ndynamic = ["dependencies"]\n');
   const result = findings(t, { 'app/pyproject.toml': dynamic, 'app/requirements.txt': null }, PYPROJECT_ENTRY);
   assert.equal(result.length, 1, result.join('\n'));
-  assert.match(result[0], /^app\/pyproject\.toml: \[project\]\.dynamic lists dependencies, so the direct requirements are not static\. Fix: /);
+  const first = result[0];
+  assert.ok(first !== undefined, 'checkPythonLock found nothing');
+  assert.match(first, /^app\/pyproject\.toml: \[project\]\.dynamic lists dependencies, so the direct requirements are not static\. Fix: /);
 });
 
 test('a registry file without a sha256 is refused, and the finding names the package', (t) => {
