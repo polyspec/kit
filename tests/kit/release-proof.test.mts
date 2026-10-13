@@ -247,6 +247,17 @@ test('the proof downloads each polyspec archive of a wheel lock and names a dige
   stop(() => prove(wrong), new RegExp(`${file} of ${repo} v0\\.0\\.1 has the sha256 ${digest}, packages/fixture-python/pylock\\.wheel\\.toml holds ${'2'.repeat(64)} for kit-lib`));
 });
 
+test('the proof names an archive of a wheel lock that has no url, such as one named by its path (K101)', (t) => {
+  // release assets refuses the lock too, so the checkout of the proof gets it after the release is built.
+  const box = locked(t);
+  const config = readJson(box.root, 'config/release.json');
+  writeJson(box.root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': 'https://github.com/polyspec/kit-lib' } } } });
+  const lockFile = path.join(box.root, 'packages/fixture-python/pylock.wheel.toml');
+  writeFileSync(lockFile, `${readFileSync(lockFile, 'utf8')}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { path = "dist/kit_lib-0.0.1-py3-none-any.whl", hashes = { sha256 = "${'3'.repeat(64)}" } }\n`);
+  stop(() => prove(box), /^packages\/fixture-python\/pylock\.wheel\.toml: kit-lib 0\.0\.1 is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset$/);
+  assert.equal(box.calls('gh').some((call: Call) => call.args.at(-1)?.startsWith('repos/polyspec/kit-lib/') ?? false), false, 'no asset is read for a lock that the proof refuses');
+});
+
 test('the proof checks each sibling URL in a wheel against the published asset, and installs the wheels together from their files', (t) => {
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
   const steps = prove(box);

@@ -99,6 +99,14 @@ test('the lock is read as PEP 751 and refused when a package has no hash or anot
   assert.deepEqual(lockProblems(`${HEADER}[[packages]]\nname = "tool"\nversion = "1.0.0"\ndirectory = { path = "." }\n`, LOCK), [`${LOCK}: tool 1.0.0 is a directory source; a consumer installs only registry files and archives`]);
 });
 
+test('an archive with no url in the lock, such as one named by its path, is a problem of the lock (K101)', () => {
+  const pathed = LOCK_TEXT.replace(`archive = { url = "${URL}",`, `archive = { path = "dist/${ASSET}",`);
+  const problem = `${LOCK}: kit-lib 0.0.1 is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset`;
+  assert.deepEqual(lockProblems(pathed, LOCK), [problem]);
+  assert.deepEqual(problemsOf([`kit-lib @ ${URL}#sha256=${SHA}`], { lockText: pathed }), [problem]);
+  assert.throws(() => lockRequirements(pathed, LOCK), error => error instanceof Stop && error.message === problem);
+});
+
 test('lockRequirements renders each registry file and each archive as a hashed requirement for pip', () => {
   assert.equal(lockRequirements(LOCK_TEXT, LOCK), `ruff==0.16.10 --hash=sha256:${RUFF_SHA}\nkit-lib @ ${URL} --hash=sha256:${SHA}\n`);
   assert.throws(() => lockRequirements(`${HEADER}[[packages]]\nname = "tool"\nversion = "1.0.0"\ndirectory = { path = "." }\n`, LOCK), error => error instanceof Stop && error.message === `${LOCK}: tool 1.0.0 is a directory source; a consumer installs only registry files and archives`);

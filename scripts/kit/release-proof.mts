@@ -32,7 +32,7 @@ import { installConsumers, type ReleaseContext } from './release-consumer.mts';
 import { readPylock, type PylockPackage } from './pylock.mts';
 import { fileDigest } from './digest.mts';
 import { wheelMetadata, wheelName } from './release-wheel.mts';
-import { repositoryOf, siblingLinks, siblingsOf, wheelLocks } from './wheel-dependencies.mts';
+import { lockProblems, repositoryOf, siblingLinks, siblingsOf, wheelLocks } from './wheel-dependencies.mts';
 
 /** A Requires-Dist of a sibling as wheel-dependencies.mts siblingLinks returns it. */
 type SiblingLink = { name: string; url: string };
@@ -61,13 +61,15 @@ function proveAssets(ctx: ReleaseContext, tag: string, version: string, director
 function proveDependencies(ctx: ReleaseContext, folder: string, step: Step) {
   const { root, env, config } = ctx;
   for (const { file, text } of wheelLocks(root, config) as { file: string; text: string }[]) {
+    const problems = lockProblems(text, file);
+    if (problems.length) throw new Stop(problems.join('; '));
     for (const entry of readPylock(text, file).packages.filter((item): item is PylockPackage & { kind: 'archive' } => item.kind === 'archive')) {
       const wheel = config.consumers?.wheel;
       if (wheel === undefined) throw new Error(`config/release.json: consumers.wheel is missing; ${file} is the lock of a wheel package`);
       const repository = repositoryOf(wheel.polyspec, entry.name);
       if (repository === null) throw new Stop(`${file} names the archive of ${entry.name}, which consumers.wheel.polyspec does not declare`);
       const [archive] = entry.files;
-      if (typeof archive.url !== 'string') throw new Error(`${file}: the archive of ${entry.name} has no url`);
+      if (typeof archive.url !== 'string') throw new Error(`${file}: the archive of ${entry.name} has no url, which lockProblems refuses first`);
       const asset = path.posix.basename(archive.url);
       const release = releaseOf({ cwd: root, env }, repository, `v${entry.version}`);
       if (!release) throw new Stop(`the release v${entry.version} of ${repository} does not exist; ${file} names its asset ${asset}`);

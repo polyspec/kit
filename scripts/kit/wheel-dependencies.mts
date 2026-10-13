@@ -37,14 +37,11 @@ type Context = {
 /** The name of a distribution in its normalized form (PEP 503): lower case, runs of `-`, `_` and `.` as one `-`. */
 export const canonicalName = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
 
-/**
- * The URL of the archive of a lock entry. An archive that the lock names by path, or a URL that is no text, failed at
- * startsWith before and fails here with its name (a possible defect reported with K71-1).
- */
+/** The URL of the archive of a lock entry; lockProblems refuses an archive with no url before this reads it. */
 function archiveUrl(entry: PylockPackage, lockFile: string): string {
   // lockProblems accepts an archive with exactly one file.
   const { url } = entry.files[0]!;
-  if (typeof url !== 'string') throw new Stop(`${lockFile}: the archive of ${entry.name} has no URL`);
+  if (typeof url !== 'string') throw new Error(`${lockFile}: the archive of ${entry.name} has no url, which lockProblems refuses first`);
   return url;
 }
 
@@ -78,8 +75,9 @@ export function lockProblems(text: string, lockFile: string): string[] {
     }
     if (kind === 'archive') {
       // The length check before holds one file.
-      return files.length === 1 && SHA256.test(String(files[0]!.sha256 ?? ''))
-        ? [] : [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
+      if (files.length !== 1 || !SHA256.test(String(files[0]!.sha256 ?? ''))) return [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
+      // A lock may name an archive by its path (PEP 751); a consumer outside the repository has no such file.
+      return typeof files[0]!.url === 'string' ? [] : [`${lockFile}: ${name} ${version} is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset`];
     }
     return [`${lockFile}: ${name} ${version} is ${SOURCE_NAMES[kind]}; a consumer installs only registry files and archives`];
   });
