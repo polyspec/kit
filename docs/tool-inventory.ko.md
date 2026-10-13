@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 99371ea29c27b6c6288afdb8fdc6bcbb5510ec370907aa7970f86d92ce75863c -->
+<!-- source-sha256: b1273ad91ad367a9dbd598fddb4057946e8cca723b1012a8adc344163be6f5d5 -->
 
 # 도구 목록
 
@@ -690,7 +690,8 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. bootstrap 이후에 `toolchain-mise.mts`가 `mise.toml`의 lint 도구를,
 `toolchain-lint.mts`가 PHP lint를 읽고, `make toolchain-check`는 설치된 각 release를 확인합니다: vulture, golangci-lint,
 deadcode(release를 출력하지 않고 shim은 mise이므로 `mise which deadcode`가 가리키는 binary의 `go version -m`으로), 그리고
-`config/php-lint/composer.lock`이 고정한 release의 phpcs와 PHPStan입니다.
+PHP를 선언한 저장소(config/toolchain.json의 `php` 또는 `.php-version`)에서 `config/php-lint/composer.lock`이 고정한 release의
+phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장소가 선언하지 않은 도구는 설치하지도 검사하지도 않습니다.
 
 ### 결정
 

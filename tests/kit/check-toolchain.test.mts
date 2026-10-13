@@ -94,7 +94,8 @@ test('every tool that differs is named with the declaring file, the expected and
 const LINT_LOCK = JSON.stringify({ packages: [{ name: 'phpstan/phpstan', version: '2.3.1' }, { name: 'squizlabs/php_codesniffer', version: '4.0.4' }, { name: 'spaze/phpstan-disallowed-calls', version: 'v4.15.0' }] });
 const LINT_MISE = { 'pypi:vulture': '2.16', 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' };
 const LINT_LOCKED = miseLock({ 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' }) + `\n[[tools."pypi:vulture"]]\nversion = "2.16"\nuv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n`;
-const LINT_FILES = { 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK };
+// The PHP lint is a tool of a checkout that declares PHP.
+const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.5'] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK };
 // The lint setup: the version stubs, and the stub of mise that names the deadcode binary.
 const lintSetup = (t: TestContext, outputs: Record<string, string | null>) => {
   const made = setup(t, outputs, LINT_FILES);
@@ -126,6 +127,13 @@ test('the lint tools pass at their declared releases and each other release fail
     '[check-toolchain] phpstan: 2.3.0 runs here and config/php-lint/composer.lock declares 2.3.1; fix: make install-tools',
     '[check-toolchain] 5 of 5 tools differ from the declared versions',
   ]);
+});
+
+test('the vendored PHP lint is no tool to check in a repository that declares no PHP', (t) => {
+  const { root, stubs } = setup(t, OUTPUTS, { 'package.json': FILES['package.json'], 'config/php-lint/composer.lock': LINT_LOCK });
+  const result = check(root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^\[check-toolchain\] npm 12\.2\.0\n\[check-toolchain\] 1 tools run/);
 });
 
 test('the Node.js, cargo-audit and govulncheck releases are compared exactly', (t) => {
