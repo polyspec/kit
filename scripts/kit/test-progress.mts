@@ -4,6 +4,15 @@
 import { writeFileSync } from 'node:fs';
 import { compactSeconds } from './time.mts';
 
+/** The outcome of a test of a run; a test that ran out of time is `timeout`. */
+export type CaseStatus = 'pass' | 'fail' | 'skip' | 'timeout';
+
+/** A test of a run with its outcome and elapsed time. */
+export type TestCase = { id: string; status: CaseStatus; elapsedMs: number };
+
+/** The progress reporter of a run. */
+export type Progress = ReturnType<typeof createProgress>;
+
 /**
  * @param {object} options
  * @param {(text: string) => void} options.write receives complete lines
@@ -14,14 +23,22 @@ import { compactSeconds } from './time.mts';
  * @param {() => number} [options.now]
  * @param {string} [options.resultFile] receives the counts of the run as JSON when it ends
  */
-export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout, command, now = () => Date.now(), resultFile = process.env.KIT_TEST_RESULT }) {
+export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout, command, now = () => Date.now(), resultFile = process.env.KIT_TEST_RESULT }: {
+  write: (text: string) => unknown;
+  heartbeatMs?: number | undefined;
+  timeoutMs?: number | undefined;
+  onTimeout?: ((id: string) => unknown) | undefined;
+  command?: string | undefined;
+  now?: (() => number) | undefined;
+  resultFile?: string | undefined;
+}) {
   const started = now();
-  const running = new Map();
+  const running = new Map<string, { started: number; expired: boolean }>();
   const counts = { passed: 0, failed: 0, skipped: 0, timedOut: 0 };
   // Each test with its outcome and elapsed time, in the order they ended; a test that ran out of time is `timeout`.
-  const cases = [];
+  const cases: TestCase[] = [];
   const groupCounts = { passed: 0, failed: 0 };
-  const line = text => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
+  const line = (text: string): unknown => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
   const timer = setInterval(() => {
     for (const [id, test] of running) {
       const elapsed = now() - test.started;
@@ -37,13 +54,14 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   }, heartbeatMs);
   timer.unref?.();
   // A group (a test file or a package) prints its lines but is not counted as a test.
-  const groups = new Map();
-  const groupTime = (id, durationMs) => {
-    const time = durationMs || now() - groups.get(id);
+  const groups = new Map<string, number>();
+  const groupTime = (id: string, durationMs: number | undefined): string => {
+    // Each caller checked groups.has(id).
+    const time = durationMs || now() - groups.get(id)!;
     groups.delete(id);
     return compactSeconds(time);
   };
-  const finish = (id, durationMs, status) => {
+  const finish = (id: string, durationMs: number | undefined, status: 'pass' | 'fail' | 'skip'): number => {
     const test = running.get(id);
     running.delete(id);
     const elapsedMs = durationMs ?? (test ? now() - test.started : 0);
@@ -52,17 +70,17 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   };
   return {
     line,
-    start(id, { group = false } = {}) {
+    start(id: string, { group = false }: { group?: boolean | undefined } = {}): void {
       if (group) groups.set(id, now());
       else running.set(id, { started: now(), expired: false });
       line(`▶ ${id}`);
     },
-    pass(id, durationMs) {
+    pass(id: string, durationMs?: number): unknown {
       if (groups.has(id)) { groupCounts.passed++; return line(`✔ ${id} (${groupTime(id, durationMs)})`); }
       counts.passed++;
       line(`✔ ${id} (${compactSeconds(finish(id, durationMs, 'pass'))})`);
     },
-    fail(id, durationMs, message) {
+    fail(id: string, durationMs?: number, message?: string): void {
       if (groups.has(id)) { groupCounts.failed++; line(`✖ ${id} (${groupTime(id, durationMs)})`); }
       else {
         counts.failed++;
@@ -70,7 +88,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       }
       for (const detail of String(message ?? '').split('\n').filter(Boolean)) write(`           ${detail}\n`);
     },
-    skip(id) {
+    skip(id: string): unknown {
       if (groups.has(id)) { groups.delete(id); return line(`○ ${id} skipped`); }
       counts.skipped++;
       finish(id, undefined, 'skip');
@@ -85,7 +103,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
      * the `build` errors, the compiler errors of a package that did not build. The counts go to `resultFile` so that the
      * runner can require that a test ran.
      */
-    close(label, { exitCode = 0, errors = [], build = [] } = {}) {
+    close(label: string, { exitCode = 0, errors = [], build = [] }: { exitCode?: number | null | undefined; errors?: readonly string[] | undefined; build?: readonly string[] | undefined } = {}) {
       clearInterval(timer);
       for (const id of [...running.keys()]) this.fail(id, undefined, 'the test did not finish');
       const ran = counts.passed + counts.failed + counts.timedOut;

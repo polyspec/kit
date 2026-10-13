@@ -6,7 +6,14 @@
 import { after, before } from 'node:test';
 import { compactSeconds } from './time.mts';
 
-function hook(register, kind, name, operation, { context, write = text => process.stdout.write(text), heartbeatMs = 5000 } = {}) {
+/** Where a hook is registered and how it reports. */
+export type HookOptions = {
+  context?: { before: typeof before; after: typeof after } | undefined;
+  write?: ((text: string) => unknown) | undefined;
+  heartbeatMs?: number | undefined;
+};
+
+function hook(register: 'before' | 'after', kind: string, name: string, operation: () => unknown, { context, write = text => process.stdout.write(text), heartbeatMs = 5000 }: HookOptions = {}): void {
   const add = context ? context[register].bind(context) : { before, after }[register];
   add(async () => {
     const started = performance.now();
@@ -17,7 +24,8 @@ function hook(register, kind, name, operation, { context, write = text => proces
       await operation();
       write(`[${kind}] ${name}: finished in ${elapsed()}\n`);
     } catch (error) {
-      write(`[${kind}] ${name}: failed after ${elapsed()}: ${error?.message ?? error}\n`);
+      // Any value can be thrown; one without a message is printed itself.
+      write(`[${kind}] ${name}: failed after ${elapsed()}: ${(error as { message?: unknown } | null | undefined)?.message ?? error}\n`);
       throw error;
     } finally {
       clearInterval(running);
@@ -35,7 +43,7 @@ function hook(register, kind, name, operation, { context, write = text => proces
  * @param {(text: string) => void} [options.write]
  * @param {number} [options.heartbeatMs] interval of the still-running lines
  */
-export function setup(name, operation, options) {
+export function setup(name: string, operation: () => unknown, options?: HookOptions): void {
   hook('before', 'setup', name, operation, options);
 }
 
@@ -49,6 +57,6 @@ export function setup(name, operation, options) {
  * @param {(text: string) => void} [options.write]
  * @param {number} [options.heartbeatMs] interval of the still-running lines
  */
-export function teardown(name, operation, options) {
+export function teardown(name: string, operation: () => unknown, options?: HookOptions): void {
   hook('after', 'teardown', name, operation, options);
 }

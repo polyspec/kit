@@ -5,6 +5,27 @@
 // `todo(test)`, `line(text)` and `raw(text)`, where `test` is `{ id, name }`: `id` is the name that the progress shows and
 // `name` is the name that the tool reports for the test. `todo` is a test that the tool expects to fail (a unittest expected
 // failure, a node TODO): it is no pass. `toProgress` turns a progress reporter into such a sink.
+import type { Progress } from './test-progress.mts';
+
+/** A test as a parser reports it: `id` is the name that the progress shows, `name` the name that the tool reports. */
+export type TestRef = { id: string; name: string };
+
+/** The receiver of the events of a parser. */
+export type Sink = {
+  start(test: TestRef, options?: { group?: boolean }): unknown;
+  pass(test: TestRef, ms?: number): unknown;
+  fail(test: TestRef, ms?: number, text?: string): unknown;
+  skip(test: TestRef): unknown;
+  todo(test: TestRef): unknown;
+  line(text: string): unknown;
+  raw(text: string): unknown;
+};
+
+/** The sink call of the outcome of a test. */
+type Outcome = 'pass' | 'fail' | 'skip' | 'todo';
+
+/** An event of go test -json as test2json documents it; an absent field is undefined. */
+type GoEvent = { Action?: string; Package?: string; Test?: string; Output?: string; Elapsed?: number; ImportPath?: string };
 
 /**
  * Read go test -json events into the sink: each test with its id (the package and the test path, as the progress shows
@@ -13,12 +34,13 @@
  * both reach the sink as lines and the error lines are added to `build`. A package that started no test case is reported
  * as skipped.
  */
-export function goEvents(sink, build = []) {
-  const output = new Map();
+export function goEvents(sink: Sink, build: string[] = []): (line: string) => unknown {
+  const output = new Map<string | undefined, string>();
   // The test cases that each package started; a package that started none passed nothing.
-  const started = new Map();
+  const started = new Map<string | undefined, number>();
   return line => {
-    let event;
+    // The line is not checked: GoEvent is the format of test2json, the writer of go test -json.
+    let event: GoEvent;
     try { event = JSON.parse(line); } catch { return sink.line(line); }
     if (event.Action === 'build-output') {
       for (const text of String(event.Output ?? '').split('\n').filter(Boolean)) {
@@ -29,7 +51,8 @@ export function goEvents(sink, build = []) {
     }
     if (event.Action === 'build-fail') return sink.line(`✖ build of ${event.ImportPath} failed`);
     const id = event.Test ? `${event.Package} › ${event.Test.replaceAll('/', ' › ')}` : event.Package;
-    const test = { id, name: event.Test ?? event.Package };
+    // A go test event names its package; test2json writes Package on every event of a test or a package.
+    const test = { id, name: event.Test ?? event.Package } as TestRef;
     const group = !event.Test;
     switch (event.Action) {
       case 'start': started.set(event.Package, 0); return sink.start(test, { group: true });
@@ -38,7 +61,8 @@ export function goEvents(sink, build = []) {
         started.set(event.Package, (started.get(event.Package) ?? 0) + 1);
         return sink.start(test);
       case 'output': {
-        if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(event.Output)) sink.raw(event.Output); return; }
+        // test2json writes Output on every output event.
+        if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(event.Output!)) sink.raw(event.Output!); return; }
         output.set(id, (output.get(id) ?? '') + event.Output);
         return;
       }
@@ -48,7 +72,8 @@ export function goEvents(sink, build = []) {
           sink.skip(test);
           return sink.line(`○ ${id}: ran no test case`);
         }
-        return sink.pass(test, event.Elapsed * 1000);
+        // test2json writes Elapsed on every pass event.
+        return sink.pass(test, event.Elapsed! * 1000);
       case 'skip': output.delete(id); return sink.skip(test);
       case 'fail': {
         const text = (output.get(id) ?? '').split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
@@ -67,31 +92,39 @@ export function goEvents(sink, build = []) {
  * name into a test (`{ id, name }`) and `other` receives every other line. The runner is serial, so an outcome belongs to the
  * test that started last.
  */
-function startResultLines(sink, { result, pending, outcome, idOf, other }) {
-  let current;
+function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }: {
+  result: RegExp;
+  pending: RegExp;
+  outcome: (word: string) => Outcome;
+  idOf: (name: string) => TestRef;
+  other: (text: string) => unknown;
+}): (data: string) => void {
+  let current: TestRef | undefined;
   let buffer = '';
-  const start = (name) => {
+  const start = (name: string): void => {
     if (current !== undefined) return;
     current = idOf(name);
     sink.start(current);
   };
-  const line = (text) => {
+  const line = (text: string): unknown => {
     const match = result.exec(text);
     if (!match) return other(text);
-    start(match[1]);
-    sink[outcome(match[2])](current);
+    // Both groups of `result` always take part in a match.
+    start(match[1]!);
+    // As above; start has set current.
+    sink[outcome(match[2]!)](current!);
     current = undefined;
     return undefined;
   };
   return (data) => {
     buffer += data;
-    let end;
+    let end: number;
     while ((end = buffer.indexOf('\n')) !== -1) {
       line(buffer.slice(0, end));
       buffer = buffer.slice(end + 1);
     }
     const started = pending.exec(buffer);
-    if (started) start(started[1]);
+    if (started) start(started[1]!); // The group of `pending` always takes part in a match.
   };
 }
 
@@ -100,12 +133,13 @@ function startResultLines(sink, { result, pending, outcome, idOf, other }) {
  * `FAILED` or `ignored`) when it ends; a should_panic test prints `test <name> - should panic ... `. cargo names each test
  * binary on standard error before running it.
  */
-export function cargoEvents(sink) {
+export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stderr(text: string): void } {
   let binary = 'cargo';
   const stdout = startResultLines(sink, {
     result: /^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored)\b/,
     pending: /^test (\S+)(?: - should panic)? \.\.\. $/,
-    outcome: word => ({ ok: 'pass', FAILED: 'fail', ignored: 'skip' })[word],
+    // `result` matches only these three words.
+    outcome: word => ({ ok: 'pass', FAILED: 'fail', ignored: 'skip' } as Record<string, Outcome>)[word]!,
     idOf: name => ({ id: `${binary} › ${name}`, name }),
     other: (text) => {
       if (text.trim() && !/^(?:running \d+ tests?$|test result:|failures:$|successes:$)/.test(text.trim())) sink.line(`  ${text}`);
@@ -113,9 +147,9 @@ export function cargoEvents(sink) {
   });
   return {
     stdout,
-    stderr(text) {
+    stderr(text: string) {
       const running = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(text);
-      if (running) binary = running[1];
+      if (running) binary = running[1]!; // The group always takes part in a match.
       if (text.trim()) sink.line(text.trim());
     },
   };
@@ -128,18 +162,19 @@ export function cargoEvents(sink) {
  * description on a line of its own and the first docstring line before ` ... `; the test keeps the id of the description.
  * The failure reports at the end of the run are printed as they are.
  */
-export function pythonEvents(sink) {
+export function pythonEvents(sink: Sink): (data: string) => void {
   const DESCRIPTION = /^\w+ \([\w.]+\)$/;
   // The description line of a test with a docstring, which names the test whose outcome follows.
-  let described;
+  let described: string | undefined;
   return startResultLines(sink, {
     result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*|expected failure|unexpected success)$/,
     pending: /^(.+?) \.\.\. $/,
-    outcome: word => ({ ok: 'pass', 'expected failure': 'todo' })[word] ?? (word.startsWith('skipped') ? 'skip' : 'fail'),
+    // The words of the object are two of those that `result` matches; any other word is looked up as undefined.
+    outcome: word => ({ ok: 'pass', 'expected failure': 'todo' } as Record<string, Outcome>)[word] ?? (word.startsWith('skipped') ? 'skip' : 'fail'),
     idOf: (name) => {
       const id = described ?? name;
       described = undefined;
-      return { id, name: id.split(' ')[0] };
+      return { id, name: id.split(' ')[0]! }; // split returns at least one part.
     },
     other: (text) => {
       if (DESCRIPTION.test(text)) { described = text; return; }
@@ -149,32 +184,36 @@ export function pythonEvents(sink) {
   });
 }
 
-const unescapeTeamcity = value => value.replace(/\|(['|\][nr])/g, (match, character) => ({ n: '\n', r: '\r' })[character] ?? character);
+// The object holds two of the characters that the pattern matches; any other is looked up as undefined.
+const unescapeTeamcity = (value: string): string => value.replace(/\|(['|\][nr])/g, (match, character: string) => ({ n: '\n', r: '\r' } as Record<string, string>)[character] ?? character);
 
 /**
  * Read PHPUnit TeamCity messages into the sink. Other lines, such as the summary with the warnings that fail the run
  * under failOnWarning, are printed as they are.
  */
-export function phpunitEvents(sink) {
-  const failures = new Map();
+export function phpunitEvents(sink: Sink): (line: string) => unknown {
+  const failures = new Map<string | undefined, string>();
   // A test is named by its class and method; testFinished repeats only the method name.
-  const ids = new Map();
+  const ids = new Map<string | undefined, string | undefined>();
   // Suites without a location (the configuration and the test suites) are printed as groups. A class or a data provider
   // method has a location on its start only, so its finish is matched by this set.
-  const groups = new Set();
+  const groups = new Set<string | undefined>();
   // A skipped or incomplete test gets testIgnored and then testFinished: its finish is no pass.
-  const ignored = new Set();
-  const qualified = attributes => {
+  const ignored = new Set<string | undefined>();
+  const qualified = (attributes: Record<string, string>): string | undefined => {
     const hint = /::\\?([^:]+)::(.+)$/.exec(attributes.locationHint ?? '');
-    return hint ? `${hint[1].split('\\').pop()}::${hint[2]}` : attributes.name;
+    // Both groups always take part in a match, and split returns at least one part.
+    return hint ? `${hint[1]!.split('\\').pop()}::${hint[2]}` : attributes.name;
   };
   return line => {
     const message = /^##teamcity\[(\w+)((?: \w+='(?:[^'|]|\|.)*')*)\]$/.exec(line.trim());
     if (!message) return line.trim() ? sink.line(line) : undefined;
-    const attributes = Object.fromEntries([...message[2].matchAll(/ (\w+)='((?:[^'|]|\|.)*)'/g)].map(([, key, value]) => [key, unescapeTeamcity(value)]));
+    // The groups of both patterns always take part in a match.
+    const attributes = Object.fromEntries([...message[2]!.matchAll(/ (\w+)='((?:[^'|]|\|.)*)'/g)].map(([, key, value]) => [key!, unescapeTeamcity(value!)]));
     if (message[1] === 'testStarted') ids.set(attributes.name, qualified(attributes));
     const id = ids.get(attributes.name) ?? attributes.name;
-    const test = { id, name: attributes.name };
+    // PHPUnit names each test and suite; a message without a name, such as testCount, reaches only the default case.
+    const test = { id, name: attributes.name } as TestRef;
     switch (message[1]) {
       case 'testSuiteStarted': {
         if (attributes.locationHint) return undefined;
@@ -189,7 +228,8 @@ export function phpunitEvents(sink) {
       case 'testFinished': {
         const duration = Number(attributes.duration);
         if (ignored.delete(id)) return undefined;
-        if (failures.has(id)) { const text = failures.get(id); failures.delete(id); return sink.fail(test, duration, text); }
+        // has() above makes the failure text exist.
+        if (failures.has(id)) { const text = failures.get(id)!; failures.delete(id); return sink.fail(test, duration, text); }
         return sink.pass(test, duration);
       }
       default: return undefined;
@@ -203,11 +243,11 @@ export function phpunitEvents(sink) {
  * `# TODO` (a todo, whatever its result); the subtests of a test are indented and belong to it, so a test passes or fails as
  * a whole. The other lines are passed to `line`.
  */
-export function tapEvents(sink) {
+export function tapEvents(sink: Sink): (line: string) => unknown {
   return (line) => {
     const match = /^(ok|not ok) \d+ - (.*?)(?: # (SKIP|TODO)\b.*)?$/.exec(line);
     if (!match) return line.trim() ? sink.line(line) : undefined;
-    const test = { id: match[2], name: match[2] };
+    const test = { id: match[2]!, name: match[2]! }; // The second group always takes part in a match.
     if (match[3] === 'SKIP') return sink.skip(test);
     if (match[3] === 'TODO') return sink.todo(test);
     return match[1] === 'ok' ? sink.pass(test) : sink.fail(test, undefined, '');
@@ -219,7 +259,7 @@ export function tapEvents(sink) {
  * progress has always shown an expected failure. `raw` writes the text as it is (standard output), as go test prints a
  * package line that no event describes.
  */
-export function toProgress(progress, write = text => process.stdout.write(text)) {
+export function toProgress(progress: Progress, write: (text: string) => unknown = text => process.stdout.write(text)): Sink {
   return {
     start: (test, options) => progress.start(test.id, options),
     pass: (test, ms) => progress.pass(test.id, ms),

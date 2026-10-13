@@ -6,6 +6,9 @@
 import { writeSync } from 'node:fs';
 import { after } from 'node:test';
 
+// The internal handle of a standard stream; Node.js does not declare it.
+type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
+
 const file = process.argv[1];
 // Only the process of a test file: node --test marks it with NODE_TEST_CONTEXT.
 if (file && process.env.NODE_TEST_CONTEXT) {
@@ -13,8 +16,10 @@ if (file && process.env.NODE_TEST_CONTEXT) {
   if (!(deadline > 0)) throw new Error(`${import.meta.url}: the ms parameter must be a positive number of milliseconds`);
   // process.exit drops the writes that an asynchronous stdout pipe has not taken yet; the results of the tests reach the
   // parent through that pipe, so it is made blocking before the exit below can happen.
-  process.stdout._handle?.setBlocking?.(true);
-  process.stderr._handle?.setBlocking?.(true);
+  // The declared stream types lack the internal handle; WithHandle describes it.
+  (process.stdout as typeof process.stdout & WithHandle)._handle?.setBlocking?.(true);
+  // As above.
+  (process.stderr as typeof process.stderr & WithHandle)._handle?.setBlocking?.(true);
   after(() => {
     setTimeout(() => {
       writeSync(2, `${file}: the process did not exit ${deadline} ms after its last test; it holds ${process.getActiveResourcesInfo().join(', ')}\n`);
