@@ -71,6 +71,7 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
+    UV_NO_CONFIG: '1',
     UV_CACHE_DIR: path.join(tools, 'mise/cache/uv'),
     GOPATH: path.join(tools, 'mise/go'),
     GOCACHE: path.join(tools, 'mise/cache/go-build'),
