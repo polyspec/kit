@@ -94,14 +94,14 @@ export function toolchainMismatches(tools: string[], { root = ROOT, env = toolch
     if (!declared[tool]) throw new Error(`${tool} is not declared; declare it in config/toolchain.json or in its file, or leave it out of the tools to check`);
     const found = probe(root, tool, run);
     const { source } = declared[tool];
+    // PHP and Python are declared by minor release; the patch of the run is evidence, not a requirement.
+    const minors = declared[tool].minors ?? (declared[tool].minor ? [declared[tool].minor] : undefined);
     if (found.error) {
-      mismatches.push(`${tool}: ${found.error}; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(declared[tool].version)}`);
+      mismatches.push(`${tool}: ${found.error}; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version)}`);
       continue;
     }
-    // PHP and Python are declared by minor release; the patch of the run is evidence, not a requirement.
     // probe returns a release whenever it returns no error.
     const minor = found.release!.split('.').slice(0, 2).join('.');
-    const minors = declared[tool].minors ?? (declared[tool].minor ? [declared[tool].minor] : undefined);
     const accepted = minors ? minors.includes(minor) : found.release === declared[tool].version;
     if (!accepted) {
       const fix = probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version);
