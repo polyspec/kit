@@ -19,6 +19,7 @@
     "package.json": "archive"
   },
   "notReleased": {
+    ".mise/locks/pypi-vulture/2.16/pyproject.toml": "the tool environment of vulture that mise writes with its uv lock for mise.lock (make toolchain-lock); mise installs it into var/tools/mise",
     "config/php-lint/composer.json": "the Composer project of the PHP lint that install-tools installs and that kit copies into every repository",
     "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit",
     "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which install-tools builds and the package @polyspec/kit ships in dist/symbols",
