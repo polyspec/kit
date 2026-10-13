@@ -46,7 +46,7 @@ export function createDraft(options: RunPlace, url: string, tag: string, notesFi
     throw new Stop(`the tag ${tag} is not on ${url}; push it before the release is published: ${error.message}`);
   }
   const created: { id: number; upload_url: string } = JSON.parse(run('gh', ['api', '--hostname', hostname, '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `name=${tag}`, '-F', `body=@${notesFile}`, '-F', 'draft=true', '--jq', '{id, upload_url}'], options));
-  // The upload URL is a URI template whose query names the asset: https://uploads.github.com/repos/O/R/releases/<id>/assets{?name,label}.
+  // The upload URL is an RFC 6570 URI pattern whose query names the asset: https://uploads.github.com/repos/O/R/releases/<id>/assets{?name,label}.
   const upload = created.upload_url.replace(/\{[^}]*\}$/, '');
   for (const file of files) {
     run('gh', ['api', '--method', 'POST', `${upload}?name=${encodeURIComponent(path.basename(file))}`, '-H', 'Content-Type: application/octet-stream', '--input', file, '--jq', '.id'], options);
