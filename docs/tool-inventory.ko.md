@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0ce10d10a32bd9093f46f4da466259491208a55a1faa74f885bff85c04c8eb31 -->
+<!-- source-sha256: 039e6360bb64569c6db0b1c5ff79af763a9dfaf5951376bb2d5a9d51f0c48e2c -->
 
 # 도구 목록
 
@@ -1041,7 +1041,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | `parity-symbols.mts` | R1과 R11의 symbol extractor, rustdoc JSON 탐색 |
 | `install-symbols.mts` | go extractor의 build와 php extractor의 설치(var/tools) |
 | `symbols/` | extractor 프로그램: `go/`(go/packages), `php/`(nikic/php-parser), `python.py`(ast) |
-| `test-output.mts` | node:test(TAP, 이름의 escape `\#`와 `\\`를 읽는 tap-parser로 읽음; K125), go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유 |
+| `test-output.mts` | go, cargo, unittest, PHPUnit 출력의 parser, run-tests와 공유. node:test는 `parity-node-reporter.mts`로 보고하며, K125의 TAP reader는 제거했습니다 |
 | `parity-errors.mts` | R7 |
 | `parity-text.mts` | R9, R10 |
 

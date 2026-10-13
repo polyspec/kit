@@ -226,7 +226,7 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
   if (run.error) return run;
   const declared = implementation.command;
   const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
-  // A run started from inside node --test must not join that run as its child, and its node:test output is TAP only outside it.
+  // A run started from inside node --test must not join that run as its child, and its node:test output reaches the reporter only outside it.
   const { NODE_TEST_CONTEXT: _joined, ...inherited } = base;
   const env = { ...inherited, ...runner.env, ...Object.fromEntries((implementation.env ?? []).map(entry => [entry.name, entry.value])) };
   return { ...run, args: run.args(implementation.args ?? []), command, env };

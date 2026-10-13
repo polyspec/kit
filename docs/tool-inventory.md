@@ -1129,7 +1129,7 @@ checks every rule except R1, R3 and R11 and runs nothing. Both are offline, prin
 | `parity-symbols.mts` | the symbol extractors of R1 and R11, and the walk of rustdoc JSON |
 | `install-symbols.mts` | the build of the go extractor and the install of the php extractor into var/tools |
 | `symbols/` | the extractor programs: `go/` (go/packages), `php/` (nikic/php-parser), `python.py` (ast) |
-| `test-output.mts` | the parsers of the output of node:test (TAP, read with tap-parser, which reads the escapes `\#` and `\\` of a name; K125), go, cargo, unittest and PHPUnit, shared with run-tests |
+| `test-output.mts` | the parsers of the output of go, cargo, unittest and PHPUnit, shared with run-tests; node:test reports through `parity-node-reporter.mts`, and the TAP reader of K125 is removed |
 | `parity-errors.mts` | R7 |
 | `parity-text.mts` | R9, R10 |
 

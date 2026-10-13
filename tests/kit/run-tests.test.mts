@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mts';
-import { cargoEvents, goEvents, phpunitEvents, pythonEvents, tapEvents, toProgress } from '../../scripts/kit/test-output.mts';
+import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
 import { put, tree } from './tree.mts';
@@ -273,44 +273,6 @@ test('the python events report an expected failure as todo, which is no pass (K4
   const { calls, sink } = recording();
   pythonEvents(sink)('test_known (tests.test_x.T.test_known) ... expected failure\ntest_ok (tests.test_x.T.test_ok) ... ok\n');
   assert.deepEqual(calls, ['start test_known (tests.test_x.T.test_known)', 'todo test_known (tests.test_x.T.test_known)', 'start test_ok (tests.test_x.T.test_ok)', 'pass test_ok (tests.test_x.T.test_ok)']);
-});
-
-test('the tap events report a TODO test as todo, which is no pass (K47)', () => {
-  const { calls, sink } = recording();
-  tapEvents(sink, 'TAP version 13\nnot ok 1 - known # TODO not yet\nok 2 - plain\n1..2\n');
-  assert.deepEqual(calls, ['todo known', 'pass plain']);
-});
-
-test('the tap events read the TAP escapes of a test name: \\# is # and \\\\ is \\ (K125)', () => {
-  const { calls, sink } = recording();
-  tapEvents(sink, 'TAP version 13\nok 1 - a \\# b\nok 2 - c \\\\ d\n1..2\n');
-  assert.deepEqual(calls, ['pass a # b', 'pass c \\ d']);
-});
-
-test('the tap events report each test at the top as a whole, skipped tests, the last test without a plan, and the failure of a test', () => {
-  const failures: string[] = [];
-  const { calls, sink } = recording();
-  const text = [
-    'TAP version 13',
-    '# Subtest: group',
-    '    # Subtest: inner',
-    '    not ok 1 - inner',
-    '      ---',
-    '      duration_ms: 1.5',
-    "      error: 'expected 1'",
-    '      ...',
-    '    1..1',
-    'not ok 1 - group',
-    '  ---',
-    '  duration_ms: 2.5',
-    "  error: '1 subtest failed'",
-    '  ...',
-    'ok 2 - later # SKIP not here',
-    'ok 3 - last',
-  ].join('\n');
-  tapEvents({ ...sink, fail: (test, ms, failure) => { failures.push(`${test.id} ${ms} ${failure}`); sink.fail(test); } }, text);
-  assert.deepEqual(calls, ['fail group', 'skip later', 'pass last']);
-  assert.deepEqual(failures, ['group 2.5 1 subtest failed']);
 });
 
 test('the phpunit events of a skipped test pass it as skipped only, as PHPUnit reports it (K47)', () => {

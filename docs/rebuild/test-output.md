@@ -3,8 +3,9 @@
 
 [한국어](test-output.ko.md)
 
-Verdict: **none fits** for the libtest, unittest and TeamCity readers; **replace** the TAP reader with tap-parser. Measured on
-2026-10-13.
+Verdict: **none fits** for the libtest, unittest and TeamCity readers. Measured on 2026-10-13. No tool of kit reads TAP: the
+node runner of parity reports through `parity-node-reporter.mts`, a node:test reporter (K75), so the tap-parser reader of
+K125 was removed.
 
 ## Covers
 
@@ -17,7 +18,6 @@ events of a run as they happen, from the standard runners of S3.
 
 | Item | Format | Requirement |
 |---|---|---|
-| T1 | node:test TAP (parity) | each top-level test with its outcome and its SKIP or TODO directive |
 | T2 | `go test -json` | the events of each test and package |
 | T3 | cargo test (libtest) text | the start and the result of each test, as they happen |
 | T4 | unittest verbose text | the start and the outcome of each test, as they happen |
@@ -27,7 +27,6 @@ events of a run as they happen, from the standard runners of S3.
 
 | Tool | State | Verdict |
 |---|---|---|
-| tap-parser (npm) | 18.3.4 | T1: the same outcomes as kit on 99 TAP results of 8 kit test files and an edge file; one difference, a name with an escaped `\#`, which tap-parser unescapes as TAP requires and kit does not. **Replace** |
 | `JSON.parse` per line | Node.js | T2 is one JSON object per line; kit already reads it so, and the event handling is the progress of run-tests |
 | teamcity-service-messages (npm) | 0.2.0 | writes TeamCity messages, does not read them (T5); no reader of TeamCity messages was found on npm |
 | cargo test `--format json` | nightly only (`-Z unstable-options`) | T3 not on the pinned stable Rust |
@@ -36,9 +35,9 @@ events of a run as they happen, from the standard runners of S3.
 ## Why none fits
 
 For T3–T5 the runners write no machine format as they run, and no library reads their text or TeamCity output. kit reads the
-lines that the standard runners print. T1 has a library that reads the same outcomes and the TAP escapes correctly.
+lines that the standard runners print.
 
 ## Retry condition
 
 Revisit T3 when stable cargo test writes JSON, T4 when unittest has a machine format, and T5 when a maintained TeamCity
-message reader exists. K125 replaced the TAP reader of T1 with tap-parser.
+message reader exists.
