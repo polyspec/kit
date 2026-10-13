@@ -4,13 +4,14 @@
 // a registry: rustup and rustc are stubs on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { prepareRust, toolsFor } from '../../scripts/kit/release-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
+import { tool } from './kit-tools.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture/config/release.json');
@@ -92,19 +93,14 @@ test('prepareRust stops with the rustup output when the toolchain cannot be inst
   stop(() => prepareRust(box.root, { env: box.env, ...capture() }), /rustup toolchain install --no-self-update exited with 1/);
 });
 
-test('release-tools reads config/release.json of the repository it runs in, also from a copy outside the repository (K71-2)', (t) => {
-  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of the module names no repository.
-  const outside = mkdtempSync(path.join(tmpdir(), 'release-tools-outside-'));
+test('release-tools reads config/release.json of the repository it runs in, not of the checkout of its module (K71-2)', (t) => {
+  // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of the module names no repository: the
+  // tool of this checkout, whose own config/release.json is valid, runs in another repository (kit-tools.mts).
   const repository = mkdtempSync(path.join(tmpdir(), 'release-tools-repository-'));
-  t.after(() => { rmSync(outside, { recursive: true, force: true }); rmSync(repository, { recursive: true, force: true }); });
-  const kit = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-  cpSync(path.join(kit, 'scripts/kit'), path.join(outside, 'tools'), { recursive: true });
-  // The copy finds the packages of kit beside it, as the dist of an installed package finds its dependencies.
-  symlinkSync(path.join(kit, 'node_modules'), path.join(outside, 'node_modules'));
+  t.after(() => rmSync(repository, { recursive: true, force: true }));
   mkdirSync(path.join(repository, 'config'));
   writeFileSync(path.join(repository, 'config/release.json'), '{}');
-  const ran = spawnSync(process.execPath, [path.join(outside, 'tools/release-tools.mts')], { cwd: repository, encoding: 'utf8' });
+  const ran = spawnSync(process.execPath, [tool('release-tools')], { cwd: repository, encoding: 'utf8' });
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
-  assert.doesNotMatch(ran.stderr, /the file is missing/, 'the tool read the directory above its module, not the repository');
   assert.match(ran.stderr, /config\/release\.json: \/ must have required property 'repositoryUrl'/);
 });
