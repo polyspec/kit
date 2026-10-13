@@ -29,34 +29,121 @@ export const RECORD = 'config/dependency-review.json';
 export const NPM_MANIFEST = 'package.json';
 export const TOOLCHAIN = 'config/toolchain.json';
 
+/** A polyspec package taken from a GitHub tag, an entry of `taggedNpmPackages` of the policy. */
+export type TaggedRelease = { directory: string; repository: string; tag: string; version: string; fix: string };
+
+/** The part of config/dependency-policy.json (scripts/kit/schema/dependency-policy.schema.json) that the state reads. */
+export type DependencyPolicy = {
+  npmLocks: string[];
+  composerPlatforms?: { manifest: string }[];
+  pythonLocks?: { lock: string }[];
+  pythonManifests?: string[];
+  taggedNpmPackages?: TaggedRelease[];
+};
+
+/** A registry dependency: its manifest, kind, specification and locked version, and its lock. */
+export type Dependency = {
+  ecosystem: string;
+  manifest: string;
+  package: string;
+  kind: string;
+  spec: string;
+  version: string | null;
+  lock: string | null;
+  createdBy?: string | null;
+};
+
+/**
+ * A package of this repository that an npm manifest names: the directory of its lock (`base`), the directory that the lock
+ * entry links or copies, the version of that entry and the version and name of the manifest of the directory.
+ */
+export type NpmLocalPackage = {
+  ecosystem: 'npm';
+  manifest: string;
+  package: string;
+  spec: string;
+  kind: string;
+  base: string;
+  lock: string;
+  directory: string | null;
+  lockVersion: string | null;
+  version: string | null;
+  name: string | null;
+};
+
+/** A package of this repository that a Composer manifest requires from a path repository. */
+export type ComposerLocalPackage = {
+  ecosystem: 'composer';
+  manifest: string;
+  package: string;
+  spec: string;
+  kind: string;
+  directory: string;
+  lockVersion: string;
+  version: string;
+  name: string;
+};
+
+/** A package of this repository that a manifest names. */
+export type LocalPackage = NpmLocalPackage | ComposerLocalPackage;
+
+/** An exact requirement of a pyproject.toml. */
+export type PythonRequirement = { package: string; kind: string; spec: string; version: string };
+
+/** An entry of `packages` of an npm lock (lockfileVersion 3). */
+export type NpmLockEntry = {
+  version?: string;
+  resolved?: string;
+  link?: boolean;
+  dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+};
+
+/** An npm lock (lockfileVersion 3). */
+export type NpmLock = { packages?: Record<string, NpmLockEntry> };
+
+// An npm manifest and a Composer manifest and lock, as far as the state reads them.
+type NpmManifest = { workspaces?: string[]; overrides?: Record<string, unknown>; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; version?: string; name?: string };
+type ComposerManifest = { require?: Record<string, string>; 'require-dev'?: Record<string, string> };
+type ComposerPackage = { name: string; version: string; dist?: { type: string; url: string } };
+type ComposerLock = { packages?: ComposerPackage[]; 'packages-dev'?: ComposerPackage[] };
+type Pylock = ReturnType<typeof readPylock>;
+type VcsSource = NonNullable<Pylock['packages'][number]['vcs']>;
+
 const LOCAL_SPEC = /^(file|link|workspace):/;
 // A lock entry that npm installed as a copy (`install-links=true`) has `resolved: file:<directory>` and no `link`.
 const COPY_PREFIX = 'file:';
 
 /** The polyspec packages taken from a GitHub tag, from `taggedNpmPackages` of the policy: { directory, repository, tag, version }. */
-const taggedPackages = policy => policy.taggedNpmPackages ?? [];
+const taggedPackages = (policy: DependencyPolicy) => policy.taggedNpmPackages ?? [];
 const EXACT_PYTHON_PIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)==(\d+(?:\.\d+)*)$/;
 const URL_SPEC = /^(?!npm:)[A-Za-z][A-Za-z0-9+.-]*:|^[^@/][^/]*\/[^/]/;
 const PLATFORM_REQUIREMENT = /^(php(-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.+|composer(-plugin-api|-runtime-api)?)$/;
 
 
 /** The exact requirements of a pyproject.toml: build-system.requires and every extra, each `name==version`. */
-export function pythonRequirements(text, manifest) {
+export function pythonRequirements(text: string, manifest: string) {
   const sections = text.split(/^(?=\[)/m);
-  const requirements = [];
-  const add = (kind, list) => {
+  const requirements: PythonRequirement[] = [];
+  const add = (kind: string, list: string) => {
+    // The groups of both patterns are not optional, so every match holds them.
     for (const [, item] of list.matchAll(/"([^"]+)"/g)) {
-      const pin = EXACT_PYTHON_PIN.exec(item);
+      const pin = EXACT_PYTHON_PIN.exec(item!); // The groups of the pattern are not optional.
       if (!pin) throw new Error(`${manifest}: ${JSON.stringify(item)} is not an exact pin name==version; pin it exactly`);
-      requirements.push({ package: pin[1], kind, spec: `==${pin[2]}`, version: pin[2] });
+      requirements.push({ package: pin[1]!, kind, spec: `==${pin[2]}`, version: pin[2]! }); // The groups of the pattern are not optional.
     }
   };
   for (const section of sections) {
     if (section.startsWith('[build-system]')) {
       const requires = /^requires\s*=\s*\[([\s\S]*?)\]/m.exec(section);
-      if (requires) add('build-system', requires[1]);
+      // The groups of the patterns are not optional, so every match holds them.
+      if (requires) add('build-system', requires[1]!);
     } else if (section.startsWith('[project.optional-dependencies]')) {
-      for (const [, extra, list] of section.matchAll(/^([A-Za-z0-9_-]+)\s*=\s*\[([\s\S]*?)\]/gm)) add(`optional:${extra}`, list);
+      // The groups of the patterns are not optional, so every match holds them.
+      for (const [, extra, list] of section.matchAll(/^([A-Za-z0-9_-]+)\s*=\s*\[([\s\S]*?)\]/gm)) add(`optional:${extra}`, list!);
     }
   }
   return requirements;
@@ -66,10 +153,10 @@ export function pythonRequirements(text, manifest) {
 export const UPDATE = 'make dependency-review UPDATE=1';
 
 /** The key of a dependency in the policy and the record. */
-export const dependencyKey = ({ ecosystem, manifest, package: name }) => `${ecosystem}:${manifest}:${name}`;
+export const dependencyKey = ({ ecosystem, manifest, package: name }: { ecosystem: string; manifest: string; package: string }) => `${ecosystem}:${manifest}:${name}`;
 
 /** The go.mod files of the checkout: every go.mod that is tracked or new and not ignored. */
-export const goModules = root => checkedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
+export const goModules = (root: string): string[] => checkedFiles(root).filter(file => path.posix.basename(file) === 'go.mod');
 
 /**
  * The package patterns of the module of `lock` (a go.sum, beside its go.mod), relative to the module directory, in order:
@@ -78,12 +165,12 @@ export const goModules = root => checkedFiles(root).filter(file => path.posix.ba
  * under var/tools, which is not part of the module. As `./...` does, a directory whose name begins with `.` or `_`, or
  * is `testdata` or `vendor`, is skipped, and so is a directory below a nested module (a go.mod of its own).
  */
-export function goPackagePatterns(root, lock) {
+export function goPackagePatterns(root: string, lock: string) {
   const module = path.posix.dirname(lock);
-  const within = (directory, base) => base === '.' || directory === base || directory.startsWith(`${base}/`);
+  const within = (directory: string, base: string) => base === '.' || directory === base || directory.startsWith(`${base}/`);
   const nested = goModules(root).map(file => path.posix.dirname(file)).filter(directory => directory !== module && within(directory, module));
-  const patterns = new Set();
-  for (const file of checkedFiles(root).filter(item => item.endsWith('.go'))) {
+  const patterns = new Set<string>();
+  for (const file of checkedFiles(root).filter((item: string) => item.endsWith('.go'))) {
     const directory = path.posix.dirname(file);
     if (!within(directory, module) || nested.some(base => within(directory, base))) continue;
     const relative = path.posix.relative(module, directory);
@@ -97,39 +184,42 @@ export function goPackagePatterns(root, lock) {
  * The direct requirements of a go.mod as { module, version }: the `require` lines without `// indirect`, except a module
  * that a `replace` directive points to a directory of the checkout, which is a package of this repository.
  */
-export function goRequirements(text) {
-  const replaced = new Set([...text.matchAll(/^\s*(?:replace\s+)?(\S+)(?:\s+v\S+)?\s*=>\s*(?:\.{1,2}\/|\/)\S*\s*$/gm)].map(match => match[1]));
+export function goRequirements(text: string) {
+  // The first group of each pattern below is not optional, so every match holds it.
+  const replaced = new Set([...text.matchAll(/^\s*(?:replace\s+)?(\S+)(?:\s+v\S+)?\s*=>\s*(?:\.{1,2}\/|\/)\S*\s*$/gm)].map(match => match[1]!));
   const lines = [
-    ...[...text.matchAll(/^require\s*\(([\s\S]*?)^\)/gm)].flatMap(match => match[1].split('\n')),
-    ...[...text.matchAll(/^require\s+(\S+\s+v\S+.*)$/gm)].map(match => match[1]),
+    ...[...text.matchAll(/^require\s*\(([\s\S]*?)^\)/gm)].flatMap(match => match[1]!.split('\n')), // The groups of the pattern are not optional.
+    ...[...text.matchAll(/^require\s+(\S+\s+v\S+.*)$/gm)].map(match => match[1]!), // The groups of the pattern are not optional.
   ];
-  const requirements = [];
+  const requirements: { module: string; version: string }[] = [];
   for (const line of lines) {
     if (/\/\/\s*indirect/.test(line)) continue;
     const match = /^\s*(\S+)\s+(v\d\S*)/.exec(line);
-    if (match && !replaced.has(match[1])) requirements.push({ module: match[1], version: match[2] });
+    // Neither group of the pattern is optional, so a match holds both.
+    if (match && !replaced.has(match[1]!)) requirements.push({ module: match[1]!, version: match[2]! });
   }
   return requirements;
 }
 
 /** The Cargo locks of the checkout: every Cargo.lock that is tracked or new and not ignored. */
-export const cargoLocks = root => checkedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
+export const cargoLocks = (root: string): string[] => checkedFiles(root).filter(file => path.posix.basename(file) === 'Cargo.lock');
 
 // A PEP 751 lock is pylock.toml or pylock.<name>.toml.
 const PYLOCK = /^pylock(\.[A-Za-z0-9_-]+)?\.toml$/;
+const LOCK_ECOSYSTEMS: Record<string, string> = { 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' };
 
 /** The ecosystem of a lock: npm, composer, cargo, go or pypi (a PEP 751 pylock.toml). */
-export const lockEcosystem = (lock) => {
+export const lockEcosystem = (lock: string) => {
   const name = path.posix.basename(lock);
   if (PYLOCK.test(name)) return 'pypi';
-  return ({ 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' })[name];
+  return LOCK_ECOSYSTEMS[name];
 };
 
 /**
  * The command that regenerates a PEP 751 lock, named by the `created-by` field of the lock, which the writer sets. A lock without
  * a writer, or with one that kit does not name, has no fix of its own: the fix says so.
  */
-export function lockFix(lock, createdBy, name) {
+export function lockFix(lock: string, createdBy: string | null, name: string) {
   if (createdBy === 'uv') return `regenerate ${lock} with uv: uv lock --upgrade-package ${name}, then uv export --format pylock.toml --frozen --no-emit-project -o ${lock}, then make dependency-review RECORD=1`;
   if (createdBy === 'pip') return `regenerate ${lock} with pip: pip lock, then make dependency-review RECORD=1`;
   return `regenerate ${lock} with the tool that wrote it (created-by ${createdBy === null ? 'is absent' : JSON.stringify(createdBy)}), then make dependency-review RECORD=1`;
@@ -139,9 +229,9 @@ export function lockFix(lock, createdBy, name) {
  * The npm manifests of the npm project at `base` (a directory of the checkout, `.` for the root): its package.json and the
  * package.json of each workspace directory. `directory` is relative to `base`, `manifest` to the checkout.
  */
-export function npmManifests(root, base = '.') {
+export function npmManifests(root: string, base = '.') {
   const own = path.posix.join(base, NPM_MANIFEST);
-  const manifest = readJson(root, own);
+  const manifest: NpmManifest = readJson(root, own);
   const workspaces = (manifest.workspaces ?? []).flatMap((pattern) => {
     if (!pattern.endsWith('/*')) throw new Error(`${own}: unsupported workspace pattern ${pattern}`);
     const parent = pattern.slice(0, -2);
@@ -153,10 +243,10 @@ export function npmManifests(root, base = '.') {
 }
 
 /** The directory of the checkout that a `file:` specification of a manifest names, resolved from the directory `base` of its lock; null for another specification. */
-export const localSpecDirectory = (base, spec) => (spec.startsWith('file:') ? path.posix.join(base, spec.slice('file:'.length)) : null);
+export const localSpecDirectory = (base: string, spec: string) => (spec.startsWith('file:') ? path.posix.join(base, spec.slice('file:'.length)) : null);
 
 /** The lock entry of the package `name` that a manifest in `directory` resolves: its own node_modules first. */
-export function npmLockEntry(lock, directory, name) {
+export function npmLockEntry(lock: NpmLock, directory: string, name: string) {
   const nested = directory === '.' ? null : lock.packages?.[`${directory}/node_modules/${name}`];
   return nested ?? lock.packages?.[`node_modules/${name}`] ?? null;
 }
@@ -167,36 +257,38 @@ export function npmLockEntry(lock, directory, name) {
  * `policy.npmLocks` is read with the package.json beside it and that package's workspaces; a lock entry names its package
  * relative to the directory of its lock, and `base` is that directory.
  */
-export function readState(root, policy) {
-  const dependencies = [];
-  const local = [];
-  const tagged = [];
-  const locks = [];
-  const manifests = [];
-  const npmLocks = new Map();
-  const pythonLocks = [];
-  const vcs = [];
+export function readState(root: string, policy: DependencyPolicy) {
+  const dependencies: Dependency[] = [];
+  const local: LocalPackage[] = [];
+  const tagged: (NpmLocalPackage & { release: TaggedRelease })[] = [];
+  const locks: string[] = [];
+  const manifests: { directory: string; manifest: string; lock: string }[] = [];
+  const npmLocks = new Map<string, NpmLock>();
+  const pythonLocks: { lock: string; createdBy: Pylock['createdBy']; packages: Pylock['packages'] }[] = [];
+  const vcs: { lock: string; package: string; url: VcsSource['url']; requestedRevision: VcsSource['requestedRevision']; commitId: VcsSource['commitId'] }[] = [];
 
   for (const lockPath of policy.npmLocks) {
     const base = path.posix.dirname(lockPath);
-    const lock = readJson(root, lockPath);
+    const lock: NpmLock = readJson(root, lockPath);
     npmLocks.set(lockPath, lock);
     locks.push(lockPath);
     // A package that the overrides of the npm project install from a URL (a release archive) is not in the registry: it has no review.
-    const urlOverrides = new Set(Object.entries(readJson(root, path.posix.join(base, NPM_MANIFEST)).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
+    const urlOverrides = new Set(Object.entries((readJson(root, path.posix.join(base, NPM_MANIFEST)) as NpmManifest).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
     for (const { directory, manifest: manifestPath } of npmManifests(root, base)) {
       manifests.push({ directory, manifest: manifestPath, lock: lockPath });
-      const manifest = readJson(root, manifestPath);
-      for (const kind of ['dependencies', 'devDependencies']) {
+      const manifest: NpmManifest = readJson(root, manifestPath);
+      for (const kind of ['dependencies', 'devDependencies'] as const) {
         for (const [name, spec] of Object.entries(manifest[kind] ?? {})) {
           const entry = npmLockEntry(lock, directory, name);
           const copied = !entry?.link && entry?.resolved?.startsWith(COPY_PREFIX);
           if (LOCAL_SPEC.test(spec) || entry?.link || copied) {
-            const target = entry?.link ? entry.resolved : copied ? entry.resolved.slice(COPY_PREFIX.length) : null;
+            // copied holds only for an entry with a resolved path.
+            const target = entry?.link ? entry.resolved : copied ? entry!.resolved!.slice(COPY_PREFIX.length) : null;
             const packageDirectory = target ? path.posix.join(base, target) : null;
-            const lockVersion = copied ? entry.version ?? null : target ? lock.packages?.[target]?.version ?? null : null;
-            const targetManifest = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) : null;
-            const item = {
+            // copied holds only for an entry.
+            const lockVersion = copied ? entry!.version ?? null : target ? lock.packages?.[target]?.version ?? null : null;
+            const targetManifest: NpmManifest | null = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) : null;
+            const item: NpmLocalPackage = {
               ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, base, lock: lockPath, directory: packageDirectory,
               lockVersion, version: targetManifest?.version ?? null, name: targetManifest?.name ?? null,
             };
@@ -215,10 +307,10 @@ export function readState(root, policy) {
   for (const { manifest: manifestPath } of policy.composerPlatforms ?? []) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
-    const composer = readJson(root, manifestPath);
-    const composerLock = readJson(root, lockPath);
+    const composer: ComposerManifest = readJson(root, manifestPath);
+    const composerLock: ComposerLock = readJson(root, lockPath);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
-    for (const kind of ['require', 'require-dev']) {
+    for (const kind of ['require', 'require-dev'] as const) {
       for (const [name, spec] of Object.entries(composer[kind] ?? {})) {
         if (PLATFORM_REQUIREMENT.test(name)) continue;
         const entry = locked.get(name);
@@ -235,13 +327,15 @@ export function readState(root, policy) {
   // by their commit and recorded with it. A lock whose packages are not read fails in readPylock with the line of the construct.
   for (const { lock: lockPath } of policy.pythonLocks ?? []) {
     locks.push(lockPath);
-    const lock = readPylock(readFileSync(path.join(root, lockPath), 'utf8'), lockPath);
+    const lock: Pylock = readPylock(readFileSync(path.join(root, lockPath), 'utf8'), lockPath);
     pythonLocks.push({ lock: lockPath, createdBy: lock.createdBy, packages: lock.packages });
     for (const item of lock.packages) {
       if (item.kind === 'registry') {
         dependencies.push({ ecosystem: 'pypi', manifest: lockPath, package: item.name, kind: 'lock', spec: `==${item.version}`, version: item.version, lock: lockPath, createdBy: lock.createdBy });
-      } else if (item.kind === 'vcs' && item.vcs.commitId !== null) {
-        vcs.push({ lock: lockPath, package: item.name, url: item.vcs.url, requestedRevision: item.vcs.requestedRevision, commitId: item.vcs.commitId });
+        // readPylock gives a package of kind vcs its vcs table.
+      } else if (item.kind === 'vcs' && item.vcs!.commitId !== null) {
+        // readPylock gives a package of kind vcs its vcs table.
+        vcs.push({ lock: lockPath, package: item.name, url: item.vcs!.url, requestedRevision: item.vcs!.requestedRevision, commitId: item.vcs!.commitId });
       }
     }
   }
@@ -274,16 +368,27 @@ export function readState(root, policy) {
 const NPM_VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const NPM_PARTIAL = /^(<=|>=|<|>|=|\^|~>?|)v?(\*|x|X|\d+)(?:\.(\*|x|X|\d+))?(?:\.(\*|x|X|\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
+/** A release `[major, minor, patch]`. */
+type Release = [number, number, number];
+
+/** A parsed npm version. */
+type NpmVersion = { release: Release; pre: string[] };
+
+/** A comparator of a comparator set: an operator of <, <=, >, >= and = with its version. */
+type Comparator = { operator: string; version: NpmVersion };
+
 /** A parsed npm version `{ release: [major, minor, patch], pre: [...] }`, or null. */
-function npmVersion(text) {
+function npmVersion(text: string | undefined): NpmVersion | null {
   const match = String(text).match(NPM_VERSION);
-  return match ? { release: match.slice(1, 4).map(Number), pre: match[4] ? match[4].split('.') : [] } : null;
+  // The three groups of the release are not optional.
+  return match ? { release: match.slice(1, 4).map(Number) as Release, pre: match[4] ? match[4].split('.') : [] } : null;
 }
 
 /** The order of two parsed npm versions: negative, zero or positive. */
-function npmCompare(left, right) {
+function npmCompare(left: NpmVersion, right: NpmVersion) {
   for (let index = 0; index < 3; index += 1) {
-    if (left.release[index] !== right.release[index]) return left.release[index] - right.release[index];
+    // index is 0, 1 or 2, a part of a release.
+    if (left.release[index] !== right.release[index]) return left.release[index]! - right.release[index]!;
   }
   if (!left.pre.length || !right.pre.length) return right.pre.length - left.pre.length;
   for (let index = 0; index < Math.max(left.pre.length, right.pre.length); index += 1) {
@@ -299,20 +404,21 @@ function npmCompare(left, right) {
   return 0;
 }
 
-const comparator = (operator, release, pre = []) => ({ operator, version: { release, pre } });
-const below = release => comparator('<', release, ['0']);
+const comparator = (operator: string, release: Release, pre: string[] = []): Comparator => ({ operator, version: { release, pre } });
+const below = (release: Release) => comparator('<', release, ['0']);
 
 /** The comparators of one term of a comparator set, or null when the term is not a version range term. */
-function npmTerm(term) {
+function npmTerm(term: string): Comparator[] | null {
   const match = term.match(NPM_PARTIAL);
   if (!match) return null;
   const [, operator, ...parts] = match;
   const wild = parts.slice(0, 3).map(part => part === undefined || /^[*xX]$/.test(part));
-  const [major, minor, patch] = parts.slice(0, 3).map(part => (part === undefined || /^[*xX]$/.test(part) ? 0 : Number(part)));
+  // slice(0, 3) of the groups after the operator maps the three parts of the release.
+  const [major, minor, patch] = parts.slice(0, 3).map(part => (part === undefined || /^[*xX]$/.test(part) ? 0 : Number(part))) as Release;
   const pre = parts[3] ? parts[3].split('.') : [];
   const level = wild[0] ? 0 : wild[1] ? 1 : wild[2] ? 2 : 3;
-  const floor = [major, minor, patch];
-  const next = level === 1 ? [major + 1, 0, 0] : [major, minor + 1, 0];
+  const floor: Release = [major, minor, patch];
+  const next: Release = level === 1 ? [major + 1, 0, 0] : [major, minor + 1, 0];
   if (operator === '' || operator === '=') {
     if (level === 0) return [];
     if (level === 3) return [comparator('=', floor, pre)];
@@ -320,15 +426,17 @@ function npmTerm(term) {
   }
   if (operator === '^') {
     if (level === 0) return [];
-    const ceiling = major > 0 || level === 1 ? [major + 1, 0, 0] : minor > 0 || level === 2 ? [0, minor + 1, 0] : [0, 0, patch + 1];
+    const ceiling: Release = major > 0 || level === 1 ? [major + 1, 0, 0] : minor > 0 || level === 2 ? [0, minor + 1, 0] : [0, 0, patch + 1];
     return [comparator('>=', floor, pre), below(ceiling)];
   }
-  if (operator.startsWith('~')) {
+  // The group of the operator is not optional; it matches the empty string when no operator is written.
+  if (operator!.startsWith('~')) {
     if (level === 0) return [];
     return [comparator('>=', floor, pre), below(level === 1 ? [major + 1, 0, 0] : [major, minor + 1, 0])];
   }
   if (level === 0) return operator === '<' || operator === '>' ? [below([0, 0, 0])] : [];
-  if (level === 3) return [comparator(operator, floor, pre)];
+  // The group of the operator is not optional.
+  if (level === 3) return [comparator(operator!, floor, pre)];
   if (operator === '>') return [comparator('>=', next)];
   if (operator === '>=') return [comparator('>=', floor)];
   if (operator === '<') return [below(floor)];
@@ -336,16 +444,16 @@ function npmTerm(term) {
 }
 
 /** The comparator sets of an npm range, or null when the specification is not a version range. */
-function npmRange(range) {
+function npmRange(range: string) {
   const text = String(range).replace(/^npm:(?:@[^/@]+\/)?[^@]+@/, '').trim();
-  const sets = [];
+  const sets: Comparator[][] = [];
   for (const alternative of text.split('||')) {
     const set = alternative.trim();
     const hyphen = set.match(/^(\S+)\s+-\s+(\S+)$/);
     const terms = hyphen
       ? [`>=${hyphen[1]}`, `<=${hyphen[2]}`]
       : set.replace(/(<=|>=|<|>|=|\^|~>?)\s+/g, '$1').split(/\s+/).filter(Boolean);
-    const comparators = [];
+    const comparators: Comparator[] = [];
     for (const term of terms) {
       const parsed = npmTerm(term);
       if (!parsed) return null;
@@ -357,19 +465,20 @@ function npmRange(range) {
 }
 
 /** Whether `version` satisfies the npm range `range`; null for a specification that is not a version range. */
-export function npmSatisfies(version, range) {
+export function npmSatisfies(version: string | undefined, range: string) {
   const sets = npmRange(range);
   const parsed = npmVersion(version);
   if (!sets || !parsed) return null;
   return sets.some(set => set.every(({ operator, version: bound }) => {
     const order = npmCompare(parsed, bound);
-    return { '<': order < 0, '<=': order <= 0, '>': order > 0, '>=': order >= 0, '=': order === 0 }[operator];
+    const holds: Record<string, boolean> = { '<': order < 0, '<=': order <= 0, '>': order > 0, '>=': order >= 0, '=': order === 0 };
+    return holds[operator];
   }) && (!parsed.pre.length || set.some(({ version: bound }) => bound.pre.length > 0
     && bound.release.every((part, index) => part === parsed.release[index]))));
 }
 
 /** The lock location of the copy of `name` that a package at `location` loads: the nearest `node_modules` upward. */
-function npmResolve(packages, location, name) {
+function npmResolve(packages: Record<string, NpmLockEntry>, location: string, name: string) {
   const parts = location ? location.split('/') : [];
   for (let length = parts.length; length >= 0; length -= 1) {
     const candidate = [...parts.slice(0, length), 'node_modules', name].join('/');
@@ -384,29 +493,34 @@ function npmResolve(packages, location, name) {
  * dependencies and required peer dependencies. Each package that loads a copy finds it in the nearest `node_modules`
  * upward from its own location. One line per package.
  */
-export function npmDuplicates(lock) {
+export function npmDuplicates(lock: NpmLock) {
   const packages = lock.packages ?? {};
-  const copies = new Map();
+  const copies = new Map<string, Map<string, { range: string; from: string }[]>>();
   for (const [location, entry] of Object.entries(packages)) {
-    for (const kind of ['dependencies', 'optionalDependencies', 'devDependencies', 'peerDependencies']) {
+    for (const kind of ['dependencies', 'optionalDependencies', 'devDependencies', 'peerDependencies'] as const) {
       for (const [name, range] of Object.entries(entry[kind] ?? {})) {
         if (kind === 'peerDependencies' && entry.peerDependenciesMeta?.[name]?.optional) continue;
         const copy = npmResolve(packages, location, name);
-        if (!copy || packages[copy].link || !npmVersion(packages[copy].version) || !npmRange(range)) continue;
+        // npmResolve returns only a location of packages.
+        if (!copy || packages[copy]!.link || !npmVersion(packages[copy]!.version) || !npmRange(range)) continue;
         if (!copies.has(name)) copies.set(name, new Map());
-        const loaders = copies.get(name);
+        // The line above sets every missing name.
+        const loaders = copies.get(name)!;
         if (!loaders.has(copy)) loaders.set(copy, []);
-        loaders.get(copy).push({ range, from: location === '' ? 'the root' : location });
+        // The line above sets every missing copy.
+        loaders.get(copy)!.push({ range, from: location === '' ? 'the root' : location });
       }
     }
   }
-  const lines = [];
+  const lines: string[] = [];
   for (const name of [...copies.keys()].sort()) {
-    const located = [...copies.get(name)].map(([copy, loaders]) => ({ version: packages[copy].version, loaders }));
-    const found = located.flatMap((left, index) => located.slice(index + 1).map(right => [left, right]))
+    // name is a key of copies, and each copy is a location of packages.
+    const located = [...copies.get(name)!].map(([copy, loaders]) => ({ version: packages[copy]!.version, loaders }));
+    const found = located.flatMap((left, index) => located.slice(index + 1).map((right): [typeof left, typeof left] => [left, right]))
       .filter(([left, right]) => left.version !== right.version)
       .map(([left, right]) => {
-        const [low, high] = [left, right].sort((a, b) => npmCompare(npmVersion(a.version), npmVersion(b.version)));
+        // copies holds only copies whose version npmVersion reads, and the sorted pair has two entries.
+        const [low, high] = [left, right].sort((a, b) => npmCompare(npmVersion(a.version)!, npmVersion(b.version)!)) as [typeof left, typeof left];
         const loaders = [...left.loaders, ...right.loaders];
         const single = [high.version, low.version].find(version => loaders.every(({ range }) => npmSatisfies(version, range)));
         return single && { low: low.version, high: high.version, single, loaders };

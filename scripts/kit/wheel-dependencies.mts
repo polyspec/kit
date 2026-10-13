@@ -18,18 +18,35 @@ import { wheelName } from './release-wheel.mts';
 const PLAIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)==(\d+(?:\.\d+)*)$/;
 const DIRECT = /^([A-Za-z0-9][A-Za-z0-9._-]*) @ (\S+)$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const SOURCE_NAMES = { vcs: 'a git source', directory: 'a directory source', none: 'no source' };
+const SOURCE_NAMES: Record<string, string> = { vcs: 'a git source', directory: 'a directory source', none: 'no source' };
+
+// A package of a lock as readPylock of pylock.mts returns it.
+type LockPackage = { name: string; version: string; kind: string; files: { url: string | null; path: string | null; sha256: string | null }[] };
+const readLock = (text: string, lockFile: string): { packages: LockPackage[] } => readPylock(text, lockFile);
+
+// The part of config/release.json that the wheel checks read.
+type ReleaseConfig = { packages: { name: string; kind: string }[]; consumers: { wheel: { lock: Record<string, string> } } };
+
+/** What a Requires-Dist is checked against: the lock, the declared polyspec packages and the siblings of this release. */
+type Context = {
+  lockFile: string;
+  version: string;
+  repositoryUrl: string;
+  packages: Map<string, LockPackage>;
+  declared: Map<string, { name: string; repo: string }>;
+  siblings: Set<string>;
+};
 
 /** The name of a distribution in its normalized form (PEP 503): lower case, runs of `-`, `_` and `.` as one `-`. */
-export const canonicalName = name => name.toLowerCase().replace(/[-_.]+/g, '-');
+export const canonicalName = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
 
 /** The siblings of the wheel `name`: the other wheel packages of config.packages, which the same tag releases. */
-export const siblingsOf = (config, name) => config.packages
+export const siblingsOf = (config: Pick<ReleaseConfig, 'packages'>, name: string) => config.packages
   .filter(item => item.kind === 'wheel' && canonicalName(item.name) !== canonicalName(name))
   .map(item => item.name);
 
 /** The form of a Requires-Dist that is not a registry pin or a direct reference: a git source, a marker, a URL or a range. */
-function requirementForm(spec) {
+function requirementForm(spec: string) {
   if (/ @ (?:git[+:]|hg\+|svn\+|bzr\+)|\.git(?:[@#]|$)/.test(spec)) return 'a git source';
   if (spec.includes(';')) return 'a marker';
   if (/ @ |:\/\//.test(spec)) return 'a URL';
@@ -37,12 +54,13 @@ function requirementForm(spec) {
 }
 
 /** The problems of the lock text: the PEP 751 form that the reader reads, and each package a registry or archive source with its sha256. */
-export function lockProblems(text, lockFile) {
+export function lockProblems(text: string, lockFile: string): string[] {
   let lock;
   try {
-    lock = readPylock(text, lockFile);
+    lock = readLock(text, lockFile);
   } catch (error) {
-    return [error.message];
+    // readPylock fails with an Error.
+    return [(error as Error).message];
   }
   return lock.packages.flatMap(({ name, version, kind, files }) => {
     if (kind === 'registry') {
@@ -50,7 +68,8 @@ export function lockProblems(text, lockFile) {
         ? [] : [`${lockFile}: ${name} ${version} has a file with no sha256; a consumer installs with --require-hashes`];
     }
     if (kind === 'archive') {
-      return files.length === 1 && SHA256.test(files[0].sha256 ?? '')
+      // The length check before holds one file.
+      return files.length === 1 && SHA256.test(files[0]!.sha256 ?? '')
         ? [] : [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
     }
     return [`${lockFile}: ${name} ${version} is ${SOURCE_NAMES[kind]}; a consumer installs only registry files and archives`];
@@ -61,11 +80,12 @@ export function lockProblems(text, lockFile) {
  * The requirement file of a lock for pip: `name==version --hash=sha256:…` for each file of a registry package and
  * `name @ <url> --hash=sha256:…` for each archive. It throws a Stop with each problem of the lock first.
  */
-export function lockRequirements(text, lockFile) {
+export function lockRequirements(text: string, lockFile: string) {
   const problems = lockProblems(text, lockFile);
   if (problems.length) throw new Stop(problems.join('; '));
-  return readPylock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
-    ? `${name} @ ${files[0].url} --hash=sha256:${files[0].sha256}\n`
+  // lockProblems accepts an archive with exactly one file.
+  return readLock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
+    ? `${name} @ ${files[0]!.url} --hash=sha256:${files[0]!.sha256}\n`
     : `${name}==${version} ${files.map(file => `--hash=sha256:${file.sha256}`).join(' ')}\n`)).join('');
 }
 
@@ -75,11 +95,20 @@ export function lockRequirements(text, lockFile) {
  * consumers.wheel.polyspec declares for it. `polyspec` maps a distribution name to its repository URL; `siblings` are the names
  * of the other wheel packages of the configuration (siblingsOf), each named by its asset of this release at `repositoryUrl`.
  */
-export function wheelDependencyProblems({ metadata, name, version, polyspec, siblings = [], repositoryUrl, lockFile, lockText }) {
+export function wheelDependencyProblems({ metadata, name, version, polyspec, siblings = [], repositoryUrl, lockFile, lockText }: {
+  metadata: string;
+  name: string;
+  version: string;
+  polyspec: Record<string, string>;
+  siblings?: string[];
+  repositoryUrl: string;
+  lockFile: string;
+  lockText: string;
+}) {
   const form = lockProblems(lockText, lockFile);
   if (form.length) return form;
-  const lock = readPylock(lockText, lockFile);
-  const context = {
+  const lock = readLock(lockText, lockFile);
+  const context: Context = {
     lockFile,
     version,
     repositoryUrl,
@@ -87,9 +116,10 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
     declared: new Map(Object.entries(polyspec).map(([declared, repo]) => [canonicalName(declared), { name: declared, repo }])),
     siblings: new Set(siblings.map(canonicalName)),
   };
-  const problems = [];
+  const problems: string[] = [];
   for (const [, line] of metadata.matchAll(/^Requires-Dist: (.*)$/gm)) {
-    problems.push(...requirementProblems(line.trim(), context));
+    // The group of the pattern is not optional, so every match holds it.
+    problems.push(...requirementProblems(line!.trim(), context));
   }
   for (const entry of lock.packages) {
     if (context.siblings.has(canonicalName(entry.name))) {
@@ -98,8 +128,9 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
       const repository = context.declared.get(canonicalName(entry.name));
       if (!repository) {
         problems.push(`${lockFile}: ${entry.name} is an archive, consumers.wheel.polyspec does not declare it`);
-      } else if (!entry.files[0].url.startsWith(`${repository.repo}/releases/download/v${entry.version}/`)) {
-        problems.push(`${lockFile}: ${entry.name} ${entry.version} has the URL ${entry.files[0].url}, not a release asset of ${repository.repo} at v${entry.version}`);
+        // lockProblems accepts an archive with exactly one file, and the file of an archive has its URL.
+      } else if (!entry.files[0]!.url!.startsWith(`${repository.repo}/releases/download/v${entry.version}/`)) {
+        problems.push(`${lockFile}: ${entry.name} ${entry.version} has the URL ${entry.files[0]!.url}, not a release asset of ${repository.repo} at v${entry.version}`);
       }
     }
   }
@@ -110,24 +141,26 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
  * The direct references of a METADATA to its siblings, as { name, url } for each `name @ url` line of a sibling. The proof compares
  * each URL with the URL of the published asset of the sibling (release-proof.mts).
  */
-export function siblingLinks(metadata, siblings) {
+export function siblingLinks(metadata: string, siblings: string[]) {
   const names = new Set(siblings.map(canonicalName));
   return [...metadata.matchAll(/^Requires-Dist: (.*)$/gm)]
-    .map(([, line]) => DIRECT.exec(line.trim()))
-    .filter(found => found && names.has(canonicalName(found[1])))
-    .map(([, name, url]) => ({ name, url }));
+    // The groups of both patterns are not optional, so every match holds them.
+    .map(([, line]) => DIRECT.exec(line!.trim()))
+    .filter((found): found is RegExpExecArray => found !== null && names.has(canonicalName(found[1]!))) // The groups of the pattern are not optional.
+    .map(([, name, url]) => ({ name: name!, url: url! })); // The groups of the pattern are not optional.
 }
 
 /** The problems of one Requires-Dist line against the lock, the declared polyspec packages and the siblings. */
-function requirementProblems(spec, context) {
+function requirementProblems(spec: string, context: Context) {
+  // The groups of PLAIN and DIRECT are not optional, so every match holds them.
   const plain = PLAIN.exec(spec);
-  if (plain) return plainProblems(spec, plain[1], plain[2], context);
+  if (plain) return plainProblems(spec, plain[1]!, plain[2]!, context); // The groups of the pattern are not optional.
   const direct = DIRECT.exec(spec);
-  if (direct && requirementForm(spec) === 'a URL') return directProblems(spec, direct[1], direct[2], context);
+  if (direct && requirementForm(spec) === 'a URL') return directProblems(spec, direct[1]!, direct[2]!, context); // The groups of the pattern are not optional.
   return [`Requires-Dist ${spec} is ${requirementForm(spec)}, not name==version or a polyspec release asset with a sha256 fragment`];
 }
 
-function plainProblems(spec, name, pinned, context) {
+function plainProblems(spec: string, name: string, pinned: string, context: Context) {
   const { lockFile, packages, declared, siblings } = context;
   if (siblings.has(canonicalName(name))) return [`Requires-Dist ${spec} names the sibling ${name} of this release by name==version; it must be a direct reference to its release asset`];
   if (declared.has(canonicalName(name))) return [`Requires-Dist ${spec} names the polyspec package ${name}; it must be a direct reference to its release asset with a sha256 fragment`];
@@ -139,13 +172,14 @@ function plainProblems(spec, name, pinned, context) {
 }
 
 /** The version and the file name of a release asset `<repo>/releases/download/v<version>/<file>`, or null when `url` is not one. */
-function releaseAsset(url, repo) {
+function releaseAsset(url: string, repo: string) {
   const found = new RegExp(`^${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/releases/download/v(\\d+(?:\\.\\d+)*)/([^/]+)$`).exec(url);
-  return found ? { version: found[1], file: found[2] } : null;
+  // Neither group of the pattern is optional, so a match holds both.
+  return found ? { version: found[1]!, file: found[2]! } : null;
 }
 
 /** A sibling is a direct reference to its asset of this release, without a fragment; each failure names its reason. */
-function siblingProblems(spec, name, url, { version, repositoryUrl }) {
+function siblingProblems(spec: string, name: string, url: string, { version, repositoryUrl }: Context) {
   if (url.includes('#')) return [`Requires-Dist ${spec} names the sibling ${name} of this release with a #sha256 fragment; a sibling is named by its URL without a hash, since its sha256 is known only after the release builds it`];
   const asset = releaseAsset(url, repositoryUrl);
   if (!asset) return [`Requires-Dist ${spec} is not a release asset of ${repositoryUrl}, the repository of this release`];
@@ -154,7 +188,7 @@ function siblingProblems(spec, name, url, { version, repositoryUrl }) {
   return [];
 }
 
-function directProblems(spec, name, url, context) {
+function directProblems(spec: string, name: string, url: string, context: Context) {
   const { lockFile, packages, declared } = context;
   if (context.siblings.has(canonicalName(name))) return siblingProblems(spec, name, url, context);
   const repository = declared.get(canonicalName(name));
@@ -174,18 +208,21 @@ function directProblems(spec, name, url, context) {
   if (!entry) return [`Requires-Dist ${spec} has no entry in ${lockFile}. Fix: add ${name} ${version} with its archive to ${lockFile}`];
   if (entry.kind !== 'archive') return [`${lockFile}: ${name} is ${SOURCE_NAMES[entry.kind] ?? 'a registry version'}, the Requires-Dist ${spec} names a release asset`];
   if (entry.version !== version) return [`${lockFile}: ${name} is ${entry.version}, the Requires-Dist ${spec} names ${version}`];
-  if (entry.files[0].url !== base) return [`${lockFile}: ${name} has the URL ${entry.files[0].url}, the Requires-Dist ${spec} names ${base}`];
-  if (entry.files[0].sha256 !== sha256) return [`Requires-Dist ${spec}: the fragment has the sha256 ${sha256}, ${lockFile} holds ${entry.files[0].sha256} for ${name}`];
+  // lockProblems accepts an archive with exactly one file.
+  if (entry.files[0]!.url !== base) return [`${lockFile}: ${name} has the URL ${entry.files[0]!.url}, the Requires-Dist ${spec} names ${base}`];
+  // lockProblems accepts an archive with exactly one file.
+  if (entry.files[0]!.sha256 !== sha256) return [`Requires-Dist ${spec}: the fragment has the sha256 ${sha256}, ${lockFile} holds ${entry.files[0]!.sha256} for ${name}`];
   return [];
 }
 
 /** The repository URL that consumers.wheel.polyspec declares for the distribution `name`, or null when it declares none. */
-export const repositoryOf = (polyspec, name) => Object.entries(polyspec).find(([declared]) => canonicalName(declared) === canonicalName(name))?.[1] ?? null;
+export const repositoryOf = (polyspec: Record<string, string>, name: string) => Object.entries(polyspec).find(([declared]) => canonicalName(declared) === canonicalName(name))?.[1] ?? null;
 
 /** The lock of each wheel package of `config`: { name, file, text } for the packages in the order of the configuration. */
-export function wheelLocks(root, config) {
+export function wheelLocks(root: string, config: ReleaseConfig) {
   return config.packages.filter(item => item.kind === 'wheel').map(({ name }) => {
-    const file = config.consumers.wheel.lock[name];
+    // release-consumer-config.mts requires a lock of each wheel package.
+    const file = config.consumers.wheel.lock[name]!;
     if (!existsSync(path.join(root, file))) throw new Stop(`${file} is missing; consumers.wheel.lock declares the lock of ${name}`);
     return { name, file, text: readFileSync(path.join(root, file), 'utf8') };
   });

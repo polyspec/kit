@@ -13,7 +13,7 @@ const REPO = 'https://github.com/polyspec/kit-lib';
 const ASSET = 'kit_lib-0.0.1-py3-none-any.whl';
 const URL = `${REPO}/releases/download/v0.0.1/${ASSET}`;
 const SHA = 'a'.repeat(64);
-const POLYSPEC = { 'kit-lib': REPO };
+const POLYSPEC: Record<string, string> = { 'kit-lib': REPO };
 const RUFF_ENTRY = `[[packages]]
 name = "ruff"
 version = "0.16.10"
@@ -26,8 +26,9 @@ archive = { url = "${URL}", hashes = { sha256 = "${SHA}" } }
 `;
 const HEADER = 'lock-version = "1.0"\ncreated-by = "uv"\n\n';
 const LOCK_TEXT = `${HEADER}${RUFF_ENTRY}\n${KIT_LIB_ENTRY}`;
-const metadata = (...requires) => ['Metadata-Version: 2.4', 'Name: kit-fixture', 'Version: 0.0.1', ...requires.map(line => `Requires-Dist: ${line}`)].join('\n') + '\n';
-const problemsOf = (requires, { polyspec = POLYSPEC, lockText = LOCK_TEXT } = {}) => wheelDependencyProblems({ metadata: metadata(...requires), name: 'kit-fixture', version: '0.0.1', polyspec, lockFile: LOCK, lockText });
+const metadata = (...requires: string[]) => ['Metadata-Version: 2.4', 'Name: kit-fixture', 'Version: 0.0.1', ...requires.map(line => `Requires-Dist: ${line}`)].join('\n') + '\n';
+// The fixture has no sibling, so no check reads the repository of its release.
+const problemsOf = (requires: string[], { polyspec = POLYSPEC, lockText = LOCK_TEXT } = {}) => wheelDependencyProblems({ metadata: metadata(...requires), name: 'kit-fixture', version: '0.0.1', polyspec, repositoryUrl: 'https://github.com/polyspec/kit-fixture', lockFile: LOCK, lockText });
 
 test('a registry pin that the lock holds at the same version is accepted', () => {
   assert.deepEqual(problemsOf(['ruff==0.16.10']), []);
@@ -84,7 +85,7 @@ test('the forms other than name==version and a polyspec reference are refused an
     ['kit-range>=1.0', 'a range'],
     ['kit-marker==1.0.0; python_version < "3.10"', 'a marker'],
     [`kit-lib @ ${URL}#sha256=${SHA}; python_version >= "3.10"`, 'a marker'],
-  ];
+  ] satisfies [string, string][];
   for (const [line, form] of refused) {
     const [problem] = problemsOf([line]);
     assert.equal(problem, `Requires-Dist ${line} is ${form}, not name==version or a polyspec release asset with a sha256 fragment`);

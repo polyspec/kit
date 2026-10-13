@@ -20,8 +20,23 @@ import { execute } from './process.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
+/** The outcome of a version command, as `execute` returns it. */
+export type RunResult = { status: number | null; stdout: string; stderr?: string | undefined; error?: Error | undefined };
+
+/** Starts `command` with `args` and returns its outcome. */
+export type Run = (command: string, args: string[]) => RunResult;
+
+/** The options of a check: the checkout, the environment of the version commands, and how a command starts. */
+export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: Run | undefined };
+
+// A declared tool as declaredToolchain of toolchain-declared.mts returns it: an exact release, or minor releases.
+type DeclaredTool = { version?: string; minor?: string; minors?: string[]; source: string };
+const declaredTools = (root: string): Record<string, DeclaredTool | undefined> => declaredToolchain(root);
+
+type Probe = { command: (root: string) => string; args: string[]; pattern: RegExp; fix: (version: string | undefined) => string };
+
 // The command that prints the release of a tool, the pattern that reads it, and the fix of a mismatch.
-const probes = {
+const probes: Record<string, Probe> = {
   node: { command: () => 'node', args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: v => `install Node.js ${v}` },
   npm: { command: () => 'npm', args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => INSTALL },
   go: { command: () => 'go', args: ['env', 'GOVERSION'], pattern: /^go(\d+\.\d+\.\d+)$/m, fix: () => INSTALL },
@@ -38,17 +53,20 @@ const probes = {
 export const TOOLS = Object.keys(probes);
 
 /** The environment of the version commands: the tools of var/tools first on PATH and no toolchain selection or download. */
-export function toolchainEnvironment(root, base = process.env) {
+export function toolchainEnvironment(root: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const bin = toolsPath(root, 'bin');
   const rest = (base.PATH ?? '').split(path.delimiter).filter(entry => entry && path.resolve(entry) !== bin);
   return { ...base, PATH: [bin, ...rest].join(path.delimiter), GOTOOLCHAIN: 'local', RUSTUP_AUTO_INSTALL: '0' };
 }
 
-const defaultRun = (root, env) => (command, args) => execute(command, args, { cwd: root, env });
+const defaultRun = (root: string, env: NodeJS.ProcessEnv): Run => (command, args) => execute(command, args, { cwd: root, env });
 
 // The release that `tool` runs at, or the reason that it cannot be read.
-function probe(root, tool, run) {
-  const { command, args, pattern } = probes[tool];
+function probe(root: string, tool: string, run: Run): { release: string; error?: undefined } | { release?: undefined; error: string } {
+  const entry = probes[tool];
+  // Destructuring the probe of an unknown tool failed here before.
+  if (!entry) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
+  const { command, args, pattern } = entry;
   const result = run(command(root), args);
   const shown = `${path.relative(root, command(root)).startsWith('..') ? command(root) : path.relative(root, command(root))} ${args.join(' ')}`;
   if (result.error || result.status !== 0) {
@@ -60,7 +78,7 @@ function probe(root, tool, run) {
 }
 
 /** The release of each of `tools` that runs at `root`, as `{ tool: release }`, or `unavailable: <reason>`. */
-export function toolchainVersions(tools = TOOLS, { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) } = {}) {
+export function toolchainVersions(tools: string[] = TOOLS, { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
   return Object.fromEntries(tools.map((tool) => {
     const found = probe(root, tool, run);
     return [tool, found.release ?? `unavailable: ${found.error}`];
@@ -68,9 +86,9 @@ export function toolchainVersions(tools = TOOLS, { root = ROOT, env = toolchainE
 }
 
 /** One line for each of `tools` that does not run at its declared version; `run` starts a command and returns `{ status, stdout, stderr, error }`. */
-export function toolchainMismatches(tools, { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) } = {}) {
-  const declared = declaredToolchain(root);
-  const mismatches = [];
+export function toolchainMismatches(tools: string[], { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
+  const declared = declaredTools(root);
+  const mismatches: string[] = [];
   for (const tool of tools) {
     if (!probes[tool]) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
     if (!declared[tool]) throw new Error(`${tool} is not declared; declare it in config/toolchain.json or in its file, or leave it out of the tools to check`);
@@ -81,7 +99,8 @@ export function toolchainMismatches(tools, { root = ROOT, env = toolchainEnviron
       continue;
     }
     // PHP and Python are declared by minor release; the patch of the run is evidence, not a requirement.
-    const minor = found.release.split('.').slice(0, 2).join('.');
+    // probe returns a release whenever it returns no error.
+    const minor = found.release!.split('.').slice(0, 2).join('.');
     const minors = declared[tool].minors ?? (declared[tool].minor ? [declared[tool].minor] : undefined);
     const accepted = minors ? minors.includes(minor) : found.release === declared[tool].version;
     if (!accepted) {
@@ -92,12 +111,12 @@ export function toolchainMismatches(tools, { root = ROOT, env = toolchainEnviron
   return mismatches;
 }
 
-const expectation = entry => (entry.minors ?? (entry.minor ? [entry.minor] : [entry.version])).join(' or ');
+const expectation = (entry: DeclaredTool) => (entry.minors ?? (entry.minor ? [entry.minor] : [entry.version])).join(' or ');
 
 if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
-    const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredToolchain(ROOT)[tool]);
+    const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declaredTools(ROOT)[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in config/toolchain.json, .node-version, .php-version, .python-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
@@ -109,7 +128,8 @@ if (isMain(import.meta.url)) {
       console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
     }
   } catch (error) {
-    console.error(`[check-toolchain] ${error.message}`);
+    // The declarations and the check fail with an Error.
+    console.error(`[check-toolchain] ${(error as Error).message}`);
     process.exitCode = 1;
   }
 }
