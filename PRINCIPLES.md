@@ -32,6 +32,10 @@ in kit, with its grounding.
 - Errors are never hidden: no fallback that turns a wrong input into a plausible one, no silent drop of an input or an
   output, no swallowed error. A fallback stands only where it is truly needed, with that need stated.
 - Correct first; fast only when it stays correct.
+- Work may go straight to main. A branch or worktree, when an agent or the situation needs one, is named
+  `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`, and is deleted as soon as it is merged
+  into main. Test or experiment code that cannot merge is cherry-picked when it is worth keeping and otherwise discarded,
+  always before the commit; when it cannot be removed at once, a checklist sub-item states the condition of its removal.
 
 ## Design
 

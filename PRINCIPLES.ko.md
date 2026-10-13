@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 6f471e010906a38af97fa2daae222be43ce7bb63904949f6fece7ada4830b5ae -->
+<!-- source-sha256: 791609c6288a96e8f37c304973e50f4fdbd0688b94a219a382981288870c3ede -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -32,6 +32,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - 오류는 숨기지 않습니다: 잘못된 입력을 그럴듯한 입력으로 바꾸는 fallback도, 입력이나 출력을 조용히 버리는 것도, 삼킨
   오류도 없습니다. fallback은 정말 필요한 곳에만 그 필요를 적고 둡니다.
 - 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
+- 작업은 main에서 바로 할 수 있습니다. agent나 상황에 따라 branch나 worktree가 필요하면
+  `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로 이름 짓고, main에 merge되는 즉시
+  지웁니다. merge될 수 없는 test나 실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에
+  합니다; 바로 지울 수 없으면 checklist 하위 항목에 제거 조건을 적습니다.
 
 ## 설계
 
