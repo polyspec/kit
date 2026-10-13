@@ -4,7 +4,7 @@
 // package. The package here is a stub directory under node_modules; no test runs npm or uses the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -88,6 +88,9 @@ test('kit-check fails while the installed package is not the version that packag
   assert.deepEqual(check(root), ['node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages']);
   assert.deepEqual(check(repository(t, { locked: null })), ['package-lock.json resolves no @polyspec/kit. Fix: add @polyspec/kit to devDependencies and run make install-packages']);
   assert.deepEqual(check(repository(t, { installed: null })), ['node_modules/@polyspec/kit is not installed; package-lock.json resolves 0.1.0. Fix: make install-packages']);
+  const unlocked = repository(t);
+  rmSync(path.join(unlocked, 'package-lock.json'));
+  assert.deepEqual(check(unlocked), ['package-lock.json is missing; it locks @polyspec/kit. Fix: run make install-packages and commit package-lock.json']);
 });
 
 test('kit itself is the source of the copies: its check reads its configuration only', (t) => {

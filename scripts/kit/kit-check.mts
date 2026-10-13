@@ -36,7 +36,6 @@ export function copiesOf(manifest: Pick<KitPackage, 'kit'>): { file: string; fro
 
 /** The version of @polyspec/kit that package-lock.json of `root` resolves, or undefined when the lock resolves none. */
 export function lockedVersion(root: string): string | undefined {
-  if (!existsSync(path.join(root, 'package-lock.json'))) return undefined;
   const lock: { packages?: Record<string, { version?: string }> } = readJson(root, 'package-lock.json');
   return lock.packages?.[INSTALLED]?.version;
 }
@@ -46,6 +45,7 @@ export function lockedVersion(root: string): string | undefined {
  * the finding that names the cause and the fix.
  */
 export function installedKit(root: string): { version: string; copies: { file: string; from: string }[] } | { finding: string } {
+  if (!existsSync(path.join(root, 'package-lock.json'))) return { finding: `package-lock.json is missing; it locks ${PACKAGE}. Fix: run make install-packages and commit package-lock.json` };
   const locked = lockedVersion(root);
   if (locked === undefined) return { finding: `package-lock.json resolves no ${PACKAGE}. Fix: add ${PACKAGE} to devDependencies and run make install-packages` };
   if (!existsSync(path.join(root, INSTALLED, 'package.json'))) return { finding: `${INSTALLED} is not installed; package-lock.json resolves ${locked}. Fix: make install-packages` };
