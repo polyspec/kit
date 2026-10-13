@@ -27,10 +27,10 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 .PHONY: install-tools toolchain-check
 
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
-# bootstrap installer, which imports only Node.js built-ins (scripts/kit/bootstrap is a copy in every repository).
+# bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
 install-tools: ## Install the toolchains that the checkout declares into var/tools; TOOLS limits the tools; ONLINE
 ifeq ($(TOOLS),npm)
-	$(ONLINE) node scripts/kit/bootstrap/bootstrap-npm.mts
+	$(ONLINE) node $(KIT)/bootstrap/bootstrap-npm.$(KIT_EXT)
 else
 	$(ONLINE) node $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 endif
