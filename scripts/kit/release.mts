@@ -42,6 +42,7 @@ import semver from 'semver';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
 import { readCargoPackages, readGoMod } from './toolchain-files.mts';
+import { headings } from './markdown.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
@@ -313,14 +314,24 @@ function cargoVersion(file: string, text: string): string | null {
   return isTable(shared) && typeof shared.version === 'string' ? shared.version : null;
 }
 
-/** The body of the section `## version` of the change log `file`, without the anchor of the next section. */
+/** The level-2 heading of the section `version` of the change log `text` of `file`, with the headings of the text. */
+function versionHeading(text: string, file: string, version: string) {
+  const found = headings(text);
+  const heading = found.find(item => item.depth === 2 && item.title === version);
+  if (!heading) throw new Stop(`${file}: no section ## ${version}`);
+  return { heading, found };
+}
+
+/**
+ * The body of the section `## version` of the change log `file`, without the anchor of the next section: the lines after its
+ * heading up to the next heading of level 1 or 2, as the Markdown tree reads them (markdown.mts).
+ */
 export function changelogSection(root: string, file: string, version: string): string {
-  const lines = readFileSync(path.join(root, file), 'utf8').split('\n').map(line => line.trimEnd());
-  const heading = lines.indexOf(`## ${version}`);
-  if (heading === -1) throw new Stop(`${file}: no section ## ${version}`);
-  let end = lines.findIndex((line, index) => index > heading && line.startsWith('## '));
-  if (end === -1) end = lines.length;
-  const body = lines.slice(heading + 1, end);
+  const text = readFileSync(path.join(root, file), 'utf8');
+  const lines = text.split('\n').map(line => line.trimEnd());
+  const { heading, found } = versionHeading(text, file, version);
+  const next = found.find(item => item.line > heading.line && item.depth <= 2);
+  const body = lines.slice(heading.endLine, next ? next.line - 1 : lines.length);
   // The loop reads the last entry of body only while body has one.
   while (body.length && (!body.at(-1)!.trim() || /^<a id="[^"]*"><\/a>$/.test(body.at(-1)!.trim()))) body.pop();
   // The loop reads the first entry of body only while body has one.
@@ -329,13 +340,10 @@ export function changelogSection(root: string, file: string, version: string): s
   return `${body.join('\n')}\n`;
 }
 
-/** The anchor of the section `## version`: the id of an `<a id>` line above it, else the version without its dots. */
+/** The anchor of the section `## version`: the id of an `<a id>` block right above it, else the version without its dots. */
 export function changelogAnchor(root: string, file: string, version: string): string {
-  const lines = readFileSync(path.join(root, file), 'utf8').split('\n').map(line => line.trim());
-  let index = lines.indexOf(`## ${version}`) - 1;
-  while (index >= 0 && !lines[index]) index -= 1;
-  // index is a line above the heading, so lines holds it.
-  const explicit = index >= 0 ? /^<a id="([^"]+)"><\/a>$/.exec(lines[index]!) : null;
+  const { heading } = versionHeading(readFileSync(path.join(root, file), 'utf8'), file, version);
+  const explicit = heading.htmlBefore === null ? null : /^<a id="([^"]+)"><\/a>$/.exec(heading.htmlBefore.trim());
   // The group 1 of the pattern takes part in every match.
   return explicit ? explicit[1]! : version.replaceAll('.', '');
 }

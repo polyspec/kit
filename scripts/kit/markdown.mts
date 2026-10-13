@@ -167,7 +167,8 @@ export function headingAnchors(text: string, { site = false }: { site?: boolean 
 
 /**
  * A heading of the top level of a document: its depth, its title as text, its first and last line, and the HTML of the
- * block right before it (such as an anchor `<a id="x"></a>`), or null when the block before it is no HTML.
+ * block right before it (such as an anchor `<a id="x"></a>`, an HTML block or a paragraph of inline HTML only), or null when
+ * the block before it is no HTML.
  */
 export type Heading = { depth: number; title: string; line: number; endLine: number; htmlBefore: string | null };
 
@@ -178,7 +179,9 @@ export function headings(text: string): Heading[] {
     if (node.type !== 'heading') return [];
     const before = blocks[index - 1];
     const place = placeOf(node);
-    return [{ depth: node.depth, title: toString(node, { includeHtml: false }).trim(), line: place.startLine, endLine: place.endLine, htmlBefore: before?.type === 'html' ? before.value : null }];
+    // `<a id="x"></a>` on its own line is a paragraph of inline HTML: an HTML block of CommonMark starts with an open tag only.
+    const html = before?.type === 'html' || (before?.type === 'paragraph' && before.children.every(child => child.type === 'html'));
+    return [{ depth: node.depth, title: toString(node, { includeHtml: false }).trim(), line: place.startLine, endLine: place.endLine, htmlBefore: before && html ? text.slice(placeOf(before).start, placeOf(before).end) : null }];
   });
 }
 
