@@ -2,15 +2,12 @@
 // what S1 and S8 ask of it. Each rule has a passing and a failing case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, symlinkSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { rebuildFindings } from '../../scripts/kit/rebuild-check.mts';
 import type { RebuildDeclaration } from '../../scripts/kit/rebuild-check.mts';
 import { tree } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const RECORD = '<!-- doc-id: rebuild-lock -->\n# Rebuild record: lock\n\n## Covers\n\n- `scripts/kit/lock.mts`\n';
 const FILES = {
   'scripts/kit/lint.mts': '',
@@ -84,10 +81,8 @@ test('a record must exist and name the tool it covers', (t) => {
 
 test('the command checks config/rebuild.json of the checkout it runs in and fails with each finding', (t) => {
   const root = tree(t, { ...FILES, 'config/rebuild.json': JSON.stringify({ ...DECLARATION, tools: { 'scripts/kit/lint.mts': { kind: 'ecosystem', tool: 'ruff' } } }) });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  // The copied tools find the packages of kit, as in a repository that installed them.
-  symlinkSync(path.resolve(KIT, '../../node_modules'), path.join(root, 'node_modules'));
-  const run = (cwd: string) => spawnSync(process.execPath, [path.join(cwd, 'scripts/kit/rebuild-check.mts')], { cwd, encoding: 'utf8' });
+  // The tool of this checkout runs in the sandbox, as kit-tools.mts runs the tools of kit.
+  const run = (cwd: string) => spawnSync(process.execPath, [tool('rebuild-check')], { cwd, encoding: 'utf8' });
   spawnSync('git', ['add', '-A'], { cwd: root });
   const failed = run(root);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
