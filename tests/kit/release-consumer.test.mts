@@ -54,6 +54,9 @@ test('the configuration rules name each inconsistent consumer and proof entry', 
   stop(load((c) => { c.proof.gitTag['packages/fixture-lib/package.json'] = { kind: 'python', name: 'x', smoke: ['python'] }; return c; }), /proof\.gitTag\.packages\/fixture-lib\/package\.json is not a manifest with the mode "git-tag"/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'ruby'; return c; }), /kind is "ruby", the allowed values are rust/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'python'; return c; }), /kind is "python", the allowed values are rust/);
+  // A kind that is not text, or that names a key of every object, is no allowed kind (K99).
+  stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = ['rust']; return c; }), /kind is \["rust"\], the allowed values are rust/);
+  stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'toString'; return c; }), /kind is "toString", the allowed values are rust/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].name = ''; return c; }), /\.name needs the package name/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].smoke = [1]; return c; }), /\.smoke needs a command/);
 });
