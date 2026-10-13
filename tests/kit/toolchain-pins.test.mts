@@ -7,13 +7,24 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { pinFindings } from '../../scripts/kit/toolchain-floors.mts';
-import { PINS, readPins } from '../../scripts/kit/toolchain-pins.mts';
+import { GO_ARCHIVES, GO_PLATFORMS, PINS, readGoArchives, readPins } from '../../scripts/kit/toolchain-pins.mts';
 
 const SHIPPED = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/toolchain-pins.json');
 
 test('kit ships the decided pins: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release', () => {
   assert.deepEqual(PINS, { node: '26.11.1', python: '3.14', php: '8.5', go: '1.27.2', rust: '1.99.0', typescript: '7.0.2' });
   assert.deepEqual(readPins(JSON.parse(readFileSync(SHIPPED, 'utf8'))), PINS);
+});
+
+test('kit pins the sha256 of the Go archive of each platform next to the Go release, and a missing or malformed digest fails', () => {
+  assert.deepEqual(Object.keys(GO_ARCHIVES).sort(), [...GO_PLATFORMS].sort());
+  // The digests of go1.27.2 from go.dev/dl, each checked against a download of its archive.
+  assert.equal(GO_ARCHIVES['linux-x64'], 'ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5');
+  const { 'linux-arm64': _, ...missing } = GO_ARCHIVES;
+  assert.throws(() => readGoArchives({ goArchives: missing }), /toolchain-pins\.json goArchives must record the sha256 of linux-arm64 as 64 lowercase hexadecimal digits; it records undefined/);
+  assert.throws(() => readGoArchives({ goArchives: { ...GO_ARCHIVES, 'linux-x64': 'ABC' } }), /goArchives must record the sha256 of linux-x64 as 64 lowercase hexadecimal digits; it records "ABC"/);
+  assert.throws(() => readGoArchives({ goArchives: { ...GO_ARCHIVES, 'win32-x64': 'a'.repeat(64) } }), /goArchives records win32-x64, which is no platform/);
+  assert.throws(() => readGoArchives({}), /toolchain-pins\.json must record goArchives/);
 });
 
 test('kit declares its own Rust at the pin, which the rustup step of its CI installs for the cargo of its checks', () => {

@@ -8,12 +8,11 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, 
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { goToolchainModule } from '../../scripts/kit/install-go.mts';
+import { GO_ARCHIVES, PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { ruffWheel, toolchainStubs, uvRelease } from './toolchain-stubs.mts';
-import { tool } from './kit-tools.mts';
+import { goRelease, ruffWheel, toolchainStubs, uvRelease } from './toolchain-stubs.mts';
+import { KIT, tool } from './kit-tools.mts';
 
-const MODULE = goToolchainModule('1.27.1');
 const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
 const config = (value: Record<string, unknown>) => JSON.stringify({ schema: 1, ...value });
 const walk = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? walk(path.join(directory, entry.name)) : [path.join(directory, entry.name)]));
@@ -138,47 +137,52 @@ test('a tarball with another digest or with a link is refused', (t) => {
   assert.match(refused.stderr, /the npm 12\.2\.0 tarball holds a link or a special file; expected files and directories only: l/);
 });
 
-test('Go is downloaded as a toolchain module, made executable, wrapped, and kept by a second run', (t) => {
-  const root = toolchainCheckout(t, { 'config/toolchain.json': config({ go: { mod: 'go.mod' } }), 'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n' });
-  const stubs = toolchainStubs(t);
-  const first = install(root, stubs.env);
-  assert.equal(first.status, 0, first.stderr);
-  assert.deepEqual(stubs.calls(), [`go mod download -x ${MODULE}`]);
-  const goroot = path.join(root, 'var/tools/go', MODULE);
-  assert.notEqual(statSync(path.join(goroot, 'pkg/tool/stub_arch/compile')).mode & 0o111, 0, 'the tool of the module is executable');
-  assert.throws(() => lstatSync(path.join(root, 'var/tools/go/cache')), { code: 'ENOENT' });
+// installGo of this checkout, run in a process with the stubs of `env`: its result, or the message that it throws.
+function goInstall(root: string, env: NodeJS.ProcessEnv, version: string, sha256: Record<string, string>) {
+  const code = `import { installGo } from ${JSON.stringify(path.join(KIT, 'install-go.mts'))};
+try { process.stdout.write(JSON.stringify(installGo({ root: ${JSON.stringify(root)}, version: ${JSON.stringify(version)}, sha256: ${JSON.stringify(sha256)} }))); }
+catch (error) { process.stdout.write(JSON.stringify({ error: error.message })); }`;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('Go is installed from the archive of its release with the sha256 checked, wrapped, and kept by a second run, with no Go on the machine', (t) => {
+  const root = toolchainCheckout(t, { 'go.mod': 'module example.com/fixture\n\ngo 1.27.2\n' });
+  const go = goRelease(t, '1.27.2');
+  const stubs = toolchainStubs(t, { downloads: { [go.url]: go.archive } });
+  assert.deepEqual(goInstall(root, stubs.env, '1.27.2', go.sha256), { installed: true, release: '1.27.2' });
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('go ')), [], 'no Go of the machine takes part');
   for (const name of ['go', 'gofmt']) {
     const wrapper = path.join(root, 'var/tools/bin', name);
-    assert.match(readFileSync(wrapper, 'utf8'), new RegExp(`GOTOOLCHAIN=local exec '${path.join(goroot, 'bin', name).replaceAll('.', '\\.')}' "\\$@"`));
-    assert.notEqual(statSync(wrapper).mode & 0o111, 0);
+    assert.match(readFileSync(wrapper, 'utf8'), new RegExp(`GOTOOLCHAIN=local exec '${path.join(root, 'var/tools/go/go/bin', name).replaceAll('.', '\\.')}' "\\$@"`));
   }
-  assert.equal(run(path.join(root, 'var/tools/bin/go'), stubs.env), 'go 1.27.1 local');
+  assert.equal(run(path.join(root, 'var/tools/bin/go'), stubs.env), 'go 1.27.2 local');
   noSymlinks(path.join(root, 'var/tools'));
-
-  const second = install(root, stubs.env);
-  assert.match(second.stdout, /Go: 1\.27\.1 is installed in var\/tools\/go/);
-  assert.equal(stubs.calls().length, 1, 'a second run downloads nothing');
+  assert.deepEqual(goInstall(root, stubs.env, '1.27.2', go.sha256), { installed: false, release: '1.27.2' }, 'a second run keeps it');
 });
 
-test('a changed Go declaration replaces the toolchain and a toolchain of another release fails', (t) => {
-  const root = toolchainCheckout(t, { 'config/toolchain.json': config({ go: { mod: 'go.mod' } }), 'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n' });
-  const stubs = toolchainStubs(t);
-  assert.equal(install(root, stubs.env).status, 0);
-  writeFileSync(path.join(root, 'go.mod'), 'module example.com/fixture\n\ngo 1.27.2\n');
-  assert.equal(install(root, stubs.env).status, 0);
-  assert.deepEqual(readdirSync(path.join(root, 'var/tools/go/golang.org')), [goToolchainModule('1.27.2').split('/')[1]], 'only the declared release remains');
-
-  const wrong = toolchainCheckout(t, { 'config/toolchain.json': config({ go: { mod: 'go.mod' } }), 'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n' });
-  const result = install(wrong, toolchainStubs(t, { extra: { STUB_GO_SHOWS: '1.26.0' } }).env);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /the installation of Go 1\.27\.1 into .* prints 1\.26\.0; expected 1\.27\.1/);
+test('a Go archive of another digest or release is refused with both', (t) => {
+  const root = toolchainCheckout(t, {});
+  const go = goRelease(t, '1.27.2');
+  const stubs = toolchainStubs(t, { downloads: { [go.url]: go.archive } });
+  const wrong = { [go.key]: 'f'.repeat(64) };
+  assert.match(goInstall(root, stubs.env, '1.27.2', wrong).error, new RegExp(`has the sha256 ${go.sha256[go.key]}; scripts/kit/toolchain-pins\\.json goArchives declares ${'f'.repeat(64)} for ${go.key}`));
+  const other = goRelease(t, '1.27.2', '1.26.0');
+  const others = toolchainStubs(t, { downloads: { [other.url]: other.archive } });
+  assert.match(goInstall(root, others.env, '1.27.2', other.sha256).error, /the installation of go 1\.27\.2 into .* prints 1\.26\.0; expected 1\.27\.2/);
 });
 
-test('the Go toolchain module names the platform and refuses an unsupported one', () => {
-  assert.equal(goToolchainModule('1.27.1', 'linux', 'x64'), 'golang.org/toolchain@v0.0.1-go1.27.1.linux-amd64');
-  assert.equal(goToolchainModule('1.27.1', 'darwin', 'arm64'), 'golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64');
-  assert.throws(() => goToolchainModule('1.27.1', 'win32', 'x64'), /no Go toolchain module for the platform win32; the platforms are darwin, linux/);
-  assert.throws(() => goToolchainModule('1.27.1', 'linux', 'ia32'), /no Go toolchain module for the architecture ia32; the architectures are x64, arm64/);
+test('install-tools installs the Go of the kit pin for a checkout that holds a go.mod, with no Go on the machine (K78)', (t) => {
+  // The pinned digests are those of the real archives, so the stub archive is refused; the refusal shows that install-tools
+  // fetched the pinned release from the Go downloads without a Go of the machine.
+  const root = toolchainCheckout(t, { 'go.mod': 'module example.com/fixture\n\ngo 1.27.2\n' });
+  const go = goRelease(t, PINS.go);
+  const stubs = toolchainStubs(t, { downloads: { [go.url]: go.archive } });
+  const result = install(root, stubs.env, 'go');
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, new RegExp(`${go.url.replaceAll('.', '\\.')} has the sha256 ${go.sha256[go.key]}; scripts/kit/toolchain-pins\\.json goArchives declares ${GO_ARCHIVES[go.key]} for ${go.key}`));
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('go ')), []);
 });
 
 // The ruff of the declaration: its exact version and the sha256 of its wheel, under the platform key of this machine.
@@ -331,22 +335,23 @@ test('an audit tool that prints another release fails with the expected and the 
   assert.match(result.stderr, /the installation of cargo-audit 0\.22\.2 into .* prints 0\.21\.0; expected 0\.22\.2/);
 });
 
-test('every declared tool is installed in the order npm, Go, uv, Python, ruff, Composer, cargo-audit, govulncheck', (t) => {
+// Go is left out: install-tools checks its archive against the digests of the real release, which a stub archive cannot
+// have; the Go tests above cover it.
+test('every declared tool is installed in the order npm, uv, Python, ruff, Composer, cargo-audit, govulncheck', (t) => {
   const phar = path.join(toolchainCheckout(t), 'phar');
   writeFileSync(phar, 'phar');
   const sha256 = createHash('sha256').update('phar').digest('hex');
   const uv = uvRelease(t);
   const root = toolchainCheckout(t, {
     'package.json': '{ "packageManager": "npm@12.2.0" }',
-    'go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
-    'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, go: { mod: 'go.mod' }, ruff: ruffConfig(), composer: { version: '2.10.3', sha256 }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
+    'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, ruff: ruffConfig(), composer: { version: '2.10.3', sha256 }, cargoAudit: '0.22.2', govulncheck: '1.1.4' }),
   });
   const stubs = toolchainStubs(t, { downloads: { 'https://getcomposer.org/download/2.10.3/composer.phar': phar, [uv.url]: uv.archive } });
   const result = install(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   // split returns at least one part.
-  assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0]!.replace('[install-tools] ', '')), ['npm', 'Go', 'uv', 'Python', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
-  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'go', 'gofmt', 'npm', 'npx', 'python3', 'ruff', 'uv']);
+  assert.deepEqual(result.stdout.split('\n').filter(line => /: installed /.test(line)).map(line => line.split(':')[0]!.replace('[install-tools] ', '')), ['npm', 'uv', 'Python', 'ruff', 'Composer', 'cargo-audit', 'govulncheck']);
+  assert.deepEqual(readdirSync(path.join(root, 'var/tools/bin')).sort(), ['composer', 'npm', 'npx', 'python3', 'ruff', 'uv']);
   const calls = installCalls(stubs).length;
   const again = install(root, stubs.env);
   assert.equal(again.status, 0, again.stderr);

@@ -21,7 +21,7 @@ on 2026-10-13.
 | P1 | every downloaded tool is pinned to an exact release with the sha256 of each platform's archive, and the install refuses another archive |
 | P2 | the npm of `packageManager` (with its sha512) is installed before `npm ci`, since another npm can rewrite or refuse the lock (S4) |
 | P3 | the toolchains that a repository only verifies (Node.js, Rust, PHP) run at their declared versions, checked offline |
-| P4 | the go directive of `go.mod` agrees with the declared Go release |
+| P4 | Go installs on a checkout that has no Go, at the pinned release, and the go directive of each `go.mod` agrees with it |
 
 ## Tools evaluated
 
@@ -35,8 +35,9 @@ on 2026-10-13.
 ## Why none fits
 
 P2 is a bootstrap: the pinned npm must exist before any package, mise included, is installed by npm. P3 compares the running
-tools with their declarations; mise installs tools and does not verify tools it does not manage. P4 reads `go.mod` before Go
-is installed, so `go mod edit -json` cannot read it.
+tools with their declarations; mise installs tools and does not verify tools it does not manage. For P4, kit installs the Go
+of its pin from the official archive with the sha256 that it pins next to the release, so no Go and no reader of go.mod is
+needed before Go is installed; `go mod edit -json` of the installed Go then reads each go.mod for toolchain-check.
 
 ## Retry condition
 

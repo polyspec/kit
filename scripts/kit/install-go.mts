@@ -1,63 +1,35 @@
-// Installs the Go release that config/toolchain.json go declares into var/tools/go, with the wrappers go and gofmt in
-// var/tools/bin. The release is downloaded by the Go of the machine as the module
-// golang.org/toolchain@v0.0.1-go<version>.<os>-<arch> into a module cache of var/tools (GOTOOLCHAIN=local, so that the Go
-// of the machine selects no other toolchain). An installed release is kept. The Go of the machine is never changed.
-import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+// Installs the Go release of the kit pin (scripts/kit/toolchain-pins.json go) into var/tools/go, with the wrappers go and
+// gofmt in var/tools/bin. The archive is go<version>.<os>-<arch>.tar.gz of the Go downloads for this platform; the download
+// is refused unless its sha256 is the digest that toolchain-pins.json goArchives gives for the platform, and it is unpacked
+// as it is (install-archive.mts). No Go of the machine takes part, so a checkout without Go installs one. The wrappers set
+// GOTOOLCHAIN=local, so the installed Go runs no other toolchain. An installed release is kept.
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { installOnce } from './bootstrap/install-tool.mts';
-import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
+import { quote, wrapperText } from './bootstrap/tool-wrappers.mts';
+import { installArchive } from './install-archive.mts';
 
-const ARCHITECTURES: Partial<Record<string, string>> = { x64: 'amd64', arm64: 'arm64' };
-const SYSTEMS = new Set(['darwin', 'linux']);
+// The target of the Go archive of each platform key (process.platform-process.arch) that toolchain-pins.json may name.
+export const GO_TARGETS: Readonly<Record<string, string>> = {
+  'darwin-arm64': 'darwin-arm64',
+  'darwin-x64': 'darwin-amd64',
+  'linux-x64': 'linux-amd64',
+  'linux-arm64': 'linux-arm64',
+};
 
-/** The module of the Go toolchain `version` for a platform. */
-export function goToolchainModule(version: string, platform: string = process.platform, arch: string = process.arch): string {
-  if (!ARCHITECTURES[arch]) throw new Error(`no Go toolchain module for the architecture ${arch}; the architectures are ${Object.keys(ARCHITECTURES).join(', ')}`);
-  if (!SYSTEMS.has(platform)) throw new Error(`no Go toolchain module for the platform ${platform}; the platforms are ${[...SYSTEMS].join(', ')}`);
-  return `golang.org/toolchain@v0.0.1-go${version}.${platform}-${ARCHITECTURES[arch]}`;
-}
+/** The download URL of the Go archive of `version` for the target `target`. */
+export const goArchiveUrl = (version: string, target: string): string => `https://dl.google.com/go/go${version}.${target}.tar.gz`;
 
-// The module zip of a Go toolchain keeps no file modes; like the toolchain switch of go, make the commands of bin and
-// pkg/tool executable.
-function makeExecutable(goroot: string): void {
-  const tool = path.join(goroot, 'pkg/tool');
-  const directories = [path.join(goroot, 'bin'), ...(existsSync(tool) ? readdirSync(tool).map(name => path.join(tool, name)) : [])];
-  for (const directory of directories) {
-    for (const name of readdirSync(directory)) {
-      const file = path.join(directory, name);
-      if (statSync(file).isFile() && (statSync(file).mode & 0o111) !== 0o111) chmodSync(file, 0o755);
-    }
-  }
-}
-
-/** Installs the declared Go `{ version }` into var/tools/go of `root` and writes the wrappers; returns `{ installed, release }`. */
-export function installGo({ root, declared, print = () => {} }: { root: string; declared: { version: string }; print?: (text: string) => void }) {
-  const module = goToolchainModule(declared.version);
-  const prefix = toolsPath(root, 'go');
-  const result = installOnce({
-    root, label: 'Go', prefix, recorded: declared.version, print,
-    installedRelease: (directory: string) => {
-      const file = path.join(directory, module, 'VERSION');
-      // split gives at least one line.
+/** Installs Go `version` with the digests `sha256` (by platform key) into var/tools/go of `root` and writes the wrappers. */
+export function installGo({ root, version, sha256, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; version: string; sha256: Readonly<Record<string, unknown>>; platform?: string; print?: (text: string) => void }) {
+  return installArchive({
+    tool: 'go', source: 'scripts/kit/toolchain-pins.json goArchives', root, declared: { version, sha256 }, platform, targets: GO_TARGETS, print,
+    archive: target => `go${version}.${target}`,
+    url: target => goArchiveUrl(version, target),
+    // The archive unpacks to go/, whose VERSION starts with go<version>; split gives at least one line.
+    release: (directory) => {
+      const file = path.join(directory, 'go', 'VERSION');
       return existsSync(file) ? readFileSync(file, 'utf8').split('\n')[0]!.replace(/^go/, '') : undefined;
     },
-    install: (next: string) => {
-      // A scratch module of the download directory keeps the Go of the machine from reading the go.mod of the
-      // checkout above var/tools, whose go directive may name a newer Go than the machine has: with GOTOOLCHAIN=local
-      // that refusal stops the install before any download. The scratch asks for an old Go every release fulfils.
-      writeFileSync(path.join(next, 'go.mod'), 'module polyspec.kit/go-download\n\ngo 1.16\n');
-      // The module cache of var/tools is writable (-modcacherw), so removing var/ needs no change of permissions.
-      run('go', ['mod', 'download', '-x', module], {
-        cwd: next, env: bootstrapEnvironment(root, { GOMODCACHE: next, GOFLAGS: '-modcacherw', GOTOOLCHAIN: 'local', GOWORK: 'off', GO111MODULE: 'on' }),
-      }, print);
-      // The downloaded zip is not needed once the toolchain is unpacked.
-      rmSync(path.join(next, 'cache'), { recursive: true, force: true });
-    },
+    wrappers: directory => Object.fromEntries(['go', 'gofmt'].map(name => [name, wrapperText(`${name} of Go ${version} of this checkout`, `GOTOOLCHAIN=local exec ${quote(path.join(directory, 'go', 'bin', name))} "$@"`)])),
   });
-  const goroot = path.join(prefix, module);
-  makeExecutable(goroot);
-  for (const name of ['go', 'gofmt']) {
-    writeWrapper(root, name, wrapperText(`${name} of Go ${declared.version} of this checkout`, `GOTOOLCHAIN=local exec ${quote(path.join(goroot, 'bin', name))} "$@"`), print);
-  }
-  return result;
 }

@@ -11,6 +11,7 @@ import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { versionStubs } from './toolchain-stubs.mts';
 import { KIT } from './kit-tools.mts';
+import { GO_ARCHIVES } from '../../scripts/kit/toolchain-pins.mts';
 
 const NODE = process.versions.node;
 const FILES = {
@@ -31,7 +32,7 @@ const OUTPUTS = {
 };
 // The pins of the checkout's copy of kit: the releases that FILES declares, so a test changes one declaration at a time.
 const TEST_PINS = { node: NODE, python: '3.14', php: '8.5', go: '1.27.1', rust: '1.98.1', typescript: '7.0.2' };
-const pinned = (root: string, pins: Record<string, string> = TEST_PINS) => writeFileSync(path.join(root, 'scripts/kit/toolchain-pins.json'), JSON.stringify(pins));
+const pinned = (root: string, pins: Record<string, string> = TEST_PINS) => writeFileSync(path.join(root, 'scripts/kit/toolchain-pins.json'), JSON.stringify({ ...pins, goArchives: GO_ARCHIVES }));
 const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/check-toolchain.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
 // A checkout with a copy of the tools of kit and the pins of TEST_PINS. The pins are a file beside the tools, so the test runs
 // a copy whose pins it writes; the copy finds the packages of kit beside it, as the dist of an installed package does.

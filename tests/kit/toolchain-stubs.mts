@@ -11,6 +11,7 @@ import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { ALINT_TARGETS, alintArchive, alintArchiveUrl } from '../../scripts/kit/install-alint.mts';
 import { UV_TARGETS, uvArchiveUrl } from '../../scripts/kit/install-uv.mts';
+import { GO_TARGETS, goArchiveUrl } from '../../scripts/kit/install-go.mts';
 
 const HEADER = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -147,6 +148,25 @@ export function uvRelease(t: Pick<TestContext, 'after'>, version = UV_VERSION) {
   execFileSync('tar', ['-czf', archive, '-C', directory, `uv-${target}`]);
   const declared = { version, sha256: { [key]: createHash('sha256').update(readFileSync(archive)).digest('hex') } };
   return { declared, url: uvArchiveUrl(version, target), archive, key, target };
+}
+
+/**
+ * The release archive of a stub Go of `version` for this platform, as the Go downloads lay it out: the folder go with VERSION
+ * and the commands go and gofmt, which print their name, the release and GOTOOLCHAIN. `sha256` is the digest of each
+ * platform for installGo, and `url` the download.
+ */
+export function goRelease(t: Pick<TestContext, 'after'>, version: string, shows = version) {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-go-release-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const key = `${process.platform}-${process.arch}`;
+  const target = GO_TARGETS[key];
+  if (target === undefined) throw new Error(`goRelease: GO_TARGETS has no Go target for ${key}`);
+  mkdirSync(path.join(directory, 'go/bin'), { recursive: true });
+  writeFileSync(path.join(directory, 'go/VERSION'), `go${shows}\ntime 2026-01-01\n`);
+  for (const name of ['go', 'gofmt']) writeFileSync(path.join(directory, 'go/bin', name), `#!/bin/sh\necho "${name} ${shows} $GOTOOLCHAIN"\n`, { mode: 0o755 });
+  const archive = path.join(directory, 'archive.tar.gz');
+  execFileSync('tar', ['-czf', archive, '-C', directory, 'go']);
+  return { sha256: { [key]: createHash('sha256').update(readFileSync(archive)).digest('hex') }, url: goArchiveUrl(version, target), archive, key, target };
 }
 
 export const ALINT_VERSION = '0.18.2';

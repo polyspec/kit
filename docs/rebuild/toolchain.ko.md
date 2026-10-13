@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: a8e6ac641f3e27d8967644e0f825b9788770efdd9850bab5e3a5902f5689a1fb -->
+<!-- source-sha256: 967c6dee50a32d7bc1b5627d4de47fbd667e14aaa72c2c5dfe1dc2f6809ce0e5 -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -21,7 +21,7 @@ toolchain의 검증은 **맞는 도구 없음**입니다. 이 기록은 남는 �
 | P1 | 내려받는 도구는 모두 정확한 release와 platform별 archive의 sha256으로 고정되며, 설치는 다른 archive를 거부합니다 |
 | P2 | `packageManager`의 npm(sha512 포함)은 `npm ci` 전에 설치됩니다. 다른 npm은 lock을 다시 쓰거나 거부할 수 있기 때문입니다(S4) |
 | P3 | 저장소가 검증만 하는 toolchain(Node.js, Rust, PHP)은 선언된 version으로 실행되며, 이를 offline으로 확인합니다 |
-| P4 | `go.mod`의 go directive는 선언된 Go release와 일치합니다 |
+| P4 | Go가 없는 checkout에도 고정한 release의 Go가 설치되고, 모든 `go.mod`의 go directive는 그 release와 일치합니다 |
 
 ## 평가한 도구
 
@@ -35,8 +35,9 @@ toolchain의 검증은 **맞는 도구 없음**입니다. 이 기록은 남는 �
 ## 맞는 도구가 없는 이유
 
 P2는 bootstrap입니다. 고정한 npm은 어떤 package보다도, mise를 포함해, npm이 설치하기 전에 있어야 합니다. P3은 실행
-중인 도구를 선언과 비교합니다. mise는 도구를 설치할 뿐, 자신이 관리하지 않는 도구는 검증하지 않습니다. P4는 Go를
-설치하기 전에 `go.mod`를 읽으므로 `go mod edit -json`으로는 읽을 수 없습니다.
+중인 도구를 선언과 비교합니다. mise는 도구를 설치할 뿐, 자신이 관리하지 않는 도구는 검증하지 않습니다. P4에서 kit은
+release 옆에 고정한 sha256으로 공식 archive에서 pin의 Go를 설치하므로, Go를 설치하기 전에 Go도 go.mod reader도 필요하지
+않습니다. 그 뒤 설치된 Go의 `go mod edit -json`이 toolchain-check를 위해 각 go.mod를 읽습니다.
 
 ## 재시도 조건
 

@@ -4,5 +4,11 @@
   "php": "8.5",
   "go": "1.27.2",
   "rust": "1.99.0",
-  "typescript": "7.0.2"
+  "typescript": "7.0.2",
+  "goArchives": {
+    "darwin-arm64": "76812b213b1b2302c978d28fa52fa92d541704b9e7d9d5db8002c50e4018c4c5",
+    "darwin-x64": "587b59182488b23aa6e5fc25110405a3e0e5b38ed2f5b2f46ed13c32aee356fe",
+    "linux-arm64": "94f3e30b8e374bc285e7dadc11e0865726b9bc6e85b841ccceaabc0214c6b7c8",
+    "linux-x64": "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"
+  }
 }
