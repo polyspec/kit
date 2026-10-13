@@ -807,7 +807,11 @@ test('a case that the admit list of its suite does not name is not run for the i
 });
 
 test('the PHPUnit run names the configuration of its package, phpunit.xml or phpunit.xml.dist, or none (K47)', TIMEOUT, (t) => {
-  const args = (files: Record<string, string>) => runOf({ name: 'php', runner: 'php' }, repository(t, { files }), { implementation: 'php', test: 'php/tests/codec.php' }, 'codec', ENV).args;
+  const args = (files: Record<string, string>) => {
+    const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files }), { test: 'php/tests/codec.php' }, 'codec', ENV);
+    if (run.error) throw new Error(`the php binding cannot start: ${run.error}`);
+    return run.args;
+  };
   assert.deepEqual(args({}), ['php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
   assert.deepEqual(args({ 'php/phpunit.xml': '<phpunit/>\n' }), ['php/vendor/bin/phpunit', '--teamcity', '--configuration', 'php/phpunit.xml', 'php/tests/codec.php']);
   assert.deepEqual(args({ 'php/phpunit.xml.dist': '<phpunit/>\n' }), ['php/vendor/bin/phpunit', '--teamcity', '--configuration', 'php/phpunit.xml.dist', 'php/tests/codec.php']);

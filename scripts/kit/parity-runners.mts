@@ -43,7 +43,7 @@ export interface RunError {
 interface RunnerOf {
   program: (root: string) => string;
   env?: Record<string, string>;
-  run: (root: string, binding: ParityBinding, unit: string) => BindingRun | RunError;
+  run: (root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, unit: string) => BindingRun | RunError;
 }
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
@@ -160,7 +160,7 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: Run
  * detail }` with `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `detail(output)` the
  * lines that explain a failed run; or `{ error }`. A `command` with a / is a path relative to `root`, or an absolute path.
  */
-export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: ParityBinding, unit: string, base: Environment): BindingCommand | RunError {
+export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, unit: string, base: Environment): BindingCommand | RunError {
   const runner = RUNNERS[implementation.runner];
   const run = runner.run(root, binding, unit);
   if (run.error) return run;
