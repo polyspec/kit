@@ -50,8 +50,11 @@ export type OwnerDeclaration = {
 /** The scripts of the root package.json and the workspaces and package directories that have a test script. */
 export type NpmProject = { scripts: Record<string, string>; workspaces: string[]; prefixes: string[] };
 
-/** The npm project with the Makefile text. */
-export type Project = NpmProject & { makefile: string };
+/** The targets of a checkout as make reads them: the prerequisites and the recipe of each target, and the variables. */
+export type MakeDatabase = { targets: Map<string, { prerequisites: string[]; recipe: string }>; variables: Map<string, string> };
+
+/** The npm project with the targets of make. */
+export type Project = NpmProject & { make: MakeDatabase };
 
 /** A check as the name that `inputs` uses, its make target when it is one, and the command that runs it. */
 export type Check = { name: string; target?: string; command: string; args: string[] };
@@ -59,30 +62,51 @@ export type Check = { name: string; target?: string; command: string; args: stri
 /** Whether the path of the checkout exists. */
 type Exists = (file: string) => boolean;
 
-/** The text of `Makefile` and, recursively, of the files that it includes, so a target of an included file is known. */
-export function makefileText(root: string, file = 'Makefile', seen = new Set<string>()): string {
-  if (seen.has(file) || !existsSync(path.join(root, file))) return '';
-  seen.add(file);
-  const text = readFileSync(path.join(root, file), 'utf8');
-  // The group of the pattern is not optional, so every match holds it.
-  const included = [...text.matchAll(/^-?include\s+([^\s$]+)\s*$/gm)].map(match => match[1]!);
-  return [text, ...included.map(name => makefileText(root, name, seen))].join('\n');
+/**
+ * The targets and variables of the Makefile of `root` from the database that GNU make prints (`make -pRrq`), so that an
+ * included file, a variable in a prerequisite and a target-specific variable are read as make reads them. A checkout
+ * without a Makefile has no target.
+ */
+export function makeDatabase(root: string): MakeDatabase {
+  if (!existsSync(path.join(root, 'Makefile'))) return { targets: new Map(), variables: new Map() };
+  // -q runs no recipe; its exit status says whether the default goal is up to date, so only the printed database counts.
+  const result = spawnSync('make', ['-pRrq', '-f', 'Makefile'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`make could not start: ${result.error.message}`);
+  if (!result.stdout.includes('# Make data base')) throw new Error(`make printed no database of ${path.join(root, 'Makefile')}: ${result.stderr.trim()}`);
+  return parseMakeDatabase(result.stdout);
 }
 
-/** The make targets of the Makefile text. */
-function makeTargets(makefile: string) {
-  // The group of the pattern is not optional, so every match holds it.
-  return new Set([...makefile.matchAll(/^([a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*):(?!=)/gm)].flatMap(match => match[1]!.split(' ')));
-}
-
-/** The prerequisites of each target of the Makefile text. */
-function makePrerequisites(makefile: string) {
-  const prerequisites = new Map<string, string[]>();
-  for (const match of makefile.matchAll(/^([a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*):(?!=)([^#\n]*)/gm)) {
-    // Neither group of the pattern is optional, so every match holds both.
-    for (const name of match[1]!.split(' ')) prerequisites.set(name, [...(prerequisites.get(name) ?? []), ...match[2]!.trim().split(/\s+/).filter(Boolean)]);
+/** The targets and the makefile variables of the database text that `make -pRrq` prints. */
+export function parseMakeDatabase(text: string): MakeDatabase {
+  const variables = new Map<string, string>();
+  const lines = text.split('\n');
+  lines.forEach((line, index) => {
+    const assignment = /^([^#\s=:]+) (?::{1,2}=|\?=|=) ?(.*)$/.exec(line);
+    // A variable of a makefile follows its origin comment; the groups of the pattern always take part in a match.
+    if (assignment && lines[index - 1]?.startsWith('# makefile')) variables.set(assignment[1]!, assignment[2]!);
+  });
+  const targets = new Map<string, { prerequisites: string[]; recipe: string }>();
+  const files = text.slice(text.indexOf('\n# Files\n'), text.indexOf('\n# files hash-table stats'));
+  for (const entry of files.split('\n\n')) {
+    const entryLines = entry.split('\n').filter(Boolean);
+    if (entryLines[0] === '# Not a target:') continue;
+    const rule = entryLines.find(line => !line.startsWith('#') && !line.startsWith('\t'));
+    const match = rule === undefined ? null : /^(.+?)::?(?:\s+(.*))?$/.exec(rule);
+    // The first group of the pattern always takes part in a match; a special target such as .PHONY is no check.
+    if (!match || match[1]!.startsWith('.')) continue;
+    const name = match[1]!;
+    const prerequisites = (match[2] ?? '').split(/\s+/).filter(word => word && word !== '|');
+    const recipe = entryLines.filter(line => line.startsWith('\t')).map(line => line.slice(1)).join('\n');
+    // A double-colon target has an entry for each of its rules.
+    const known = targets.get(name);
+    targets.set(name, known ? { prerequisites: [...known.prerequisites, ...prerequisites], recipe: `${known.recipe}\n${recipe}` } : { prerequisites, recipe });
   }
-  return prerequisites;
+  return { targets, variables };
+}
+
+/** The prerequisites of each target of make. */
+function makePrerequisites(make: MakeDatabase) {
+  return new Map([...make.targets].map(([name, { prerequisites }]) => [name, prerequisites]));
 }
 
 /** The targets that `target` runs: itself and its prerequisites, transitively. */
@@ -93,21 +117,18 @@ function closure(target: string, prerequisites: Map<string, string[]>, result = 
   return result;
 }
 
-/** The targets of the suite, in order: the words of `CHECK_TARGETS := ...` in the Makefile text. */
-export function suiteTargets(makefile: string) {
-  return (makefile.match(/^CHECK_TARGETS\s*[:?]?=\s*(.*)$/m)?.[1] ?? '').split(/\s+/).filter(Boolean);
+/** The targets of the suite, in order: the words of the make variable CHECK_TARGETS. */
+export function suiteTargets(make: MakeDatabase) {
+  return (make.variables.get('CHECK_TARGETS') ?? '').split(/\s+/).filter(Boolean);
 }
 
 /**
  * The targets that run the full suite: those the declaration names and those whose recipe starts full-run, by its path in
  * kit (`scripts/kit/full-run.mts`) or as kit.mk names it (`$(KIT)/full-run.$(KIT_EXT)`).
  */
-export function fullSuiteTargets(makefile: string, declared: string[] = []) {
+export function fullSuiteTargets(make: MakeDatabase, declared: string[] = []) {
   const result = new Set(declared);
-  for (const match of makefile.matchAll(/^([a-zA-Z0-9_-]+):(?!=)[^\n]*\n((?:\t[^\n]*\n?)*)/gm)) {
-    // Neither group of the pattern is optional, so every match holds both.
-    if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)full-run\.(?:mts|\$\(KIT_EXT\))/.test(match[2]!)) result.add(match[1]!);
-  }
+  for (const [name, { recipe }] of make.targets) if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)full-run\.(?:mts|\$\(KIT_EXT\))/.test(recipe)) result.add(name);
   return result;
 }
 
@@ -124,15 +145,15 @@ export function ruleChecks(rule: OwnerRule): Check[] {
 const compile = (declaration: OwnerDeclaration) => declaration.owners.map(rule => ({ ...rule, expressions: rule.paths.map(globExpression) }));
 
 /**
- * The errors of the declaration against the tracked paths, the Makefile text and the npm manifests. `project` holds
- * `makefile`, `scripts` (the scripts of the root package.json), `workspaces` and `prefixes` (the names and directories
- * with a test script).
+ * The errors of the declaration against the tracked paths, the targets of make and the npm manifests. `project` holds
+ * `make` (makeDatabase), `scripts` (the scripts of the root package.json), `workspaces` and `prefixes` (the names and
+ * directories with a test script).
  */
 export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists) {
   const errors: string[] = [];
-  const targets = makeTargets(project.makefile);
-  const fullSuite = fullSuiteTargets(project.makefile, declaration.fullSuite);
-  const suite = suiteTargets(project.makefile);
+  const targets = new Set(project.make.targets.keys());
+  const fullSuite = fullSuiteTargets(project.make, declaration.fullSuite);
+  const suite = suiteTargets(project.make);
   const rules = compile(declaration);
   for (const rule of rules) {
     const label = rule.paths.join(' ');
@@ -159,7 +180,7 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   }
   // `inputs` names the paths that a check reads. For each of them a rule must select the check, or for a make target a
   // target that runs it as a prerequisite, so a change of the path runs a check that reads it.
-  const prerequisites = makePrerequisites(project.makefile);
+  const prerequisites = makePrerequisites(project.make);
   const runs = new Map<string, Set<string>>();
   const selects = (rule: OwnerRule, check: string) => ruleChecks(rule).some(({ name, target }) => {
     if (name === check) return true;
@@ -288,7 +309,7 @@ if (isMain(import.meta.url)) {
   }
   const declaration: OwnerDeclaration = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
   const tracked = trackedFiles(root);
-  const project = { makefile: makefileText(root), ...npmProject(root, tracked) };
+  const project = { make: makeDatabase(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);
   const errors = validate(declaration, tracked, project, file => existsSync(path.join(root, file)));
   if (errors.length) {
@@ -301,7 +322,7 @@ if (isMain(import.meta.url)) {
     process.exit(0);
   }
   const changed = changedPaths(root, values);
-  const selection = select(declaration, changed, suiteTargets(project.makefile), file => existsSync(path.join(root, file)));
+  const selection = select(declaration, changed, suiteTargets(project.make), file => existsSync(path.join(root, file)));
   if (selection.unowned.length) {
     for (const file of selection.unowned) complain(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);
     process.exit(1);
