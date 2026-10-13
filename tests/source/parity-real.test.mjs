@@ -19,6 +19,18 @@ function phpunitVendor() {
   return vendor;
 }
 
+/**
+ * Gives the temporary tree root the Python of the checkout: Python runs as var/tools/bin/python3 of the checkout, never the
+ * Python of PATH, so the tree gets the wrapper that install-tools wrote for this checkout.
+ */
+function givePython(root) {
+  const wrapper = path.join(ROOT, 'var/tools/bin/python3');
+  if (!existsSync(wrapper)) assert.fail(`${wrapper} does not exist; run make install-tools TOOLS="python pythonBackend"`);
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  copyFileSync(wrapper, path.join(root, 'var/tools/bin/python3'));
+  chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
+}
+
 /** The findings of the check of a repository as `<rule> <unit> <implementation>`. */
 const keys = findings => findings.map(finding => [finding.rule, finding.unit ?? '-', finding.implementation ?? '-'].join(' '));
 
@@ -65,13 +77,7 @@ test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs th
     'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    def test_ascii(self):\n        pass\n',
     'config/parity.json': `${JSON.stringify(REAL_CONFIG, null, 2)}\n`,
   });
-  // Python runs as var/tools/bin/python3 of the checkout, never the Python of PATH: the temporary tree gets the wrapper that
-  // install-tools wrote for this checkout.
-  const wrapper = path.join(ROOT, 'var/tools/bin/python3');
-  if (!existsSync(wrapper)) assert.fail(`${wrapper} does not exist; run make install-tools TOOLS="python pythonBackend"`);
-  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  copyFileSync(wrapper, path.join(root, 'var/tools/bin/python3'));
-  chmodSync(path.join(root, 'var/tools/bin/python3'), 0o755);
+  givePython(root);
   symlinkSync(vendor, path.join(root, 'php/vendor'));
   const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
   assert.deepEqual(findings, []);
@@ -106,4 +112,33 @@ test('K33 reads real PHPUnit: the configuration of the package applies, and a sk
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findings[0].message, 'skipped: skipped, incomplete');
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'flag pass', 'skipped skip', 'incomplete skip']);
+});
+
+const UNITTEST_CONFIG = {
+  schema: 1,
+  implementations: [{ name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/test_*.py'] }],
+  profiles: [{ name: 'all', implementations: ['python'] }],
+  testPatterns: [{ runner: 'python', globs: ['**/tests/**/test_*.py'] }],
+  units: [{
+    id: 'codec', kind: 'suite', profile: 'all', file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
+    bindings: [{ implementation: 'python', test: 'python/tests/test_codec.py' }],
+  }],
+  nativeOnly: [],
+  exclusions: [],
+};
+
+// Moved from tests/kit/parity.test.mjs (K81): a vendored test runs in every consumer, and a consumer that declares no
+// Python cannot install the one this case runs.
+test('R3: a unittest expected failure is a todo, which is no pass, so its case fails (real unittest, K47)', { timeout: 120_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'var/\n',
+    'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'known' }] }),
+    'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    @unittest.expectedFailure\n    def test_known(self):\n        self.fail("not yet")\n',
+    'config/parity.json': `${JSON.stringify(UNITTEST_CONFIG, null, 2)}\n`,
+  });
+  givePython(root);
+  const { findings, ledger } = checkParity(root, { execute: true, env: process.env, say: () => {} });
+  assert.deepEqual(keys(findings), ['R3 codec python']);
+  assert.equal(findings[0].message, 'failed: known');
+  assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['empty pass', 'known fail']);
 });
