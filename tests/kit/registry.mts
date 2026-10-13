@@ -116,7 +116,10 @@ export function stubRegistries(t: Pick<TestContext, 'after'>) {
   writeFileSync(log, '');
   const registryFile = path.join(directory, 'registry.json');
   writeFileSync(registryFile, JSON.stringify({ npm: {}, composer: {}, pypi: {} }));
-  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile, REAL_COMPOSER: realCommand('composer') };
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile };
+  // Without a composer on PATH the environment names none: a null value would reach the stub as the text "null".
+  const composer = realCommand('composer');
+  if (composer !== null) env.REAL_COMPOSER = composer;
   return {
     env,
     calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
