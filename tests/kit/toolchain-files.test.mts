@@ -23,17 +23,19 @@ test('a go line that is not a release, or a go.mod that go cannot read, fails wi
   assert.throws(() => declaredGo(missing, GO_ENV), /packages\/a\/go\.mod: `go mod edit -json` cannot read it/);
 });
 
-test('the Rust release is the channel of rust-toolchain.toml, read by tomllib', (t) => {
+test('the Rust release is the channel of rust-toolchain.toml, read by smol-toml (readToml) with no Python', (t) => {
   const commented = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0" # the pin of kit\nprofile = "minimal"\n' });
-  assert.deepEqual(declaredRust(commented, process.env), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
+  assert.deepEqual(declaredRust(commented), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
   const inline = toolchainCheckout(t, { 'rust-toolchain.toml': "toolchain = { channel = '1.99.0' }\n" });
-  assert.deepEqual(declaredRust(inline, process.env), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
-  assert.equal(declaredRust(toolchainCheckout(t, {}), process.env), undefined, 'without rust-toolchain.toml, Rust is not declared');
+  assert.deepEqual(declaredRust(inline), { version: '1.99.0', source: 'rust-toolchain.toml channel' });
+  assert.equal(declaredRust(toolchainCheckout(t, {})), undefined, 'without rust-toolchain.toml, Rust is not declared');
 });
 
 test('a channel that is no release fails with the file and the value', (t) => {
   const stable = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' });
-  assert.throws(() => declaredRust(stable, process.env), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares "stable"/);
+  assert.throws(() => declaredRust(stable), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares "stable"/);
   const none = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nprofile = "minimal"\n' });
-  assert.throws(() => declaredRust(none, process.env), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares undefined/);
+  assert.throws(() => declaredRust(none), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares undefined/);
+  const broken = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain\n' });
+  assert.throws(() => declaredRust(broken), /^Error: rust-toolchain\.toml line 1 column 11: Invalid TOML document/);
 });

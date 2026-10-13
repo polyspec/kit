@@ -40,7 +40,7 @@ export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: R
 // A declared tool as declaredToolchain of toolchain-declared.mts, or declaredGo and declaredRust of toolchain-files.mts, return it: an exact
 // release, or minor releases.
 type DeclaredTool = { version?: string; minor?: string; minors?: string[]; source: string };
-const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), go: declaredGo(root, env), rust: declaredRust(root, env) });
+const declaredTools = (root: string, env: NodeJS.ProcessEnv): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), go: declaredGo(root, env), rust: declaredRust(root) });
 
 type Probe = { command: (root: string) => string; args: string[]; pattern: RegExp; fix: (version: string | undefined) => string };
 

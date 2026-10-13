@@ -46,7 +46,7 @@ test('every composer.json requires php >= the pin, and a locked one sets config.
   ]);
 });
 
-// The TOML of a pyproject is read by tomllib of the Python on PATH, so every form of TOML reads as Python reads it.
+// The TOML of a pyproject is read by smol-toml (readToml of toml.mts), the one TOML reader of kit.
 test('every pyproject.toml with a project table requires-python >= the Python pin', (t) => {
   const root = tree(t, {
     'pyproject.toml': '[project]\nname = "a"\nrequires-python = ">=3.11"\n',
@@ -55,15 +55,15 @@ test('every pyproject.toml with a project table requires-python >= the Python pi
     'packages/d/pyproject.toml': '[tool.ruff]\nline-length = 120\n',
     'packages/e/pyproject.toml': '[project]\nname = "e"\n"requires-python" = """>=3.14"""\n',
   });
-  assert.deepEqual(pyprojectFindings(root, new Pinning(PINS), process.env), [
+  assert.deepEqual(pyprojectFindings(root, new Pinning(PINS)), [
     'packages/b/pyproject.toml: project.requires-python is missing; kit pins python 3.14, so it must be ">=3.14"',
     'pyproject.toml: project.requires-python is ">=3.11"; kit pins python 3.14, so it must be ">=3.14"',
   ]);
 });
 
-test('a pyproject.toml that is no TOML fails with the file and the error of tomllib', (t) => {
+test('a pyproject.toml that is no TOML fails with the file and the place of the error', (t) => {
   const root = tree(t, { 'pyproject.toml': '[project\n' });
-  assert.throws(() => pyprojectFindings(root, new Pinning(PINS), process.env), /pyproject\.toml: tomllib of python3 cannot read it \(exit status 1\): .*TOMLDecodeError/s);
+  assert.throws(() => pyprojectFindings(root, new Pinning(PINS)), /^Error: pyproject\.toml line 1 column 9: Invalid TOML document/);
 });
 
 // go.mod is read by `go mod edit -json` of the Go on PATH; GOTOOLCHAIN=local keeps it from switching to the declared Go.

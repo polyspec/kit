@@ -69,7 +69,7 @@ would walk it whatever the working directory.
 | Node.js | `.node-version` (exact) | verify |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
 | Go | `config/toolchain.json` `go`: the `go` line of the named `go.mod` (exact), read by `go mod edit -json` (K78) | install |
-| Rust | `channel` of `rust-toolchain.toml` (exact), read by tomllib (K78) | verify |
+| Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
 | Python | `config/toolchain.json` `python` (minor release), else `.python-version`; both must agree; `pythonBuild` names the exact release of that minor | install with `pythonBuild`, else verify |
 | Composer | `config/toolchain.json` `composer` `{ version, sha256? }` | install with `sha256`, else verify |
@@ -97,7 +97,7 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
 | `.node-version`, `channel` of `rust-toolchain.toml`, `php` and `python` | the pin |
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
 | `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin |
-| `project.requires-python` of every `pyproject.toml` with a project table (tomllib) | `>=` the Python pin |
+| `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
 | `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
 | `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
 | `typescript` of each dependency field of a `package.json`, and every `typescript` of a `package-lock.json` | the TypeScript pin |
@@ -109,7 +109,7 @@ kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), 
   JSON.
 - An `.npmrc` that sets `install-links=true` or `bin-links=false` fails (S1: our rules never block the links of npm). npm
   reads each `.npmrc` in its directory, without the configuration of the user or of the environment.
-- TOML is read by tomllib of the Python on `PATH` until a TOML package of npm is a dependency of kit.
+- TOML is read by smol-toml through `readToml` of `toml.mts`, the one TOML reader of kit (K73).
 - A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not
   `exit status null` (K118).
 

@@ -14,7 +14,7 @@
 // bin-links=false fail, read by npm in the directory of the file.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
-import { readCargoPackages, readGoMod, readNpmConfig, readToml } from './toolchain-files.mts';
+import { readCargoPackages, readGoMod, readNpmConfig, readTomlFile } from './toolchain-files.mts';
 import type { Pinning } from './toolchain-exceptions.mts';
 import type { Tool } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -65,10 +65,10 @@ export function composerFindings(root: string, pinning: Pinning): string[] {
   });
 }
 
-/** One line for each pyproject.toml with a project table whose requires-python is not `>=` the Python pin; `env` runs the reader. */
-export const pyprojectFindings = (root: string, pinning: Pinning, env: NodeJS.ProcessEnv): string[] => named(root, 'pyproject.toml').flatMap((file) => {
-  // tomllib returns a table for a TOML document; project, when present, is a table too.
-  const project = (readToml(root, file, env) as { project?: Record<string, unknown> }).project;
+/** One line for each pyproject.toml with a project table whose requires-python is not `>=` the Python pin. */
+export const pyprojectFindings = (root: string, pinning: Pinning): string[] => named(root, 'pyproject.toml').flatMap((file) => {
+  // A TOML document is a table; project, when present, is read as a table.
+  const project = (readTomlFile(root, file) as { project?: Record<string, unknown> }).project;
   return project ? pinning.check(file, 'project.requires-python', project['requires-python'], 'python', release => `>=${release}`) : [];
 });
 
@@ -123,7 +123,7 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
 export const floorFindings = (root: string, pinning: Pinning, env: NodeJS.ProcessEnv): string[] => [
   ...enginesFindings(root, pinning),
   ...composerFindings(root, pinning),
-  ...pyprojectFindings(root, pinning, env),
+  ...pyprojectFindings(root, pinning),
   ...goModFindings(root, pinning, env),
   ...cargoFindings(root, pinning, env),
   ...typescriptFindings(root, pinning),
