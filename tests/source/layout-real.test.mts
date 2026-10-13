@@ -40,14 +40,17 @@ const PSR4 = { autoload: { 'psr-4': { 'Polyspec\\Demo\\': 'src/' }, files: ['src
 // The lints of a Rust workspace (config/cargo.schema.json).
 const WORKSPACE_LINTS = '[workspace.lints.rust]\nunsafe_code = "deny"\n\n[workspace.lints.clippy]\nallow_attributes_without_reason = "deny"\n';
 
-// A repository that follows the layout: its path dependencies stay inside it, and a Go module at v2 ends in /v2.
+// A repository that follows the layout: its path dependencies stay inside it, its Go modules resolve each other through
+// go.work, and a Go module at v2 ends in /v2.
 const GOOD: Record<string, string> = {
   'README.md': '# demo\n',
   'Makefile': 'KIT := scripts/kit\nKIT_EXT := mts\ninclude scripts/kit/kit.mk\n',
   '.gitignore': 'var/\n',
   'config/layout.yml': LAYOUT,
   'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
-  'packages/go/go.mod': 'module github.com/polyspec/demo/packages/go\n\ngo 1.27.2\n\nreplace github.com/polyspec/demo/packages/codec/go/v2 => ../codec/go\n',
+  // The modules of the repository resolve each other through its go.work, never a replace (.golangci.yml, gomoddirectives).
+  'go.work': 'go 1.27.2\n\nuse (\n\t./packages/codec/go\n\t./packages/go\n)\n',
+  'packages/go/go.mod': 'module github.com/polyspec/demo/packages/go\n\ngo 1.27.2\n\nrequire github.com/polyspec/demo/packages/codec/go/v2 v2.0.0\n',
   'packages/codec/go/go.mod': 'module github.com/polyspec/demo/packages/codec/go/v2\n\ngo 1.27.2\n',
   'packages/codec/ts/package.json': JSON.stringify({ name: '@polyspec/demo-codec' }),
   'packages/ts/package.json': JSON.stringify({ name: '@polyspec/demo', dependencies: { '@polyspec/demo-codec': 'file:../codec/ts' } }),
