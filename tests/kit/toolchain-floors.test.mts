@@ -7,6 +7,16 @@ import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
+// npm hoists the typescript of a package's dependency, such as the TypeScript 5.9.3 of API Extractor, to the top-level
+// node_modules/typescript when nothing else claims it: the lock resolves it, but no manifest of the repository declares it.
+test('a lock entry of typescript is checked only when the package of its folder declares typescript', (t) => {
+  const root = tree(t, {
+    'tests/consumer/package.json': json({ name: 'consumer', private: true, dependencies: { '@polyspec/kit': 'file:kit.tgz' } }),
+    'tests/consumer/package-lock.json': json({ packages: { '': { dependencies: { '@polyspec/kit': 'file:kit.tgz' } }, 'node_modules/@microsoft/api-extractor': { version: '7.59.4', dependencies: { typescript: '5.9.3' } }, 'node_modules/typescript': { version: '5.9.3' }, 'packages/w': { devDependencies: { eslint: '9.0.0' } }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
+  });
+  assert.deepEqual(typescriptFindings(root, new Pinning(PINS)), []);
+});
+
 const json = (value: unknown) => JSON.stringify(value);
 
 // engines.node of every package.json is the floor of the Node.js pin of kit: `>=` the pin.
@@ -124,7 +134,7 @@ test('the typescript of a workspace in the root lock is covered by an exception 
   const exception = { tool: 'typescript' as const, channel: '6.0.3', scope: 'packages/w', reason: 'the generator runs TypeScript 6', retry: 'the generator runs TypeScript 7' };
   const root = tree(t, {
     'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
-    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
+    'package-lock.json': json({ packages: { '': { devDependencies: { typescript: '7.0.2' } }, 'node_modules/typescript': { version: '7.0.2' }, 'packages/w': { devDependencies: { typescript: '6.0.3' } }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
     'packages/w/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
   });
   const covered = new Pinning(PINS, [exception]);
@@ -141,11 +151,11 @@ test('the typescript of a workspace in the root lock is covered by an exception 
 test('every package.json that names typescript names the TypeScript pin, and every lock resolves it to the pin', (t) => {
   const root = tree(t, {
     'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
-    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'node_modules/@microsoft/api-extractor/node_modules/typescript': { version: '5.9.3' }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
+    'package-lock.json': json({ packages: { '': { devDependencies: { typescript: '7.0.2' } }, 'node_modules/typescript': { version: '7.0.2' }, 'node_modules/@microsoft/api-extractor/node_modules/typescript': { version: '5.9.3' }, 'packages/w': { devDependencies: { typescript: '6.0.3' } }, 'packages/w/node_modules/typescript': { version: '6.0.3' } } }),
     'packages/a/package.json': json({ dependencies: { typescript: '^7.0.2' }, peerDependencies: { typescript: '>=6' } }),
     'packages/b/package.json': json({ name: 'b' }),
     'packages/c/package.json': json({ optionalDependencies: { typescript: '7.0.2' } }),
-    'packages/c/package-lock.json': json({ packages: { 'node_modules/typescript-plugin': { version: '1.0.0' }, 'node_modules/typescript': { version: '6.0.3' } } }),
+    'packages/c/package-lock.json': json({ packages: { '': { optionalDependencies: { typescript: '7.0.2' } }, 'node_modules/typescript-plugin': { version: '1.0.0' }, 'node_modules/typescript': { version: '6.0.3' } } }),
   });
   assert.deepEqual(typescriptFindings(root, new Pinning(PINS)), [
     'package-lock.json: packages["packages/w/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
