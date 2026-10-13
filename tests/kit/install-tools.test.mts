@@ -191,7 +191,7 @@ const ruffConfig = (version = '0.16.10', digest = ruffDigest(version)) => ({ ver
 const PYTHON_BUILD = { version: '3.14.8' };
 const ruffFiles = (uv: ReturnType<typeof uvRelease>) => ({ 'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, ruff: ruffConfig() }) });
 // The calls of the installs: the version probes and the lookups of the installed Python are not installs.
-const installCalls = (stubs: ReturnType<typeof toolchainStubs>) => stubs.calls().filter(line => !line.includes('--version') && !line.startsWith('uv python find'));
+const installCalls = (stubs: ReturnType<typeof toolchainStubs>) => stubs.calls().filter(line => !line.includes('--version') && !line.startsWith('uv python list'));
 const RUFF_WHEEL = (version: string) => path.join('var/tools/wheels', `ruff-${version}-py3-none-any.whl`);
 
 test('ruff is downloaded with its sha256 checked, installed by uv into a virtual environment of var/tools/bin/python3 and kept by a second run', (t) => {
