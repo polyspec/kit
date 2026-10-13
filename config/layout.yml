@@ -95,3 +95,15 @@ rules:
       - "!tests/kit/parity.test.mts"
       # The real layout test of kit plants PYTHONPATH into a fixture repository to see the rule fail.
       - "!tests/source/layout-real.test.mts"
+      # The parity schema names PYTHONPATH to refuse it as a variable of an implementation (K75).
+      - "!scripts/kit/schema/parity.schema.json"
+
+  # S9 exception: the symbol extractors of the parity check (K75) read the public API of a language with the standard tool of
+  # that language (go/packages, nikic/php-parser, Python's ast), which only a program of that language can call.
+  - id: layout-infrastructure-typescript
+    paths:
+      - "scripts/**/*.{js,mjs,cjs,py,sh,bash,zsh,rb,pl,php,go,rs,ps1,bat,cmd}"
+      - "tests/**/*.{js,mjs,cjs,py,sh,bash,zsh,rb,pl,php,go,rs,ps1,bat,cmd}"
+      # The fixture checkouts of kit hold the packages of a consumer repository as test data, not infrastructure.
+      - "!tests/kit/fixture/**"
+      - "!scripts/kit/symbols/**"
