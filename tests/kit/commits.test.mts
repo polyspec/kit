@@ -53,7 +53,7 @@ test('a message file loses its comment lines, and a merge commit is not checked'
 });
 
 function repository(t: TestContext, messages: string[]) {
-  const root = tree(t, { 'config/commits.json': JSON.stringify(CONFIG) });
+  const root = tree(t, { 'config/commits.json': JSON.stringify(CONFIG), 'config/checklist.json': JSON.stringify(CHECKLIST) });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   messages.forEach((message, index) => {
     put(root, { [`f${index}.txt`]: String(index) });
@@ -113,6 +113,12 @@ test('the command checks a range or a message file and exits with the findings',
   const missing = command();
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /config\/commits\.json does not exist; declare the commit rules there/);
+});
+
+test('the item rules need config/checklist.json: a range of a checkout without it fails and names the file', (t) => {
+  const { root } = repository(t, ['feat(docs): Start (#K1)']);
+  put(root, { 'config/checklist.json': null });
+  assert.throws(() => rangeFindings(root, 'HEAD', CONFIG), /config\/checklist\.json does not exist in .*; the repository declares its trackers and hooks there/);
 });
 
 test('config/commits.json is validated against its schema', async () => {
