@@ -417,6 +417,21 @@ test('coverage names each package file that no list classifies, each stale entry
   assert.ok(later.includes('package.json is in both manifests and notReleased of config/release.json; list it once'), later.join('\n'));
 });
 
+test('coverage allows a file: dependency on an archive only in the npm consumer project, and elsewhere only on a folder of the repository (K129)', (t) => {
+  const box = releaseSandbox(t);
+  const consumer = { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } };
+  writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify(consumer));
+  assert.deepEqual(release.coverage(context(box)), [], 'the consumer project installs the archives of its packages');
+  const app = readJson(box.root, 'packages/fixture-app/package.json');
+  writeFileSync(path.join(box.root, 'packages/fixture-app/package.json'), JSON.stringify({ ...app, devDependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', near: 'file:../fixture-lib' } }));
+  writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify({ ...consumer, dependencies: { ...consumer.dependencies, other: 'file:other-npm-0.0.1.tgz', 'fixture-lib': 'file:../../../packages/fixture-lib' } }));
+  assert.deepEqual(release.coverage(context(box)), [
+    'packages/fixture-app/package.json: devDependencies.fixture-lib is "file:fixture-lib-npm-0.0.1.tgz", which names no folder of the repository; a file: dependency names a folder of the repository, and only the npm consumer project tests/release-consumer/npm of config/release.json names archives',
+    'tests/release-consumer/npm/package.json: dependencies.fixture-lib is "file:../../../packages/fixture-lib"; the npm consumer project of config/release.json names the archive of a package of its smoke, file:<name>-npm-<version>.tgz',
+    'tests/release-consumer/npm/package.json: dependencies.other is "file:other-npm-0.0.1.tgz"; the npm consumer project of config/release.json names the archive of a package of its smoke, file:<name>-npm-<version>.tgz',
+  ]);
+});
+
 test('coverage skips node_modules, var, .tools and the vendored fixture, and reads new files that Git does not ignore', (t) => {
   const box = releaseSandbox(t);
   for (const directory of ['node_modules/x', 'sub/node_modules/y', 'var/z', '.tools/w', 'tests/kit/fixture/v']) {

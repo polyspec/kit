@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 2a6352e436b6adb07e611bfe701eafab85d27faba4597dd10346b209d49d6445 -->
+<!-- source-sha256: 5d6475de2cbc3ed1f023d10df410c08b83fc4c32cf16d341b9e9bc7f13177345 -->
 
 # 도구 목록
 
@@ -196,7 +196,7 @@ alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만
 | L3 | `packages/` 아래 `<repo>-` 접두사 금지 | template `no-repository-prefix` | native |
 | L4 | go.mod module path = `github.com/polyspec/<repo>/<folder>`, v2 이상은 Go의 `/vN` | `file_content_matches`를 쓰는 `for_each_file` | native |
 | L5 | `PYTHONPATH` 금지 | `file_content_forbidden` | native |
-| L6 | 레포를 벗어나는 경로 금지: `config/*.json`, `go.mod` replace, `package.json` `file:`, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
+| L6 | 레포를 벗어나는 경로 금지: `config/*.json`, `go.mod` replace, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
 | L7 | `scripts/`와 `tests/` 아래 TypeScript가 아닌 인프라 script 금지, 선언된 S9 예외는 허용 | script 확장자에 `file_absent`, 다른 shebang에 `file_content_forbidden` | native. 이유는 주석 |
 | L8 | root `tests/`에는 선언된 runner만 | `dir_absent` | 위치는 native |
 | L9 | release와 platform별 sha256 고정, offline, 설정을 명시적으로 넘김 | `SHA256SUMS`와 cosign bundle이 있는 release archive | install-tools에 맞음 |
@@ -529,6 +529,9 @@ go.mod의 module path에 연결합니다.
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
 - `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
   `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
+  package.json의 `file:` dependency는 레포의 folder를 가리킵니다. 단 `consumers.npm.directory`가 선언한 npm consumer project의 `file:`
+  dependency는 그 `smoke` package의 archive, `file:<name>-npm-<version>.tgz`입니다(K129). 이 규칙은 `config/release.json`을 읽으므로
+  선언을 읽지 않는 alint가 아니라 여기에 있습니다.
 
 ### 버린 동작
 
