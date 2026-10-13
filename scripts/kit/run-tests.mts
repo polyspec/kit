@@ -37,15 +37,36 @@ import { isMain, ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 
 const KIT = path.dirname(fileURLToPath(import.meta.url));
-const TOOLS = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
+const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
 const ERROR_LINE = /^(?:error(?:\[\w+\])?:|fatal error:|panic:|PHP Fatal error:)/i;
 
+/** The options of a run: the tool, the timeout of each test, the directory, the arguments of the tool and the record. */
+export type RunOptions = {
+  tool: string;
+  timeoutSeconds: number;
+  cwd: string;
+  args: string[];
+  inputs: string[];
+  phpExtension?: string;
+  venv?: string;
+  results?: string;
+};
+
+/** The options that the command of a tool reads. */
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'phpExtension' | 'venv'>;
+
+// How a tool ended: it could not start, or it closed with a status or a signal.
+type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
+
+// The counts that a progress reporter writes to KIT_TEST_RESULT.
+type Counts = { ran: number; skipped: number; [key: string]: unknown };
+
 // The fix for a tool that cannot start.
-const INSTALL = {
+const INSTALL: Record<string, (options: { cwd: string }) => string> = {
   node: () => 'install the Node.js release of .node-version',
   vitest: () => 'run make install',
   go: () => 'run make install-tools, which installs Go into var/tools',
@@ -54,10 +75,10 @@ const INSTALL = {
   python: () => 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python, which installs var/tools/bin/python3',
 };
 
-export function parseArguments(argv, root = ROOT) {
+export function parseArguments(argv: string[], root = ROOT) {
   const [tool, ...rest] = argv;
-  if (!TOOLS.includes(tool)) throw new Error(USAGE);
-  const options = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [] };
+  if (tool === undefined || !TOOLS.includes(tool)) throw new Error(USAGE);
+  const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [] };
   let index = 0;
   for (; index < rest.length; index += 2) {
     const [flag, value] = [rest[index], rest[index + 1]];
@@ -87,13 +108,13 @@ export function parseArguments(argv, root = ROOT) {
   return options;
 }
 
-function splitCargo(args) {
+function splitCargo(args: string[]) {
   const index = args.indexOf('--');
   return index === -1 ? { cargo: args, harness: [] } : { cargo: args.slice(0, index), harness: args.slice(index + 1) };
 }
 
 /** The command of a tool with its progress and timeout arguments. */
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, venv }, root = ROOT) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, venv }: ToolOptions, root = ROOT) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -132,11 +153,11 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
  * Sends SIGTERM to the process group of a timed-out test (its pgid is the pid of the detached child). EPERM while a member is in
  * exit and ESRCH after the group ended are not errors (process-group.mts).
  */
-export function terminateGroup(pgid, kill) {
+export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGroup>[2]) {
   return signalGroup(pgid, 'SIGTERM', kill);
 }
 
-export async function run(argv, { root = ROOT, write = text => process.stdout.write(text) } = {}) {
+export async function run(argv: string[], { root = ROOT, write = (text: string): unknown => process.stdout.write(text) }: { root?: string; write?: (text: string) => unknown } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args } = toolCommand(options, root);
@@ -160,7 +181,7 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
   // A runner started from inside node --test must not join that run as its child.
   // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
   // color off.
-  const env = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
+  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   try {
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: reads });
@@ -169,40 +190,44 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
       write,
       timeoutMs: options.timeoutSeconds * 1000,
       command: `${command} ${args.slice(0, 2).join(' ')}`,
-      onTimeout: () => { timedOut = true; terminateGroup(child.pid); },
+      // A test runs out of time only after the tool started, so the child has its pid.
+      onTimeout: () => { timedOut = true; terminateGroup(child.pid!); },
       resultFile,
     }) : undefined;
     const sink = progress && toProgress(progress);
     // The error lines of the tool, which the summary names when the tool exits without a failing test.
-    const errors = [];
+    const errors: string[] = [];
     // The compiler errors of a Go package that does not build, which the summary names.
-    const build = [];
-    const noting = handle => (text) => {
+    const build: string[] = [];
+    const noting = (handle: (text: string) => void) => (text: string) => {
       if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
       handle(text);
     };
+    // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
     if (cargo) {
       const events = cargoEvents(sink);
-      child.stdout.setEncoding('utf8').on('data', events.stdout);
-      readline.createInterface({ input: child.stderr }).on('line', noting(events.stderr));
+      child.stdout!.setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
+      readline.createInterface({ input: child.stderr! }).on('line', noting(events.stderr)); // The stream is piped for this tool.
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(sink);
-      child.stderr.setEncoding('utf8').on('data', (data) => {
+      child.stderr!.setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
         for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
         events(data);
       });
-      readline.createInterface({ input: child.stdout }).on('line', text => progress.line(`  ${text}`));
+      // python is a tool that this runner reads, so it has a progress.
+      readline.createInterface({ input: child.stdout! }).on('line', text => progress!.line(`  ${text}`));
     } else if (reads) {
-      readline.createInterface({ input: child.stdout }).on('line', noting(options.tool === 'go' ? goEvents(sink, build) : phpunitEvents(sink)));
+      readline.createInterface({ input: child.stdout! }).on('line', noting(options.tool === 'go' ? goEvents(sink, build) : phpunitEvents(sink))); // The stream is piped for this tool.
     }
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
-    const ended = await new Promise((resolve) => {
+    const ended = await new Promise<Ended>((resolve) => {
       child.once('error', error => resolve({ error }));
       child.once('close', (status, signal) => resolve({ status, signal }));
     });
     if (ended.error) {
-      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool](options)}\n`);
+      // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
+      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool]!(options)}\n`);
       return 1;
     }
     const { status, signal } = ended;
@@ -217,7 +242,7 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
       if (code !== 0) write(`✖ ${label}: the tool ended ${signal ? `on ${signal}` : `with exit code ${status}`}\n`);
       exit = code === 0 ? 0 : 1;
     }
-    const counts = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : null;
+    const counts: Counts | null = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : null;
     if (counts !== null && options.results) {
       const inputs = { paths: options.inputs, digest: inputsDigest(root, options.inputs) };
       writeJson(options.results, { tool: options.tool, inputs, elapsedMs: Date.now() - began, ...counts });
@@ -238,5 +263,6 @@ export async function run(argv, { root = ROOT, write = text => process.stdout.wr
 }
 
 if (isMain(import.meta.url)) {
-  run(process.argv.slice(2)).then(status => { process.exitCode = status; }, (error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+  // run rejects with an Error, the usage or a failure of the files.
+  run(process.argv.slice(2)).then(status => { process.exitCode = status; }, (error: Error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
 }
