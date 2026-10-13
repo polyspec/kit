@@ -33,7 +33,7 @@ import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { isMain, ROOT, siblingTool } from './paths.mts';
+import { isMain, ROOT, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
@@ -180,7 +180,8 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
   // A runner started from inside node --test must not join that run as its child.
   // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
   // color off.
-  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
+  // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
+  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   try {
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: reads });

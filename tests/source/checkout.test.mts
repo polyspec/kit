@@ -87,7 +87,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 
 test('a test that run-tests times out ends the process group of its nested run', async (t) => {
   const { directory, sleepPid } = stubCheckout(t, true);
-  const child = spawn(process.execPath, [RUNNER, 'node', '--timeout', '1', '--', path.join(directory, 'stub.test.mts')], { stdio: 'ignore' });
+  const child = spawn(process.execPath, [RUNNER, 'node', '--timeout', '1', '--', path.join(directory, 'stub.test.mts')], { cwd: directory, stdio: 'ignore' });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
   assert.ok(await until(() => sleepPid() !== undefined, 10000), 'the nested run started no sleep');
   const pid = sleepPid();

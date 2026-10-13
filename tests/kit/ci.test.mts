@@ -2,7 +2,8 @@
 // report with its logs, record and summary, the first failure lines, and the judgment of the results of the needed jobs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -236,8 +237,10 @@ test('ci-passed judges nothing, and fails with status 2, for input that names no
   }
 });
 
-test('the ci-passed command writes annotations on GitHub Actions only', () => {
-  const run = (env: Record<string, string>) => spawnSync(process.execPath, [path.join(KIT, 'ci-passed.mts')], { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
+test('the ci-passed command writes annotations on GitHub Actions only', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-ci-passed-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [path.join(KIT, 'ci-passed.mts')], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
   const results = JSON.stringify({ a: { result: 'failure' } });
   const plain = run({ RESULTS: results });
   assert.equal(plain.status, 1);

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -43,7 +43,7 @@ function workspace(t: TestContext): string {
 // Starts a process that holds the lock until its standard input closes; resolves once it holds the lock.
 function holdLock(t: TestContext, lock: string, options: Record<string, unknown> = {}) {
   const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); acquireHolderLock(${JSON.stringify(lock)}, ${JSON.stringify({ checkout: '/work/checkout', command: 'holder', ...options })}); process.stdout.write('held\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0));`;
-  const child = spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: tmpdir(), stdio: ['pipe', 'pipe', 'inherit'] });
   const ended = new Promise<{ status: number | null; signal: NodeJS.Signals | null }>(resolve => child.once('exit', (status, signal) => resolve({ status, signal })));
   onEnd(t, async () => {
     if (child.exitCode === null && child.signalCode === null) child.stdin.end();
@@ -63,7 +63,8 @@ function endedLock(lock: string): number {
   return pid;
 }
 
-const tool = (...args: string[]) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
+// The tool runs in `cwd`, the checkout it names as the holder; a test never runs it in the checkout of kit.
+const tool = (cwd: string, ...args: string[]) => spawnSync(process.execPath, [TOOL, ...args], { cwd, encoding: 'utf8' });
 
 const STAT = '1234 (a b) c) S 1 1234 1234 0 -1 4194560 1 0 0 0 0 0 0 0 20 0 1 0 987654 1000 1 18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0 0';
 const BOOT_ID = '6f1c2a54-08a9-4f3e-9a63-2c1e5b7d9f10';
@@ -197,11 +198,11 @@ test('a lock of an ended holder is reported and stays until clear removes it', (
   const pid = endedLock(lock);
   assert.throws(() => acquireHolderLock(lock), new RegExp(`held by process ${pid} .*which has ended; remove the lock with \`node .*holder-lock\\.mts clear ${lock.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\``));
   assert.equal(existsSync(lock), true);
-  const cleared = tool('clear', lock);
+  const cleared = tool(path.dirname(lock), 'clear', lock);
   assert.equal(cleared.status, 0, cleared.stderr);
   assert.match(cleared.stdout, new RegExp(`lock: removed .*resource\\.lock of process ${pid} .*, which has ended`));
   assert.equal(existsSync(lock), false);
-  assert.equal(tool('clear', lock).status, 1);
+  assert.equal(tool(path.dirname(lock), 'clear', lock).status, 1);
 });
 
 test('a reused process ID is not a running holder: the start time differs', (t) => {
@@ -217,7 +218,7 @@ test('a reused process ID is not a running holder: the start time differs', (t) 
 test('clear fails while the holder runs and leaves the lock', { timeout: 20_000 }, async (t) => {
   const lock = path.join(workspace(t), 'resource.lock');
   const { child } = await holdLock(t, lock);
-  const refused = tool('clear', lock);
+  const refused = tool(path.dirname(lock), 'clear', lock);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, new RegExp(`held by process ${child.pid} .*the holder releases it`));
   assert.equal(existsSync(lock), true);
@@ -327,11 +328,11 @@ test('run holds the lock while the command runs and exits with its status', (t) 
   const directory = workspace(t);
   const lock = path.join(directory, 'resource.lock');
   const probe = `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(path.join(directory, 'seen'))}, fs.readFileSync(${JSON.stringify(lock)}, 'utf8')); process.exit(3)`;
-  const ran = tool('run', lock, '--', process.execPath, '-e', probe);
+  const ran = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', probe);
   assert.equal(ran.status, 3, ran.stderr);
   assert.match(ran.stderr, /lock: acquired .*resource\.lock \(process \d+\)\nlock: released .*resource\.lock\n/);
   const seen = JSON.parse(readFileSync(path.join(directory, 'seen'), 'utf8'));
-  assert.equal(seen.checkout, path.resolve(HERE, '../..'));
+  assert.equal(seen.checkout, realpathSync(directory));
   assert.match(seen.processStart, /\S/);
   assert.equal(seen.command, `${process.execPath} -e ${probe}`);
   assert.equal(existsSync(lock), false);
@@ -339,10 +340,10 @@ test('run holds the lock while the command runs and exits with its status', (t) 
 
 test('run exits with 128 + n for a command that a signal ended and with 127 for a command that does not start, and releases the lock', (t) => {
   const lock = path.join(workspace(t), 'resource.lock');
-  const signalled = tool('run', lock, '--', process.execPath, '-e', "process.kill(process.pid, 'SIGTERM')");
+  const signalled = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', "process.kill(process.pid, 'SIGTERM')");
   assert.equal(signalled.status, 143, signalled.stderr);
   assert.equal(existsSync(lock), false);
-  const missing = tool('run', lock, '--', path.join(path.dirname(lock), 'missing-command'));
+  const missing = tool(path.dirname(lock), 'run', lock, '--', path.join(path.dirname(lock), 'missing-command'));
   assert.equal(missing.status, 127);
   assert.match(missing.stderr, /lock: .*missing-command did not start: /);
   assert.equal(existsSync(lock), false);
@@ -352,12 +353,12 @@ test('run is refused while another holder has the lock and runs nothing', { time
   const directory = workspace(t);
   const lock = path.join(directory, 'resource.lock');
   const { child } = await holdLock(t, lock);
-  const refused = tool('run', lock, '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, 'ran'))}, '')`);
+  const refused = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, 'ran'))}, '')`);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, new RegExp(`lock: .*resource\\.lock is held by process ${child.pid} `));
   assert.equal(existsSync(path.join(directory, 'ran')), false);
-  assert.equal(tool('run', lock).status, 1);
-  assert.match(tool('frobnicate', lock).stderr, /usage: node scripts\/kit\/holder-lock\.mts run <lock> -- <command>/);
+  assert.equal(tool(path.dirname(lock), 'run', lock).status, 1);
+  assert.match(tool(path.dirname(lock), 'frobnicate', lock).stderr, /usage: node scripts\/kit\/holder-lock\.mts run <lock> -- <command>/);
 });
 
 // Starts `count` racers that take the lock at once and returns the result of each: 'won' for the one that holds the lock,
@@ -365,7 +366,7 @@ test('run is refused while another holder has the lock and runs nothing', { time
 // after every racer has reported, so no racer starts after the hold has ended.
 function race(lock: string, count: number) {
   const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); try { acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'racer' }); process.stdout.write('won\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0)); } catch (error) { process.stdout.write(error.name + '\\n'); }`;
-  const racers = Array.from({ length: count }, () => spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'inherit'] }));
+  const racers = Array.from({ length: count }, () => spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: tmpdir(), stdio: ['pipe', 'pipe', 'inherit'] }));
   const reports = racers.map(child => new Promise<string>((resolve) => {
     let output = '';
     // A racer reports one line and then waits, so the report resolves on the line, not on the close of the racer.
