@@ -8,6 +8,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../scripts/kit/check-documents.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
+import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { pair, put, tree } from './tree.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
@@ -225,6 +226,13 @@ test('status-table: declared cells and values pass and are equal in both languag
   const rows = '| parse | implemented | Parse | [g](g.md) |\n| print | planned | Print | [g](g.md) |';
   const root = tree(t, { ...pair('features.md', 'features', table(rows), table(rows.replaceAll('Parse', '파싱'))), ...pair('g.md', 'guide') });
   assert.deepEqual(run(root, { ...CONFIG, statusTables: [FEATURES] }), []);
+});
+
+test('status-table: a line that is only | has no first cell, so it is skipped as a line whose first cell is no ID (K103)', () => {
+  // The ID pattern of FEATURES matches the text "undefined", which a line without cells was tested as.
+  const { findings, rows } = readStatusTable(table('| parse | planned | x | [e](e.md) |\n|'), FEATURES);
+  assert.deepEqual(findings, []);
+  assert.deepEqual(rows.map(row => row.id), ['parse']);
 });
 
 test('status-table: a bad value, a missing evidence link, a wrong cell count, a repeated ID and a language mismatch fail', (t) => {

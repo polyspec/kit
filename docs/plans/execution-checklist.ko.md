@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: e8cf8cf1c8d1937a12ca94ca8509dd71bf3f109728a9923ccff6e1daff84da42 -->
+<!-- source-sha256: 7aa30e364f8e6544d231ebb487578d6f2d565bef40a09d958751d17bd0938136 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -164,4 +164,4 @@
 | K100 | TOML reader는 array 아래 table의 TOML 규칙을 지킵니다: `a = [[1]]` 다음의 `[a.x]`는 내부 array에 key를 두는 것이 아니라 error입니다. 원인: `parseToml`이 array의 마지막 항목을 확인 없이 table로 썼습니다. reader는 K73에서 smol-toml로 대체되며, 이 입력은 대체의 test에 들어갑니다. | K73 TOML test | 옛 reader에서 실패하고 대체에서 통과하는 case | [ ] |
 | K101 | lock에서 `url`이 없는 archive는 `wheel-dependencies`와 `release-proof`의 TypeError가 아니라 finding입니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/wheel-dependencies.mts`, `scripts/kit/release-proof.mts`, 그 test | red test, 그다음 `make kit-test` | [ ] |
 | K102 | `process-group`의 `waitGroupEnd`를 그 test와 함께 지웁니다. 원인: K48이 추가했지만 kit이나 어떤 repository의 tool도 부르지 않았습니다. 불확실한 미래를 위한 API였고, deadline이 없으면 끝나지 않았습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/process-group.mts`, `tests/kit/process-group.test.mts` | `make kit-test`; repository 전체 grep에서 호출이 없음 | [ ] |
-| K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [ ] |
+| K103 | `status-table`은 `|`만 있는 행을 text "undefined"가 아니라 id 없는 행으로 읽습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/status-table.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
