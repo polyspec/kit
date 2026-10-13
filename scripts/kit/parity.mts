@@ -36,21 +36,31 @@ import { exclusions, misplacedTests, missingBindings, missingImplementations, un
 import { isMain, ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
+/** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
+export type ParityFinding = { rule: string; unit?: string; implementation?: string; place?: string; message: string };
+/** A run of a binding in the ledger of parity-ledger.mts runBindings. */
+export type LedgerRun = { unit: string; implementation: string; attempt: number; command: string; args: string[]; cwd: string; status: number | null };
+/** A case that a run of a binding reported, with its outcome. */
+export type LedgerCase = { unit: string; implementation: string; case: string; outcome: string };
+/** The ledger of the runs and the cases of the bindings. */
+export type Ledger = { runs: LedgerRun[]; cases: LedgerCase[] };
+
 /**
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
  * bindings (R3) with the environment `env`; `say` prints a line for each step.
  */
-export function checkParity(root, { execute = true, env = process.env, say = () => {} } = {}) {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {} }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   say(`read ${DECLARATION}`);
   const declaration = readDeclaration(root, files);
   const model = declaration.model;
-  const ledger = { runs: [], cases: [] };
+  const ledger: Ledger = { runs: [], cases: [] };
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
+  if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
-  for (const unit of model.config.units.filter(entry => entry.kind === 'suite' && entry.admit !== undefined)) {
+  for (const unit of model.config.units.filter((entry: { kind: string; admit?: string }) => entry.kind === 'suite' && entry.admit !== undefined)) {
     for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
   }
   const executed = execute ? runBindings(model, root, { env, files, say }) : { ledger, findings: [] };
@@ -73,7 +83,7 @@ export function checkParity(root, { execute = true, env = process.env, say = () 
 
 if (isMain(import.meta.url)) {
   const { values } = parseArgs({ options: { declarations: { type: 'boolean' } } });
-  const say = text => console.log(`[parity] ${text}`);
+  const say = (text: string) => console.log(`[parity] ${text}`);
   const { findings, ledger } = checkParity(ROOT, { execute: !values.declarations, say });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
