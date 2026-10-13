@@ -255,6 +255,12 @@ test('install-tools builds the go extractor, which reads the exported API of a m
       units: [{ id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'go', symbol: 'example.com/codec.Codec' }] }],
     }, null, 2)}\n`,
   });
+  // The extractor builds with var/tools/bin/go, the Go of the kit pin: the wrapper that make install-tools wrote for kit,
+  // which runs the Go installed in kit's var/tools.
+  const go = path.join(ROOT, 'var/tools/bin/go');
+  assert.ok(existsSync(go), `${path.relative(ROOT, go)} is missing; make install-tools installs the Go of the kit pin`);
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  copyFileSync(go, path.join(root, 'var/tools/bin/go'));
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, true);
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, false, 'a second install of the same release builds nothing');
   assert.deepEqual(lines(root), [
