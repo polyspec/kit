@@ -2,7 +2,7 @@
 // precision (S4). Each manifest is read with the tool of its ecosystem.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings, typescriptFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
@@ -97,5 +97,21 @@ test('every Cargo package declares rust-version as the Rust pin, also through it
   assert.deepEqual(cargoFindings(root, PINS, process.env), [
     'crates/b/Cargo.toml: package.rust-version is missing; kit pins rust 1.99.0, so it must be "1.99.0"',
     'tools/c/Cargo.toml: package.rust-version is "1.89"; kit pins rust 1.99.0, so it must be "1.99.0"',
+  ]);
+});
+
+test('every package.json that names typescript names the TypeScript pin, and every lock resolves it to the pin', (t) => {
+  const root = tree(t, {
+    'package.json': json({ devDependencies: { typescript: '7.0.2' } }),
+    'package-lock.json': json({ packages: { '': {}, 'node_modules/typescript': { version: '7.0.2' }, 'node_modules/x/node_modules/typescript': { version: '6.0.3' } } }),
+    'packages/a/package.json': json({ dependencies: { typescript: '^7.0.2' }, peerDependencies: { typescript: '>=6' } }),
+    'packages/b/package.json': json({ name: 'b' }),
+    'packages/c/package.json': json({ optionalDependencies: { typescript: '7.0.2' } }),
+    'packages/c/package-lock.json': json({ packages: { 'node_modules/typescript-plugin': { version: '1.0.0' } } }),
+  });
+  assert.deepEqual(typescriptFindings(root, PINS), [
+    'package-lock.json: packages["node_modules/x/node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+    'packages/a/package.json: dependencies.typescript is "^7.0.2"; kit pins typescript 7.0.2, so it must be "7.0.2"',
+    'packages/a/package.json: peerDependencies.typescript is ">=6"; kit pins typescript 7.0.2, so it must be "7.0.2"',
   ]);
 });

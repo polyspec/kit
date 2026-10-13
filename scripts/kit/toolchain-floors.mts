@@ -5,6 +5,7 @@
 //   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
 //   go.mod         go is "<go pin>" and no toolchain line, which the go command drops when it equals the go line
 //   Cargo.toml     package.rust-version is "<rust pin>", also through rust-version.workspace = true
+//   package.json   typescript of each dependency field is "<typescript pin>"; every typescript of a package-lock.json is the pin
 // Each other floor, and a missing one, is a finding that names the file, the key, the pin and the expected value.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
@@ -71,4 +72,25 @@ export function cargoFindings(root: string, pins: Pins, env: NodeJS.ProcessEnv):
   }
   // A virtual workspace manifest is no package, so only the manifests of packages have a floor.
   return manifests.filter(file => versions.has(file)).flatMap(file => floor(file, 'package.rust-version', versions.get(file) ?? undefined, 'rust', pins, pins.rust));
+}
+
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+
+/** One line for each package.json that names typescript other than the TypeScript pin, and each locked typescript of another release. */
+export function typescriptFindings(root: string, pins: Pins): string[] {
+  const files = checkedFiles(root);
+  return files.flatMap((file) => {
+    const name = path.posix.basename(file);
+    if (name === 'package.json') {
+      const manifest = readJson(root, file);
+      return DEPENDENCY_FIELDS.filter(field => manifest[field]?.typescript !== undefined)
+        .flatMap(field => floor(file, `${field}.typescript`, manifest[field].typescript, 'typescript', pins, pins.typescript));
+    }
+    if (name === 'package-lock.json') {
+      const packages: Record<string, { version?: unknown }> = readJson(root, file).packages ?? {};
+      return Object.entries(packages).filter(([key]) => key === 'node_modules/typescript' || key.endsWith('/node_modules/typescript'))
+        .flatMap(([key, entry]) => floor(file, `packages[${JSON.stringify(key)}].version`, entry.version, 'typescript', pins, pins.typescript));
+    }
+    return [];
+  });
 }
