@@ -384,7 +384,7 @@ test('a runner value references the invoking environment as ${NAME}, resolved wh
   ]);
   const empty = repository(t, { files, edit: (config) => { declare(config).implementations.find((entry: { name: string }) => entry.name === 'python').command = ''; return config; } });
   assert.deepEqual(checkParity(empty, { execute: true, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: config/parity.json: $.implementations[4].command is "", the schema requires at least 1 characters',
+    'declaration: config/parity.json: /implementations/4/command must NOT have fewer than 1 characters {"limit":1}, value ""',
   ]);
 });
 
@@ -586,7 +586,7 @@ test('the whole repository is no root, and an implementation has test globs', TI
     'declaration: comparators: the root ./ is the whole repository; name the directories of the comparators',
   ]);
   assert.deepEqual(messages({ edit: (config) => { config.implementations[0].tests = []; return config; } }), [
-    'declaration: config/parity.json: $.implementations[0].tests has 0 items, the schema requires at least 1',
+    'declaration: config/parity.json: /implementations/0/tests must NOT have fewer than 1 items {"limit":1}',
   ]);
 });
 
@@ -715,8 +715,8 @@ test('R11: an exported symbol that no API unit and no native-only entry declares
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
   const { findings } = check(t, { edit: (config) => { config.extra = true; config.units[0].kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
-    'declaration: config/parity.json: $.units[0].kind is "vector", the schema allows "suite", "api"',
-    'declaration: config/parity.json: $.extra is not in the schema',
+    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"extra"}',
+    'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","api"]}, value "vector"',
   ]);
 });
 

@@ -24,7 +24,7 @@ and states only its own rules. The rules below are kit's own.
   so it imports only Node built-ins and files of its own directory. `tests/kit/isolation.test.mts` enforces both and fails on
   a declared package that no tool imports. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
   another repository. A value that differs between repositories is data in
-  `config/<name>.json` with a schema in `scripts/kit/schema/`. The schema validator supports only the keywords it lists.
+  `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
   `make kit-check` fails on a changed, missing or unexpected vendored file.
 - The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,

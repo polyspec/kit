@@ -364,7 +364,7 @@ Merged behaviors:
 - The full-suite targets are those whose recipe starts `full-run.mts` and those named in `fullSuite`; template's fixed names
   `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
 - A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
-  declaration is a list of `{ check, paths }`, because the schema validator reads no object with free keys.
+  declaration is a list of `{ check, paths }`.
 - Targets of a file that the Makefile includes (`include scripts/kit/kit.mk`) are known targets (new).
 - A node test file runs through `scripts/kit/run-tests.mts`, or through the make target `testTarget` with `TESTS=<files>`
   (hyper).

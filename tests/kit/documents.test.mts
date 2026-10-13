@@ -220,7 +220,7 @@ test('checklist: a task ID may be followed by a code span, and a checklist witho
 test('checklist: an invalid config/checklist.json is a finding of the document check', (t) => {
   const root = tree(t, pair('plan.md', 'plan'));
   put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [{ path: 'plan.md', format: 'tree', active: '[~]' }] }) });
-  hasPart(run(root), 'config/checklist.json: config: ', '$.trackers[0].format is "tree"');
+  hasPart(run(root), 'config/checklist.json: config: ', '/trackers/0/format must be equal to one of the allowed values {"allowedValues":["table","list"]}, value "tree"');
 });
 
 const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, columns: [{ index: 1, enum: ['planned', 'implemented'] }, { index: 3, pattern: '\\]\\([^)]+\\)' }] };
@@ -285,9 +285,9 @@ test('config/documents.json is validated against its schema', (t) => {
   mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
   cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema'), path.join(root, 'scripts/kit/schema'), { recursive: true });
   const found = checkConfig(root);
-  hasPart(found, 'config/documents.json: $.checklists is not in the schema');
-  hasPart(found, '$.statusTables[0].cells is 0, the schema requires at least 1');
-  hasPart(found, '$.extra is not in the schema');
+  hasPart(found, 'config/documents.json: / must NOT have additional properties {"additionalProperty":"checklists"}');
+  hasPart(found, '/statusTables/0/cells must be >= 1 {"comparison":">=","limit":1}, value 0');
+  hasPart(found, '/ must NOT have additional properties {"additionalProperty":"extra"}');
 });
 
 test('link: a site reads the VitePress slug and the {#id} of a heading, a repository only the GitHub slug', (t) => {

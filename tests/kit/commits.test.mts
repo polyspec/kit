@@ -121,8 +121,8 @@ test('config/commits.json is validated against its schema', async () => {
   const schema = JSON.parse(readFileSync(path.join(KIT, 'schema/commits.schema.json'), 'utf8'));
   assert.deepEqual(validate(CONFIG, schema), []);
   assert.deepEqual(validate({ schema: 1, types: ['Feat'], subjectMax: 0, bodyMax: 72 }, schema), [
-    '$.types[0] is "Feat", the schema requires a match of ^[a-z]+$',
-    '$.subjectMax is 0, the schema requires at least 1',
+    '/types/0 must match pattern "^[a-z]+$" {"pattern":"^[a-z]+$"}, value "Feat"',
+    '/subjectMax must be >= 1 {"comparison":">=","limit":1}, value 0',
   ]);
 });
 

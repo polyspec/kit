@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 238bf2ae68d28fb91dbd2dfc751b995a6d7921ce42bb1130a0fd5db07d3521e8 -->
+<!-- source-sha256: b32026c4603ef8de98536fcf032dd716ea1c37342ba56c202813d158082c13de -->
 # 개발
 
 [English](AGENTS.md)
@@ -21,7 +21,7 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   import합니다. `scripts/kit/bootstrap/`의 module은 npm이 package를 설치하기 전에 실행되므로 Node 내장 모듈과 같은 디렉터리의 파일만
   import합니다. `tests/kit/isolation.test.mts`가 둘 다 강제하며, 어떤 도구도 import하지 않는 선언된 package에서도 실패합니다.
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
-  schema 검증기는 자신이 나열한 키워드만 지원합니다.
+  schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
   바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
 - [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 kit의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를

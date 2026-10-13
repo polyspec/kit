@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7ce1818b2a88966cb5b67993ae499078b2b1b1a7a5b6c0185c474409b9e13e6d -->
+<!-- source-sha256: 4de5fcc129b4fa12803e02abe1d2e00d858e3cce9925debc05a20b1b3c27f7e9 -->
 
 # 도구 목록
 
@@ -333,8 +333,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 - target은 `CHECK_TARGETS` 순서(template, hyper)로 정렬하고, 다른 check는 선언 순서(crudui)를 유지합니다.
 - full suite target은 recipe가 `full-run.mts`를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
   `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
-- `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, schema validator가 키가
-  자유로운 object를 읽지 못하므로 선언은 `{ check, paths }`의 목록입니다.
+- `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, 선언은
+  `{ check, paths }`의 목록입니다.
 - Makefile이 include하는 파일(`include scripts/kit/kit.mk`)의 target도 알려진 target입니다(새 동작).
 - node test 파일은 `scripts/kit/run-tests.mts`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
 - 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.

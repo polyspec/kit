@@ -31,9 +31,9 @@ test('the schema accepts the consumers of the fixture and names each error of an
   assert.deepEqual(checkConfig(box.root).filter(line => line.startsWith('config/release.json')), []);
   edit(box.root, 'config/release.json', config => ({ ...config, consumers: { npm: { directory: '/abs', smoke: {} }, pip: {} }, proof: {} }));
   const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json')).join('\n');
-  assert.match(findings, /\$\.consumers\.npm\.directory is "\/abs"/);
-  assert.match(findings, /\$\.consumers\.pip is not in the schema/);
-  assert.match(findings, /\$\.proof lacks gitTag/);
+  assert.match(findings, /\/consumers\/npm\/directory must match pattern .*, value "\/abs"/);
+  assert.match(findings, /\/consumers must NOT have additional properties \{"additionalProperty":"pip"\}/);
+  assert.match(findings, /\/proof must have required property 'gitTag' \{"missingProperty":"gitTag"\}/);
 });
 
 test('the configuration rules name each inconsistent consumer and proof entry', (t) => {

@@ -176,7 +176,7 @@ test('loadConfig accepts the configuration of the fixture and names each rule th
   write({ ...config, hooks: ['commit-msg'] });
   assert.throws(() => loadConfig(root), /\$\.hooks is \["commit-msg"\], it must include "pre-push"/);
   write({ ...config, trackers: [{ ...config.trackers[0], format: 'tree' }] });
-  assert.throws(() => loadConfig(root), /\$\.trackers\[0\]\.format is "tree", the schema allows "table", "list"/);
+  assert.throws(() => loadConfig(root), /\/trackers\/0\/format must be equal to one of the allowed values \{"allowedValues":\["table","list"\]\}, value "tree"/);
   write({ ...config, trackers: [{ ...config.trackers[0], active: '[?]' }] });
   assert.throws(() => loadConfig(root), /the active state "\[\?\]", which is not in its states/);
   write({ ...config, trackers: [config.trackers[0], config.trackers[0]] });
@@ -189,5 +189,5 @@ test('kit-check validates config/checklist.json against its schema', (t) => {
   const root = checkout(t, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [{ path: 'a.md', format: 'table', active: '[~]', extra: 1 }] }) });
   mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
   cpSync(path.join(HERE, '../../scripts/kit/schema/checklist.schema.json'), path.join(root, 'scripts/kit/schema/checklist.schema.json'));
-  assert.deepEqual(checkConfig(root), ['config/checklist.json: $.trackers[0].extra is not in the schema. Rule: the schema checklist.schema.json of @polyspec/kit']);
+  assert.deepEqual(checkConfig(root), ['config/checklist.json: /trackers/0 must NOT have additional properties {"additionalProperty":"extra"}. Rule: the schema checklist.schema.json of @polyspec/kit']);
 });

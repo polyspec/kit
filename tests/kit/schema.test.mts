@@ -25,23 +25,24 @@ test('the schemas accept the configuration of the fixture', (t) => {
   const policy = path.join(root, 'config/dependency-policy.json');
   writeFileSync(policy, JSON.stringify({ schema: 2, composerPlatforms: [], pythonManifests: [], pythonLocks: [], npmLocks: [], exceptions: [], extra: true }));
   const findings = checkConfig(root);
-  assert.ok(findings.some(line => line === 'config/dependency-policy.json: $.schema is 2, the schema requires 1. Rule: the schema dependency-policy.schema.json of @polyspec/kit'), findings.join('\n'));
-  assert.ok(findings.some(line => line.startsWith('config/dependency-policy.json: $.extra is not in the schema')), findings.join('\n'));
+  assert.ok(findings.some(line => line === 'config/dependency-policy.json: /schema must be equal to constant {"allowedValue":1}, value 2. Rule: the schema dependency-policy.schema.json of @polyspec/kit'), findings.join('\n'));
+  assert.ok(findings.some(line => line.startsWith('config/dependency-policy.json: / must NOT have additional properties {"additionalProperty":"extra"}')), findings.join('\n'));
   rmSync(policy);
   assert.deepEqual(checkConfig(root), [], 'a repository without a declared configuration file has no finding');
 });
 
-test('the validator names the type, the enumeration and the pattern of a value', () => {
+test('the validator prints the path, the message and the params of ajv and the value, and refuses an invalid schema', () => {
   const schema = { type: 'object', required: ['name'], additionalProperties: false, properties: {
     name: { type: 'string', pattern: '^a' }, kind: { type: 'string', enum: ['npm'] }, list: { type: 'array', minItems: 1, items: { type: 'integer' } },
   } };
   assert.deepEqual(validate({ name: 'b', kind: 'pip', list: [] }, schema), [
-    '$.name is "b", the schema requires a match of ^a',
-    '$.kind is "pip", the schema allows "npm"',
-    '$.list has 0 items, the schema requires at least 1',
+    '/name must match pattern "^a" {"pattern":"^a"}, value "b"',
+    '/kind must be equal to one of the allowed values {"allowedValues":["npm"]}, value "pip"',
+    '/list must NOT have fewer than 1 items {"limit":1}',
   ]);
-  assert.deepEqual(validate('x', schema), ['$ is string, the schema requires object']);
-  assert.throws(() => validate({}, { oneOf: [] }), /schema keyword oneOf at \$ is not supported by kit/);
+  assert.deepEqual(validate('x', schema), ['/ must be object {"type":"object"}, value "x"']);
+  assert.throws(() => validate({}, { oneOf: [] }), /schema is invalid: data\/oneOf must NOT have fewer than 1 items/);
+  assert.throws(() => validate({}, { unknownKeyword: 1 }), /strict mode: unknown keyword: "unknownKeyword"/);
 });
 
 test('a Composer manifest of the policy is a relative path to a composer.json, at the root or below it', () => {
@@ -63,4 +64,13 @@ test('an npm lock of the policy is a relative path to a package-lock.json, at th
   const policy = (lock: string) => ({ schema: 1, composerPlatforms: [], pythonManifests: [], pythonLocks: [], npmLocks: [lock], exceptions: [] });
   for (const lock of ['package-lock.json', 'tests/package-install/package-lock.json']) assert.deepEqual(validate(policy(lock), schema), [], lock);
   for (const lock of ['/package-lock.json', 'a\\package-lock.json', 'xpackage-lock.json', 'npm-shrinkwrap.json']) assert.notDeepEqual(validate(policy(lock), schema), [], lock);
+});
+
+test('a key named like a member of Object.prototype is no declared property and no present required key (K112)', () => {
+  const schema = { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string' } } };
+  for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+    const value = JSON.parse(`{ "name": "a", ${JSON.stringify(key)}: 1 }`);
+    assert.notDeepEqual(validate(value, schema), [], `the extra key ${key} is refused`);
+  }
+  assert.notDeepEqual(validate({}, { type: 'object', required: ['toString'], properties: { toString: { type: 'integer' } } }), [], 'a required key is an own key');
 });
