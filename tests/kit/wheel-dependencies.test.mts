@@ -26,9 +26,8 @@ archive = { url = "${URL}", hashes = { sha256 = "${SHA}" } }
 `;
 const HEADER = 'lock-version = "1.0"\ncreated-by = "uv"\n\n';
 const LOCK_TEXT = `${HEADER}${RUFF_ENTRY}\n${KIT_LIB_ENTRY}`;
-const metadata = (...requires: string[]) => ['Metadata-Version: 2.4', 'Name: kit-fixture', 'Version: 0.0.1', ...requires.map(line => `Requires-Dist: ${line}`)].join('\n') + '\n';
 // The fixture has no sibling, so no check reads the repository of its release.
-const problemsOf = (requires: string[], { polyspec = POLYSPEC, lockText = LOCK_TEXT } = {}) => wheelDependencyProblems({ metadata: metadata(...requires), name: 'kit-fixture', version: '0.0.1', polyspec, repositoryUrl: 'https://github.com/polyspec/kit-fixture', lockFile: LOCK, lockText });
+const problemsOf = (requires: string[], { polyspec = POLYSPEC, lockText = LOCK_TEXT } = {}) => wheelDependencyProblems({ requiresDist: requires, name: 'kit-fixture', version: '0.0.1', polyspec, repositoryUrl: 'https://github.com/polyspec/kit-fixture', lockFile: LOCK, lockText });
 
 test('a registry pin that the lock holds at the same version is accepted', () => {
   assert.deepEqual(problemsOf(['ruff==0.16.10']), []);

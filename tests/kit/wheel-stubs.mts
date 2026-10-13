@@ -1,7 +1,7 @@
 // Stubs of the Python tool of the wheel tests. `-m pip wheel DIR SRC` writes the wheel of SRC into the directory after `-w`,
 // with the Requires-Dist lines that the JSON file STUB_WHEEL_REQUIRES_FILE holds (an array for every wheel, or an object from each
 // distribution name to its lines). `-m pip download ... -d DIR` writes the build backend file BACKEND_FILE with BACKEND_BYTES
-// into DIR. Each pip call is appended as a JSON line to STUB_PYTHON_LOG
+// into DIR. `-m pip install --dry-run --report - WHEEL` prints the metadata of the wheel as the report of pip. Each pip call is appended as a JSON line to STUB_PYTHON_LOG
 // when that variable is set, with the requirements file of a `-r` argument read at call time. No test reaches an index.
 // The Requires-Dist lines of STUB_WHEEL_REQUIRES_FILE: an array for every wheel, or an object from each distribution name to its lines.
 export type WheelRequires = string[] | Record<string, string[]>;
@@ -34,6 +34,17 @@ function pipDownload(args) {
   fs.writeFileSync(path.join(args[args.indexOf('-d') + 1], WHEEL_BACKEND_FILE), WHEEL_BACKEND_BYTES);
   return 0;
 }
+// The report of \`-m pip install --dry-run --report - <wheel>\`: the metadata of the .dist-info of the distribution that the file
+// name of the wheel names, as pip reads it.
+function pipReport(args) {
+  const file = args[args.length - 1];
+  const [distribution, version] = path.basename(file).split('-');
+  const metadata = execFileSync('unzip', ['-p', file, distribution + '-' + version + '.dist-info/METADATA'], { encoding: 'utf8' });
+  const field = key => (new RegExp('^' + key + ': (.*)$', 'm').exec(metadata) || [])[1];
+  const requires = [...metadata.matchAll(/^Requires-Dist: (.*)$/gm)].map(match => match[1]);
+  console.log(JSON.stringify({ version: '1', install: [{ metadata: { name: field('Name'), version: field('Version'), requires_dist: requires } }] }));
+  return 0;
+}
 function pipStub(args) {
   if (process.env.STUB_PYTHON_LOG) {
     const requirements = args.includes('-r') ? fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8') : null;
@@ -41,6 +52,7 @@ function pipStub(args) {
   }
   if (args[2] === 'wheel') return pipWheel(args);
   if (args[2] === 'download') return pipDownload(args);
+  if (args[2] === 'install' && args.includes('--dry-run') && args.includes('--report')) return pipReport(args);
   return 1;
 }
 `;

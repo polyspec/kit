@@ -496,7 +496,7 @@ export function assets(ctx: Context, tag: string): string[] {
         return [
           ...metadataProblems(metadata, name, version),
           // locks holds the lock of each wheel package at its index.
-          ...wheelDependencyProblems({ metadata, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: locks[index]!.file, lockText: locks[index]!.text }),
+          ...wheelDependencyProblems({ requiresDist: metadata.requiresDist, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: locks[index]!.file, lockText: locks[index]!.text }),
         ].map(problem => `${names[index]}: ${problem}`);
       }
       const file = MANIFEST_OF[kind];

@@ -98,7 +98,7 @@ function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: 
     const actual = fileDigest(path.join(assets, file));
     if (actual !== digest) throw new Stop(`the release ${tag} lists ${file} with the sha256 ${digest ?? 'none'}, the downloaded file has ${actual}`);
     step(`${file}: the sha256 of the downloaded file is the one the release lists`);
-    for (const link of siblingLinks(wheelMetadata(root, path.join(assets, file), env), siblingsOf(config, name)) as SiblingLink[]) {
+    for (const link of siblingLinks(wheelMetadata(root, path.join(assets, file), env).requiresDist, siblingsOf(config, name)) as SiblingLink[]) {
       const sibling = wheelName(link.name, version);
       const published = release.assets.find(item => item.name === sibling);
       if (!published) throw new Stop(`${file} requires ${link.name} at ${link.url}, the release ${tag} lists no ${sibling}`);
