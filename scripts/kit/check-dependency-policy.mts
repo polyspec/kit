@@ -175,9 +175,9 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     add('record', RECORD, 'the review record does not exist', REVIEW);
     return findings;
   }
-  const record: ReviewRecord = readJson(root, RECORD);
-  if (record.schema !== 1 || !nonEmpty(record.reviewed) || !Array.isArray(record.locks) || !Array.isArray(record.dependencies) || !Array.isArray(record.vcs)) {
-    add('record', RECORD, 'the schema is not 1 with reviewed, locks and dependencies', REVIEW);
+  const { value: record, errors: recordErrors } = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  if (recordErrors.length) {
+    add('record', RECORD, `the record breaks dependency-review.schema.json: ${recordErrors.join('; ')}`, REVIEW);
     return findings;
   }
 
