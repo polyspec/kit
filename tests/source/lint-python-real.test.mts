@@ -18,7 +18,7 @@ const TOOLS = ['ruff', 'vulture'].map(name => path.join(ROOT, 'var/tools/bin', n
 // A Python package whose code is used by its test, run against the installed package.
 const GOOD: Record<string, string> = {
   '.gitignore': 'var/\n',
-  'config/toolchain.json': JSON.stringify({ schema: 1, ruff: { version: '0.17.0', sha256: { 'linux-x64': 'f'.repeat(64) } } }),
+  'config/toolchain.json': JSON.stringify({ schema: 1, ruff: { version: '0.17.0', sha256: { 'linux-x64': 'f'.repeat(64) } }, vulture: { version: '2.16', sha256: 'f'.repeat(64) } }),
   'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\nversion = "0.0.1"\n',
   'packages/python/src/polyspec/demo/__init__.py': 'def double(value: int) -> int:\n    return value * 2\n',
   'packages/python/tests/test_demo.py': 'import unittest\n\nfrom polyspec.demo import double\n\n\nclass TestDouble(unittest.TestCase):\n    def test_double(self) -> None:\n        self.assertEqual(double(2), 4)\n',
@@ -70,7 +70,7 @@ function lintOf(root: string): { failed: string[]; output: string } {
 }
 
 test('the Python lint passes on a package that follows S3 and uses its code', (t) => {
-  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; install the tools of the checkout`);
+  for (const tool of TOOLS) assert.ok(existsSync(tool), `${path.relative(ROOT, tool)} is missing; make install-tools TOOLS="ruff vulture" installs it`);
   const { failed, output } = lintOf(repository(t));
   assert.deepEqual(failed, [], output);
 });

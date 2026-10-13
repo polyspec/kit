@@ -10,7 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { GO_ARCHIVES, PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { goRelease, ruffWheel, toolchainStubs, uvRelease } from './toolchain-stubs.mts';
+import { goRelease, ruffWheel, toolchainStubs, uvRelease, vultureWheel } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
 
 const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
@@ -241,6 +241,38 @@ test('ruff without pythonBuild names the declaration and the install of the Pyth
   assert.match(result.stderr, /ruff needs var\/tools\/bin\/python3, the Python that config\/toolchain\.json pythonBuild declares; declare pythonBuild and run make install-tools TOOLS=python/);
 });
 
+// The vulture of the declaration: the release as PyPI names it and the sha256 of its one pure-Python wheel.
+const vultureDigest = (version: string) => createHash('sha256').update(vultureWheel(version)).digest('hex');
+const vultureFiles = (uv: ReturnType<typeof uvRelease>, vulture: object) => ({ 'config/toolchain.json': config({ python: '3.14', pythonBuild: PYTHON_BUILD, uv: uv.declared, vulture }) });
+
+test('vulture is downloaded with its sha256 checked, installed by uv into var/tools/vulture, wrapped and kept by a second run', (t) => {
+  const uv = uvRelease(t);
+  const root = toolchainCheckout(t, vultureFiles(uv, { version: '2.16', sha256: vultureDigest('2.16') }));
+  const stubs = toolchainStubs(t, { downloads: { [uv.url]: uv.archive } });
+  const first = install(root, stubs.env, 'uv', 'python', 'vulture');
+  assert.equal(first.status, 0, first.stderr);
+  const calls = installCalls(stubs);
+  // The test fails when an install did not run.
+  assert.match(calls.find(line => line.startsWith('uv pip install'))!, /^uv pip install --quiet --python .*var\/tools\/vulture\.next-[^ ]*\/bin\/python --no-index --no-deps .*var\/tools\/wheels\/vulture-2\.16-py3-none-any\.whl$/);
+  assert.equal(run(path.join(root, 'var/tools/bin/vulture'), stubs.env), 'vulture 2.16');
+  assert.equal(install(root, stubs.env, 'vulture').status, 0);
+  assert.equal(installCalls(stubs).length, calls.length, 'a second run starts no install');
+});
+
+test('a vulture wheel whose sha256 is not declared is removed, and a version of another form is refused', (t) => {
+  const uv = uvRelease(t);
+  const root = toolchainCheckout(t, vultureFiles(uv, { version: '2.16', sha256: '0'.repeat(64) }));
+  const result = install(root, toolchainStubs(t, { downloads: { [uv.url]: uv.archive } }).env, 'uv', 'python', 'vulture');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, new RegExp(`vulture-2\\.16-py3-none-any\\.whl has the sha256 ${vultureDigest('2.16')}, config/toolchain\\.json vulture declares ${'0'.repeat(64)}; the file is removed`));
+  assert.equal(existsSync(path.join(root, 'var/tools/vulture')), false, 'no environment is made');
+
+  const wrongForm = toolchainCheckout(t, vultureFiles(uv, { version: 'latest', sha256: vultureDigest('2.16') }));
+  const refused = install(wrongForm, toolchainStubs(t).env, 'vulture');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /config\/toolchain\.json vulture must record version as the PyPI release, for example 2\.16; it records "latest"/);
+});
+
 test('Composer with a digest is downloaded, verified, wrapped and kept; one without a digest is not installed', (t) => {
   const root = toolchainCheckout(t);
   const phar = path.join(root, 'composer.phar.source');
@@ -290,7 +322,7 @@ test('the named tools are installed alone, and an unknown or an undeclared name 
   assert.ok(stubs.calls().every(line => !line.startsWith('python3.14')), 'ruff was not installed');
   const unknown = install(root, stubs.env, 'make');
   assert.equal(unknown.status, 1);
-  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, uv, composer, phpunit, cargoAudit, govulncheck, alint, phpLint/);
+  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, uv, composer, phpunit, cargoAudit, govulncheck, alint, phpLint, vulture/);
   const undeclared = install(root, stubs.env, 'go');
   assert.equal(undeclared.status, 1);
   assert.match(undeclared.stderr, /go is not declared; declare it in config\/toolchain\.json or in its file, or leave it out of the tools to install/);

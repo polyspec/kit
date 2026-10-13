@@ -10,6 +10,7 @@
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   phpLint      config/php-lint/composer.lock: the PHP lint of kit, whose release is the sha256 of the lock
 //   ruff         config/toolchain.json ruff: the exact version and the sha256 of the wheel of each platform
+//   vulture      config/toolchain.json vulture: the release as PyPI names it and the sha256 of its one pure-Python wheel
 //   uv           config/toolchain.json uv: the exact version and the sha256 of the release archive of each platform
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
@@ -48,6 +49,7 @@ export type DeclaredToolchain = {
   pythonBackend?: { requirement: string; sha256: string; source: string };
   composer?: Declared & { sha256: unknown };
   ruff?: PlatformRelease;
+  vulture?: Declared & { sha256: string };
   phpunit?: Declared & { manifest: string };
   phpLint?: { lock: string; manifest: string; source: string };
   cargoAudit?: Declared;
@@ -114,6 +116,17 @@ function platformRelease(key: 'uv' | 'alint' | 'ruff', file: 'archive' | 'wheel'
   return { version, sha256: digests, source };
 }
 
+// The vulture release: the release as PyPI names it (vulture names its releases <major>.<minor>) and the sha256 of its one
+// wheel, which is pure Python (py3-none-any).
+function vulture(value: unknown): Declared & { sha256: string } {
+  const file = 'config/toolchain.json vulture';
+  const version = field(value, 'version');
+  const sha256 = field(value, 'sha256');
+  if (!matches(/^\d+(\.\d+)+$/, version)) throw new Error(`${file} must record version as the PyPI release, for example 2.16; it records ${JSON.stringify(version)}`);
+  if (!matches(/^[0-9a-f]{64}$/, sha256)) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(sha256)}`);
+  return { version, sha256, source: file };
+}
+
 // The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
 function phpunit(value: unknown): Declared & { manifest: string } {
   const file = 'config/toolchain.json phpunit';
@@ -176,6 +189,7 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     declared.composer = { version: exact('config/toolchain.json', 'composer', field(config.composer, 'version')), sha256: field(config.composer, 'sha256'), source: 'config/toolchain.json composer' };
   }
   if (config.ruff) declared.ruff = platformRelease('ruff', 'wheel', config.ruff);
+  if (config.vulture) declared.vulture = vulture(config.vulture);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   if (existsSync(path.join(root, 'config/php-lint/composer.lock'))) {
     declared.phpLint = { lock: fileDigest(path.join(root, 'config/php-lint/composer.lock')), manifest: 'config/php-lint/composer.json', source: 'config/php-lint/composer.lock' };

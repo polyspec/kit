@@ -127,6 +127,25 @@
         }
       }
     },
+    "vulture": {
+      "description": "The vulture release that install-tools installs into the virtual environment var/tools/vulture, which make lint-python runs on each Python package: the release as PyPI names it, and the sha256 of its one pure-Python wheel (py3-none-any).",
+      "type": "object",
+      "required": [
+        "version",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
     "uv": {
       "description": "The uv release that install-tools installs into var/tools/uv: the exact version, and the sha256 of the archive uv-<target>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits.",
       "type": "object",
