@@ -752,7 +752,9 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
 `mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make toolchain-check` probes each installed release:
 vulture, golangci-lint, deadcode (by `go version -m` of the binary that `mise which deadcode` names, since it prints no release
-and its shim is mise), and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds.
+and its shim is mise), and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds, in a repository that
+declares PHP (`php` of config/toolchain.json or `.php-version`): every repository holds the copy, and a tool that a repository
+does not declare is neither installed nor checked.
 
 ### Decisions
 
