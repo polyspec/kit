@@ -264,7 +264,8 @@ test('the proof checks each sibling URL in a wheel against the published asset, 
   const steps = prove(box);
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: its Requires-Dist of ${SIBLING} is the published asset of ${SIBLING_WHEEL}, ${SIBLING_URL}`), steps.join('\n'));
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: the sha256 of the downloaded file is the one the release lists`), steps.join('\n'));
-  const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index'));
+  // The install of the wheels reads their requirements file (-r); the dry runs that read the metadata of each wheel do not.
+  const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index') && call.args.includes('-r'));
   assert.ok(install.args.includes('--no-deps'), 'the wheels install with no dependency resolution, so the sibling is never fetched from its URL');
   // split returns at least one item, so the first item of each line exists.
   assert.deepEqual(install.requirements.split('\n').filter(Boolean).map((line: string) => path.basename(line.split(' ')[0]!)), [GENERATOR_WHEEL, SIBLING_WHEEL]);

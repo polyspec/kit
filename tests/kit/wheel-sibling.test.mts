@@ -16,8 +16,7 @@ const URL = `${REPO}/releases/download/v0.0.1/${FILE}`;
 const SHA = 'a'.repeat(64);
 const RUFF = `[[packages]]\nname = "ruff"\nversion = "0.16.10"\nwheels = [{ name = "ruff-0.16.10-py3-none-any.whl", url = "https://files.pythonhosted.org/packages/ruff-0.16.10-py3-none-any.whl", hashes = { sha256 = "${'1'.repeat(64)}" } }]\n`;
 const LOCK_TEXT = `lock-version = "1.0"\ncreated-by = "uv"\n\n${RUFF}`;
-const metadata = (...requires: string[]) => ['Metadata-Version: 2.4', 'Name: kit-fixture', 'Version: 0.0.1', ...requires.map(line => `Requires-Dist: ${line}`)].join('\n') + '\n';
-const problemsOf = (requires: string[], { lockText = LOCK_TEXT, siblings = [SIBLING], repositoryUrl = REPO }: { lockText?: string; siblings?: string[]; repositoryUrl?: string } = {}) => dependencies.wheelDependencyProblems({ metadata: metadata(...requires), name: 'kit-fixture', version: '0.0.1', polyspec: {}, siblings, repositoryUrl, lockFile: LOCK, lockText });
+const problemsOf = (requires: string[], { lockText = LOCK_TEXT, siblings = [SIBLING], repositoryUrl = REPO }: { lockText?: string; siblings?: string[]; repositoryUrl?: string } = {}) => dependencies.wheelDependencyProblems({ requiresDist: requires, name: 'kit-fixture', version: '0.0.1', polyspec: {}, siblings, repositoryUrl, lockFile: LOCK, lockText });
 const LOCK_WITH_SIBLING = `${LOCK_TEXT}\n[[packages]]\nname = "${SIBLING}"\nversion = "0.0.1"\narchive = { url = "${URL}", hashes = { sha256 = "${SHA}" } }\n`;
 
 test('the siblings of a wheel are the other wheel packages of the configuration, derived from packages', () => {
@@ -76,8 +75,8 @@ test('a configuration that declares a wheel package as a polyspec distribution i
   assert.deepEqual(consumerConfig.consumerConfigProblems(config), [`consumers.wheel.polyspec.${SIBLING} names the wheel package ${SIBLING} of this repository; a sibling of the release needs no declaration`]);
 });
 
-test('siblingLinks returns the direct references of the METADATA to the siblings, and no other line', () => {
-  const text = metadata('ruff==0.16.10', `${SIBLING} @ ${URL}`, `other-lib @ https://example.com/other/other_lib-0.0.1-py3-none-any.whl`);
-  assert.deepEqual(dependencies.siblingLinks(text, [SIBLING]), [{ name: SIBLING, url: URL }]);
-  assert.deepEqual(dependencies.siblingLinks(text, []), []);
+test('siblingLinks returns the direct references of the Requires-Dist lines to the siblings, and no other line', () => {
+  const requires = ['ruff==0.16.10', `${SIBLING} @ ${URL}`, `other-lib @ https://example.com/other/other_lib-0.0.1-py3-none-any.whl`];
+  assert.deepEqual(dependencies.siblingLinks(requires, [SIBLING]), [{ name: SIBLING, url: URL }]);
+  assert.deepEqual(dependencies.siblingLinks(requires, []), []);
 });

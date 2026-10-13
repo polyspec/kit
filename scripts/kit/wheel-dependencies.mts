@@ -97,13 +97,13 @@ export function lockRequirements(text: string, lockFile: string) {
 }
 
 /**
- * The problems of the dependencies of a wheel of `name` at `version` against its lock: each Requires-Dist of the METADATA is
+ * The problems of the dependencies of a wheel of `name` at `version` against its lock: each line of `requiresDist` is
  * accepted or named with its reason; each polyspec archive of the lock is a release asset of the repository that
  * consumers.wheel.polyspec declares for it. `polyspec` maps a distribution name to its repository URL; `siblings` are the names
  * of the other wheel packages of the configuration (siblingsOf), each named by its asset of this release at `repositoryUrl`.
  */
-export function wheelDependencyProblems({ metadata, name, version, polyspec, siblings = [], repositoryUrl, lockFile, lockText }: {
-  metadata: string;
+export function wheelDependencyProblems({ requiresDist, name, version, polyspec, siblings = [], repositoryUrl, lockFile, lockText }: {
+  requiresDist: string[];
   name: string;
   version: string;
   polyspec: Record<string, string>;
@@ -124,10 +124,7 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
     siblings: new Set(siblings.map(canonicalName)),
   };
   const problems: string[] = [];
-  for (const [, line] of metadata.matchAll(/^Requires-Dist: (.*)$/gm)) {
-    // The group of the pattern is not optional, so every match holds it.
-    problems.push(...requirementProblems(line!.trim(), context));
-  }
+  for (const line of requiresDist) problems.push(...requirementProblems(line.trim(), context));
   for (const entry of lock.packages) {
     if (context.siblings.has(canonicalName(entry.name))) {
       problems.push(`${lockFile}: ${entry.name} is a wheel of this release; the lock of ${name} holds no sibling, since its sha256 is known only after the release builds it. Fix: remove ${entry.name} from ${lockFile}`);
@@ -144,14 +141,13 @@ export function wheelDependencyProblems({ metadata, name, version, polyspec, sib
 }
 
 /**
- * The direct references of a METADATA to its siblings, as { name, url } for each `name @ url` line of a sibling. The proof compares
- * each URL with the URL of the published asset of the sibling (release-proof.mts).
+ * The direct references of the Requires-Dist lines of a wheel to its siblings, as { name, url } for each `name @ url` line of a
+ * sibling. The proof compares each URL with the URL of the published asset of the sibling (release-proof.mts).
  */
-export function siblingLinks(metadata: string, siblings: string[]) {
+export function siblingLinks(requiresDist: string[], siblings: string[]) {
   const names = new Set(siblings.map(canonicalName));
-  return [...metadata.matchAll(/^Requires-Dist: (.*)$/gm)]
-    // The groups of both patterns are not optional, so every match holds them.
-    .map(([, line]) => DIRECT.exec(line!.trim()))
+  return requiresDist
+    .map(line => DIRECT.exec(line.trim()))
     .filter((found): found is RegExpExecArray => found !== null && names.has(canonicalName(found[1]!))) // The groups of the pattern are not optional.
     .map(([, name, url]) => ({ name: name!, url: url! })); // The groups of the pattern are not optional.
 }

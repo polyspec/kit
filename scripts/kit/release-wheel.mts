@@ -50,12 +50,14 @@ export function sourceProblems({ file, text, name, requirement }: { file: string
   return problems;
 }
 
-/** The problems of the METADATA of a wheel of `name` at `version`: its name and its version. Dependencies: wheel-dependencies.mts. */
-export function metadataProblems(metadata: string, name: string, version: string): string[] {
+/** The metadata of a wheel that the release reads: its name, its version and its Requires-Dist lines. */
+export type WheelMetadata = { name: string; version: string; requiresDist: string[] };
+
+/** The problems of the metadata of a wheel of `name` at `version`: its name and its version. Dependencies: wheel-dependencies.mts. */
+export function metadataProblems(metadata: WheelMetadata, name: string, version: string): string[] {
   const problems: string[] = [];
-  const field = (key: string) => new RegExp(`^${key}: (.*)$`, 'm').exec(metadata)?.[1]?.trim() ?? null;
-  if (field('Name') !== name) problems.push(`Name ${field('Name') ?? 'none'}, config/release.json declares ${name}`);
-  if (field('Version') !== version) problems.push(`Version ${field('Version') ?? 'none'}, the tag is ${version}`);
+  if (metadata.name !== name) problems.push(`Name ${metadata.name}, config/release.json declares ${name}`);
+  if (metadata.version !== version) problems.push(`Version ${metadata.version}, the tag is ${version}`);
   return problems;
 }
 
@@ -91,5 +93,17 @@ export function buildWheel({ root, env, commit, directory, output, buildBackend 
   }
 }
 
-/** The METADATA of the wheel `file`, read from the archive without extracting it. */
-export const wheelMetadata = (root: string, file: string, env: NodeJS.ProcessEnv): string => run('unzip', ['-p', file, '*.dist-info/METADATA'], { cwd: root, env });
+/**
+ * The metadata of the wheel `file`, as pip reads it: the dry run of its install with no index and no dependencies writes the
+ * report of the one distribution that it would install, from the .dist-info of that distribution, so the METADATA of a
+ * distribution that the wheel vendors is never read. Offline; nothing is installed.
+ */
+export function wheelMetadata(root: string, file: string, env: NodeJS.ProcessEnv): WheelMetadata {
+  const python = toolsPath(root, 'bin', 'python3');
+  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; pip reads the metadata of a wheel, make install-tools TOOLS=python installs it`);
+  const report = JSON.parse(run(python, ['-m', 'pip', 'install', '--dry-run', '--no-deps', '--no-index', '--ignore-installed', '--quiet', '--no-input', '--disable-pip-version-check', '--report', '-', file], { cwd: root, env }));
+  const installs: { metadata: { name: string; version: string; requires_dist?: string[] } }[] = report.install ?? [];
+  const [install] = installs;
+  if (installs.length !== 1 || !install) throw new Stop(`pip reports ${installs.length} distributions for the wheel ${file}; expected the wheel alone`);
+  return { name: install.metadata.name, version: install.metadata.version, requiresDist: install.metadata.requires_dist ?? [] };
+}
