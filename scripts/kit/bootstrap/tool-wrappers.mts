@@ -36,6 +36,8 @@ export const RELEASE_OUTPUT = {
   uv: { args: ['--version'], pattern: /^uv (\d+\.\d+\.\d+) /m },
   alint: { args: ['--version'], pattern: /^alint (\d+\.\d+\.\d+) /m },
   'golangci-lint': { args: ['version'], pattern: /^golangci-lint has version (\d+\.\d+\.\d+) /m },
+  phpcs: { args: ['--version'], pattern: /^PHP_CodeSniffer version (\d+\.\d+\.\d+) /m },
+  phpstan: { args: ['--version'], pattern: /^PHPStan - PHP Static Analysis Tool (\d+\.\d+\.\d+)$/m },
   phpunit: { args: ['--version'], pattern: /^PHPUnit (\d+\.\d+\.\d+) /m },
   cargoAudit: { args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m },
   govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },

@@ -1,6 +1,7 @@
-// Tests of the declarations of the lint tools: ruff, vulture, golangci-lint, deadcode and the PHP lint are read after the
-// bootstrap by scripts/kit/toolchain-lint.mts, which fails with the file, the expected form and the actual value. The
-// bootstrap reads only what is needed before npm ci, so declaredToolchain names none of them.
+// Tests of the declarations of the lint tools: ruff, vulture, golangci-lint, deadcode and the PHP lint, with the phpcs and
+// PHPStan releases that its lock holds, are read after the bootstrap by scripts/kit/toolchain-lint.mts, which fails with the
+// file, the expected form and the actual value. The bootstrap reads only what is needed before npm ci, so declaredToolchain
+// names none of them.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
@@ -9,7 +10,7 @@ import { declaredLintTools } from '../../scripts/kit/toolchain-lint.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 const DIGEST = 'f'.repeat(64);
-const LOCK = '{ "packages": [] }\n';
+const LOCK = `${JSON.stringify({ packages: [{ name: 'phpstan/phpstan', version: '2.3.1' }, { name: 'squizlabs/php_codesniffer', version: 'v4.0.4' }] })}\n`;
 const TOOLCHAIN = {
   schema: 1,
   ruff: { version: '0.17.0', sha256: { 'linux-x64': DIGEST } },
@@ -27,9 +28,11 @@ test('the lint tools are read after the bootstrap, and the bootstrap names none 
     golangciLint: { version: '2.14.0', sha256: { 'linux-x64': DIGEST }, source: 'config/toolchain.json golangciLint' },
     deadcode: { version: '0.52.0', source: 'config/toolchain.json deadcode' },
     phpLint: { lock: createHash('sha256').update(LOCK).digest('hex'), manifest: 'config/php-lint/composer.json', source: 'config/php-lint/composer.lock' },
+    phpcs: { version: '4.0.4', source: 'config/php-lint/composer.lock' },
+    phpstan: { version: '2.3.1', source: 'config/php-lint/composer.lock' },
   });
   const bootstrap = declaredToolchain(root) as Record<string, unknown>;
-  for (const key of ['ruff', 'vulture', 'golangciLint', 'deadcode', 'phpLint']) assert.equal(bootstrap[key], undefined, `the bootstrap reads ${key}`);
+  for (const key of ['ruff', 'vulture', 'golangciLint', 'deadcode', 'phpLint', 'phpcs', 'phpstan']) assert.equal(bootstrap[key], undefined, `the bootstrap reads ${key}`);
 });
 
 test('a checkout without lint tools declares none', (t) => {
@@ -46,5 +49,6 @@ test('a malformed lint tool declaration fails with the file and the value', (t) 
     [{ golangciLint: { version: '2.14', sha256: {} } }, /config\/toolchain\.json golangciLint must record version as <major>\.<minor>\.<patch>; it records "2\.14"/],
     [{ deadcode: '0.52' }, /config\/toolchain\.json must record deadcode as <major>\.<minor>\.<patch>; it records "0\.52"/],
   ];
+  assert.throws(() => declaredLintTools(toolchainCheckout(t, { 'config/php-lint/composer.lock': '{ "packages": [] }' })), /config\/php-lint\/composer\.lock must lock squizlabs\/php_codesniffer at a release <major>\.<minor>\.<patch>; it locks undefined/);
   for (const [config, message] of cases) assert.throws(() => declaredLintTools(toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, ...config }) })), message);
 });
