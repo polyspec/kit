@@ -19,7 +19,21 @@
     "package.json": "archive"
   },
   "notReleased": {
-    "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit"
+    "config/phpunit/composer.json": "the Composer project of the PHPUnit that install-tools installs for the tests of kit",
+    "tests/release-consumer/npm/package.json": "the npm consumer project that installs the release archive of kit"
   },
-  "goModules": {}
+  "goModules": {},
+  "consumers": {
+    "npm": {
+      "directory": "tests/release-consumer/npm",
+      "smoke": {
+        "@polyspec/kit": [
+          "node",
+          "--input-type=module",
+          "-e",
+          "await import('@polyspec/kit/tracked-files')"
+        ]
+      }
+    }
+  }
 }

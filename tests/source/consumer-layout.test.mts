@@ -40,7 +40,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     mkdirSync(path.dirname(path.join(consumer, file)), { recursive: true });
     cpSync(path.join(unpacked, from), path.join(consumer, file));
   }
-  const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/${packed.filename}`;
+  // The release asset of kit, as config/release.json names it (release.mts archiveName).
+  const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/polyspec-kit-npm-${packed.version}.tgz`;
   const manifest = { name: 'consumer', private: true, packageManager: KIT.packageManager, engines: { node: `>=${NODE}` }, devDependencies: { '@polyspec/kit': asset } };
   const lock = {
     name: 'consumer', lockfileVersion: 3, requires: true,
@@ -79,6 +80,12 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
     assert.doesNotMatch(result.stdout, /scripts\/kit\/[a-z-]+\.mts/, `make ${target.join(' ')} ran a source of kit`);
   }
+  // The smoke command of the release of kit (consumers.npm of config/release.json) runs in the consumer.
+  const release = JSON.parse(readFileSync(path.join(ROOT, 'config/release.json'), 'utf8'));
+  const [command, ...args]: string[] = release.consumers.npm.smoke['@polyspec/kit'];
+  assert.ok(command, 'config/release.json names no smoke command of @polyspec/kit');
+  const smoked = spawnSync(command, args, { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(smoked.status, 0, `the smoke command of @polyspec/kit: ${smoked.stdout}${smoked.stderr}`);
   assert.match(make('kit-sync').stdout, new RegExp(`\\[kit-sync\\] unchanged: @polyspec/kit ${packed.version.replaceAll('.', '\\.')}`));
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');
 });

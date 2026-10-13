@@ -2,6 +2,7 @@
 // its repository. config/release.json declares it with the directory `.` and the manifest package.json, and the release
 // reads that manifest, not `./package.json`.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -28,4 +29,14 @@ test('the release configuration of kit declares the package @polyspec/kit at its
   assert.equal(config.manifests['package.json'], 'archive');
   assert.deepEqual(assetNames(config, '1.2.3'), ['polyspec-kit-npm-1.2.3.tgz']);
   assert.deepEqual(coverage(context(ROOT, { config })), []);
+});
+
+test('the release of kit installs the package in a consumer project and smokes its export', () => {
+  const config = loadConfig(ROOT);
+  const npm = config.consumers?.npm;
+  assert.ok(npm, 'config/release.json of kit declares no npm consumer');
+  assert.equal(npm.directory, 'tests/release-consumer/npm');
+  assert.deepEqual(Object.keys(npm.smoke), ['@polyspec/kit']);
+  const manifest = JSON.parse(readFileSync(path.join(ROOT, npm.directory, 'package.json'), 'utf8'));
+  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true });
 });
