@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/rebuild.json",
+  "description": "The class of each tool of the repository, read by scripts/kit/rebuild-check.mts (S1): ecosystem, replaced, record or policy, each with the field it needs.",
+  "type": "object",
+  "required": ["schema", "paths", "tools"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "comment": { "type": "string" },
+    "paths": { "description": "Globs of the tracked files that are tools; each needs a class in tools.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "tools": { "description": "Each tool, by its path, with { kind, tool | reason | record }; rebuild-check checks the field of each kind.", "type": "object" }
+  }
+}
