@@ -12,7 +12,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 | Dependencies | `dependency-state.mts`, `dependency-review.mts`, `check-dependency-policy.mts`, `check-dependency-policy-mutation.mts`, `pin-python-dependency.mts` | `dependency-policy-check`, `dependency-policy-mutation-check`, `dependency-review RECORD=1 UPDATE=1` |
 | Toolchains | `install-tools.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-composer.mts`, `install-cargo-audit.mts`, `install-govulncheck.mts`, `check-toolchain.mts`, `check-cargo-downloads.mts` | `install-tools TOOLS=…`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | Folder layout | `install-alint.mts`; alint runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
-| Python | `lint-python.mts` | `lint-python` |
+| Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/tool-inventory.md, Lint configuration) and the tools of `install-vulture.mts`, `install-php-lint.mts`, `install-golangci-lint.mts`, `install-deadcode.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
 | Gates | `push-gate.mts`, `full-run.mts`, `git-hooks.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed` |
 | Documents and commits | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | Tests and CI | `run-tests.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
