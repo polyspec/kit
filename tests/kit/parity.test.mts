@@ -444,6 +444,24 @@ test('R1: an API unit whose symbol is missing, not exported or not declared in a
   assert.match(findingAt(findings, 2).message, /declares no symbol of python/);
 });
 
+test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, (t) => {
+  const without = check(t, {
+    edit: config => {
+      delete config.units.find((entry: { id: string }) => entry.id === 'encode').symbols;
+      return config;
+    },
+  }, { execute: false });
+  assert.deepEqual(keys(without.findings), ['declaration - -']);
+  assert.equal(findingAt(without.findings, 0).message, 'unit encode: a unit of kind api needs symbols');
+  const empty = check(t, {
+    edit: config => {
+      config.units.find((entry: { id: string }) => entry.id === 'encode').symbols = [];
+      return config;
+    },
+  }, { execute: false });
+  assert.deepEqual(keys(empty.findings).filter(key => key.startsWith('R1 ')), ['R1 encode go', 'R1 encode rust', 'R1 encode ts', 'R1 encode php', 'R1 encode python']);
+});
+
 test('R2: a suite without a binding of an implementation of its profile fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'python/tests/test_codec.py': null },
