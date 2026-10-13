@@ -1,7 +1,7 @@
 // Installs the symbol extractors of the language-parity check (parity-symbols.mts) that config/toolchain.json
 // symbolExtractors declares, into var/tools/symbols-<extractor>:
 //   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
-//        the release that its go.mod and go.sum pin, built with `go build` into bin/kit-symbols-go
+//        the release that its go.mod and go.sum pin, built with `go build` of var/tools/bin/go, the Go of the kit pin, into bin/kit-symbols-go
 //   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
 //        with the composer.phar of var/tools/composer (the declared composer) as install-phpunit.mts installs PHPUnit
 // The release of an extractor is the sha256 of its source files, written to RELEASE beside the build, so a kit release that
@@ -45,7 +45,12 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
     const environment = bootstrapEnvironment(root, { COMPOSER_HOME: toolsPath(root, 'composer', 'home'), COMPOSER_CACHE_DIR: toolsPath(root, 'composer', 'cache') });
     run('php', [composer, 'install', '--no-interaction', '--no-progress', '--no-scripts', '--no-plugins', '--prefer-dist'], { cwd: next, env: environment }, print);
   },
-  go: (root, next, print) => run('go', ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...process.env, GOFLAGS: '-modcacherw' } }, print),
+  // The Go of the kit pin that install-tools installs into var/tools, never a go of the machine.
+  go: (root, next, print) => {
+    const go = toolsPath(root, 'bin', 'go');
+    if (!existsSync(go)) throw new Error(`the go symbol extractor needs ${path.relative(root, go)}, the Go of the kit pin; run make install-tools`);
+    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: bootstrapEnvironment(root, { GOFLAGS: '-modcacherw' }) }, print);
+  },
 };
 
 /** Installs the extractor `extractor` into var/tools of `root` unless its release is installed there. */
