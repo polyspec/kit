@@ -47,21 +47,21 @@ else { console.log(JSON.stringify(report)); process.exit(report.vulnerabilities.
 
 /**
  * Installs a stub of govulncheck into var/tools/govulncheck/bin of `root`: it prints `Scanner: govulncheck@v1.1.4` for
- * -version and the JSON `messages` one after the other for a scan, and exits 0 as govulncheck -json does. Each scan
+ * -version and the SARIF `report` for a scan, and exits 0 as govulncheck -format sarif does. Each scan
  * appends its working directory and arguments to var/tools/govulncheck/calls.log (govulncheckCalls reads it).
  */
-export function installGovulncheckStub(root: string, messages: unknown[] = []) {
+export function installGovulncheckStub(root: string, report: unknown = { version: '2.1.0', runs: [{ tool: { driver: { name: 'govulncheck', rules: [] } }, results: [] }] }) {
   const prefix = path.join(root, 'var/tools/govulncheck');
   const bin = path.join(prefix, 'bin');
   mkdirSync(bin, { recursive: true });
   const file = path.join(bin, 'govulncheck');
   writeFileSync(file, `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs');
-const messages = ${JSON.stringify(messages)};
+const report = ${JSON.stringify(report)};
 if (process.argv.includes('-version')) console.log('Go: go1.27.0\\nScanner: govulncheck@v1.1.4\\nDB: https://vuln.go.dev');
 else {
   appendFileSync(${JSON.stringify(path.join(prefix, 'calls.log'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
-  for (const message of messages) console.log(JSON.stringify(message, null, 2));
+  console.log(JSON.stringify(report, null, 2));
 }
 `);
   chmodSync(file, 0o755);

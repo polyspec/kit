@@ -7,33 +7,42 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { goRequirements } from '../../scripts/kit/dependency-state.mts';
-import { goAdvisories, parseJsonStream, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { installGovulncheck } from '../../scripts/kit/install-govulncheck.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 
-const MESSAGES = [
-  { config: { protocol_version: 'v1.0.0', scanner_name: 'govulncheck' } },
-  { osv: { id: 'GO-2099-0001', summary: 'uuid generates a predictable identifier' } },
-  { osv: { id: 'GO-2099-0002', summary: 'uuid is unused here' } },
-  { finding: { osv: 'GO-2099-0001', trace: [{ module: 'github.com/google/uuid', version: 'v1.6.0', package: 'github.com/google/uuid', function: 'New' }] } },
-  { finding: { osv: 'GO-2099-0001', trace: [{ module: 'github.com/google/uuid', version: 'v1.6.0', package: 'github.com/google/uuid', function: 'NewRandom' }] } },
-  { finding: { osv: 'GO-2099-0002', trace: [{ module: 'github.com/google/uuid', version: 'v1.6.0' }] } },
-];
+// A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
+// the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
+const flow = (fn: string) => ({ threadFlows: [{ locations: [
+  { module: 'example.com/app@', location: { message: { text: 'example.com/app.main' } } },
+  { module: 'github.com/google/uuid@v1.6.0', location: { message: { text: `github.com/google/uuid.${fn}` } } },
+] }] });
+const REPORT = {
+  version: '2.1.0',
+  runs: [{
+    tool: { driver: { name: 'govulncheck', rules: [
+      { id: 'GO-2099-0001', shortDescription: { text: '[GO-2099-0001] uuid generates a predictable identifier' }, fullDescription: { text: 'uuid generates a predictable identifier' } },
+      { id: 'GO-2099-0002', shortDescription: { text: '[GO-2099-0002] uuid is unused here' }, fullDescription: { text: 'uuid is unused here' } },
+    ] } },
+    results: [
+      { ruleId: 'GO-2099-0001', level: 'error', message: { text: 'Your code calls vulnerable functions in 1 package (github.com/google/uuid).' }, codeFlows: [flow('New'), flow('NewRandom')] },
+      { ruleId: 'GO-2099-0002', level: 'note', message: { text: 'Your code depends on 1 vulnerable module (github.com/google/uuid), but doesn\'t appear to call any of the vulnerable symbols.' } },
+    ],
+  }],
+};
 
 test('go.mod requirements are the direct modules that the checkout does not replace', () => {
   const text = 'module x\n\ngo 1.21\n\nrequire (\n\tgithub.com/a/b v1.2.3\n\tgithub.com/c/d v0.1.0 // indirect\n\texample.com/local v0.0.0\n)\nrequire github.com/e/f v2.0.0+incompatible\nreplace example.com/local => ../local\n';
   assert.deepEqual(goRequirements(text), [{ module: 'github.com/a/b', version: 'v1.2.3' }, { module: 'github.com/e/f', version: 'v2.0.0+incompatible' }]);
 });
 
-test('the messages of govulncheck are read one after the other, and only the vulnerabilities that the code calls are advisories', () => {
-  const text = MESSAGES.map(message => JSON.stringify(message, null, 2)).join('\n');
-  assert.equal(parseJsonStream(text).length, MESSAGES.length);
-  assert.deepEqual(goAdvisories(MESSAGES), [{
+test('the SARIF report of govulncheck gives an advisory for each vulnerability that the code calls, once per module (K124)', () => {
+  assert.deepEqual(goAdvisories(REPORT), [{
     package: 'github.com/google/uuid', version: 'v1.6.0', id: 'GO-2099-0001', severity: 'vulnerability',
     title: 'uuid generates a predictable identifier', url: 'https://pkg.go.dev/vuln/GO-2099-0001',
   }]);
-  assert.deepEqual(parseJsonStream('{"a":"}{"}\n{"b":1}').map(item => Object.keys(item)[0]), ['a', 'b']);
+  assert.deepEqual(goAdvisories({ version: '2.1.0', runs: [{ tool: { driver: { name: 'govulncheck', rules: [] } }, results: [] }] }), []);
 });
 
 test('the review reports a newer stable release of a Go module and the gate reads the record', (t) => {
@@ -51,7 +60,7 @@ test('the review reports a newer stable release of a Go module and the gate read
 test('the review records the Go advisories, and the update plan raises the module and tidies its directory', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
-  installGovulncheckStub(root, MESSAGES);
+  installGovulncheckStub(root, REPORT);
   const stub = stubRegistries(t);
   stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v1.6.0', 'v1.7.0'] } });
   const result = review(root, ['--record'], stub.env);
@@ -123,7 +132,7 @@ test('govulncheck scans the packages of each tracked Go module and never the tre
   assert.doesNotMatch(result.stdout, /advisory query failed/);
   const scans = govulncheckCalls(root).map(({ cwd, args }) => ({ cwd: path.relative(realpathSync(root), cwd), args }));
   assert.deepEqual(scans, [
-    { cwd: '', args: ['-json', '.'] },
-    { cwd: 'packages/fixture-go', args: ['-json', '.'] },
+    { cwd: '', args: ['-format', 'sarif', '.'] },
+    { cwd: 'packages/fixture-go', args: ['-format', 'sarif', '.'] },
   ]);
 });
