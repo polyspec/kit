@@ -3,6 +3,9 @@
 // distribution name to its lines). `-m pip download ... -d DIR` writes the build backend file BACKEND_FILE with BACKEND_BYTES
 // into DIR. Each pip call is appended as a JSON line to STUB_PYTHON_LOG
 // when that variable is set, with the requirements file of a `-r` argument read at call time. No test reaches an index.
+// The Requires-Dist lines of STUB_WHEEL_REQUIRES_FILE: an array for every wheel, or an object from each distribution name to its lines.
+export type WheelRequires = string[] | Record<string, string[]>;
+
 export const BACKEND_FILE = 'setuptools-84.0.0-py3-none-any.whl';
 export const BACKEND_BYTES = 'setuptools 84.0.0 stand-in of the wheel tests\n';
 

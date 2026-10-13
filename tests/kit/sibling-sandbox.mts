@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from './release-sandbox.mts';
+import type { WheelRequires } from './wheel-stubs.mts';
 
 export const REPOSITORY = 'https://example.com/polyspec/kit-fixture';
 export const GENERATOR = 'kit-fixture';
@@ -14,10 +15,10 @@ export const SIBLING_URL = `${REPOSITORY}/releases/download/v0.0.1/${SIBLING_WHE
 export const GENERATOR_LOCK = 'packages/fixture-python/pylock.wheel.toml';
 const SIBLING_LOCK = 'packages/fixture-validator/pylock.wheel.toml';
 // The Requires-Dist lines of the generator: its registry pin and the sibling line given by the test.
-export const generatorRequires = (...lines) => ({ [GENERATOR]: ['ruff==0.16.10', ...lines], [SIBLING]: [] });
+export const generatorRequires = (...lines: string[]): WheelRequires => ({ [GENERATOR]: ['ruff==0.16.10', ...lines], [SIBLING]: [] });
 
 /** Adds the wheel package kit-fixture-validator (its manifest, smoke command and lock) to the configuration of the root. */
-export function addSibling(root) {
+export function addSibling(root: string) {
   mkdirSync(path.join(root, 'packages/fixture-validator'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-validator/pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "${SIBLING}"\nversion = "0.0.1"\n`);
   writeFileSync(path.join(root, SIBLING_LOCK), 'lock-version = "1.0"\ncreated-by = "uv"\n');
@@ -30,8 +31,8 @@ export function addSibling(root) {
 }
 
 /** The mutate of releaseSandbox that adds the sibling and writes the Requires-Dist lines that the pip stub builds the wheels with. */
-export function siblingMutate(requires) {
-  return (root) => {
+export function siblingMutate(requires: WheelRequires) {
+  return (root: string) => {
     addSibling(root);
     mkdirSync(path.join(root, '.stubs'), { recursive: true });
     writeFileSync(path.join(root, '.stubs/wheel-requires.json'), JSON.stringify(requires));

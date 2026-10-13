@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { TestContext } from 'node:test';
 
 const NPM_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
@@ -102,12 +103,12 @@ if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
  * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
  * the directory with `t.after`.
  */
-export function stubRegistries(t) {
+export function stubRegistries(t: Pick<TestContext, 'after'>) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-registry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
   mkdirSync(bin);
-  for (const [name, source] of [['npm', NPM_STUB], ['composer', COMPOSER_STUB], ['curl', CURL_STUB], ['go', GO_STUB]]) {
+  for (const [name, source] of [['npm', NPM_STUB], ['composer', COMPOSER_STUB], ['curl', CURL_STUB], ['go', GO_STUB]] as const) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
@@ -119,12 +120,12 @@ export function stubRegistries(t) {
   return {
     env,
     calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
-    registry: data => writeFileSync(registryFile, JSON.stringify(data)),
+    registry: (data: unknown) => writeFileSync(registryFile, JSON.stringify(data)),
   };
 }
 
 /** The version of `command` found on PATH outside the stubs, or null. */
-export const realCommand = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).stdout.trim() || null;
+export const realCommand = (command: string) => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).stdout.trim() || null;
 
 /** What the stub registries answer for the fixture of tests/kit/fixture: every dependency is at its latest stable release. */
 export const FIXTURE_REGISTRY = {

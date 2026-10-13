@@ -8,7 +8,7 @@ import path from 'node:path';
 const LISTED_LIMIT = 200;
 
 /** Each entry below `directory` as `<relative path> <type> mtime <ISO time>`, at most LISTED_LIMIT entries. */
-function entriesOf(directory, relative = '', out = []) {
+function entriesOf(directory: string, relative = '', out: string[] = []) {
   for (const name of readdirSync(path.join(directory, relative)).sort()) {
     if (out.length >= LISTED_LIMIT) return out;
     const next = path.join(relative, name);
@@ -31,10 +31,12 @@ function groupProcesses() {
  * Removes `directory` recursively. `remove` is the removal (rmSync by default). A failed removal throws an Error whose cause is
  * the original error and whose message names the error, each entry still in the directory and the live processes of the group.
  */
-export function removeSandbox(directory, { remove = rmSync } = {}) {
+export function removeSandbox(directory: string, { remove = rmSync }: { remove?: (directory: string, options: { recursive: boolean; force: boolean }) => void } = {}) {
   try {
     remove(directory, { recursive: true, force: true });
-  } catch (error) {
+  } catch (caught) {
+    // rmSync, and the removals that the tests pass, throw an Error with the errno code of the failure.
+    const error = caught as NodeJS.ErrnoException;
     const still = entriesOf(directory);
     const processes = groupProcesses();
     throw new Error(

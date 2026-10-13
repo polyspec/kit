@@ -5,7 +5,7 @@ import { cpSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 /** Copies every tracked file of `root` that `keep` accepts to the same path under `sandbox`. */
-export function copyTracked(root, sandbox, keep = () => true) {
+export function copyTracked(root: string, sandbox: string, keep: (file: string) => boolean = () => true) {
   const listed = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
   assert.equal(listed.status, 0, listed.stderr);
   for (const file of listed.stdout.split('\0').filter(Boolean)) {
@@ -20,13 +20,13 @@ export function copyTracked(root, sandbox, keep = () => true) {
  * install-tools: var/tools, without the cache of uv (var/tools/uv-cache), which other source tests write while a sandbox
  * copies (K91).
  */
-export function installedTool(file) {
-  const inside = (directory) => file === directory || file.startsWith(`${directory}/`);
+export function installedTool(file: string) {
+  const inside = (directory: string) => file === directory || file.startsWith(`${directory}/`);
   return inside('var/tools') && !inside('var/tools/uv-cache');
 }
 
 /** Copies the installed tools of the checkout `root` to var/tools of `sandbox`. */
-export function copyInstalledTools(root, sandbox) {
+export function copyInstalledTools(root: string, sandbox: string) {
   cpSync(path.join(root, 'var/tools'), path.join(sandbox, 'var/tools'), {
     recursive: true,
     filter: source => installedTool(path.relative(root, source)),
@@ -34,7 +34,7 @@ export function copyInstalledTools(root, sandbox) {
 }
 
 /** Runs make kit-test in `cwd` and returns its exit status, its output and the summary counts. */
-export function runKitTest(cwd) {
+export function runKitTest(cwd: string) {
   const run = spawnSync('make', ['--no-print-directory', 'kit-test'], { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
   const output = run.stdout + run.stderr;
   const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);

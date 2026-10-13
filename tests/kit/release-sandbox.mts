@@ -5,9 +5,11 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import type { TestContext } from 'node:test';
 import { fixtureCheckout } from './checkout.mts';
 import { sha256 } from '../../scripts/kit/digest.mts';
 import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
+import type { WheelRequires } from './wheel-stubs.mts';
 
 const GH_STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -69,18 +71,18 @@ export const CHANGELOG = `# Changelog
 // The time of every commit of the sandbox; the zip entries of an archive carry it.
 export const COMMIT_DATE = '2001-02-03T04:05:06Z';
 
-export const git = (root, ...args) => {
+export const git = (root: string, ...args: string[]) => {
   const env = { ...process.env, GIT_AUTHOR_DATE: COMMIT_DATE, GIT_COMMITTER_DATE: COMMIT_DATE };
   const result = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} exited ${result.status}: ${result.stderr}`);
   return result.stdout.trim();
 };
 
-export const readJson = (root, file) => JSON.parse(readFileSync(path.join(root, file), 'utf8'));
-export const writeJson = (root, file, value) => writeFileSync(path.join(root, file), `${JSON.stringify(value, null, 2)}\n`);
+export const readJson = (root: string, file: string) => JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+export const writeJson = (root: string, file: string, value: unknown) => writeFileSync(path.join(root, file), `${JSON.stringify(value, null, 2)}\n`);
 
 /** Sets the version of a manifest file of the sandbox (package.json, composer.json, Cargo.toml, pyproject.toml). */
-function setVersion(root, file, version) {
+function setVersion(root: string, file: string, version: string) {
   if (file.endsWith('.json')) {
     const data = readJson(root, file);
     writeJson(root, file, { ...data, version });
@@ -90,12 +92,15 @@ function setVersion(root, file, version) {
   }
 }
 
+/** The options of releaseSandbox. */
+export type ReleaseSandboxOptions = { version?: string; changelog?: string; mutate?: (root: string) => void };
+
 /**
  * A committed copy of the fixture at `version` with origin/main at the commit, the stubs on PATH and the check runs
  * push-gate and ci-passed succeeded. `mutate(root)` changes the files before the commit. Returns the root, the environment
  * of the commands, the commit and helpers for the stubs.
  */
-export function releaseSandbox(t, { version = '0.0.1', changelog = CHANGELOG, mutate = () => {} } = {}) {
+export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1', changelog = CHANGELOG, mutate = () => {} }: ReleaseSandboxOptions = {}) {
   const root = fixtureCheckout(t);
   const config = readJson(root, 'config/release.json');
   for (const file of Object.keys(config.manifests)) setVersion(root, file, version);
@@ -109,7 +114,7 @@ export function releaseSandbox(t, { version = '0.0.1', changelog = CHANGELOG, mu
   mutate(root);
   const bin = path.join(root, '.stubs/bin');
   mkdirSync(bin, { recursive: true });
-  for (const [name, source] of [['gh', GH_STUB], ['npm', NPM_STUB], ['python3', PYTHON3_WHEEL_STUB]]) {
+  for (const [name, source] of [['gh', GH_STUB], ['npm', NPM_STUB], ['python3', PYTHON3_WHEEL_STUB]] as const) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
@@ -139,20 +144,20 @@ export function releaseSandbox(t, { version = '0.0.1', changelog = CHANGELOG, mu
     env,
     commit,
     /** The check runs the stub answers: [name, conclusion or null for a run in progress], with ids in order. */
-    checkRuns(runs, extra = {}) {
+    checkRuns(runs: Array<[string, string | null]>, extra: Record<string, unknown> = {}) {
       writeFileSync(state, JSON.stringify({ calls: [], notes: null, checkRuns: runs.map(([name, conclusion], index) => ({ id: index + 1, name, status: conclusion ? 'completed' : 'in_progress', conclusion })), ...extra }));
     },
     /** The releases the stub lists for the API, drafts included: each { id, tag_name, draft, assets }. */
-    releases(list) {
+    releases(list: unknown[]) {
       const current = JSON.parse(readFileSync(state, 'utf8'));
       writeFileSync(state, JSON.stringify({ ...current, releases: list }));
     },
-    tag(name, target = commit) {
+    tag(name: string, target = commit): string {
       git(root, 'tag', '-a', name, '-m', name, target);
       return name;
     },
     /** The release tags of a version: vX.Y.Z and the tag of each Go module of the fixture, all at the commit. */
-    release(version, target = commit) {
+    release(version: string, target = commit): string {
       for (const directory of ['packages/fixture-go']) box.tag(`${directory}/v${version}`, target);
       return box.tag(`v${version}`, target);
     },
@@ -161,7 +166,7 @@ export function releaseSandbox(t, { version = '0.0.1', changelog = CHANGELOG, mu
     /** The pip calls of the Python stub, each with its arguments, its directory and the requirements of a -r argument. */
     pipCalls: () => readFileSync(pythonLog, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)),
     /** Sets the Requires-Dist lines that the pip stub writes into the wheel it builds. */
-    wheelRequires: (lines) => writeFileSync(env.STUB_WHEEL_REQUIRES_FILE, JSON.stringify(lines)),
+    wheelRequires: (lines: WheelRequires) => writeFileSync(env.STUB_WHEEL_REQUIRES_FILE, JSON.stringify(lines)),
   };
   box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);
   return box;
