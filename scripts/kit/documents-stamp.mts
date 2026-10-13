@@ -43,16 +43,25 @@ export function stamped(text: string, sha: string): string | null {
   return lines.join('\n');
 }
 
-/** Stamps every Korean document of the pairs; returns `{ changed, failed }` lists of file names. */
+/** Stamps every Korean document of the pairs; returns the stamped files and a line for each file that failed. */
 export function stampAll(root: string, config: DocumentsConfig): { changed: string[]; failed: string[] } {
   const changed: string[] = [];
   const failed: string[] = [];
   for (const english of documentsOf(root, config)) {
     const korean = english.replace(/\.md$/, '.ko.md');
-    if (!existsSync(path.join(root, english)) || !existsSync(path.join(root, korean))) continue;
+    // documentsOf names the English file of every tracked document of a pair, and a pair has both files (check-documents
+    // pair-missing).
+    if (!existsSync(path.join(root, english))) {
+      failed.push(`${english} is missing; it is the source of ${korean}`);
+      continue;
+    }
+    if (!existsSync(path.join(root, korean))) {
+      failed.push(`${korean} is missing; translate ${english} into it`);
+      continue;
+    }
     const before = readFileSync(path.join(root, korean), 'utf8');
     const after = stamped(before, sha256(readFileSync(path.join(root, english))));
-    if (after === null) failed.push(korean);
+    if (after === null) failed.push(`${korean} has no <!-- doc-id: ... --> line; add the doc-id of the English file first`);
     else if (after !== before) {
       writeAtomic(path.join(root, korean), after);
       changed.push(korean);
@@ -68,7 +77,7 @@ if (isMain(import.meta.url)) {
   }
   const { changed, failed } = stampAll(ROOT, readJson(ROOT, CONFIG));
   for (const file of changed) console.log(`[documents-stamp] stamped ${file}`);
-  for (const file of failed) console.error(`[documents-stamp] ${file} has no <!-- doc-id: ... --> line; add the doc-id of the English file first`);
+  for (const line of failed) console.error(`[documents-stamp] ${line}`);
   console.log(`[documents-stamp] ${changed.length} stamped, ${failed.length} failed`);
   if (failed.length) process.exit(1);
 }
