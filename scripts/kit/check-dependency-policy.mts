@@ -31,19 +31,39 @@ export const RULES = {
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
-const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
+/** The rule of a finding: a key of RULES. */
+export type Rule = keyof typeof RULES;
+/** A finding of the gate: the rule it breaks, its subject, the problem and the fix. */
+export type Finding = { rule: Rule; subject: string; problem: string; fix: string };
+/** An advisory that the review found for a package of a lock. */
+type Advisory = { package: string; version: string; id: string; severity: string; title: string; url?: string };
+/** A git package of a lock as the review recorded it: its URL, requested revision and commit. */
+type ReviewedPin = { lock: string; package: string; url: string; requestedRevision: string; commitId: string };
+/**
+ * The review record config/dependency-review.json (schema scripts/kit/schema/dependency-review.schema.json), in the fields
+ * that the gate reads.
+ */
+type ReviewRecord = {
+  schema: number;
+  reviewed: string;
+  locks: { lock: string; sha256: string; advisories?: Advisory[] }[];
+  dependencies: { ecosystem: string; manifest: string; package: string; version: string; latest: string }[];
+  vcs: ReviewedPin[];
+};
+
+const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
-function composerValidation(composer, args, cwd) {
+function composerValidation(composer: string, args: string[], cwd: string) {
   const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' } });
   if (!validate.error && validate.status === 0) return null;
   return `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
 }
 
 /** The findings of the checkout at `root`: `{ rule, subject, problem, fix }`. */
-export function check(root, { composer = 'composer' } = {}) {
-  const findings = [];
-  const add = (rule, subject, problem, fix) => findings.push({ rule, subject, problem, fix });
+export function check(root: string, { composer = 'composer' }: { composer?: string } = {}) {
+  const findings: Finding[] = [];
+  const add = (rule: Rule, subject: string, problem: string, fix: string) => findings.push({ rule, subject, problem, fix });
 
   const policy = readJson(root, POLICY);
   if (policy.schema !== 1 || !Array.isArray(policy.composerPlatforms) || !Array.isArray(policy.pythonManifests) || !Array.isArray(policy.pythonLocks) || !Array.isArray(policy.npmLocks) || !Array.isArray(policy.exceptions)) {
@@ -132,7 +152,7 @@ export function check(root, { composer = 'composer' } = {}) {
       if (item.kind === 'none') add('pythonLock', subject, 'the package has no source table (vcs, archive, sdist or wheels)', fix);
       else if (item.kind === 'directory') add('pythonLock', subject, 'is a local directory; a consumer exports the lock without the project, so no local package is installed from it', `remove the local package from the project; ${fix}`);
       else if (item.kind === 'vcs' && item.vcs.type !== 'git') add('pythonLock', subject, `the vcs type is ${item.vcs.type ?? 'absent'}, only git is reviewed`, fix);
-      else if (item.kind === 'vcs' && !/^[0-9a-f]{40}$/.test(item.vcs.commitId ?? '')) add('pythonLock', subject, `commit-id is ${item.vcs.commitId ?? 'absent'}, a git commit is 40 hexadecimal digits`, fix);
+      else if (item.kind === 'vcs' && !/^[0-9a-f]{40}$/.test(String(item.vcs.commitId ?? ''))) add('pythonLock', subject, `commit-id is ${item.vcs.commitId ?? 'absent'}, a git commit is 40 hexadecimal digits`, fix);
       else if (item.kind === 'registry' || item.kind === 'archive') {
         for (const file of item.files) if (file.sha256 === null) add('pythonLock', subject, `${file.url ?? 'a file'} has no sha256`, fix);
       }
@@ -142,12 +162,18 @@ export function check(root, { composer = 'composer' } = {}) {
     add('record', RECORD, 'the review record does not exist', REVIEW);
     return findings;
   }
-  const record = readJson(root, RECORD);
+  const record: ReviewRecord = readJson(root, RECORD);
   if (record.schema !== 1 || !nonEmpty(record.reviewed) || !Array.isArray(record.locks) || !Array.isArray(record.dependencies) || !Array.isArray(record.vcs)) {
     add('record', RECORD, 'the schema is not 1 with reviewed, locks and dependencies', REVIEW);
     return findings;
   }
 
+  // The Python lock `lock` of the state: a lock of the record whose ecosystem is pypi is one of the pythonLocks of the policy.
+  const pythonLock = (lock: string) => {
+    const found = state.pythonLocks.find(item => item.lock === lock);
+    if (found === undefined) throw new Error(`${lock}: the lock is a pypi lock of ${RECORD} and no entry of pythonLocks in ${POLICY}`);
+    return found;
+  };
   const recordedLocks = new Map(record.locks.map(entry => [entry.lock, entry]));
   for (const lock of state.locks) {
     const entry = recordedLocks.get(lock);
@@ -159,7 +185,7 @@ export function check(root, { composer = 'composer' } = {}) {
     if (entry.sha256 !== actual) add('record', lock, `the lock changed after the review of ${record.reviewed}: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
     for (const advisory of entry.advisories ?? []) {
       const fix = lockEcosystem(lock) === 'pypi'
-        ? lockFix(lock, state.pythonLocks.find(item => item.lock === lock).createdBy, advisory.package)
+        ? lockFix(lock, pythonLock(lock).createdBy, advisory.package)
         : `${UPDATE}, which updates the affected package and records the review`;
       add('advisory', `${lock} ${advisory.package} ${advisory.version}`, `the review of ${record.reviewed} found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
     }
@@ -169,7 +195,7 @@ export function check(root, { composer = 'composer' } = {}) {
   // A git package of a lock is pinned by its commit: the record holds the same URL, requested revision and commit as the lock.
   const pinned = new Map(state.vcs.map(item => [`${item.lock} ${item.package}`, item]));
   const reviewedPins = new Map(record.vcs.map(item => [`${item.lock} ${item.package}`, item]));
-  const pin = ({ url, requestedRevision, commitId }) => JSON.stringify({ url, requestedRevision, commitId });
+  const pin = ({ url, requestedRevision, commitId }: { url: unknown; requestedRevision: unknown; commitId: unknown }) => JSON.stringify({ url, requestedRevision, commitId });
   for (const [key, item] of pinned) {
     const entry = reviewedPins.get(key);
     if (!entry) add('record', `${item.lock} ${item.package}`, 'the git package has no entry in the review record', REVIEW);
@@ -202,7 +228,7 @@ export function check(root, { composer = 'composer' } = {}) {
 }
 
 /** The line of a finding. */
-export const findingLine = finding => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
+export const findingLine = (finding: Finding) => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
 
 if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
@@ -210,7 +236,8 @@ if (isMain(import.meta.url)) {
     console.error('Usage: node scripts/kit/check-dependency-policy.mts [--root <checkout>]');
     process.exit(2);
   }
-  const root = args.length ? path.resolve(args[1]) : ROOT;
+  // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
+  const root = args.length ? path.resolve(args[1]!) : ROOT;
   const findings = check(root);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));

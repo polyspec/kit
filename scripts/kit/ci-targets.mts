@@ -27,18 +27,29 @@ const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target
 // The toolchains whose releases the record of a run names.
 const REPORTED_TOOLS = ['node', 'npm', 'go', 'rust', 'php', 'composer'];
 
+/** A target of a run in record.json: its log, its status and, when it ended, its time and its failure and warning lines. */
+type TargetEntry = { name: string; status: string; log: string; started?: string; ended?: string; elapsedMs?: number; failures?: string[]; warnings?: string[] };
+/** record.json of a report, which target-report.mts render reads. */
+type RunRecord = {
+  title: string; tree: string; environment: Record<string, string>; result: string; started: string; ended: string | null;
+  targets: TargetEntry[]; reportErrors?: string[];
+};
+
 /**
  * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
  * targets and `print` the lines of the runner. Returns the exit status: 0 when every target passed and every report write
  * succeeded, 1 otherwise.
  */
-export async function ciTargets({ root, directory, targets, env = process.env, make = 'make', environment, print = line => console.log(line), output = (text, stream) => process[stream].write(text) }) {
+export async function ciTargets({ root, directory, targets, env = process.env, make = 'make', environment, print = line => console.log(line), output = (text, stream) => process[stream].write(text) }: {
+  root: string; directory: string; targets: string[]; env?: NodeJS.ProcessEnv; make?: string; environment?: Record<string, string>;
+  print?: (line: string) => void; output?: (text: string, stream: 'stdout' | 'stderr') => void;
+}) {
   const report = path.resolve(root, directory);
   const held = acquireHolderLock(`${report}.lock`, { checkout: root, command: `ci-targets ${targets.join(' ')}` });
   try {
     startReport(report);
     const writer = reportWriter(print);
-    const record = {
+    const record: RunRecord = {
       title: `make ci-targets ${targets.join(' ')}`,
       tree: treeId(root),
       environment: { ...(environment ?? toolchainVersions(REPORTED_TOOLS, { root })), ...(env.ImageOS ? { runner: `${env.ImageOS} ${env.ImageVersion ?? ''}`.trim() } : {}) },
@@ -65,7 +76,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
       if (!passed) target.failures = failureLines(lines, exit);
       const warnings = warningLines(lines);
       if (warnings.length) target.warnings = warnings;
-      try { capLog(log); } catch (error) { writer.errors.push(`report write failed: ${log}: ${error.code ?? error.message}`); }
+      try { capLog(log); } catch (error) { writer.errors.push(`report write failed: ${log}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`); }
       save();
       print(`[ci-targets] ${target.name} ${target.status} in ${((Date.now() - begin) / 1000).toFixed(1)} s`);
     }
@@ -88,16 +99,16 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
 }
 
 /** Writes summary.md of the report in `directory` from its record; returns 0, or 1 when a write failed. */
-export function ciSummary({ root, directory, env = process.env, print = line => console.log(line) }) {
+export function ciSummary({ root, directory, env = process.env, print = line => console.log(line) }: { root: string; directory: string; env?: NodeJS.ProcessEnv; print?: (line: string) => void }) {
   const report = path.resolve(root, directory);
   const file = path.join(report, 'record.json');
-  let record = null;
+  let record: { title?: string; error?: string } | null = null;
   if (existsSync(file)) {
-    try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${error.message}` }; }
+    try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
   }
   let steps = {};
   if (env.CI_STEPS) {
-    try { steps = JSON.parse(env.CI_STEPS); } catch (error) { print(`[ci-targets] CI_STEPS is not JSON: ${error.message}`); }
+    try { steps = JSON.parse(env.CI_STEPS); } catch (error) { print(`[ci-targets] CI_STEPS is not JSON: ${(error as Error).message}`); }
   }
   const text = render({ title: record?.title ?? 'make ci-targets', record, steps });
   const writer = reportWriter(print);
@@ -112,7 +123,8 @@ if (isMain(import.meta.url)) {
   const [first, ...rest] = process.argv.slice(2);
   try {
     if (first === '--summary' && rest.length === 1) {
-      process.exitCode = ciSummary({ root, directory: rest[0] });
+      // The condition holds exactly one argument after --summary.
+      process.exitCode = ciSummary({ root, directory: rest[0]! });
     } else if (first && first !== '--summary' && rest.length > 0) {
       const bad = rest.find(name => !TARGET_NAME.test(name));
       if (bad !== undefined) throw Object.assign(new Error(`the target name ${JSON.stringify(bad)} is not a make target name [A-Za-z0-9_.-]+`), { usage: true });
@@ -124,7 +136,8 @@ if (isMain(import.meta.url)) {
       process.exitCode = 2;
     }
   } catch (error) {
-    console.error(`[ci-targets] ${error.usage ? `${error.message}; ${USAGE}` : error.message}`);
-    process.exitCode = error.usage ? 2 : 1;
+    const failure = error as Error & { usage?: boolean };
+    console.error(`[ci-targets] ${failure.usage ? `${failure.message}; ${USAGE}` : failure.message}`);
+    process.exitCode = failure.usage ? 2 : 1;
   }
 }
