@@ -1,5 +1,5 @@
-// Helpers of the tests of the gates: a Git checkout in a temporary directory that holds the tools of scripts/kit, the
-// configuration and the checklist of the fixture, and a bare repository as its remote `origin`.
+// Helpers of the tests of the gates: a Git checkout in a temporary directory, in which the tools of kit run
+// (kit-tools.mts), with the configuration and the checklist of the fixture, and a bare repository as its remote `origin`.
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,9 +8,9 @@ import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
+import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../..');
 const FIXTURE = path.join(HERE, 'fixture');
 
 export const CHECKLIST = 'docs/plans/execution-checklist.md';
@@ -51,7 +51,7 @@ export function checklists(state: string) {
 type CheckoutOptions = { state?: string; config?: unknown; files?: Record<string, string> };
 
 /**
- * A checkout `work` with scripts/kit, config/checklist.json (or `config`), the checklists in the state `state` (the second
+ * A checkout `work` with a Makefile that includes kit.mk, config/checklist.json (or `config`), the checklists in the state `state` (the second
  * task of the fixture) and the files of `files`, written over them, and the remote `origin` in `remote`; nothing is committed.
  * Removed with `t.after`.
  */
@@ -61,9 +61,8 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   const work = path.join(directory, 'work');
   const remote = path.join(directory, 'remote.git');
   mkdirSync(work);
-  cpSync(path.join(ROOT, 'scripts/kit'), path.join(work, 'scripts/kit'), { recursive: true });
-  // The pre-push hook calls make push-gate-hook, so the checkout includes kit.mk with its sources, as kit does.
-  writeFileSync(path.join(work, 'Makefile'), 'KIT := scripts/kit\nKIT_EXT := mts\ninclude scripts/kit/kit.mk\n');
+  // The pre-push hook calls make push-gate-hook, so the checkout includes kit.mk of this checkout with its sources, as kit does.
+  writeFileSync(path.join(work, 'Makefile'), KIT_MAKEFILE);
   mkdirSync(path.join(work, 'config'));
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(work, 'config/checklist.json'));
   writeFileSync(path.join(work, 'config/commits.json'), JSON.stringify(COMMITS));
@@ -86,7 +85,7 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
 /** A checkout with the hooks installed through `git-hooks install` and everything committed. */
 export function prepared(t: Pick<TestContext, 'after'>, options?: CheckoutOptions) {
   const made = checkout(t, options);
-  const installed = run(made.work, process.execPath, ['scripts/kit/git-hooks.mts', 'install']);
+  const installed = run(made.work, process.execPath, [tool('git-hooks'), 'install']);
   if (installed.status !== 0) throw new Error(`git-hooks install failed: ${installed.stderr}`);
   commitAll(made.work, 'docs(checklist): Add the checklist (#T1)');
   return made;

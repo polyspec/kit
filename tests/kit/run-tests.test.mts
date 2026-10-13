@@ -8,22 +8,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, tapEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
 import { put, tree } from './tree.mts';
+import { KIT, tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const SPEC = "import test from 'node:test';\n";
 
-function checkout(t: TestContext, files: Record<string, string>) {
-  const root = tree(t, files);
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  return root;
-}
-const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, ['scripts/kit/run-tests.mts', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool('run-tests'), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
 // The Python of a checkout is var/tools/bin/python3, the wrapper that install-python.mts writes: a test writes its stub there.
 function pythonStub(root: string, script: string) {
@@ -525,13 +520,15 @@ test('under --cwd a node file group is not a test case, and its ids name the fil
 test('a node file of 89 tests reports every test when the reporter reads its events late', (t) => {
   const tests = Array.from({ length: 89 }, (_, index) => `test('case ${index}', () => {});`).join('\n');
   const root = checkout(t, { 'tests/many.test.mjs': `${SPEC}${tests}\n` });
-  // The reporter spends 5 ms on each event, so the reports queue up while the file's process ends.
+  // The reporter spends 5 ms on each event, so the reports queue up while the file's process ends. The runner takes the
+  // reporter beside its own module, so this test runs a copy of the tools whose reporter it slows down.
+  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   const reporter = path.join(root, 'scripts/kit/node-reporter.mts');
   const source = readFileSync(reporter, 'utf8');
   const lagged = source.replace('const { type, data } = event;', 'const { type, data } = event;\n    for (const end = Date.now() + 5; Date.now() < end;);');
   assert.notEqual(lagged, source);
   writeFileSync(reporter, lagged);
-  const result = runner(root, ['node', '--', 'tests/many.test.mjs']);
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/kit/run-tests.mts'), 'node', '--', 'tests/many.test.mjs'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, output(result));
   assert.equal(result.stdout.match(/✔ tests\/many\.test\.mjs › case \d+ /g)?.length, 89, output(result));
   assert.match(result.stdout, /✔ node --test: 89 passed, 0 failed, 0 timed out, 0 skipped/);

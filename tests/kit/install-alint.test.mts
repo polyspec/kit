@@ -10,9 +10,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { ALINT_TARGETS, alintArchive, installAlint } from '../../scripts/kit/install-alint.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
+import { tool } from './kit-tools.mts';
 import { alintRelease, toolchainStubs } from './toolchain-stubs.mts';
 
-const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, ['scripts/kit/install-tools.mts', ...tools], { cwd: root, env, encoding: 'utf8' });
+const install = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('install-tools'), ...tools], { cwd: root, env, encoding: 'utf8' });
 const config = (value: object) => JSON.stringify({ schema: 1, ...value });
 const run = (file: string, env: NodeJS.ProcessEnv) => spawnSync(file, ['--version'], { encoding: 'utf8', env }).stdout.trim();
 const escape = (text: string) => text.replaceAll('.', '\\.').replaceAll('/', '\\/').replaceAll('+', '\\+');

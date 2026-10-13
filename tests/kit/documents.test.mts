@@ -11,6 +11,7 @@ import { check } from '../../scripts/kit/check-documents.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { pair, put, tree } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
 const run = (root: string, config: Parameters<typeof check>[1] = CONFIG): string[] => check(root, config).findings;
@@ -270,12 +271,11 @@ test('changelog: Unreleased first, versions newest first, same sections in both 
 test('the command reads config/documents.json and exits with the findings', (t) => {
   const root = tree(t, { ...pair('a.md', 'alpha'), 'b.md': '# lone\n', 'config/documents.json': JSON.stringify(CONFIG) });
   mkdirSync(path.join(root, 'scripts'), { recursive: true });
-  cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit'), path.join(root, 'scripts/kit'), { recursive: true });
-  const failed = spawnSync(process.execPath, ['scripts/kit/check-documents.mts'], { cwd: root, encoding: 'utf8' });
+  const failed = spawnSync(process.execPath, [tool('check-documents')], { cwd: root, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /\[check-documents\] b\.md: pair-missing: /);
   put(root, { 'b.md': null });
-  const passed = spawnSync(process.execPath, ['scripts/kit/check-documents.mts'], { cwd: root, encoding: 'utf8' });
+  const passed = spawnSync(process.execPath, [tool('check-documents')], { cwd: root, encoding: 'utf8' });
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /1 document pairs/);
 });

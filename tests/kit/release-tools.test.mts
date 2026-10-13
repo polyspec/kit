@@ -4,7 +4,7 @@
 // a registry: rustup and rustc are stubs on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -22,8 +22,6 @@ function rustCheckout(t: TestContext, { channel = '1.99.0', rustupStatus = 0 }: 
   const bin = path.join(root, '.stubs');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(bin, { recursive: true });
-  // The checkout holds its own copy of scripts/kit, as a consumer does; check-toolchain reads the declarations of its checkout.
-  cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit'), path.join(root, 'scripts/kit'), { recursive: true });
   if (channel !== null) writeFileSync(path.join(root, 'rust-toolchain.toml'), `[toolchain]\nchannel = "${channel}"\n`);
   writeFileSync(path.join(bin, 'rustup'), `#!/usr/bin/env node\nrequire('node:fs').appendFileSync(process.env.STUB_LOG, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }) + '\\n');\nprocess.exit(${rustupStatus});\n`);
   writeFileSync(path.join(bin, 'rustc'), `#!/bin/sh\necho "rustc ${channel ?? '0.0.0'} (stub 2026-01-01)"\n`);

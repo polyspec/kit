@@ -1,5 +1,5 @@
-// Helpers of the dependency tests: a copy of tests/kit/fixture with the tools, as a Git repository of a temporary
-// directory, so that each tool reads its own checkout, and the commands that run the gate and the review in it.
+// Helpers of the dependency tests: a copy of tests/kit/fixture as a Git repository of a temporary directory, in which
+// the tools of kit run (kit-tools.mts) and read that checkout, and the commands that run the gate and the review in it.
 import { spawnSync } from 'node:child_process';
 import type { TestContext } from 'node:test';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -8,24 +8,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { tool } from './kit-tools.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../..');
 const FIXTURE = path.join(HERE, 'fixture');
 
-/** A copy of the fixture with scripts/kit, removed with `t.after`. */
+/** A copy of the fixture, removed with `t.after`. */
 export function fixtureCheckout(t: Pick<TestContext, 'after'>) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-checkout-'));
   t.after(() => removeSandbox(directory));
   cpSync(FIXTURE, directory, { recursive: true });
-  cpSync(path.join(ROOT, 'scripts/kit'), path.join(directory, 'scripts/kit'), { recursive: true });
   // The tools list the files of a checkout through Git, so the copy is a repository.
   initRepository(directory);
   return directory;
 }
 
-export const gate = (root: string, env: NodeJS.ProcessEnv = process.env) => spawnSync(process.execPath, ['scripts/kit/check-dependency-policy.mts'], { cwd: root, encoding: 'utf8', env });
-export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync(process.execPath, ['scripts/kit/dependency-review.mts', ...args], { cwd: root, encoding: 'utf8', env });
+export const gate = (root: string, env: NodeJS.ProcessEnv = process.env) => spawnSync(process.execPath, [tool('check-dependency-policy')], { cwd: root, encoding: 'utf8', env });
+export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync(process.execPath, [tool('dependency-review'), ...args], { cwd: root, encoding: 'utf8', env });
 
 /** The JSON report of `cargo audit --json`, as far as the stub reads it. */
 export type CargoAuditReport = { vulnerabilities: { found: boolean; count: number; list: unknown[] }; warnings: Record<string, unknown> };

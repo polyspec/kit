@@ -2,7 +2,7 @@
 // and the command that runs them. Each rule has a passing and a failing case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync } from 'node:fs';
+import {  } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -11,8 +11,8 @@ import { commandsOf, makefileText, npmProject, select, suiteTargets, validate } 
 import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { put, tree } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
-const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 const MAKEFILE = `CHECK_TARGETS := docs-check unit-test lint
 include extra.mk
 
@@ -164,21 +164,19 @@ test('the tests run through run-tests.mts or through the declared test target', 
 });
 
 function command(root: string, args: string[]) {
-  return spawnSync(process.execPath, ['scripts/kit/owner-check.mts', ...args], { cwd: root, encoding: 'utf8' });
+  return spawnSync(process.execPath, [tool('owner-check'), ...args], { cwd: root, encoding: 'utf8' });
 }
 
 function checkout(t: TestContext, declaration: OwnerDeclaration = DECLARATION, files: Record<string, string> = {}) {
-  const root = tree(t, { ...FILES, ...files, 'config/owner-checks.json': JSON.stringify(declaration) });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
-  return root;
+  return tree(t, { ...FILES, ...files, 'config/owner-checks.json': JSON.stringify(declaration) });
 }
-const full = { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['config/**', 'scripts/kit/**'], targets: ['lint'] }] };
+const full = { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['config/**'], targets: ['lint'] }] };
 
 test('the command validates the declaration and names each error', (t) => {
   const root = checkout(t, DECLARATION);
   const failed = command(root, ['--validate']);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
-  assert.match(failed.stderr, /\[owner-check\] scripts\/kit\/owner-check\.mts: the path matches no owner in config\/owner-checks\.json; add a rule/);
+  assert.match(failed.stderr, /\[owner-check\] config\/owner-checks\.json: the path matches no owner in config\/owner-checks\.json; add a rule/);
   const passed = command(checkout(t, full), ['--validate']);
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /owns every tracked path/);
@@ -196,8 +194,7 @@ test('the command prints the selection of --dry-run and fails for an unowned pat
 
 test('the command runs every selected check, also after one failed, and lists the failures', (t) => {
   const makefile = 'CHECK_TARGETS := first second third\nfirst:\n\t@echo ran-first\nsecond:\n\t@echo ran-second; exit 3\nthird:\n\t@echo ran-third\n';
-  const root = tree(t, { Makefile: makefile, 'a.txt': 'x', 'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['a.txt'], targets: ['first', 'second'] }, { paths: ['Makefile', 'config/**', 'scripts/kit/**'], targets: ['third'] }] }) });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
+  const root = tree(t, { Makefile: makefile, 'a.txt': 'x', 'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['a.txt'], targets: ['first', 'second'] }, { paths: ['Makefile', 'config/**'], targets: ['third'] }] }) });
   const run = command(root, ['--paths', 'a.txt']);
   assert.equal(run.status, 1, run.stdout + run.stderr);
   assert.match(run.stdout, /ran-first/);
@@ -212,7 +209,6 @@ test('the command runs every selected check, also after one failed, and lists th
 
 test('the command fails with the fix when the declaration is missing', (t) => {
   const root = tree(t, { 'a.txt': 'x' });
-  cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   const run = command(root, ['--validate']);
   assert.equal(run.status, 1);
   assert.match(run.stderr, /config\/owner-checks\.json does not exist; declare the owner of each path there/);

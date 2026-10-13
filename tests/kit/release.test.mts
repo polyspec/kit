@@ -10,6 +10,7 @@ import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
+import { KIT_MAKE, tool } from './kit-tools.mts';
 
 const REPOSITORY = 'example/kit-fixture';
 type Box = ReturnType<typeof releaseSandbox>;
@@ -423,7 +424,7 @@ test('coverage skips node_modules, var, .tools and the vendored fixture, and rea
   assert.deepEqual(release.coverage(context(box)), ['fresh/package.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
 });
 
-const cli = (box: Box, args: string[]) => spawnSync(process.execPath, ['scripts/kit/release.mts', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+const cli = (box: Box, args: string[]) => spawnSync(process.execPath, [tool('release'), ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
 
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
   const box = releaseSandbox(t);
@@ -467,7 +468,7 @@ test('the command line refuses a missing mode, a missing tag and an extra argume
 test('make runs each release step with the tag of the environment and fails without it', (t) => {
   const box = releaseSandbox(t);
   box.release('0.0.1');
-  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', [...KIT_MAKE, ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
   for (const target of ['release-verify', 'release-versions', 'release-assets', 'release-publish', 'release-undraft']) {
     const result = make(target);
     assert.equal(result.status, 2, target);
@@ -475,7 +476,7 @@ test('make runs each release step with the tag of the environment and fails with
   }
   let result = make('release-versions', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /node scripts\/kit\/release\.mts versions "\$TAG"\n\[release\] v0\.0\.1: /);
+  assert.ok(result.stdout.includes(`node ${tool('release')} versions "$TAG"\n[release] v0.0.1: `), result.stdout);
   result = make('release-verify', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');
