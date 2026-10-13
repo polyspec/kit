@@ -171,6 +171,17 @@ test('the review refuses a policy that breaks its schema instead of reviewing no
   assert.equal(stub.calls().length, 0, 'the review queried a registry');
 });
 
+test('the gate reads the review record by its schema and names each error', (t) => {
+  const root = fixture(t);
+  const file = path.join(root, 'config/dependency-review.json');
+  const record = JSON.parse(readFileSync(file, 'utf8'));
+  delete record.comment;
+  writeFileSync(file, JSON.stringify(record));
+  const result = gate(root, stubRegistries(t).env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /\[dependency-policy\] config\/dependency-review\.json: the record breaks dependency-review\.schema\.json: .*comment/);
+});
+
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);
