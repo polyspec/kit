@@ -24,5 +24,7 @@ endif
 endif
 
 .PHONY: install-packages
+# The package-lock pins @polyspec/kit by the URL of its release asset. npm 12 refuses a dependency of a URL unless the project
+# opts in; --allow-remote=root allows only the URLs that package.json itself names.
 install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools; ONLINE
-	$(ONLINE) var/tools/bin/npm ci
+	$(ONLINE) var/tools/bin/npm ci --allow-remote=root
