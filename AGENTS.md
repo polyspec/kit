@@ -23,7 +23,8 @@ and states only its own rules. The rules below are kit's own.
   `package.json` declares, each pinned exactly, or an optional peer that `peerDependencies` declares and the repository that
   runs the tool installs, such as the `@vscode/test-electron` of `install-vscode.mts`. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,
   so it imports only Node built-ins and files of its own directory. `tests/kit/isolation.test.mts` enforces both and fails on
-  a declared package that no tool imports. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
+  a declared package that no tool uses: imports, runs a command of (the lint tools of `lint-ts.mts`), or needs as a peer of
+  such a package. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
   another repository. A value that differs between repositories is data in
   `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
 - A vendored file is changed in kit and copied with `make kit-sync KIT_TAG=<tag>`, never edited in a repository:
