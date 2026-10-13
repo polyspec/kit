@@ -16,8 +16,9 @@
 // workspaces), the composer.lock of each Composer manifest and every Cargo.lock of the checkout;
 // the review records the sha256 and the advisories of each. A Cargo lock has no registry dependencies in the review:
 // its advisories come from RustSec.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import picomatch from 'picomatch';
 import semver from 'semver';
 
 import { checkedFiles } from './tracked-files.mts';
@@ -257,18 +258,28 @@ export function lockFix(lock: string, createdBy: string | null, name: string) {
 
 /**
  * The npm manifests of the npm project at `base` (a directory of the checkout, `.` for the root): its package.json and the
- * package.json of each workspace directory. `directory` is relative to `base`, `manifest` to the checkout.
+ * package.json of each workspace directory. `directory` is relative to `base`, `manifest` to the checkout. As npm reads
+ * `workspaces` (@npmcli/map-workspaces), each entry is a path or a glob of directories that hold a package.json, matched in
+ * order: an entry that starts with ! removes the directories that it matches. The directories are those of the checked files.
  */
 export function npmManifests(root: string, base = '.') {
   const own = path.posix.join(base, NPM_MANIFEST);
   const manifest: NpmManifest = readJson(root, own);
-  const workspaces = (manifest.workspaces ?? []).flatMap((pattern) => {
-    if (!pattern.endsWith('/*')) throw new Error(`${own}: unsupported workspace pattern ${pattern}`);
-    const parent = pattern.slice(0, -2);
-    return readdirSync(path.join(root, base, parent), { withFileTypes: true })
-      .filter(entry => entry.isDirectory() && existsSync(path.join(root, base, parent, entry.name, NPM_MANIFEST)))
-      .map(entry => `${parent}/${entry.name}`);
-  }).sort();
+  const directories = checkedFiles(root)
+    .filter(file => path.posix.basename(file) === NPM_MANIFEST)
+    .map(file => path.posix.relative(base, path.posix.dirname(file)))
+    .filter(directory => directory !== '' && !directory.startsWith('..'));
+  const selected = new Set<string>();
+  for (const entry of manifest.workspaces ?? []) {
+    const negated = entry.startsWith('!');
+    const pattern = path.posix.normalize(negated ? entry.slice(1) : entry).replace(/\/+$/, '');
+    const matches = picomatch(pattern);
+    for (const directory of directories.filter(candidate => matches(candidate))) {
+      if (negated) selected.delete(directory);
+      else selected.add(directory);
+    }
+  }
+  const workspaces = [...selected].sort();
   return ['.', ...workspaces].map(directory => ({ directory, manifest: path.posix.join(base, directory, NPM_MANIFEST) }));
 }
 
