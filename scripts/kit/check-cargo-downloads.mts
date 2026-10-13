@@ -17,8 +17,8 @@ export const FIX = 'run make cargo-downloads-fetch, which downloads the crates';
  * Runs `cargo fetch --locked` for every Cargo lock of `root`, offline unless `fetch`, and returns { locks, failures }: one
  * failure line per lock with the first error line of cargo.
  */
-export function cargoDownloads({ root = ROOT, fetch = false, cargo = 'cargo', env = process.env, print = () => {} } = {}) {
-  const failures = [];
+export function cargoDownloads({ root = ROOT, fetch = false, cargo = 'cargo', env = process.env, print = () => {} }: { root?: string; fetch?: boolean; cargo?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void } = {}) {
+  const failures: string[] = [];
   const locks = cargoLocks(root);
   for (const lock of locks) {
     const args = ['fetch', '--locked', ...(fetch ? [] : ['--offline']), '--manifest-path', path.join(path.dirname(lock), 'Cargo.toml')];
