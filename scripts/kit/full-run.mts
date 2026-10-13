@@ -22,6 +22,7 @@ import path from 'node:path';
 import { inspectTrackers, loadConfig } from './checklist.mts';
 import { hooksIssue } from './git-hooks.mts';
 import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } from './holder-lock.mts';
+import type { ProcessStart } from './holder-lock.mts';
 import { FAILURE_LINES, logPath, runLogged, startReport, TARGET_NAME, targetPassed } from './target-report.mts';
 import { isMain, ROOT } from './paths.mts';
 import { readJson, writeJson } from './files.mts';
@@ -63,7 +64,8 @@ export interface FullRunRecord {
   keys?: Keys;
   result: string;
   pid: number;
-  processStart: string | null;
+  // JSON drops the start time that processStart could not read, so a record read back may lack it.
+  processStart?: ProcessStart;
   started: string;
   ended: string | null;
   targets: TargetRecord[];
@@ -213,7 +215,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
   print(`[full-run] ${decision.run ? 'run' : 'refuse'}: ${decision.reason}`);
   if (!decision.run) return 1;
 
-  const own = { pid: process.pid, processStart: processStart(process.pid) };
+  const own: { pid: number; processStart: ProcessStart } = { pid: process.pid, processStart: processStart(process.pid) };
   const current: FullRunRecord = mode === 'run'
     ? { tree, commit, keys, result: 'incomplete', ...own, started: now(), ended: null, targets: targets.map(name => ({ name, status: 'pending' })), reruns: [] }
     // decide runs rerun-failed only with a record of the current tree.
@@ -236,7 +238,8 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
     Object.assign(target, { status: passed ? 'passed' : 'failed', ended: now(), elapsedMs: Date.now() - targetBegin });
     if (!passed) target.lastLines = lastLines;
     writeRecord(root, current);
-    print(`[full-run] ${name} ${target.status} in ${seconds(target.elapsedMs)}`);
+    // Object.assign above sets elapsedMs to a number.
+    print(`[full-run] ${name} ${target.status} in ${seconds(target.elapsedMs!)}`);
     // The cause of a failure stands with its result.
     if (!passed) print(`[full-run] ${name} failed; its last ${plural(lastLines.length, 'line')}:\n${lastLines.map(line => `  | ${line}`).join('\n')}`);
   }
