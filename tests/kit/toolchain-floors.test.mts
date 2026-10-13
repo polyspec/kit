@@ -2,7 +2,7 @@
 // precision (S4). Each manifest is read with the tool of its ecosystem.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { composerFindings, enginesFindings, goModFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
@@ -77,5 +77,25 @@ test('every go.mod declares go <the Go pin> and no toolchain line, which the go 
     'packages/b/go.mod: go is "1.21"; kit pins go 1.27.2, so it must be "1.27.2"',
     'packages/c/go.mod: go is "1.27"; kit pins go 1.27.2, so it must be "1.27.2"',
     'packages/c/go.mod: toolchain is "go1.27.2"; kit pins go 1.27.2 in the go line, so remove the toolchain line',
+  ]);
+});
+
+// Cargo.toml is read by `cargo metadata`, which resolves rust-version.workspace = true from the workspace.
+test('every Cargo package declares rust-version as the Rust pin, also through its workspace', (t) => {
+  const crate = (name: string, extra = '') => `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2024"\n${extra}`;
+  const root = tree(t, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/a", "crates/b"]\nresolver = "3"\n\n[workspace.package]\nrust-version = "1.99.0"\n',
+    'crates/a/Cargo.toml': crate('a', 'rust-version.workspace = true\n'),
+    'crates/a/src/lib.rs': '',
+    'crates/b/Cargo.toml': crate('b'),
+    'crates/b/src/lib.rs': '',
+    'tools/c/Cargo.toml': crate('c', 'rust-version = "1.89"\n\n[workspace]\n'),
+    'tools/c/src/lib.rs': '',
+    'tools/d/Cargo.toml': crate('d', "rust-version = '1.99.0' # the pin of kit\n\n[workspace]\n"),
+    'tools/d/src/lib.rs': '',
+  });
+  assert.deepEqual(cargoFindings(root, PINS, process.env), [
+    'crates/b/Cargo.toml: package.rust-version is missing; kit pins rust 1.99.0, so it must be "1.99.0"',
+    'tools/c/Cargo.toml: package.rust-version is "1.89"; kit pins rust 1.99.0, so it must be "1.99.0"',
   ]);
 });

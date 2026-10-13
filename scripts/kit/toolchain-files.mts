@@ -1,6 +1,7 @@
 // The readers of the manifests whose format an ecosystem tool reads, so that kit parses none of them itself (S1):
 //   TOML    tomllib of the Python on PATH (pyproject.toml, rust-toolchain.toml), printed as JSON
 //   go.mod  go mod edit -json of the Go on PATH
+//   Cargo   cargo metadata --no-deps of the cargo on PATH, offline
 // A reader that cannot run or read its file throws an Error that names the file and the cause. The Go and Rust declarations
 // of a checkout are read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before
 // the tools are installed.
@@ -31,6 +32,10 @@ export const readToml = (root: string, file: string, env: NodeJS.ProcessEnv): un
 /** The go.mod `file` of `root` as `go mod edit -json` prints it: the go line and the toolchain line, each when present. */
 export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): { Go?: string; Toolchain?: string } =>
   JSON.parse(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env));
+
+/** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
+export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; rust_version: string | null }[] =>
+  JSON.parse(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env)).packages;
 
 /**
  * The Go release that the checkout declares: the go line of the go.mod that config/toolchain.json go names, as an exact
