@@ -9,6 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
+import { ALINT_TARGETS, alintArchive, alintArchiveUrl } from '../../scripts/kit/install-alint.mts';
 import { UV_TARGETS, uvArchiveUrl } from '../../scripts/kit/install-uv.mts';
 
 const HEADER = `#!/usr/bin/env node
@@ -99,6 +100,11 @@ else if (args[0] === 'venv') {
 }
 `;
 
+// The alint of a release archive: it prints its release as alint does, and checks nothing.
+const alintSource = (version: string) => `${HEADER}
+if (args[0] === '--version') console.log('alint ' + (process.env.STUB_ALINT_SHOWS ?? ${JSON.stringify(version)}) + ' (stub, built 2026-01-01)');
+`;
+
 const CARGO = `${HEADER}
 const root = args[args.indexOf('--root') + 1];
 const release = /cargo-audit@(.+)$/.exec(args.at(-1))[1];
@@ -133,6 +139,27 @@ export function uvRelease(t: Pick<TestContext, 'after'>, version = UV_VERSION) {
   execFileSync('tar', ['-czf', archive, '-C', directory, `uv-${target}`]);
   const declared = { version, sha256: { [key]: createHash('sha256').update(readFileSync(archive)).digest('hex') } };
   return { declared, url: uvArchiveUrl(version, target), archive, key, target };
+}
+
+export const ALINT_VERSION = '0.18.2';
+
+/**
+ * The alint declaration of this platform and the release archive of the stub alint that it names, as uvRelease does for uv:
+ * the archive holds the folder alint-v<version>-<target> with the binary alint.
+ */
+export function alintRelease(t: Pick<TestContext, 'after'>, version = ALINT_VERSION) {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-alint-release-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const key = `${process.platform}-${process.arch}`;
+  const target = ALINT_TARGETS[key];
+  if (target === undefined) throw new Error(`alintRelease: ALINT_TARGETS has no alint target for ${key}`);
+  const folder = alintArchive(version, target);
+  mkdirSync(path.join(directory, folder));
+  writeFileSync(path.join(directory, folder, 'alint'), alintSource(version), { mode: 0o755 });
+  const archive = path.join(directory, 'archive.tar.gz');
+  execFileSync('tar', ['-czf', archive, '-C', directory, folder]);
+  const declared = { version, sha256: { [key]: createHash('sha256').update(readFileSync(archive)).digest('hex') } };
+  return { declared, url: alintArchiveUrl(version, target), archive, key, target, folder };
 }
 
 /** The directory of stubs and the environment that puts them first on PATH; the directory is removed with \`t.after\`. */
