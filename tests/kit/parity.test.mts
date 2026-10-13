@@ -76,10 +76,24 @@ console.log(JSON.stringify(fs.readFileSync(path.join(process.argv[2], 'symbols.t
 // The stub of cargo: `cargo test --manifest-path <crate>/Cargo.toml (--test <name> | --lib) -- --test-threads=1 <filter>`
 // reads tests/<name>.rs or src/lib.rs of the crate and runs each test whose name starts with the filter. It writes what cargo
 // writes for serial tests: `running <n> tests`, then `test <name> ... ok` or `FAILED` for each test, then the result line.
+//
+// Run as \`cargo +<nightly> rustdoc --manifest-path <crate>/Cargo.toml --lib --target-dir <dir> -- ... --output-format json\`,
+// it writes <dir>/doc/codec.json in the shape of rustdoc JSON: the crate codec whose root module holds a public function for
+// each line of symbols.txt of the crate. Only nightly-2026-10-01 is installed.
 const CARGO_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
+if (args[1] === 'rustdoc') {
+  if (args[0] !== '+nightly-2026-10-01') { process.stderr.write("error: toolchain '" + args[0].slice(1) + "' is not installed\\n"); process.exit(1); }
+  const names = fs.readFileSync(path.join(path.dirname(args[args.indexOf('--manifest-path') + 1]), 'symbols.txt'), 'utf8').split('\\n').filter(Boolean);
+  const index = { 0: { name: 'codec', visibility: 'public', inner: { module: { is_crate: true, items: names.map((_, i) => i + 1) } } } };
+  names.forEach((name, i) => { index[i + 1] = { name, visibility: 'public', inner: { function: {} } }; });
+  const doc = path.join(args[args.indexOf('--target-dir') + 1], 'doc');
+  fs.mkdirSync(doc, { recursive: true });
+  fs.writeFileSync(path.join(doc, 'codec.json'), JSON.stringify({ root: 0, index }));
+  process.exit(0);
+}
 const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
 const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : path.join(crate, 'tests', args[args.indexOf('--test') + 1] + '.rs');
 const filter = args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
@@ -198,7 +212,9 @@ const FILES = {
   'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
   'var/tools/symbols-php/vendor/autoload.php': '<?php\n',
   'go/symbols.txt': 'go/codec.go::Encode\n',
-  'rust/symbols.txt': 'rust/src/lib.rs::encode\nrust/src/lib.rs::hex_upper\n',
+  'rust/symbols.txt': 'encode\nhex_upper\n',
+  // rustdoc JSON is unstable, so the rust extractor runs the Rust nightly that an exception declares.
+  'config/toolchain.json': JSON.stringify({ schema: 1, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
   'ts/index.d.ts': TS_API('export declare const encode: () => number;'),
   'php/symbols.txt': 'php/src/Codec.php::Codec::encode\n',
@@ -215,7 +231,7 @@ const CONFIG = {
   schema: 1,
   implementations: [
     { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'go', entry: 'go' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
-    { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'python', entry: 'rust/symbols.txt' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
+    { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'rust', entry: 'rust/Cargo.toml' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
     { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
     { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'php', entry: 'php' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
     { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python/symbols.txt' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
@@ -262,14 +278,14 @@ const CONFIG = {
       id: 'encode', kind: 'api', profile: 'all',
       symbols: [
         { implementation: 'go', symbol: 'go/codec.go::Encode' },
-        { implementation: 'rust', symbol: 'rust/src/lib.rs::encode' },
+        { implementation: 'rust', symbol: 'codec::encode' },
         { implementation: 'ts', symbol: 'codec-ts!encode:function(1)' },
         { implementation: 'php', symbol: 'php/src/Codec.php::Codec::encode' },
         { implementation: 'python', symbol: 'python/codec.py::encode' },
       ],
     },
   ],
-  nativeOnly: [{ implementation: 'rust', symbol: 'rust/src/lib.rs::hex_upper', reason: 'the hex helper of the Rust codec, which the crate exports for its benchmarks', spec: ['contracts/codec.json#/benchmarks/hex'] }],
+  nativeOnly: [{ implementation: 'rust', symbol: 'codec::hex_upper', reason: 'the hex helper of the Rust codec, which the crate exports for its benchmarks', spec: ['contracts/codec.json#/benchmarks/hex'] }],
   exclusions: [],
   errors: { profile: 'all', catalog: { file: 'docs/errors.yaml', pattern: '^- code: (\\w+)$' } },
   languageLists: [{ file: 'tools/languages.mjs', pattern: 'LANGUAGES = \\[([^\\]]*)\\]', profile: 'all' }],
@@ -609,7 +625,7 @@ test('R6: a test that two conventions select lies in a root of one of their runn
 
 test('R1: an API unit whose symbol an extractor does not give, or that declares none of an implementation, fails (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, {
-    files: { 'rust/symbols.txt': 'rust/src/lib.rs::hex_upper\n' },
+    files: { 'rust/symbols.txt': 'hex_upper\n' },
     edit: config => {
       const unit = config.units.find((entry: { id: string }) => entry.id === 'encode');
       unit.symbols = unit.symbols.filter((entry: { implementation: string }) => entry.implementation !== 'python');
@@ -618,7 +634,7 @@ test('R1: an API unit whose symbol an extractor does not give, or that declares 
   });
   // The python symbol that the unit no longer declares is also an undeclared public symbol (R11).
   assert.deepEqual(keys(findings), ['R1 encode rust', 'R1 encode python', 'R11 - python']);
-  assert.match(findingAt(findings, 0).message, /rust\/src\/lib\.rs::encode is no public symbol of rust/);
+  assert.match(findingAt(findings, 0).message, /codec::encode is no public symbol of rust/);
   assert.match(findingAt(findings, 1).message, /declares no symbol of python/);
   // An extractor that fails is a finding that names it, and the rules of its symbols do not run on a guess.
   const failed = check(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (;') } }).findings;
@@ -644,6 +660,18 @@ test('an API unit without symbols fails the declaration and names the unit, and 
     },
   });
   assert.deepEqual(keys(empty.findings).filter(key => key.startsWith('R1 ')), ['R1 encode go', 'R1 encode rust', 'R1 encode ts', 'R1 encode php', 'R1 encode python']);
+});
+
+test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, (t) => {
+  const exception = (channel: string, scope = '.') => ({ tool: 'rust', channel, scope, reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' });
+  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
+  assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
+  const [none] = messages([exception('nightly-2026-10-01', 'go')]);
+  assert.match(none!, /^R1 rust: the rust extractor of rust\/Cargo\.toml gives no symbols: rustdoc JSON needs a Rust nightly \(rust-lang\/rust#76578\), and config\/toolchain\.json exceptions declares none whose scope holds rust\/Cargo\.toml/);
+  const [two] = messages([exception('nightly-2026-10-01'), exception('nightly-2026-09-01', 'rust')]);
+  assert.match(two!, /holds 2 Rust nightlies whose scope holds rust\/Cargo\.toml: nightly-2026-10-01, nightly-2026-09-01; keep one/);
+  const [uninstalled] = messages([exception('nightly-2026-09-01')]);
+  assert.match(uninstalled!, /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
 });
 
 test('R2: a suite without a binding of an implementation of its profile fails', TIMEOUT, (t) => {
@@ -701,9 +729,9 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   rmSync(path.join(root, 'var/tools/bin/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // The python extractor, which the stub implementations use, cannot start either.
-  assert.deepEqual(keys(missing), ['R1 - rust', 'R1 - python', 'R3 codec python']);
-  assert.match(findingAt(missing, 0).message, /the python extractor of rust\/symbols\.txt gives no symbols: .* could not start/);
-  assert.match(findingAt(missing, 2).message, /could not start/);
+  assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python']);
+  assert.match(findingAt(missing, 0).message, /the python extractor of python\/symbols\.txt gives no symbols: .* could not start/);
+  assert.match(findingAt(missing, 1).message, /could not start/);
   // An extractor that install-tools did not build names the declaration and the install.
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);
@@ -980,11 +1008,11 @@ test('R11: a public symbol that no API unit and no native-only entry declares, a
   const { findings } = check(t, {
     files: {
       'ts/index.d.ts': TS_API('export declare const encode: () => number;', 'export declare function orderedJsonOutput(): string;'),
-      'rust/symbols.txt': 'rust/src/lib.rs::encode\n',
+      'rust/symbols.txt': 'encode\n',
     },
   });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`), [
-    'R11 rust: nativeOnly names rust/src/lib.rs::hex_upper, which is no public symbol of rust; remove the entry',
+    'R11 rust: nativeOnly names codec::hex_upper, which is no public symbol of rust; remove the entry',
     'R11 ts: codec-ts!orderedJsonOutput:function(1) is public, and no API unit and no nativeOnly entry declares it',
   ]);
 });
