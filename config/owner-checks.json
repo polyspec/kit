@@ -10,6 +10,7 @@
     { "paths": ["config/rebuild.json", "docs/rebuild/**"], "targets": ["rebuild-check", "documents-check"] },
     { "paths": ["config/toolchain.json", ".node-version", "rust-toolchain.toml"], "targets": ["toolchain-check", "kit-test"] },
     { "paths": ["config/phpunit/**"], "targets": ["kit-test"] },
+    { "paths": ["config/php-lint/**"], "targets": ["kit-test"] },
     { "paths": ["config/owner-checks.json"], "targets": ["owner-validate"] },
     { "paths": ["config/checklist.json", ".githooks/**"], "targets": ["documents-check", "hooks-check"], "tests": ["tests/source/checklist-real.test.mts"] },
     { "paths": ["tsconfig.build.json"], "targets": ["typecheck"], "tests": ["tests/source/package.test.mts"] },

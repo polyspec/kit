@@ -2,11 +2,11 @@
 // Installs the toolchains that the checkout declares into var/tools (`make install-tools`), which the Makefile puts first
 // on PATH through the wrappers of var/tools/bin:
 //
-//   node scripts/kit/install-tools.mts [tool...]      the tools: uv python pythonBackend npm go ruff composer phpunit cargoAudit govulncheck alint symbolExtractors
+//   node scripts/kit/install-tools.mts [tool...]      the tools: uv python pythonBackend npm go ruff composer phpunit cargoAudit govulncheck alint phpLint symbolExtractors
 //
 // Without arguments every declared tool is installed; with arguments only the named tools, each of which must be declared
 // (uv installs the Python, so a python that is named without uv needs uv installed first; ruff runs with that Python).
-// Python (pythonBuild), npm, Go, ruff, uv, Composer (with a sha256), PHPUnit (the Composer project of config/phpunit), cargo-audit, govulncheck, alint and the symbol extractors of parity (install-symbols.mts) are installed by their own modules; the
+// Python (pythonBuild), npm, Go, ruff, uv, Composer (with a sha256), PHPUnit (the Composer project of config/phpunit), cargo-audit, govulncheck, alint, the PHP lint (the Composer project of config/php-lint) and the symbol extractors of parity (install-symbols.mts) are installed by their own modules; the
 // declarations are read by toolchain-declared.mts; Go, wanted by a checkout that tracks a go.mod, is the release of the kit pin
 // from its archive (toolchain-pins.json goArchives). Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust and PHP
@@ -15,6 +15,7 @@ import path from 'node:path';
 import { installAlint } from './install-alint.mts';
 import { installCargoAudit } from './install-cargo-audit.mts';
 import { installComposer } from './install-composer.mts';
+import { installPhpLint } from './install-php-lint.mts';
 import { installPhpunit } from './install-phpunit.mts';
 import { installGo } from './install-go.mts';
 import { installGovulncheck } from './install-govulncheck.mts';
@@ -30,7 +31,7 @@ import { checkedFiles } from './tracked-files.mts';
 import type { DeclaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
-const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck', 'alint', 'symbolExtractors'];
+const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck', 'alint', 'phpLint', 'symbolExtractors'];
 
 /**
  * Installs the declared tools into var/tools of `root`, or only `tools` (names of TOOLS, each declared); returns the names of
@@ -39,7 +40,7 @@ const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer',
 export function installTools({ root = ROOT, tools = null, print = () => {} }: { root?: string; tools?: string[] | null; print?: (text: string) => void } = {}): string[] {
   const declared: DeclaredToolchain = declaredToolchain(root);
   const present: Record<string, unknown> = {
-    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: checkedFiles(root).some(file => path.posix.basename(file) === 'go.mod'), ruff: declared.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint, symbolExtractors: declared.symbolExtractors,
+    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: checkedFiles(root).some(file => path.posix.basename(file) === 'go.mod'), ruff: declared.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint, phpLint: declared.phpLint, symbolExtractors: declared.symbolExtractors,
   };
   for (const name of tools ?? []) {
     if (!TOOLS.includes(name)) throw new Error(`unknown tool ${name}; the tools are ${TOOLS.join(', ')}`);
@@ -49,7 +50,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} }: { 
   const installed: string[] = [];
   const step = (name: string, tool: () => { installed: unknown }) => { if (tool().installed) installed.push(name); };
   // wanted is true only for a declared tool, so each test of a declaration below passes whenever wanted does.
-  const { npm, uv, pythonBuild, pythonBackend, ruff, composer, phpunit, cargoAudit, govulncheck, alint, symbolExtractors } = declared;
+  const { npm, uv, pythonBuild, pythonBackend, ruff, composer, phpunit, cargoAudit, govulncheck, alint, phpLint, symbolExtractors } = declared;
   if (npm && wanted('npm')) step('npm', () => installNpm({ root, declared: npm, print }));
   if (wanted('go')) {
     // A checkout that holds a go.mod needs Go: the release of the kit pin, which toolchain-check compares with the go.mod.
@@ -69,6 +70,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} }: { 
   if (cargoAudit && wanted('cargoAudit')) step('cargo-audit', () => installCargoAudit({ root, recorded: cargoAudit.version, print }));
   if (govulncheck && wanted('govulncheck')) step('govulncheck', () => installGovulncheck({ root, recorded: govulncheck.version, print }));
   if (alint && wanted('alint')) step('alint', () => installAlint({ root, declared: alint, print }));
+  if (phpLint && wanted('phpLint')) step('phpLint', () => installPhpLint({ root, declared: phpLint, print }));
   // The extractors build with the Go and the Composer installed above.
   for (const extractor of symbolExtractors && wanted('symbolExtractors') ? symbolExtractors.extractors : []) step(`symbols-${extractor}`, () => installExtractor({ root, extractor, print }));
   return installed;
