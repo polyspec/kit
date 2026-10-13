@@ -100,15 +100,20 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
     try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
   }
   let steps = {};
+  let unreadSteps = false;
   if (env.CI_STEPS) {
-    try { steps = JSON.parse(env.CI_STEPS); } catch (error) { print(`[ci-targets] CI_STEPS is not JSON: ${(error as Error).message}`); }
+    // The summary is still written without the steps, and the run fails.
+    try { steps = JSON.parse(env.CI_STEPS); } catch (error) {
+      unreadSteps = true;
+      print(`[ci-targets] CI_STEPS is not JSON: ${(error as Error).message}`);
+    }
   }
   const text = render({ title: record?.title ?? 'make ci-targets', record, steps });
   const writer = reportWriter(print);
   writer.write(path.join(report, 'summary.md'), text);
   if (env.GITHUB_STEP_SUMMARY) writer.append(env.GITHUB_STEP_SUMMARY, text);
   print(text.trimEnd());
-  return writer.errors.length === 0 ? 0 : 1;
+  return writer.errors.length === 0 && !unreadSteps ? 0 : 1;
 }
 
 if (isMain(import.meta.url)) {
