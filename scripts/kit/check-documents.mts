@@ -33,20 +33,40 @@ const DOC_ID = /<!-- doc-id: ([^>]*?) -->/g;
 const REVISION = /<!-- source-sha256: ([^>]*?) -->/g;
 const PRIVATE_PATH = /(?:\/(?:Users|home)\/[^/\s"'<>`)]+\/|[A-Za-z]:\\Users\\[^\\\s"'<>`)]+\\)/g;
 
-const koreanOf = file => file.replace(/\.md$/, '.ko.md');
-const englishOf = file => file.replace(/\.ko\.md$/, '.md');
-const position = (text, offset) => {
+/** The configuration of config/documents.json (scripts/kit/schema/documents.schema.json). */
+export type DocumentsConfig = {
+  include: string[];
+  exclude?: string[];
+  siteLinks?: boolean;
+  interpolation?: string[];
+  statusTables?: { path: string; idPattern: string; cells: number; columns: { index: number; enum?: string[]; pattern?: string }[] }[];
+  changelogs?: string[];
+};
+
+/** A finding of a file, with the line and column it names when it names them. */
+export type DocumentFinding = { rule: string; message: string; line?: number | undefined; column?: number | undefined };
+
+/** A reader of the text of a file of the checkout. */
+type Read = (file: string) => string;
+
+/** The English file and its Korean twin, in that order. */
+type Pair<T> = [T, T];
+
+const koreanOf = (file: string) => file.replace(/\.md$/, '.ko.md');
+const englishOf = (file: string) => file.replace(/\.ko\.md$/, '.md');
+const position = (text: string, offset: number) => {
   const before = text.slice(0, offset).split('\n');
-  return { line: before.length, column: before[before.length - 1].length + 1 };
+  // split returns at least one string.
+  return { line: before.length, column: before[before.length - 1]!.length + 1 };
 };
 
 /** A finding of `file` as the line the command prints. */
-export const format = (file, found) => `${file}${found.line ? `:${found.line}${found.column ? `:${found.column}` : ''}` : ''}: ${found.rule}: ${found.message}`;
+export const format = (file: string, found: DocumentFinding) => `${file}${found.line ? `:${found.line}${found.column ? `:${found.column}` : ''}` : ''}: ${found.rule}: ${found.message}`;
 
 /** The English documents of the checkout: tracked Markdown files that `include` selects and `exclude` does not. */
-export function documentsOf(root, config) {
+export function documentsOf(root: string, config: DocumentsConfig) {
   const excluded = config.exclude ?? [];
-  const documents = new Set();
+  const documents = new Set<string>();
   for (const file of trackedFiles(root)) {
     if (file.endsWith('.md') && matchesAny(config.include, file) && !matchesAny(excluded, file)) documents.add(englishOf(file));
   }
@@ -54,11 +74,12 @@ export function documentsOf(root, config) {
 }
 
 /** The findings of the link `target` written in `file`: an empty list when it resolves. */
-function linkFindings(root, config, file, link, read) {
+function linkFindings(root: string, config: DocumentsConfig, file: string, link: { target: string; line: number; column: number }, read: Read): DocumentFinding[] {
   const { target } = link;
-  const at = (message) => ({ line: link.line, column: link.column, rule: 'link', message });
+  const at = (message: string) => ({ line: link.line, column: link.column, rule: 'link', message });
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return [];
-  const [location, fragment] = [target.split('#')[0], target.includes('#') ? decodeURIComponent(target.slice(target.indexOf('#') + 1)) : ''];
+  // split returns at least one string.
+  const [location, fragment] = [target.split('#')[0]!, target.includes('#') ? decodeURIComponent(target.slice(target.indexOf('#') + 1)) : ''];
   if (location.startsWith('/')) return config.siteLinks ? [] : [at(`the link ${target} starts with /; write a link relative to the file`)];
   if (location.includes('?')) return [at(`the link ${target} has a query; a link to a file has none`)];
   let absolute = path.resolve(root, path.dirname(file));
@@ -80,48 +101,53 @@ function linkFindings(root, config, file, link, read) {
 }
 
 /** The findings of one pair as `[file, finding]` entries. */
-function pairFindings(root, config, english, ids, read) {
+function pairFindings(root: string, config: DocumentsConfig, english: string, ids: Map<string, string>, read: Read) {
   const korean = koreanOf(english);
-  const found = [];
-  const add = (file, entry) => found.push([file, entry]);
+  const found: [string, DocumentFinding][] = [];
+  const add = (file: string, entry: DocumentFinding) => found.push([file, entry]);
   const exists = { [english]: existsSync(path.join(root, english)), [korean]: existsSync(path.join(root, korean)) };
   if (!exists[english]) add(korean, { rule: 'pair-missing', message: `the English file ${english} does not exist; every Korean document has an English original` });
   if (!exists[korean]) add(english, { rule: 'pair-missing', message: `the Korean twin ${korean} does not exist; every English document has one` });
   if (!exists[english] || !exists[korean]) return found;
   const bytes = readFileSync(path.join(root, english));
-  const texts = { [english]: bytes.toString('utf8'), [korean]: read(korean) };
-  const files = [english, korean];
+  const texts: Record<string, string> = { [english]: bytes.toString('utf8'), [korean]: read(korean) };
+  const files: Pair<string> = [english, korean];
+  // texts and prose hold each file of files, and identifiers, anchorLists and fences hold one entry per file of files at
+  // its index; the ! below index them with a file or an index of files.
 
   // A marker written inside inline code or a fenced block describes the marker and is not one.
-  const prose = Object.fromEntries(files.map(file => [file, proseLines(texts[file]).map(entry => entry.text).join('\n')]));
-  const identifiers = files.map(file => [...prose[file].matchAll(DOC_ID)].map(match => match[1]));
+  const prose = Object.fromEntries(files.map(file => [file, proseLines(texts[file]!).map((entry: { text: string }) => entry.text).join('\n')]));
+  // DOC_ID has one group that is not optional, so every match holds it.
+  const identifiers = files.map(file => [...prose[file]!.matchAll(DOC_ID)].map(match => match[1]!));
   files.forEach((file, index) => {
-    if (identifiers[index].length !== 1) add(file, { rule: 'doc-id', message: `the file has ${identifiers[index].length} doc-id markers; expected exactly 1 <!-- doc-id: <id> -->` });
-    else if (!/^[a-z][a-z0-9-]*$/.test(identifiers[index][0])) add(file, { rule: 'doc-id', message: `the doc-id ${JSON.stringify(identifiers[index][0])} does not match [a-z][a-z0-9-]*` });
+    if (identifiers[index]!.length !== 1) add(file, { rule: 'doc-id', message: `the file has ${identifiers[index]!.length} doc-id markers; expected exactly 1 <!-- doc-id: <id> -->` }); // The texts and the lists hold each file of the pair.
+    // The list holds exactly one id here.
+    else if (!/^[a-z][a-z0-9-]*$/.test(identifiers[index]![0]!)) add(file, { rule: 'doc-id', message: `the doc-id ${JSON.stringify(identifiers[index]![0])} does not match [a-z][a-z0-9-]*` });
   });
   if (identifiers.every(list => list.length === 1)) {
-    if (identifiers[0][0] !== identifiers[1][0]) add(korean, { rule: 'doc-id', message: `the doc-id is ${identifiers[1][0]}; the English file ${english} has ${identifiers[0][0]}` });
-    else if (ids.has(identifiers[0][0])) add(english, { rule: 'doc-id', message: `the doc-id ${identifiers[0][0]} is also the doc-id of ${ids.get(identifiers[0][0])}; an id names one document` });
-    else ids.set(identifiers[0][0], english);
+    // Both lists hold exactly one id here.
+    if (identifiers[0]![0] !== identifiers[1]![0]) add(korean, { rule: 'doc-id', message: `the doc-id is ${identifiers[1]![0]}; the English file ${english} has ${identifiers[0]![0]}` });
+    else if (ids.has(identifiers[0]![0]!)) add(english, { rule: 'doc-id', message: `the doc-id ${identifiers[0]![0]} is also the doc-id of ${ids.get(identifiers[0]![0]!)}; an id names one document` }); // The texts and the lists hold each file of the pair.
+    else ids.set(identifiers[0]![0]!, english); // The texts and the lists hold each file of the pair.
   }
 
-  const revisions = [...prose[korean].matchAll(REVISION)].map(match => match[1]);
+  const revisions = [...prose[korean]!.matchAll(REVISION)].map(match => match[1]); // The texts and the lists hold each file of the pair.
   const expected = sha256(bytes);
   if (revisions.length !== 1) add(korean, { rule: 'revision', message: `the file has ${revisions.length} source-sha256 markers; expected exactly 1 <!-- source-sha256: ${expected} -->` });
   else if (revisions[0] !== expected) add(korean, { rule: 'revision', message: `the source-sha256 is ${revisions[0]}; the sha256 of ${english} is ${expected}; review the translation and update the marker` });
 
-  const anchorLists = files.map(file => anchors(texts[file]));
+  const anchorLists = files.map(file => anchors(texts[file]!)); // The texts and the lists hold each file of the pair.
   files.forEach((file, index) => {
-    const repeated = anchorLists[index].find((anchor, at) => anchorLists[index].indexOf(anchor) !== at);
+    const repeated = anchorLists[index]!.find((anchor: string, at: number) => anchorLists[index]!.indexOf(anchor) !== at); // The texts and the lists hold each file of the pair.
     if (repeated) add(file, { rule: 'sections', message: `the section anchor ${repeated} appears more than once` });
   });
-  if (anchorLists[0].join('\n') !== anchorLists[1].join('\n')) add(korean, { rule: 'sections', message: `the section anchors are [${anchorLists[1].join(', ')}]; ${english} has [${anchorLists[0].join(', ')}]` });
+  if (anchorLists[0]!.join('\n') !== anchorLists[1]!.join('\n')) add(korean, { rule: 'sections', message: `the section anchors are [${anchorLists[1]!.join(', ')}]; ${english} has [${anchorLists[0]!.join(', ')}]` }); // The texts and the lists hold each file of the pair.
 
-  const fences = files.map(file => scanFences(texts[file]));
+  const fences = files.map(file => scanFences(texts[file]!)); // The texts and the lists hold each file of the pair.
   files.forEach((file, index) => {
-    if (fences[index].unclosed) add(file, { line: fences[index].unclosed, column: 1, rule: 'fences', message: 'the fenced code block opened here never closes' });
+    if (fences[index]!.unclosed) add(file, { line: fences[index]!.unclosed, column: 1, rule: 'fences', message: 'the fenced code block opened here never closes' }); // The texts and the lists hold each file of the pair.
   });
-  const [a, b] = [fences[0].blocks, fences[1].blocks];
+  const [a, b] = [fences[0]!.blocks, fences[1]!.blocks]; // The texts and the lists hold each file of the pair.
   const differing = a.findIndex((block, at) => !b[at] || block.info !== b[at].info || block.body !== b[at].body);
   if (differing !== -1 || a.length !== b.length) {
     const at = differing === -1 ? a.length : differing;
@@ -129,15 +155,15 @@ function pairFindings(root, config, english, ids, read) {
   }
 
   for (const file of files) {
-    const read1 = links(texts[file]);
+    const read1 = links(texts[file]!); // The texts and the lists hold each file of the pair.
     for (const problem of read1.problems) add(file, { ...problem, rule: 'link' });
     for (const link of read1.links) for (const entry of linkFindings(root, config, file, link, read)) add(file, entry);
-    for (const match of texts[file].matchAll(PRIVATE_PATH)) {
-      add(file, { ...position(texts[file], match.index), rule: 'private-path', message: `the document holds the path ${match[0]} into a home directory; write a repository-relative path` });
+    for (const match of texts[file]!.matchAll(PRIVATE_PATH)) { // The texts and the lists hold each file of the pair.
+      add(file, { ...position(texts[file]!, match.index), rule: 'private-path', message: `the document holds the path ${match[0]} into a home directory; write a repository-relative path` }); // The texts and the lists hold each file of the pair.
     }
     if (matchesAny(config.interpolation ?? [], english)) {
-      const { fenced } = fences[files.indexOf(file)];
-      texts[file].split('\n').forEach((line, index) => {
+      const { fenced } = fences[files.indexOf(file)]!; // The texts and the lists hold each file of the pair.
+      texts[file]!.split('\n').forEach((line, index) => { // The texts and the lists hold each file of the pair.
         if (fenced[index]) return;
         const prose = line.replace(/<(code|span)\s+v-pre>[\s\S]*?<\/\1>/g, match => ' '.repeat(match.length));
         const at = prose.indexOf('{{');
@@ -149,19 +175,20 @@ function pairFindings(root, config, english, ids, read) {
 }
 
 /** The findings of the checkout at `root` under `config`, as printed lines, sorted. */
-export function check(root, config) {
-  const cache = new Map();
-  const read = file => {
+export function check(root: string, config: DocumentsConfig) {
+  const cache = new Map<string, string>();
+  const read = (file: string) => {
     if (!cache.has(file)) cache.set(file, readFileSync(path.join(root, file), 'utf8'));
-    return cache.get(file);
+    // The line above sets every missing file.
+    return cache.get(file)!;
   };
-  const found = [];
-  const add = (file, entry) => found.push([file, entry]);
+  const found: [string, DocumentFinding][] = [];
+  const add = (file: string, entry: DocumentFinding) => found.push([file, entry]);
   const documents = documentsOf(root, config);
-  const ids = new Map();
+  const ids = new Map<string, string>();
   for (const english of documents) found.push(...pairFindings(root, config, english, ids, read));
 
-  const both = (files, source, run) => {
+  const both = (files: string[], source: string, run: (name: string, text: string) => void) => {
     for (const name of files) {
       if (!existsSync(path.join(root, name))) add(name, { rule: 'pair-missing', message: `the file named in ${source} does not exist` });
       else run(name, read(name));
@@ -169,10 +196,13 @@ export function check(root, config) {
   };
   let checklists = [];
   if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
-    try { checklists = loadChecklists(root).trackers; } catch (error) { add(CHECKLIST_CONFIG, { rule: 'config', message: error.message }); }
+    try { checklists = loadChecklists(root).trackers; } catch (error) {
+      // loadConfig fails with an Error.
+      add(CHECKLIST_CONFIG, { rule: 'config', message: (error as Error).message });
+    }
   }
   for (const list of checklists) {
-    const results = [];
+    const results: ReturnType<typeof readChecklist>['items'][] = [];
     both([list.path, ...(list.translation ? [list.translation] : [])], CHECKLIST_CONFIG, (name, text) => {
       const result = readChecklist(text, list, { strict: true });
       for (const entry of result.findings) add(name, entry);
@@ -181,27 +211,28 @@ export function check(root, config) {
     if (results.length === 2) for (const entry of twinFindings(results[0], results[1], list, { strict: true })) add(list.translation, entry);
   }
   for (const table of config.statusTables ?? []) {
-    const results = [];
+    const results: [string, ReturnType<typeof readStatusTable>['rows']][] = [];
     both([table.path, koreanOf(table.path)], CONFIG, (name, text) => {
       const result = readStatusTable(text, table);
       for (const entry of result.findings) add(name, entry);
       results.push([name, result.rows]);
     });
     if (results.length === 2) {
-      const [[, en], [ko, kor]] = results;
-      const show = rows => rows.map(row => [row.id, ...row.values].join('/')).join(' ');
+      // The length check above leaves the English and the Korean entry.
+      const [[, en], [ko, kor]] = results as Pair<(typeof results)[number]>;
+      const show = (rows: { id: string; values: string[] }[]) => rows.map(row => [row.id, ...row.values].join('/')).join(' ');
       if (show(en) !== show(kor)) add(ko, { rule: 'status-table', message: `the rows differ from ${table.path}: [${show(kor)}] and [${show(en)}]` });
     }
   }
   for (const changelog of config.changelogs ?? []) {
-    const texts = [];
+    const texts: string[] = [];
     both([changelog, koreanOf(changelog)], CONFIG, (name, text) => {
       for (const entry of changelogFindings(text)) add(name, entry);
       texts.push(text);
     });
     if (texts.length === 2) for (const entry of changelogPairFindings(texts[0], texts[1])) add(koreanOf(changelog), entry);
   }
-  const lines = found.map(([file, entry]) => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
+  const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
   return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
 }

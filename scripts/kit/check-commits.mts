@@ -30,17 +30,34 @@ import { git, gitResult } from './git.mts';
 
 export const CONFIG = 'config/commits.json';
 
+/** The commit rules of config/commits.json (scripts/kit/schema/commits.schema.json). */
+export type CommitRules = {
+  types: string[];
+  subjectMax: number;
+  bodyMax: number;
+  changelog?: { path: string; translation?: string };
+};
+
+/** A finding of a commit message or change. */
+export type CommitFinding = { rule: string; message: string };
+
+/** A commit as `logMessages` reads it. */
+export type CommitMessage = { id: string; message: string };
+
+/** The two sides of a change: a reader of a tracker file before and after it, and the paths it touches. */
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[] };
+
 /** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
-export function loadCommitRules(root) {
+export function loadCommitRules(root: string): CommitRules {
   if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
   return readJson(root, CONFIG);
 }
 
 /** The findings of a commit `message` as `{ rule, message }`. */
-export function messageFindings(message, config) {
+export function messageFindings(message: string, config: CommitRules) {
   const lines = message.replace(/\s+$/, '').split('\n');
   const subject = lines[0] ?? '';
-  const found = [];
+  const found: CommitFinding[] = [];
   const pattern = new RegExp(`^(?:${config.types.join('|')})\\([a-z0-9-]+\\): (\\S.*) \\(#[A-Za-z0-9][A-Za-z0-9.-]*\\)$`);
   const description = pattern.exec(subject)?.[1];
   if (description === undefined) {
@@ -60,7 +77,7 @@ export function messageFindings(message, config) {
 }
 
 // The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file.
-const fileAt = (root, rev, file) => {
+const fileAt = (root: string, rev: string, file: string) => {
   const shown = gitResult(root, 'show', `${rev}:${file}`);
   return shown.status === 0 ? shown.stdout : '';
 };
@@ -69,17 +86,17 @@ const fileAt = (root, rev, file) => {
  * The item findings of one change as `{ rule, message }`: `before` and `after` read a tracker file at the two sides of the
  * change, `changed` holds the paths that the change touches.
  */
-export function itemFindings(root, config, { before, after, changed }) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed }: Change) {
   if (!existsSync(path.join(root, CHECKLIST))) return [];
   const changes = [];
   for (const tracker of loadConfig(root).trackers) {
-    const states = text => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
+    const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
     const old = states(before(tracker.path));
     for (const [id, state] of states(after(tracker.path))) {
       if (old.has(id) && old.get(id) !== state) changes.push({ id, from: old.get(id), to: state, tracker });
     }
   }
-  const found = [];
+  const found: CommitFinding[] = [];
   if (changes.length > 1) {
     const listed = changes.map(change => `${change.id} ${change.from} → ${change.to}`).join(', ');
     found.push({ rule: 'commit-items', message: `the commit changes the state of ${changes.length} items (${listed}); change one item per commit` });
@@ -94,7 +111,7 @@ export function itemFindings(root, config, { before, after, changed }) {
 }
 
 /** The item findings of the commit `id` against its parent; a root commit is compared with an empty tree. */
-const commitItemFindings = (root, config, id) => {
+const commitItemFindings = (root: string, config: CommitRules, id: string) => {
   const parent = gitResult(root, 'rev-parse', '--verify', '--quiet', `${id}^`).status === 0 ? `${id}^` : null;
   return itemFindings(root, config, {
     before: file => (parent ? fileAt(root, parent, file) : ''),
@@ -104,7 +121,7 @@ const commitItemFindings = (root, config, id) => {
 };
 
 /** The item findings of the change being committed: the index against HEAD. */
-export function indexItemFindings(root, config) {
+export function indexItemFindings(root: string, config: CommitRules) {
   const head = gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status === 0;
   return itemFindings(root, config, {
     before: file => (head ? fileAt(root, 'HEAD', file) : ''),
@@ -114,7 +131,7 @@ export function indexItemFindings(root, config) {
 }
 
 /** The message of a commit-msg file: without the comment lines that Git removes; null for a merge commit. */
-export function fileMessage(text) {
+export function fileMessage(text: string) {
   const message = text.split('\n').filter(line => !line.startsWith('#')).join('\n').replace(/^\n+/, '');
   return /^Merge /.test(message) ? null : message;
 }
@@ -123,12 +140,13 @@ export function fileMessage(text) {
  * The commits that `git log` selects with `args` in `root`, without merge commits, as `{ id, message }`; `label` names the
  * selection in the failure.
  */
-export function logMessages(root, args, label) {
-  let output;
+export function logMessages(root: string, args: string[], label: string): CommitMessage[] {
+  let output: string;
   try {
     output = git(root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args);
   } catch (error) {
-    throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
+    // git fails with a Stop, which is an Error.
+    throw new Error(`the range ${label} does not resolve in this checkout: ${(error as Error).message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
     const separator = entry.indexOf('\x1f');
@@ -137,7 +155,7 @@ export function logMessages(root, args, label) {
 }
 
 /** The commits of `range` (`<base>..<head>`, or `HEAD` alone) in `root`, without merge commits, as `{ id, message }`. */
-export function rangeMessages(root, range) {
+export function rangeMessages(root: string, range: string) {
   if (range !== 'HEAD' && !/^[^\s.]+\.\.[^\s.]+$/.test(range)) {
     throw new Error(`the range "${range}" is not <base>..<head>; give the two commits of the range, such as origin/main..HEAD`);
   }
@@ -145,20 +163,20 @@ export function rangeMessages(root, range) {
 }
 
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
-export function findingLines(root, commits, config) {
+export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
   return commits.flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id)].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
-export function rangeFindings(root, range, config) {
+export function rangeFindings(root: string, range: string, config: CommitRules) {
   return findingLines(root, rangeMessages(root, range), config);
 }
 
 if (isMain(import.meta.url)) {
   const root = ROOT;
   const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' } } });
-  let findings;
-  let label;
+  let findings: string[];
+  let label: string;
   try {
     const config = loadCommitRules(root);
     if (values.message !== undefined) {
@@ -171,7 +189,8 @@ if (isMain(import.meta.url)) {
       findings = rangeFindings(root, values.range ?? 'HEAD', config);
     }
   } catch (error) {
-    console.error(`[check-commits] ${error.message}`);
+    // The rules, the files and git fail with an Error.
+    console.error(`[check-commits] ${(error as Error).message}`);
     process.exit(1);
   }
   for (const line of findings) console.error(`[check-commits] ${line}`);

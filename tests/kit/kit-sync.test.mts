@@ -6,6 +6,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { check, LOCK } from '../../scripts/kit/kit-check.mts';
 import { DEFAULT_REPOSITORY, parseSyncArguments, sync } from '../../scripts/kit/kit-sync.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -14,7 +15,7 @@ const KIT_SYNC = path.join(import.meta.dirname, '../../scripts/kit/kit-sync.mts'
 
 // Runs the command of kit-sync with `args`. `git` is a stub on PATH that logs its arguments to STUB_LOG and fails, so no clone
 // reaches the network and `clones` holds the argument lists of the git calls that the command made.
-function syncCommand(t, args) {
+function syncCommand(t: TestContext, args: string[]) {
   const bin = mkdtempSync(path.join(tmpdir(), 'kit-sync-bin-'));
   t.after(() => rmSync(bin, { recursive: true, force: true }));
   const log = path.join(bin, 'git.log');
@@ -28,18 +29,18 @@ function syncCommand(t, args) {
 }
 
 const GIT = ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com'];
-const git = (args, cwd) => {
+const git = (args: string[], cwd: string) => {
   const result = spawnSync('git', [...GIT, ...args], { cwd, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 };
-const write = (root, file, text) => {
+const write = (root: string, file: string, text: string) => {
   mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
   writeFileSync(path.join(root, file), text);
 };
 
 // A kit repository whose tags v0.0.1, v0.0.2 and v0.0.3 hold the given files.
-function kitRepository(t, releases) {
+function kitRepository(t: TestContext, releases: Record<string, Record<string, string | null>>) {
   const repository = mkdtempSync(path.join(tmpdir(), 'kit-source-'));
   t.after(() => rmSync(repository, { recursive: true, force: true }));
   initRepository(repository, '-b', 'main');
@@ -55,7 +56,7 @@ function kitRepository(t, releases) {
   return repository;
 }
 
-const consumer = t => {
+const consumer = (t: TestContext) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-consumer-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
@@ -107,9 +108,9 @@ test('kit-check names a changed vendored file, a missing one and an unexpected o
   write(root, 'scripts/kit/extra.mjs', 'unexpected\n');
   const findings = check(root);
   assert.equal(findings.length, 3, findings.join('\n'));
-  assert.match(findings[0], /^scripts\/kit\/other\.mjs: the vendored file is missing; expected sha256 [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
-  assert.match(findings[1], /^scripts\/kit\/tool\.mjs: sha256 is [0-9a-f]{64}, the lock records [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
-  assert.match(findings[2], /^scripts\/kit\/extra\.mjs: the file is not in the lock\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/);
+  assert.match(findings[0]!, /^scripts\/kit\/other\.mjs: the vendored file is missing; expected sha256 [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
+  assert.match(findings[1]!, /^scripts\/kit\/tool\.mjs: sha256 is [0-9a-f]{64}, the lock records [0-9a-f]{64}\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
+  assert.match(findings[2]!, /^scripts\/kit\/extra\.mjs: the file is not in the lock\. Fix: make kit-sync KIT_TAG=v0\.0\.1$/); // The length is asserted above.
   sync({ root, repository, tag: 'v0.0.1' });
   assert.deepEqual(check(root), []);
 });
@@ -138,7 +139,7 @@ test('an option without a value, or followed by another option, fails with the u
     [['--repository', '--tag', 'v0.0.1'], '--repository'],
     [['--tag', '--repository', 'https://example.com/kit'], '--tag'],
     [['--tag'], '--tag'],
-  ]) {
+  ] satisfies [string[], string][]) {
     const { status, stderr, clones } = syncCommand(t, args);
     assert.equal(status, 2, `${args.join(' ')}: ${stderr}`);
     assert.ok(stderr.includes(option), `${args.join(' ')} names ${option}: ${stderr}`);
@@ -189,7 +190,7 @@ test('a repeated option fails with the usage and status 2 before any clone', (t)
   for (const [args, option] of [
     [['--tag', 'v0.0.1', '--tag', 'v0.0.2'], '--tag'],
     [['--tag', 'v0.0.1', '--repository', 'a', '--repository', 'b'], '--repository'],
-  ]) {
+  ] satisfies [string[], string][]) {
     const { status, stderr, clones } = syncCommand(t, args);
     assert.equal(status, 2, `${args.join(' ')}: ${stderr}`);
     assert.ok(stderr.includes(`${option} is given more than once`), stderr);

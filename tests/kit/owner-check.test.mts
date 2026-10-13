@@ -5,8 +5,10 @@ import { spawnSync } from 'node:child_process';
 import { cpSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { commandsOf, makefileText, npmProject, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
+import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { put, tree } from './tree.mts';
 
@@ -36,7 +38,7 @@ const FILES = {
   'tools/bench/package.json': JSON.stringify({ name: 'bench', scripts: { test: 'x' } }),
   'packages/none/package.json': JSON.stringify({ name: '@x/none' }),
 };
-const DECLARATION = {
+const DECLARATION: OwnerDeclaration & { schema: number } = {
   schema: 1,
   always: ['tests/a.test.mjs'],
   owners: [
@@ -50,16 +52,16 @@ const DECLARATION = {
   ],
 };
 
-function project(t, files = FILES) {
+function project(t: TestContext, files: Record<string, string> = FILES) {
   const root = tree(t, files);
   const tracked = trackedFiles(root);
   return { root, tracked, project: { makefile: makefileText(root), ...npmProject(root, tracked) } };
 }
-const errorsOf = (t, declaration, files) => {
+const errorsOf = (t: TestContext, declaration: OwnerDeclaration, files?: Record<string, string>) => {
   const { tracked, project: found } = project(t, files);
   return validate(declaration, tracked, found, file => tracked.includes(file));
 };
-const has = (errors, ...parts) => assert.ok(errors.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${errors.join('\n')}`);
+const has = (errors: string[], ...parts: string[]) => assert.ok(errors.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${errors.join('\n')}`);
 
 test('a declaration that owns every path passes, with targets of an included file and the npm project', (t) => {
   const { tracked, project: found } = project(t);
@@ -71,7 +73,8 @@ test('a declaration that owns every path passes, with targets of an included fil
 });
 
 test('a tracked path without an owner and a glob without a path fail', (t) => {
-  const declaration = { ...DECLARATION, owners: [DECLARATION.owners[1], { paths: ['gone/**'], targets: ['lint'] }] };
+  // DECLARATION declares seven owners.
+  const declaration = { ...DECLARATION, owners: [DECLARATION.owners[1]!, { paths: ['gone/**'], targets: ['lint'] }] };
   const errors = errorsOf(t, declaration);
   has(errors, 'README.md', 'matches no owner in config/owner-checks.json', 'add a rule');
   has(errors, 'the glob gone/** matches no tracked path');
@@ -109,7 +112,7 @@ test('a script, workspace, directory, test file or test target that does not exi
 });
 
 test('inputs: a path that a check reads needs a rule that selects the check or a target that runs it', (t) => {
-  const inputs = (check, paths) => ({ ...DECLARATION, inputs: [{ check, paths }] });
+  const inputs = (check: string, paths: string[]) => ({ ...DECLARATION, inputs: [{ check, paths }] });
   assert.deepEqual(errorsOf(t, inputs('make build', ['src/a.js'])), [], 'unit-test has the prerequisite build');
   assert.deepEqual(errorsOf(t, inputs('npm run test:forms', ['src/a.js'])), []);
   has(errorsOf(t, inputs('make lint', ['src/a.js'])), 'src/a.js: an input of make lint, which no owner rule of the path selects');
@@ -128,7 +131,8 @@ test('select: a changed path selects its owners; always, $path, variables and th
   };
   const result = select(declaration, ['src/a.js', 'src/b.js', 'tests/x.test.mjs'], ['docs-check', 'lint'], () => true);
   assert.deepEqual(result.checks.map(check => check.name), ['make docs-check', 'make lint CASES=src/a.js src/b.js', 'npm run s']);
-  assert.deepEqual(result.checks[1].args, ['--no-print-directory', 'lint', 'CASES=src/a.js src/b.js']);
+  // The names above are three checks.
+  assert.deepEqual(result.checks[1]!.args, ['--no-print-directory', 'lint', 'CASES=src/a.js src/b.js']);
   assert.deepEqual(result.tests, ['tests/always.test.mjs', 'tests/x.test.mjs']);
   assert.deepEqual(result.unowned, []);
   assert.ok(result.reasons.includes('tests/x.test.mjs -> tests/x.test.mjs'));
@@ -147,15 +151,16 @@ test('the tests run through run-tests.mts or through the declared test target', 
   const direct = commandsOf(selection, {});
   assert.deepEqual(direct.map(command => command.args), [['scripts/kit/run-tests.mts', 'node', '--', 'tests/a.test.mjs', 'tests/b.test.mjs']]);
   const target = commandsOf(selection, { testTarget: 'test-scripts' });
-  assert.deepEqual(target[0].args, ['--no-print-directory', 'test-scripts', 'TESTS=tests/a.test.mjs tests/b.test.mjs']);
+  // A selection with tests has the command of the tests.
+  assert.deepEqual(target[0]!.args, ['--no-print-directory', 'test-scripts', 'TESTS=tests/a.test.mjs tests/b.test.mjs']);
   assert.deepEqual(commandsOf({ checks: [], tests: [] }, {}), []);
 });
 
-function command(root, args) {
+function command(root: string, args: string[]) {
   return spawnSync(process.execPath, ['scripts/kit/owner-check.mts', ...args], { cwd: root, encoding: 'utf8' });
 }
 
-function checkout(t, declaration = DECLARATION, files = {}) {
+function checkout(t: TestContext, declaration: OwnerDeclaration = DECLARATION, files: Record<string, string> = {}) {
   const root = tree(t, { ...FILES, ...files, 'config/owner-checks.json': JSON.stringify(declaration) });
   cpSync(KIT, path.join(root, 'scripts/kit'), { recursive: true });
   return root;

@@ -19,6 +19,9 @@ import { git } from './git.mts';
 
 export const DEFAULT_REPOSITORY = 'https://github.com/polyspec/kit';
 
+// The part of kit.json that a sync reads: the vendored directories and the single vendored files.
+type KitManifest = { vendored: string[]; vendoredFiles?: Record<string, string> };
+
 const USAGE = 'usage: node scripts/kit/kit-sync.mts --tag <tag> [--repository <url or path>]';
 
 /**
@@ -26,8 +29,8 @@ const USAGE = 'usage: node scripts/kit/kit-sync.mts --tag <tag> [--repository <u
  * Error that names the option when an option has no value, when an option is followed by another option, or when the tag
  * is missing.
  */
-export function parseSyncArguments(argv) {
-  let values;
+export function parseSyncArguments(argv: string[]) {
+  let values: { tag?: string[]; repository?: string[] };
   try {
     ({ values } = parseArgs({
       args: argv,
@@ -35,11 +38,12 @@ export function parseSyncArguments(argv) {
       strict: true,
     }));
   } catch (error) {
-    const reason = error.message.split('\n')[0].replace(/\.?$/, '.');
+    // parseArgs fails with a TypeError, and split returns at least one string.
+    const reason = (error as Error).message.split('\n')[0]!.replace(/\.?$/, '.');
     throw new Error(`${reason} ${USAGE}`);
   }
-  for (const name of ['tag', 'repository']) {
-    if (values[name]?.length > 1) throw new Error(`--${name} is given more than once. ${USAGE}`);
+  for (const name of ['tag', 'repository'] as const) {
+    if (values[name] !== undefined && values[name].length > 1) throw new Error(`--${name} is given more than once. ${USAGE}`);
   }
   const [tag] = values.tag ?? [];
   const [repository] = values.repository ?? [];
@@ -52,19 +56,19 @@ export function parseSyncArguments(argv) {
  * Syncs the vendored files of kit at `tag` from `repository` into `root`; returns the lines that describe the changes
  * (empty when the checkout already matches the tag).
  */
-export function sync({ root, repository, tag }) {
+export function sync({ root, repository, tag }: { root: string; repository: string; tag: string }) {
   const clone = mkdtempSync(path.join(tmpdir(), 'kit-sync-'));
   try {
     git(root, 'clone', '--quiet', '--depth', '1', '--branch', tag, repository, clone);
     const commit = git(clone, 'rev-parse', 'HEAD').trim();
-    const kit = readJson(clone, 'kit.json');
+    const kit: KitManifest = readJson(clone, 'kit.json');
     // Each entry copies the source file `from` of kit to the path `file` of the checkout.
     const entries = [
       { file: 'kit.json', from: 'kit.json' },
       ...kit.vendored.flatMap(directory => walk(clone, directory)).map(file => ({ file, from: file })),
       ...vendoredFilesOf(kit).map(({ file, from }) => ({ file, from })),
     ];
-    const changes = [];
+    const changes: string[] = [];
     for (const { file, from } of entries) {
       const target = path.join(root, file);
       const existed = existsSync(target);
@@ -94,11 +98,12 @@ export function sync({ root, repository, tag }) {
 }
 
 if (isMain(import.meta.url)) {
-  let options;
+  let options: ReturnType<typeof parseSyncArguments>;
   try {
     options = parseSyncArguments(process.argv.slice(2));
   } catch (error) {
-    console.error(`[kit-sync] ${error.message}`);
+    // parseSyncArguments fails with an Error.
+    console.error(`[kit-sync] ${(error as Error).message}`);
     process.exit(2);
   }
   const root = ROOT;
@@ -108,7 +113,8 @@ if (isMain(import.meta.url)) {
     for (const line of changes) console.log(`[kit-sync] ${line}`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${tag}` : `[kit-sync] unchanged: ${tag}`);
   } catch (error) {
-    console.error(`[kit-sync] ${error.message}`);
+    // git, the files and the digests fail with an Error.
+    console.error(`[kit-sync] ${(error as Error).message}`);
     process.exit(1);
   }
 }

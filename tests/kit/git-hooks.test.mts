@@ -8,8 +8,8 @@ import test from 'node:test';
 import { HOOKS_PATH, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, run } from './gates-checkout.mts';
 
-const hooks = work => run(work, process.execPath, ['scripts/kit/git-hooks.mts', 'install']);
-const check = work => run(work, process.execPath, ['scripts/kit/git-hooks.mts', 'check']);
+const hooks = (work: string) => run(work, process.execPath, ['scripts/kit/git-hooks.mts', 'install']);
+const check = (work: string) => run(work, process.execPath, ['scripts/kit/git-hooks.mts', 'check']);
 
 test('install sets core.hooksPath and writes the executable pre-push hook; check passes', (t) => {
   const { work } = checkout(t);
