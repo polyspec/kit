@@ -21,7 +21,7 @@ import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredGo, declaredRust } from './toolchain-files.mts';
 import { PINS, pinFindings } from './toolchain-pins.mts';
-import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings } from './toolchain-floors.mts';
+import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyprojectFindings, typescriptFindings } from './toolchain-floors.mts';
 
 const INSTALL = 'make install-tools, and var/tools/bin first on PATH';
 
@@ -131,7 +131,7 @@ if (isMain(import.meta.url)) {
     const mismatches = toolchainMismatches(tools);
     // Every declaration and every floor equals the pin of kit, whichever tools run.
     const pins = pinFindings(declared, PINS);
-    const floors = [...enginesFindings(ROOT, PINS), ...composerFindings(ROOT, PINS), ...pyprojectFindings(ROOT, PINS, env), ...goModFindings(ROOT, PINS, env), ...cargoFindings(ROOT, PINS, env)];
+    const floors = [...enginesFindings(ROOT, PINS), ...composerFindings(ROOT, PINS), ...pyprojectFindings(ROOT, PINS, env), ...goModFindings(ROOT, PINS, env), ...cargoFindings(ROOT, PINS, env), ...typescriptFindings(ROOT, PINS)];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
