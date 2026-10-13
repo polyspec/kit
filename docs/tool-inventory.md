@@ -1332,8 +1332,9 @@ It never resolves. It fails, naming the file and the package with its fix, when:
 
 - a lock package has no pin in the constraints (a transitive one included), or a pin has no package in the lock;
 - a lock package is at another version than its pin, or is a git or directory package (the lock holds registry files and archives);
-- a constraint is not `name==version` or a direct reference with `#sha256`, or a line is an option or a hash;
-- a requirement has no pin, or its specifier is not satisfied by the pinned release (PEP 440 release order, `~=` as `>=` and `==prefix.*`);
+- a constraint is not `name==version` or a direct reference with `#sha256`, or a line is an option or a hash (pip-requirements-js
+  reads the requirement and constraint lines by PEP 508 and pip's file syntax);
+- a requirement has no pin, or its specifier is not satisfied by the pinned version (`satisfies` of @renovatebot/pep440);
 - a `pyproject.toml` source lists `dependencies` in `[project].dynamic`, or has no `[project]` table;
 - a registry file has no sha256, a lock is not PEP 751 1.0 or does not read (`readPylock`);
 - a local file of the lock (its `path`, relative to the lock) is missing, is an absolute path, or does not hold the sha256 of the lock:
