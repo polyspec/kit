@@ -114,9 +114,10 @@ export function consumerConfigProblems(config: ConsumerConfig): string[] {
       // The check above leaves an object that is neither null nor an array.
       const fields = entry as Record<string, unknown>;
       const base = file.split('/').at(-1);
-      // `in` and the index convert the kind to a property key as String does.
-      if (!(String(fields.kind) in GIT_TAG_KINDS)) problems.push(`proof.gitTag.${file}.kind is ${JSON.stringify(fields.kind)}, the allowed values are ${Object.keys(GIT_TAG_KINDS).join(', ')}`);
-      else if (GIT_TAG_KINDS[String(fields.kind)] !== base) problems.push(`proof.gitTag.${file}.kind ${fields.kind} installs a ${GIT_TAG_KINDS[String(fields.kind)]}, not a ${base}`);
+      // The kind is text that is a key of GIT_TAG_KINDS itself, not of every object (toString).
+      const { kind } = fields;
+      if (typeof kind !== 'string' || !Object.hasOwn(GIT_TAG_KINDS, kind)) problems.push(`proof.gitTag.${file}.kind is ${JSON.stringify(kind)}, the allowed values are ${Object.keys(GIT_TAG_KINDS).join(', ')}`);
+      else if (GIT_TAG_KINDS[kind] !== base) problems.push(`proof.gitTag.${file}.kind ${kind} installs a ${GIT_TAG_KINDS[kind]}, not a ${base}`);
       if (typeof fields.name !== 'string' || !fields.name) problems.push(`proof.gitTag.${file}.name needs the package name, a non-empty string`);
       if (!command(fields.smoke)) problems.push(`proof.gitTag.${file}.smoke needs a command, a non-empty array of non-empty strings, found ${JSON.stringify(fields.smoke)}`);
     }
