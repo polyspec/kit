@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 6ec5ee57199052cb8e33bda4586fdccefbcdb291ff543049c9126d9d17479d3f -->
+<!-- source-sha256: 0faf0cfa0bb00814b7c82b6410b194cb710269f5cc7738eaf5e24c94df13bd96 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -159,7 +159,7 @@
 | K95 | `dependency-review`는 latest version을 넣은 dependency로 fix 문구를 만듭니다. 원인: review가 latest를 넣기 전의 dependency를 넘겨 toolchain ruff의 fix가 "set ruff in config/toolchain.json to undefined"가 되었고, test는 latest를 직접 넣어 이를 놓쳤습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/dependency-review.mts`, 그 test | review 경로를 거친 red test, 그다음 `make kit-test` | [ ] |
 | K96 | `tests/kit/registry.mts`는 composer가 없으면 `REAL_COMPOSER`를 environment에서 뺍니다. 원인: null을 넘겨 Node가 문자열 "null"로 바꾸었으므로 composer stub이 null이라는 program을 실행하려 했습니다. K71-1 type 작업에서 찾았습니다. | `tests/kit/registry.mts` | PATH에 composer가 없는 red test, 그다음 `make kit-test` | [ ] |
 | K97 | `tests/source`의 real test는 option을 함수 앞에 넘깁니다(`test(name, { timeout }, fn)`). 원인: test 10개가 함수 뒤에 `{ timeout }`을 넘겼고 node:test는 그것을 무시하므로 timeout이 적용되지 않았습니다. K71-1 type 작업에서 찾았습니다(TS2559). | `tests/source/*-real.test.mts` | `make typecheck`(전에는 TS2559), `make source-test` | [ ] |
-| K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [ ] |
+| K98 | `toolchain-declared`는 text가 아닌 version이나 minor를 거부합니다. 원인: 검사가 값의 text를 시험했으므로 JSON 숫자(`"python": 3.14`)나 항목 하나의 list가 통과해 나중에 혼란스러운 message로 실패했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/toolchain-declared.mts`, 그 test | 값의 종류마다 red test, 그다음 `make kit-test` | [o] |
 | K99 | `release-consumer-config`는 text가 아닌 `proof.gitTag` kind를 거부합니다. 원인: `in`과 index가 `["rust"]`를 `"rust"`로 바꾸어 list가 통과했습니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/release-consumer-config.mts`, 그 test | red test, 그다음 `make kit-test` | [o] |
 | K100 | TOML reader는 array 아래 table의 TOML 규칙을 지킵니다: `a = [[1]]` 다음의 `[a.x]`는 내부 array에 key를 두는 것이 아니라 error입니다. 원인: `parseToml`이 array의 마지막 항목을 확인 없이 table로 썼습니다. reader는 K73에서 smol-toml로 대체되며, 이 입력은 대체의 test에 들어갑니다. | K73 TOML test | 옛 reader에서 실패하고 대체에서 통과하는 case | [ ] |
 | K101 | lock에서 `url`이 없는 archive는 `wheel-dependencies`와 `release-proof`의 TypeError가 아니라 finding입니다. K71-1 type 작업에서 찾았습니다. | `scripts/kit/wheel-dependencies.mts`, `scripts/kit/release-proof.mts`, 그 test | red test, 그다음 `make kit-test` | [ ] |
