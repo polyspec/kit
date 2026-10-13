@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 01066cb48d9b9ddbf162348f76e0317a0e102c9df1d5a12666504d9dc9622298 -->
+<!-- source-sha256: 4eee73616f9cd2de7b73439a94ee7068c8b90cca93d33efb46a25ece3529d139 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -169,7 +169,7 @@
 | K111 | 철회했습니다. dependency-cruiser와 그 `.mts` parser로서의 TypeScript 6(S4 예외)으로 import를 따라 바뀐 경로에 닿는 test를 고르려 했습니다. kit은 tool의 package 하나이므로 `scripts/kit` 아래의 변경은 `kit-test`와 `typecheck`가 소유합니다; 그것을 더 좁히려고 의존과 version 예외를 들이는 것은 요구를 채우는 가장 단순한 구현이 아닙니다(K105). | — | — | [-] |
 | K112 | schema 검증은 `additionalProperties: false` 아래에서 `Object.prototype` member 이름(`toString`, `constructor`, `hasOwnProperty`, `__proto__`)의 key를 거부하며, `required`는 자기 key를 검사합니다. 원인: `schema-validate`가 key를 `in`으로 시험했습니다. K73의 ajv 비교에서 찾았습니다. K73의 ajv 교체로 고치며, case는 그 test에 들어갑니다. | K73 schema test | `schema-validate`에서 실패하고 ajv에서 통과하는 case | [o] |
 | K113 | TOML reader는 TOML이 금지하는 `a = { b = 1 }` 다음의 `a.c = 2`를 거부합니다. K73의 smol-toml 비교에서 찾았으며 K100과 같은 계열입니다. K73의 smol-toml 교체로 고치며, case는 그 test에 들어갑니다. | K73 TOML test | `parseToml`에서 실패하고 smol-toml에서 통과하는 case | [o] |
-| K114 | `dependency-state`의 pyproject 읽기는 유효한 requirement 형태를 모두 읽거나 그 형태를 이름으로 대며 실패합니다: 작은따옴표 pin, 따옴표 친 extra key, inline table의 extra, dotted `build-system.requires`; 주석 안의 pin은 읽지 않으며, 문자열 안의 `]`가 목록을 자르지 않습니다. 원인: `pythonRequirements`가 pyproject를 정규식으로 읽어 형태를 조용히 버렸습니다. K73 비교에서 찾았습니다. K73의 smol-toml 교체로 고치며, case는 그 test에 들어갑니다. | K73 dependency-state test | 정규식에서 실패하고 smol-toml에서 통과하는 case | [ ] |
+| K114 | `dependency-state`의 pyproject 읽기는 유효한 requirement 형태를 모두 읽거나 그 형태를 이름으로 대며 실패합니다: 작은따옴표 pin, 따옴표 친 extra key, inline table의 extra, dotted `build-system.requires`; 주석 안의 pin은 읽지 않으며, 문자열 안의 `]`가 목록을 자르지 않습니다. 원인: `pythonRequirements`가 pyproject를 정규식으로 읽어 형태를 조용히 버렸습니다. K73 비교에서 찾았습니다. K73의 smol-toml 교체로 고치며, case는 그 test에 들어갑니다. | K73 dependency-state test | 정규식에서 실패하고 smol-toml에서 통과하는 case | [o] |
 | K115 | version 비교는 각 생태계의 규칙을 따릅니다: prerelease는 그 release보다 오래되었고, `3.11`은 `3.9`보다 새롭고, `1.0.post1`은 `1.0`보다 새롭고, 네 번째 segment도 세며, PEP 440 `rc`/`b`/`dev`는 prerelease입니다. 원인: `older`가 두 부분 version을 text로 비교하고 prerelease 부분을 무시했으며, `isPrerelease`가 PEP 440 표시를 놓쳤습니다(실제 기록에 `pycparser 3.11`이 있습니다). K73 비교에서 찾았습니다. K73의 생태계별 comparator로 고치며, case는 그 test에 들어갑니다. | K73 version test | `version.mts`에서 실패하고 semver와 pep440에서 통과하는 case | [ ] |
 | K116 | 중첩 brace를 가진 glob은 throw하지 않고 그 전개로 match합니다. K73의 picomatch 비교에서 찾았습니다. K73의 picomatch 교체로 고치며, case는 그 test에 들어갑니다. | K73 glob test | `glob.mts`에서 throw하고 picomatch에서 match하는 case | [ ] |
 | K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [o] |
