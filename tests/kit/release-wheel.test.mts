@@ -4,7 +4,8 @@
 // the sandbox is the pip stub of wheel-stubs.mts; no test reaches an index.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { sha256, fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
@@ -286,4 +287,18 @@ test('config refuses a consumers.wheel.polyspec entry that names a wheel package
   const config = readJson(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { [SIBLING]: REPOSITORY } } } });
   stop(() => release.loadConfig(box.root), new RegExp(escaped(`config/release.json: consumers.wheel.polyspec.${SIBLING} names the wheel package ${SIBLING} of this repository`)));
+});
+
+test('the pyproject and Cargo manifests of a release are read as TOML, in every valid form (K114)', (t) => {
+  const pyproject = "[project]\nname = 'kit_fixture'\nversion = '0.0.1'\n\n[build-system]\nrequires = [\n  'flit_core==3.12.0', # not \"wheel==1.0\"\n]\n";
+  assert.deepEqual(wheel.sourceProblems({ file: 'pyproject.toml', text: pyproject, name: 'kit_fixture', requirement: 'flit_core==3.12.0' }), []);
+  const dotted = 'project.name = "kit_fixture"\nbuild-system.requires = ["flit_core==3.12.0"]\n';
+  assert.deepEqual(wheel.sourceProblems({ file: 'pyproject.toml', text: dotted, name: 'kit_fixture', requirement: 'flit_core==3.12.0' }), []);
+  assert.throws(() => wheel.sourceProblems({ file: 'pyproject.toml', text: '[project\n', name: 'x', requirement: 'y==1' }), /^Error: pyproject\.toml line 1 column \d+: Invalid TOML document/);
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-manifest-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(path.join(root, 'Cargo.toml'), "[package]\nname = 'x'\nversion = '0.0.2'\n");
+  assert.equal(release.manifestVersion(path.join(root, 'Cargo.toml')), '0.0.2');
+  writeFileSync(path.join(root, 'pyproject.toml'), 'project.version = "0.0.3"\n');
+  assert.equal(release.manifestVersion(path.join(root, 'pyproject.toml')), '0.0.3');
 });
