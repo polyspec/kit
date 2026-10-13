@@ -2,9 +2,11 @@
 // files of checkedFiles, so the vendored fixture of kit and the installed directories are not read:
 //   package.json   engines.node is ">=<node pin>"
 //   composer.json  require.php is ">=<php pin>"; beside a composer.lock, config.platform.php is "<php pin>"
+//   pyproject.toml project.requires-python is ">=<python pin>", when it has a project table (read by toolchain-files.mts)
 // Each other floor, and a missing one, is a finding that names the file, the key, the pin and the expected value.
 import path from 'node:path';
 import { readJson } from './bootstrap/files.mts';
+import { readToml } from './toolchain-files.mts';
 import type { Pins, Tool } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -35,3 +37,10 @@ export function composerFindings(root: string, pins: Pins): string[] {
     ];
   });
 }
+
+/** One line for each pyproject.toml with a project table whose requires-python is not `>=` the Python pin; `env` runs the reader. */
+export const pyprojectFindings = (root: string, pins: Pins, env: NodeJS.ProcessEnv): string[] => named(root, 'pyproject.toml').flatMap((file) => {
+  // tomllib returns a table for a TOML document; project, when present, is a table too.
+  const project = (readToml(root, file, env) as { project?: Record<string, unknown> }).project;
+  return project ? floor(file, 'project.requires-python', project['requires-python'], 'python', pins, `>=${pins.python}`) : [];
+});

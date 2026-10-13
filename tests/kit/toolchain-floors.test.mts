@@ -2,7 +2,7 @@
 // precision (S4). Each manifest is read with the tool of its ecosystem.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { composerFindings, enginesFindings } from '../../scripts/kit/toolchain-floors.mts';
+import { composerFindings, enginesFindings, pyprojectFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
@@ -43,4 +43,24 @@ test('every composer.json requires php >= the pin, and a locked one sets config.
     'packages/b/composer.json: require.php is missing; kit pins php 8.5, so it must be ">=8.5"',
     'packages/c/composer.json: config.platform.php is missing; kit pins php 8.5, so it must be "8.5"',
   ]);
+});
+
+// The TOML of a pyproject is read by tomllib of the Python on PATH, so every form of TOML reads as Python reads it.
+test('every pyproject.toml with a project table requires-python >= the Python pin', (t) => {
+  const root = tree(t, {
+    'pyproject.toml': '[project]\nname = "a"\nrequires-python = ">=3.11"\n',
+    'packages/b/pyproject.toml': '[project]\nname = "b"\n',
+    'packages/c/pyproject.toml': "project = { name = 'c', requires-python = '>=3.14' } # an inline table and a literal string\n",
+    'packages/d/pyproject.toml': '[tool.ruff]\nline-length = 120\n',
+    'packages/e/pyproject.toml': '[project]\nname = "e"\n"requires-python" = """>=3.14"""\n',
+  });
+  assert.deepEqual(pyprojectFindings(root, PINS, process.env), [
+    'packages/b/pyproject.toml: project.requires-python is missing; kit pins python 3.14, so it must be ">=3.14"',
+    'pyproject.toml: project.requires-python is ">=3.11"; kit pins python 3.14, so it must be ">=3.14"',
+  ]);
+});
+
+test('a pyproject.toml that is no TOML fails with the file and the error of tomllib', (t) => {
+  const root = tree(t, { 'pyproject.toml': '[project\n' });
+  assert.throws(() => pyprojectFindings(root, PINS, process.env), /pyproject\.toml: tomllib cannot read it: .*/);
 });
