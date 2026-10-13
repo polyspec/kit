@@ -1005,7 +1005,7 @@ and runs nothing. Both are offline, print a line for each step and each finding,
 | `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
 | `parity-ledger.mts` | R3: the runs of the bindings and the ledger |
 | `parity-runners.mts` | the native command of each runner and the outcome of each case in its output |
-| `test-output.mts` | the parsers of the output of node:test (TAP), go, cargo, unittest and PHPUnit, shared with run-tests |
+| `test-output.mts` | the parsers of the output of node:test (TAP, read with tap-parser, which reads the escapes `\#` and `\\` of a name; K125), go, cargo, unittest and PHPUnit, shared with run-tests |
 | `parity-errors.mts` | R7 |
 | `parity-text.mts` | R9, R10 |
 

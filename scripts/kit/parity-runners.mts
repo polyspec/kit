@@ -116,7 +116,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
   },
   node: {
     program: () => process.execPath,
-    run: (root, binding) => ({ args: test => [...test, '--test', '--test-reporter=tap', binding.test], cwd: '.', caseOf: name => (name === binding.test ? undefined : name), read: ({ stdout }, sink) => eachLine(stdout, tapEvents(sink)), detail: stderrTail }),
+    run: (root, binding) => ({ args: test => [...test, '--test', '--test-reporter=tap', binding.test], cwd: '.', caseOf: name => (name === binding.test ? undefined : name), read: ({ stdout }, sink) => tapEvents(sink, stdout), detail: stderrTail }),
   },
   php: {
     program: () => 'php',

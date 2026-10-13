@@ -5,6 +5,7 @@
 // `todo(test)`, `line(text)` and `raw(text)`, where `test` is `{ id, name }`: `id` is the name that the progress shows and
 // `name` is the name that the tool reports for the test. `todo` is a test that the tool expects to fail (a unittest expected
 // failure, a node TODO): it is no pass. `toProgress` turns a progress reporter into such a sink.
+import { Parser, type Result } from 'tap-parser';
 import type { Progress } from './test-progress.mts';
 
 /** A test as a parser reports it: `id` is the name that the progress shows, `name` the name that the tool reports. */
@@ -237,21 +238,30 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
   };
 }
 
+/** The YAML diagnostics of a node:test result as tap-parser reads them (it moves duration_ms to the time of the result); an absent field is undefined. */
+type TapDiagnostics = { error?: string; stack?: string } | null;
+
 /**
- * Read the TAP output of node:test (`node --test --test-reporter=tap`) into the sink. Each test at the top of the output (a
- * line that starts with `ok` or `not ok` at column 0) is one test, with its name and its directive `# SKIP` (skipped) or
- * `# TODO` (a todo, whatever its result); the subtests of a test are indented and belong to it, so a test passes or fails as
- * a whole. The other lines are passed to `line`.
+ * Read the TAP output `text` of node:test (`node --test --test-reporter=tap`) into the sink with tap-parser. Each test at
+ * the top of the output is one test, with its name (the TAP escapes `\\#` and `\\\\` read as `#` and `\\`) and its
+ * directive `# SKIP` (skipped) or `# TODO` (a todo, whatever its result); the subtests of a test belong to it, so a test
+ * passes or fails as a whole. A failure carries the error and the stack of its diagnostics; the comments and the lines
+ * that are no TAP are passed to `line`.
  */
-export function tapEvents(sink: Sink): (line: string) => unknown {
-  return (line) => {
-    const match = /^(ok|not ok) \d+ - (.*?)(?: # (SKIP|TODO)\b.*)?$/.exec(line);
-    if (!match) return line.trim() ? sink.line(line) : undefined;
-    const test = { id: match[2]!, name: match[2]! }; // The second group always takes part in a match.
-    if (match[3] === 'SKIP') return sink.skip(test);
-    if (match[3] === 'TODO') return sink.todo(test);
-    return match[1] === 'ok' ? sink.pass(test) : sink.fail(test, undefined, '');
-  };
+export function tapEvents(sink: Sink, text: string): void {
+  const parser = new Parser();
+  parser.on('assert', (result: Result) => {
+    const test = { id: result.name, name: result.name };
+    const diagnostics = result.diag as TapDiagnostics;
+    if (result.skip) return sink.skip(test);
+    if (result.todo) return sink.todo(test);
+    const ms = result.time ?? undefined;
+    if (result.ok) return sink.pass(test, ms);
+    return sink.fail(test, ms, [diagnostics?.error, diagnostics?.stack].filter(Boolean).join('\n'));
+  });
+  parser.on('comment', (comment: string) => sink.line(comment.trimEnd()));
+  parser.on('extra', (extra: string) => { if (extra.trim()) sink.line(extra.trimEnd()); });
+  parser.end(text);
 }
 
 /**
