@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: fb0762c7d98a632fee44be199b83965158f60618c9e87ff7130dc78b196e0a4c -->
+<!-- source-sha256: 7ce1818b2a88966cb5b67993ae499078b2b1b1a7a5b6c0185c474409b9e13e6d -->
 
 # 도구 목록
 
@@ -139,8 +139,8 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
 
 - `make layout-check`는 `var/tools/bin/alint check --config config/layout.yml .`을 실행합니다(offline). `config/toolchain.json`의
   `alint`가 release와 platform별 archive의 sha256을 고정하고, `install-alint.mts`가 uv처럼 설치합니다.
-- `config/layout.kit.yml`은 공통 rule과 template을 담습니다. vendored 파일(kit.json `vendoredFiles`)이므로 kit-sync가 copy하고
-  kit-check가 hash를 확인하며, 레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
+- `config/layout.kit.yml`은 공통 rule과 template을 담습니다. 사본(package.json의 `kit.copies`)이므로 kit-sync가 설치된 package에서 쓰고
+  kit-check가 byte 단위로 비교하며, 레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
   때문에 이 파일은 `config/`에 있습니다.
 - 레포의 `config/layout.yml`은 이 파일을 extends하고 자기 map을 더합니다. 자기 이름으로 template `no-repository-prefix`와
   `go-module-path`의 instance를 두고, port가 있는 component마다 `component-ports` instance를 하나 두며, rule id로 override합니다
@@ -707,7 +707,7 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 
 ### Release workflow, tool과 draft (K38)
 
-- `workflows/release.yml`은 kit.json의 `vendoredFiles`가 `.github/workflows/release.yml`로 대응시키는 원본입니다. `make kit-sync`가 이를 복사하고 sha256을 lock에 기록하며, `make kit-check`가 차이를 실패시킵니다.
+- `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 쓰며, `make kit-check`가 차이를 실패시킵니다.
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
 - `release-publish`는 release를 draft로 만듭니다. `release-proof`는 저장소의 release를 API로 읽으며 draft를 포함하고, 각 자산을 id로 내려받습니다. `release-undraft`는 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,

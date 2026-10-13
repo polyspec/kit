@@ -1,7 +1,8 @@
 # polyspec/kit
 
-The tools that every polyspec repository shares. A repository holds a byte-for-byte copy of `scripts/kit/` and `tests/kit/`
-(listed in `kit.json`); it differs from another repository only in `config/*.json`. kit depends on no repository.
+The tools that every polyspec repository shares. A repository installs them as the package `@polyspec/kit` and holds
+byte-for-byte copies of the files that `kit.copies` of its `package.json` lists; it differs from another repository only in
+`config/*.json`. kit depends on no repository.
 
 ## Tools
 
@@ -24,15 +25,16 @@ The tools that every polyspec repository shares. A repository holds a byte-for-b
 - `scripts/kit/` — the tools and `kit.mk`, which a repository includes in its Makefile; `scripts/kit/schema/` holds the JSON Schema
   of each `config/<name>.json`.
 - `tests/kit/` — the tests of the tools; `tests/kit/fixture/` is the fixture monorepo that they run on.
-- `config/layout.kit.yml` — the common layout rules (S5), vendored into every repository; `config/layout.yml` adds the map of kit.
-- `kit.json` — the vendored directories and the version of this tree.
+- `config/layout.kit.yml` — the common layout rules (S5), a copy in every repository; `config/layout.yml` adds the map of kit.
+- `package.json` — the version of kit and `kit.copies`, the files that a repository holds as copies.
 
 ## Use in a repository
 
 ```sh
-make kit-sync KIT_TAG=v0.0.4   # copy the vendored files at the tag and write .kit/kit.lock.json (online)
-make kit-check                 # compare the files with the lock and the configuration with the schemas (offline)
-make kit-test                  # run the vendored tests through run-tests.mts (offline)
+make install-tools TOOLS=npm   # install the npm of packageManager with the copied bootstrap (online)
+make install-packages          # npm ci with that npm, @polyspec/kit included (online)
+make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
+make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
 ```
 
 `kit-sync` at the same tag changes nothing. A vendored file is changed in kit and copied again, never edited in a repository.

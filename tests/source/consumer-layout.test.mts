@@ -12,15 +12,16 @@ import { fileURLToPath } from 'node:url';
 import { copyInstalledTools, copyTracked, KIT_TEST_TIMEOUT_MS, runKitTest } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-// The paths of the kit that no consumer holds: the source of each vendored file, and the kit's own tests.
-const KIT: { vendoredFiles?: Record<string, string> } = JSON.parse(readFileSync(path.join(ROOT, 'kit.json'), 'utf8'));
-const KIT_ONLY = [...Object.values(KIT.vendoredFiles ?? {}), 'tests/source/'];
+// The copies of the kit (kit.copies of its package.json), and the paths of the kit that no consumer holds: the source of each
+// copy at another path, and the kit's own tests.
+const COPIES: Record<string, string> = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).kit?.copies ?? {};
+const KIT_ONLY = [...Object.entries(COPIES).filter(([copy, source]) => copy !== source).map(([, source]) => source), 'tests/source/'];
 
 test('the vendored tests pass in the layout of a consumer', { timeout: KIT_TEST_TIMEOUT_MS }, async (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-consumer-layout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   copyTracked(ROOT, sandbox, file => !KIT_ONLY.some(only => (only.endsWith('/') ? file.startsWith(only) : file === only)));
-  for (const [copy, source] of Object.entries(KIT.vendoredFiles ?? {})) {
+  for (const [copy, source] of Object.entries(COPIES)) {
     mkdirSync(path.join(sandbox, path.dirname(copy)), { recursive: true });
     cpSync(path.join(ROOT, source), path.join(sandbox, copy));
   }
