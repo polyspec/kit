@@ -14,6 +14,7 @@ import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson } from './bootstrap/files.mts';
+import { readConfig } from './schema-validate.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -66,9 +67,9 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   const findings: Finding[] = [];
   const add = (rule: Rule, subject: string, problem: string, fix: string) => findings.push({ rule, subject, problem, fix });
 
-  const policy = readJson(root, POLICY);
-  if (policy.schema !== 1 || !Array.isArray(policy.composerPlatforms) || !Array.isArray(policy.pythonManifests) || !Array.isArray(policy.pythonLocks) || !Array.isArray(policy.npmLocks) || !Array.isArray(policy.exceptions)) {
-    add('policy', POLICY, 'the schema is not 1 with composerPlatforms, pythonManifests, pythonLocks, npmLocks and exceptions', `restore the schema of ${POLICY}`);
+  const { value: policy, errors } = readConfig(root, POLICY, 'dependency-policy.schema.json');
+  if (errors.length) {
+    add('policy', POLICY, errors.join('; '), `restore the schema of ${POLICY} (dependency-policy.schema.json)`);
     return findings;
   }
   const state = readState(root, policy);

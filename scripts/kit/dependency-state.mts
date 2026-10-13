@@ -22,6 +22,7 @@ import semver from 'semver';
 
 import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
+import { readConfig } from './schema-validate.mts';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
@@ -38,11 +39,19 @@ export type TaggedRelease = { directory: string; repository: string; tag: string
 /** The part of config/dependency-policy.json (scripts/kit/schema/dependency-policy.schema.json) that the state reads. */
 export type DependencyPolicy = {
   npmLocks: string[];
-  composerPlatforms?: { manifest: string }[];
-  pythonLocks?: { lock: string }[];
-  pythonManifests?: string[];
+  composerPlatforms: { manifest: string }[];
+  pythonLocks: { lock: string }[];
+  pythonManifests: string[];
   taggedNpmPackages?: TaggedRelease[];
+  advisoryExceptions?: Record<string, unknown>[];
 };
+
+/** The policy of `root` validated against dependency-policy.schema.json; throws with every error of the schema. */
+export function readPolicy<Policy extends DependencyPolicy = DependencyPolicy>(root: string): Policy {
+  const { value, errors } = readConfig<Policy>(root, POLICY, 'dependency-policy.schema.json');
+  if (errors.length) throw new Error(errors.join('; '));
+  return value;
+}
 
 /** The kind of a requirement of a pyproject.toml: build-system.requires or an extra. */
 export type PythonRequirementKind = 'build-system' | `optional:${string}`;
@@ -323,7 +332,7 @@ export function readState(root: string, policy: DependencyPolicy) {
     }
   }
 
-  for (const { manifest: manifestPath } of policy.composerPlatforms ?? []) {
+  for (const { manifest: manifestPath } of policy.composerPlatforms) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
     const composer: ComposerManifest = readJson(root, manifestPath);
@@ -344,7 +353,7 @@ export function readState(root: string, policy: DependencyPolicy) {
   // Each Python lock named by the policy is recorded with its sha256; its packages are read by the lock format (K36).
   // Each PEP 751 lock of the policy: its registry packages are dependencies of the lock (kind `lock`), its git packages are pinned
   // by their commit and recorded with it. A lock whose packages are not read fails in readPylock with the line of the construct.
-  for (const { lock: lockPath } of policy.pythonLocks ?? []) {
+  for (const { lock: lockPath } of policy.pythonLocks) {
     locks.push(lockPath);
     const lock: Pylock = readPylock(readFileSync(path.join(root, lockPath), 'utf8'), lockPath);
     pythonLocks.push({ lock: lockPath, createdBy: lock.createdBy, packages: lock.packages });
@@ -358,7 +367,7 @@ export function readState(root: string, policy: DependencyPolicy) {
       }
     }
   }
-  for (const manifestPath of policy.pythonManifests ?? []) {
+  for (const manifestPath of policy.pythonManifests) {
     const text = readFileSync(path.join(root, manifestPath), 'utf8');
     for (const requirement of pythonRequirements(text, manifestPath)) {
       dependencies.push({ ecosystem: 'pypi', manifest: manifestPath, ...requirement, lock: null });

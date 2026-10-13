@@ -21,8 +21,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
-import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readState } from './dependency-state.mts';
-import type { Dependency } from './dependency-state.mts';
+import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState } from './dependency-state.mts';
+import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { cargoAuditCommand } from './install-cargo-audit.mts';
 import { govulncheckCommand } from './install-govulncheck.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
@@ -365,8 +365,8 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
 
 /** The review of the checkout at `root`: the findings, the newer dependencies, the advisories and the record. */
 export function review(root: string) {
-  const policy = readJson(root, POLICY);
-  const exceptions = new Map<string, { reason: string }>(policy.exceptions.map((exception: { ecosystem: string; manifest: string; package: string; reason: string }) => [dependencyKey(exception), exception]));
+  const policy = readPolicy<DependencyPolicy & { exceptions: { ecosystem: string; manifest: string; package: string; reason: string }[] }>(root);
+  const exceptions = new Map<string, { reason: string }>(policy.exceptions.map(exception => [dependencyKey(exception), exception]));
   const state: ReviewState = readState(root, policy);
   const latest = latestReleases(root, state);
   const audits = advisories(root, state);
