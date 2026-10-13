@@ -18,6 +18,7 @@
 // its advisories come from RustSec.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import semver from 'semver';
 
 import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
@@ -367,119 +368,14 @@ export function readState(root: string, policy: DependencyPolicy) {
   return { dependencies, local, tagged, locks, manifests, npmLocks, pythonLocks, vcs };
 }
 
-// npm version ranges (https://docs.npmjs.com/cli/v11/using-npm/semver): `||` joins comparator sets, a set holds
-// comparators joined by spaces, and `^`, `~`, `x` and partial versions and hyphen ranges reduce to `<`, `<=`, `>`, `>=`
-// and `=`. A prerelease satisfies a set only when a comparator of the set names a prerelease of the same release.
-const NPM_VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
-const NPM_PARTIAL = /^(<=|>=|<|>|=|\^|~>?|)v?(\*|x|X|\d+)(?:\.(\*|x|X|\d+))?(?:\.(\*|x|X|\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+// The range of an npm specification without its alias prefix: `npm:<name>@<range>` names the range of another package.
+const npmRange = (range: string) => semver.validRange(String(range).replace(/^npm:(?:@[^/@]+\/)?[^@]+@/, '').trim());
 
-/** A release `[major, minor, patch]`. */
-type Release = [number, number, number];
-
-/** A parsed npm version. */
-type NpmVersion = { release: Release; pre: string[] };
-
-/** A comparator of a comparator set: an operator of <, <=, >, >= and = with its version. */
-type Comparator = { operator: string; version: NpmVersion };
-
-/** A parsed npm version `{ release: [major, minor, patch], pre: [...] }`, or null. */
-function npmVersion(text: string | undefined): NpmVersion | null {
-  const match = String(text).match(NPM_VERSION);
-  // The three groups of the release are not optional.
-  return match ? { release: match.slice(1, 4).map(Number) as Release, pre: match[4] ? match[4].split('.') : [] } : null;
-}
-
-/** The order of two parsed npm versions: negative, zero or positive. */
-function npmCompare(left: NpmVersion, right: NpmVersion) {
-  for (let index = 0; index < 3; index += 1) {
-    // index is 0, 1 or 2, a part of a release.
-    if (left.release[index] !== right.release[index]) return left.release[index]! - right.release[index]!;
-  }
-  if (!left.pre.length || !right.pre.length) return right.pre.length - left.pre.length;
-  for (let index = 0; index < Math.max(left.pre.length, right.pre.length); index += 1) {
-    const a = left.pre[index];
-    const b = right.pre[index];
-    if (a === undefined || b === undefined) return a === undefined ? -1 : 1;
-    if (a === b) continue;
-    const numeric = [a, b].map(item => /^\d+$/.test(item));
-    if (numeric[0] && numeric[1]) return Number(a) - Number(b);
-    if (numeric[0] !== numeric[1]) return numeric[0] ? -1 : 1;
-    return a < b ? -1 : 1;
-  }
-  return 0;
-}
-
-const comparator = (operator: string, release: Release, pre: string[] = []): Comparator => ({ operator, version: { release, pre } });
-const below = (release: Release) => comparator('<', release, ['0']);
-
-/** The comparators of one term of a comparator set, or null when the term is not a version range term. */
-function npmTerm(term: string): Comparator[] | null {
-  const match = term.match(NPM_PARTIAL);
-  if (!match) return null;
-  const [, operator, ...parts] = match;
-  const wild = parts.slice(0, 3).map(part => part === undefined || /^[*xX]$/.test(part));
-  // slice(0, 3) of the groups after the operator maps the three parts of the release.
-  const [major, minor, patch] = parts.slice(0, 3).map(part => (part === undefined || /^[*xX]$/.test(part) ? 0 : Number(part))) as Release;
-  const pre = parts[3] ? parts[3].split('.') : [];
-  const level = wild[0] ? 0 : wild[1] ? 1 : wild[2] ? 2 : 3;
-  const floor: Release = [major, minor, patch];
-  const next: Release = level === 1 ? [major + 1, 0, 0] : [major, minor + 1, 0];
-  if (operator === '' || operator === '=') {
-    if (level === 0) return [];
-    if (level === 3) return [comparator('=', floor, pre)];
-    return [comparator('>=', floor), below(next)];
-  }
-  if (operator === '^') {
-    if (level === 0) return [];
-    const ceiling: Release = major > 0 || level === 1 ? [major + 1, 0, 0] : minor > 0 || level === 2 ? [0, minor + 1, 0] : [0, 0, patch + 1];
-    return [comparator('>=', floor, pre), below(ceiling)];
-  }
-  // The group of the operator is not optional; it matches the empty string when no operator is written.
-  if (operator!.startsWith('~')) {
-    if (level === 0) return [];
-    return [comparator('>=', floor, pre), below(level === 1 ? [major + 1, 0, 0] : [major, minor + 1, 0])];
-  }
-  if (level === 0) return operator === '<' || operator === '>' ? [below([0, 0, 0])] : [];
-  // The group of the operator is not optional.
-  if (level === 3) return [comparator(operator!, floor, pre)];
-  if (operator === '>') return [comparator('>=', next)];
-  if (operator === '>=') return [comparator('>=', floor)];
-  if (operator === '<') return [below(floor)];
-  return [below(next)];
-}
-
-/** The comparator sets of an npm range, or null when the specification is not a version range. */
-function npmRange(range: string) {
-  const text = String(range).replace(/^npm:(?:@[^/@]+\/)?[^@]+@/, '').trim();
-  const sets: Comparator[][] = [];
-  for (const alternative of text.split('||')) {
-    const set = alternative.trim();
-    const hyphen = set.match(/^(\S+)\s+-\s+(\S+)$/);
-    const terms = hyphen
-      ? [`>=${hyphen[1]}`, `<=${hyphen[2]}`]
-      : set.replace(/(<=|>=|<|>|=|\^|~>?)\s+/g, '$1').split(/\s+/).filter(Boolean);
-    const comparators: Comparator[] = [];
-    for (const term of terms) {
-      const parsed = npmTerm(term);
-      if (!parsed) return null;
-      comparators.push(...parsed);
-    }
-    sets.push(comparators);
-  }
-  return sets;
-}
-
-/** Whether `version` satisfies the npm range `range`; null for a specification that is not a version range. */
+/** Whether `version` satisfies the npm range `range` by semver; null for a version or a specification that semver does not read. */
 export function npmSatisfies(version: string | undefined, range: string) {
+  const parsed = semver.valid(version ?? null);
   const sets = npmRange(range);
-  const parsed = npmVersion(version);
-  if (!sets || !parsed) return null;
-  return sets.some(set => set.every(({ operator, version: bound }) => {
-    const order = npmCompare(parsed, bound);
-    const holds: Record<string, boolean> = { '<': order < 0, '<=': order <= 0, '>': order > 0, '>=': order >= 0, '=': order === 0 };
-    return holds[operator];
-  }) && (!parsed.pre.length || set.some(({ version: bound }) => bound.pre.length > 0
-    && bound.release.every((part, index) => part === parsed.release[index]))));
+  return parsed === null || sets === null ? null : semver.satisfies(parsed, sets);
 }
 
 /** The lock location of the copy of `name` that a package at `location` loads: the nearest `node_modules` upward. */
@@ -507,7 +403,7 @@ export function npmDuplicates(lock: NpmLock) {
         if (kind === 'peerDependencies' && entry.peerDependenciesMeta?.[name]?.optional) continue;
         const copy = npmResolve(packages, location, name);
         // npmResolve returns only a location of packages.
-        if (!copy || packages[copy]!.link || !npmVersion(packages[copy]!.version) || !npmRange(range)) continue;
+        if (!copy || packages[copy]!.link || !semver.valid(packages[copy]!.version ?? null) || !npmRange(range)) continue;
         if (!copies.has(name)) copies.set(name, new Map());
         // The line above sets every missing name.
         const loaders = copies.get(name)!;
@@ -524,8 +420,8 @@ export function npmDuplicates(lock: NpmLock) {
     const found = located.flatMap((left, index) => located.slice(index + 1).map((right): [typeof left, typeof left] => [left, right]))
       .filter(([left, right]) => left.version !== right.version)
       .map(([left, right]) => {
-        // copies holds only copies whose version npmVersion reads, and the sorted pair has two entries.
-        const [low, high] = [left, right].sort((a, b) => npmCompare(npmVersion(a.version)!, npmVersion(b.version)!)) as [typeof left, typeof left];
+        // copies holds only copies whose version semver reads, and the sorted pair has two entries.
+        const [low, high] = [left, right].sort((a, b) => semver.compare(a.version!, b.version!)) as [typeof left, typeof left];
         const loaders = [...left.loaders, ...right.loaders];
         const single = [high.version, low.version].find(version => loaders.every(({ range }) => npmSatisfies(version, range)));
         return single && { low: low.version, high: high.version, single, loaders };
