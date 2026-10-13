@@ -470,14 +470,14 @@ test('a support file of an implementation is never a test: it lies in its roots 
 
 test('the reason of a narrow profile and of a native-only entry cites a spec anchor that resolves (K75)', TIMEOUT, (t) => {
   // A schema finding names the path in the declaration; another names the anchor, or the profile.
-  const findings = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${(finding.message.startsWith('config/parity.json: ') ? /\$\S+/.exec(finding.message) : /(?:docs|contracts)\/\S+/.exec(finding.message) ?? /profile \S+/.exec(finding.message))?.[0]}`);
+  const findings = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${(finding.message.startsWith('config/parity.json: ') ? /(?<=^config\/parity\.json: )\/\S*/.exec(finding.message) : /(?:docs|contracts)\/\S+/.exec(finding.message) ?? /profile \S+/.exec(finding.message))?.[0]}`);
   assert.deepEqual(findings((config) => { delete config.profiles[1].spec; config.profiles[0].spec = ['docs/spec/codec.md#codec']; return config; }), [
     'declaration profile all',
     'declaration profile compiled',
   ]);
   assert.deepEqual(findings((config) => { delete config.nativeOnly[0].spec; config.profiles[1].spec = ['docs/notes.md#width']; return config; }), [
-    'declaration $.profiles[1].spec[0]',
-    'declaration $.nativeOnly[0]',
+    'declaration /profiles/1/spec/0',
+    'declaration /nativeOnly/0',
   ]);
   assert.deepEqual(findings((config) => {
     config.profiles[1].spec = ['docs/spec/missing.md#width', 'docs/spec/codec.md#depth-tables', 'contracts/codec.json#/benchmarks/hex'];
@@ -860,9 +860,9 @@ test('the whole repository is no root, and a declared tests list is not empty', 
 });
 
 test('the schema rejects PYTHONPATH and every path that leaves the repository; a resolved reference may not leave it either (K75)', TIMEOUT, (t) => {
-  const places = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${/\$\S*/.exec(finding.message)?.[0]}`);
+  const places = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${/(?<=^config\/parity\.json: )\/\S*/.exec(finding.message)?.[0]}`);
   const python = (config: Declaration) => config.implementations.find((entry: { name: string }) => entry.name === 'python');
-  assert.deepEqual(places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration $.implementations[4].env[0].name']);
+  assert.deepEqual(places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration /implementations/4/env/0/name']);
   assert.deepEqual(places((config) => {
     config.implementations[0].roots = ['go', '../shared'];
     python(config).command = '/usr/bin/python3';
@@ -872,14 +872,14 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
     config.comparators = ['/srv/compare'];
     return config;
   }), [
-    'declaration $.implementations[0].roots[1]',
-    'declaration $.implementations[4].command',
-    'declaration $.implementations[4].args[1]',
-    'declaration $.implementations[4].args[2]',
-    'declaration $.implementations[4].args[3]',
-    'declaration $.implementations[4].env[0].value',
-    'declaration $.comparators[0]',
-    'declaration $.units[0].file',
+    'declaration /implementations/0/roots/1',
+    'declaration /implementations/4/command',
+    'declaration /implementations/4/args/1',
+    'declaration /implementations/4/args/2',
+    'declaration /implementations/4/args/3',
+    'declaration /implementations/4/env/0/value',
+    'declaration /comparators/0',
+    'declaration /units/0/file',
   ]);
   // A path inside the repository, a name on PATH, a version range and a reference stay valid.
   assert.deepEqual(places((config) => { python(config).command = 'python3'; python(config).args = ['-X', 'dev', '--range=1..2', '${PARITY_ARGS}']; return config; }), []);
