@@ -14,13 +14,38 @@ import { isMain, ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 
+/** The fields of config/dependency-review.json that the mutations change. */
+interface ReviewRecordJson {
+  dependencies: { version: string; latest: string | null }[];
+  locks: { advisories: unknown[] }[];
+}
+
+/** The field of config/dependency-policy.json that a mutation changes. */
+interface PolicyJson {
+  composerPlatforms?: { php: string }[];
+}
+
+/** A finding of check-dependency-policy.mts, with the fields that a mutation expects. */
+interface Finding {
+  rule: string;
+  subject?: string;
+}
+
+/** A mutation: whether the repository has what it changes, the change of a copy, and the finding that the check must report. */
+interface Mutation {
+  name: string;
+  applies?: (root: string) => boolean;
+  apply: (root: string) => void;
+  expect: (finding: Finding) => boolean;
+}
+
 const COPIED = /(^|\/)(package\.json|package-lock\.json|composer\.json|composer\.lock|pyproject\.toml|pylock(\.[A-Za-z0-9_-]+)?\.toml|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum)$/;
 
 /**
  * A copy of the files that the gate reads: every tracked manifest and lock (npm workspaces and local packages included), the
  * policy and the review record.
  */
-function copy(directory) {
+function copy(directory: string) {
   const files = new Set([POLICY, RECORD, ...checkedFiles(ROOT).filter(file => COPIED.test(file))]);
   for (const file of files) {
     if (!existsSync(join(ROOT, file))) continue;
@@ -31,24 +56,25 @@ function copy(directory) {
   spawnSync('git', ['init', '--quiet'], { cwd: directory });
 }
 
-const editJson = (root, file, edit) => {
-  const data = readJson(root, file);
+const editJson = <T,>(root: string, file: string, edit: (data: T) => void) => {
+  const data: T = readJson(root, file);
   edit(data);
   writeJson(join(root, file), data);
 };
 
 // The first registry dependency of the review record, whatever its ecosystem: the one that the outdated mutation changes.
-const firstDependency = root => readJson(root, RECORD).dependencies[0];
-const firstLock = root => readJson(root, RECORD).locks[0].lock;
-const hasComposer = root => (readJson(root, POLICY).composerPlatforms ?? []).length > 0;
+const firstDependency = (root: string) => readJson(root, RECORD).dependencies[0];
+const firstLock = (root: string) => readJson(root, RECORD).locks[0].lock;
+const hasComposer = (root: string) => (readJson(root, POLICY).composerPlatforms ?? []).length > 0;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
-const MUTATIONS = [
+const MUTATIONS: Mutation[] = [
   {
     name: 'an outdated dependency without an exception',
     applies: root => readJson(root, RECORD).dependencies.length > 0,
-    apply: root => editJson(root, RECORD, (record) => {
-      const item = record.dependencies[0];
+    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => {
+      // applies holds a record with a dependency.
+      const item = record.dependencies[0]!;
       // The record names a release newer than the locked one: the last number of the locked version, plus one.
       item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
     }),
@@ -57,7 +83,8 @@ const MUTATIONS = [
   {
     name: 'a Composer platform other than the declared minimum PHP',
     applies: hasComposer,
-    apply: root => editJson(root, POLICY, (policy) => { policy.composerPlatforms[0].php = '8.1.0'; }),
+    // applies holds a policy with a Composer platform.
+    apply: root => editJson(root, POLICY, (policy: PolicyJson) => { policy.composerPlatforms![0]!.php = '8.1.0'; }),
     expect: finding => finding.rule === 'platform',
   },
   {
@@ -67,7 +94,8 @@ const MUTATIONS = [
   },
   {
     name: 'a lock with an advisory at its review',
-    apply: root => editJson(root, RECORD, (record) => { record.locks[0].advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
+    // The record of every repository holds a lock, as firstLock reads it.
+    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => { record.locks[0]!.advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
     expect: finding => finding.rule === 'advisory',
   },
 ];
@@ -75,7 +103,7 @@ const MUTATIONS = [
 /** Applies each mutation that the repository at ROOT has to a copy of its dependency files; the exit status of the command. */
 function run() {
   const mutations = MUTATIONS.filter(mutation => !mutation.applies || mutation.applies(ROOT));
-  const accepted = [];
+  const accepted: string[] = [];
   for (const mutation of mutations) {
     const directory = mkdtempSync(join(tmpdir(), 'kit-dependency-policy-'));
     try {

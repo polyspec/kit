@@ -31,9 +31,82 @@ import { compareParts, dottedParts, isPrerelease, older, stableDescending } from
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
-const say = text => process.stdout.write(`[dependency-review] ${text}\n`);
+const say = (text: string) => process.stdout.write(`[dependency-review] ${text}\n`);
 
-function run(command, args, cwd, statuses) {
+/** A registry dependency of readState (dependency-state.mts), with the fields that the review reads. */
+export interface Dependency {
+  ecosystem: string;
+  manifest: string;
+  package: string;
+  kind: string;
+  spec: string;
+  version: string | null;
+  lock: string | null;
+  createdBy?: string | null;
+}
+
+/** The state of readState (dependency-state.mts), with the fields that the review reads. */
+interface ReviewState {
+  dependencies: Dependency[];
+  locks: string[];
+  npmLocks: Map<string, { packages?: Record<string, { version?: string }> }>;
+  pythonLocks: { lock: string; createdBy: string | null; packages: { kind: string; name: string; version: string }[] }[];
+  vcs: { lock: string; package: string; url: string; requestedRevision: string | null; commitId: string }[];
+}
+
+/** An advisory of a package of a lock. */
+export interface Advisory {
+  package: string;
+  version: string | undefined;
+  id: string;
+  severity: string;
+  title: string;
+  url?: string | undefined;
+}
+
+/** An advisory of the review with its lock. */
+export type FoundAdvisory = Advisory & { lock: string };
+
+/** A dependency with a newer stable release; its release is undefined when its query failed with an empty message. */
+export type Newer = Dependency & { latest: string | null | undefined };
+
+/** The fields of a newer dependency and of an advisory that updatePlan reads. */
+type PlannedDependency = Pick<Newer, 'ecosystem' | 'manifest' | 'package' | 'spec' | 'latest'> & Partial<Pick<Newer, 'kind' | 'lock'>>;
+type PlannedAdvisory = Pick<FoundAdvisory, 'lock' | 'package'>;
+
+/** A message of govulncheck -json, with the fields that the review reads. */
+export interface GovulncheckMessage {
+  osv?: { id: string; summary?: string };
+  finding?: { osv: string; trace?: { function?: string; module: string; version: string }[] };
+}
+
+// The output of a command, or the message of its failure; a message is never empty.
+type Ran = { stdout: string; error?: undefined } | { error: string; stdout?: undefined };
+// The JSON that a command prints, or the message of its failure; a message is never empty.
+type Answer<T> = { value: T; error?: undefined } | { error: string; value?: undefined };
+// The latest stable release of a dependency, or the message of the failure of its query; a message is never empty.
+type Latest = { latest: string | null; error?: undefined } | { error: string; latest?: undefined };
+// The advisories of a lock, or the message of the failure of its query; a message is never empty.
+type Audit = { advisories: Advisory[]; error?: undefined } | { error: string; advisories?: undefined };
+
+// The JSON of npm view, npm audit, go list -m, PyPI, composer outdated, cargo audit and composer audit, with the fields
+// that the review reads.
+interface NpmView { 'dist-tags'?: { latest?: string }; versions?: string | string[] }
+interface NpmVia { severity: string; source?: number; url: string; title: string }
+interface NpmAudit { vulnerabilities?: Record<string, { range: string; via?: (string | NpmVia)[] }> }
+interface GoVersions { Versions?: string[] }
+interface PypiProject { releases?: Record<string, unknown[]> }
+interface PypiRelease { vulnerabilities?: { id: string; summary?: string; link?: string }[] }
+interface ComposerOutdated { locked?: { name: string; latest?: string }[] }
+interface CargoPackage { name: string; version: string }
+interface CargoAudit {
+  vulnerabilities?: { list?: { package: CargoPackage; advisory: { id: string; cvss?: string | null; title: string; url?: string | null } }[] };
+  warnings?: Record<string, { package: CargoPackage; advisory?: { id: string; title: string; url?: string | null } | null }[]>;
+}
+interface ComposerAdvisory { advisoryId: string | number; severity?: string | null; title: string; link: string }
+interface ComposerAudit { advisories?: Record<string, ComposerAdvisory[] | Record<string, ComposerAdvisory>>; abandoned?: Record<string, string | null> }
+
+function run(command: string, args: string[], cwd: string, statuses?: number[]): Ran {
   try {
     return { stdout: runCommand(command, args, { cwd, statuses }) };
   } catch (error) {
@@ -42,43 +115,49 @@ function run(command, args, cwd, statuses) {
   }
 }
 
-function query(command, args, cwd, statuses) {
+function query<T>(command: string, args: string[], cwd: string, statuses?: number[]): Answer<T> {
   const result = run(command, args, cwd, statuses);
   if (result.error) return result;
   try {
-    return { value: result.stdout.trim() ? JSON.parse(result.stdout) : {} };
+    // A result without an error message has stdout.
+    return { value: result.stdout!.trim() ? JSON.parse(result.stdout!) : {} };
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     return { error: `${command} ${args.join(' ')} printed no JSON: ${error.message}` };
   }
 }
 
 /** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
-function npmLatest(root, name) {
-  const answer = query('npm', ['view', name, 'dist-tags', 'versions', '--json'], root);
+function npmLatest(root: string, name: string): Latest {
+  const answer = query<NpmView | NpmView[]>('npm', ['view', name, 'dist-tags', 'versions', '--json'], root);
   if (answer.error) return answer;
+  // A result without an error message has its value.
+  const value = answer.value!;
   // npm 12 prints the fields of the one matching package as an array of one object.
-  const view = Array.isArray(answer.value) ? answer.value[0] ?? {} : answer.value;
+  const view = Array.isArray(value) ? value[0] ?? {} : value;
   const tag = view['dist-tags']?.latest;
   const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter(Boolean);
-  const candidates = stableDescending(versions).filter(version => !tag || isPrerelease(tag) || !older(tag, version));
+  const candidates = stableDescending(versions).filter((version: string) => !tag || isPrerelease(tag) || !older(tag, version));
   for (const version of candidates) {
     const deprecated = run('npm', ['view', `${name}@${version}`, 'deprecated'], root);
     if (deprecated.error) return deprecated;
-    if (!deprecated.stdout.trim()) return { latest: version };
+    // A result without an error message has stdout.
+    if (!deprecated.stdout!.trim()) return { latest: version };
   }
   return { error: `npm view ${name} reported no stable release that is not deprecated` };
 }
 
 /** The highest release of a PyPI project that has files and no pre-release or development marker; releases: version -> files. */
-export function highestStableRelease(releases) {
-  const stable = Object.keys(releases).filter(version => dottedParts(version) && releases[version].length > 0);
+export function highestStableRelease(releases: Record<string, unknown[]>): string | null {
+  // version is a key of releases.
+  const stable = Object.keys(releases).filter(version => dottedParts(version) && releases[version]!.length > 0);
   stable.sort((a, b) => compareParts(dottedParts(a), dottedParts(b)));
   return stable.at(-1) ?? null;
 }
 
 /** The JSON objects that a command prints one after the other (govulncheck -json), in order. */
-export function parseJsonStream(text) {
-  const objects = [];
+export function parseJsonStream(text: string): GovulncheckMessage[] {
+  const objects: GovulncheckMessage[] = [];
   let depth = 0;
   let start = -1;
   let inString = false;
@@ -104,52 +183,58 @@ export function parseJsonStream(text) {
 }
 
 /** The advisories of the vulnerabilities that the code calls, from the messages of govulncheck -json, one per advisory and module. */
-export function goAdvisories(messages) {
-  const details = new Map(messages.filter(message => message.osv).map(message => [message.osv.id, message.osv]));
-  const seen = new Set();
-  const list = [];
+export function goAdvisories(messages: GovulncheckMessage[]): Advisory[] {
+  // The filter keeps the messages that have an osv.
+  const details = new Map(messages.filter(message => message.osv).map(message => [message.osv!.id, message.osv!]));
+  const seen = new Set<string>();
+  const list: Advisory[] = [];
   for (const { finding } of messages) {
     const frame = finding?.trace?.[0];
     // A finding without a function is a vulnerability in a module or package that the code does not call.
     if (!frame?.function) continue;
-    const key = `${finding.osv}:${frame.module}`;
+    // frame is a frame of finding, so finding is present.
+    const key = `${finding!.osv}:${frame.module}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    list.push({ package: frame.module, version: frame.version, id: finding.osv, severity: 'vulnerability', title: details.get(finding.osv)?.summary ?? finding.osv, url: `https://pkg.go.dev/vuln/${finding.osv}` });
+    // frame is a frame of finding, so finding is present.
+    list.push({ package: frame.module, version: frame.version, id: finding!.osv, severity: 'vulnerability', title: details.get(finding!.osv)?.summary ?? finding!.osv, url: `https://pkg.go.dev/vuln/${finding!.osv}` });
   }
   return list;
 }
 
 /** The latest stable release of every registry dependency: key -> { latest } or { error }. */
-function latestReleases(root, state) {
-  const latest = new Map();
-  const npm = new Map();
-  const composer = new Map();
+function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
+  const latest = new Map<string, Latest>();
+  const npm = new Map<string, Latest>();
+  const composer = new Map<string, Answer<ComposerOutdated>>();
   for (const dependency of state.dependencies) {
     const key = dependencyKey(dependency);
     if (dependency.ecosystem === 'npm') {
       if (!npm.has(dependency.package)) npm.set(dependency.package, npmLatest(root, dependency.package));
-      latest.set(key, npm.get(dependency.package));
+      // The line above sets the package.
+      latest.set(key, npm.get(dependency.package)!);
       continue;
     }
     if (dependency.ecosystem === 'go') {
       const directory = path.posix.dirname(dependency.manifest);
-      const answer = query('go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
+      const answer = query<GoVersions>('go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
       if (answer.error) {
         latest.set(key, { error: answer.error });
         continue;
       }
       // A module without a stable release has nothing newer than the version that go.mod requires.
-      latest.set(key, { latest: stableDescending(answer.value.Versions ?? [])[0] ?? dependency.version });
+      // A result without an error message has its value.
+      latest.set(key, { latest: stableDescending(answer.value!.Versions ?? [])[0] ?? dependency.version });
       continue;
     }
     if (dependency.ecosystem === 'pypi') {
-      const answer = query('curl', ['-fsSL', `https://pypi.org/pypi/${dependency.package}/json`], root);
+      const answer = query<PypiProject>('curl', ['-fsSL', `https://pypi.org/pypi/${dependency.package}/json`], root);
       if (answer.error) {
         latest.set(key, { error: answer.error });
         continue;
       }
-      const stable = highestStableRelease(answer.value.releases ?? {});
+      // A result without an error message has its value.
+      const stable = highestStableRelease(answer.value!.releases ?? {});
       latest.set(key, stable ? { latest: stable } : { error: `PyPI reported no stable release of ${dependency.package}` });
       continue;
     }
@@ -157,12 +242,14 @@ function latestReleases(root, state) {
     // composer outdated reports the latest stable release of each direct requirement; composer audit reports an
     // abandoned package.
     if (!composer.has(directory)) composer.set(directory, query('composer', ['outdated', '--direct', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
-    const answer = composer.get(directory);
+    // The line above sets the directory.
+    const answer = composer.get(directory)!;
     if (answer.error) {
       latest.set(key, { error: answer.error });
       continue;
     }
-    const entry = (answer.value.locked ?? []).find(item => item.name === dependency.package);
+    // A result without an error message has its value.
+    const entry = (answer.value!.locked ?? []).find(item => item.name === dependency.package);
     latest.set(key, entry?.latest ? { latest: entry.latest } : { error: `composer outdated in ${directory} reported no release of ${dependency.package}` });
   }
   return latest;
@@ -173,23 +260,26 @@ function latestReleases(root, state) {
  * goPackagePatterns that have a buildable file, by `go list -e`. A directory whose every file a build constraint excludes
  * is no package for `./...`, and govulncheck refuses it as a pattern, so it is dropped here.
  */
-export function goPackages(root, lock) {
+export function goPackages(root: string, lock: string): { list: string[]; error?: undefined } | { error: string; list?: undefined } {
   const patterns = goPackagePatterns(root, lock);
   if (patterns.length === 0) return { list: [] };
   const answer = run('go', ['list', '-e', '-f', '{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', ...patterns], path.join(root, path.posix.dirname(lock)));
-  return answer.error ? answer : { list: answer.stdout.split('\n').filter(Boolean) };
+  // A result without an error message has stdout.
+  return answer.error ? answer : { list: answer.stdout!.split('\n').filter(Boolean) };
 }
 
 /** The advisories of every lock: lock -> { advisories } or { error }. Each npm lock is audited in the directory it lies in. */
-function advisories(root, state) {
-  const result = new Map();
+function advisories(root: string, state: ReviewState): Map<string, Audit> {
+  const result = new Map<string, Audit>();
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'npm')) {
-    const npmVersions = state.npmLocks.get(lock).packages ?? {};
-    const npm = query('npm', ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
+    // readState holds the lock of each npm lock.
+    const npmVersions = state.npmLocks.get(lock)!.packages ?? {};
+    const npm = query<NpmAudit>('npm', ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
     if (npm.error) result.set(lock, { error: npm.error });
     else {
-      const list = [];
-      for (const [name, vulnerability] of Object.entries(npm.value.vulnerabilities ?? {})) {
+      const list: Advisory[] = [];
+      // A result without an error message has its value.
+      for (const [name, vulnerability] of Object.entries(npm.value!.vulnerabilities ?? {})) {
         for (const via of vulnerability.via ?? []) {
           if (typeof via !== 'object' || !NPM_SEVERITIES.has(via.severity)) continue;
           list.push({ package: name, version: npmVersions[`node_modules/${name}`]?.version ?? vulnerability.range, id: String(via.source ?? via.url), severity: via.severity, title: via.title, url: via.url });
@@ -202,20 +292,22 @@ function advisories(root, state) {
   let fetched = false;
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'cargo')) {
     const command = cargoAuditCommand(root);
-    const args = ['audit', '--db', path.join(root, 'var', 'tools', 'rustsec-advisory-db'), ...(fetched ? ['--no-fetch'] : []), '--file', path.join(root, lock), '--json'];
+    const args: string[] = ['audit', '--db', path.join(root, 'var', 'tools', 'rustsec-advisory-db'), ...(fetched ? ['--no-fetch'] : []), '--file', path.join(root, lock), '--json'];
     // cargo-audit exits with 1 when it finds a vulnerability.
-    const answer = existsSync(command) ? query(command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; run make install-tools` };
+    const answer: Answer<CargoAudit> = existsSync(command) ? query(command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; run make install-tools` };
     fetched ||= !answer.error;
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;
     }
-    const list = [];
-    for (const item of answer.value.vulnerabilities?.list ?? []) {
+    // A result without an error message has its value.
+    const value = answer.value!;
+    const list: Advisory[] = [];
+    for (const item of value.vulnerabilities?.list ?? []) {
       list.push({ package: item.package.name, version: item.package.version, id: item.advisory.id, severity: item.advisory.cvss ? `vulnerability ${item.advisory.cvss}` : 'vulnerability', title: item.advisory.title, url: item.advisory.url ?? `https://rustsec.org/advisories/${item.advisory.id}` });
     }
     // The warnings are unmaintained, unsound and yanked crates.
-    for (const [kind, warnings] of Object.entries(answer.value.warnings ?? {})) {
+    for (const [kind, warnings] of Object.entries(value.warnings ?? {})) {
       for (const warning of warnings) {
         list.push({ package: warning.package.name, version: warning.package.version, id: warning.advisory?.id ?? kind, severity: kind, title: warning.advisory?.title ?? `${kind} release`, ...(warning.advisory ? { url: warning.advisory.url ?? `https://rustsec.org/advisories/${warning.advisory.id}` } : {}) });
       }
@@ -224,15 +316,17 @@ function advisories(root, state) {
   }
   // A PEP 751 lock: the advisories of each registry package at its locked version, from the PyPI release JSON.
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'pypi')) {
-    const list = [];
-    let failure = null;
-    for (const item of state.pythonLocks.find(entry => entry.lock === lock).packages.filter(entry => entry.kind === 'registry')) {
-      const answer = query('curl', ['-fsSL', `https://pypi.org/pypi/${item.name}/${item.version}/json`], root);
+    const list: Advisory[] = [];
+    let failure: string | null = null;
+    // readState holds each Python lock of the locks in pythonLocks.
+    for (const item of state.pythonLocks.find(entry => entry.lock === lock)!.packages.filter(entry => entry.kind === 'registry')) {
+      const answer = query<PypiRelease>('curl', ['-fsSL', `https://pypi.org/pypi/${item.name}/${item.version}/json`], root);
       if (answer.error) {
         failure = answer.error;
         break;
       }
-      for (const vulnerability of answer.value.vulnerabilities ?? []) {
+      // A result without an error message has its value.
+      for (const vulnerability of answer.value!.vulnerabilities ?? []) {
         list.push({ package: item.name, version: item.version, id: vulnerability.id, severity: 'vulnerability', title: vulnerability.summary ?? vulnerability.id, url: vulnerability.link ?? `https://osv.dev/vulnerability/${vulnerability.id}` });
       }
     }
@@ -249,33 +343,38 @@ function advisories(root, state) {
       result.set(lock, { error: packages.error });
       continue;
     }
+    // A result without an error message has its list.
+    const list = packages.list!;
     // A module with no buildable package calls no vulnerable function, and govulncheck refuses an empty pattern list.
-    if (packages.list.length === 0) {
+    if (list.length === 0) {
       result.set(lock, { advisories: [] });
       continue;
     }
-    const answer = run(command, ['-json', ...packages.list], path.join(root, path.posix.dirname(lock)));
+    const answer = run(command, ['-json', ...list], path.join(root, path.posix.dirname(lock)));
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;
     }
-    result.set(lock, { advisories: goAdvisories(parseJsonStream(answer.stdout)) });
+    // A result without an error message has stdout.
+    result.set(lock, { advisories: goAdvisories(parseJsonStream(answer.stdout!)) });
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
     const directory = path.posix.dirname(lock);
     const lockData = readJson(root, lock);
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package.
-    const answer = query('composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3]);
+    const answer = query<ComposerAudit>('composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3]);
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;
     }
-    const list = [];
-    for (const [name, entries] of Object.entries(answer.value.advisories ?? {})) {
+    // A result without an error message has its value.
+    const value = answer.value!;
+    const list: Advisory[] = [];
+    for (const [name, entries] of Object.entries(value.advisories ?? {})) {
       for (const advisory of Object.values(entries)) list.push({ package: name, version: versions.get(name), id: String(advisory.advisoryId), severity: advisory.severity ?? 'unknown', title: advisory.title, url: advisory.link });
     }
-    for (const [name, replacement] of Object.entries(answer.value.abandoned ?? {})) {
+    for (const [name, replacement] of Object.entries(value.abandoned ?? {})) {
       list.push({ package: name, version: versions.get(name), id: 'abandoned', severity: 'abandoned', title: replacement ? `abandoned, replaced by ${replacement}` : 'abandoned without a replacement' });
     }
     result.set(lock, { advisories: list });
@@ -284,40 +383,45 @@ function advisories(root, state) {
 }
 
 /** The review of the checkout at `root`: the findings, the newer dependencies, the advisories and the record. */
-export function review(root) {
+export function review(root: string) {
   const policy = readJson(root, POLICY);
-  const exceptions = new Map(policy.exceptions.map(exception => [dependencyKey(exception), exception]));
-  const state = readState(root, policy);
+  const exceptions = new Map<string, { reason: string }>(policy.exceptions.map((exception: { ecosystem: string; manifest: string; package: string; reason: string }) => [dependencyKey(exception), exception]));
+  const state: ReviewState = readState(root, policy);
   const latest = latestReleases(root, state);
   const audits = advisories(root, state);
-  const lines = [];
-  const notes = [];
-  const newer = [];
-  const found = [];
+  const lines: string[] = [];
+  const notes: string[] = [];
+  const newer: Newer[] = [];
+  const found: FoundAdvisory[] = [];
   for (const dependency of state.dependencies) {
     const key = dependencyKey(dependency);
     const subject = `${dependency.manifest} ${dependency.package}`;
-    const answer = latest.get(key);
+    // latestReleases answers every dependency of the state.
+    const answer = latest.get(key)!;
     if (answer.error) {
       lines.push(`${subject}: the registry query failed: ${answer.error}. Fix: run make dependency-review again when the registry answers`);
       continue;
     }
     const outdated = older(dependency.version, answer.latest);
-    if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${exceptions.get(key).reason}`);
+    // The condition checks that exceptions has the key.
+    if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${exceptions.get(key)!.reason}`);
     else if (outdated) {
       newer.push({ ...dependency, latest: answer.latest });
       lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(dependency)}`);
     } else if (exceptions.has(key)) lines.push(`${subject} ${dependency.version}: the exception of ${POLICY} is stale, ${answer.latest} is the latest stable release. Fix: remove the exception from ${POLICY}`);
   }
   for (const lock of state.locks) {
-    const answer = audits.get(lock);
+    // advisories answers every lock of the state.
+    const answer = audits.get(lock)!;
     if (answer.error) {
       lines.push(`${lock}: the advisory query failed: ${answer.error}. Fix: run make dependency-review again when the advisory database answers`);
       continue;
     }
-    for (const advisory of answer.advisories) {
+    // A result without an error message has its advisories.
+    for (const advisory of answer.advisories!) {
       found.push({ lock, ...advisory });
-      const fix = lockEcosystem(lock) === 'pypi' ? lockFix(lock, state.pythonLocks.find(item => item.lock === lock).createdBy, advisory.package) : UPDATE;
+      // readState holds each Python lock of the locks in pythonLocks.
+      const fix = lockEcosystem(lock) === 'pypi' ? lockFix(lock, state.pythonLocks.find(item => item.lock === lock)!.createdBy, advisory.package) : UPDATE;
       lines.push(`${lock} ${advisory.package} ${advisory.version}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}. Fix: ${fix}`);
     }
   }
@@ -325,28 +429,31 @@ export function review(root) {
     schema: 1,
     comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.',
     reviewed: new Date().toISOString(),
-    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (audits.get(lock).advisories ?? []).map(({ package: name, version, id, severity, title, url }) => ({ package: name, version, id, severity, title, ...(url ? { url } : {}) })) })),
-    dependencies: state.dependencies.map(dependency => ({ ecosystem: dependency.ecosystem, manifest: dependency.manifest, package: dependency.package, version: dependency.version, latest: latest.get(dependencyKey(dependency)).latest ?? null })),
+    // advisories answers every lock of the state.
+    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (audits.get(lock)!.advisories ?? []).map(({ package: name, version, id, severity, title, url }) => ({ package: name, version, id, severity, title, ...(url ? { url } : {}) })) })),
+    // latestReleases answers every dependency of the state.
+    dependencies: state.dependencies.map(dependency => ({ ecosystem: dependency.ecosystem, manifest: dependency.manifest, package: dependency.package, version: dependency.version, latest: latest.get(dependencyKey(dependency))!.latest ?? null })),
     vcs: state.vcs.map(({ lock, package: name, url, requestedRevision, commitId }) => ({ lock, package: name, url, requestedRevision, commitId })),
   };
-  const complete = state.locks.every(lock => !audits.get(lock).error) && [...latest.values()].every(answer => !answer.error);
+  // advisories answers every lock of the state.
+  const complete = state.locks.every(lock => !audits.get(lock)!.error) && [...latest.values()].every(answer => !answer.error);
   return { lines, notes, newer, advisories: found, record, complete };
 }
 
 // The fix of a newer release: the ruff pin of config/toolchain.json is set by hand, with the sha256 of its wheels, because
 // the sha256 is read from the registry of each platform; every other manifest is updated by `make dependency-review UPDATE=1`.
-export const fixOf = dependency => {
+export const fixOf = (dependency: Pick<Newer, 'manifest' | 'package' | 'latest'> & Partial<Pick<Newer, 'kind' | 'lock' | 'createdBy'>>): string => {
   if (dependency.manifest === TOOLCHAIN) return `set ruff in ${TOOLCHAIN} to ${dependency.latest} with the sha256 of each wheel, then make install-tools`;
   if (dependency.kind === 'lock') return lockFix(dependency.lock, dependency.createdBy, dependency.package);
   return UPDATE;
 };
 
 /** The range operator of a manifest constraint: `^`, `~` or none for an exact version. */
-const operator = spec => (/^[\^~]/.test(spec) ? spec[0] : '');
+const operator = (spec: string) => (/^[\^~]/.test(spec) ? spec[0] : '');
 
 /** The commands that raise the newer dependencies and update the packages with an advisory, in order. */
-export function updatePlan({ newer, advisories: found }) {
-  const plan = [];
+export function updatePlan({ newer, advisories: found }: { newer: PlannedDependency[]; advisories: PlannedAdvisory[] }): { command: string; args: string[]; cwd: string }[] {
+  const plan: { command: string; args: string[]; cwd: string }[] = [];
   for (const dependency of newer) {
     // A package of a PEP 751 lock is regenerated by the tool that wrote the lock (fixOf names it), never pinned in place.
     if (dependency.manifest === TOOLCHAIN || dependency.kind === 'lock') continue;
@@ -354,7 +461,8 @@ export function updatePlan({ newer, advisories: found }) {
     const range = operator(dependency.spec);
     if (dependency.ecosystem === 'npm') {
       // npm runs in the directory of the lock of the manifest, and --workspace names the manifest relative to it.
-      const base = path.posix.dirname(dependency.lock);
+      // readState gives every npm dependency its lock.
+      const base = path.posix.dirname(dependency.lock!);
       const directory = path.posix.relative(base, path.posix.dirname(dependency.manifest));
       const save = dependency.kind === 'devDependencies' ? ['--save-dev'] : ['--save'];
       const workspace = directory === '' ? [] : ['--workspace', directory];
@@ -371,10 +479,11 @@ export function updatePlan({ newer, advisories: found }) {
     plan.push({ command: 'npm', args: ['audit', 'fix'], cwd: path.posix.dirname(lock) });
   }
   for (const cwd of new Set(plan.filter(step => step.command === 'npm').map(step => step.cwd))) plan.push({ command: 'npm', args: ['dedupe'], cwd });
-  const affected = new Map();
+  const affected = new Map<string, Set<string>>();
   for (const advisory of found.filter(item => lockEcosystem(item.lock) !== 'npm')) {
     if (!affected.has(advisory.lock)) affected.set(advisory.lock, new Set());
-    affected.get(advisory.lock).add(advisory.package);
+    // The line above sets the lock.
+    affected.get(advisory.lock)!.add(advisory.package);
   }
   for (const [lock, packages] of affected) {
     const directory = path.posix.dirname(lock);
@@ -387,7 +496,7 @@ export function updatePlan({ newer, advisories: found }) {
   return plan;
 }
 
-function print(result) {
+function print(result: { notes: string[]; lines: string[] }) {
   for (const note of result.notes) say(note);
   for (const line of result.lines) say(`${line}.`);
   say(result.lines.length
@@ -401,7 +510,8 @@ if (isMain(import.meta.url)) {
   let record = false;
   let update = false;
   for (let index = 0; index < args.length; index += 1) {
-    if (args[index] === '--root' && args[index + 1]) root = path.resolve(args[++index]);
+    // The condition checks that the argument after --root is present.
+    if (args[index] === '--root' && args[index + 1]) root = path.resolve(args[++index]!);
     else if (args[index] === '--record') record = true;
     else if (args[index] === '--update') update = true;
     else {
