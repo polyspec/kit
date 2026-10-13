@@ -12,19 +12,41 @@
 //                                                      through git (`git-tag` in `manifests`): kind rust, with its Cargo.toml
 
 /** The package kinds that have a consumer project with a committed manifest and lock. */
-export const CONSUMER_KINDS = ['npm', 'composer'];
+export const CONSUMER_KINDS: ('npm' | 'composer')[] = ['npm', 'composer'];
 /** The package kind of the wheels, whose consumer is a clean virtual environment with no committed lock. */
-export const WHEEL_KIND = 'wheel';
+export const WHEEL_KIND: 'wheel' = 'wheel';
 /** The kind of the git-tag manifests with their file names. */
-export const GIT_TAG_KINDS = { rust: 'Cargo.toml' };
+export const GIT_TAG_KINDS: Record<string, string> = { rust: 'Cargo.toml' };
 
-const command = value => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string' && item !== '');
+/** A package of config/release.json. */
+export type ReleasePackage = { kind: 'npm' | 'composer' | 'wheel'; directory: string; name: string };
+
+/**
+ * A consumer of config/release.json as release.schema.json declares it: `directory` and `smoke` for npm and Composer,
+ * `smoke`, `lock` and `polyspec` for the wheels.
+ */
+export type ConsumerSection = {
+  directory?: string;
+  smoke: Record<string, unknown>;
+  lock?: Record<string, unknown>;
+  polyspec?: Record<string, unknown>;
+};
+
+/** The sections of config/release.json that consumerConfigProblems reads, in the shape that release.schema.json declares. */
+export type ConsumerConfig = {
+  packages: ReleasePackage[];
+  manifests: Record<string, unknown>;
+  consumers?: { npm?: ConsumerSection; composer?: ConsumerSection; wheel?: ConsumerSection };
+  proof?: { gitTag: Record<string, unknown> };
+};
+
+const command = (value: unknown): boolean => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string' && item !== '');
 
 const REPOSITORY = /^https:\/\/github\.com\/polyspec\/[A-Za-z0-9._-]+$/;
 const LOCK_FILE = /(?:^|\/)pylock(?:\.[A-Za-z0-9._-]+)?\.toml$/;
 
 /** The problems of the lock and polyspec maps of the wheel consumer: one lock for each wheel package, one repository for each polyspec distribution. */
-function wheelProblems(consumer, names, problems) {
+function wheelProblems(consumer: ConsumerSection, names: string[], problems: string[]): void {
   if (typeof consumer.lock !== 'object' || consumer.lock === null || Array.isArray(consumer.lock)) {
     problems.push('consumers.wheel.lock needs one entry per wheel package, an object from a package name to its lock file');
   } else {
@@ -49,7 +71,7 @@ function wheelProblems(consumer, names, problems) {
 }
 
 /** The problems of the consumer smoke commands of `kind`: one command for each package of that kind. */
-function smokeProblems(kind, consumer, names, problems) {
+function smokeProblems(kind: string, consumer: ConsumerSection, names: string[], problems: string[]): void {
   if (typeof consumer.smoke !== 'object' || consumer.smoke === null || Array.isArray(consumer.smoke) || !Object.keys(consumer.smoke).length) {
     problems.push(`consumers.${kind}.smoke needs one entry per installed package, an object from a package name to its command`);
     return;
@@ -61,10 +83,10 @@ function smokeProblems(kind, consumer, names, problems) {
 }
 
 /** The problems of `consumers` and `proof` of a configuration that passed the schema, as sentences without the file name. */
-export function consumerConfigProblems(config) {
-  const problems = [];
+export function consumerConfigProblems(config: ConsumerConfig): string[] {
+  const problems: string[] = [];
   if (config.consumers) {
-    const directories = new Set();
+    const directories = new Set<string | undefined>();
     for (const kind of [...CONSUMER_KINDS, WHEEL_KIND]) {
       const names = config.packages.filter(item => item.kind === kind).map(({ name }) => name);
       const consumer = config.consumers[kind];
@@ -89,11 +111,14 @@ export function consumerConfigProblems(config) {
         problems.push(`proof.gitTag.${file} needs an object { kind, name, smoke }`);
         continue;
       }
+      // The check above leaves an object that is neither null nor an array.
+      const fields = entry as Record<string, unknown>;
       const base = file.split('/').at(-1);
-      if (!(entry.kind in GIT_TAG_KINDS)) problems.push(`proof.gitTag.${file}.kind is ${JSON.stringify(entry.kind)}, the allowed values are ${Object.keys(GIT_TAG_KINDS).join(', ')}`);
-      else if (GIT_TAG_KINDS[entry.kind] !== base) problems.push(`proof.gitTag.${file}.kind ${entry.kind} installs a ${GIT_TAG_KINDS[entry.kind]}, not a ${base}`);
-      if (typeof entry.name !== 'string' || !entry.name) problems.push(`proof.gitTag.${file}.name needs the package name, a non-empty string`);
-      if (!command(entry.smoke)) problems.push(`proof.gitTag.${file}.smoke needs a command, a non-empty array of non-empty strings, found ${JSON.stringify(entry.smoke)}`);
+      // `in` and the index convert the kind to a property key as String does.
+      if (!(String(fields.kind) in GIT_TAG_KINDS)) problems.push(`proof.gitTag.${file}.kind is ${JSON.stringify(fields.kind)}, the allowed values are ${Object.keys(GIT_TAG_KINDS).join(', ')}`);
+      else if (GIT_TAG_KINDS[String(fields.kind)] !== base) problems.push(`proof.gitTag.${file}.kind ${fields.kind} installs a ${GIT_TAG_KINDS[String(fields.kind)]}, not a ${base}`);
+      if (typeof fields.name !== 'string' || !fields.name) problems.push(`proof.gitTag.${file}.name needs the package name, a non-empty string`);
+      if (!command(fields.smoke)) problems.push(`proof.gitTag.${file}.smoke needs a command, a non-empty array of non-empty strings, found ${JSON.stringify(fields.smoke)}`);
     }
     for (const file of gitTag) if (!(file in config.proof.gitTag)) problems.push(`proof.gitTag lacks ${file}, which manifests releases by "git-tag"`);
   }

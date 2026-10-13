@@ -9,54 +9,61 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { acquireHolderLock, holderRunning, processStart, procStart, readLockRecord, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
+import type { CommandOutcome, HolderLockRefused, Host } from '../../scripts/kit/holder-lock.mts';
+import type { RunPlace } from '../../scripts/kit/process.mts';
+
+/** A lock that a process holds. */
+type Held = ReturnType<typeof acquireHolderLock>;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TOOL = path.resolve(HERE, '../../scripts/kit/holder-lock.mts');
 
 // Runs the cleanups of a test in reverse order of registration: a holder ends before its directory is removed.
-const cleanups = new WeakMap();
-function onEnd(t, cleanup) {
+const cleanups = new WeakMap<TestContext, (() => unknown)[]>();
+function onEnd(t: TestContext, cleanup: () => unknown): void {
   if (!cleanups.has(t)) {
     cleanups.set(t, []);
     t.after(async () => {
-      for (const item of cleanups.get(t).reverse()) await item();
+      // The list is set above.
+      for (const item of cleanups.get(t)!.reverse()) await item();
     });
   }
-  cleanups.get(t).push(cleanup);
+  cleanups.get(t)!.push(cleanup); // The list is set above.
 }
 
-function workspace(t) {
+function workspace(t: TestContext): string {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-holder-lock-'));
   onEnd(t, () => rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
 
 // Starts a process that holds the lock until its standard input closes; resolves once it holds the lock.
-function holdLock(t, lock, options = {}) {
+function holdLock(t: TestContext, lock: string, options: Record<string, unknown> = {}) {
   const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); acquireHolderLock(${JSON.stringify(lock)}, ${JSON.stringify({ checkout: '/work/checkout', command: 'holder', ...options })}); process.stdout.write('held\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0));`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'inherit'] });
-  const ended = new Promise(resolve => child.once('exit', (status, signal) => resolve({ status, signal })));
+  const ended = new Promise<{ status: number | null; signal: NodeJS.Signals | null }>(resolve => child.once('exit', (status, signal) => resolve({ status, signal })));
   onEnd(t, async () => {
     if (child.exitCode === null && child.signalCode === null) child.stdin.end();
     await ended;
   });
-  return new Promise((resolve, reject) => {
+  return new Promise<{ child: typeof child; ended: typeof ended }>((resolve, reject) => {
     child.stdout.once('data', () => resolve({ child, ended }));
     child.once('exit', status => reject(new Error(`the holder exited with ${status}`)));
   });
 }
 
 // Writes the record of a process that has ended.
-function endedLock(lock) {
+function endedLock(lock: string): number {
   const finished = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
   const pid = Number(finished.stdout);
   writeFileSync(lock, `${JSON.stringify({ checkout: '/work/old', pid, processStart: 'Mon Oct  5 00:00:00 2026', acquired: '2026-10-05T00:00:00.000Z', command: 'old', token: 'ended' })}\n`);
   return pid;
 }
 
-const tool = (...args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
+const tool = (...args: string[]) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8' });
 
 const STAT = '1234 (a b) c) S 1 1234 1234 0 -1 4194560 1 0 0 0 0 0 0 0 20 0 1 0 987654 1000 1 18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0 0';
 const BOOT_ID = '6f1c2a54-08a9-4f3e-9a63-2c1e5b7d9f10';
@@ -64,29 +71,33 @@ const BOOT_ID = '6f1c2a54-08a9-4f3e-9a63-2c1e5b7d9f10';
 // A host of another platform for processStart: `files` are the texts that readFile returns (an Error is thrown), `kills` the
 // codes that the kill(pid, 0) calls throw in turn (undefined: the process exists), `commands` the outcome of each command.
 // `calls` records every call.
-function fakeHost(platform, { files = {}, kills = [], commands = {} } = {}) {
-  const calls = [];
+function fakeHost(platform: NodeJS.Platform, { files = {}, kills = [], commands = {} }: {
+  files?: Record<string, string | Error>;
+  kills?: (string | undefined)[];
+  commands?: Record<string, CommandOutcome>;
+} = {}): Host & { calls: (string | number | undefined)[][] } {
+  const calls: (string | number | undefined)[][] = [];
   const pending = [...kills];
-  const fail = (message, code) => Object.assign(new Error(message), { code });
+  const fail = (message: string, code: string) => Object.assign(new Error(message), { code });
   return {
     calls,
     platform,
-    kill(pid) {
+    kill(pid: number) {
       calls.push(['kill', pid]);
       const code = pending.shift();
       if (code) throw fail(`kill ${pid}: ${code}`, code);
     },
-    readFile(file) {
+    readFile(file: string) {
       calls.push(['readFile', file]);
       const value = files[file];
       if (value instanceof Error) throw value;
       if (value === undefined) throw fail(`${file}: ENOENT`, 'ENOENT');
       return value;
     },
-    execute(command, args, options) {
+    execute(command: string, args: readonly string[], options?: RunPlace) {
       calls.push(['execute', command, ...args, options?.env?.LC_ALL]);
       if (!(command in commands)) throw new Error(`${command} was run`);
-      return commands[command];
+      return commands[command]!; // The check above found the command.
     },
   };
 }
@@ -125,10 +136,12 @@ test('on Linux an unreadable /proc/<pid>/stat (hidepid) asks kill(pid, 0) again:
 test('on Windows the start time is the creation time from PowerShell and ps is never run', () => {
   const host = fakeHost('win32', { commands: { 'powershell.exe': { status: 0, stdout: '134044416000000000\r\n', stderr: '' } } });
   assert.equal(processStart(42, host), '134044416000000000 (the Windows FILETIME of the creation)');
-  const [, [, command, ...args]] = host.calls;
+  // The second call is the execute of PowerShell, after the kill.
+  const [, command, ...args] = host.calls[1]!;
   assert.equal(command, 'powershell.exe');
   assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
-  assert.match(args[3], /Get-Process -Id 42 .*\.StartTime.*\.ToFileTimeUtc\(\)/);
+  // The fourth argument is the script, a text.
+  assert.match(args[3] as string, /Get-Process -Id 42 .*\.StartTime.*\.ToFileTimeUtc\(\)/);
   assert.equal(processStart(42, fakeHost('win32', { commands: { 'powershell.exe': { status: 3, stdout: '', stderr: '' } } })), null, 'a process that ended before the query');
   const denied = fakeHost('win32', { commands: { 'powershell.exe': { status: 4, stdout: '', stderr: '' } } });
   assert.equal(holderRunning({ pid: 42, processStart: 'x' }, denied), true, 'a creation time that cannot be read is a running holder');
@@ -147,7 +160,8 @@ test('on macOS the start time is the lstart of ps in the C locale', () => {
 });
 
 test('the start time of a running process is known and the start time of an ended process is null', () => {
-  assert.match(processStart(process.pid), /\S/);
+  // The process of this test runs and its start time is readable; assert.match fails for any other value.
+  assert.match(processStart(process.pid) as string, /\S/);
   assert.equal(processStart(process.pid), processStart(process.pid));
   const finished = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
   assert.equal(processStart(Number(finished.stdout)), null);
@@ -160,11 +174,12 @@ test('a lock names its holder, a second holder is refused with it, and the holde
   assert.equal(record.pid, child.pid);
   assert.equal(record.checkout, '/work/checkout');
   assert.equal(record.command, 'holder');
-  assert.equal(record.processStart, processStart(child.pid));
+  // The holder has started, so it has a process ID.
+  assert.equal(record.processStart, processStart(child.pid!));
   assert.match(record.token, /^[0-9a-f]{32}$/);
   assert.deepEqual(readdirSync(path.dirname(lock)), ['resource.lock'], 'a file of the write stayed beside the lock');
 
-  assert.throws(() => acquireHolderLock(lock), (error) => {
+  assert.throws(() => acquireHolderLock(lock), (error: HolderLockRefused) => {
     assert.equal(error.name, 'HolderLockRefused');
     assert.match(error.message, new RegExp(`resource\\.lock is held by process ${child.pid} \\(started .*\\) of the checkout /work/checkout, held since .* for "holder"; the holder releases it`));
     assert.equal(error.record.pid, child.pid);
@@ -212,7 +227,7 @@ test('two clears at once leave one holder: the later clear refuses the lock that
   const directory = workspace(t);
   const lock = path.join(directory, 'resource.lock');
   endedLock(lock);
-  const holders = [];
+  const holders: Held[] = [];
   onEnd(t, () => {
     for (const holder of holders) {
       try {
@@ -222,7 +237,7 @@ test('two clears at once leave one holder: the later clear refuses the lock that
       }
     }
   });
-  let refused;
+  let refused: HolderLockRefused | undefined;
   assert.throws(() => removeDeadLock(lock, {
     // The other clear removes the ended holder's lock and a holder X takes it after this clear checked the record.
     afterCheck: () => {
@@ -234,17 +249,19 @@ test('two clears at once leave one holder: the later clear refuses the lock that
       try {
         holders.push(acquireHolderLock(lock, { command: 'Y' }));
       } catch (error) {
-        refused = error;
+        // acquireHolderLock refuses a held lock with a HolderLockRefused.
+        refused = error as HolderLockRefused;
       }
     },
-  }), (error) => {
+  }), (error: HolderLockRefused) => {
     assert.equal(error.name, 'HolderLockRefused');
     assert.match(error.message, /for "X"; the holder releases it/);
     return true;
   });
   assert.deepEqual(holders.map(holder => holder.record.command), ['X'], 'two holders hold the lock');
   assert.match(refused?.message ?? '', /for "X"; the holder releases it/);
-  assert.equal(readLockRecord(lock).token, holders[0].record.token);
+  // The check above found one holder.
+  assert.equal(readLockRecord(lock).token, holders[0]!.record.token);
   assert.deepEqual(readdirSync(directory), ['resource.lock'], 'a claim stayed beside the lock');
 });
 
@@ -253,7 +270,7 @@ test('clear claims the lock by a hard link named by the hash of the record and r
   const lock = path.join(directory, 'resource.lock');
   endedLock(lock);
   const claim = `${lock}.${createHash('sha256').update(readFileSync(lock)).digest('hex').slice(0, 32)}.clearing`;
-  let seen;
+  let seen: string[] | undefined;
   removeDeadLock(lock, { afterClaim: () => { seen = readdirSync(directory).sort(); } });
   assert.deepEqual(seen, [path.basename(lock), path.basename(claim)]);
   assert.deepEqual(readdirSync(directory), []);
@@ -346,10 +363,10 @@ test('run is refused while another holder has the lock and runs nothing', { time
 // Starts `count` racers that take the lock at once and returns the result of each: 'won' for the one that holds the lock,
 // the error name for the others. A winner holds the lock until its standard input closes, and the parent closes it only
 // after every racer has reported, so no racer starts after the hold has ended.
-function race(lock, count) {
+function race(lock: string, count: number) {
   const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); try { acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'racer' }); process.stdout.write('won\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0)); } catch (error) { process.stdout.write(error.name + '\\n'); }`;
   const racers = Array.from({ length: count }, () => spawn(process.execPath, ['--input-type=module', '-e', code], { stdio: ['pipe', 'pipe', 'inherit'] }));
-  const reports = racers.map(child => new Promise((resolve) => {
+  const reports = racers.map(child => new Promise<string>((resolve) => {
     let output = '';
     // A racer reports one line and then waits, so the report resolves on the line, not on the close of the racer.
     child.stdout.on('data', (data) => { output += data; if (output.endsWith('\n')) resolve(output.trim()); });
@@ -363,7 +380,8 @@ test('only one of several processes that take the lock at once holds it', { time
   const { racers, reports, exits } = race(lock, 6);
   // The winner is the racer whose report is 'won'; its input closes once all six reports are in, which is the event that ends its hold.
   const results = await Promise.all(reports);
-  for (const [index, result] of results.entries()) if (result === 'won') racers[index].stdin.end();
+  // Each report has the index of its racer.
+  for (const [index, result] of results.entries()) if (result === 'won') racers[index]!.stdin.end();
   await Promise.all(exits);
   assert.equal(results.filter(result => result === 'won').length, 1, results.join(', '));
   assert.deepEqual(results.filter(result => result !== 'won'), Array(5).fill('HolderLockRefused'));
@@ -374,7 +392,7 @@ test('a clear that checked an ended holder cannot remove the lock that a new hol
   const directory = workspace(t);
   const lock = path.join(directory, 'resource.lock');
   endedLock(lock);
-  let holder;
+  let holder: Held | undefined;
   onEnd(t, () => holder?.release());
   assert.throws(() => removeDeadLock(lock, {
     // The other clear removes the ended holder's record, and a holder X takes the lock after this clear checked the record.
@@ -382,12 +400,13 @@ test('a clear that checked an ended holder cannot remove the lock that a new hol
       removeDeadLock(lock);
       holder = acquireHolderLock(lock, { command: 'X' });
     },
-  }), (error) => {
+  }), (error: HolderLockRefused) => {
     assert.equal(error.name, 'HolderLockRefused');
     assert.match(error.message, /for "X"; the holder releases it/);
     return true;
   });
-  assert.equal(readLockRecord(lock).token, holder.record.token, 'the live holder keeps its lock');
+  // afterCheck took the lock as holder X.
+  assert.equal(readLockRecord(lock).token, holder!.record.token, 'the live holder keeps its lock');
   assert.deepEqual(readdirSync(directory), ['resource.lock'], 'no claim stays beside the lock');
 });
 
@@ -395,19 +414,21 @@ test('a clear that holds the claim of an ended holder refuses a second clear and
   const directory = workspace(t);
   const lock = path.join(directory, 'resource.lock');
   endedLock(lock);
-  let refusedHolder;
-  let refusedClear;
+  let refusedHolder: Error | undefined;
+  let refusedClear: Error | undefined;
   const removed = removeDeadLock(lock, {
     afterClaim: () => {
       try {
         acquireHolderLock(lock, { command: 'X' });
       } catch (error) {
-        refusedHolder = error;
+        // acquireHolderLock throws an Error.
+        refusedHolder = error as Error;
       }
       try {
         removeDeadLock(lock);
       } catch (error) {
-        refusedClear = error;
+        // removeDeadLock throws an Error.
+        refusedClear = error as Error;
       }
     },
   });

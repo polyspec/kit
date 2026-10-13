@@ -21,105 +21,164 @@ import path from 'node:path';
 
 const EXACT = /^\d+\.\d+\.\d+$/;
 const MINOR = /^\d+\.\d+$/;
-const read = (root, file) => readFileSync(path.join(root, file), 'utf8');
+const read = (root: string, file: string): string => readFileSync(path.join(root, file), 'utf8');
 
-function exact(file, what, value) {
-  if (!EXACT.test(value ?? '')) throw new Error(`${file} must record ${what} as <major>.<minor>.<patch>; it records ${JSON.stringify(value)}`);
-  return value;
+/** A toolchain release and the file that declares it. */
+export type Declared = { version: string; source: string };
+
+/** A release with the sha256 of its file for each platform key. */
+export type PlatformRelease = { version: string; sha256: Record<string, unknown>; source: string };
+
+/** The declared toolchains of a checkout; an undeclared tool is absent. */
+export type DeclaredToolchain = {
+  node?: Declared;
+  npm?: Declared & { sha512: string | undefined };
+  go?: Declared;
+  rust?: Declared;
+  php?: { minors: string[]; source: string };
+  python?: { minor: string; source: string };
+  uv?: PlatformRelease;
+  pythonBuild?: Declared;
+  pythonBackend?: { requirement: string; sha256: string; source: string };
+  composer?: Declared & { sha256: unknown };
+  ruff?: PlatformRelease;
+  phpunit?: Declared & { manifest: string };
+  cargoAudit?: Declared;
+  govulncheck?: Declared;
+};
+
+/**
+ * The key `key` of a JSON value as JavaScript reads it: undefined when the value lacks it, a TypeError for null. The
+ * configuration is not checked against its schema here, so each value stays unknown until a check below reads it.
+ */
+// The cast only lets TypeScript read the key; the read itself is the same as before.
+const field = (value: unknown, key: string): unknown => (value as Record<string, unknown>)[key];
+
+// A version that passed EXACT or MINOR. The pattern tests the text of the value, so a JSON number such as 3.14 or a list of
+// one matching text also passes and is returned as it is (a possible defect reported with K71-1).
+const checked = (value: unknown): string => value as string;
+
+function exact(file: string, what: string, value: unknown): string {
+  // RegExp.test reads its argument as text, as String does.
+  if (!EXACT.test(String(value ?? ''))) throw new Error(`${file} must record ${what} as <major>.<minor>.<patch>; it records ${JSON.stringify(value)}`);
+  return checked(value);
 }
 
-function minor(file, what, value) {
-  if (!MINOR.test(value ?? '')) throw new Error(`${file} must record ${what} as <major>.<minor>; it records ${JSON.stringify(value)}`);
-  return value;
+function minor(file: string, what: string, value: unknown): string {
+  // RegExp.test reads its argument as text, as String does.
+  if (!MINOR.test(String(value ?? ''))) throw new Error(`${file} must record ${what} as <major>.<minor>; it records ${JSON.stringify(value)}`);
+  return checked(value);
 }
 
-/** The parsed config/toolchain.json of `root`, or an empty object when the repository has none. */
-export function toolchainConfig(root) {
+/**
+ * The parsed config/toolchain.json of `root`, or an empty object when the repository has none. It is not checked against
+ * its schema here, so each value stays unknown until a check reads it; a JSON value that is not an object reads as one
+ * without the key, and null fails at the first read with a TypeError, as JavaScript reads them.
+ */
+export function toolchainConfig(root: string): Record<string, unknown> {
   return existsSync(path.join(root, 'config/toolchain.json')) ? JSON.parse(read(root, 'config/toolchain.json')) : {};
 }
 
-function goVersion(root, go) {
-  const mod = read(root, go.mod);
+// The file that a declaration of config/toolchain.json names; path.join failed with a TypeError for a value that is not text.
+function named(what: string, value: unknown): string {
+  if (typeof value !== 'string') throw new Error(`config/toolchain.json ${what} must name a file; it records ${JSON.stringify(value)}`);
+  return value;
+}
+
+function goVersion(root: string, go: unknown): Declared {
+  const goMod = named('go.mod', field(go, 'mod'));
+  const mod = read(root, goMod);
   const directive = /^go (\d+\.\d+(?:\.\d+)?)$/m.exec(mod)?.[1];
   const toolchain = /^toolchain go(\d+\.\d+\.\d+)$/m.exec(mod)?.[1];
-  if (go.versionFile) {
-    const version = exact(go.versionFile, 'the Go release', read(root, go.versionFile).trim());
+  if (field(go, 'versionFile')) {
+    const versionFile = named('go.versionFile', field(go, 'versionFile'));
+    const version = exact(versionFile, 'the Go release', read(root, versionFile).trim());
     // The go directive of the module is the minimum language version: it is the minor release or the release itself.
     if (directive && directive !== version && directive !== version.split('.').slice(0, 2).join('.')) {
-      throw new Error(`${go.mod} declares go ${directive}, but ${go.versionFile} declares ${version}; write go ${version.split('.').slice(0, 2).join('.')} in ${go.mod}`);
+      throw new Error(`${goMod} declares go ${directive}, but ${versionFile} declares ${version}; write go ${version.split('.').slice(0, 2).join('.')} in ${goMod}`);
     }
-    return { version, source: go.versionFile };
+    return { version, source: versionFile };
   }
-  if (toolchain) return { version: toolchain, source: `${go.mod} toolchain` };
-  if (!directive || !EXACT.test(directive)) throw new Error(`${go.mod} has no toolchain line or go directive <major>.<minor>.<patch>; it has ${JSON.stringify(directive)}`);
-  return { version: directive, source: `${go.mod} go directive` };
+  if (toolchain) return { version: toolchain, source: `${goMod} toolchain` };
+  if (!directive || !EXACT.test(directive)) throw new Error(`${goMod} has no toolchain line or go directive <major>.<minor>.<patch>; it has ${JSON.stringify(directive)}`);
+  return { version: directive, source: `${goMod} go directive` };
 }
 
 /** The exact release that config/toolchain.json of `root` records for `key`; an error names the expected form when it is missing or not exact. */
-export const recordedRelease = (root, key) => exact('config/toolchain.json', key, toolchainConfig(root)[key]);
+export const recordedRelease = (root: string, key: string): string => exact('config/toolchain.json', key, toolchainConfig(root)[key]);
 
 // The exact Python release of pythonBuild, which must be a release of the declared python minor: { version }. uv installs it,
 // so pythonBuild needs the declaration uv.
-function pythonBuild(value, minor, uv) {
+function pythonBuild(value: unknown, minor: string | undefined, uv: PlatformRelease | undefined): Declared {
   const file = 'config/toolchain.json pythonBuild';
   if (!minor) throw new Error(`${file} needs python, the minor release of the checks; declare python in config/toolchain.json or write .python-version`);
-  const version = exact(file, 'the Python release', value.version);
+  const version = exact(file, 'the Python release', field(value, 'version'));
   if (version.split('.').slice(0, 2).join('.') !== minor) throw new Error(`${file} declares ${version}, but python declares ${minor}; declare a release of ${minor}`);
   if (!uv) throw new Error(`${file} needs uv, which installs the Python; declare uv in config/toolchain.json`);
   return { version, source: file };
 }
 
 // The uv release: its exact version and the sha256 of the archive of each platform key, each read as 64 hexadecimal digits.
-function uvRelease(value) {
+function uvRelease(value: unknown): PlatformRelease {
   const file = 'config/toolchain.json uv';
-  if (!/^\d+\.\d+\.\d+$/.test(value.version ?? '')) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(value.version)}`);
-  const digests = value.sha256 ?? {};
+  // RegExp.test reads its argument as text, as String does.
+  if (!/^\d+\.\d+\.\d+$/.test(String(field(value, 'version') ?? ''))) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(field(value, 'version'))}`);
+  // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
+  const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
   if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the uv archive of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
-    if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+    // RegExp.test reads its argument as text, as String does.
+    if (!/^[0-9a-f]{64}$/.test(String(digest))) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
-  return { version: value.version, sha256: digests, source: file };
+  return { version: checked(field(value, 'version')), sha256: digests, source: file };
 }
 
 // A wheel release of the tool that install-tools installs into a virtual environment (ruff): its exact version and the
 // sha256 of the wheel of each platform key, each read as 64 hexadecimal digits.
-function wheel(key, value) {
+function wheel(key: string, value: unknown): PlatformRelease {
   const file = `config/toolchain.json ${key}`;
-  if (!/^\d+\.\d+\.\d+$/.test(value.version ?? '')) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(value.version)}`);
-  const digests = value.sha256 ?? {};
+  // RegExp.test reads its argument as text, as String does.
+  if (!/^\d+\.\d+\.\d+$/.test(String(field(value, 'version') ?? ''))) throw new Error(`${file} must record version as <major>.<minor>.<patch>; it records ${JSON.stringify(field(value, 'version'))}`);
+  // Object.keys and Object.entries read any value: a text fails the digest check on its characters and a number has no keys.
+  const digests = (field(value, 'sha256') ?? {}) as Record<string, unknown>;
   if (Object.keys(digests).length === 0) throw new Error(`${file} must record the sha256 of the ${key} wheel of each platform, for example linux-x64; it records none`);
   for (const [platform, digest] of Object.entries(digests)) {
-    if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
+    // RegExp.test reads its argument as text, as String does.
+    if (!/^[0-9a-f]{64}$/.test(String(digest))) throw new Error(`${file} must record the sha256 of ${platform} as 64 lowercase hexadecimal digits; it records ${JSON.stringify(digest)}`);
   }
-  return { version: value.version, sha256: digests, source: file };
+  return { version: checked(field(value, 'version')), sha256: digests, source: file };
 }
 
 // The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
-function phpunit(value) {
+function phpunit(value: unknown): Declared & { manifest: string } {
   const file = 'config/toolchain.json phpunit';
-  return { version: exact(file, 'the PHPUnit release', value.version), manifest: 'config/phpunit/composer.json', source: file };
+  return { version: exact(file, 'the PHPUnit release', field(value, 'version')), manifest: 'config/phpunit/composer.json', source: file };
 }
 
 // The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.
-function pythonBackend(value) {
+function pythonBackend(value: unknown): { requirement: string; sha256: string; source: string } {
   const file = 'config/toolchain.json pythonBackend';
-  if (!/^[A-Za-z0-9._-]+==\d+(\.\d+)*$/.test(value.requirement ?? '')) throw new Error(`${file} must record requirement as name==version; it records ${JSON.stringify(value.requirement)}`);
-  if (!/^[0-9a-f]{64}$/.test(value.sha256 ?? '')) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(value.sha256)}`);
-  return { requirement: value.requirement, sha256: value.sha256, source: file };
+  // RegExp.test reads its argument as text, as String does.
+  if (!/^[A-Za-z0-9._-]+==\d+(\.\d+)*$/.test(String(field(value, 'requirement') ?? ''))) throw new Error(`${file} must record requirement as name==version; it records ${JSON.stringify(field(value, 'requirement'))}`);
+  // As above.
+  if (!/^[0-9a-f]{64}$/.test(String(field(value, 'sha256') ?? ''))) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(field(value, 'sha256'))}`);
+  return { requirement: checked(field(value, 'requirement')), sha256: checked(field(value, 'sha256')), source: file };
 }
 
 /** The declared toolchains of the checkout at `root`. */
-export function declaredToolchain(root) {
+export function declaredToolchain(root: string): DeclaredToolchain {
   const config = toolchainConfig(root);
-  const declared = {};
+  const declared: DeclaredToolchain = {};
   if (existsSync(path.join(root, '.node-version'))) {
     declared.node = { version: exact('.node-version', 'the Node.js release', read(root, '.node-version').trim()), source: '.node-version' };
   }
   if (existsSync(path.join(root, 'package.json'))) {
-    const manager = JSON.parse(read(root, 'package.json')).packageManager ?? '';
-    const match = /^npm@(\d+\.\d+\.\d+)(?:\+sha512\.([0-9a-f]{128}))?$/.exec(manager);
+    const manager = field(JSON.parse(read(root, 'package.json')), 'packageManager') ?? '';
+    // RegExp.exec reads its argument as text, as String does.
+    const match = /^npm@(\d+\.\d+\.\d+)(?:\+sha512\.([0-9a-f]{128}))?$/.exec(String(manager));
     if (!match) throw new Error(`package.json packageManager is ${JSON.stringify(manager)}, expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>`);
-    declared.npm = { version: match[1], sha512: match[2], source: 'packageManager of package.json' };
+    // The first group always takes part in a match.
+    declared.npm = { version: match[1]!, sha512: match[2], source: 'packageManager of package.json' };
   }
   if (config.go) declared.go = goVersion(root, config.go);
   if (existsSync(path.join(root, 'rust-toolchain.toml'))) {
@@ -128,9 +187,12 @@ export function declaredToolchain(root) {
   }
   const phpFile = existsSync(path.join(root, '.php-version')) ? minor('.php-version', 'the PHP minor release', read(root, '.php-version').trim()) : undefined;
   if (config.php) {
-    for (const value of config.php) minor('config/toolchain.json', 'php as a list of minor releases', value);
-    if (phpFile && !config.php.includes(phpFile)) throw new Error(`.php-version declares ${phpFile}, but config/toolchain.json php lists ${config.php.join(', ')}; list ${phpFile} or change .php-version`);
-    declared.php = { minors: config.php, source: 'config/toolchain.json php' };
+    // The loop fails for a value that is not a list: with a TypeError when it is not iterable, with the minor check on the
+    // first character of a text. Each item that passes is a minor release, with the caveat of checked.
+    const php = config.php as string[];
+    for (const value of php) minor('config/toolchain.json', 'php as a list of minor releases', value);
+    if (phpFile && !php.includes(phpFile)) throw new Error(`.php-version declares ${phpFile}, but config/toolchain.json php lists ${php.join(', ')}; list ${phpFile} or change .php-version`);
+    declared.php = { minors: php, source: 'config/toolchain.json php' };
   } else if (phpFile) {
     declared.php = { minors: [phpFile], source: '.php-version' };
   }
@@ -138,7 +200,7 @@ export function declaredToolchain(root) {
   if (config.python) {
     minor('config/toolchain.json', 'python', config.python);
     if (pythonFile && pythonFile !== config.python) throw new Error(`.python-version declares ${pythonFile}, but config/toolchain.json python declares ${config.python}; declare one minor release`);
-    declared.python = { minor: config.python, source: 'config/toolchain.json python' };
+    declared.python = { minor: checked(config.python), source: 'config/toolchain.json python' };
   } else if (pythonFile) {
     declared.python = { minor: pythonFile, source: '.python-version' };
   }
@@ -150,11 +212,11 @@ export function declaredToolchain(root) {
     declared.pythonBackend = pythonBackend(config.pythonBackend);
   }
   if (config.composer) {
-    declared.composer = { version: exact('config/toolchain.json', 'composer', config.composer.version), sha256: config.composer.sha256, source: 'config/toolchain.json composer' };
+    declared.composer = { version: exact('config/toolchain.json', 'composer', field(config.composer, 'version')), sha256: field(config.composer, 'sha256'), source: 'config/toolchain.json composer' };
   }
   if (config.ruff) declared.ruff = wheel('ruff', config.ruff);
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
-  for (const key of ['cargoAudit', 'govulncheck']) {
+  for (const key of ['cargoAudit', 'govulncheck'] as const) {
     if (config[key]) declared[key] = { version: recordedRelease(root, key), source: `config/toolchain.json ${key}` };
   }
   return declared;

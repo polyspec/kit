@@ -7,22 +7,26 @@
 // written as an `::error::` annotation.
 import { isMain } from './paths.mts';
 
+/** The judgement of the needed jobs: the exit status, the lines to print and the failures. */
+export type Judgement = { status: number; lines: string[]; errors: string[] };
+
 /** Judges `text`, the JSON of `needs`: `{ status, lines }`, where `lines` are the lines to print and `errors` the failures. */
-export function passed(text) {
-  const refuse = message => ({ status: 2, lines: [`[ci-passed] failed: ${message}`], errors: [message] });
+export function passed(text: string | undefined): Judgement {
+  const refuse = (message: string): Judgement => ({ status: 2, lines: [`[ci-passed] failed: ${message}`], errors: [message] });
   if (text === undefined || text === '') return refuse('RESULTS is not set; the step passes the JSON of needs: make ci-passed RESULTS=<json>');
-  let needs;
+  let needs: unknown;
   try {
     needs = JSON.parse(text);
   } catch (error) {
-    return refuse(`RESULTS is not JSON: ${error.message}: ${JSON.stringify(text)}`);
+    // JSON.parse throws only a SyntaxError.
+    return refuse(`RESULTS is not JSON: ${(error as SyntaxError).message}: ${JSON.stringify(text)}`);
   }
   if (needs === null || typeof needs !== 'object' || Array.isArray(needs)) return refuse(`RESULTS is not a JSON object of jobs: ${JSON.stringify(text)}`);
   if (Object.keys(needs).length === 0) return refuse(`RESULTS names no job: ${JSON.stringify(text)}; list every other job of the workflow under needs`);
-  const lines = [];
-  const errors = [];
+  const lines: string[] = [];
+  const errors: string[] = [];
   for (const [job, value] of Object.entries(needs)) {
-    const result = value !== null && typeof value === 'object' && typeof value.result === 'string' ? value.result : 'no result';
+    const result = value !== null && typeof value === 'object' && 'result' in value && typeof value.result === 'string' ? value.result : 'no result';
     lines.push(`[ci-passed] ${job}: ${result}`);
     if (result !== 'success') errors.push(`the job ${job} ended with ${result}; expected success`);
   }

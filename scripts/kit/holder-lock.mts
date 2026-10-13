@@ -23,18 +23,36 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
+import type { Outcome, RunPlace } from './process.mts';
 
 const SCRIPT = fileURLToPath(import.meta.url);
-const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
 
 /** The start time of a process that runs but whose start time this process cannot read; such a holder counts as running. */
 const START_UNREADABLE = Symbol('start time unreadable');
+
+/** The start time of a process: its text, null when no such process runs, or START_UNREADABLE. */
+export type ProcessStart = string | null | typeof START_UNREADABLE;
+
+/** What commandStart reads of the outcome of a command. */
+export type CommandOutcome = Pick<Outcome, 'status' | 'stdout' | 'stderr'> & { error?: Error | undefined };
+
+/** The system calls of processStart. */
+export type Host = {
+  platform: NodeJS.Platform;
+  kill: (pid: number) => unknown;
+  readFile: (file: string) => string;
+  execute: (command: string, args: readonly string[], place?: RunPlace) => CommandOutcome;
+};
+
+/** The record of a lock: the holder and its token. */
+export type LockRecord = { checkout: string; pid: number; processStart: string; acquired: string; command: string; token: string };
 
 /**
  * The system calls that processStart makes: the platform, kill(pid, 0), the reading of a file and the running of a command.
  * A test passes another host to follow the path of another platform.
  */
-export const HOST = { platform: process.platform, kill: pid => process.kill(pid, 0), readFile: file => readFileSync(file, 'utf8'), execute };
+export const HOST: Host = { platform: process.platform, kill: pid => process.kill(pid, 0), readFile: file => readFileSync(file, 'utf8'), execute };
 
 /**
  * The start time of a process from the text of `/proc/<pid>/stat` and the text of `/proc/sys/kernel/random/boot_id`: field
@@ -42,7 +60,7 @@ export const HOST = { platform: process.platform, kill: pid => process.kill(pid,
  * from the wall clock, so it moves when the clock is set. The command name in parentheses may hold spaces, so the fields
  * are counted after its closing parenthesis.
  */
-export function procStart(stat, bootId) {
+export function procStart(stat: string, bootId: string): string {
   const ticks = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
   const boot = bootId.trim();
   if (!/^\d+$/.test(ticks ?? '')) throw new Error(`/proc/<pid>/stat holds no start time: ${JSON.stringify(stat)}`);
@@ -51,13 +69,15 @@ export function procStart(stat, bootId) {
 }
 
 /** Whether a process has the ID: kill(pid, 0) succeeds or fails with EPERM for an existing process and with ESRCH for none. */
-function processExists(pid, host) {
+function processExists(pid: number, host: Host): boolean {
   try {
     host.kill(pid);
     return true;
   } catch (error) {
-    if (error.code === 'ESRCH') return false;
-    if (error.code === 'EPERM') return true;
+    // process.kill throws an errno error; the kill of a test host throws an object with the same code.
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code === 'ESRCH') return false;
+    if (errno.code === 'EPERM') return true;
     throw error;
   }
 }
@@ -67,13 +87,14 @@ function processExists(pid, host) {
 // GetProcessTimes, and ToFileTimeUtc gives it as a FILETIME, exact and free of the time zone. wmic is not used: it is
 // deprecated and no longer installed by default on Windows 11. The exit status 3 means no process has the ID, and 4 that
 // the creation time cannot be read (a process of another user without the right to query it).
-const windowsStartScript = pid => `$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if ($null -eq $p) { exit 3 }; try { $t = $p.StartTime; if ($null -eq $t) { exit 4 }; $t.ToFileTimeUtc() } catch { exit 4 }`;
+const windowsStartScript = (pid: number): string => `$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if ($null -eq $p) { exit 3 }; try { $t = $p.StartTime; if ($null -eq $t) { exit 4 }; $t.ToFileTimeUtc() } catch { exit 4 }`;
 
 // Runs a command that prints the start time; `statuses` maps an exit status other than 0 to its result.
-function commandStart(host, command, args, statuses, env) {
+function commandStart(host: Host, command: string, args: string[], statuses: Record<number, ProcessStart>, env?: NodeJS.ProcessEnv): ProcessStart {
   const result = host.execute(command, args, { env });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);
-  if (result.status in statuses) return statuses[result.status];
+  // `in` read a null status as the key `null`, which no map holds; the value exists for a status that is in the map.
+  if (result.status !== null && result.status in statuses) return statuses[result.status]!;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}: ${result.stderr.trim()}`);
   return result.stdout.trim() || null;
 }
@@ -90,14 +111,15 @@ function commandStart(host, command, args, statuses, env) {
  *   through sysctl `kern.proc.pid.<pid>` or `proc_pidinfo`, which need a native addon, and macOS has no `/proc`; `ps` is
  *   part of the base system.
  */
-export function processStart(pid, host = HOST) {
+export function processStart(pid: number, host: Host = HOST): ProcessStart {
   if (!processExists(pid, host)) return null;
   if (host.platform === 'linux') {
-    let stat;
+    let stat: string;
     try {
       stat = host.readFile(`/proc/${pid}/stat`);
     } catch (error) {
-      if (!['ENOENT', 'EACCES', 'EPERM', 'ESRCH'].includes(error.code)) throw error;
+      // The read throws an errno error; the list is widened so that it takes an absent code.
+      if (!(['ENOENT', 'EACCES', 'EPERM', 'ESRCH'] as (string | undefined)[]).includes((error as NodeJS.ErrnoException).code)) throw error;
       return processExists(pid, host) ? START_UNREADABLE : null;
     }
     return procStart(stat, host.readFile('/proc/sys/kernel/random/boot_id'));
@@ -111,17 +133,19 @@ export function processStart(pid, host = HOST) {
 }
 
 /** Whether the process that wrote the record still runs; a reused process ID has another start time. */
-export function holderRunning(record, host = HOST) {
+export function holderRunning(record: Pick<LockRecord, 'pid' | 'processStart'>, host: Host = HOST): boolean {
   const start = processStart(record.pid, host);
   return start === START_UNREADABLE || start === record.processStart;
 }
 
 /** Describes a holder by its process, its checkout and the time it took the lock. */
-export const describeHolder = record => `process ${record.pid} (started ${record.processStart}) of the checkout ${record.checkout}, held since ${record.acquired} for ${JSON.stringify(record.command)}`;
+export const describeHolder = (record: LockRecord): string => `process ${record.pid} (started ${record.processStart}) of the checkout ${record.checkout}, held since ${record.acquired} for ${JSON.stringify(record.command)}`;
 
 /** The error of a lock that another holder has; `record` is the record of that holder. */
 export class HolderLockRefused extends Error {
-  constructor(message, record) {
+  declare record: LockRecord;
+
+  constructor(message: string, record: LockRecord) {
     super(message);
     this.name = 'HolderLockRefused';
     this.record = record;
@@ -129,22 +153,24 @@ export class HolderLockRefused extends Error {
 }
 
 /** The record of a lock file; a file that holds no record is an error and never a free lock. */
-export const readLockRecord = lock => parseLockRecord(lock, readFileSync(lock, 'utf8'));
+export const readLockRecord = (lock: string): LockRecord => parseLockRecord(lock, readFileSync(lock, 'utf8'));
 
-function parseLockRecord(lock, text) {
-  let record;
+function parseLockRecord(lock: string, text: string): LockRecord {
+  let record: unknown;
   try {
     record = JSON.parse(text);
   } catch {
     throw new Error(`${lock} holds no lock record: ${JSON.stringify(text)}`);
   }
-  for (const [field, type] of [['checkout', 'string'], ['pid', 'number'], ['processStart', 'string'], ['acquired', 'string'], ['command', 'string'], ['token', 'string']]) {
-    if (typeof record?.[field] !== type) throw new Error(`${lock} has no ${field} of type ${type}: ${text.trim()}`);
+  for (const [field, type] of [['checkout', 'string'], ['pid', 'number'], ['processStart', 'string'], ['acquired', 'string'], ['command', 'string'], ['token', 'string']] as const) {
+    // A value that is not an object has none of the fields; null and undefined end at `?.` as before.
+    if (typeof (record as Record<string, unknown> | null | undefined)?.[field] !== type) throw new Error(`${lock} has no ${field} of type ${type}: ${text.trim()}`);
   }
-  return record;
+  // Validated by the loop above: each field of LockRecord has its type.
+  return record as LockRecord;
 }
 
-function refusal(lock, record) {
+function refusal(lock: string, record: LockRecord): HolderLockRefused {
   if (holderRunning(record)) return new HolderLockRefused(`${lock} is held by ${describeHolder(record)}; the holder releases it when its run ends`, record);
   return new HolderLockRefused(`${lock} is held by ${describeHolder(record)}, which has ended; remove the lock with \`node ${path.relative(process.cwd(), SCRIPT)} clear ${lock}\` after checking the resource`, record);
 }
@@ -155,25 +181,30 @@ function refusal(lock, record) {
  * runs. With `releaseOnSignals` (the default) the lock is also released when this process receives SIGINT, SIGTERM or
  * SIGHUP, which end the process with the status 128 + n; the lock is always released when the process exits.
  */
-export function acquireHolderLock(lock, { checkout = process.cwd(), command = process.argv.slice(1).join(' '), releaseOnSignals = true } = {}) {
+export function acquireHolderLock(lock: string, { checkout = process.cwd(), command = process.argv.slice(1).join(' '), releaseOnSignals = true }: {
+  checkout?: string | undefined;
+  command?: string | undefined;
+  releaseOnSignals?: boolean | undefined;
+} = {}): { lock: string; record: LockRecord; release: () => void } {
   if (!path.isAbsolute(lock)) throw new Error(`the lock file ${lock} must be an absolute path`);
   mkdirSync(path.dirname(lock), { recursive: true });
   const start = processStart(process.pid);
   if (typeof start !== 'string') throw new Error(`the start time of process ${process.pid} is unknown`);
-  const record = { checkout: path.resolve(checkout), pid: process.pid, processStart: start, acquired: new Date().toISOString(), command, token: randomBytes(16).toString('hex') };
+  const record: LockRecord = { checkout: path.resolve(checkout), pid: process.pid, processStart: start, acquired: new Date().toISOString(), command, token: randomBytes(16).toString('hex') };
   const pending = `${lock}.${process.pid}.${record.token}`;
   writeFileSync(pending, `${JSON.stringify(record)}\n`, { flag: 'wx' });
   try {
     linkSync(pending, lock);
   } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
+    // linkSync throws an errno error.
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     throw refusal(lock, readLockRecord(lock));
   } finally {
     unlinkSync(pending);
   }
   let held = true;
-  const handlers = new Map();
-  const release = () => {
+  const handlers = new Map<NodeJS.Signals, () => void>();
+  const release = (): void => {
     if (!held) return;
     held = false;
     // A released lock leaves no handler behind, so a process may take and release locks many times.
@@ -211,7 +242,10 @@ export function acquireHolderLock(lock, { checkout = process.cwd(), command = pr
  * still holds R, and the lock of a running holder is never moved. `afterCheck` and `afterClaim` run after steps 1 and 2; a
  * test interleaves other clears and holders there.
  */
-export function removeDeadLock(lock, { afterCheck = () => {}, afterClaim = () => {} } = {}) {
+export function removeDeadLock(lock: string, { afterCheck = () => {}, afterClaim = () => {} }: {
+  afterCheck?: (() => unknown) | undefined;
+  afterClaim?: (() => unknown) | undefined;
+} = {}): LockRecord {
   if (!path.isAbsolute(lock)) throw new Error(`the lock file ${lock} must be an absolute path`);
   const text = readFileSync(lock, 'utf8');
   const record = parseLockRecord(lock, text);
@@ -221,8 +255,10 @@ export function removeDeadLock(lock, { afterCheck = () => {}, afterClaim = () =>
   try {
     linkSync(lock, claim);
   } catch (error) {
-    if (error.code === 'EEXIST') throw new Error(`${claim} exists: another clear of this holder is running or was interrupted; remove ${claim} after checking that no clear runs`, { cause: error });
-    if (error.code === 'ENOENT') throw new Error(`${lock} was removed during the clear`, { cause: error });
+    // linkSync throws an errno error.
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code === 'EEXIST') throw new Error(`${claim} exists: another clear of this holder is running or was interrupted; remove ${claim} after checking that no clear runs`, { cause: error });
+    if (errno.code === 'ENOENT') throw new Error(`${lock} was removed during the clear`, { cause: error });
     throw error;
   }
   afterClaim();
@@ -237,17 +273,18 @@ export function removeDeadLock(lock, { afterCheck = () => {}, afterClaim = () =>
 }
 
 /** Runs a command with the streams of this process and resolves its exit status; the signals of this process go to it. */
-export async function runCommand(command, args, { cwd } = {}) {
+export async function runCommand(command: string, args: readonly string[], { cwd }: { cwd?: string | undefined } = {}): Promise<number> {
   const child = spawn(command, args, { stdio: 'inherit', cwd });
-  const forward = signal => child.kill(signal);
+  const forward = (signal: NodeJS.Signals): boolean => child.kill(signal);
   for (const signal of SIGNALS) process.on(signal, forward);
   try {
-    return await new Promise((resolve) => {
+    return await new Promise<number>((resolve) => {
       child.on('error', (error) => {
         process.stderr.write(`lock: ${command} did not start: ${error.message}\n`);
         resolve(127);
       });
-      child.on('exit', (code, signal) => resolve(code ?? 128 + constants.signals[signal]));
+      // Node.js passes a signal whenever the exit code is null.
+      child.on('exit', (code, signal) => resolve(code ?? 128 + constants.signals[signal!]));
     });
   } finally {
     for (const signal of SIGNALS) process.off(signal, forward);
@@ -255,7 +292,7 @@ export async function runCommand(command, args, { cwd } = {}) {
 }
 
 /** Runs a command while holding the lock and resolves the exit status of the command. */
-export async function holdWhileRunning(lock, command, args, { checkout, cwd } = {}) {
+export async function holdWhileRunning(lock: string, command: string, args: readonly string[], { checkout, cwd }: { checkout?: string | undefined; cwd?: string | undefined } = {}): Promise<number> {
   const held = acquireHolderLock(lock, { checkout, command: [command, ...args].join(' '), releaseOnSignals: false });
   process.stderr.write(`lock: acquired ${lock} (process ${process.pid})\n`);
   try {
@@ -266,7 +303,7 @@ export async function holdWhileRunning(lock, command, args, { checkout, cwd } = 
   }
 }
 
-async function main(argv) {
+async function main(argv: string[]): Promise<number> {
   const [operation, lock, separator, command, ...args] = argv;
   if (operation === 'run' && lock && separator === '--' && command) {
     return holdWhileRunning(path.resolve(lock), command, args, { checkout: ROOT });
@@ -283,7 +320,8 @@ if (isMain(import.meta.url)) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
-    process.stderr.write(`lock: ${error.message}\n`);
+    // main and the functions it calls throw only an Error.
+    process.stderr.write(`lock: ${(error as Error).message}\n`);
     process.exitCode = 1;
   }
 }

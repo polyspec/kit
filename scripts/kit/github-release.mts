@@ -4,9 +4,16 @@
 import { closeSync, openSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { run, Stop } from './process.mts';
+import type { RunPlace } from './process.mts';
+
+/** An asset of a release as the --jq filter of releaseOf lists it; `digest` is null where GitHub has none. */
+export type ReleaseAsset = { id: number; name: string; url: string; digest: string | null };
+
+/** A release as the --jq filter of releaseOf lists it. */
+export type GitHubRelease = { id: number; tag_name: string; draft: boolean; assets: ReleaseAsset[] };
 
 /** `{ hostname, repo }` of a repository URL: the host of `gh api --hostname` and the OWNER/REPO of `repos/`. */
-export function repositoryParts(url) {
+export function repositoryParts(url: string): { hostname: string; repo: string } {
   const { host, pathname } = new URL(url);
   const repo = pathname.replace(/^\/+|\/+$/g, '').replace(/\.git$/, '');
   if (!repo) throw new Stop(`${url} names no OWNER/REPO`);
@@ -14,15 +21,16 @@ export function repositoryParts(url) {
 }
 
 /** The release of `tag` in the repository, drafts included, as `{ id, tag_name, draft, assets: [{ id, name, url, digest }] }`, or null. `url` is the download URL of an asset and `digest` its `sha256:<hex>`, as GitHub lists them. */
-export function releaseOf(options, url, tag) {
+export function releaseOf(options: RunPlace, url: string, tag: string): GitHubRelease | null {
   const { hostname, repo } = repositoryParts(url);
   const listed = run('gh', ['api', '--hostname', hostname, '--paginate', `repos/${repo}/releases`, '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]} | @json'], options);
-  const releases = listed.split('\n').filter(line => line.trim() !== '').map(line => JSON.parse(line));
+  // Each line is an object that the --jq filter above builds with these keys.
+  const releases: GitHubRelease[] = listed.split('\n').filter(line => line.trim() !== '').map(line => JSON.parse(line));
   return releases.find(release => release.tag_name === tag) ?? null;
 }
 
 /** Writes the binary of asset `id` of the repository to `file`, read through the API with the octet-stream media type. */
-export function downloadAsset(options, url, id, file) {
+export function downloadAsset(options: RunPlace, url: string, id: number, file: string): void {
   const { hostname, repo } = repositoryParts(url);
   const args = ['api', '--hostname', hostname, '-H', 'Accept: application/octet-stream', `repos/${repo}/releases/assets/${id}`];
   const fd = openSync(file, 'w');

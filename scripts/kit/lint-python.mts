@@ -14,7 +14,7 @@ import { execute } from './process.mts';
 import { toolchainConfig } from './toolchain-declared.mts';
 
 /** The steps of the lint of `root`: `{ label, command, args }`; throws when the checkout declares no ruff or has none installed. */
-export function lintSteps(root) {
+export function lintSteps(root: string): { label: string; command: string; args: string[] }[] {
   if (!toolchainConfig(root).ruff) throw new Error('config/toolchain.json declares no ruff; declare ruff with its version and the sha256 of its wheels');
   const ruff = path.join(root, 'var/tools/bin/ruff');
   if (!existsSync(ruff)) throw new Error(`${path.relative(root, ruff)} is missing; run make install-tools`);
@@ -25,8 +25,8 @@ export function lintSteps(root) {
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */
-export function lint(root, print = text => process.stdout.write(text)) {
-  const failed = [];
+export function lint(root: string, print: (text: string) => unknown = text => process.stdout.write(text)): string[] {
+  const failed: string[] = [];
   for (const step of lintSteps(root)) {
     const result = execute(step.command, step.args, { cwd: root });
     print(`${result.stdout}${result.stderr}`);
@@ -48,7 +48,8 @@ if (isMain(import.meta.url)) {
       process.exitCode = 1;
     }
   } catch (error) {
-    console.error(`[lint-python] ${error.message}`);
+    // lint and the modules it calls throw only an Error.
+    console.error(`[lint-python] ${(error as Error).message}`);
     process.exitCode = 1;
   }
 }
