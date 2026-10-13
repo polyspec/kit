@@ -51,28 +51,98 @@ export const ASSETS = 'var/release/assets';
 export const DEFAULT_CHECKS = ['push-gate', 'ci-passed'];
 // GitHub refuses a release body over 125000 characters.
 export const NOTES_LIMIT = 125000;
-export const MODES = ['archive', 'version', 'git-tag'];
+export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];
 // The files of a checkout that carry the version or the module of a package; coverage requires each to be classified.
 export const PACKAGE_FILES = ['package.json', 'composer.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'VERSION'];
 const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^(?:(?<directory>[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\/)?v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
-const MANIFEST_OF = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
+const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
 // The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
-const ARCHIVE_FORMAT = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
+const ARCHIVE_FORMAT: Record<Exclude<PackageKind, 'wheel'>, [string, string]> = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'];
+
+/** The kind of a package of config/release.json. */
+export type PackageKind = 'npm' | 'composer' | 'wheel';
+
+/** A package of `packages` of config/release.json. */
+export interface ReleasePackage {
+  kind: PackageKind;
+  directory: string;
+  name: string;
+}
+
+/** The consumer project of the npm or the Composer archives: its directory and the smoke command of each package. */
+export interface ConsumerProject {
+  directory: string;
+  smoke: Record<string, string[]>;
+}
+
+/** The consumer of the wheels: the smoke command and the lock file of each wheel package, the polyspec repositories. */
+export interface WheelConsumer {
+  smoke: Record<string, string[]>;
+  lock: Record<string, string>;
+  polyspec: Record<string, string>;
+}
+
+/** An entry of proof.gitTag: how the release proof installs a manifest of the mode git-tag. */
+export interface GitTagProof {
+  kind: string;
+  name: string;
+  smoke: string[];
+}
+
+/** config/release.json after loadConfig: the schema and the checks of loadConfig hold every value to its form. */
+export interface ReleaseConfig {
+  schema: 1;
+  repositoryUrl: string;
+  changelog: string;
+  changelogTranslations: string[];
+  checks: string[];
+  packages: ReleasePackage[];
+  manifests: Record<string, string>;
+  notReleased: Record<string, string>;
+  goModules: Record<string, string>;
+  buildBackend?: { requirement: string; sha256: string };
+  consumers?: { npm?: ConsumerProject; composer?: ConsumerProject; wheel?: WheelConsumer };
+  proof?: { gitTag: Record<string, GitTagProof> };
+}
+
+/** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
+type SchemaReleaseConfig = Omit<ReleaseConfig, 'changelogTranslations' | 'checks' | 'manifests' | 'notReleased' | 'goModules'> & {
+  changelogTranslations?: string[];
+  checks?: string[];
+  manifests: Record<string, unknown>;
+  notReleased: Record<string, unknown>;
+  goModules: Record<string, unknown>;
+};
+
+/** A command context of context(). A test sets `repository` in place of GITHUB_REPOSITORY. */
+export interface Context {
+  root: string;
+  config: ReleaseConfig;
+  env: NodeJS.ProcessEnv;
+  log: (text: string) => void;
+  repository?: string;
+}
+
+/** A parsed manifest: package.json or composer.json. */
+export type Manifest = Record<string, unknown>;
+
+/** Whether a thrown value carries the code ENOENT of a missing file. */
+const missingFile = (value: unknown): value is NodeJS.ErrnoException => typeof value === 'object' && value !== null && 'code' in value && value.code === 'ENOENT';
 
 /**
  * The configuration of the repository at `root`: config/release.json validated against its schema and for the rules that the
  * schema cannot express (the values of the maps, the packages against the manifests). Stop with every finding.
  */
-export function loadConfig(root) {
+export function loadConfig(root: string): ReleaseConfig {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Stop(`${CONFIG}: the file is missing; a repository that releases declares its packages in it`);
-  const { value: config, errors: problems } = readConfig(root, CONFIG, 'release.schema.json');
+  const { value: config, errors: problems }: { value: SchemaReleaseConfig; errors: string[] } = readConfig(root, CONFIG, 'release.schema.json');
   if (problems.length) throw new Stop(problems.join('; '));
-  const reason = (map, where, check) => {
+  const reason = (map: 'manifests' | 'notReleased' | 'goModules', where: string, check: (key: string, value: unknown) => string | null) => {
     for (const [key, value] of Object.entries(config[map])) {
       const found = check(key, value);
       if (found) problems.push(`${CONFIG}: ${where}.${key} ${found}`);
@@ -80,12 +150,12 @@ export function loadConfig(root) {
   };
   reason('manifests', 'manifests', (key, value) => (!MANIFEST_FILES.includes(path.posix.basename(key))
     ? `is not a ${MANIFEST_FILES.join(', ')} file`
-    : MODES.includes(value) ? null : `is ${JSON.stringify(value)}, the allowed values are ${MODES.join(', ')}`));
+    : typeof value === 'string' && MODES.includes(value) ? null : `is ${JSON.stringify(value)}, the allowed values are ${MODES.join(', ')}`));
   reason('notReleased', 'notReleased', (key, value) => (typeof value === 'string' && value.trim() ? null : 'needs a reason, a non-empty string'));
   reason('goModules', 'goModules', (key, value) => (typeof value === 'string' && value ? null : 'needs the module path of its go.mod'));
   for (const key of Object.keys(config.manifests)) if (key in config.notReleased) problems.push(`${CONFIG}: ${key} is in both manifests and notReleased`);
-  const names = new Set();
-  const directories = new Set();
+  const names = new Set<string>();
+  const directories = new Set<string>();
   for (const { kind, directory, name } of config.packages) {
     const shape = { npm: /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/, composer: /^[a-z0-9._-]+\/[a-z0-9._-]+$/, wheel: /^[a-z0-9._-]+$/ }[kind];
     const form = { npm: '`name` or `@scope/name`', composer: '`vendor/name`', wheel: 'project name of PyPI' }[kind];
@@ -107,51 +177,55 @@ export function loadConfig(root) {
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
   problems.push(...consumerConfigProblems(config).map(problem => `${CONFIG}: ${problem}`));
   if (problems.length) throw new Stop(problems.join('; '));
-  return { checks: DEFAULT_CHECKS, changelogTranslations: [], ...config };
+  // The checks above hold every value of manifests, notReleased and goModules to a string.
+  return { checks: DEFAULT_CHECKS, changelogTranslations: [], ...config } as ReleaseConfig;
 }
 
-const at = ctx => ({ cwd: ctx.root, env: ctx.env });
+const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
 
 /** A command context: the repository root, its configuration, the environment of its commands and a log function. */
-export function context(root, { config = loadConfig(root), env = process.env, log = () => {} } = {}) {
+export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {} }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void } = {}): Context {
   return { root, config, env, log };
 }
 
 /** The newest root release tag reachable from HEAD, which resolves the argument `latest` of the release
  * commands: no release task names a version in its retry, and `make release-consumer TAG=latest` verifies the
  * release that the tree carries. */
-export function latestTag(ctx) {
+export function latestTag(ctx: Context): string {
   const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
   const tags = list.trim().split('\n').filter(Boolean);
   if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
-  const numbers = (tag) => tag.slice(1).split('.').map(Number);
-  const compare = (a, b) => { const pa = numbers(a); const pb = numbers(b); return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2]; };
-  return tags.sort(compare).at(-1);
+  const numbers = (tag: string) => tag.slice(1).split('.').map(Number);
+  const compare = (a: string, b: string) => { const pa = numbers(a); const pb = numbers(b); return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2]; };
+  // tags holds at least one tag, checked above.
+  return tags.sort(compare).at(-1)!;
 }
 
 /** [Go module directory or null, version] of a release tag. */
-export function parseTag(config, tag) {
+export function parseTag(config: Pick<ReleaseConfig, 'goModules'>, tag: string): [string | null, string] {
   const found = TAG.exec(tag);
   if (!found) throw new Stop(`${tag}: a release tag is vX.Y.Z or <Go module directory>/vX.Y.Z`);
-  const directory = found.groups.directory ?? null;
+  // TAG has named groups, so a match has groups.
+  const directory = found.groups!.directory ?? null;
   if (directory !== null && (directory === '.' || !(directory in config.goModules))) {
     throw new Stop(`${tag}: ${directory} is not a Go module directory; the Go modules are [${Object.keys(config.goModules).filter(item => item !== '.').sort().join(', ')}]`);
   }
-  return [directory, found.groups.version];
+  // TAG has named groups and the group version takes part in every match.
+  return [directory, found.groups!.version!];
 }
 
-const taggedCommit = (ctx, tag) => run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
+const taggedCommit = (ctx: Context, tag: string) => run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
 
 /**
  * The problems of the Go module tags of a tag vX.Y.Z: each declared Go module below the root needs the tag
  * `<directory>/vX.Y.Z` at the commit of vX.Y.Z, because a Go proxy resolves the module from that tag. A missing tag and a tag at
  * another commit name the git command that creates it. A Go module tag releases that module only and has no sibling tags.
  */
-export function goTagProblems(ctx, tag) {
+export function goTagProblems(ctx: Context, tag: string): string[] {
   const [directory, version] = parseTag(ctx.config, tag);
   if (directory !== null) return [];
   const commit = taggedCommit(ctx, tag);
-  const problems = [];
+  const problems: string[] = [];
   for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort()) {
     if (module === '.') continue;
     const goTag = `${module}/v${version}`;
@@ -164,12 +238,12 @@ export function goTagProblems(ctx, tag) {
 }
 
 /** The tagged commit is on main, its Go module tags exist and the latest run of every configured check concluded success: { commit, checks }. */
-export function verify(ctx, tag) {
+export function verify(ctx: Context, tag: string): { commit: string; checks: string[] } {
   parseTag(ctx.config, tag);
   const repository = ctx.repository ?? ctx.env.GITHUB_REPOSITORY;
   if (!repository) throw new Stop('GITHUB_REPOSITORY is not set; it names the repository <owner>/<name> whose check runs are read');
   const commit = taggedCommit(ctx, tag);
-  const problems = [];
+  const problems: string[] = [];
   // A release tag is annotated: its object is a tag object that records the tagger and the time, not the commit itself.
   const kind = run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim();
   if (kind !== 'tag') problems.push(`the tag ${tag} has the object type ${kind}, not tag; a release tag is annotated, so create it with git tag -a ${tag} -m ${tag}`);
@@ -180,7 +254,8 @@ export function verify(ctx, tag) {
   problems.push(...goTagProblems(ctx, tag));
   ctx.log(`[release] ${tag}: reading the check runs of ${commit} in ${repository}`);
   const listed = run('gh', ['api', '--paginate', `repos/${repository}/commits/${commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json'], at(ctx));
-  const runs = listed.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+  // Each line is the JSON array [id, name, status, conclusion] that the --jq filter writes.
+  const runs: [number, string, string, string | null][] = listed.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
   for (const name of ctx.config.checks) {
     const named = runs.filter(entry => entry[1] === name);
     if (named.length === 0) {
@@ -196,7 +271,7 @@ export function verify(ctx, tag) {
 }
 
 /** The version that a manifest file declares, or null without one. A composer.json may omit it: Composer takes the tag. */
-export function manifestVersion(file) {
+export function manifestVersion(file: string): string | null {
   const text = readFileSync(file, 'utf8');
   const name = path.basename(file);
   if (name === 'package.json' || name === 'composer.json') return JSON.parse(text).version ?? null;
@@ -207,30 +282,34 @@ export function manifestVersion(file) {
 }
 
 /** The body of the section `## version` of the change log `file`, without the anchor of the next section. */
-export function changelogSection(root, file, version) {
+export function changelogSection(root: string, file: string, version: string): string {
   const lines = readFileSync(path.join(root, file), 'utf8').split('\n').map(line => line.trimEnd());
   const heading = lines.indexOf(`## ${version}`);
   if (heading === -1) throw new Stop(`${file}: no section ## ${version}`);
   let end = lines.findIndex((line, index) => index > heading && line.startsWith('## '));
   if (end === -1) end = lines.length;
   const body = lines.slice(heading + 1, end);
-  while (body.length && (!body.at(-1).trim() || /^<a id="[^"]*"><\/a>$/.test(body.at(-1).trim()))) body.pop();
-  while (body.length && !body[0].trim()) body.shift();
+  // The loop reads the last entry of body only while body has one.
+  while (body.length && (!body.at(-1)!.trim() || /^<a id="[^"]*"><\/a>$/.test(body.at(-1)!.trim()))) body.pop();
+  // The loop reads the first entry of body only while body has one.
+  while (body.length && !body[0]!.trim()) body.shift();
   if (!body.length) throw new Stop(`${file}: the section ## ${version} has no entry`);
   return `${body.join('\n')}\n`;
 }
 
 /** The anchor of the section `## version`: the id of an `<a id>` line above it, else the version without its dots. */
-export function changelogAnchor(root, file, version) {
+export function changelogAnchor(root: string, file: string, version: string): string {
   const lines = readFileSync(path.join(root, file), 'utf8').split('\n').map(line => line.trim());
   let index = lines.indexOf(`## ${version}`) - 1;
   while (index >= 0 && !lines[index]) index -= 1;
-  const explicit = index >= 0 ? /^<a id="([^"]+)"><\/a>$/.exec(lines[index]) : null;
-  return explicit ? explicit[1] : version.replaceAll('.', '');
+  // index is a line above the heading, so lines holds it.
+  const explicit = index >= 0 ? /^<a id="([^"]+)"><\/a>$/.exec(lines[index]!) : null;
+  // The group 1 of the pattern takes part in every match.
+  return explicit ? explicit[1]! : version.replaceAll('.', '');
 }
 
 /** The notes of the release of the tag: the section when it has at most NOTES_LIMIT characters, otherwise one linking line. */
-export function releaseNotes(ctx, tag) {
+export function releaseNotes(ctx: Context, tag: string): string {
   const [, version] = parseTag(ctx.config, tag);
   const { changelog, repositoryUrl } = ctx.config;
   const section = changelogSection(ctx.root, changelog, version);
@@ -240,16 +319,16 @@ export function releaseNotes(ctx, tag) {
 }
 
 /** The module path that the go.mod of `directory` declares, or null. */
-function goModulePath(root, directory) {
+function goModulePath(root: string, directory: string): string | null {
   const file = path.join(root, directory === '.' ? '' : directory, 'go.mod');
   return existsSync(file) ? /^module\s+(\S+)\s*$/m.exec(readFileSync(file, 'utf8'))?.[1] ?? null : null;
 }
 
 /** Every manifest of the tag declares its version and the change logs have the section of the version: the version. */
-export function versions(ctx, tag) {
+export function versions(ctx: Context, tag: string): string {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
-  const problems = [];
+  const problems: string[] = [];
   if (directory === null) {
     for (const [name, mode] of Object.entries(config.manifests)) {
       ctx.log(`[release] ${tag}: reading the version of ${name}`);
@@ -269,7 +348,7 @@ export function versions(ctx, tag) {
     try {
       changelogSection(root, file, version);
     } catch (error) {
-      if (!(error instanceof Stop) && error?.code !== 'ENOENT') throw error;
+      if (!(error instanceof Stop) && !missingFile(error)) throw error;
       problems.push(`${error instanceof Stop ? error.message : `${file}: the file is missing`} for the tag ${tag}`);
     }
   }
@@ -282,22 +361,22 @@ export function versions(ctx, tag) {
  * is `npm` for an npm package and `php` for a Composer package: `@scope/x` is `scope-x-npm-1.0.0.tgz` and `vendor/x` is
  * `vendor-x-php-1.0.0.zip`.
  */
-export function assetName(name, language, version, extension) {
+export function assetName(name: string, language: string, version: string, extension: string): string {
   return `${name.replace(/^@/, '').replaceAll('/', '-')}-${language}-${version}.${extension}`;
 }
 
 /** The file name of the archive of a package of `kind` at `version`: a wheel keeps its PEP 427 name. */
-export function archiveName(kind, name, version) {
+export function archiveName(kind: PackageKind, name: string, version: string): string {
   if (kind === 'wheel') return wheelName(name, version);
   return assetName(name, ARCHIVE_FORMAT[kind][0], version, ARCHIVE_FORMAT[kind][1]);
 }
 
 /** The archive names of the packages at `version`, in the order of the configuration. */
-export function assetNames(config, version) {
+export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
   return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
 }
 
-const SOURCE_FORMS = [
+const SOURCE_FORMS: [RegExp, string][] = [
   [/^(?:file|link|workspace|portal):/, 'a path of the repository'],
   [/^(?:git(?:\+[a-z]+)?:|github:|gitlab:|bitbucket:|ssh:|git@)|\.git(?:#|$)/, 'a git source'],
   [/^[a-z][a-z0-9+.-]*:\/\//i, 'a URL'],
@@ -305,13 +384,13 @@ const SOURCE_FORMS = [
 ];
 
 /** The form of a dependency spec that is not an exact version. */
-function specForm(spec) {
+function specForm(spec: string): string {
   for (const [pattern, form] of SOURCE_FORMS) if (pattern.test(spec)) return form;
   return EXACT_VERSION.test(spec) ? 'another version' : 'a range';
 }
 
 /** The scopes of the packages of `kind`: `@scope/` of an npm package, `vendor/` of a Composer package. */
-function scopesOf(config, kind) {
+function scopesOf(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind): Set<string> {
   return new Set(config.packages.filter(item => item.kind === kind).map(({ name }) => name.slice(0, name.indexOf('/') + 1)).filter(Boolean));
 }
 
@@ -322,8 +401,8 @@ function scopesOf(config, kind) {
  * version of the tag. A package.json declares no `overrides`; a composer.json declares the version of the tag and no
  * `repositories`.
  */
-export function manifestProblems(config, kind, manifest, version) {
-  const problems = [];
+export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind, manifest: Manifest, version: string): string[] {
+  const problems: string[] = [];
   const ours = new Set(config.packages.filter(item => item.kind === kind).map(({ name }) => name));
   const scopes = scopesOf(config, kind);
   const fields = kind === 'npm' ? NPM_DEPENDENCY_FIELDS : COMPOSER_DEPENDENCY_FIELDS;
@@ -345,7 +424,7 @@ export function manifestProblems(config, kind, manifest, version) {
 }
 
 /** The manifest text that an archive carries: package/package.json of a tarball, composer.json at the root of a zip. */
-export function packedManifest(ctx, file) {
+export function packedManifest(ctx: Context, file: string): string {
   return file.endsWith('.tgz') ? run('tar', ['-xzOf', file, 'package/package.json'], at(ctx)) : run('unzip', ['-p', file, 'composer.json'], at(ctx));
 }
 
@@ -354,7 +433,7 @@ export function packedManifest(ctx, file) {
  * tagged commit must pass manifestProblems before a package is packed, and each archive must carry the manifest of its
  * package at the commit byte for byte, because no step rewrites a manifest. The directory is replaced as a whole.
  */
-export function assets(ctx, tag) {
+export function assets(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
   const target = path.join(root, ASSETS);
@@ -368,11 +447,13 @@ export function assets(ctx, tag) {
   const names = assetNames(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${folder}/${MANIFEST_OF[kind]}`], at(ctx)));
   // The lock of each wheel package is read from the tagged commit, as its manifest is.
-  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: config.consumers.wheel.lock[name], text: run('git', ['show', `${commit}:${config.consumers.wheel.lock[name]}`], at(ctx)) } : null));
+  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelConsumer(config).lock[name], text: run('git', ['show', `${commit}:${wheelConsumer(config).lock[name]}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = `${folder}/${MANIFEST_OF[kind]}`;
-    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend.requirement }), ...lockProblems(locks[index].text, locks[index].file)];
-    const manifest = JSON.parse(sources[index]);
+    // loadConfig requires buildBackend when a package is a wheel, and locks holds the lock of each wheel at its index.
+    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index], name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
+    // sources holds the manifest of each package at its index.
+    const manifest = JSON.parse(sources[index]!);
     return [
       ...(manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`]),
       ...manifestProblems(config, kind, manifest, version).map(problem => `${file}: ${problem}`),
@@ -392,27 +473,32 @@ export function assets(ctx, tag) {
         // npm pack names its output itself; the single new file is renamed to the archive name.
         const created = readdirSync(next).filter(item => !before.has(item));
         if (created.length !== 1) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not one archive`);
-        renameSync(path.join(next, created[0]), path.join(next, names[index]));
+        // created holds one file, checked above, and names holds the archive name of each package at its index.
+        renameSync(path.join(next, created[0]!), path.join(next, names[index]!));
       } else if (kind === 'wheel') {
         buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: config.buildBackend });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.
-        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, names[index])}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
+        // names holds the archive name of each package at its index.
+        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, names[index]!)}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
       }
     });
     const present = readdirSync(next).sort();
     if (JSON.stringify(present) !== JSON.stringify([...names].sort())) throw new Stop(`${ASSETS} holds [${present.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
     const failures = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
       if (kind === 'wheel') {
-        const metadata = wheelMetadata(root, path.join(next, names[index]), ctx.env);
+        // names holds the archive name of each package at its index.
+        const metadata = wheelMetadata(root, path.join(next, names[index]!), ctx.env);
         return [
           ...metadataProblems(metadata, name, version),
-          ...wheelDependencyProblems({ metadata, name, version, polyspec: config.consumers.wheel.polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: locks[index].file, lockText: locks[index].text }),
+          // locks holds the lock of each wheel package at its index.
+          ...wheelDependencyProblems({ metadata, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: locks[index]!.file, lockText: locks[index]!.text }),
         ].map(problem => `${names[index]}: ${problem}`);
       }
       const file = MANIFEST_OF[kind];
-      const packed = packedManifest(ctx, path.join(next, names[index]));
+      // names holds the archive name of each package at its index.
+      const packed = packedManifest(ctx, path.join(next, names[index]!));
       return [
         ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${folder}/${file} of the commit ${commit}`]),
         ...manifestProblems(config, kind, JSON.parse(packed), version).map(problem => `${names[index]}: ${problem}`),
@@ -426,11 +512,18 @@ export function assets(ctx, tag) {
   return names;
 }
 
+/** consumers.wheel of the configuration, which a wheel package needs. */
+function wheelConsumer(config: ReleaseConfig): WheelConsumer {
+  // consumerConfigProblems requires consumers.wheel for a wheel package only when consumers is present.
+  if (!config.consumers?.wheel) throw new Error(`${CONFIG}: consumers.wheel is missing; the wheel packages of packages need it`);
+  return config.consumers.wheel;
+}
+
 /**
  * Creates the GitHub Release of the tag as a draft, with the notes of releaseNotes and the archives of assets. A draft of an
  * earlier run is replaced; a public release is never replaced.
  */
-export function publish(ctx, tag) {
+export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
   const notes = releaseNotes(ctx, tag);
@@ -460,7 +553,7 @@ export function publish(ctx, tag) {
  * Makes the draft release of the tag public; run only after release-proof passed. A release that is already public stays so.
  * Returns true when this call made it public.
  */
-export function undraft(ctx, tag) {
+export function undraft(ctx: Context, tag: string): boolean {
   const release = releaseOf(at(ctx), ctx.config.repositoryUrl, tag);
   if (!release) throw new Stop(`the release ${tag} does not exist; make release-publish creates it as a draft`);
   if (!release.draft) {
@@ -476,13 +569,13 @@ export function undraft(ctx, tag) {
  * composer.json, Cargo.toml, pyproject.toml, go.mod or VERSION is a key of `manifests` or `notReleased`, or the go.mod of a
  * Go module; a listed file exists; no file is in two lists.
  */
-export function coverage(ctx) {
+export function coverage(ctx: Context): string[] {
   const { root, config } = ctx;
   const files = checkedFiles(root).filter(file => PACKAGE_FILES.includes(path.posix.basename(file)));
   const goFiles = Object.keys(config.goModules).map(module => `${module === '.' ? '' : `${module}/`}go.mod`);
   const lists = { manifests: Object.keys(config.manifests), notReleased: Object.keys(config.notReleased), goModules: goFiles };
-  const problems = [];
-  const where = new Map();
+  const problems: string[] = [];
+  const where = new Map<string, string>();
   for (const [list, keys] of Object.entries(lists)) {
     for (const key of keys) {
       if (where.has(key)) problems.push(`${key} is in both ${where.get(key)} and ${list} of ${CONFIG}; list it once`);
@@ -499,10 +592,10 @@ export function coverage(ctx) {
 const USAGE = 'usage: node scripts/kit/release.mts verify|versions|assets|publish|undraft|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv, { root = ROOT, env = process.env, print = console.log, error = console.error } = {}) {
+export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; error?: (text: string) => void } = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  const tagged = ['verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
+  const tagged = mode !== undefined && ['verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
   if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
     return 2;
@@ -520,6 +613,8 @@ export function main(argv, { root = ROOT, env = process.env, print = console.log
         return 1;
       }
       print(`[release] coverage: every package file is classified in ${CONFIG}`);
+    } else if (tag === undefined) {
+      throw new Error(`[release] ${mode} has no TAG, which the usage check above requires`);
     } else if (mode === 'verify') {
       const { commit, checks } = verify(ctx, tag);
       print(`[release] ${tag}: the commit ${commit} is on ${MAIN} and passed ${checks.join(', ')}`);
@@ -545,7 +640,7 @@ export function main(argv, { root = ROOT, env = process.env, print = console.log
       print(`[release] ${tag}: created the GitHub Release with ${names.length ? names.join(', ') : 'no archive'}`);
     }
   } catch (failure) {
-    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && failure?.code !== 'ENOENT') throw failure;
+    if (!(failure instanceof Stop) && !(failure instanceof SyntaxError) && !missingFile(failure)) throw failure;
     error(`[release] ${mode}${tag ? ` ${tag}` : ''} failed: ${failure.message}`);
     return 1;
   }

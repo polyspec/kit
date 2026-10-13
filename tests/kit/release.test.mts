@@ -12,9 +12,12 @@ import * as release from '../../scripts/kit/release.mts';
 import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 
 const REPOSITORY = 'example/kit-fixture';
-const context = (box, extra = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const edit = (root, file, change) => writeJson(root, file, change(readJson(root, file)));
+type Box = ReturnType<typeof releaseSandbox>;
+// A test writes JSON files into shapes that their schema refuses, so an edited value has no precise type.
+type Json = any;
+const context = (box: Box, extra: { config?: release.ReleaseConfig; log?: (text: string) => void } = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+const edit = (root: string, file: string, change: (value: Json) => unknown) => writeJson(root, file, change(readJson(root, file)));
 
 test('latest names the newest root release tag reachable from HEAD', (t) => {
   const box = releaseSandbox(t, { version: '0.0.3' });
@@ -57,7 +60,7 @@ test('the schema accepts the configuration of the fixture and names each error o
 
 test('the configuration is checked for the rules that the schema cannot express', (t) => {
   const box = releaseSandbox(t);
-  const load = (change) => {
+  const load = (change: (value: Json) => unknown) => {
     writeJson(box.root, 'config/release.json', change(readJson(box.root, 'config/release.json')));
     return () => release.loadConfig(box.root);
   };
@@ -74,8 +77,8 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(c => ({ ...original, manifests: { ...original.manifests, 'packages/fixture-lib/package.json': 'version' } })), /the package fixture-lib needs manifests\.packages\/fixture-lib\/package\.json = "archive", found "version"/);
   stop(load(c => ({ ...original, packages: original.packages.slice(1) })), /manifests\.packages\/fixture-lib\/package\.json is "archive" but no package of packages has that manifest/);
   stop(load(c => ({ ...original, packages: [...original.packages, original.packages[0]] })), /the npm package fixture-lib is listed twice/);
-  stop(load(c => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
-  stop(load(c => ({ ...original, packages: original.packages.map(p => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
+  stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
+  stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
   stop(load(c => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
   stop(load(c => ({ ...original, schema: 3 })), /\$\.schema is 3, the schema requires 1/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
@@ -85,7 +88,7 @@ test('the configuration is checked for the rules that the schema cannot express'
 test('a commit of main whose checks succeeded is verified, and the check runs are read for it', (t) => {
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
-  const lines = [];
+  const lines: string[] = [];
   const result = release.verify(context(box, { log: line => lines.push(line) }), tag);
   assert.deepEqual(result, { commit: box.commit, checks: ['push-gate', 'ci-passed'] });
   assert.deepEqual(box.state().calls, [['api', '--paginate', `repos/${REPOSITORY}/commits/${box.commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json']]);
@@ -144,7 +147,7 @@ test('verify without the repository, with an unknown tag or with a failing gh st
 
 test('every manifest at the version and the change log section pass', (t) => {
   const box = releaseSandbox(t);
-  const lines = [];
+  const lines: string[] = [];
   assert.equal(release.versions(context(box, { log: line => lines.push(line) }), 'v0.0.1'), '0.0.1');
   assert.ok(lines.some(line => line.includes('reading the version of packages/fixture-rust/Cargo.toml')), lines.join('\n'));
 });
@@ -159,7 +162,7 @@ test('a version mismatch names the file, the tag and both values for each manife
 });
 
 test('a VERSION file is a manifest', (t) => {
-  const box = releaseSandbox(t, { mutate: (root) => {
+  const box = releaseSandbox(t, { mutate: (root: string) => {
     writeFileSync(path.join(root, 'VERSION'), '0.0.1\n');
     edit(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, VERSION: 'version' } }));
   } });
@@ -169,7 +172,7 @@ test('a VERSION file is a manifest', (t) => {
 });
 
 test('a composer.json of an archive declares the version, any other may leave it to the tag', (t) => {
-  const box = releaseSandbox(t, { mutate: (root) => {
+  const box = releaseSandbox(t, { mutate: (root: string) => {
     writeJson(root, 'composer.json', { name: 'polyspec/root', type: 'project' });
     edit(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
   } });
@@ -202,7 +205,7 @@ test('a Go module tag requires the module path of its go.mod and the change log 
 });
 
 test('a Go module at the repository root is checked by the root tag', (t) => {
-  const box = releaseSandbox(t, { mutate: (root) => {
+  const box = releaseSandbox(t, { mutate: (root: string) => {
     writeFileSync(path.join(root, 'go.mod'), 'module example.com/root\n\ngo 1.21\n');
     edit(root, 'config/release.json', c => ({ ...c, goModules: { ...c.goModules, '.': 'example.com/root' } }));
   } });
@@ -219,7 +222,7 @@ test('the section is the release notes without the anchor of the next section', 
 });
 
 test('a section over the limit of GitHub becomes a link to the section, and a section at the limit stays whole', (t) => {
-  const entry = length => `- ${'x'.repeat(length - 2)}`;
+  const entry = (length: number) => `- ${'x'.repeat(length - 2)}`;
   const box = releaseSandbox(t, { changelog: `# Changelog\n\n<a id="release-001"></a>\n\n## 0.0.1\n\n${entry(release.NOTES_LIMIT - 1)}\n\n## 0.0.0\n\n- Old.\n` });
   const notes = release.releaseNotes(context(box), 'v0.0.1');
   assert.equal([...notes].length, release.NOTES_LIMIT, 'the section and its newline are exactly at the limit');
@@ -233,7 +236,7 @@ test('a section over the limit of GitHub becomes a link to the section, and a se
 
 test('the problems of a manifest name the field, the dependency and the form of the spec', (t) => {
   const { config } = context(releaseSandbox(t));
-  const problems = (kind, manifest) => release.manifestProblems(config, kind, manifest, '1.0.0');
+  const problems = (kind: release.PackageKind, manifest: release.Manifest) => release.manifestProblems(config, kind, manifest, '1.0.0');
   assert.deepEqual(problems('npm', { name: 'a', dependencies: { 'fixture-lib': '1.0.0', semver: '^7.0.0' }, peerDependencies: { react: '*' } }), []);
   assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '^1.0.0' } }), ['dependencies fixture-lib: ^1.0.0 is a range, not 1.0.0']);
   assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '1.0.1' } }), ['dependencies fixture-lib: 1.0.1 is another version, not 1.0.0']);
@@ -257,7 +260,7 @@ test('the problems of a manifest name the field, the dependency and the form of 
 test('assets builds one archive per package of the configuration', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
-  const lines = [];
+  const lines: string[] = [];
   const names = release.assets(context(box, { log: line => lines.push(line) }), tag);
   assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
   const target = path.join(box.root, 'var/release/assets');
@@ -272,8 +275,10 @@ test('each archive carries the manifest of its package unchanged', (t) => {
   const names = release.assets(ctx, box.tag('v0.0.1'));
   const target = path.join(box.root, 'var/release/assets');
   const sources = ['packages/fixture-lib/package.json', 'packages/fixture-app/package.json', 'packages/fixture-php/composer.json'];
-  names.slice(0, 3).forEach((name, index) => assert.equal(release.packedManifest(ctx, path.join(target, name)), readFileSync(path.join(box.root, sources[index]), 'utf8'), name));
-  const zip = spawnSync('unzip', ['-Z1', path.join(target, names[2])], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+  // sources holds the manifest of each of the first three archives, and names holds four archives.
+  names.slice(0, 3).forEach((name, index) => assert.equal(release.packedManifest(ctx, path.join(target, name)), readFileSync(path.join(box.root, sources[index]!), 'utf8'), name));
+  // names holds four archives.
+  const zip = spawnSync('unzip', ['-Z1', path.join(target, names[2]!)], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
   assert.deepEqual(zip, ['composer.json', 'composer.lock', 'src/', 'src/Engine.php']);
 });
 
@@ -335,9 +340,9 @@ test('publish creates the release with the notes and the archives', (t) => {
   const tag = box.tag('v0.0.1');
   release.assets(context(box), tag);
   box.checkRuns([]);
-  const lines = [];
+  const lines: string[] = [];
   const names = release.publish(context(box, { log: line => lines.push(line) }), tag);
-  const call = box.state().calls.find(args => args[0] === 'release' && args[1] === 'create');
+  const call = box.state().calls.find((args: string[]) => args[0] === 'release' && args[1] === 'create');
   const target = path.join(box.root, 'var/release/assets');
   assert.deepEqual(call.slice(0, 7), ['release', 'create', tag, '--verify-tag', '--draft', '--title', tag]);
   assert.equal(call[7], '--notes-file');
@@ -359,7 +364,7 @@ test('publish of a Go module tag creates a release without archives, and a faili
   const tag = box.tag('packages/fixture-go/v0.0.1');
   box.checkRuns([]);
   assert.deepEqual(release.publish(context(box), tag), []);
-  const call = box.state().calls.find(args => args[0] === 'release' && args[1] === 'create');
+  const call = box.state().calls.find((args: string[]) => args[0] === 'release' && args[1] === 'create');
   assert.deepEqual(call.slice(0, 7), ['release', 'create', tag, '--verify-tag', '--draft', '--title', tag]);
   assert.equal(call.length, 9, 'the call ends with the notes file');
   box.checkRuns([], { failRelease: true });
@@ -409,7 +414,7 @@ test('coverage skips node_modules, var, .tools and the vendored fixture, and rea
   assert.deepEqual(release.coverage(context(box)), ['fresh/package.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
 });
 
-const cli = (box, args) => spawnSync(process.execPath, ['scripts/kit/release.mts', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+const cli = (box: Box, args: string[]) => spawnSync(process.execPath, ['scripts/kit/release.mts', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
 
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
   const box = releaseSandbox(t);
@@ -453,7 +458,7 @@ test('the command line refuses a missing mode, a missing tag and an extra argume
 test('make runs each release step with the tag of the environment and fails without it', (t) => {
   const box = releaseSandbox(t);
   box.release('0.0.1');
-  const make = (...args) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+  const make = (...args: string[]) => spawnSync('make', ['-f', 'scripts/kit/kit.mk', ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
   for (const target of ['release-verify', 'release-versions', 'release-assets', 'release-publish', 'release-undraft']) {
     const result = make(target);
     assert.equal(result.status, 2, target);
@@ -476,12 +481,12 @@ test('an archive is named <package>-<language>-<version>.<ext>', () => {
 });
 
 test('the archive names of a repository with scoped packages differ by language and cannot collide', (t) => {
-  const box = releaseSandbox(t, { mutate: (root) => {
+  const box = releaseSandbox(t, { mutate: (root: string) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
     edit(root, 'packages/fixture-php/composer.json', m => ({ ...m, name: 'polyspec/fixture-app' }));
     edit(root, 'config/release.json', c => ({
       ...c,
-      packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
+      packages: c.packages.map((p: release.ReleasePackage) => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
       consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } }, composer: { ...c.consumers.composer, smoke: { 'polyspec/fixture-app': c.consumers.composer.smoke['polyspec/kit-fixture'] } } },
     }));
   } });
@@ -490,11 +495,11 @@ test('the archive names of a repository with scoped packages differ by language 
 });
 
 test('the output of npm pack is renamed to the archive name', (t) => {
-  const box = releaseSandbox(t, { mutate: (root) => {
+  const box = releaseSandbox(t, { mutate: (root: string) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
     edit(root, 'config/release.json', c => ({
       ...c,
-      packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
+      packages: c.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
       consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } } },
     }));
   } });
@@ -502,16 +507,17 @@ test('the output of npm pack is renamed to the archive name', (t) => {
   const names = release.assets(ctx, box.tag('v0.0.1'));
   assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [...names].sort(), 'no file keeps the name that npm pack gave');
-  assert.equal(JSON.parse(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', names[1]))).name, '@polyspec/fixture-app');
+  // names holds four archives.
+  assert.equal(JSON.parse(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', names[1]!))).name, '@polyspec/fixture-app');
 });
 
-const sha256 = file => spawnSync('shasum', ['-a', '256', file], { encoding: 'utf8' }).stdout.split(' ')[0];
+const sha256 = (file: string) => spawnSync('shasum', ['-a', '256', file], { encoding: 'utf8' }).stdout.split(' ')[0];
 
 test('a second assets run of the same tag writes the same bytes at another time zone', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   const zip = path.join(box.root, 'var/release/assets/polyspec-kit-fixture-php-0.0.1.zip');
-  const at = zone => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, TZ: zone } });
+  const at = (zone: string) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, TZ: zone } });
   release.assets(at('Pacific/Auckland'), tag);
   const first = sha256(zip);
   release.assets(at('America/Los_Angeles'), tag);
@@ -525,8 +531,8 @@ test('a second assets run of the same tag writes the same bytes at another time 
 });
 
 test('the zip of a tree with other content has other bytes', (t) => {
-  const zipOf = (content) => {
-    const box = releaseSandbox(t, { mutate: root => writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), content) });
+  const zipOf = (content: string) => {
+    const box = releaseSandbox(t, { mutate: (root: string) => writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), content) });
     release.assets(context(box), box.tag('v0.0.1'));
     return sha256(path.join(box.root, 'var/release/assets/polyspec-kit-fixture-php-0.0.1.zip'));
   };
@@ -539,11 +545,11 @@ test('publish replaces the draft of an earlier run and never replaces a public r
   release.assets(context(box), tag);
   box.checkRuns([]);
   box.releases([{ id: 5, tag_name: tag, draft: true, assets: [] }]);
-  const lines = [];
+  const lines: string[] = [];
   release.publish(context(box, { log: line => lines.push(line) }), tag);
   const calls = box.state().calls;
-  assert.ok(calls.some(args => args[0] === 'release' && args[1] === 'delete' && args[2] === tag), 'the draft of the earlier run is deleted');
-  assert.ok(calls.some(args => args[0] === 'release' && args[1] === 'create' && args[4] === '--draft'), 'the release is created as a draft');
+  assert.ok(calls.some((args: string[]) => args[0] === 'release' && args[1] === 'delete' && args[2] === tag), 'the draft of the earlier run is deleted');
+  assert.ok(calls.some((args: string[]) => args[0] === 'release' && args[1] === 'create' && args[4] === '--draft'), 'the release is created as a draft');
   assert.ok(lines.some(line => line.includes('removing the draft release 5 of an earlier run')), lines.join('\n'));
   box.releases([{ id: 5, tag_name: tag, draft: false, assets: [] }]);
   stop(() => release.publish(context(box), tag), /the release v0\.0\.1 is already public; a public release is not replaced/);
@@ -558,7 +564,7 @@ test('undraft makes the draft public with one edit, a public release stays as it
   assert.equal(release.undraft(context(box), tag), true);
   assert.deepEqual(box.state().edited, ['release', 'edit', tag, '--draft=false']);
   box.releases([{ id: 5, tag_name: tag, draft: false, assets: [] }]);
-  const edits = box.state().calls.filter(args => args[1] === 'edit').length;
+  const edits = box.state().calls.filter((args: string[]) => args[1] === 'edit').length;
   assert.equal(release.undraft(context(box), tag), false);
-  assert.equal(box.state().calls.filter(args => args[1] === 'edit').length, edits, 'a public release is not edited again');
+  assert.equal(box.state().calls.filter((args: string[]) => args[1] === 'edit').length, edits, 'a public release is not edited again');
 });
