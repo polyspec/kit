@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { check } from '../../scripts/kit/check-documents.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
+import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
 import { pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -273,6 +274,13 @@ test('changelog: Unreleased first, versions newest first, same sections in both 
   hasPart(found, 'changelog: the section ## next is neither ## Unreleased nor a released version');
   const mismatch = pair('CHANGELOG.md', 'changelog', '## Unreleased\n\n## 1.0.0\n', '## Unreleased\n');
   hasPart(run(tree(t, mismatch), config), 'CHANGELOG.ko.md:', 'changelog: the sections ## Unreleased differ');
+});
+
+test('changelog: the sections are the level-2 headings of the Markdown tree, not ## lines of comments or closing hashes (K130)', () => {
+  // A heading in an HTML comment is no heading, a closing sequence of # is no part of the title, and a setext heading of level 2 is one.
+  const text = '## Unreleased\n\n<!--\n## 9.9.9\n-->\n\n## 1.2.0 ##\n\n- x\n\n1.1.0\n-----\n';
+  assert.deepEqual(sections(text), [{ title: 'Unreleased', line: 1 }, { title: '1.2.0', line: 7 }, { title: '1.1.0', line: 11 }]);
+  assert.deepEqual(changelogFindings(text), []);
 });
 
 test('the command reads config/documents.json and exits with the findings', (t) => {
