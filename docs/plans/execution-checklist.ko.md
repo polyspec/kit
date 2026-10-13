@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: c6a01f0fc4ea10fd8a31c2b9be6669c69c17c764b3947ea8bb0d0145d4066d7f -->
+<!-- source-sha256: 29aad196aff282d79025aa1c21bd2ba26d758ad294e6dcaf4046499742b3bef9 -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -180,6 +180,7 @@
 | K116 | 중첩 brace를 가진 glob은 throw하지 않고 그 전개로 match합니다. K73의 picomatch 비교에서 찾았습니다. K73의 picomatch 교체로 고치며, case는 그 test에 들어갑니다. | K73 glob test | `glob.mts`에서 throw하고 picomatch에서 match하는 case | [ ] |
 | K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [o] |
 | K118 | `check-toolchain`이 tool의 version 명령을 끝낸 signal을 `exit status null`이 아니라 이름으로 댑니다. 원인: message가 exit status만 읽었습니다; 부하 아래 K76 소유 실행에서 cargo-audit stub이 signal로 끝났고 원인을 알 수 없었습니다. | `scripts/kit/check-toolchain.mts`, 그 test | signal로 끝난 명령의 red case; `make kit-test` | [ ] |
+| K119 | `tests/kit/release-sandbox.mts`의 npm stub이 자기 `stub-npm-*` 폴더를 지웁니다. 원인: 실행마다 임시 directory에 하나씩 만들고 지우지 않아, 디스크가 찼을 때 5,434개가 쌓여 있었습니다. | `tests/kit/release-sandbox.mts` | a red test that finds no `stub-npm-*` left after the stub runs; the unit tests | [ ] |
 | K120 | `markdown.mts`와 check-documents의 link·anchor 규칙이 Markdown을 mdast-util-from-markdown과 micromark-extension-gfm(그리고 mdast-util-frontmatter)으로, heading anchor를 github-slugger와 @mdit-vue/shared `slugify`로 읽습니다. K74 측정: 9개 repository의 650개 파일과 4607개 heading에서 같은 fence, link, anchor. | `scripts/kit/markdown.mts`, `scripts/kit/check-documents.mts`, tests | a red case each library reads and kit misreads (the escaped `\#` heading, front matter); the unit tests | [ ] |
 | K121 | owner-check가 target과 prerequisite를 regex가 아니라 GNU make의 database(`make -pRrq`)에서 읽습니다. K74 측정: regex는 target별 변수를 prerequisite로 읽고, `$(…)`를 펼치지 않으며, fsm에서 11개, orm에서 86개 target을 놓칩니다. | `scripts/kit/owner-check.mts`, tests | a red Makefile with a target-specific variable and an expanded prerequisite; the unit tests | [ ] |
 | K122 | `pin-python-dependency`가 pyproject.toml을 @decimalturn/toml-patch로 고칩니다. K74 측정: 실제 파일 30개의 pin 57개에서 같은 출력. | `scripts/kit/pin-python-dependency.mts`, tests | a red case the regex edit gets wrong; the unit tests | [ ] |
