@@ -15,9 +15,10 @@ test('a package at the repository root is declared with the directory . and its 
   const config = {
     schema: 1, repositoryUrl: 'https://example.com/polyspec/root', changelog: 'CHANGELOG.md',
     packages: [{ kind: 'npm', directory: '.', name: '@polyspec/root' }],
-    manifests: { 'package.json': 'archive' }, notReleased: {}, goModules: {},
+    manifests: { 'package.json': 'archive' }, notReleased: { 'tests/consumer/package.json': 'the consumer project' }, goModules: {},
+    consumers: { npm: { directory: 'tests/consumer', smoke: { '@polyspec/root': ['node', '--version'] } } },
   };
-  const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n' });
+  const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n', 'tests/consumer/package.json': JSON.stringify({ name: 'consumer', private: true }) });
   const loaded = loadConfig(root);
   assert.deepEqual(loaded.packages, config.packages);
   assert.deepEqual(coverage(context(root)), []);
