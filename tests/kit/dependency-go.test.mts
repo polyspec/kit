@@ -67,6 +67,21 @@ test('the review reports a newer stable release of a Go module and the gate read
   assert.equal(gate(root).status, 0);
 });
 
+test('under go.work a module that requires only workspace members needs no go.sum, and an external requirement needs one', (t) => {
+  const root = fixture(t);
+  const write = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+  // crudui's shape: a sibling module that requires only another module of the workspace, without a go.sum.
+  write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
+  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
+  write('packages/sibling/sibling.go', 'package sibling\n');
+  const passed = gate(root);
+  assert.equal(passed.status, 0, passed.stdout + passed.stderr);
+  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire (\n\texample.com/kit-fixture-go v0.0.0\n\tgithub.com/google/uuid v1.6.0\n)\n');
+  const failed = gate(root);
+  assert.notEqual(failed.status, 0, failed.stdout + failed.stderr);
+  assert.match(failed.stderr, /packages\/sibling\/go\.mod requires modules and packages\/sibling\/go\.sum is missing/);
+});
+
 test('a Go module without a stable release is an error of its query, not a module at its latest release', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);

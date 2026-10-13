@@ -38,6 +38,17 @@ type GoModuleVersion = { Path: string; Version?: string };
 export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): { Module: { Path: string }; Go?: string; Toolchain?: string; Require?: (GoModuleVersion & { Version: string; Indirect?: boolean })[]; Replace?: { Old: GoModuleVersion; New: GoModuleVersion }[] } =>
   JSON.parse(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env));
 
+/** The go.work file `file` (absolute) as `go work edit -json` prints it: the directories of its use directives, when present. */
+export const readGoWork = (file: string, env: NodeJS.ProcessEnv): { Use?: { DiskPath: string }[] } =>
+  JSON.parse(output(file, '`go work edit -json`', 'go', ['work', 'edit', '-json', file], env));
+
+/** The go.work file that the go command uses in the directory `directory` of `root` (`go env GOWORK`), or null for none. */
+export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessEnv): string | null {
+  const file = output(path.posix.join(directory, 'go.mod'), '`go env GOWORK`', 'go', ['env', 'GOWORK'], env, path.join(root, directory)).trim();
+  // go env prints nothing without a workspace and off when GOWORK=off turns it off.
+  return file === '' || file === 'off' ? null : file;
+}
+
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
 export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; version: string; rust_version: string | null }[] =>
   JSON.parse(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env)).packages;

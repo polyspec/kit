@@ -104,14 +104,27 @@ if (version === undefined) console.log(JSON.stringify({ info: { version: Object.
 else console.log(JSON.stringify({ info: { version }, vulnerabilities: registry.pypiVulnerabilities?.[name]?.[version] ?? [] }));
 `;
 
-// go mod edit reads a go.mod and queries nothing: its record answers, unlogged, as for composer validate.
+// go mod edit and go work edit read a file and query nothing: their records answer, unlogged, as for composer validate. go env
+// GOWORK answers by the rule of the go command, which the record of no file can hold: the go.work that GOWORK names, or the
+// first go.work of the working directory and its parents.
 const GO_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
 ${TOOL_ANSWER}
 const args = process.argv.slice(2);
-if (args[0] === 'mod' && args[1] === 'edit') {
-  // go mod edit <flags> <go.mod> reads the go.mod that it names: the record of its flags and its text answers.
-  answer('go', args.slice(0, -1), { 'go.mod': readFileSync(args[args.length - 1], 'utf8') }, args);
+if ((args[0] === 'mod' || args[0] === 'work') && args[1] === 'edit') {
+  // go mod edit and go work edit <flags> <file> read the file that they name: the record of their flags and its text answers.
+  const file = args[args.length - 1];
+  answer('go', args.slice(0, -1), { [args[0] === 'mod' ? 'go.mod' : 'go.work']: readFileSync(file, 'utf8') }, args);
+}
+if (args[0] === 'env' && args[1] === 'GOWORK' && args.length === 2) {
+  const path = require('node:path');
+  let found = process.env.GOWORK ?? '';
+  for (let dir = process.cwd(); found === ''; dir = path.dirname(dir)) {
+    if (require('node:fs').existsSync(path.join(dir, 'go.work'))) found = path.join(dir, 'go.work');
+    if (path.dirname(dir) === dir) break;
+  }
+  console.log(found);
+  process.exit(0);
 }
 appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
