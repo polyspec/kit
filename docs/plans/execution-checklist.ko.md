@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: c070bb0386fa2fdba184e446f96d427b6d6ea590bd23957329a0b15a711cc4bb -->
+<!-- source-sha256: 8303f53c7d89116a50f173c14ebfad90cdd943810d361eb3331653b4293f7c07 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -175,7 +175,7 @@
 | K117 | S8은 이렇게 읽습니다: 모든 예외, profile, rebuild 기록은 선언된 자리에 이유를 가집니다. 원인: S8이 owner의 review도 요구했는데, 그것은 계획이 더한 것이고 owner가 한 명이며 main에 직접 push하는 작업에서는 어떤 장치로도 강제할 수 없습니다(K76-1). | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mts` | [o] |
 | K118 | `check-toolchain`이 tool의 version 명령을 끝낸 signal을 `exit status null`이 아니라 이름으로 댑니다. 원인: message가 exit status만 읽었습니다; 부하 아래 K76 소유 실행에서 cargo-audit stub이 signal로 끝났고 원인을 알 수 없었습니다. | `scripts/kit/check-toolchain.mts`, 그 test | signal로 끝난 명령의 red case; `make kit-test` | [ ] |
 | K119 | 철회했습니다. `tests/kit/release-sandbox.mts`의 npm stub은 이미 자기 `stub-npm-*` 폴더를 지웁니다(K5.1, 87f8b1c부터); 새 임시 directory로 실행하면 하나도 남지 않았습니다. 5,434개는 폴더를 만들고 지우기 전에 중단된 실행이나, v0.0.10보다 오래된 kit test를 vendor한 소비자에서 나왔습니다. 이 행은 삭제 코드를 읽지 않고 50번째 줄만 보고 등록했습니다. | — | — | [-] |
-| K120 | `markdown.mts`와 check-documents의 link·anchor 규칙이 Markdown을 mdast-util-from-markdown과 micromark-extension-gfm(그리고 mdast-util-frontmatter)으로, heading anchor를 github-slugger와 @mdit-vue/shared `slugify`로 읽습니다. K74 측정: 9개 repository의 650개 파일과 4607개 heading에서 같은 fence, link, anchor. | `scripts/kit/markdown.mts`, `scripts/kit/check-documents.mts`, tests | a red case each library reads and kit misreads (the escaped `\#` heading, front matter); the unit tests | [ ] |
+| K120 | `markdown.mts`와 check-documents의 link·anchor 규칙이 Markdown을 mdast-util-from-markdown과 micromark-extension-gfm(그리고 mdast-util-frontmatter)으로, heading anchor를 github-slugger와 @mdit-vue/shared `slugify`로 읽습니다. K74 측정: 9개 repository의 650개 파일과 4607개 heading에서 같은 fence, link, anchor. | `scripts/kit/markdown.mts`, `scripts/kit/check-documents.mts`, tests | a red case each library reads and kit misreads (the escaped `\#` heading, front matter); the unit tests | [o] |
 | K121 | owner-check가 target과 prerequisite를 regex가 아니라 GNU make의 database(`make -pRrq`)에서 읽습니다. K74 측정: regex는 target별 변수를 prerequisite로 읽고, `$(…)`를 펼치지 않으며, fsm에서 11개, orm에서 86개 target을 놓칩니다. | `scripts/kit/owner-check.mts`, tests | a red Makefile with a target-specific variable and an expanded prerequisite; the unit tests | [ ] |
 | K122 | `pin-python-dependency`가 pyproject.toml을 @decimalturn/toml-patch로 고칩니다. K74 측정: 실제 파일 30개의 pin 57개에서 같은 출력. | `scripts/kit/pin-python-dependency.mts`, tests | a red case the regex edit gets wrong; the unit tests | [o] |
 | K123 | release-wheel과 wheel-dependencies가 wheel의 metadata를 `pip install --dry-run --no-deps --no-index --report`로 offline에서 읽습니다. 원인: `unzip -p '*.dist-info/METADATA'`는 vendored dist-info 폴더도 잡습니다; setuptools 84.0.0에서 METADATA 13개를 이어 붙여, package를 vendor하는 wheel의 `Name:`과 `Requires-Dist`가 틀립니다(K74). | `scripts/kit/release-wheel.mts`, `scripts/kit/wheel-dependencies.mts`, tests | a red wheel with a vendored dist-info; the unit tests | [o] |
