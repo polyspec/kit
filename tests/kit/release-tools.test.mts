@@ -4,7 +4,7 @@
 // a registry: rustup and rustc are stubs on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -94,11 +94,14 @@ test('release-tools reads config/release.json of the repository it runs in, also
   const outside = mkdtempSync(path.join(tmpdir(), 'release-tools-outside-'));
   const repository = mkdtempSync(path.join(tmpdir(), 'release-tools-repository-'));
   t.after(() => { rmSync(outside, { recursive: true, force: true }); rmSync(repository, { recursive: true, force: true }); });
-  cpSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit'), path.join(outside, 'tools'), { recursive: true });
+  const kit = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  cpSync(path.join(kit, 'scripts/kit'), path.join(outside, 'tools'), { recursive: true });
+  // The copy finds the packages of kit beside it, as the dist of an installed package finds its dependencies.
+  symlinkSync(path.join(kit, 'node_modules'), path.join(outside, 'node_modules'));
   mkdirSync(path.join(repository, 'config'));
   writeFileSync(path.join(repository, 'config/release.json'), '{}');
   const ran = spawnSync(process.execPath, [path.join(outside, 'tools/release-tools.mts')], { cwd: repository, encoding: 'utf8' });
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
   assert.doesNotMatch(ran.stderr, /the file is missing/, 'the tool read the directory above its module, not the repository');
-  assert.match(ran.stderr, /config\/release\.json: \$ lacks repositoryUrl/);
+  assert.match(ran.stderr, /config\/release\.json: \/ must have required property 'repositoryUrl'/);
 });
