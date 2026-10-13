@@ -39,5 +39,6 @@ test('the release of kit installs the package in a consumer project and smokes i
   assert.equal(npm.directory, 'tests/release-consumer/npm');
   assert.deepEqual(Object.keys(npm.smoke), ['@polyspec/kit']);
   const manifest = JSON.parse(readFileSync(path.join(ROOT, npm.directory, 'package.json'), 'utf8'));
-  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true });
+  // The consumer declares the Node.js floor of the pin, as every package.json does (toolchain-check).
+  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true, engines: { node: '>=26.11.1' } });
 });
