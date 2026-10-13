@@ -41,15 +41,18 @@ and states only its own rules. The rules below are kit's own.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
-- A consumer that runs Python declares `pythonBuild` and `uv` in config/toolchain.json and installs its Python with `make install-tools`,
-  which installs uv and then the Python with `uv python install`;
-  a consumer that publishes a wheel also declares `pythonBackend`. A vendored test checks a consumer's declaration only against
+- A repository declares the tools that it installs in `mise.toml` (Go, Python, uv, ruff, alint, golangci-lint, deadcode,
+  govulncheck, cargo-audit, Composer, vulture), writes their digests into `mise.lock` with `make toolchain-lock` and installs
+  them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap; a consumer that publishes a
+  wheel also declares `pythonBackend` in config/toolchain.json. A vendored test checks a consumer's declaration only against
   this rule. The kit's own tests of its real Python and wheel path are in `tests/source`: kit-sync does not vendor them, `make
   source-test` runs them, and CI runs them after `make kit-test`.
-- kit's own checks run the Go of the kit pin, the uv and Python of config/toolchain.json, which `make install-tools` installs
-  into var/tools, and the Rust of `rust-toolchain.toml`. rustup is the one tool that a machine or CI runner provides: it
-  installs that channel (`rustup toolchain install`) and, through `make install-tools`, each Rust channel that config/toolchain.json
-  `exceptions` declares; a missing rustup fails with its install. CI puts var/tools/bin first on PATH (`.github/workflows/ci.yml`).
+- kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
+  var/tools/mise, and the Rust of `rust-toolchain.toml`. Every recipe of kit.mk runs with the environment of mise of the
+  checkout and with var/tools/bin and the shims of mise first on PATH. A machine or CI runner provides the two toolchains
+  that mise does not install. rustup installs that channel (`rustup toolchain install`) and, through `make install-tools`,
+  each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its install. PHP is the
+  release of `.php-version` (in CI, the setup-php step before install-tools), which `make toolchain-check` verifies.
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
   (docs/tool-inventory.md, Language parity).
@@ -96,7 +99,7 @@ published tag is not moved; the check runs only on the tag being released.
 kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`kit.copies` of
 package.json). A repository never edits it, and `make kit-check` fails on a difference. The workflow sets up the PHP of `.php-version` when
 the repository declares one, runs `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
-puts `var/tools/bin` on the PATH of the following steps, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`), `make release-proof TAG=<tag>` (the proof of the draft)
+puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`), `make release-proof TAG=<tag>` (the proof of the draft)
 and `make release-undraft TAG=<tag>`, which makes the release public only after the proof passed. The proof and undraft read the
 draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a
 draft and fails the run, so a release that cannot be installed is never public.

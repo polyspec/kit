@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: f87acb4b65bb4c92d99ad3f01c4948176737c724c92b7fb4f32f43df2d689ab1 -->
+<!-- source-sha256: 842d81ae0559c8b1a3f3bf2c70584b5e18c101aeaf083a13c4ed182bf95a3259 -->
 # 개발
 
 [English](AGENTS.md)
@@ -37,15 +37,18 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   같은 부분이 두 번 있으면 실패합니다.
 - 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
-- Python을 실행하는 consumer는 config/toolchain.json에 `pythonBuild`와 `uv`를 선언하고 `make install-tools`로 Python을 설치합니다.
-  `make install-tools`는 uv를 설치한 뒤 `uv python install`로 Python을 설치합니다. wheel을
-  배포하는 consumer는 `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
+- 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture)를
+  `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
+  target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. wheel을 배포하는 consumer는 config/toolchain.json에
+  `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. kit 자신의 실제
   Python과 wheel 경로 test는 `tests/source`에 있습니다. kit-sync가 vendor하지 않으며, `make source-test`가 실행하고 CI는
   `make kit-test` 뒤에 실행합니다.
-- kit 자신의 검사는 kit pin의 Go, config/toolchain.json의 uv와 Python을 쓰며, 이것들은 `make install-tools`가 var/tools에
-  설치합니다. Rust는 `rust-toolchain.toml`의 것을 씁니다. machine이나 CI runner가 제공하는 도구는 rustup 하나이며, rustup이
-  그 channel을 설치하고(`rustup toolchain install`), `make install-tools`를 통해 config/toolchain.json `exceptions`가 선언한 Rust
-  channel도 설치합니다. rustup이 없으면 그 설치 방법과 함께 실패합니다. CI는 var/tools/bin을 PATH 맨 앞에 둡니다(`.github/workflows/ci.yml`).
+- kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
+  Rust는 `rust-toolchain.toml`의 것을 씁니다. kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을
+  PATH 맨 앞에 두고 실행됩니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. rustup이 그 channel을
+  설치하고(`rustup toolchain install`), `make install-tools`를 통해 config/toolchain.json `exceptions`가 선언한 Rust
+  channel도 설치합니다. rustup이 없으면 그 설치 방법과 함께 실패합니다. PHP는 `.php-version`의 release이며(CI에서는
+  install-tools 앞의 setup-php 단계), `make toolchain-check`가 이를 검증합니다.
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
@@ -82,7 +85,7 @@ draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. �
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
 이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
 
-kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`을 그 PATH에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 증명과 undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
+kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`과 mise의 shim을 그 PATH에, mise의 환경을 그 환경에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 증명과 undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 config/release.json의

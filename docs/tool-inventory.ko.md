@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b3857a0be4f3d778fd2a0808763f1a9ef31894112f6d0d5e286b40c7ff5be144 -->
+<!-- source-sha256: f400093e8c3c81b7aa600f083595e00165606ba1bae00e5c8bf277419edbf8e7 -->
 
 # 도구 목록
 
@@ -34,19 +34,27 @@
 
 ## Toolchain (K8.2)
 
-`scripts/kit/install-tools.mts`는 선언된 toolchain을 `var/tools`에 설치하고, `scripts/kit/check-toolchain.mts`는 실행 중인
-도구를 선언과 대조합니다. `scripts/kit/bootstrap/toolchain-declared.mts`가 선언을 읽고, Go와 Rust의 선언은
-`scripts/kit/toolchain-files.mts`가 각 ecosystem의 도구로 읽으며, 설치하는 도구마다 module이 하나씩 있습니다
-(`install-python.mts`, `install-npm.mts`, `install-go.mts`, `install-ruff.mts`, `install-uv.mts`, `install-alint.mts`, `install-composer.mts`, `install-phpunit.mts`; cargo-audit와 govulncheck는 기존
-`install-cargo-audit.mts`, `install-govulncheck.mts`를 씁니다). 모든 installer는 `install-tool.mts`를 씁니다. release를 대상
-옆에서 만들고 거기서 확인한 뒤 rename하므로, 두 번째 실행은 아무것도 바꾸지 않습니다. Make target은 `install-tools`(`ONLINE`을
-통한 online)와 `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
+checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
+linux-x64와 macos-arm64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
+lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
+것을 설치합니다. wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, symbol extractor입니다.
+bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 `packageManager`의 npm과, `config/toolchain.json`
+`mise`의 sha256으로 mise 자체를 설치합니다. `install-tool.mts`가 각각을 대상 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두
+번째 실행은 아무것도 바꾸지 않습니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
+`var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
+shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit.mk는 checkout의 mise 환경을 모든 recipe에 export하고 `var/tools/bin`과 shim을
+PATH 맨 앞에 둡니다. `scripts/kit/check-toolchain.mts`는 실행 중인 도구를 선언과 대조합니다. bootstrap과 mise가 설치하지 않는
+도구의 선언은 `scripts/kit/bootstrap/toolchain-declared.mts`가, `mise.toml`의 도구와 `mise.lock`의 digest는
+`scripts/kit/toolchain-mise.mts`가, Rust와 go.mod 파일은 `scripts/kit/toolchain-files.mts`가 각 ecosystem의 도구로 읽습니다. Make
+target은 `install-tools`와 `toolchain-lock`(`ONLINE`을 통한 online), `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
+Rust는 rustup에 남습니다. rustup과 `rust-toolchain.toml`은 Rust 생태계 자체의 toolchain 방식이고, mise의 rust backend도 결국
+rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니다. mise의 빈틈마다 내린 결정은 docs/rebuild/toolchain.md에 있습니다.
 
 ### Go 취약점 (K53)
 
 `make dependency-review`는 Go lock(`go.mod` 옆의 `go.sum`)마다 govulncheck에 취약점을 묻고, 그 module 디렉터리에서 실행합니다.
-조회는 `./...` 대신 module의 package를 명시합니다. 이유: `./...`은 module 아래의 모든 디렉터리를 걸으며, install-go가
-`var/tools` 아래에 두는 Go toolchain도 그중 하나입니다. govulncheck는 이를 거부하므로(`outside main module`) 모든 RECORD 실행이
+조회는 `./...` 대신 module의 package를 명시합니다. 이유: `./...`은 module 아래의 모든 디렉터리를 걸으며, mise가
+`var/tools` 아래에 설치하는 Go도 그중 하나입니다. govulncheck는 이를 거부하므로(`outside main module`) 모든 RECORD 실행이
 실패했습니다. `./...`은 디렉터리를 제외할 수 없으므로, `var/`를 포함한 module은 작업 디렉터리와 상관없이 그것을 걷습니다.
 
 - `goPackagePatterns`(`dependency-state.mts`)는 module의 추적되거나 새로운 `.go` 파일마다 디렉터리를 `./...`의 규칙으로 고릅니다.
@@ -67,32 +75,38 @@
 |---|---|---|
 | Node.js | `.node-version`(정확한 version) | 검증 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
-| Go | `scripts/kit/toolchain-pins.json`의 kit pin과 platform별 archive의 sha256; `config/toolchain.json`의 `go`가 지정한 `go.mod`의 `go` 줄은 그와 같아야 하며 `go mod edit -json`으로 읽음(K78) | pin 설치 |
+| Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
 | Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
-| Python | `config/toolchain.json`의 `python`(minor release), 없으면 `.python-version`; 둘 다 있으면 같아야 함; `pythonBuild`가 그 minor의 정확한 release를 가리킴 | `pythonBuild`가 있으면 설치, 없으면 검증 |
-| Composer | `config/toolchain.json`의 `composer` `{ version, sha256? }` | `sha256`이 있으면 설치, 없으면 검증 |
-| ruff | config/toolchain.json의 `ruff`: 정확한 `version`과 플랫폼별 wheel의 `sha256`, digest를 확인하며 내려받음; 환경은 `var/tools/bin/python3`으로 `var/tools/bin/uv venv`가 만들고 wheel은 `uv pip install`로 설치함 | 설치 |
-| alint | `config/toolchain.json`의 `alint`: 정확한 `version`과 플랫폼별 release archive `alint-v<version>-<target>.tar.gz`의 `sha256`, digest를 확인하며 내려받아 `var/tools/alint`에 풂; `make layout-check`가 실행함(K76) | 설치 |
-| uv | `config/toolchain.json`의 `uv`: 정확한 `version`과 플랫폼별 release archive `uv-<target>.tar.gz`의 `sha256`, digest를 확인하며 내려받아 `var/tools/uv`에 풂; wrapper `var/tools/bin/uv`는 state를 `var/tools` 아래에 둠(K54, K64) | 설치 |
-| PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | 선언된 Composer로 설치 |
-| cargo-audit, govulncheck | `config/toolchain.json`의 `cargoAudit`, `govulncheck` | 설치 |
+| Python | `mise.toml`의 `python`(정확한 version), 그 minor는 kit pin; `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
+| mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
+| uv, ruff, golangci-lint | `mise.toml`의 `uv`, `ruff`, `golangci-lint`(aqua backend; `mise.lock`이 archive별 sha256을 가짐) | mise로 설치 |
+| alint | `mise.toml`의 `"github:asamarts/alint"`(`mise.lock`이 archive별 sha256을 가짐); `make layout-check`가 실행함(K76) | mise로 설치 |
+| Composer | `mise.toml`의 `"http:composer"`: `composer.phar`의 url과 getcomposer.org에서 가져온 `checksum`, `mise.lock`이 이를 기록 | mise로 설치 |
+| cargo-audit | `mise.toml`의 `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`: platform별 native binary, 그 sha256은 `mise.lock`에 | mise로 설치 |
+| govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 `GOFLAGS=-mod=readonly`로 모든 module을 `GOSUMDB`에 비추어 확인함(선언된 예외) | mise로 설치 |
+| vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐 | mise로 설치 |
+| PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `python`(minor release), `composer`(`version`, `sha256`), `go`(`mod`), `exceptions`(아래), `ruff`(`version`, 플랫폼별 wheel의 `sha256`), `uv`와 `alint`(`ruff`와 같은 형식), `pythonBuild`(`version`, `release`, 플랫폼별 `sha256`),
-`phpunit`(`version`), `cargoAudit`, `govulncheck`, `node`(platform별 Node.js archive의 SHA-256)입니다. Rust와 Node.js는 `setup-node`와 `rustup`이
-읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
+목록), `mise`(`version`, platform별 archive의 `sha256`), `pythonBackend`, `phpunit`(`version`), `symbolExtractors`,
+`exceptions`(아래), `node`(platform별 Node.js archive의 SHA-256)입니다. `mise.toml`의 도구는 여기에 key가 없습니다.
+`mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 정확한 release로 선언합니다.
+`mise.lock`이 그중 하나라도 위와 같이 고정하지 않으면 `toolchain-check`가 실패합니다. Rust와 Node.js는 `setup-node`와
+`rustup`이 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
 ### Pin, 하한, 예외(K78)
 
 kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
 `toolchain-pins.mts` 옆에 복사합니다. Node.js 26.11.1, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
 `toolchain-check`는 어떤 도구를 실행하든, pin 정밀도에서 pin과 다른 선언과 manifest 하한마다 실패합니다
-(`toolchain-floors.mts`, `checkedFiles`의 파일 대상):
+(`toolchain-floors.mts`, `checkedFiles`의 파일 대상, mise가 `.mise`에 쓰는 도구 환경은 제외). pin은 version만 담고,
+digest는 `mise.lock`의 것입니다. pin마다 출처는 하나입니다. kit이 pin을 배포하고, kit을 포함한 모든 checkout의 `mise.toml`은
+Go와 Python을 그 pin으로 선언해야 합니다:
 
 | 값 | 요구 |
 |---|---|
-| `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `python` | pin |
+| `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `mise.toml`의 `go`와 `python`의 minor | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
 | 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.5.0`), dependency-policy가 요구하는 형식 |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
@@ -117,20 +131,18 @@ kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아
   배치는 `var/tools/npm/node_modules/npm`이고, wrapper `npm`과 `npx`가 `npm-cli.js`와 `npx-cli.js`를 실행합니다. 같은
   version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap npm은
   `PATH`에서 `var/tools/bin`을 뺀 채 실행합니다(template).
-- Go: `go.mod`를 추적하는 checkout은 kit pin(`scripts/kit/toolchain-pins.json`의 `go`)의 Go를 받습니다. Go 내려받기의
-  archive `go<version>.<os>-<arch>.tar.gz`를 받고, sha256이 `toolchain-pins.json`의 `goArchives`가 그 platform에 고정한
-  값이 아니면 거부합니다(install-archive.mts, uv와 alint처럼). 기계의 Go는 관여하지 않으므로 Go가 없는 checkout에도
-  설치됩니다. 그 뒤 toolchain-check가 `go mod edit -json`으로 각 `go.mod`의 `go` 줄을 pin과 비교합니다(K78). 기계의 Go로
-  toolchain module을 받던 방식은 없어졌습니다.
+- Go: kit pin인 `mise.toml`의 Go를 mise가 Go 내려받기의 archive에서 `mise.lock`의 sha256으로 설치합니다. 기계의 Go는
+  관여하지 않으므로 Go가 없는 checkout에도 설치됩니다. toolchain-check가 `go mod edit -json`으로 각 `go.mod`의 `go` 줄을
+  pin과 비교합니다(K78). kit의 archive 설치와 `toolchain-pins.json`의 `goArchives` digest는 없어졌습니다(K127).
 - Composer: hyper는 SHA-256을 확인한 `composer.phar`를 설치하고, template, crudui, orm은 실행 중인 Composer만 검증합니다.
-  합친 도구는 `sha256`이 선언되면 설치하고 아니면 검증합니다.
-- Python: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. 합친 도구는 설정을 먼저
-  읽고 없으면 파일을 읽으며, 둘 다 있고 다르면 실패합니다. PHP도 `.php-version`(ordered-json, orm)과 crudui, template의 목록에
-  같은 방식을 씁니다. 파일의 값이 목록에 없으면 실패합니다.
-- Python (K64): `pythonBuild`는 `python` minor의 정확한 `version`을 가리키며, `config/toolchain.json`의 `uv`가 선언되어 있어야 합니다. uv가 Python을 설치합니다. `install-tools`는 uv를 먼저 설치하고 `var/tools/bin/uv python install --no-bin <version>`을 실행합니다. uv는 고정된 release가 그 version에 지정한 python-build-standalone build를 내려받고(uv 0.12.24는 20261003의 3.14.8을 지정), uv가 기록한 sha256을 확인한 뒤 `var/tools/uv-python`에 uv의 배치 그대로 link까지 포함해 설치합니다(minor directory `cpython-3.14-<platform>`은 patch directory로의 uv link입니다). `--no-bin`은 그 directory 밖에 명령을 쓰지 않습니다. `uv python list --only-installed --managed-python --output-format json <version>`이 interpreter를 가리키고(빈 목록이면 설치된 것이 없음, uv가 실패하면 설치가 실패함), wrapper `var/tools/bin/python3`은 그 절대 경로로 실행합니다. 두 번째 실행은 그것을 찾고 아무것도 설치하지 않습니다. uv는 자기 Python을 externally managed(PEP 668)로 표시하므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 `var/tools/bin/python3`을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/uv-python` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
-- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/bin/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
-- Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/bin/uv venv --python var/tools/bin/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
-- ruff: ruff의 virtual environment는 `var/tools/bin/python3`으로 `uv venv`가 만들고, `uv pip install --no-index --no-deps`가 확인된 wheel을 그 안에 설치합니다.
+  mise가 `mise.toml`의 `http:composer` 항목과 선언된 checksum으로 설치합니다(K127).
+- Python과 PHP: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. Python은 이제
+  `mise.toml`의 도구로 정확한 release로 선언합니다(K127). PHP는 설정을 먼저 읽고 없으면 `.php-version`(ordered-json, orm)과
+  crudui, template의 목록을 읽으며, 둘 다 있고 다르면 실패합니다.
+- Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. uv는 Python을 설치하지 않으며(`UV_PYTHON_DOWNLOADS=never`), kit의 uv는 mise의 Python(`UV_PYTHON`)으로 실행됩니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
+- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
+- Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
+- ruff와 vulture(K127): ruff는 mise가 `mise.lock`의 sha256으로 설치하는 GitHub release archive이고, vulture는 mise가 `.mise/locks`의 uv lock으로 환경을 제자리에서 build하는 `pypi:` 도구이므로, 그 console script는 존재하는 interpreter를 가리킵니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
   Python(crudui, ordered-json, hyper), 나머지 도구의 정확한 release 비교, `GOTOOLCHAIN=local`과 `RUSTUP_AUTO_INSTALL=0`
   (ordered-json), 증거 함수 `toolchainVersions`(crudui)입니다. 검증은 ruff, cargo-audit, govulncheck도 포함하고, 도구를 하나도
@@ -167,8 +179,8 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
 [alint](https://github.com/asamarts/alint)가 검사합니다. 생태계 도구가 요구사항을 표현하면 S1은 재구현을 금하고, alint는 아래
 모든 항목을 설정만으로 표현합니다. 그래서 kit에는 이에 대한 rebuild record가 없고, 이 절이 선택을 기록합니다.
 
-- `make layout-check`는 `var/tools/bin/alint check --config config/layout.yml .`을 실행합니다(offline). `config/toolchain.json`의
-  `alint`가 release와 platform별 archive의 sha256을 고정하고, `install-alint.mts`가 uv처럼 설치합니다.
+- `make layout-check`는 `var/tools/mise/shims/alint check --config config/layout.yml .`을 실행합니다(offline). `mise.toml`의
+  `"github:asamarts/alint"`가 release를 선언하고 `mise.lock`이 platform별 archive의 sha256을 고정합니다(K127).
 - `config/layout.kit.yml`은 공통 rule과 template을 담습니다. 사본(package.json의 `kit.copies`)이므로 kit-sync가 설치된 package에서 쓰고
   kit-check가 byte 단위로 비교하며, 레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
   때문에 이 파일은 `config/`에 있습니다.
@@ -199,7 +211,7 @@ alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만
 | L6 | 레포를 벗어나는 경로 금지: `config/*.json`, `go.mod` replace, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
 | L7 | `scripts/`와 `tests/` 아래 TypeScript가 아닌 인프라 script 금지, 선언된 S9 예외는 허용 | script 확장자에 `file_absent`, 다른 shebang에 `file_content_forbidden` | native. 이유는 주석 |
 | L8 | root `tests/`에는 선언된 runner만 | `dir_absent` | 위치는 native |
-| L9 | release와 platform별 sha256 고정, offline, 설정을 명시적으로 넘김 | `SHA256SUMS`와 cosign bundle이 있는 release archive | install-tools에 맞음 |
+| L9 | release와 platform별 sha256 고정, offline, 설정을 명시적으로 넘김 | `SHA256SUMS`와 cosign bundle이 있는 release archive | mise와 `mise.lock`에 맞음 |
 
 ### 평가한 도구
 
@@ -215,13 +227,12 @@ alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만
 ### 성숙도 위험과 버전 절차
 
 alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨지만 layout rule이 쓰는 key는 아닙니다. 위험은 고정으로
-관리합니다. `config/toolchain.json`이 정확한 release와 platform archive별 sha256을 적고, 설치는 다른 archive를 거부합니다.
+관리합니다. `mise.toml`이 정확한 release를, `mise.lock`이 platform archive별 sha256을 적고, 설치는 다른 archive를 거부합니다.
 버전을 올릴 때는 다음 순서를 따릅니다.
 
 1. 고정된 release와 새 release 사이의 모든 CHANGELOG에서 바뀐 설정을 읽습니다.
-2. release의 `SHA256SUMS`에서 digest 네 개를 가져오고, archive를 각각 내려받아 digest를 확인합니다.
-3. `config/toolchain.json`의 `alint`를 고치고 `make install-tools TOOLS=alint`를 돌린 뒤
-   `tests/source/layout-real.test.mts`의 fixture와 `make layout-check`를 돌립니다.
+2. `mise.toml`에 release를 적고 `make toolchain-lock`을 돌린 뒤, `mise.lock`의 digest를 release의 `SHA256SUMS`와 비교합니다.
+3. `make install-tools`를 돌린 뒤 `tests/source/layout-real.test.mts`의 fixture와 `make layout-check`를 돌립니다.
 4. 바뀐 key가 있을 때만 `config/layout.kit.yml`의 layout rule을 고칩니다.
 
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
@@ -606,7 +617,7 @@ finding 하나입니다.
 | `process.mts` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
 | `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
-| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer의 `digest`, install-npm의 sha512 | 위 module들 |
+| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer(K127에서 사라짐)의 `digest`, install-npm의 sha512 | 위 module들 |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
 | `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review, check-dependency-policy |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
@@ -614,8 +625,7 @@ finding 하나입니다.
 | `schema-validate.mts` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
-| `toolchain-declared.mts` | `recordedRelease` | 같은 검증과 메시지를 되풀이한 `recordedCargoAudit`, `recordedGovulncheck` | install-cargo-audit, install-govulncheck |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | install-ruff, install-uv, install-alint, install-cargo-audit, install-govulncheck, check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern | 위 module들 |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | release installer와 check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern. K127 이후 그 도구는 mise가 설치하고, probe와 bootstrap만 읽음 | check-toolchain, bootstrap |
 | `dependency-state.mts` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
 
 그 밖에 없앤 중복:
@@ -624,7 +634,8 @@ finding 하나입니다.
   composer의 release를 `check-toolchain.toolchainVersions`에서 가져오며, target-report가 `v22.1.0`으로 출력하던 것이 `22.1.0`으로
   출력됩니다.
 - check-dependency-policy의 `composer validate` 호출 두 곳이 함수 하나를 공유합니다.
-- `cargoAuditCommand`, `govulncheckCommand`, check-toolchain probe의 경로는 같은 경로의 세 가지 표기였습니다.
+- `cargoAuditCommand`, `govulncheckCommand`, check-toolchain probe의 경로는 같은 경로의 세 가지 표기였습니다. K127 이후
+  각각은 `mise-tools.mts`의 `toolCommand`가 가리키는 mise의 shim입니다.
 
 사본마다 달랐고 합친 동작(더 넓거나 안전한 쪽을 유지):
 
@@ -634,8 +645,8 @@ finding 하나입니다.
 - `ci-targets`의 target 이름은 `full-run`처럼 글자나 숫자로 시작합니다. `ci-targets`는 make가 option으로 읽는 `-x`도 받았습니다.
 - `dependency-review`와 `release` coverage는 kit fixture뿐 아니라 `node_modules`, `var`, `.tools`도 건너뜁니다.
 - changelog의 fence 탐색은 `scanFences`의 규칙(닫는 fence는 여는 fence만큼 김)으로 fence를 닫습니다.
-- install-cargo-audit와 install-govulncheck는 build를 `tool-wrappers.run`으로 실행하며, 이는 실행 전에 명령을 출력하고 없는 명령을
-  이름으로 알립니다.
+- install-cargo-audit와 install-govulncheck는 build를 `tool-wrappers.run`으로 실행했으며, 이는 실행 전에 명령을 출력하고 없는
+  명령을 이름으로 알립니다. K127 이후 둘 다 mise가 build합니다.
 
 그대로 둔 것과 이유:
 
@@ -651,12 +662,12 @@ finding 하나입니다.
 
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
 `scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션과
-`--config ruff.toml`로 실행하며, ruff.toml은 kit이 복사하는 설정입니다(Lint 설정, K77). ruff는 `var/tools/bin`의 ruff이고 버전은
-config/toolchain.json의 `ruff` `version`이므로 결과가 머신의 ruff 설정에 의존하지 않습니다. 앞 단계가 실패해도 모든 단계를
-실행합니다. 선언되지 않았거나 설치되지 않은 도구는 고치는 방법과 함께 실패합니다.
+`--config ruff.toml`로 실행하며, ruff.toml은 kit이 복사하는 설정입니다(Lint 설정, K77). ruff는 mise의 shim이고 버전은
+`mise.toml`의 `ruff`가 선언한 것이므로(K127) 결과가 머신의 ruff 설정에 의존하지 않습니다. 앞 단계가 실패해도 모든 단계를
+실행합니다. 설치되지 않은 도구는 고치는 방법과 함께 실패합니다.
 
 ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이브러리는 `Requires-Dist`에 ruff를 두지 않으며, dependency review는
-config/toolchain.json의 pin을 PyPI dependency로 읽습니다. 새 ruff는 wheel의 sha256과 함께 손으로 설정합니다.
+`mise.toml`의 `ruff`를 PyPI dependency로 읽습니다. 새 ruff는 `mise.toml`에 손으로 설정하고 `make toolchain-lock`으로 lock합니다.
 
 ## Lint 설정 (K77)
 
@@ -668,16 +679,17 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 
 | 언어 | 도구 (pin) | 설정 | Runner |
 |---|---|---|---|
-| Python | ruff 0.17.0, vulture 2.16 (`config/toolchain.json`, wheel) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
+| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 `vendor/autoload.php`로 PHPStan |
 | Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings` |
-| Go | golangci-lint 2.14.0 (release archive), golang.org/x/tools 0.52.0의 deadcode (kit pin의 Go인 `var/tools/bin/go`의 `go install`) | `.golangci.yml` | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
+| Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml` | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
 
-make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. `toolchain-lint.mts`가 bootstrap 이후에 lint 도구의 선언을
-읽고, `make toolchain-check`는 설치된 각 release를 확인합니다: vulture, golangci-lint, deadcode(release를 출력하지 않으므로 binary의
-`go version -m`으로), 그리고 `config/php-lint/composer.lock`이 고정한 release의 phpcs와 PHPStan입니다.
+make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. bootstrap 이후에 `toolchain-mise.mts`가 `mise.toml`의 lint 도구를,
+`toolchain-lint.mts`가 PHP lint를 읽고, `make toolchain-check`는 설치된 각 release를 확인합니다: vulture, golangci-lint,
+deadcode(release를 출력하지 않고 shim은 mise이므로 `mise which deadcode`가 가리키는 binary의 `go version -m`으로), 그리고
+`config/php-lint/composer.lock`이 고정한 release의 phpcs와 PHPStan입니다.
 
 ### 결정
 
@@ -871,7 +883,7 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 아닌 문자의 각 연속을 `_`로 씁니다. 그래서 `0.0.1`의 `kit-fixture`는 pip이 파싱하는 `kit_fixture-0.0.1-py3-none-any.whl`입니다.
 
 - `release-assets`는 tag된 commit의 directory 복사본(`git archive`)에서 wheel을 만듭니다. 명령은
-  `var/tools/bin/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`이며,
+  `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`이며,
   `SOURCE_DATE_EPOCH`는 commit의 시각입니다. `--no-index`로 directory가 유일한 source가 되므로 build는 network를 읽지 않습니다.
 - build backend는 `config/release.json`의 `buildBackend`에 고정합니다. `requirement`는 backend의 정확한 requirement
   (`setuptools==84.0.0`, pyproject의 `[build-system] requires`와 같아야 함)이고, `sha256`은 PyPI release의 그 wheel digest입니다.
@@ -881,7 +893,7 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 - `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version`, polyspec release 참조 또는 같은
   release의 sibling(K52)만 받으며, 다른 형식은 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]`
   `version`을 요구합니다.
-- `release-consumer`는 wheel을 `var/tools/bin/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 lock(K49), 그다음
+- `release-consumer`는 wheel을 `var/tools/mise/shims/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 lock(K49), 그다음
   `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 wheel을 설치합니다.
   requirement 파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. 그다음 `pip check`가 통과해야 하며, `pip show`가 출력하는
   version을 확인하고 `consumers.wheel`의 smoke command를 실행합니다.
@@ -914,7 +926,7 @@ registry와 archive가 아닌 source는 거부하며, 각 `Requires-Dist`는 같
 checkout의 pip가 `makeVenv`의 venv에 설치합니다: registry 파일마다 `name==version --hash=sha256:…`, archive마다 `name @ <url>
 --hash=sha256:…`입니다.
 
-    var/tools/bin/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
+    var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
 
 이어서 wheel을 `--no-index --require-hashes --no-deps`로 설치하고, `pip --python <venv>/bin/python check`가 0으로 끝나야 합니다(불완전한
 lock은 여기서 실패합니다). 그다음 smoke command를 실행합니다. pip 자체의 `pylock.toml` 읽기는 쓰지 않습니다(발견 사항 참조). 설치는 PyPI와
@@ -1077,7 +1089,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다 | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
 | `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다 | TeamCity 메시지의 test method `test_<case>` | test method |
-| `python` | `var/tools/bin/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` | test method |
+| `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` | test method |
 
 go, cargo, php, python runner는 그 도구의 출력을 `test-output.mts`의 parser로 읽습니다. run-tests가 실행을 읽는 parser와 같습니다(K47).
 node는 reporter API로, vitest는 JSON report로 보고하므로 그 글은 parse하지 않습니다. todo는 도구가 실패를 기대하는 test, 즉 node나
@@ -1147,7 +1159,7 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, `golang.org/x/tools/go/packages` v0.52.0 위의 kit 프로그램 | module directory | 각 internal이 아니고 test가 아닌 package의 export된 이름의 `<import path>.<name>`, `<import path>.<type>.<method or field>` |
 | `ts` | API Extractor 7.59.4(`@microsoft/api-extractor`, kit의 의존성)의 API model | 가장 가까운 `package.json`의 package에 있는, tsc 7이 내는 것 같은 `.d.ts` entry point | `@scope/name!Codec#encode:member(1)` 같은 canonical reference |
 | `php` | nikic/php-parser 5.9.0 위의 `scripts/kit/symbols/php/extract.php` | source directory나 파일, 예를 들어 PHP extension의 `*.stub.php` | public 선언의 `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST` |
-| `python` | 표준 library `ast` 위의 `scripts/kit/symbols/python.py`, `var/tools/bin/python3 -I`로 실행 | package directory나 module 파일 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>` |
+| `python` | 표준 library `ast` 위의 `scripts/kit/symbols/python.py`, `var/tools/mise/shims/python3 -I`로 실행 | package directory나 module 파일 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>` |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
 
 - repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을
@@ -1300,22 +1312,19 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 
 ## uv와 Python lock writer (K54)
 
-`uv`는 install-tools 도구입니다. `config/toolchain.json`의 `uv`가 정확한 version과 플랫폼별 release archive의 sha256을 선언하고,
-`scripts/kit/install-uv.mts`가 `var/tools/uv`에 설치하며 wrapper `var/tools/bin/uv`를 씁니다. `make python-lock`(ONLINE)은 그 uv로
+`uv`는 `mise.toml`의 도구입니다. mise가 정확한 release를 `mise.lock`의 sha256으로 설치하고, shim
+`var/tools/mise/shims/uv`가 그것을 실행합니다(K127). `make python-lock`(ONLINE)은 그 uv로
 `pythonLocks`의 각 Python lock을 쓰고, `make python-lock-check`(offline)은 각 lock을 source와 비교합니다. 고정하는 이유는, PATH의 선언되지 않은
 uv로 쓴 lock이 기계에 따라 달라지기 때문입니다. `pip lock`(pip 26.2.1)은 experimental이며 실행 중인 platform 하나만 lock했습니다(cryptography가
 macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platform의 파일을 marker와 hash와 함께 씁니다.
 
 ### uv: 설치와 state
 
-- **Release archive (K64):** uv는 `https://github.com/astral-sh/uv/releases/download/<version>/`의 release archive
-  `uv-<target>.tar.gz`에서 설치하며, 플랫폼별 sha256은 release의 `.sha256` 파일에서 가져옵니다(uv 0.12.24: `aarch64-apple-darwin`,
-  `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`). `tar`가 그대로 풉니다. uv는 실행에 Python이 필요 없으므로
-  Python보다 먼저 설치되고, 그 뒤 Python을 설치합니다. digest가 나열되지 않은 platform(musl, Windows)은 설치하지 않습니다.
-- **state는 `var/tools` 아래, home에는 쓰지 않음:** wrapper는 `UV_CACHE_DIR=var/tools/uv-cache`, `UV_PYTHON_INSTALL_DIR=var/tools/uv-python`,
-  `UV_PYTHON_DOWNLOADS=manual`(interpreter는 `uv python install`로만 내려받음), `UV_NO_CONFIG=1`(home이나 system의 `uv.toml`을 읽지 않음)을
-  설정합니다. wrapper는 호출자의 `UV_CACHE_DIR`를 덮어씁니다(측정함). 그래서
-  checkout의 cache는 항상 자기 것입니다.
+- **Release archive (K64, K127):** mise가 uv를 release archive `uv-<target>.tar.gz`(aqua backend)에서 설치하며, linux-x64와
+  macos-arm64의 sha256은 `mise.lock`에 있습니다. K127 이후 uv는 Python을 설치하지 않습니다. Python은 `mise.toml`의 도구입니다.
+- **state는 `var/tools` 아래, home에는 쓰지 않음:** checkout의 mise 환경(kit.mk, `miseEnvironment`)이
+  `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never`(uv는 interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나
+  system의 `uv.toml`을 읽지 않음)을 설정하고, `toolsEnvironment`가 mise의 python3인 `UV_PYTHON`을 더합니다.
 
 ### 측정한 uv 동작 (uv 0.12.11, aarch64-apple-darwin, install-tools의 Python 3.14.8 virtual environment)
 
@@ -1334,7 +1343,7 @@ macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platfo
 | `pyproject.toml`을 requirements로 쓰고 임시 directory에 그 이름으로 복사 | uv는 거기서 `[project].dependencies`를 읽습니다. project 자신은 출력되지 않으므로 lock에는 의존성만 있습니다. lock 이름 아래 제자리 실행은 측정하지 않았습니다(첫 시도는 uv가 거부하는 `out-a.toml`을 썼습니다). 복사는 동작하므로 writer는 복사합니다. |
 | `--no-index --find-links <dir>`, `<dir>`은 상대 또는 절대 경로 | local wheel마다 `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`입니다. uv는 상대 입력이 아니라 realpath를 적습니다. header에는 `--no-index`가 있고 `--find-links`는 없으므로 header에 checkout 경로가 없습니다. |
 | `path = "<lock 기준 상대 경로>"`(PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml`과 pip 26.2.1의 `install --dry-run --no-index -r pylock.toml`은 lock의 directory 기준으로 path를 읽습니다. uv는 두 working directory에서, pip은 lock directory에서 측정했습니다(집합의 wheel 두 개). |
-| `--universal`의 하한 | `--python-version`이 없으면 uv는 universal resolution의 Python 하한을 `requires-python`이 아니라 찾은 interpreter에서 정합니다(측정함: PATH에 Python 3.11이 있으면 3.11로 풀고 의존성 하나가 3.14를 요구한다고 알렸습니다). 그래서 writer는 `config/toolchain.json`의 `python` minor를 `--python-version`으로 넘기고, 그것이 없는 toolchain은 uv 실행 전에 거부합니다. |
+| `--universal`의 하한 | `--python-version`이 없으면 uv는 universal resolution의 Python 하한을 `requires-python`이 아니라 찾은 interpreter에서 정합니다(측정함: PATH에 Python 3.11이 있으면 3.11로 풀고 의존성 하나가 3.14를 요구한다고 알렸습니다). 그래서 writer는 `mise.toml`의 `python`의 minor를 `--python-version`으로 넘기고, 그것이 없는 `mise.toml`은 uv 실행 전에 거부합니다. |
 | `[project].dynamic`의 `dependencies` 항목 | uv로는 측정하지 않았습니다. writer와 검사는 uv 실행 전에 거부합니다. |
 
 여섯 package 집합은 `requests==2.34.2`, `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`, `urllib3==2.8.0`, 그리고 marker를 위한
@@ -1390,8 +1399,8 @@ urllib3==2.8.0
 
 ### writer (`make python-lock`, findLinks를 선언하지 않으면 ONLINE)
 
-`scripts/kit/python-lock.mts write`는 `var/tools/bin/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
---generate-hashes --format pylock.toml -o pylock.toml`(`<python>`은 `config/toolchain.json`의 `python` minor)을 `var/tools`의 directory(`python-lock-<random>`)에서 실행합니다. 이 directory에는 두 source가
+`scripts/kit/python-lock.mts write`는 `var/tools/mise/shims/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
+--generate-hashes --format pylock.toml -o pylock.toml`(`<python>`은 `mise.toml`의 `python`의 minor)을 `var/tools`의 directory(`python-lock-<random>`)에서 실행합니다. 이 directory에는 두 source가
 각자의 이름으로 있습니다. `pyproject.toml`은 그 이름으로 복사되며, uv는 거기서 읽습니다(아래 측정). 그래서 uv를 위해 pyproject가
 checkout에 그대로 있을 필요는 없습니다. findLinks가 있으면 `--no-index --find-links <directory>`를 덧붙입니다. source는 먼저 읽고
 파싱하므로, 잘못된 source는 uv 실행 전에 멈춥니다.
