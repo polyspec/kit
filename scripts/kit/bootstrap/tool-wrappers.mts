@@ -32,6 +32,7 @@ export function run(command: string, args: readonly string[], options: SpawnSync
 export const RELEASE_OUTPUT = {
   python: { args: ['--version'], pattern: /^Python (\d+\.\d+\.\d+)$/m },
   ruff: { args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m },
+  vulture: { args: ['--version'], pattern: /^vulture (\d+(?:\.\d+)+)$/m },
   uv: { args: ['--version'], pattern: /^uv (\d+\.\d+\.\d+) /m },
   alint: { args: ['--version'], pattern: /^alint (\d+\.\d+\.\d+) /m },
   phpunit: { args: ['--version'], pattern: /^PHPUnit (\d+\.\d+\.\d+) /m },

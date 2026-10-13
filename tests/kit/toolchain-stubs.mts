@@ -1,7 +1,7 @@
 // Stub commands for the toolchain tests: `npm`, `go`, `cargo` and `curl` on PATH log their arguments to
 // STUB_LOG and write what the real commands write (an npm tree, a Go toolchain module, a cargo-audit binary, a downloaded
 // file), so an installer runs offline and a test reads the calls it made. The uv of a release archive (uvRelease) is a stub
-// too: it installs a stub Python, makes a venv and installs the ruff wheel into it. The files the stubs write are Node
+// too: it installs a stub Python, makes a venv and installs the ruff or vulture wheel into it. The files the stubs write are Node
 // scripts, so a wrapper of var/tools/bin can be run.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -77,12 +77,15 @@ if (args[0] === 'mod') {
 // The bytes of the ruff wheel of a release: `pip download` writes them under the name of the wheel of the requirement.
 export const ruffWheel = (version: string) => `ruff ${version} wheel stand-in\n`;
 
+// The bytes of the vulture wheel of a release, as ruffWheel.
+export const vultureWheel = (version: string) => `vulture ${version} wheel stand-in\n`;
+
 // The Python that the uv stub installs: it prints STUB_PYTHON_SHOWS (3.14.8) and downloads the ruff wheel of the requirement
 // file of `pip download`.
 const PYTHON = `${HEADER}
 if (args[0] === '--version') console.log('Python ' + (process.env.STUB_PYTHON_SHOWS ?? '3.14.8'));
 else if (args[1] === 'pip' && args[2] === 'download') {
-  const [, name, version] = /^(ruff)==(\\d+\\.\\d+\\.\\d+)/.exec(fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8'));
+  const [, name, version] = /^(ruff|vulture)==(\\d+(?:\\.\\d+)+)/.exec(fs.readFileSync(args[args.indexOf('-r') + 1], 'utf8'));
   fs.writeFileSync(path.join(args[args.indexOf('-d') + 1], name + '-' + version + '-py3-none-any.whl'), name + ' ' + version + ' wheel stand-in\\n');
 }
 `;
@@ -101,11 +104,12 @@ else if (args[0] === 'venv') {
   // As uv does, the home is the directory of the interpreter that the --python wrapper runs.
   const python = args[args.indexOf('--python') + 1];
   const interpreter = /exec '([^']+)'/.exec(fs.readFileSync(python, 'utf8'))?.[1] ?? python;
-  script(path.join(directory, 'bin/python'), '');
+  // The venv's python runs the command of a module (python -m <tool>) that pip install put beside it.
+  script(path.join(directory, 'bin/python'), "const [flag, name, ...rest] = process.argv.slice(2); if (flag === '-m') process.exit(require('node:child_process').spawnSync(require('node:path').join(require('node:path').dirname(process.argv[1]), name), rest, { stdio: 'inherit' }).status);");
   fs.writeFileSync(path.join(directory, 'pyvenv.cfg'), 'home = ' + path.dirname(interpreter) + '\\n');
 } else if (args[0] === 'pip' && args[1] === 'install') {
-  const [, name, release] = /\\/(ruff)-(\\d+\\.\\d+\\.\\d+)-/.exec(args.at(-1));
-  script(path.join(path.dirname(args[args.indexOf('--python') + 1]), name), 'console.log(' + JSON.stringify(name + ' ') + ' + (process.env.STUB_RUFF_SHOWS ?? ' + JSON.stringify(release) + '));');
+  const [, name, release] = /\\/(ruff|vulture)-(\\d+(?:\\.\\d+)+)-/.exec(args.at(-1));
+  script(path.join(path.dirname(args[args.indexOf('--python') + 1]), name), 'console.log(' + JSON.stringify(name + ' ') + ' + (process.env[' + JSON.stringify('STUB_' + name.toUpperCase() + '_SHOWS') + '] ?? ' + JSON.stringify(release) + '));');
 }
 `;
 

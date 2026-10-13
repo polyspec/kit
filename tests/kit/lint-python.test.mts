@@ -32,7 +32,7 @@ function checkout(t: TestContext, { declared = true, installed = ['ruff', 'vultu
   writeFileSync(path.join(root, '.gitignore'), 'var/\n*.log\n');
   mkdirSync(path.join(root, 'config'));
   const digest = 'f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a';
-  writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify(declared ? { schema: 1, ruff: { version: '0.16.10', sha256: { 'linux-x64': digest } } } : { schema: 1 }));
+  writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify(declared ? { schema: 1, ruff: { version: '0.16.10', sha256: { 'linux-x64': digest } }, vulture: { version: '2.16', sha256: digest } } : { schema: 1 }));
   const log = path.join(root, 'calls.log');
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   for (const tool of installed) {
@@ -68,7 +68,7 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(vulture.root, () => {}), ['vulture packages/python']);
 });
 
-test('an undeclared ruff, a missing tool and a missing ruff.toml fail with their fix', (t) => {
+test('an undeclared tool, a missing tool and a missing ruff.toml fail with their fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { declared: false }).root), /config\/toolchain\.json declares no ruff; declare ruff with its version and the sha256 of its wheels/);
   assert.throws(() => lintSteps(checkout(t, { installed: ['vulture'] }).root), /var\/tools\/bin\/ruff is missing; run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { installed: ['ruff'] }).root), /var\/tools\/bin\/vulture is missing; run make install-tools/);

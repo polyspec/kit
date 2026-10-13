@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; the digests are the uv and alint archives of each platform and the backend wheel.",
+  "comment": "The toolchains of the kit itself. install-tools installs uv from its release archive, the Python of pythonBuild with that uv, and the build backend of the Python wheels (pythonBackend); and alint, which make layout-check runs, from its release archive; ruff and vulture, which the real lint tests run, from their wheels; the digests are the uv and alint archives of each platform and the backend wheel.",
   "python": "3.14",
   "pythonBuild": {
     "version": "3.14.8"
@@ -26,6 +26,19 @@
       "linux-arm64": "133ae54580b1c84d6aa1641d72448267241064ee9c5be119bb649f6acad9e005",
       "linux-x64": "ce1f182bf3205aceab62fad40dbdd7502de638ed89cbb4fef10320803384ff9b"
     }
+  },
+  "ruff": {
+    "version": "0.17.0",
+    "sha256": {
+      "darwin-arm64": "cbf7149e0927dc3295d5d64679a4765576eef71b00782b2ae969ef82274d6bb9",
+      "darwin-x64": "5f0ca4a40f81403689c04f12966e22f44e329ae362072d8f1587b7bda87f603b",
+      "linux-arm64": "13ee90156522998c3037059d8f66885c8adeeaf7643bdce2caceee196ecd23e0",
+      "linux-x64": "bc73e7c133e82d55b5f15897b2a442d72c0cb4a0c886c46801ce3c247150b60c"
+    }
+  },
+  "vulture": {
+    "version": "2.16",
+    "sha256": "6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee"
   },
   "composer": {
     "version": "2.10.3",

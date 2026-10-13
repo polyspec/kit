@@ -7,7 +7,7 @@
 //     folder, so vulture reads the [tool.vulture] exclusions of the package's pyproject.toml, and with the confidence of kit,
 //     which a package cannot change. A package keeps code that only its consumers use by an entry of its vulture_whitelist.py,
 //     with the reason; vulture reads the whitelist as one of the package's files.
-// The rules are therefore the ones of the checkout, so one checkout gives one result on every machine. A missing ruff
+// The rules are therefore the ones of the checkout, so one checkout gives one result on every machine. A missing
 // declaration, tool or ruff.toml is a failure with its fix, never a skip. Every step runs, also after a failure of an earlier
 // one, and each prints one line.
 //
@@ -25,12 +25,12 @@ export const VULTURE_CONFIDENCE = '60';
 /** A step of the lint: the command, its arguments and the folder it runs in, relative to the root. */
 export type LintStep = { label: string; command: string; args: string[]; cwd: string };
 
-/** The steps of the lint of `root`; throws when the checkout declares no ruff, has no ruff or vulture installed, or has no ruff.toml. */
+/** The steps of the lint of `root`; throws when the checkout declares no ruff or vulture, has none installed, or has no ruff.toml. */
 export function lintSteps(root: string): LintStep[] {
   const config = toolchainConfig(root);
   const tools: Record<string, string> = {};
-  if (!config.ruff) throw new Error('config/toolchain.json declares no ruff; declare ruff with its version and the sha256 of its wheels');
   for (const tool of ['ruff', 'vulture']) {
+    if (!config[tool]) throw new Error(`config/toolchain.json declares no ${tool}; declare ${tool} with its version and the sha256 of its wheels`);
     const command = path.join(root, 'var/tools/bin', tool);
     if (!existsSync(command)) throw new Error(`${path.relative(root, command)} is missing; run make install-tools`);
     tools[tool] = command;
