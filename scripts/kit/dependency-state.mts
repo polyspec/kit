@@ -41,17 +41,20 @@ export type DependencyPolicy = {
   taggedNpmPackages?: TaggedRelease[];
 };
 
-/** A registry dependency: its manifest, kind, specification and locked version, and its lock. */
-export type Dependency = {
-  ecosystem: string;
-  manifest: string;
-  package: string;
-  kind: string;
-  spec: string;
-  version: string | null;
-  lock: string | null;
-  createdBy?: string | null;
-};
+/** The kind of a requirement of a pyproject.toml: build-system.requires or an extra. */
+export type PythonRequirementKind = 'build-system' | `optional:${string}`;
+
+/** The fields of every registry dependency: its manifest, specification and locked version. */
+type DependencyFields = { ecosystem: string; manifest: string; package: string; spec: string; version: string | null };
+
+/**
+ * A registry dependency, by its kind: a package of a PEP 751 lock (`lock`) names the lock and its writer; an entry of an
+ * npm or Composer manifest, a Go requirement, a requirement of a pyproject.toml or the ruff pin of the toolchain names its
+ * lock, or null when it has none.
+ */
+export type Dependency =
+  | DependencyFields & { kind: 'lock'; lock: string; createdBy: string | null }
+  | DependencyFields & { kind: 'dependencies' | 'devDependencies' | 'require' | 'require-dev' | 'toolchain' | PythonRequirementKind; lock: string | null };
 
 /**
  * A package of this repository that an npm manifest names: the directory of its lock (`base`), the directory that the lock
@@ -88,7 +91,7 @@ export type ComposerLocalPackage = {
 export type LocalPackage = NpmLocalPackage | ComposerLocalPackage;
 
 /** An exact requirement of a pyproject.toml. */
-export type PythonRequirement = { package: string; kind: string; spec: string; version: string };
+export type PythonRequirement = { package: string; kind: PythonRequirementKind; spec: string; version: string };
 
 /** An entry of `packages` of an npm lock (lockfileVersion 3). */
 export type NpmLockEntry = {
@@ -128,7 +131,7 @@ const PLATFORM_REQUIREMENT = /^(php(-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.
 export function pythonRequirements(text: string, manifest: string) {
   const sections = text.split(/^(?=\[)/m);
   const requirements: PythonRequirement[] = [];
-  const add = (kind: string, list: string) => {
+  const add = (kind: PythonRequirementKind, list: string) => {
     // The groups of both patterns are not optional, so every match holds them.
     for (const [, item] of list.matchAll(/"([^"]+)"/g)) {
       const pin = EXACT_PYTHON_PIN.exec(item!); // The groups of the pattern are not optional.
