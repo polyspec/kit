@@ -1,7 +1,7 @@
 // The toolchain pins that kit ships (S4), read from toolchain-pins.json beside this module, so the package carries them to
 // every repository: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release. Every declaration of a
-// checkout equals its pin at the pin's precision: .node-version, the channel of rust-toolchain.toml, the go directive of
-// the declared go.mod, the php minors and the python minor.
+// checkout equals its pin at the pin's precision: .node-version, the channel of rust-toolchain.toml, the php minors and the
+// python minor. The Go declaration is the go line of a go.mod, which toolchain-floors.mts compares in every go.mod.
 import SHIPPED from './toolchain-pins.json' with { type: 'json' };
 
 const EXACT = /^\d+\.\d+\.\d+$/;
@@ -38,7 +38,6 @@ export const PINS: Pins = readPins(SHIPPED);
 export type PinnedDeclarations = {
   node?: { version: string; source: string } | undefined;
   rust?: { version: string; source: string } | undefined;
-  go?: { version: string; source: string } | undefined;
   php?: { minors: string[]; source: string } | undefined;
   python?: { minor: string; source: string } | undefined;
 };
@@ -46,7 +45,7 @@ export type PinnedDeclarations = {
 /** One line for each declaration of `declared` that differs from its pin; an undeclared tool is not required. */
 export function pinFindings(declared: PinnedDeclarations, pins: Pins): string[] {
   const values: [Tool, string[], string][] = [];
-  for (const tool of ['node', 'rust', 'go'] as const) {
+  for (const tool of ['node', 'rust'] as const) {
     const entry = declared[tool];
     if (entry) values.push([tool, [entry.version], entry.source]);
   }

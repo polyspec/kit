@@ -30,7 +30,15 @@ fs.writeFileSync(path.join(prefix, 'node_modules/npm/package.json'), JSON.string
 script(path.join(prefix, 'node_modules/npm/bin/npm-cli.js'), 'console.log(' + JSON.stringify(shown) + ');');
 `;
 
-const GO = `${HEADER}
+// go mod edit reads a go.mod for the declaration of Go: the real go of the test runs it, unlogged.
+const GO_EDIT = `if (args[0] === 'mod' && args[1] === 'edit') {
+  const real = ${JSON.stringify(realCommand('go'))};
+  if (!real) { console.error('stub: no real go on the PATH of the test'); process.exit(1); }
+  process.exit(require('node:child_process').spawnSync(real, args, { stdio: 'inherit' }).status ?? 1);
+}
+`;
+
+const GO = `${HEADER.replace('fs.appendFileSync', `${GO_EDIT}fs.appendFileSync`)}
 if (args[0] === 'mod') {
   // The module resolution of Go 1.24 with GOTOOLCHAIN=local: the go.mod of the working directory, or the first one
   // above it, names a newer Go and the call refuses, as the real machine Go refused on a release runner.
@@ -182,8 +190,9 @@ export function toolchainStubs(t: Pick<TestContext, 'after'>, { downloads = {}, 
 const READERS: Record<string, string> = { go: 'mod', python3: '-I', npm: 'config' };
 
 // The real command `name` on the PATH of the test, or null.
-const realCommand = (name: string): string | null => (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
-  .map(directory => path.join(directory, name)).find(file => existsSync(file)) ?? null;
+function realCommand(name: string): string | null {
+  return (process.env.PATH ?? '').split(path.delimiter).filter(Boolean).map(directory => path.join(directory, name)).find(file => existsSync(file)) ?? null;
+}
 
 /**
  * Stubs of version commands: each command of `outputs` ({ name: text }) prints its text for any arguments (a command whose text

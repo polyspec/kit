@@ -16,7 +16,7 @@ const RUFF_DIGESTS = { 'linux-x64': 'f33f43a864a8483eebd160e713336c8bab02c934fea
 
 test('the schema accepts every representative toolchain configuration', () => {
   const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
-  assert.deepEqual(names, ['toolchain-composer-digest.json', 'toolchain-files-only.json', 'toolchain-full.json', 'toolchain-go-file.json']);
+  assert.deepEqual(names, ['toolchain-composer-digest.json', 'toolchain-files-only.json', 'toolchain-full.json']);
   for (const name of names) assert.deepEqual(validate(JSON.parse(fixtureConfig(name)), SCHEMA), [], name);
 });
 
@@ -40,12 +40,10 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     '.python-version': '3.14\n',
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
     'rust-toolchain.toml': '[toolchain]\nchannel = "1.98.1"\nprofile = "minimal"\n',
-    'packages/fixture-go/go.mod': 'module example.com/fixture\n\ngo 1.27.1\n',
   });
   assert.deepEqual(declaredToolchain(root), {
     node: { version: '26.8.1', source: '.node-version' },
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
-    go: { version: '1.27.1', source: 'packages/fixture-go/go.mod go directive' },
     rust: { version: '1.98.1', source: 'rust-toolchain.toml channel' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     python: { minor: '3.14', source: 'config/toolchain.json python' },
@@ -65,13 +63,6 @@ test('declaredToolchain reads the version files when the configuration lists not
   });
 });
 
-test('the Go release comes from the version file, else the toolchain line, else the go directive', (t) => {
-  const files = { 'config/toolchain.json': fixtureConfig('toolchain-go-file.json'), '.go-version': '1.27.0\n', 'go.mod': 'module example.com/fixture\n\ngo 1.27\n' };
-  assert.deepEqual(declaredToolchain(toolchainCheckout(t, files)).go, { version: '1.27.0', source: '.go-version' });
-  const toolchain = toolchainCheckout(t, { 'config/toolchain.json': '{ "schema": 1, "go": { "mod": "go.mod" } }', 'go.mod': 'module example.com/fixture\n\ngo 1.27\n\ntoolchain go1.27.2\n' });
-  assert.deepEqual(declaredToolchain(toolchain).go, { version: '1.27.2', source: 'go.mod toolchain' });
-});
-
 test('a declaration that is malformed or contradicts another fails with the file and the values', (t) => {
   const cases: [Record<string, string>, RegExp][] = [
     [{ '.node-version': '26.8\n' }, /\.node-version must record the Node\.js release as <major>\.<minor>\.<patch>; it records "26\.8"/],
@@ -80,8 +71,6 @@ test('a declaration that is malformed or contradicts another fails with the file
     [{ 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' }, /rust-toolchain\.toml must record channel as <major>\.<minor>\.<patch>; it records "stable"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "python": "3.14" }', '.python-version': '3.13\n' }, /\.python-version declares 3\.13, but config\/toolchain\.json python declares 3\.14/],
     [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "go": { "mod": "go.mod", "versionFile": ".go-version" } }', '.go-version': '1.27.0\n', 'go.mod': 'go 1.26\n' }, /go\.mod declares go 1\.26, but \.go-version declares 1\.27\.0; write go 1\.27 in go\.mod/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "go": { "mod": "go.mod" } }', 'go.mod': 'go 1.27\n' }, /go\.mod has no toolchain line or go directive <major>\.<minor>\.<patch>; it has "1\.27"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "ruff": { "version": "0.16", "sha256": {} } }' }, /config\/toolchain\.json ruff must record version as <major>\.<minor>\.<patch>; it records "0\.16"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "ruff": { "version": "0.16.10", "sha256": {} } }' }, /config\/toolchain\.json ruff must record the sha256 of the ruff wheel of each platform, for example linux-x64; it records none/],
     [{ 'config/toolchain.json': '{ "schema": 1, "uv": { "version": "0.12", "sha256": {} } }' }, /config\/toolchain\.json uv must record version as <major>\.<minor>\.<patch>; it records "0\.12"/],

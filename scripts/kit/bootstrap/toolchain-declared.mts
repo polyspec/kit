@@ -2,7 +2,6 @@
 // and the declaring file, so that an install and a check name the file in a message:
 //   node         .node-version
 //   npm          packageManager of package.json: npm@<version>, optionally +sha512.<digest of the registry tarball>
-//   go           config/toolchain.json go: the versionFile, else the toolchain line, else the go directive of the go.mod
 //   rust         channel of rust-toolchain.toml
 //   php          config/toolchain.json php (minor releases), else .php-version
 //   python       config/toolchain.json python (minor release), else .python-version
@@ -15,6 +14,7 @@
 //   alint        config/toolchain.json alint: the exact version and the sha256 of the release archive of each platform
 //   cargoAudit   config/toolchain.json cargoAudit
 //   govulncheck  config/toolchain.json govulncheck
+// Go is read by toolchain-files.mts with the go command, after the bootstrap.
 // A tool is declared when its file exists (node, rust) or its config key is present; an undeclared tool is absent from the
 // result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
@@ -34,7 +34,6 @@ export type PlatformRelease = { version: string; sha256: Record<string, unknown>
 export type DeclaredToolchain = {
   node?: Declared;
   npm?: Declared & { sha512: string | undefined };
-  go?: Declared;
   rust?: Declared;
   php?: { minors: string[]; source: string };
   python?: { minor: string; source: string };
@@ -76,31 +75,6 @@ function minor(file: string, what: string, value: unknown): string {
  */
 export function toolchainConfig(root: string): Record<string, unknown> {
   return existsSync(path.join(root, 'config/toolchain.json')) ? JSON.parse(read(root, 'config/toolchain.json')) : {};
-}
-
-// The file that a declaration of config/toolchain.json names; path.join failed with a TypeError for a value that is not text.
-function named(what: string, value: unknown): string {
-  if (typeof value !== 'string') throw new Error(`config/toolchain.json ${what} must name a file; it records ${JSON.stringify(value)}`);
-  return value;
-}
-
-function goVersion(root: string, go: unknown): Declared {
-  const goMod = named('go.mod', field(go, 'mod'));
-  const mod = read(root, goMod);
-  const directive = /^go (\d+\.\d+(?:\.\d+)?)$/m.exec(mod)?.[1];
-  const toolchain = /^toolchain go(\d+\.\d+\.\d+)$/m.exec(mod)?.[1];
-  if (field(go, 'versionFile')) {
-    const versionFile = named('go.versionFile', field(go, 'versionFile'));
-    const version = exact(versionFile, 'the Go release', read(root, versionFile).trim());
-    // The go directive of the module is the minimum language version: it is the minor release or the release itself.
-    if (directive && directive !== version && directive !== version.split('.').slice(0, 2).join('.')) {
-      throw new Error(`${goMod} declares go ${directive}, but ${versionFile} declares ${version}; write go ${version.split('.').slice(0, 2).join('.')} in ${goMod}`);
-    }
-    return { version, source: versionFile };
-  }
-  if (toolchain) return { version: toolchain, source: `${goMod} toolchain` };
-  if (!directive || !EXACT.test(directive)) throw new Error(`${goMod} has no toolchain line or go directive <major>.<minor>.<patch>; it has ${JSON.stringify(directive)}`);
-  return { version: directive, source: `${goMod} go directive` };
 }
 
 /** The exact release that config/toolchain.json of `root` records for `key`; an error names the expected form when it is missing or not exact. */
@@ -164,7 +138,6 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     // The first group always takes part in a match.
     declared.npm = { version: match[1]!, sha512: match[2], source: 'packageManager of package.json' };
   }
-  if (config.go) declared.go = goVersion(root, config.go);
   if (existsSync(path.join(root, 'rust-toolchain.toml'))) {
     const channel = /^\s*channel\s*=\s*"([^"]*)"\s*$/m.exec(read(root, 'rust-toolchain.toml'))?.[1];
     declared.rust = { version: exact('rust-toolchain.toml', 'channel', channel), source: 'rust-toolchain.toml channel' };
