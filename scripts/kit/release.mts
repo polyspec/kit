@@ -39,7 +39,7 @@ import path from 'node:path';
 import semver from 'semver';
 import { releaseOf } from './github-release.mts';
 import { consumerConfigProblems } from './release-consumer-config.mts';
-import { readGoMod } from './toolchain-files.mts';
+import { readCargoPackages, readGoMod } from './toolchain-files.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
@@ -284,16 +284,30 @@ export function verify(ctx: Context, tag: string): { commit: string; checks: str
   return { commit, checks: [...ctx.config.checks] };
 }
 
-/** The version that a manifest file declares, or null without one. A composer.json may omit it: Composer takes the tag. */
+/**
+ * The version that a manifest file declares, or null without one. A composer.json may omit it: Composer takes the tag. A
+ * Cargo.toml is read by `cargo metadata --no-deps`, so a member that inherits `version.workspace` has the version of its
+ * workspace; a virtual workspace manifest, which is no package, declares the `[workspace.package]` version of its members.
+ */
 export function manifestVersion(file: string): string | null {
   const text = readFileSync(file, 'utf8');
   const name = path.basename(file);
   if (name === 'package.json' || name === 'composer.json') return JSON.parse(text).version ?? null;
   if (name === 'VERSION') return text.trim() || null;
-  const heading = name === 'Cargo.toml' ? 'package' : name === 'pyproject.toml' ? 'project' : null;
-  if (heading === null) throw new Stop(`${name}: not a manifest of a release`);
-  const table = readToml(text, file)[heading];
+  if (name === 'Cargo.toml') return cargoVersion(file, text);
+  if (name !== 'pyproject.toml') throw new Stop(`${name}: not a manifest of a release`);
+  const table = readToml(text, file).project;
   return isTable(table) && typeof table.version === 'string' ? table.version : null;
+}
+
+/** The version of the Cargo manifest `file` (text `text`): its package's as cargo resolves it, or its workspace's. */
+function cargoVersion(file: string, text: string): string | null {
+  const manifest = path.resolve(file);
+  const own = readCargoPackages(path.dirname(manifest), 'Cargo.toml', process.env).find(entry => path.resolve(entry.manifest_path) === manifest);
+  if (own) return own.version;
+  const workspace = readToml(text, file).workspace;
+  const shared = isTable(workspace) ? workspace.package : undefined;
+  return isTable(shared) && typeof shared.version === 'string' ? shared.version : null;
 }
 
 /** The body of the section `## version` of the change log `file`, without the anchor of the next section. */
