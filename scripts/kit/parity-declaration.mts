@@ -393,6 +393,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       seen.add(entry.implementation);
     }
     if (unit.kind === 'api') {
+      if (!('symbols' in unit)) fail(`${where}: a unit of kind api needs symbols`);
       // has(name) holds before get(name).
       for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols snapshot`);
       continue;

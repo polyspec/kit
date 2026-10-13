@@ -64,7 +64,7 @@ export function pairs(model: ParityModel, kind: ParityUnit['kind']) {
 export function missingImplementations(model: ParityModel) {
   return pairs(model, 'api').flatMap(({ unit, implementation }) => {
     const where = { unit: unit.id, implementation: implementation.name, place: implementation.symbols };
-    // An API unit without symbols is no declaration finding, so this throws on one as before; reported as a defect.
+    // readDeclaration requires symbols of an API unit, and the rules do not run on a declaration with findings.
     const declared = unit.symbols!.find(entry => entry.implementation === implementation.name);
     if (!declared) return [finding('R1', `the API unit ${unit.id} declares no symbol of ${implementation.name}`, where)];
     const exported = model.snapshots.get(implementation.name)?.get(declared.symbol);
