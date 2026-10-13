@@ -1,8 +1,9 @@
 // Stub registries for the tests of the dependency tools: `npm`, `composer`, `curl` and `go` on PATH answer from a JSON file
 // (`registry.json` of the directory), so a test or the record of a fixture needs no network. The stubs log their calls.
-// The real composer is found before the test runs and used for the commands that the stub does not answer.
+// The real composer and go are the tools of mise.toml that the checkout under test installed, named by their absolute paths
+// (`mise which`, K127), and run the commands that the stubs do not answer; while they are not installed the stubs fail.
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
@@ -64,10 +65,16 @@ if (args[0] === 'outdated') {
   console.log(JSON.stringify(report));
   process.exit(Array.isArray(report.advisories) ? 0 : 1);
 } else {
-  // Other commands (validate) run the real composer, which reads the files of the checkout only.
-  if (!process.env.REAL_COMPOSER) { console.error('composer is not installed; the stub cannot forward \`composer ' + args.join(' ') + '\`'); process.exit(1); }
+  // Other commands (validate) run the real composer, which reads the files of the checkout only; as the go stub, it refuses a
+  // composer that reaches a stub again.
+  if (!process.env.REAL_COMPOSER) { console.error('composer is not installed; run make install-tools (the stub cannot forward \`composer ' + args.join(' ') + '\`)'); process.exit(1); }
+  const { realpathSync } = require('node:fs');
+  if (process.env.STUB_COMPOSER_FORWARDED || realpathSync(process.env.REAL_COMPOSER) === realpathSync(__filename)) {
+    console.error('the composer stub reached itself through REAL_COMPOSER ' + process.env.REAL_COMPOSER + '; REAL_COMPOSER must name a composer that is no stub');
+    process.exit(1);
+  }
   const { spawnSync } = require('node:child_process');
-  process.exit(spawnSync(process.env.REAL_COMPOSER, args, { stdio: 'inherit' }).status ?? 1);
+  process.exit(spawnSync(process.env.REAL_COMPOSER, args, { stdio: 'inherit', env: { ...process.env, STUB_COMPOSER_FORWARDED: '1' } }).status ?? 1);
 }
 `;
 
@@ -89,8 +96,15 @@ const GO_STUB = `#!/usr/bin/env node
 const { appendFileSync, readFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 if (args[0] === 'mod' && args[1] === 'edit') {
-  if (!process.env.REAL_GO) { console.error('go is not installed; the stub cannot forward \`go ' + args.join(' ') + '\`'); process.exit(1); }
-  process.exit(require('node:child_process').spawnSync(process.env.REAL_GO, args, { stdio: 'inherit' }).status ?? 1);
+  if (!process.env.REAL_GO) { console.error('go is not installed; run make install-tools (the stub cannot forward \`go ' + args.join(' ') + '\`)'); process.exit(1); }
+  // The real go is no stub: one that is this file, or that reaches a stub again (a shim of mise that runs the next go of
+  // PATH), would forward without end. The stub refuses it instead.
+  const { realpathSync } = require('node:fs');
+  if (process.env.STUB_GO_FORWARDED || realpathSync(process.env.REAL_GO) === realpathSync(__filename)) {
+    console.error('the go stub reached itself through REAL_GO ' + process.env.REAL_GO + '; REAL_GO must name a go that is no stub');
+    process.exit(1);
+  }
+  process.exit(require('node:child_process').spawnSync(process.env.REAL_GO, args, { stdio: 'inherit', env: { ...process.env, STUB_GO_FORWARDED: '1' } }).status ?? 1);
 }
 appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
@@ -108,11 +122,27 @@ if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
 }
 `;
 
+// The checkout under test, whose var/tools holds its pinned tools.
+const ROOT = path.resolve(import.meta.dirname, '../..');
+
+/**
+ * The absolute path of the command `command` of a tool of mise.toml that the checkout `root` installed, as the wrapper
+ * var/tools/bin/mise names it (`mise which`), or undefined while mise or the tool is not installed. A shim of mise is no such
+ * path: it runs the tool only inside the checkout, and elsewhere the next command of PATH, which may be a stub.
+ */
+export function pinnedTool(root: string, command: string): string | undefined {
+  const mise = path.join(root, 'var/tools/bin/mise');
+  if (!existsSync(mise)) return undefined;
+  const found = spawnSync(mise, ['which', command], { cwd: root, encoding: 'utf8' });
+  return found.status === 0 ? found.stdout.trim() : undefined;
+}
+
 /**
  * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
- * the directory with `t.after`.
+ * the directory with `t.after`. REAL_COMPOSER and REAL_GO are the pinned tools of the checkout `root`; a missing one is
+ * not set, and its stub then fails with the install that provides it.
  */
-export function stubRegistries(t: Pick<TestContext, 'after'>) {
+export function stubRegistries(t: Pick<TestContext, 'after'>, { root = ROOT }: { root?: string } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-registry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
@@ -126,20 +156,17 @@ export function stubRegistries(t: Pick<TestContext, 'after'>) {
   const registryFile = path.join(directory, 'registry.json');
   writeFileSync(registryFile, JSON.stringify({ npm: {}, composer: {}, pypi: {} }));
   const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile };
-  // Without a composer on PATH the environment names none: a null value would reach the stub as the text "null".
-  const composer = realCommand('composer');
-  if (composer !== null) env.REAL_COMPOSER = composer;
-  const go = realCommand('go');
-  if (go !== null) env.REAL_GO = go;
+  // A missing tool is no variable: an undefined value would reach the stub as the text "undefined".
+  const composer = pinnedTool(root, 'composer');
+  if (composer !== undefined) env.REAL_COMPOSER = composer;
+  const go = pinnedTool(root, 'go');
+  if (go !== undefined) env.REAL_GO = go;
   return {
     env,
     calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
     registry: (data: unknown) => writeFileSync(registryFile, JSON.stringify(data)),
   };
 }
-
-/** The version of `command` found on PATH outside the stubs, or null. */
-export const realCommand = (command: string) => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).stdout.trim() || null;
 
 /** What the stub registries answer for the fixture of tests/kit/fixture: every dependency is at its latest stable release. */
 export const FIXTURE_REGISTRY = {
