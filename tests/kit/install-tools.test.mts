@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -322,7 +322,7 @@ test('the named tools are installed alone, and an unknown or an undeclared name 
   assert.ok(stubs.calls().every(line => !line.startsWith('python3.14')), 'ruff was not installed');
   const unknown = install(root, stubs.env, 'make');
   assert.equal(unknown.status, 1);
-  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, uv, composer, phpunit, cargoAudit, govulncheck, alint, phpLint, vulture, golangciLint, deadcode, symbolExtractors\n/);
+  assert.match(unknown.stderr, /unknown tool make; the tools are python, pythonBackend, npm, go, ruff, uv, composer, phpunit, cargoAudit, govulncheck, alint, phpLint, vulture, golangciLint, deadcode, rustChannels, symbolExtractors\n/);
   const undeclared = install(root, stubs.env, 'go');
   assert.equal(undeclared.status, 1);
   assert.match(undeclared.stderr, /go is not declared; declare it in config\/toolchain\.json or in its file, or leave it out of the tools to install/);
@@ -338,6 +338,35 @@ test('an undeclared or malformed declaration fails before any install', (t) => {
 });
 
 const AUDIT_FILES = { 'config/toolchain.json': config({ cargoAudit: '0.22.2', govulncheck: '1.1.4' }) };
+
+// A checkout whose config/toolchain.json declares the Rust nightly of rust/ as an exception.
+const NIGHTLY_EXCEPTION = { tool: 'rust', channel: 'nightly-2026-10-01', scope: 'rust', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' };
+// A rustup that logs its arguments and lists the channels of RUSTUP_INSTALLED as installed.
+const RUSTUP = '#!/bin/sh\necho "rustup $*" >> "$STUB_LOG"\nif [ "$1 $2" = "toolchain list" ]; then printf "%s\\n" $RUSTUP_INSTALLED; fi\n';
+
+test('install-tools installs each Rust channel that an exception declares with rustup, and keeps an installed one', (t) => {
+  const root = toolchainCheckout(t, { 'rust/Cargo.toml': '[package]\nname = "codec"\n', 'config/toolchain.json': config({ exceptions: [NIGHTLY_EXCEPTION] }) });
+  const stubs = toolchainStubs(t, { extra: { RUSTUP_INSTALLED: 'stable-aarch64-apple-darwin' } });
+  writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP);
+  chmodSync(path.join(stubs.directory, 'bin', 'rustup'), 0o755);
+  const first = install(root, stubs.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain list', 'rustup toolchain install nightly-2026-10-01 --profile minimal']);
+  const kept = toolchainStubs(t, { extra: { RUSTUP_INSTALLED: 'nightly-2026-10-01-aarch64-apple-darwin' } });
+  writeFileSync(path.join(kept.directory, 'bin', 'rustup'), RUSTUP);
+  chmodSync(path.join(kept.directory, 'bin', 'rustup'), 0o755);
+  assert.equal(install(root, kept.env).status, 0);
+  assert.deepEqual(kept.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain list'], 'an installed channel is kept');
+});
+
+test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {
+  const root = toolchainCheckout(t, { 'rust/Cargo.toml': '[package]\nname = "codec"\n', 'config/toolchain.json': config({ exceptions: [NIGHTLY_EXCEPTION] }) });
+  const stubs = toolchainStubs(t);
+  // PATH holds the stubs and the system commands, and no rustup.
+  const result = install(root, { ...stubs.env, PATH: `${path.join(stubs.directory, 'bin')}${path.delimiter}/usr/bin${path.delimiter}/bin` });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /config\/toolchain\.json exceptions declare the Rust channel nightly-2026-10-01, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
+});
 
 test('cargo-audit and govulncheck are installed by their own installers and kept by a second run', (t) => {
   const root = toolchainCheckout(t, AUDIT_FILES);

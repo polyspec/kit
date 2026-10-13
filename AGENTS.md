@@ -46,7 +46,8 @@ and states only its own rules. The rules below are kit's own.
   source-test` runs them, and CI runs them after `make kit-test`.
 - kit's own checks run the Go of the kit pin, the uv and Python of config/toolchain.json, which `make install-tools` installs
   into var/tools, and the Rust of `rust-toolchain.toml`. rustup is the one tool that a machine or CI runner provides: it
-  installs that channel (`rustup toolchain install`), and CI puts var/tools/bin first on PATH (`.github/workflows/ci.yml`).
+  installs that channel (`rustup toolchain install`) and, through `make install-tools`, each Rust channel that config/toolchain.json
+  `exceptions` declares; a missing rustup fails with its install. CI puts var/tools/bin first on PATH (`.github/workflows/ci.yml`).
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
   (docs/tool-inventory.md, Language parity).

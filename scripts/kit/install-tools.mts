@@ -2,11 +2,11 @@
 // Installs the toolchains that the checkout declares into var/tools (`make install-tools`), which the Makefile puts first
 // on PATH through the wrappers of var/tools/bin:
 //
-//   node scripts/kit/install-tools.mts [tool...]      the tools: uv python pythonBackend npm go ruff composer phpunit cargoAudit govulncheck alint phpLint vulture golangciLint deadcode symbolExtractors
+//   node scripts/kit/install-tools.mts [tool...]      the tools: uv python pythonBackend npm go ruff composer phpunit cargoAudit govulncheck alint phpLint vulture golangciLint deadcode rustChannels symbolExtractors
 //
 // Without arguments every declared tool is installed; with arguments only the named tools, each of which must be declared
 // (uv installs the Python, so a python that is named without uv needs uv installed first; ruff runs with that Python).
-// Python (pythonBuild), npm, Go, ruff, uv, Composer (with a sha256), PHPUnit (the Composer project of config/phpunit), cargo-audit, govulncheck, alint, the PHP lint (the Composer project of config/php-lint), vulture, golangci-lint, deadcode and the symbol extractors of parity (install-symbols.mts) are installed by their own modules; the
+// Python (pythonBuild), npm, Go, ruff, uv, Composer (with a sha256), PHPUnit (the Composer project of config/phpunit), cargo-audit, govulncheck, alint, the PHP lint (the Composer project of config/php-lint), vulture, golangci-lint, deadcode, the Rust channels of config/toolchain.json exceptions (install-rust.mts, with rustup) and the symbol extractors of parity (install-symbols.mts) are installed by their own modules; the
 // declarations are read by toolchain-declared.mts and the lint tools by toolchain-lint.mts; Go, wanted by a checkout that tracks a go.mod, is the release of the kit pin
 // from its archive (toolchain-pins.json goArchives). Each tool is installed only when it is declared, and an install is skipped when the exact
 // release is present, so a second run changes nothing. The tools of the machine are never changed. Node.js, Rust and PHP
@@ -25,17 +25,19 @@ import { installNpm } from './bootstrap/install-npm.mts';
 import { installPython } from './install-python.mts';
 import { installBackend } from './release-backend.mts';
 import { installRuff } from './install-ruff.mts';
+import { installRustChannels } from './install-rust.mts';
 import { installExtractor } from './install-symbols.mts';
 import { installUv } from './install-uv.mts';
 import { installVulture } from './install-vulture.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { GO_ARCHIVES, PINS } from './toolchain-pins.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { readExceptions } from './toolchain-exceptions.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import type { DeclaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, ROOT } from './paths.mts';
 
-const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck', 'alint', 'phpLint', 'vulture', 'golangciLint', 'deadcode', 'symbolExtractors'];
+const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer', 'phpunit', 'cargoAudit', 'govulncheck', 'alint', 'phpLint', 'vulture', 'golangciLint', 'deadcode', 'rustChannels', 'symbolExtractors'];
 
 /**
  * Installs the declared tools into var/tools of `root`, or only `tools` (names of TOOLS, each declared); returns the names of
@@ -44,8 +46,12 @@ const TOOLS = ['python', 'pythonBackend', 'npm', 'go', 'ruff', 'uv', 'composer',
 export function installTools({ root = ROOT, tools = null, print = () => {} }: { root?: string; tools?: string[] | null; print?: (text: string) => void } = {}): string[] {
   const declared: DeclaredToolchain = declaredToolchain(root);
   const lint = declaredLintTools(root);
+  // The Rust channels that the exceptions declare; a malformed exception fails here, as toolchain-check reports it.
+  const exceptions = readExceptions(root);
+  if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
+  const rustChannels = [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))];
   const present: Record<string, unknown> = {
-    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: checkedFiles(root).some(file => path.posix.basename(file) === 'go.mod'), ruff: lint.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint, phpLint: lint.phpLint, vulture: lint.vulture, golangciLint: lint.golangciLint, deadcode: lint.deadcode, symbolExtractors: declared.symbolExtractors,
+    python: declared.pythonBuild, pythonBackend: declared.pythonBackend, npm: declared.npm, go: checkedFiles(root).some(file => path.posix.basename(file) === 'go.mod'), ruff: lint.ruff, uv: declared.uv, composer: declared.composer?.sha256, phpunit: declared.phpunit, cargoAudit: declared.cargoAudit, govulncheck: declared.govulncheck, alint: declared.alint, phpLint: lint.phpLint, vulture: lint.vulture, golangciLint: lint.golangciLint, deadcode: lint.deadcode, rustChannels: rustChannels.length > 0, symbolExtractors: declared.symbolExtractors,
   };
   for (const name of tools ?? []) {
     if (!TOOLS.includes(name)) throw new Error(`unknown tool ${name}; the tools are ${TOOLS.join(', ')}`);
@@ -80,6 +86,7 @@ export function installTools({ root = ROOT, tools = null, print = () => {} }: { 
   if (vulture && wanted('vulture')) step('vulture', () => installVulture({ root, declared: vulture, print }));
   if (golangciLint && wanted('golangciLint')) step('golangciLint', () => installGolangciLint({ root, declared: golangciLint, print }));
   if (deadcode && wanted('deadcode')) step('deadcode', () => installDeadcode({ root, recorded: deadcode.version, print }));
+  if (wanted('rustChannels')) step('rustChannels', () => installRustChannels({ root, channels: rustChannels, print }));
   // The extractors build with the Go and the Composer installed above.
   for (const extractor of symbolExtractors && wanted('symbolExtractors') ? symbolExtractors.extractors : []) step(`symbols-${extractor}`, () => installExtractor({ root, extractor, print }));
   return installed;
