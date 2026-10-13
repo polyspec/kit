@@ -60,16 +60,14 @@ test('the gate fails when a tagged package has another version than its tag, and
   assert.match(line, /external\/tagged\/js has version 9\.9\.9, the tag v1\.2\.3 has version 1\.2\.3\. Rule: .+\. Fix: make install-tagged\.$/);
 });
 
-test('a package that npm installed as a copy (install-links) is a package of the repository, read by its file: lock entry', (t) => {
+test('a package that npm installed as a copy (install-links) is no link, and the gate names the tag it must link to', (t) => {
   const root = fixture(t);
   edit(root, 'package-lock.json', (lock) => {
     lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:external/tagged/js' };
   });
-  // The lock changed after its review, which is the only finding; the copy is read, so no finding names the package.
-  assert.deepEqual(findings(gate(root)).filter(line => line.includes('tagged-lib')), []);
-  edit(root, 'package-lock.json', (lock) => { lock.packages['node_modules/tagged-lib'].version = '1.2.4'; });
-  const failed = findings(gate(root)).filter(line => line.includes('tagged-lib'));
-  assert.equal(failed.length, 1, failed.join('\n'));
+  assert.deepEqual(findings(gate(root)).filter(line => line.includes('tagged-lib')).map(line => line.split('. Rule:')[0]), [
+    '[dependency-policy] package.json tagged-lib: package-lock.json links it to no directory, the checkout of https://example.com/tagged-lib v1.2.3 is external/tagged/js',
+  ]);
 });
 
 test('a package required as file:<directory> is the package of that directory, and another directory fails', (t) => {
