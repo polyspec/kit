@@ -35,7 +35,7 @@ function uvWrapper(root: string, binary: string, version: string) {
 }
 
 /** Installs the declared uv `{ version, sha256 }` (sha256 by platform key) into var/tools/uv of `root` and writes the wrapper. */
-export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; print?: (text: string) => void }) {
+export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, unknown>> }; platform?: string; print?: (text: string) => void }) {
   const target = UV_TARGETS[platform];
   if (!target) throw new Error(`no uv archive is verified for ${platform}; the verified platforms are ${Object.keys(UV_TARGETS).join(', ')}`);
   const sha256 = declared.sha256[platform];

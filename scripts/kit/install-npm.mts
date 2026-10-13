@@ -42,7 +42,7 @@ function unpackVerified({ root, next, version, sha512, print }: { root: string; 
 }
 
 /** Installs the declared npm `{ version, sha512 }` into var/tools/npm of `root` and writes the wrappers; returns `{ installed, release }`. */
-export function installNpm({ root, declared, print = () => {} }: { root: string; declared: { version: string; sha512?: string }; print?: (text: string) => void }) {
+export function installNpm({ root, declared, print = () => {} }: { root: string; declared: { version: string; sha512?: string | undefined }; print?: (text: string) => void }) {
   const recorded = declared.sha512 ? `${declared.version}+sha512.${declared.sha512}` : declared.version;
   const prefix = toolsPath(root, 'npm');
   const result = installOnce({
