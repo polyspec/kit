@@ -4,12 +4,12 @@
 // from the tracked files of the kit (with the installed tools of var/, which the consumer has after make install-tools) and
 // runs the vendored tests there.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { copyTracked, runKitTest } from './checkout.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The paths of the kit that no consumer holds: the source of each vendored file, and the kit's own tests.
@@ -19,25 +19,16 @@ const KIT_ONLY = [...Object.values(KIT.vendoredFiles ?? {}), 'tests/source/'];
 test('the vendored tests pass in the layout of a consumer', (t) => {
   const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-consumer-layout-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
-  const listed = spawnSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(listed.status, 0, listed.stderr);
-  for (const file of listed.stdout.split('\0').filter(Boolean)) {
-    if (KIT_ONLY.some(only => (only.endsWith('/') ? file.startsWith(only) : file === only))) continue;
-    mkdirSync(path.join(sandbox, path.dirname(file)), { recursive: true });
-    cpSync(path.join(ROOT, file), path.join(sandbox, file));
-  }
+  copyTracked(ROOT, sandbox, file => !KIT_ONLY.some(only => (only.endsWith('/') ? file.startsWith(only) : file === only)));
   for (const [copy, source] of Object.entries(KIT.vendoredFiles ?? {})) {
     mkdirSync(path.join(sandbox, path.dirname(copy)), { recursive: true });
     cpSync(path.join(ROOT, source), path.join(sandbox, copy));
   }
   cpSync(path.join(ROOT, 'var'), path.join(sandbox, 'var'), { recursive: true });
   // The consumer's own command: make kit-test runs the vendored tests through the kit's test runner.
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test'], { cwd: sandbox, encoding: 'utf8', maxBuffer: 1 << 28 });
-  const output = run.stdout + run.stderr;
-  const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);
-  assert.ok(summary, `make kit-test printed no summary:\n${output.slice(-2000)}`);
-  assert.ok(Number(summary[1]) > 0, 'the vendored tests ran');
+  const { status, output, passed } = runKitTest(sandbox);
+  assert.ok(passed > 0, 'the vendored tests ran');
   // A failed case prints `✖ tests/kit/<file> › <case> (<time>)`, a file that failed to load `✖ tests/kit/<file> (<time>)`.
   const failed = [...output.matchAll(/✖ (tests\/kit\/[^\n]*?) \(\d[^)]*\)/g)].map(match => match[1]);
-  assert.equal(run.status, 0, `vendored tests failed in the consumer layout:\n${[...new Set(failed)].join('\n')}`);
+  assert.equal(status, 0, `vendored tests failed in the consumer layout:\n${[...new Set(failed)].join('\n')}`);
 });
