@@ -15,7 +15,7 @@ import { LOCK, vendoredFilesOf, walk } from './kit-check.mts';
 import { isMain, ROOT } from './paths.mts';
 import { fileDigest } from './digest.mts';
 import { jsonText, readJson, writeAtomic } from './files.mts';
-import { git } from './git.mts';
+import { git, gitResult } from './git.mts';
 
 export const DEFAULT_REPOSITORY = 'https://github.com/polyspec/kit';
 
@@ -60,7 +60,14 @@ export function sync({ root, repository, tag }: { root: string; repository: stri
   const clone = mkdtempSync(path.join(tmpdir(), 'kit-sync-'));
   try {
     git(root, 'clone', '--quiet', '--depth', '1', '--branch', tag, repository, clone);
+    // `git clone --branch` takes a branch as well as a tag, and a branch is no release: the lock would record it as the tag
+    // (flowmark's lock held a branch of a removed worktree, K83). Only a tag is synced.
+    // A branch of the same name as the tag would be cloned in its place, so the tag must name the commit cloned.
+    const tagged = gitResult(clone, 'rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`);
     const commit = git(clone, 'rev-parse', 'HEAD').trim();
+    if (tagged.status !== 0 || tagged.stdout.trim() !== commit) {
+      throw new Error(`${tag} is not a tag of ${repository}; kit-sync takes only a release tag. Fix: make kit-sync KIT_TAG=vX.Y.Z`);
+    }
     const kit: KitManifest = readJson(clone, 'kit.json');
     // Each entry copies the source file `from` of kit to the path `file` of the checkout.
     const entries = [
