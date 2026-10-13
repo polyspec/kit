@@ -1197,7 +1197,7 @@ test('a case path step .~ selects the keys of an object as the case names (K42)'
   assert.deepEqual(messages({ files: keyed.files, edit: (config) => { widthUnit(config).cases = '$.~.name'; return config; } }).length, 1);
 });
 
-// The case directories of template: tests/cases/<group>/<case>/, each holding the files of its case.
+// Case directories, a suite whose file is a directory: tests/cases/<group>/<case>/, each holding the files of its case.
 const CASE_DIRECTORIES = {
   'tests/cases/echo/html-escape-five-chars/case.json': '{}\n',
   'tests/cases/echo/html-escape-five-chars/expected.html': '&lt;\n',
