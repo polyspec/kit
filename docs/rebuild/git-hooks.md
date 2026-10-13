@@ -27,7 +27,8 @@ Verdict: **none fits.** kit keeps `git-hooks.mts`. Measured on 2026-10-13.
 
 ## Why none fits
 
-What the tools add is the one `git config core.hooksPath` call, which kit.mk already makes on every make invocation. H2 and
+What the tools add is the one `git config core.hooksPath` call, which kit.mk already makes on every make invocation of a
+checkout that tracks `.githooks/pre-push`. H2 and
 H4, the content of the gate hook and the check that it is in place, are not their concern, so kit would keep both and add a
 dependency.
 
