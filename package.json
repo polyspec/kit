@@ -56,12 +56,21 @@
   },
   "dependencies": {
     "@decimalturn/toml-patch": "3.3.0",
+    "@mdit-vue/shared": "3.0.2",
     "@renovatebot/pep440": "5.0.1",
     "ajv": "8.20.0",
+    "github-slugger": "2.0.0",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-frontmatter": "2.0.1",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-to-string": "4.0.0",
+    "micromark-extension-frontmatter": "2.0.0",
+    "micromark-extension-gfm": "3.0.0",
     "picomatch": "4.0.7",
     "pip-requirements-js": "1.0.3",
     "semver": "7.8.5",
     "smol-toml": "1.9.1",
-    "tap-parser": "18.3.4"
+    "tap-parser": "18.3.4",
+    "unist-util-visit": "5.1.0"
   }
 }

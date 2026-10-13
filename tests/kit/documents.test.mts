@@ -85,7 +85,7 @@ test('fences: blocks must be equal, closed and keep their info string', (t) => {
 test('link: a relative link must resolve, inside the repository', (t) => {
   const root = tree(t, { ...pair('docs/a.md', 'alpha', 'See [x](missing.md), [y](../../outside.md), [z](a.md?x=1), [ok](../b.md).\n'), ...pair('b.md', 'bee') });
   const found = run(root);
-  has(found, 'docs/a.md:4:9: link: the link missing.md names docs/missing.md, which does not exist');
+  has(found, 'docs/a.md:4:5: link: the link missing.md names docs/missing.md, which does not exist');
   hasPart(found, 'docs/a.md:4:', 'link: the link ../../outside.md leaves the repository');
   hasPart(found, 'link: the link a.md?x=1 has a query');
   assert.equal(found.filter(line => line.startsWith('docs/a.md') && line.includes('b.md')).length, 0, found.join('\n'));
