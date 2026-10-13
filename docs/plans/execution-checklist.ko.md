@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: ebb7e253ccd0de3bcdc173c532b69a98613b0998b051952dd8aa83be38a1bd14 -->
+<!-- source-sha256: ecb8df1dce19da12412acb744064c3bc84447fb5fcc8510f9531fd32f7d94a9c -->
 # 실행 체크리스트
 
 [English](execution-checklist.md)
@@ -131,7 +131,7 @@
 | ID | 작업 | 산출물 | 검증 | 상태 |
 |---|---|---|---|---|
 | K69 | standards enforcement 계획(적대적 사실 검증과 적대적 설계 검증 뒤의 개정 2)을 기록하고 그 kit 항목을 등록합니다. | `docs/plans/standards-enforcement.md(.ko)`, 이 절 | `node scripts/kit/check-documents.mjs` | [o] |
-| K70 | owner의 기준 S1–S9를 `PRINCIPLES.md`에 담아, 모든 소비자가 vendor된 사본으로 갖게 합니다. | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs`; `make kit-test` | [ ] |
+| K70 | owner의 기준 S1–S9를 `PRINCIPLES.md`에 담아, 모든 소비자가 vendor된 사본으로 갖게 합니다. | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs`; `make kit-test` | [o] |
 | K71 | kit을 TypeScript package로 만듭니다(S9): source는 `.ts`이고 `tsc` 7이 `erasableSyntaxOnly`로 검사합니다; package는 JS와 `.d.ts`로 build되고 `bin`과 자기 lock을 가지며, pin된 devDependency 하나로 소비됩니다; byte copy는 `release.yml`, `PRINCIPLES.md`, lint 설정에만 남습니다. 전환이 착지할 때까지 vendor 경로는 유지하며, 먼저 repository들에 알립니다. | kit source, `package.json`, lock, `kit.json` | `tsc --noEmit`; `make kit-test`; `make source-test`(consumer-layout case가 package를 설치) | [ ] |
 | K72 | run-tests는 마지막 test 뒤에도 끝나지 않은 node test 파일을 열린 handle 이름과 함께 실패시키고, 그다음 `--test-force-exit`을 지웁니다; `test-load-check.mjs`와 그 test는 필요가 반증된 뒤 지웁니다. | `scripts/kit/run-tests`, 그 test | red 먼저: top-level await 뒤에 등록한 test가 실행되어야 하고, handle이 새는 파일은 기한으로 실패해야 합니다; 그다음 `tests/kit/dependency-cargo.test.mjs`를 포함해 `make kit-test`와 `make source-test` | [ ] |
 | K73 | kit이 재발명한 tool을 교체합니다: `schema-validate`는 ajv, `glob`은 picomatch(`dot: true`), `pylock`과 `dependency-state`의 pyproject 읽기는 smol-toml, 생태계별 version comparator, commitlint, JUnit/JSON reporter 출력; `.npmrc` 전제는 같은 release에서 지웁니다. | `scripts/kit/*`, test | 교체마다 실패하는 kit test로 시작(glob은 `.github/…`와 `docs/.vitepress/…`); `make kit-test` | [ ] |

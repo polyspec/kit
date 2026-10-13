@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 06a02646b3ea8fedbcf0a5dd972c05e81b019f6b0902151274fccff230320acd -->
+<!-- source-sha256: 353fadfb632ab6e3e4e0403458ca3e95153f1a8cfaf9de9366c78cc7cb1fd758 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -56,3 +56,34 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - 질문은 필요할 때만 합니다: 이미 정해졌거나 분명하지 않고, 버릇으로 묻지 않으며, 무언가를 빠뜨리는 수단이 아니고, 결코
   혼란스럽지 않아야 합니다; 그리고 필요한 질문은 결코 빠뜨리지 않습니다. 새 이정표가 다시 연 결정은 다시 묻습니다.
+
+## Repository 기준
+
+owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 시 실패하는 tool로 강제합니다. tool, 순서, 예측한 실패는
+[standards enforcement 계획](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement.ko.md)(kit에만 있음)에 있습니다. tool이 착지하기 전에는 여기 적힌 대로
+작업을 구속합니다.
+
+- S1 재발명 금지: 각 생태계의 규칙을 따르고, 그 tool과 library를 있는 그대로 씁니다. 우리 규칙은 우리가 만드는 것에만
+  적용하며, npm이 만드는 link 같은 외부 tool의 동작을 막지 않습니다. 생태계가 제공할 수 있는 것을 직접 구현하려면 rebuild
+  기록(`docs/rebuild/<tool>.md`)이 필요합니다: 요구사항, 찾아본 tool, 어느 것도 맞지 않는 이유.
+- S2 PHP: 파일당 class 하나; package는 PSR-4, test는 `autoload-dev`; `classmap` 금지; `files`는 namespaced function과
+  constant에만; `spl_autoload_register`와 runtime `ClassLoader` 등록 금지; 생성 코드도 PSR-1과 PSR-4를 따름; test는
+  PHPUnit에서 돕니다.
+- S3 test는 생태계 표준 runner(`node --test` 또는 vitest, PHPUnit, `go test`, `cargo test` 또는 nextest, unittest)로만
+  돌며, 자체 runner protocol, `check()` helper, 파일 chain을 쓰지 않고, 설치된 package를 대상으로 돕니다: `PYTHONPATH`,
+  `sys.path` 변경, repository를 벗어나는 경로를 쓰지 않습니다.
+- S4 버전: lock의 모든 의존성이 동작함을 보인 뒤에만 정합니다. 생태계에 LTS가 있으면 최신 LTS, 없으면 의존성이 지원하는
+  최신 stable, 또는 LTS에 근접한 더 새 non-LTS를 씁니다. 선언 하한은 pin 정밀도로 pin과 같고, 모든 repository가 같은
+  pin을 쓰며, 예외는 범위, 이유, 재시도 조건과 함께 선언하고, source build로 조용히 fallback하지 않습니다.
+- S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
+  `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
+  `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
+  않습니다.
+- S6 언어 parity: repository의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test합니다. 영구 차이는 이유가
+  spec anchor를 인용하는 선언된 profile이며, exclusion은 제거될 때까지 실패하는 부채입니다.
+- S7 test 위치: 기본 기능의 test는 그 기능을 소유한 package와 repository에 둡니다. 소비자는 소비자 관점의 test만 둡니다.
+- S8 이상한 점의 보고는 "책임"의 두 번째 항목이며, 어떤 tool도 이를 강제할 수 없습니다. S8이 더하는 것: 모든 예외,
+  profile, rebuild 기록은 이유와 owner의 필수 review를 가집니다.
+- S9 kit을 포함한 언어 간 orchestration과 check는 TypeScript로 쓰고, `tsc`가 `erasableSyntaxOnly`로 검사합니다. 예외: 한
+  언어의 구현을 구동하는 harness는 그 언어의 test이고, 언어별 정적 check는 그 생태계 analyzer의 plugin이며, symbol
+  추출기는 그 생태계의 tool을 돌립니다.
