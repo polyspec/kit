@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { sha256, fileDigest } from '../../scripts/kit/digest.mts';
 import * as release from '../../scripts/kit/release.mts';
 import * as wheel from '../../scripts/kit/release-wheel.mts';
@@ -18,14 +18,24 @@ import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { BACKEND_BYTES, BACKEND_FILE } from './wheel-stubs.mts';
 import { GENERATOR_LOCK, GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, addSibling, generatorRequires, siblingLine } from './sibling-sandbox.mts';
 
-const stop = (fn, pattern) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const escaped = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A call that a stub of the sandbox logged. */
+interface StubCall {
+  tool?: string;
+  args: string[];
+  cwd?: string;
+  requirements?: string;
+}
+
+type Box = ReturnType<typeof releaseSandbox>;
+
+const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const WHEEL = 'kit_fixture-0.0.1-py3-none-any.whl';
 const PYPROJECT = 'packages/fixture-python/pyproject.toml';
 const BACKEND_SHA = sha256(BACKEND_BYTES);
-const context = box => release.context(box.root, { env: box.env });
-const backendPath = box => path.join(box.root, 'var/tools/wheels', BACKEND_FILE);
-const editPyproject = (root, change) => writeFileSync(path.join(root, PYPROJECT), change(readFileSync(path.join(root, PYPROJECT), 'utf8')));
+const context = (box: Box) => release.context(box.root, { env: box.env });
+const backendPath = (box: Box) => path.join(box.root, 'var/tools/wheels', BACKEND_FILE);
+const editPyproject = (root: string, change: (text: string) => string) => writeFileSync(path.join(root, PYPROJECT), change(readFileSync(path.join(root, PYPROJECT), 'utf8')));
 
 test('a wheel is named by PEP 427 and the archive names of the configuration hold it', (t) => {
   const box = releaseSandbox(t);
@@ -43,7 +53,7 @@ test('assets builds the wheel of the tagged commit offline with the pinned build
   const metadata = spawnSync('unzip', ['-p', file, '*.dist-info/METADATA'], { encoding: 'utf8' }).stdout;
   assert.match(metadata, /^Name: kit-fixture$/m);
   assert.match(metadata, /^Version: 0\.0\.1$/m);
-  const [build] = box.pipCalls().filter(call => call.args[2] === 'wheel');
+  const [build] = box.pipCalls().filter((call: StubCall) => call.args[2] === 'wheel');
   assert.ok(build, 'pip wheel ran once');
   for (const flag of ['--no-deps', '--no-index']) assert.ok(build.args.includes(flag), `${flag} is passed`);
   const find = build.args.indexOf('--find-links');
@@ -52,7 +62,7 @@ test('assets builds the wheel of the tagged commit offline with the pinned build
 });
 
 test('assets refuses a pyproject.toml whose project name differs from the configuration before it builds', (t) => {
-  const box = releaseSandbox(t, { mutate: root => editPyproject(root, text => text.replace('name = "kit-fixture"', 'name = "other-name"')) });
+  const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace('name = "kit-fixture"', 'name = "other-name"')) });
   const tag = box.release('0.0.1');
   stop(() => release.assets(context(box), tag), /packages\/fixture-python\/pyproject\.toml: name other-name, config\/release\.json declares kit-fixture/);
   assert.deepEqual(box.pipCalls(), []);
@@ -98,8 +108,8 @@ test('assets refuses a Requires-Dist that the lock of the wheel does not hold, a
 const KIT_LIB_URL = 'https://github.com/polyspec/kit-lib/releases/download/v0.0.1/kit_lib-0.0.1-py3-none-any.whl';
 const KIT_LIB_SHA = 'a'.repeat(64);
 // A sandbox whose config declares kit-lib as a polyspec package and whose lock holds its release asset.
-const polyspecSandbox = (t) => releaseSandbox(t, {
-  mutate: (root) => {
+const polyspecSandbox = (t: TestContext) => releaseSandbox(t, {
+  mutate: (root: string) => {
     const config = readJson(root, 'config/release.json');
     writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': 'https://github.com/polyspec/kit-lib' } } } });
     const lock = readFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), 'utf8');
@@ -119,7 +129,7 @@ test('assets refuses a polyspec reference without its fragment, before it packs 
   const tag = box.release('0.0.1');
   box.wheelRequires([`kit-lib @ ${KIT_LIB_URL}`]);
   stop(() => release.assets(context(box), tag), /kit-lib @ .* has no #sha256= fragment/);
-  assert.equal(box.pipCalls().filter(call => call.args[2] === 'wheel').length, 1, 'the build ran once, the metadata check refused the wheel after it');
+  assert.equal(box.pipCalls().filter((call: StubCall) => call.args[2] === 'wheel').length, 1, 'the build ran once, the metadata check refused the wheel after it');
 });
 
 test('assets refuses a polyspec fragment that differs from the sha256 of the lock', (t) => {
@@ -130,7 +140,7 @@ test('assets refuses a polyspec fragment that differs from the sha256 of the loc
 });
 
 test('assets refuses a pyproject whose build backend is not the pinned requirement, before it builds', (t) => {
-  const box = releaseSandbox(t, { mutate: root => editPyproject(root, text => text.replace('setuptools==84.0.0', 'setuptools==83.0.0')) });
+  const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace('setuptools==84.0.0', 'setuptools==83.0.0')) });
   const tag = box.release('0.0.1');
   stop(() => release.assets(context(box), tag), /build-system\.requires is \["setuptools==83\.0\.0"\], the buildBackend pins setuptools==84\.0\.0/);
   assert.deepEqual(box.pipCalls(), []);
@@ -152,7 +162,7 @@ test('assets without the build backend file names the command that fetches it', 
 });
 
 test('versions requires the version in pyproject.toml', (t) => {
-  const box = releaseSandbox(t, { mutate: root => editPyproject(root, text => text.replace(/^version = .*\n/m, '')) });
+  const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace(/^version = .*\n/m, '')) });
   const tag = box.release('0.0.1');
   stop(() => release.versions(context(box), tag), /packages\/fixture-python\/pyproject\.toml: version none, the tag v0\.0\.1 is 0\.0\.1/);
 });
@@ -161,7 +171,7 @@ test('release-backend downloads the pinned build backend with its hash and keeps
   const box = releaseSandbox(t);
   rmSync(backendPath(box));
   backend.fetchBackend(context(box));
-  const [download] = box.pipCalls().filter(call => call.args[2] === 'download');
+  const [download] = box.pipCalls().filter((call: StubCall) => call.args[2] === 'download');
   assert.ok(download, 'pip download ran once');
   for (const flag of ['--no-deps', '--require-hashes', '--only-binary']) assert.ok(download.args.includes(flag), `${flag} is passed`);
   assert.equal(download.args[download.args.indexOf('--only-binary') + 1], ':all:');
@@ -183,18 +193,18 @@ test('release-consumer installs the wheel with --no-index and --require-hashes i
   const box = consumerSandbox(t);
   box.lock();
   assert.equal(consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), 4);
-  const [venvCall] = box.calls('checkout-uv').filter(call => call.args[0] === 'venv');
+  const [venvCall] = box.calls('checkout-uv').filter((call: StubCall) => call.args[0] === 'venv');
   assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/bin/python3')], 'the venv is made through makeVenv: uv venv from the checkout Python, with no pip');
   const venv = venvCall.args[4];
-  const dependencies = box.calls('checkout-python3').find(call => call.args.includes('--only-binary'));
+  const dependencies = box.calls('checkout-python3').find((call: StubCall) => call.args.includes('--only-binary'));
   assert.equal(dependencies.requirements, `ruff==0.16.10 --hash=sha256:${'1'.repeat(64)}\n`, 'the lock of the wheel is installed with its hashes first');
-  assert.ok(box.calls('checkout-python3').some(call => call.args.at(-1) === 'check'), 'pip check runs in the venv');
-  const install = box.calls('checkout-python3').find(call => call.args.includes('--no-index'));
+  assert.ok(box.calls('checkout-python3').some((call: StubCall) => call.args.at(-1) === 'check'), 'pip check runs in the venv');
+  const install = box.calls('checkout-python3').find((call: StubCall) => call.args.includes('--no-index'));
   assert.ok(install, 'pip install ran');
   assert.deepEqual(install.args.slice(0, 9), ['-m', 'pip', '--python', path.join(venv, 'bin', 'python'), 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes']);
   assert.ok(install.args.includes('--no-deps'));
   assert.equal(install.requirements, `${path.join(box.root, release.ASSETS, WHEEL)} --hash=sha256:${fileDigest(path.join(box.root, release.ASSETS, WHEEL))}\n`);
-  assert.ok(box.calls('python').some(call => call.args.join(' ') === '-c import kit_fixture'), 'the smoke import ran');
+  assert.ok(box.calls('python').some((call: StubCall) => call.args.join(' ') === '-c import kit_fixture'), 'the smoke import ran');
 });
 
 test('release-consumer names an installed wheel whose version differs from the tag', (t) => {
@@ -212,7 +222,8 @@ test('release-consumer stops when the smoke import of the wheel fails and names 
 });
 
 test('config: a wheel package needs its consumer smoke and a pinned build backend; a Python git-tag is refused', (t) => {
-  const edit = (change) => {
+  // The test edits the raw JSON into shapes that the schema refuses, so no type of the configuration describes it.
+  const edit = (change: (config: any) => unknown) => {
     const box = releaseSandbox(t);
     const config = readJson(box.root, 'config/release.json');
     writeJson(box.root, 'config/release.json', change(structuredClone(config)));
@@ -235,7 +246,7 @@ test('assets refuses a sibling named with a #sha256 fragment, a name==version an
     [siblingLine(`${SIBLING_URL}#sha256=${'c'.repeat(64)}`), `Requires-Dist ${siblingLine(`${SIBLING_URL}#sha256=${'c'.repeat(64)}`)} names the sibling ${SIBLING} of this release with a #sha256 fragment; a sibling is named by its URL without a hash, since its sha256 is known only after the release builds it`],
     [`${SIBLING}==0.0.1`, `Requires-Dist ${SIBLING}==0.0.1 names the sibling ${SIBLING} of this release by name==version; it must be a direct reference to its release asset`],
     [siblingLine(`${REPOSITORY}/releases/download/v0.0.2/kit_fixture_validator-0.0.2-py3-none-any.whl`), `names ${SIBLING} at v0.0.2, the release is v0.0.1`],
-  ];
+  ] satisfies [string, string][];
   for (const [line, message] of cases) {
     const box = releaseSandbox(t, { mutate: addSibling });
     const tag = box.release('0.0.1');
@@ -247,7 +258,7 @@ test('assets refuses a sibling named with a #sha256 fragment, a name==version an
 test('assets refuses a sibling from another repository or with another file name, and names the expected form', (t) => {
   const other = siblingLine('https://example.com/polyspec/other/releases/download/v0.0.1/kit_fixture_validator-0.0.1-py3-none-any.whl');
   const wrong = siblingLine(`${REPOSITORY}/releases/download/v0.0.1/kit_other-0.0.1-py3-none-any.whl`);
-  for (const [line, message] of [[other, `is not a release asset of ${REPOSITORY}, the repository of this release`], [wrong, `the file kit_other-0.0.1-py3-none-any.whl of v0.0.1 is not ${SIBLING_WHEEL}`]]) {
+  for (const [line, message] of [[other, `is not a release asset of ${REPOSITORY}, the repository of this release`], [wrong, `the file kit_other-0.0.1-py3-none-any.whl of v0.0.1 is not ${SIBLING_WHEEL}`]] satisfies [string, string][]) {
     const box = releaseSandbox(t, { mutate: addSibling });
     const tag = box.release('0.0.1');
     box.wheelRequires(generatorRequires(line));
@@ -257,7 +268,7 @@ test('assets refuses a sibling from another repository or with another file name
 
 test('assets refuses a lock of the wheel that holds the sibling, and names the lock', (t) => {
   const box = releaseSandbox(t, {
-    mutate: (root) => {
+    mutate: (root: string) => {
       addSibling(root);
       const lock = readFileSync(path.join(root, GENERATOR_LOCK), 'utf8');
       writeFileSync(path.join(root, GENERATOR_LOCK), `${lock}\n[[packages]]\nname = "${SIBLING}"\nversion = "0.0.1"\narchive = { url = "${SIBLING_URL}", hashes = { sha256 = "${'d'.repeat(64)}" } }\n`);

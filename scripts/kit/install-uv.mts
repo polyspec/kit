@@ -11,7 +11,7 @@ import { installOnce } from './install-tool.mts';
 import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 
 // The target of the uv archive of each platform key (process.platform-process.arch) that the declaration may name.
-export const UV_TARGETS = {
+export const UV_TARGETS: Readonly<Record<string, string>> = {
   'darwin-arm64': 'aarch64-apple-darwin',
   'darwin-x64': 'x86_64-apple-darwin',
   'linux-x64': 'x86_64-unknown-linux-gnu',
@@ -19,10 +19,10 @@ export const UV_TARGETS = {
 };
 
 /** The download URL of the uv archive of `version` for the target `target`. */
-export const uvArchiveUrl = (version, target) => `https://github.com/astral-sh/uv/releases/download/${version}/uv-${target}.tar.gz`;
+export const uvArchiveUrl = (version: string, target: string): string => `https://github.com/astral-sh/uv/releases/download/${version}/uv-${target}.tar.gz`;
 
 // The text of the wrapper uv: the state of uv under var/tools, then the installed binary.
-function uvWrapper(root, binary, version) {
+function uvWrapper(root: string, binary: string, version: string) {
   const lines = [
     `UV_CACHE_DIR=${quote(toolsPath(root, 'uv-cache'))}`,
     `UV_PYTHON_INSTALL_DIR=${quote(toolsPath(root, 'uv-python'))}`,
@@ -35,17 +35,17 @@ function uvWrapper(root, binary, version) {
 }
 
 /** Installs the declared uv `{ version, sha256 }` (sha256 by platform key) into var/tools/uv of `root` and writes the wrapper. */
-export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }) {
+export function installUv({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; print?: (text: string) => void }) {
   const target = UV_TARGETS[platform];
   if (!target) throw new Error(`no uv archive is verified for ${platform}; the verified platforms are ${Object.keys(UV_TARGETS).join(', ')}`);
   const sha256 = declared.sha256[platform];
   if (!sha256) throw new Error(`config/toolchain.json uv declares no sha256 for ${platform}; declare the digest of uv-${target}.tar.gz of the uv release ${declared.version}`);
   const url = uvArchiveUrl(declared.version, target);
   const prefix = toolsPath(root, 'uv');
-  const binary = directory => path.join(directory, `uv-${target}`, 'uv');
+  const binary = (directory: string) => path.join(directory, `uv-${target}`, 'uv');
   const result = installOnce({
-    root, label: 'uv', prefix, recorded: declared.version, installedRelease: directory => printedRelease(binary(directory), 'uv'), print,
-    install: (next) => {
+    root, label: 'uv', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(binary(directory), 'uv'), print,
+    install: (next: string) => {
       const archive = path.join(next, `uv-${target}.tar.gz`);
       const environment = bootstrapEnvironment(root);
       run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', archive, url], { cwd: root, env: environment }, print);

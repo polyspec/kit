@@ -8,12 +8,12 @@ import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper 
 import { fileDigest } from './digest.mts';
 
 /** Installs the declared Composer `{ version, sha256 }` into var/tools/composer of `root` and writes the wrapper. */
-export function installComposer({ root, declared, print = () => {} }) {
+export function installComposer({ root, declared, print = () => {} }: { root: string; declared: { version: string; sha256: string }; print?: (text: string) => void }) {
   const prefix = toolsPath(root, 'composer');
   const result = installOnce({
     root, label: 'Composer', prefix, recorded: declared.sha256, print,
-    installedRelease: directory => (existsSync(path.join(directory, 'composer.phar')) ? fileDigest(path.join(directory, 'composer.phar')) : undefined),
-    install: (next) => {
+    installedRelease: (directory: string) => (existsSync(path.join(directory, 'composer.phar')) ? fileDigest(path.join(directory, 'composer.phar')) : undefined),
+    install: (next: string) => {
       const file = path.join(next, 'composer.phar');
       const url = `https://getcomposer.org/download/${declared.version}/composer.phar`;
       run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', file, url], { cwd: root, env: bootstrapEnvironment(root) }, print);

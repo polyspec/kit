@@ -13,7 +13,7 @@ import { readJson } from './files.mts';
 const MARKER = '.sha512';
 
 /** The release of the npm under `prefix` as `<version>` or `<version>+sha512.<digest>`, or undefined when none is installed. */
-function installedRelease(prefix) {
+function installedRelease(prefix: string): string | undefined {
   const directory = path.join(prefix, 'node_modules/npm');
   if (!existsSync(path.join(directory, 'package.json'))) return undefined;
   const version = readJson(directory, 'package.json').version;
@@ -21,7 +21,7 @@ function installedRelease(prefix) {
 }
 
 // Downloads the tarball, checks its digest and that it holds only files and directories, and unpacks it without its top directory.
-function unpackVerified({ root, next, version, sha512, print }) {
+function unpackVerified({ root, next, version, sha512, print }: { root: string; next: string; version: string; sha512: string; print: (text: string) => void }): void {
   const scratch = path.join(next, '.download');
   mkdirSync(scratch);
   const tarball = path.join(scratch, 'npm.tgz');
@@ -31,7 +31,8 @@ function unpackVerified({ root, next, version, sha512, print }) {
   if (actual !== sha512) throw new Error(`npm ${version} tarball ${url} has the sha512 ${actual}; packageManager of package.json declares ${sha512}`);
   const listing = spawnSync('tar', ['-tvf', tarball], { encoding: 'utf8' });
   if (listing.status !== 0) throw new Error(`tar -tvf ${tarball} ended with exit status ${listing.status}: ${listing.stderr.trim()}`);
-  const links = listing.stdout.split('\n').filter(line => line && !'-d'.includes(line[0]));
+  // A line that is not empty has a first character.
+  const links = listing.stdout.split('\n').filter(line => line && !'-d'.includes(line[0]!));
   if (links.length > 0) throw new Error(`the npm ${version} tarball holds a link or a special file; expected files and directories only: ${links[0]}`);
   const directory = path.join(next, 'node_modules/npm');
   mkdirSync(directory, { recursive: true });
@@ -41,18 +42,18 @@ function unpackVerified({ root, next, version, sha512, print }) {
 }
 
 /** Installs the declared npm `{ version, sha512 }` into var/tools/npm of `root` and writes the wrappers; returns `{ installed, release }`. */
-export function installNpm({ root, declared, print = () => {} }) {
+export function installNpm({ root, declared, print = () => {} }: { root: string; declared: { version: string; sha512?: string }; print?: (text: string) => void }) {
   const recorded = declared.sha512 ? `${declared.version}+sha512.${declared.sha512}` : declared.version;
   const prefix = toolsPath(root, 'npm');
   const result = installOnce({
     root, label: 'npm', prefix, recorded, installedRelease, print,
-    install: (next) => {
+    install: (next: string) => {
       writeFileSync(path.join(next, 'package.json'), '{ "private": true }\n');
       if (declared.sha512) unpackVerified({ root, next, version: declared.version, sha512: declared.sha512, print });
       else run('npm', ['install', '--prefix', next, '--no-save', '--no-package-lock', '--no-bin-links', '--no-audit', '--no-fund', `npm@${declared.version}`], { cwd: next, env: bootstrapEnvironment(root) }, print);
     },
   });
-  for (const [name, cli] of [['npm', 'npm-cli.js'], ['npx', 'npx-cli.js']]) {
+  for (const [name, cli] of [['npm', 'npm-cli.js'], ['npx', 'npx-cli.js']] satisfies [string, string][]) {
     writeWrapper(root, name, wrapperText(`${name} ${declared.version} of this checkout`, `exec node ${quote(path.join(prefix, 'node_modules/npm/bin', cli))} "$@"`), print);
   }
   return result;

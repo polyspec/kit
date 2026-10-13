@@ -10,7 +10,7 @@ import path from 'node:path';
 import { printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 
 /** The interpreter of the uv-managed Python `version` of the checkout, or undefined when uv has not installed it. */
-function managedPython(uv, version, root) {
+function managedPython(uv: string, version: string, root: string): string | undefined {
   try {
     const found = execFileSync(uv, ['python', 'find', '--managed-python', '--no-project', version], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return found || undefined;
@@ -20,7 +20,7 @@ function managedPython(uv, version, root) {
 }
 
 /** Installs the declared Python `{ version }` with the uv of var/tools and writes the wrapper var/tools/bin/python3. */
-export function installPython({ root, declared, print = () => {} }) {
+export function installPython({ root, declared, print = () => {} }: { root: string; declared: { version: string }; print?: (text: string) => void }) {
   const uv = toolsPath(root, 'bin', 'uv');
   if (!existsSync(uv)) throw new Error(`Python needs ${path.relative(root, uv)}, which installs it; declare uv in config/toolchain.json and run make install-tools TOOLS=uv`);
   const where = path.relative(root, toolsPath(root, 'uv-python'));

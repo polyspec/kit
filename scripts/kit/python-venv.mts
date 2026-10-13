@@ -16,10 +16,10 @@ import path from 'node:path';
 import { isMain, ROOT } from './paths.mts';
 import { run, toolsPath } from './tool-wrappers.mts';
 
-const MAKE = (directory) => `make it from the checkout Python, with make python-venv DIR=${directory} or var/tools/bin/uv venv --python var/tools/bin/python3 ${directory}`;
+const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or var/tools/bin/uv venv --python var/tools/bin/python3 ${directory}`;
 
 /** Whether `file` lies in `directory`, both read through their links. */
-function inside(file, directory) {
+function inside(file: string, directory: string): boolean {
   if (!existsSync(file) || !existsSync(directory)) return false;
   const relative = path.relative(realpathSync(directory), realpathSync(file));
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
@@ -30,12 +30,13 @@ function inside(file, directory) {
  * its home a directory of var/tools/uv-python, where the uv of the checkout installs the Python. Its symbolic links are not
  * checked: they are the behavior of the tool that made it.
  */
-export function venvProblem(venv, root = ROOT) {
+export function venvProblem(venv: string, root: string = ROOT): string | undefined {
   const config = path.join(venv, 'pyvenv.cfg');
   const relative = path.relative(root, venv);
   const make = MAKE(relative);
   if (!existsSync(config)) return `${relative} is not a virtual environment (no pyvenv.cfg); ${make}`;
-  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1].trim();
+  // The group takes part in every match.
+  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1]!.trim();
   const installs = toolsPath(root, 'uv-python');
   if (!home || !inside(home, installs)) {
     return `${relative} was made from ${home ?? 'no home'}, not from a Python of this checkout (${path.relative(root, installs)}); ${make}`;
@@ -44,13 +45,13 @@ export function venvProblem(venv, root = ROOT) {
 }
 
 /** The Python version of the interpreter `python`. */
-const pythonVersion = (python, env) => execFileSync(python, ['-c', 'import platform; print(platform.python_version())'], { encoding: 'utf8', env }).trim();
+const pythonVersion = (python: string, env: NodeJS.ProcessEnv): string => execFileSync(python, ['-c', 'import platform; print(platform.python_version())'], { encoding: 'utf8', env }).trim();
 
 /**
  * Why the existing virtual environment `directory` is not a venv of the checkout Python, or undefined: the rule of run-tests
  * (venvProblem), a bin/python, and the version of the checkout Python.
  */
-export function existingVenvProblem(directory, root = ROOT, env = process.env) {
+export function existingVenvProblem(directory: string, root: string = ROOT, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const relative = path.relative(root, directory);
   const problem = venvProblem(directory, root);
   if (problem) return problem;
@@ -67,11 +68,11 @@ export function existingVenvProblem(directory, root = ROOT, env = process.env) {
  * it already is one: the run is idempotent. An existing directory that is not such a venv is an error with its reason; it is
  * neither removed nor repaired.
  */
-export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }) {
+export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }: { root?: string; directory: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void }): void {
   const relative = path.relative(root, directory);
   const python = toolsPath(root, 'bin', 'python3');
   const uv = toolsPath(root, 'bin', 'uv');
-  for (const [file, fix] of [[uv, 'declare uv in config/toolchain.json and run make install-tools TOOLS=uv'], [python, 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python']]) {
+  for (const [file, fix] of [[uv, 'declare uv in config/toolchain.json and run make install-tools TOOLS=uv'], [python, 'declare pythonBuild in config/toolchain.json and run make install-tools TOOLS=python']] satisfies [string, string][]) {
     if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing; ${fix}`);
   }
   if (lstatSync(directory, { throwIfNoEntry: false }) !== undefined) {
@@ -95,9 +96,10 @@ if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   try {
     if (args.length !== 1) throw new Error('Usage: node scripts/kit/python-venv.mts <directory>');
-    makeVenv({ directory: path.resolve(ROOT, args[0]), print: text => process.stdout.write(`${text}\n`) });
+    // The check above throws unless args holds one argument.
+    makeVenv({ directory: path.resolve(ROOT, args[0]!), print: text => process.stdout.write(`${text}\n`) });
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(`${(error as Error).message}\n`);
     process.exitCode = 1;
   }
 }

@@ -10,14 +10,14 @@ import { installOnce } from './install-tool.mts';
 import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 
 /** Installs the declared PHPUnit `{ version, manifest }` into var/tools/phpunit of `root` and writes the wrapper. */
-export function installPhpunit({ root, declared, print = () => {} }) {
+export function installPhpunit({ root, declared, print = () => {} }: { root: string; declared: { version: string; manifest: string }; print?: (text: string) => void }) {
   const composer = toolsPath(root, 'composer', 'composer.phar');
   if (!existsSync(composer)) throw new Error(`phpunit needs ${path.relative(root, composer)}, the Composer that config/toolchain.json composer declares; declare composer and run make install-tools TOOLS=composer`);
   const prefix = toolsPath(root, 'phpunit');
   const environment = bootstrapEnvironment(root, { COMPOSER_HOME: toolsPath(root, 'composer', 'home'), COMPOSER_CACHE_DIR: toolsPath(root, 'composer', 'cache') });
   const result = installOnce({
-    root, label: 'PHPUnit', prefix, recorded: declared.version, installedRelease: directory => printedRelease(path.join(directory, 'vendor/bin/phpunit'), 'phpunit'), print,
-    install: (next) => {
+    root, label: 'PHPUnit', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(path.join(directory, 'vendor/bin/phpunit'), 'phpunit'), print,
+    install: (next: string) => {
       const manifest = path.dirname(declared.manifest);
       for (const file of ['composer.json', 'composer.lock']) copyFileSync(path.join(root, manifest, file), path.join(next, file));
       run('php', [composer, 'install', '--no-interaction', '--no-progress', '--no-scripts', '--no-plugins', '--prefer-dist'], { cwd: next, env: environment }, print);
