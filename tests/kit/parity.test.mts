@@ -7,7 +7,7 @@
 // its `EXIT <n>` line (go: `EXIT <symbol> <n>`).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -117,10 +117,15 @@ process.exit(exit);
 
 // The stub of Python (`python3 <args> -m unittest -v <test>`), which writes its verbose results to standard error: a line
 // `<method> (<module>.<class>.<method>) ... ok` for each `PASS <method>` line of the test file, `FAIL` for a `FAIL` line.
-// With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument.
+// With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument. Run as
+// the python symbol extractor (\`-I <kit>/symbols/python.py <entry>\`), it prints the lines of the entry file as a JSON array.
 const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
+if (args[0] === '-I' && args[1].endsWith('/symbols/python.py')) {
+  console.log(JSON.stringify(fs.readFileSync(args[2], 'utf8').split('\\n').filter(Boolean)));
+  process.exit(0);
+}
 const file = args[args.length - 1];
 if (process.env.REQUIRE_SOURCE && !(process.env.CODEC_SOURCE === 'python/src' && args[0] === '-B')) process.exit(3);
 let exit = 0;
@@ -144,7 +149,8 @@ for (const [name, text] of [['go', GO_STUB], ['cargo', CARGO_STUB], ['php', PHP_
 test.after(() => rmSync(STUBS, { recursive: true, force: true }));
 const ENV = { ...process.env, PATH: `${STUBS}${path.delimiter}${process.env.PATH}` };
 
-const snapshot = (entries: [string, boolean][]) => `${JSON.stringify(Object.fromEntries(entries.map(([id, exported]) => [id, { exported }])), null, 2)}\n`;
+/** The declaration file of the ts implementation, which API Extractor reads, with the declarations `lines`. */
+const TS_API = (...lines: string[]) => `${lines.join('\n')}\n`;
 
 // A node:test file of the codec: its two cases.
 const NODE_CODEC = "import test from 'node:test';\ntest('empty', () => {});\ntest('ascii', () => {});\n";
@@ -175,11 +181,13 @@ const FILES = {
   'python/codes.py': 'CONFIG = "CONFIG"\nCODEC_DECODE = "CODEC_DECODE"\n',
   'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n',
   'var/tools/bin/python3': PY_STUB,
-  'contracts/symbols/go.json': snapshot([['go/codec.go::Encode', true], ['go/codec.go::encodeHost', false]]),
-  'contracts/symbols/rust.json': snapshot([['rust/src/lib.rs::encode', true], ['rust/src/lib.rs::hex_upper', true]]),
-  'contracts/symbols/ts.json': snapshot([['ts/src/index.ts::encode', true]]),
-  'contracts/symbols/php.json': snapshot([['php/src/Codec.php::Codec::encode', true]]),
-  'contracts/symbols/python.json': snapshot([['python/codec.py::encode', true], ['python/codec.py::_split', false]]),
+  // The public symbols that the stub of the python extractor prints for each implementation but ts, whose .d.ts API Extractor reads.
+  'go/symbols.txt': 'go/codec.go::Encode\n',
+  'rust/symbols.txt': 'rust/src/lib.rs::encode\nrust/src/lib.rs::hex_upper\n',
+  'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
+  'ts/index.d.ts': TS_API('export declare const encode: () => number;'),
+  'php/symbols.txt': 'php/src/Codec.php::Codec::encode\n',
+  'python/symbols.txt': 'python/codec.py::encode\n',
   'docs/errors.yaml': '- code: CONFIG\n- code: CODEC_DECODE\n',
   'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php', 'python'];\n",
   'docs/index.md': '# Codec\n\nFive languages share the codec: Go, Rust, TS, PHP and Python.\nThe two implementations go and rust compile.\n',
@@ -191,11 +199,11 @@ const FILES = {
 const CONFIG = {
   schema: 1,
   implementations: [
-    { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: 'contracts/symbols/go.json', errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
-    { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: 'contracts/symbols/rust.json', errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
-    { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: 'contracts/symbols/ts.json', errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
-    { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: 'contracts/symbols/php.json', errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
-    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: 'contracts/symbols/python.json', errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
+    { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'python', entry: 'go/symbols.txt' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
+    { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'python', entry: 'rust/symbols.txt' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
+    { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
+    { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'python', entry: 'php/symbols.txt' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
+    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python/symbols.txt' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
   ],
   profiles: [
     { name: 'all', implementations: ['go', 'rust', 'ts', 'php', 'python'] },
@@ -240,7 +248,7 @@ const CONFIG = {
       symbols: [
         { implementation: 'go', symbol: 'go/codec.go::Encode' },
         { implementation: 'rust', symbol: 'rust/src/lib.rs::encode' },
-        { implementation: 'ts', symbol: 'ts/src/index.ts::encode' },
+        { implementation: 'ts', symbol: 'codec-ts!encode:function(1)' },
         { implementation: 'php', symbol: 'php/src/Codec.php::Codec::encode' },
         { implementation: 'python', symbol: 'python/codec.py::encode' },
       ],
@@ -583,23 +591,25 @@ test('R6: a test that two conventions select lies in a root of one of their runn
   assert.match(findingAt(findings, 1).message, /a node or vitest test/);
 });
 
-test('R1: an API unit whose symbol is missing, not exported or not declared in an implementation fails', TIMEOUT, (t) => {
+test('R1: an API unit whose symbol an extractor does not give, or that declares none of an implementation, fails (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, {
-    files: {
-      'contracts/symbols/go.json': snapshot([['go/codec.go::Encode', false], ['go/codec.go::encodeHost', false]]),
-      'contracts/symbols/rust.json': snapshot([['rust/src/lib.rs::hex_upper', true]]),
-    },
+    files: { 'rust/symbols.txt': 'rust/src/lib.rs::hex_upper\n' },
     edit: config => {
       const unit = config.units.find((entry: { id: string }) => entry.id === 'encode');
       unit.symbols = unit.symbols.filter((entry: { implementation: string }) => entry.implementation !== 'python');
       return config;
     },
-  }, { execute: false });
-  // The python symbol that the unit no longer declares is also an undeclared exported symbol (R11).
-  assert.deepEqual(keys(findings), ['R1 encode go', 'R1 encode rust', 'R1 encode python', 'R11 - python']);
-  assert.match(findingAt(findings, 0).message, /go\/codec\.go::Encode is not exported/);
-  assert.match(findingAt(findings, 1).message, /rust\/src\/lib\.rs::encode is not in contracts\/symbols\/rust\.json/);
-  assert.match(findingAt(findings, 2).message, /declares no symbol of python/);
+  });
+  // The python symbol that the unit no longer declares is also an undeclared public symbol (R11).
+  assert.deepEqual(keys(findings), ['R1 encode rust', 'R1 encode python', 'R11 - python']);
+  assert.match(findingAt(findings, 0).message, /rust\/src\/lib\.rs::encode is no public symbol of rust/);
+  assert.match(findingAt(findings, 1).message, /declares no symbol of python/);
+  // An extractor that fails is a finding that names it, and the rules of its symbols do not run on a guess.
+  const failed = check(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (;') } }).findings;
+  assert.deepEqual(keys(failed), ['R1 - ts']);
+  assert.match(findingAt(failed, 0).message, /the ts extractor of ts\/index\.d\.ts gives no symbols: API Extractor failed/);
+  // A check of the declarations runs no extractor, so it judges no symbol.
+  assert.deepEqual(check(t, { files: { 'rust/symbols.txt': '' } }, { execute: false }).findings, []);
 });
 
 test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, (t) => {
@@ -616,7 +626,7 @@ test('an API unit without symbols fails the declaration and names the unit, and 
       config.units.find((entry: { id: string }) => entry.id === 'encode').symbols = [];
       return config;
     },
-  }, { execute: false });
+  });
   assert.deepEqual(keys(empty.findings).filter(key => key.startsWith('R1 ')), ['R1 encode go', 'R1 encode rust', 'R1 encode ts', 'R1 encode php', 'R1 encode python']);
 });
 
@@ -674,8 +684,10 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   const root = repository(t);
   rmSync(path.join(root, 'var/tools/bin/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
-  assert.deepEqual(keys(missing), ['R3 codec python']);
-  assert.match(findingAt(missing, 0).message, /could not start/);
+  // The python extractor, which the stub implementations use, cannot start either.
+  assert.deepEqual(keys(missing), ['R1 - go', 'R1 - rust', 'R1 - php', 'R1 - python', 'R3 codec python']);
+  assert.match(findingAt(missing, 0).message, /the python extractor of go\/symbols\.txt gives no symbols: .* could not start/);
+  assert.match(findingAt(missing, 4).message, /could not start/);
   const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);
   assert.deepEqual(declarations.ledger.runs, []);
@@ -943,12 +955,17 @@ test('R10: a count or a list is judged with the implementations of its sentence,
   ]);
 });
 
-test('R11: an exported symbol that no API unit and no native-only entry declares fails', TIMEOUT, (t) => {
+test('R11: a public symbol that no API unit and no native-only entry declares, and a stale native-only entry, fail (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, {
-    files: { 'contracts/symbols/ts.json': snapshot([['ts/src/index.ts::encode', true], ['ts/src/index.ts::orderedJsonOutput', true], ['ts/src/index.ts::hidden', false]]) },
-  }, { execute: false });
-  assert.deepEqual(keys(findings), ['R11 - ts']);
-  assert.match(findingAt(findings, 0).message, /ts\/src\/index\.ts::orderedJsonOutput/);
+    files: {
+      'ts/index.d.ts': TS_API('export declare const encode: () => number;', 'export declare function orderedJsonOutput(): string;'),
+      'rust/symbols.txt': 'rust/src/lib.rs::encode\n',
+    },
+  });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`), [
+    'R11 rust: nativeOnly names rust/src/lib.rs::hex_upper, which is no public symbol of rust; remove the entry',
+    'R11 ts: codec-ts!orderedJsonOutput:function(1) is public, and no API unit and no nativeOnly entry declares it',
+  ]);
 });
 
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
@@ -964,7 +981,7 @@ test('a declaration that names what does not exist or holds a stale entry fails,
     files: { 'tests/vectors/width.json': JSON.stringify(['narrow', 'narrow']) },
     edit: (config) => {
       config.profiles[1].implementations.push('swift');
-      config.nativeOnly.push({ implementation: 'go', symbol: 'go/codec.go::encodeHost', reason: 'not exported, so the entry is stale', spec: ['docs/spec/codec.md#codec'] });
+      config.nativeOnly.push({ implementation: 'swift', symbol: 'Codec.encode', reason: 'no implementation, so the entry is stale', spec: ['docs/spec/codec.md#codec'] });
       binding(config, 'codec', 'php').test = 'php/tests/missing.php';
       delete binding(config, 'codec', 'go').symbol;
       config.exclusions.push({ unit: 'codec', implementation: 'ts', reason: 'bound and excluded', item: 'T1' });
@@ -977,7 +994,7 @@ test('a declaration that names what does not exist or holds a stale entry fails,
   assert.deepEqual(ledger.runs, []);
   for (const expected of [
     /profile compiled names swift, which is no implementation/,
-    /go\/codec\.go::encodeHost is not an exported symbol of go/,
+    /nativeOnly names swift, which is no implementation/,
     /the test php\/tests\/missing\.php of php does not exist/,
     /the binding of go needs symbol/,
     /exclusions: codec declares ts; remove the exclusion or the declaration/,

@@ -3,6 +3,7 @@
 // The tools come from `make install-tools` (python, pythonBackend and phpunit): var/tools/bin/python3 is the Python of the
 // checkout, and var/tools/phpunit/vendor is the Composer project of config/phpunit that holds PHPUnit 11.5.57.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { copyFileSync, chmodSync, existsSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -183,4 +184,57 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
   assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › nested › bytes pass', 'python test_bytes pass',
   ]);
+});
+
+/** The findings of a check of `root` as `<rule> <implementation>: <message>`. */
+const lines = (root: string) => checkParity(root, { execute: true, env: process.env, say: () => {} }).findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'}: ${finding.message}`);
+
+test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, (t) => {
+  const declaration = (symbols: string[]) => `${JSON.stringify({
+    schema: 1,
+    implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python/src/codec' } }],
+    profiles: [{ name: 'all', implementations: ['python'] }],
+    units: symbols.map(symbol => ({ id: symbol.replaceAll('.', '-'), kind: 'api', profile: 'all', symbols: [{ implementation: 'python', symbol }] })),
+  }, null, 2)}\n`;
+  const files = {
+    '.gitignore': 'var/\n',
+    'python/src/codec/__init__.py': 'from .core import Codec, encode\n\n__all__ = ["encode", "Codec"]\n',
+    'python/src/codec/core.py': 'import json\n\nLIMIT = 3\n_CACHE = {}\n\n\ndef encode(value):\n    return json.dumps(value)\n\n\ndef _split(value):\n    return value\n\n\nclass Codec:\n    def decode(self, text):\n        return text\n\n    def _hidden(self):\n        pass\n\n\nclass _Private:\n    def visible(self):\n        pass\n',
+    'python/src/codec/_internal.py': 'def helper():\n    pass\n',
+  };
+  const all = ['codec.Codec', 'codec.encode', 'codec.core.Codec', 'codec.core.Codec.decode', 'codec.core.LIMIT', 'codec.core.encode'];
+  const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
+  givePython(root);
+  assert.deepEqual(lines(root), []);
+  // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
+  const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
+  givePython(partial);
+  assert.deepEqual(lines(partial), [
+    'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python/src/codec',
+    'R11 python: codec.Codec is public, and no API unit and no nativeOnly entry declares it',
+    'R11 python: codec.core.Codec is public, and no API unit and no nativeOnly entry declares it',
+    'R11 python: codec.core.Codec.decode is public, and no API unit and no nativeOnly entry declares it',
+    'R11 python: codec.core.LIMIT is public, and no API unit and no nativeOnly entry declares it',
+    'R11 python: codec.core.encode is public, and no API unit and no nativeOnly entry declares it',
+  ]);
+});
+
+test('the ts extractor reads the API model that API Extractor builds from the .d.ts that tsc 7 emits (K75)', { timeout: 120_000 }, (t) => {
+  const root = tree(t, {
+    '.gitignore': 'dist/\n',
+    'ts/package.json': '{ "name": "@demo/codec", "version": "1.0.0", "types": "dist/index.d.ts" }\n',
+    'ts/src/index.ts': 'export function encode(value: string): string {\n  return value;\n}\n\nexport class Codec {\n  decode(text: string): string {\n    return text;\n  }\n\n  private hidden(): void {}\n}\n\nfunction internal(): void {}\ninternal();\n',
+    'config/parity.json': `${JSON.stringify({
+      schema: 1,
+      implementations: [{ name: 'ts', runner: 'node', roots: ['ts'], symbols: { extractor: 'ts', entry: 'ts/dist/index.d.ts' } }],
+      profiles: [{ name: 'all', implementations: ['ts'] }],
+      units: [
+        { id: 'encode', kind: 'api', profile: 'all', symbols: [{ implementation: 'ts', symbol: '@demo/codec!encode:function(1)' }] },
+        { id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'ts', symbol: '@demo/codec!Codec:class' }] },
+      ],
+    }, null, 2)}\n`,
+  });
+  const tsc = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '--declaration', '--emitDeclarationOnly', '--strict', '--target', 'es2024', '--module', 'nodenext', '--outDir', 'ts/dist', 'ts/src/index.ts'], { cwd: root, encoding: 'utf8' });
+  assert.equal(tsc.status, 0, tsc.stdout + tsc.stderr);
+  assert.deepEqual(lines(root), ['R11 ts: @demo/codec!Codec#decode:member(1) is public, and no API unit and no nativeOnly entry declares it']);
 });

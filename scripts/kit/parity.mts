@@ -3,14 +3,15 @@
 // implementations of the repository, the one source of its language set, the profiles that group them and the units that
 // every implementation of a profile holds: vector suites, features, API symbols, the error-code catalog, native-only symbols and
 // exclusions. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
-// and feature itself and keeps the ledger of the cases and test ids that ran, reads the exported symbols from the extractor snapshot of each
-// implementation and the error codes from its generated artifact.
+// and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
+// implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
 //   node scripts/kit/parity.mts [--declarations]
-//     --declarations  check the declarations only: every rule except R3, and no binding runs
+//     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //
 // The rules, each a finding that fails the check:
-//   R1 missing-implementation  an API unit has no exported symbol in an implementation of its profile
+//   R1 missing-implementation  an API unit has no public symbol in an implementation of its profile, or the extractor of
+//                              an implementation gives no symbols
 //   R2 missing-binding         a suite or a feature has no binding of an implementation of its profile
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
 //                              the id of a feature binding did not pass once in a run of its whole test file, or the
@@ -29,7 +30,8 @@
 //   R9 language-set-drift      a declared list of implementation names in another file differs from its profile
 //   R10 docs-count             a document counts implementations that no profile of that count holds, or lists
 //                              implementations in a sentence whose names are no profile
-//   R11 undeclared-public      an exported symbol that no API unit and no native-only entry declares
+//   R11 undeclared-public      a public symbol that no API unit and no native-only entry declares, or a native-only entry
+//                              that names no public symbol
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 // A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
 // the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
@@ -38,6 +40,7 @@ import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
+import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
 import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
 import { isMain, ROOT } from './paths.mts';
@@ -71,9 +74,11 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
   }
   const executed = execute ? runBindings(model, root, { env, files, say }) : { ledger, findings: [] };
+  const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
   say('check the units against the tree');
   const findings = [
-    ...missingImplementations(model),
+    ...extracted.findings,
+    ...missingImplementations(model, extracted.snapshots),
     ...missingBindings(model),
     ...executed.findings,
     ...undeclaredSuites(model, files),
@@ -83,7 +88,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...exclusions(model),
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
-    ...undeclaredPublic(model),
+    ...undeclaredPublic(model, extracted.snapshots),
   ];
   return { findings, ledger: executed.ledger };
 }

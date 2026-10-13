@@ -33,7 +33,16 @@
               "properties": { "name": { "type": "string", "pattern": "^(?!PYTHONPATH$)[A-Za-z_][A-Za-z0-9_]*$" }, "value": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } }
             }
           },
-          "symbols": { "description": "The symbol snapshot of the extractor: a JSON object from each symbol id to an object with a boolean exported.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
+          "symbols": {
+            "description": "The public API of the implementation, which parity-check reads with the extractor of its ecosystem (scripts/kit/parity-symbols.mts): python (the standard library's ast on a package directory or module file) or ts (API Extractor on a .d.ts entry point in its npm package).",
+            "type": "object",
+            "required": ["extractor", "entry"],
+            "additionalProperties": false,
+            "properties": {
+              "extractor": { "type": "string", "enum": ["python", "ts"] },
+              "entry": { "description": "The path that the extractor reads, relative to the checkout.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" }
+            }
+          },
           "errors": {
             "description": "The generated error-code artifact of the implementation and the regular expression whose first group is a code.",
             "type": "object",

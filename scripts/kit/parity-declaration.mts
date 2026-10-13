@@ -12,6 +12,9 @@ export const DECLARATION = 'config/parity.json';
 /** The runner of an implementation or a test pattern. */
 export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
 
+/** The extractor of the public symbols of an implementation (parity-symbols.mts). */
+export type Extractor = 'python' | 'ts';
+
 /** An implementation of the declaration (parity.schema.json). */
 export interface ParityImplementation {
   name: string;
@@ -22,7 +25,7 @@ export interface ParityImplementation {
   command?: string;
   args?: string[];
   env?: { name: string; value: string }[];
-  symbols?: string;
+  symbols?: { extractor: Extractor; entry: string };
   errors?: { file: string; pattern: string };
 }
 
@@ -102,7 +105,6 @@ export interface ParityModel {
   admit: (unit: ParityUnit) => string | undefined;
   admitted: (unit: ParityUnit, implementation: string) => string[];
   notAdmitted: (unit: ParityUnit) => { name: string; list: string[]; omitted: string[] }[];
-  snapshots: Map<string, Map<string, boolean>>;
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
   members: (unit: ParityUnit) => string[];
@@ -352,23 +354,9 @@ function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: stri
   return undefined;
 }
 
-/** The symbols of a snapshot: a map from each id to whether it is exported, or errors for an entry without a boolean exported. */
-function snapshotOf(value: unknown, file: string, errors: Finding[]): Map<string, boolean> {
-  const symbols = new Map<string, boolean>();
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    errors.push(finding('declaration', `${file} is no object of symbols`, { place: file }));
-    return symbols;
-  }
-  for (const [id, entry] of Object.entries(value)) {
-    if (typeof entry?.exported !== 'boolean') errors.push(finding('declaration', `${file}: the symbol ${id} has no boolean exported`, { place: file }));
-    else symbols.set(id, entry.exported);
-  }
-  return symbols;
-}
-
 /**
  * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
- * implementations and profiles by name, the case names of each suite unit, the symbols of each snapshot, and `members(unit)`,
+ * implementations and profiles by name, the case names of each suite unit, and `members(unit)`,
  * the implementations of the unit's profile, and `exclusion(unit, implementation)`. The environment references of the runner
  * values are checked as forms only; the runs resolve them (resolveReferences).
  */
@@ -432,12 +420,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
   const knownProfile = (name: string, where: string): boolean => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
-  const snapshots = new Map<string, Map<string, boolean>>();
   for (const entry of config.implementations) {
-    if (entry.symbols !== undefined) {
-      const value = readTrackedJson(root, files, entry.symbols, `implementation ${entry.name}`, errors);
-      if (value !== undefined) snapshots.set(entry.name, snapshotOf(value, entry.symbols, errors));
-    }
+    if (entry.symbols !== undefined && !existsSync(path.join(root, entry.symbols.entry))) fail(`implementation ${entry.name}: the symbols entry ${entry.symbols.entry} does not exist`);
     if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
   }
   // The runners whose convention or declared testPatterns select each file, and the test files of each implementation: those of
@@ -490,7 +474,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (unit.kind === 'api') {
       if (!('symbols' in unit)) fail(`${where}: a unit of kind api needs symbols`);
       // has(name) holds before get(name).
-      for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols snapshot`);
+      for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols`);
       continue;
     }
     for (const key of unit.kind === 'suite' ? ['file', 'cases', 'bindings'] : ['bindings']) if (!(key in unit)) fail(`${where}: a unit of kind ${unit.kind} needs ${key}`);
@@ -551,7 +535,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   }
   for (const entry of config.nativeOnly ?? []) {
     if (!implementations.has(entry.implementation)) fail(`nativeOnly names ${entry.implementation}, which is no implementation`);
-    else if (!snapshots.get(entry.implementation)?.get(entry.symbol)) fail(`nativeOnly: ${entry.symbol} is not an exported symbol of ${entry.implementation}; remove the entry`);
+    else if (!implementations.get(entry.implementation)!.symbols) fail(`nativeOnly names ${entry.symbol} of ${entry.implementation}, which declares no symbols`);
   }
   const exclusions = new Map<string, ParityExclusion>();
   for (const entry of config.exclusions ?? []) {
@@ -595,7 +579,6 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       const list = admissions.get(unit.id)?.get(name);
       return list === undefined ? [] : [{ name, list, omitted: (profiles.get(unit.profile) ?? []).filter(member => implementations.has(member) && !list.includes(member)) }];
     }).filter(entry => entry.omitted.length),
-    snapshots,
     tests,
     testRunners,
     members: unit => (profiles.get(unit.profile) ?? []).filter(name => implementations.has(name)),
