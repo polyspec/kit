@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
-      # actions/setup-node v6.5.0: the Node.js of .node-version; the repository has no npm package to install.
+      # actions/setup-node v6.5.0: the Node.js of .node-version; npm ci below installs the packages with the pinned npm.
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version-file: .node-version
@@ -26,6 +26,12 @@ jobs:
       # var/tools; the wheel and venv tests run that uv and that Python.
       - name: install tools
         run: make install-tools
+      # The npm of packageManager, which install-tools installed, installs TypeScript and the Node types from package-lock.json.
+      - name: install packages
+        run: var/tools/bin/npm ci
+      # tsc checks the types of the tools and tests (tsconfig.json, K71-1).
+      - name: typecheck
+        run: make typecheck
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         run: make kit-test
