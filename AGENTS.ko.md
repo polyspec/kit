@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 70912eee9c4303e8d396dedeb8bcb6f8fb584fa59f65c81df26fef9255a79cda -->
+<!-- source-sha256: fdc70c2f5229718e3499d4439ce3ffc50a430561c77ac0b37f75feec9543d1b8 -->
 # 개발
 
 [English](AGENTS.md)
@@ -10,6 +10,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 `tests/kit/`(`kit.json`에 나열)의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
 `config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다.
 
+kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
+같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
+
 ## 규칙
 
 - 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
@@ -19,8 +22,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   schema 검증기는 자신이 나열한 키워드만 지원합니다.
 - vendored 파일은 kit에서 고치고 `make kit-sync KIT_TAG=<tag>`로 복사합니다. 저장소에서 직접 고치지 않으며, 고치면 `make kit-check`가
   바뀐 파일, 빠진 파일, 예상하지 못한 파일로 실패합니다.
-- 기존 외부 도구나 라이브러리가 이미 하는 일을 다시 만들지 않습니다. 그 생태계의 표준 도구를 있는 그대로 쓰고(예: Python interpreter, environment,
-  lock은 uv, PHP 의존성은 Composer), 만들어 내는 symbolic link처럼 그 도구 고유의 동작은 받아들입니다. 우리 규칙은 우리가 만드는 것을 규율합니다.
+- [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 kit의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
+  쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
 - 이 저장소는 symbolic link와 relative path를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다.
   path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
