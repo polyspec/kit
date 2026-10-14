@@ -70,7 +70,7 @@ test('the review reports a newer stable release of a Go module and the gate read
 test('under go.work a module that requires only workspace members needs no go.sum, and an external requirement needs one', (t) => {
   const root = fixture(t);
   const write = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
-  // crudui's shape: a sibling module that requires only another module of the workspace, without a go.sum.
+  // A sibling module that requires only another module of the workspace, without a go.sum.
   write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
   write('packages/sibling/sibling.go', 'package sibling\n');
