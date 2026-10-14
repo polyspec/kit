@@ -68,8 +68,8 @@ and states only its own rules. The rules below are kit's own.
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   the targets that kit.mk marks ONLINE (`dependency-review`, `python-lock`, `install-tools`, `release-tools`,
-  `release-backend`, `release-consumer-lock`, `release-proof` and `cargo-downloads-fetch`), and its result is a committed
-  record or an installation in var/tools.
+  `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
+  result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
 - A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of `advisoryExceptions`
   in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
   it is never hidden. kit reviews its own `package-lock.json` (docs/tool-inventory.md, Accepted advisories).

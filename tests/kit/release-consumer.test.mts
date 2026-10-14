@@ -3,13 +3,14 @@
 // the last case runs the real npm and Composer against archives that the release tool builds.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { Stop } from '../../scripts/kit/process.mts';
+import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
@@ -304,4 +305,24 @@ test('the consumer tests leave no temporary entry of the npm stub in TMPDIR', (t
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /ℹ tests 2\n/);
   assert.deepEqual(readdirSync(directory).filter(entry => entry.startsWith('stub-npm-')), []);
+});
+
+// The counterpart of consumers.wheel.polyspec for Composer (K140): a polyspec dependency of the consumer is installed from its
+// release zip in the artifact repository of the project, not from an inline package repository.
+test('the Composer consumer holds the release zip of each entry of config/release-assets.json that consumers.composer.polyspec names', (t) => {
+  const box = consumerSandbox(t);
+  const zip = Buffer.from('the release zip of polyspec/codec 0.0.14');
+  writeFileSync(path.join(box.root, '.gitignore'), `${existsSync(path.join(box.root, '.gitignore')) ? readFileSync(path.join(box.root, '.gitignore'), 'utf8') : ''}var/\n`);
+  writeJson(box.root, 'config/release-assets.json', { schema: 1, assets: [{ name: 'codec-php', version: '0.0.14', url: 'https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip', sha256: sha256(zip), directory: 'var/composer-artifacts' }] });
+  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: ['codec-php'] } } }));
+  edit(box.root, `${COMPOSER}/composer.json`, manifest => ({ ...manifest, require: { ...manifest.require, 'polyspec/codec': '0.0.14' } }));
+  stop(() => box.lock(), /var\/composer-artifacts\/polyspec-codec-php-0\.0\.14\.zip does not hold the archive codec-php 0\.0\.14 .*; run make release-assets-fetch/);
+  mkdirSync(path.join(box.root, 'var/composer-artifacts'), { recursive: true });
+  writeFileSync(path.join(box.root, 'var/composer-artifacts/polyspec-codec-php-0.0.14.zip'), zip);
+  box.lock();
+  const lock = readJson(box.root, `${COMPOSER}/composer.lock`);
+  assert.deepEqual(lock.packages.find((entry: { name: string }) => entry.name === 'polyspec/codec')?.dist, { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip', shasum: 'sha1-own' }, 'the lock keeps the shasum of a dependency, which no run builds again');
+  assert.equal(install(box), 4);
+  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: [] } } }));
+  assert.match(checkConfig(box.root).join('\n'), /config\/release\.json: \/consumers\/composer\/polyspec must NOT have fewer than 1 items/);
 });

@@ -877,6 +877,13 @@ the installed project. Every package of `packages` of a kind needs the project o
 is a package of that kind. A package that is not a key is copied into the project and not installed (for example a Composer
 package of the type `php-ext`, which Composer does not install). The manifest files are in `notReleased` of the repository.
 
+`composer.polyspec` (optional, K140) names the polyspec dependencies of the Composer project, each by its entry of
+`config/release-assets.json`: the release zip of each, which must hold its sha256 (`make release-assets-fetch` downloads it),
+lies in the `artifacts` repository of the project beside the zips of the tag, so the project requires a polyspec dependency
+at its version and installs it from its released archive, as a consumer does, instead of declaring it in an inline package
+repository. It is the counterpart of `wheel.polyspec`. The lock keeps the shasum of such a zip, which no run builds again,
+and `make release-tools` downloads the zips when the list is set.
+
 ### Procedure
 
 1. `make release-assets TAG=vX.Y.Z` builds the archives. `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) copies each project
@@ -929,6 +936,35 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 
 - `smoke` does not have to list every package: a package without a key is copied and not installed or checked.
 - The locks hold the dependencies that the archives declared when `lock` ran; a changed dependency needs `lock` again.
+
+## Release archives of other repositories (K140)
+
+A repository that uses a release archive of another polyspec repository, such as the php and php-ext zips of a template
+release or the Composer zips of orm and ordered-json, pins it in `config/release-assets.json` (schema
+`scripts/kit/schema/release-assets.schema.json`, checked by `make kit-check`) instead of a downloader of its own:
+
+```json
+{
+  "schema": 1,
+  "assets": [
+    { "name": "codec-php", "version": "0.0.14", "url": "https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip",
+      "sha256": "<64 hex digits>", "directory": "var/composer-artifacts", "unpack": "var/products/codec" }
+  ]
+}
+```
+
+- The version is declared once, in the entry; `{version}` of `url` stands for it, and no other placeholder is accepted. A
+  Makefile that needs the tag reads it: `$(shell node $(KIT)/release-assets.$(KIT_EXT) version codec-php)`.
+- The destination is `directory` and the last path segment of the URL. `directory` and `unpack` are directories under `var/`
+  without `..`, and Git must ignore them (`git check-ignore`); a name or a destination that two entries share is refused.
+- `make release-assets-fetch` (ONLINE, an install step) downloads with the fetch of Node each archive whose destination
+  does not hold its sha256, refuses a download with another sha256 and writes nothing then, and writes through
+  `<destination>.next-<pid>` and a rename. An entry with `unpack` is a zip that `unzip` extracts into a temporary directory
+  beside `unpack`, which replaces it with a rename; the file `.release-asset.sha256` in it records the archive, so the same
+  archive is not extracted again.
+- `consumers.composer.polyspec` of `config/release.json` names entries whose zips the Composer consumer project holds (Consumer
+  install of the release archives).
+- `tests/kit/release-assets.test.mts` runs the tool with a stub of fetch and a zip of the machine's `zip`.
 
 ## Release proof (K5.5)
 

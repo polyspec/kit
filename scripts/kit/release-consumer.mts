@@ -22,6 +22,10 @@
 // of all wheel packages in one command from their files (`pip install --no-index --require-hashes --no-deps`, each named with the
 // sha256 of its file), then `pip check`, which fails on a lock that lacks a dependency. The command names every wheel of the release,
 // so a sibling (a wheel of the same release) is installed from its file: with --no-deps pip never reads a sibling's URL.
+// The Composer project also holds, in its artifact repository, the release zip of each polyspec dependency that
+// consumers.composer.polyspec names by its entry of config/release-assets.json (make release-assets-fetch downloads it), so a
+// dependency of the release is installed from its released archive, as a consumer installs it, the counterpart of the
+// polyspec archives of a wheel lock (consumers.wheel.polyspec).
 // A Go module tag releases no archive and has nothing to install. Each failure names the expected and the actual value.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -38,6 +42,7 @@ import { makeVenv } from './python-venv.mts';
 import { readJson, writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
+import { fetchedAsset } from './release-assets.mts';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
 export const UNREACHABLE = 'http://127.0.0.1:9/';
@@ -151,12 +156,26 @@ function staleProblems(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consum
   return problems;
 }
 
+/**
+ * The release zips of the polyspec dependencies of the Composer consumer: each entry of config/release-assets.json that
+ * consumers.composer.polyspec names, which must hold its sha256 and be a zip.
+ */
+function dependencyZips(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer): string[] {
+  if (kind !== 'composer') return [];
+  return (consumer.polyspec ?? []).map((name) => {
+    const file = fetchedAsset(ctx.root, name);
+    if (!file.endsWith('.zip')) throw new Stop(`consumers.composer.polyspec names ${name}, whose archive ${path.basename(file)} is no zip; a Composer artifact repository reads zips`);
+    return file;
+  });
+}
+
 /** A project of `kind` in `folder`: the archives of its kind, the manifest and, unless `lock`, the committed lock. */
-function stage(ctx: ReleaseContext, kind: ConsumerKind, folder: string, assets: string, manifest: unknown, committed: Consumer | null) {
+function stage(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer, folder: string, assets: string, manifest: unknown, committed: Consumer | null) {
   const project = path.join(folder, kind);
   const archives = path.join(project, kind === 'npm' ? '' : ARTIFACTS);
   mkdirSync(archives, { recursive: true });
   for (const name of readdirSync(assets).filter(item => item.endsWith(`.${FILES[kind].extension}`))) copyFileSync(path.join(assets, name), path.join(archives, name));
+  for (const file of dependencyZips(ctx, kind, consumer)) copyFileSync(file, path.join(archives, path.basename(file)));
   writeFileSync(path.join(project, FILES[kind].manifest), json(manifest, FILES[kind].indent));
   if (committed) copyFileSync(path.join(ctx.root, committed.directory, FILES[kind].lock), path.join(project, FILES[kind].lock));
   return project;
@@ -192,7 +211,7 @@ export function installConsumers(ctx: ReleaseContext, version: string, directory
     const env = environment(ctx.env, folder);
     let installed = 0;
     for (const [kind, consumer, packages] of projects) {
-      const project = stage(ctx, kind, folder, directory, manifestFor(ctx, kind, consumer, packages, version), consumer);
+      const project = stage(ctx, kind, consumer, folder, directory, manifestFor(ctx, kind, consumer, packages, version), consumer);
       if (kind === 'npm') run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(config)], { cwd: project, env });
       else run('composer', ['install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
       step(`${kind} ${kind === 'npm' ? 'ci' : 'install'} of ${packages.length} packages from ${consumer.directory}`);
@@ -299,7 +318,7 @@ export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: str
     const env = environment(ctx.env, folder);
     for (const [kind, consumer, packages] of plan(ctx.config, version)) {
       const manifest = manifestFor(ctx, kind, consumer, packages, version);
-      const project = stage(ctx, kind, folder, assets, manifest, null);
+      const project = stage(ctx, kind, consumer, folder, assets, manifest, null);
       if (kind === 'npm') run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(ctx.config)], { cwd: project, env });
       else run('composer', ['update', '--no-install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
       const lock = withoutArchiveHashes(kind, readJson(path.join(project, FILES[kind].lock)), packages);

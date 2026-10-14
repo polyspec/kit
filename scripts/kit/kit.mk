@@ -182,6 +182,13 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
 	$(ONLINE) node $(KIT)/release-backend.$(KIT_EXT)
 
+# --- release-assets: the release archives of other repositories that config/release-assets.json pins by version and sha256
+# (scripts/kit/release-assets.mts). The fetch is an install step; a Makefile reads the version of an entry with
+# `$(shell node $(KIT)/release-assets.$(KIT_EXT) version <name>)`.
+.PHONY: release-assets-fetch
+release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; ONLINE
+	$(ONLINE) node $(KIT)/release-assets.$(KIT_EXT) fetch
+
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
 .PHONY: python-venv
