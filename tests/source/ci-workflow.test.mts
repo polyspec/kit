@@ -34,6 +34,13 @@ test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of t
   assert.ok(rust > 0 && rust < kitTest, 'rustup installs the channel of rust-toolchain.toml before kit-test runs cargo');
 });
 
+test('the CI workflow checks the dependencies of kit as each consumer does: the gate and its mutation check (K169)', () => {
+  // Without the gate in CI, the review record of kit went stale from K127 to K169 while every run passed.
+  const tools = runs.indexOf('make install-tools');
+  assert.ok(runs.indexOf('make dependency-policy-check') > tools, 'a step runs make dependency-policy-check after install-tools');
+  assert.ok(runs.indexOf('make dependency-policy-mutation-check') > tools, 'a step runs make dependency-policy-mutation-check after install-tools');
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });
