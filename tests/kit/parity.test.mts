@@ -96,7 +96,9 @@ if (args[1] === 'rustdoc') {
   process.exit(0);
 }
 const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
-const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : path.join(crate, 'tests', args[args.indexOf('--test') + 1] + '.rs');
+const target = args[args.indexOf('--test') + 1];
+// A test target is tests/<name>.rs or, in Cargo's layout of a target with modules, tests/<name>/main.rs.
+const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : fs.existsSync(path.join(crate, 'tests', target + '.rs')) ? path.join(crate, 'tests', target + '.rs') : path.join(crate, 'tests', target, 'main.rs');
 const filter = args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
 const tests = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && match[2].startsWith(filter));
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
@@ -526,6 +528,18 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
   const commands = Object.fromEntries(ledger.runs.filter(run => run.unit === 'roundtrip').map(run => [run.implementation, [run.command, ...run.args]]));
   assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', './']);
   assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
+});
+
+// Cargo builds tests/<name>/main.rs as the test target <name>, and the other files of tests/<name>/ are its modules (K148).
+test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its module files belong to its binding (K148)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature({
+    'rust/tests/roundtrip.rs': null,
+    'rust/tests/roundtrip/main.rs': 'mod vectors;\nPASS roundtrip::bytes\n',
+    'rust/tests/roundtrip/vectors.rs': '#[test]\nfn bytes() {}\n',
+  }, (unit) => { unit.bindings[1].test = 'rust/tests/roundtrip/main.rs'; return unit; }));
+  assert.deepEqual(findings, []);
+  const rust = ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust')!;
+  assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
 test('a feature unit fails R2 without a binding and R3 when its id is missing, fails or is not the full native id (K75)', TIMEOUT, (t) => {

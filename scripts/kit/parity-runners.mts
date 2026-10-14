@@ -148,7 +148,10 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       const crate = nearest(root, binding.test, 'Cargo.toml');
       if (crate === undefined) return { error: `no Cargo.toml lies above ${binding.test}` };
       const relative = path.posix.relative(crate, binding.test);
-      const target = /^tests\/[^/]+\.rs$/.test(relative) ? ['--test', path.posix.basename(relative, '.rs')] : ['--lib'];
+      // Cargo builds tests/<name>.rs, and tests/<name>/main.rs with the other files of tests/<name>/ as its modules, as the
+      // test target <name> (K148); any other file is a module of the library.
+      const name = /^tests\/([^/]+)\.rs$/.exec(relative)?.[1] ?? /^tests\/([^/]+)\/main\.rs$/.exec(relative)?.[1];
+      const target = name === undefined ? ['--lib'] : ['--test', name];
       return {
         args: test => ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : [])],
         cwd: '.',
