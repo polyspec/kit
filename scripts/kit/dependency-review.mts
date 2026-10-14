@@ -344,7 +344,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
     const directory = path.posix.dirname(lock);
-    const lockData = readJson(root, lock);
+    const lockData = readJson(root, lock) as Partial<Record<'packages' | 'packages-dev', { name: string; version: string }[]>>;
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
     // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.

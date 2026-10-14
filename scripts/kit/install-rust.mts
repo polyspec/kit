@@ -15,7 +15,9 @@ const missing = (need: string) => new Error(`${need}, and rustup is missing; rus
 // `rustup toolchain list` in `root`; `need` names what needs rustup.
 function listed(root: string, need: string): string[] {
   const result = spawnSync('rustup', ['toolchain', 'list'], { cwd: root, encoding: 'utf8' });
-  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') throw missing(need);
+  // The error of a spawn that failed is a system error with its code.
+  const error: NodeJS.ErrnoException | undefined = result.error;
+  if (error?.code === 'ENOENT') throw missing(need);
   if (result.error || result.status !== 0) throw new Error(`rustup toolchain list failed: ${result.error?.message ?? `exit status ${result.status}`} ${result.stderr}`.trim());
   // rustup lists a channel with its host, such as nightly-2026-10-01-aarch64-apple-darwin, and may mark the default.
   return result.stdout.split('\n').map(line => line.trim().split(/\s+/)[0] ?? '').filter(Boolean);
@@ -26,7 +28,8 @@ export function installRustToolchain({ root, print = () => {} }: { root: string;
   const args = ['toolchain', 'install', '--no-self-update'];
   print(`rustup ${args.join(' ')}`);
   const result = spawnSync('rustup', args, { cwd: root, stdio: 'inherit' });
-  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') throw missing('rust-toolchain.toml pins the Rust toolchain');
+  const error: NodeJS.ErrnoException | undefined = result.error;
+  if (error?.code === 'ENOENT') throw missing('rust-toolchain.toml pins the Rust toolchain');
   if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? `exit status ${result.status}`}`);
 }
 

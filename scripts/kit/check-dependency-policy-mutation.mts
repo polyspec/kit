@@ -16,8 +16,8 @@ import { checkedFiles } from './tracked-files.mts';
 
 /** The fields of config/dependency-review.json that the mutations change. */
 interface ReviewRecordJson {
-  dependencies: { version: string; latest: string | null }[];
-  locks: { advisories: unknown[] }[];
+  dependencies: { manifest: string; package: string; version: string; latest: string | null }[];
+  locks: { lock: string; advisories: unknown[] }[];
 }
 
 /** The field of config/dependency-policy.json that a mutation changes. */
@@ -58,21 +58,30 @@ function copy(directory: string) {
 }
 
 const editJson = <T,>(root: string, file: string, edit: (data: T) => void) => {
-  const data: T = readJson(root, file);
+  const data = readJson(root, file) as T;
   edit(data);
   writeJson(join(root, file), data);
 };
 
+const reviewRecord = (root: string) => readJson(root, RECORD) as ReviewRecordJson;
 // The first registry dependency of the review record, whatever its ecosystem: the one that the outdated mutation changes.
-const firstDependency = (root: string) => readJson(root, RECORD).dependencies[0];
-const firstLock = (root: string) => readJson(root, RECORD).locks[0].lock;
+const firstDependency = (root: string) => {
+  const [first] = reviewRecord(root).dependencies;
+  if (!first) throw new Error(`${RECORD} records no dependency`);
+  return first;
+};
+const firstLock = (root: string) => {
+  const [first] = reviewRecord(root).locks;
+  if (!first) throw new Error(`${RECORD} records no lock`);
+  return first.lock;
+};
 const hasComposer = (root: string) => readPolicy(root).composerPlatforms.length > 0;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
 const MUTATIONS: Mutation[] = [
   {
     name: 'an outdated dependency without an exception',
-    applies: root => readJson(root, RECORD).dependencies.length > 0,
+    applies: root => reviewRecord(root).dependencies.length > 0,
     apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => {
       // applies holds a record with a dependency.
       const item = record.dependencies[0]!;

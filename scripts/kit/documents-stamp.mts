@@ -75,7 +75,7 @@ if (isMain(import.meta.url)) {
     console.error(`[documents-stamp] ${CONFIG} does not exist`);
     process.exit(1);
   }
-  const { changed, failed } = stampAll(repositoryRoot(), readJson(repositoryRoot(), CONFIG));
+  const { changed, failed } = stampAll(repositoryRoot(), readJson(repositoryRoot(), CONFIG) as DocumentsConfig);
   for (const file of changed) console.log(`[documents-stamp] stamped ${file}`);
   for (const line of failed) console.error(`[documents-stamp] ${line}`);
   console.log(`[documents-stamp] ${changed.length} stamped, ${failed.length} failed`);

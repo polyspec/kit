@@ -248,7 +248,7 @@ if (isMain(import.meta.url)) {
     console.error(`[check-documents] ${CONFIG} does not exist; declare the documents of the repository there (scripts/kit/schema/documents.schema.json)`);
     process.exit(1);
   }
-  const config = readJson(root, CONFIG);
+  const config = readJson(root, CONFIG) as DocumentsConfig;
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
   const { findings, documents, checklists } = check(root, config);
   for (const line of findings) console.error(`[check-documents] ${line}`);

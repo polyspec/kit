@@ -264,7 +264,7 @@ export function lockFix(lock: string, createdBy: string | null, name: string) {
  */
 export function npmManifests(root: string, base = '.') {
   const own = path.posix.join(base, NPM_MANIFEST);
-  const manifest: NpmManifest = readJson(root, own);
+  const manifest = readJson(root, own) as NpmManifest;
   const directories = checkedFiles(root)
     .filter(file => path.posix.basename(file) === NPM_MANIFEST)
     .map(file => path.posix.relative(base, path.posix.dirname(file)))
@@ -310,14 +310,14 @@ export function readState(root: string, policy: DependencyPolicy) {
 
   for (const lockPath of policy.npmLocks) {
     const base = path.posix.dirname(lockPath);
-    const lock: NpmLock = readJson(root, lockPath);
+    const lock = readJson(root, lockPath) as NpmLock;
     npmLocks.set(lockPath, lock);
     locks.push(lockPath);
     // A package that the overrides of the npm project install from a URL (a release archive) is not in the registry: it has no review.
     const urlOverrides = new Set(Object.entries((readJson(root, path.posix.join(base, NPM_MANIFEST)) as NpmManifest).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
     for (const { directory, manifest: manifestPath } of npmManifests(root, base)) {
       manifests.push({ directory, manifest: manifestPath, lock: lockPath });
-      const manifest: NpmManifest = readJson(root, manifestPath);
+      const manifest = readJson(root, manifestPath) as NpmManifest;
       for (const kind of ['dependencies', 'devDependencies'] as const) {
         for (const [name, spec] of Object.entries(manifest[kind] ?? {})) {
           const entry = npmLockEntry(lock, directory, name);
@@ -325,7 +325,7 @@ export function readState(root: string, policy: DependencyPolicy) {
             const target = entry?.link ? entry.resolved : null;
             const packageDirectory = target ? path.posix.join(base, target) : null;
             const lockVersion = target ? lock.packages?.[target]?.version ?? null : null;
-            const targetManifest: NpmManifest | null = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) : null;
+            const targetManifest: NpmManifest | null = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) as NpmManifest : null;
             const item: NpmLocalPackage = {
               ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, base, lock: lockPath, directory: packageDirectory,
               lockVersion, version: targetManifest?.version ?? null, name: targetManifest?.name ?? null,
@@ -345,8 +345,8 @@ export function readState(root: string, policy: DependencyPolicy) {
   for (const { manifest: manifestPath } of policy.composerPlatforms) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
-    const composer: ComposerManifest = readJson(root, manifestPath);
-    const composerLock: ComposerLock = readJson(root, lockPath);
+    const composer = readJson(root, manifestPath) as ComposerManifest;
+    const composerLock = readJson(root, lockPath) as ComposerLock;
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
     for (const kind of ['require', 'require-dev'] as const) {
       for (const [name, spec] of Object.entries(composer[kind] ?? {})) {
@@ -370,10 +370,8 @@ export function readState(root: string, policy: DependencyPolicy) {
     for (const item of lock.packages) {
       if (item.kind === 'registry') {
         dependencies.push({ ecosystem: 'pypi', manifest: lockPath, package: item.name, kind: 'lock', spec: `==${item.version}`, version: item.version, lock: lockPath, createdBy: lock.createdBy });
-        // readPylock gives a package of kind vcs its vcs table.
-      } else if (item.kind === 'vcs' && item.vcs!.commitId !== null) {
-        // readPylock gives a package of kind vcs its vcs table.
-        vcs.push({ lock: lockPath, package: item.name, url: item.vcs!.url, requestedRevision: item.vcs!.requestedRevision, commitId: item.vcs!.commitId });
+      } else if (item.kind === 'vcs' && item.vcs.commitId !== null) {
+        vcs.push({ lock: lockPath, package: item.name, url: item.vcs.url, requestedRevision: item.vcs.requestedRevision, commitId: item.vcs.commitId });
       }
     }
   }

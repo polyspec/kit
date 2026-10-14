@@ -97,7 +97,7 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
   const file = path.join(report, 'record.json');
   let record: RunRecord | UnreadRecord | null = null;
   if (existsSync(file)) {
-    try { record = readJson(file); } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
+    try { record = readJson(file) as RunRecord; } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
   }
   let steps = {};
   let unreadSteps = false;

@@ -50,7 +50,7 @@ export type Change = { before: (file: string) => string; after: (file: string) =
 /** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
 export function loadCommitRules(root: string): CommitRules {
   if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
-  return readJson(root, CONFIG);
+  return readJson(root, CONFIG) as CommitRules;
 }
 
 /** The findings of a commit `message` as `{ rule, message }`. */

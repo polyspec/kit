@@ -67,7 +67,7 @@ export function loadConfig(root: string): ChecklistConfig {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its trackers and hooks there`);
   // config is read only when findings is empty, that is when it passed checklist.schema.json.
-  const { value: config, errors: findings } = readConfig(root, CONFIG, 'checklist.schema.json') as { value: ChecklistConfig; errors: string[] };
+  const { value: config, errors: findings } = readConfig<ChecklistConfig>(root, CONFIG, 'checklist.schema.json');
   if (findings.length === 0) {
     if (!config.hooks.includes(PRE_PUSH_HOOK)) findings.push(`${CONFIG}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
     const paths = config.trackers.flatMap(tracker => [tracker.path, ...(tracker.translation ? [tracker.translation] : [])]);

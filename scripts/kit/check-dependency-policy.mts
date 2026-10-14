@@ -15,6 +15,7 @@ import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson } from './bootstrap/files.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
+import type { DependencyPolicy } from './dependency-state.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -53,6 +54,12 @@ type ReviewRecord = {
   vcs: ReviewedPin[];
 };
 
+/** config/dependency-policy.json (schema scripts/kit/schema/dependency-policy.schema.json), in the fields that the gate reads. */
+type Policy = DependencyPolicy & {
+  exceptions: { ecosystem: string; manifest: string; package: string; reason: string; removalCondition: string; verification: string[] }[];
+  composerPlatforms: { manifest: string; php: string }[];
+};
+
 const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
@@ -67,7 +74,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   const findings: Finding[] = [];
   const add = (rule: Rule, subject: string, problem: string, fix: string) => findings.push({ rule, subject, problem, fix });
 
-  const { value: policy, errors } = readConfig(root, POLICY, 'dependency-policy.schema.json');
+  const { value: policy, errors } = readConfig<Policy>(root, POLICY, 'dependency-policy.schema.json');
   if (errors.length) {
     add('policy', POLICY, errors.join('; '), `restore the schema of ${POLICY} (dependency-policy.schema.json)`);
     return findings;
@@ -91,7 +98,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   const seen = new Set<string>();
   for (const exception of policy.advisoryExceptions ?? []) {
     const key = advisoryKey(String(exception.lock), String(exception.package), String(exception.advisory));
-    if (!completeAdvisoryException(exception)) add('policy', POLICY, `the advisory exception ${exception.advisory} of ${exception.lock} ${exception.package} lacks a lock, package, advisory, reason or removal condition`, `complete the exception in ${POLICY}`);
+    if (!completeAdvisoryException(exception)) add('policy', POLICY, `the advisory exception ${String(exception.advisory)} of ${String(exception.lock)} ${String(exception.package)} lacks a lock, package, advisory, reason or removal condition`, `complete the exception in ${POLICY}`);
     if (seen.has(key)) add('policy', key, 'the advisory exception is declared twice', `remove the duplicate from ${POLICY}`);
     seen.add(key);
   }
@@ -103,9 +110,9 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     const directory = path.posix.dirname(manifestPath);
-    const composerManifest = readJson(root, manifestPath);
+    const composerManifest = readJson(root, manifestPath) as { config?: { platform?: { php?: string } } };
     const lockPath = path.posix.join(directory, 'composer.lock');
-    const composerLock = readJson(root, lockPath);
+    const composerLock = readJson(root, lockPath) as { 'platform-overrides'?: { php?: string } };
     if (composerManifest.config?.platform?.php !== platform.php) add('platform', manifestPath, `config.platform.php is ${composerManifest.config?.platform?.php ?? 'absent'}, the policy declares ${platform.php}`, `set config.platform.php to ${platform.php} and run composer update --lock in ${directory}`);
     if (composerLock['platform-overrides']?.php !== platform.php) add('platform', lockPath, `the lock was resolved for PHP ${composerLock['platform-overrides']?.php ?? 'without a platform override'}, the policy declares ${platform.php}`, `run composer update --lock in ${directory}`);
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published
@@ -144,7 +151,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   }
 
   for (const { directory, manifest: manifestPath, lock } of state.manifests) {
-    const manifest = readJson(root, manifestPath);
+    const manifest = readJson(root, manifestPath) as Partial<Record<'dependencies' | 'devDependencies', Record<string, string>>>;
     const npmLock = state.npmLocks.get(lock);
     if (!npmLock) throw new Error(`${lock}: readState read no npm lock for ${manifestPath}, whose lock it names`);
     const lockEntry = npmLock.packages?.[directory === '.' ? '' : directory] ?? {};
@@ -252,8 +259,8 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
 /** The line of each advisory of the review record of `root` that advisoryExceptions of its policy accepts, with its reason. */
 export function acceptedAdvisories(root: string): string[] {
   if (!existsSync(path.join(root, RECORD))) return [];
-  const accepted = advisoryExceptions(readJson(root, POLICY));
-  const record: ReviewRecord = readJson(root, RECORD);
+  const accepted = advisoryExceptions(readJson(root, POLICY) as DependencyPolicy);
+  const record = readJson(root, RECORD) as ReviewRecord;
   return (record.locks ?? []).flatMap(entry => (entry.advisories ?? []).flatMap((advisory) => {
     const exception = accepted.get(advisoryKey(entry.lock, advisory.package, advisory.id));
     return exception ? [`[dependency-policy] ${entry.lock} ${advisory.package} ${advisoryRelease(advisory)}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title} ${acceptedText(exception)}`] : [];
@@ -279,8 +286,8 @@ function main(): void {
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);
     process.exit(1);
   }
-  const record = readJson(root, RECORD);
-  const policy = readJson(root, POLICY);
+  const record = readJson(root, RECORD) as ReviewRecord;
+  const policy = readJson(root, POLICY) as Policy;
   process.stdout.write(`[dependency-policy] ${record.dependencies.length} registry dependencies and ${record.locks.length} locks match the review of ${record.reviewed}; ${policy.exceptions.length} stable-version exceptions; ${accepted.length ? `${accepted.length} accepted ${accepted.length === 1 ? 'advisory' : 'advisories'}` : 'no advisory'}\n`);
 }
 

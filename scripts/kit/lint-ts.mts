@@ -32,6 +32,13 @@ interface KnipEntries {
   workspaces?: Record<string, { reason: string; entries?: Record<string, string>; ignoreDependencies?: Record<string, string> }>;
 }
 
+/** The fields of knip.json that knipArguments extends; it keeps the others as they are. */
+interface KnipJson {
+  node?: { entry?: string[] };
+  ignoreBinaries?: string[];
+  workspaces?: Record<string, unknown>;
+}
+
 /** The knip configuration of a repository with entries of its own: knip.json with those entries, written by lintSteps. */
 export const MERGED_KNIP = 'var/lint-ts/knip.json';
 
@@ -44,7 +51,7 @@ export function knipArguments(root: string): string[] {
   if (!existsSync(path.join(root, KNIP_ENTRIES))) return ['--no-progress'];
   const { value, errors } = readConfig<KnipEntries>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
   if (errors.length) throw new ConfigError(errors.join('\n'));
-  const base = readJson(root, 'knip.json');
+  const base = readJson(root, 'knip.json') as KnipJson;
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
   if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];
