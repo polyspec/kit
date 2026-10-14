@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 6b2d7a809104557b9d275f3b721100433cda222160efb17e527eb763544be6b8 -->
+<!-- source-sha256: 6c6873e91bf14ce44ee9f36669efe0778c7d626b6915c61ca757ac65331674f2 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -219,4 +219,4 @@
 | K158 | 검증된 JSON 경계: ajv `JSONSchemaType`으로 type을 단 parse helper가 kit의 script와 test에서 `JSON.parse(...) as T`, K155의 `readJson(...) as T` cast, `JSON.parse`에서 흘러나오는 type 없는 `any`를 대신한다 | `schema-validate.mts`, `bootstrap/files.mts`, kit code | 바뀐 module의 test | [o] |
 | K159 | `config/knip-entries.json`이 선택적인 root `ignoreDependencies`에 어떤 JavaScript도 import하지 않고 make만 실행하는 root의 dependency(hyper가 recipe를 위해 URL로 설치하는 `@polyspec/template-compiler`)를 이유와 함께 선언하고, lint-ts는 K154가 workspace에 하듯 그것을 `var/lint-ts/knip.json`에서 knip.json의 `ignoreDependencies` 뒤에 더한다: knip은 Makefile을 읽지 않는다 | `lint-ts.mts`, `schema/knip-entries.schema.json`, 문서 | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` | [o] |
 | K160 | `go.work`가 Git이 추적하지 않는 go.mod의 module(무시되는 clone)을 use하면 `dependency-policy-mutation-check`가 stack 없이 finding 하나로 실패한다: finding은 go.work, `use` 경로, commit된 go.work는 추적되는 module만 use할 수 있다는 것을 밝힌다. 이 check의 사본은 추적되는 파일만 담으므로 stack과 함께 ENOENT를 던졌다 | `check-dependency-policy-mutation.mts`, 문서 | `tests/kit/dependency-policy.test.mts` | [o] |
-| K161 | `.oxlintrc.json`에서 `oxc/number-arg-out-of-range`를 끄고 ES2018(ECMA-262 `Number.prototype.toExponential`, 소수 자릿수 0에서 100)을 인용하는 주석을 단다: 이 rule은 0에서 20만 허용하여 `toExponential(25)`를 실패시켰다. 고정된 최신 release인 oxlint 1.88.0과 oxc main도 옛 한계를 유지하며, 이를 보고한 oxc issue는 없다 | `.oxlintrc.json`, 문서 | `tests/source/lint-ts-real.test.mts` | [ ] |
+| K161 | `.oxlintrc.json`에서 `oxc/number-arg-out-of-range`를 끄고 ES2018(ECMA-262 `Number.prototype.toExponential`, 소수 자릿수 0에서 100)을 인용하는 주석을 단다: 이 rule은 0에서 20만 허용하여 `toExponential(25)`를 실패시켰다. 고정된 최신 release인 oxlint 1.88.0과 oxc main도 옛 한계를 유지하며, 이를 보고한 oxc issue는 없다 | `.oxlintrc.json`, 문서 | `tests/source/lint-ts-real.test.mts` | [o] |
