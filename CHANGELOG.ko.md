@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 60609afa06cf6ba270bbbee26f63e9e8a21051037efee8e596e97959f8dbdad4 -->
+<!-- source-sha256: b7da6a03381acf5ef75f8e74361bb8b9ba3595d8f0d4c4439ad255311c07a111 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.41
 
 - mise.lock은 bootstrap이 mise를 설치하는 모든 플랫폼인 linux-arm64와 macos-x64의 archive도 고정합니다. 0.0.39와 0.0.40은 ARM Linux runner에서 make install-tools가 실패했습니다(K134).
 ## 0.0.40
