@@ -16,21 +16,30 @@ import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts'
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
 
-// The JSON files that the cases edit, the configuration included: a case also writes a shape that breaks the schema on
-// purpose, so the data has no fixed type.
-type JsonData = any;
+// The JSON files that the cases edit, in the fields that they read. A case also writes a value that breaks the schema on
+// purpose, so the values that a case replaces are unknown.
+type ConsumerJson = { directory: unknown; smoke: Record<string, unknown>; polyspec?: unknown };
+type ConfigJson = {
+  [field: string]: unknown;
+  packages: [{ kind: string; name: string }, ...{ kind: string; name: string }[]];
+  manifests: Record<string, string>;
+  consumers: { npm: ConsumerJson; composer: ConsumerJson; wheel?: unknown };
+  proof: { gitTag: { 'packages/fixture-rust/Cargo.toml': { kind: unknown; name: unknown; smoke: unknown }; [manifest: string]: unknown } };
+};
+type ManifestJson = { [field: string]: unknown; dependencies?: Record<string, string>; require?: Record<string, string> };
+type ComposerEntryJson = { name: string; version: string; dist: { url: string; shasum: string } };
 type Box = ReturnType<typeof consumerSandbox>;
 
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const NPM = 'tests/release-consumer/npm';
 const COMPOSER = 'tests/release-consumer/composer';
-const edit = (root: string, file: string, change: (data: JsonData) => JsonData) => writeJson(root, file, change(readJson(root, file)));
+const edit = <Data = ManifestJson,>(root: string, file: string, change: (data: Data) => unknown) => writeJson(root, file, change(readJson(root, file) as Data));
 const install = (box: Box, version: string = box.version, directory = path.join(box.root, release.ASSETS)) => consumer.installConsumers(box.ctx(), version, directory);
 
 test('the schema accepts the consumers of the fixture and names each error of another', (t) => {
   const box = releaseSandbox(t);
   assert.deepEqual(checkConfig(box.root).filter(line => line.startsWith('config/release.json')), []);
-  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { npm: { directory: '/abs', smoke: {} }, pip: {} }, proof: {} }));
+  edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { npm: { directory: '/abs', smoke: {} }, pip: {} }, proof: {} }));
   const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json')).join('\n');
   assert.match(findings, /\/consumers\/npm\/directory must match pattern .*, value "\/abs"/);
   assert.match(findings, /\/consumers must NOT have additional properties \{"additionalProperty":"pip"\}/);
@@ -39,8 +48,8 @@ test('the schema accepts the consumers of the fixture and names each error of an
 
 test('the configuration rules name each inconsistent consumer and proof entry', (t) => {
   const box = releaseSandbox(t);
-  const original = readJson(box.root, 'config/release.json');
-  const load = (change: (config: JsonData) => JsonData) => {
+  const original = readJson(box.root, 'config/release.json') as ConfigJson;
+  const load = (change: (config: ConfigJson) => unknown) => {
     writeJson(box.root, 'config/release.json', change(structuredClone(original)));
     return () => release.loadConfig(box.root);
   };
@@ -51,7 +60,7 @@ test('the configuration rules name each inconsistent consumer and proof entry', 
   stop(load((c) => { c.consumers.npm.smoke['fixture-lib'] = 'node -e 1'; return c; }), /consumers\.npm\.smoke\.fixture-lib needs a command.*found "node -e 1"/);
   stop(load((c) => { c.consumers.npm.smoke = {}; return c; }), /consumers\.npm\.smoke needs one entry per installed package/);
   stop(load((c) => { c.consumers.composer.directory = c.consumers.npm.directory; return c; }), /consumers\.composer\.directory tests\/release-consumer\/npm is also the directory of another consumer/);
-  stop(load(c => ({ ...c, packages: c.packages.filter((item: { kind: string }) => item.kind === 'npm'), manifests: Object.fromEntries(Object.entries(c.manifests).filter(([file]) => !file.endsWith('composer.json'))) })), /consumers\.composer is set but packages lists no composer package/);
+  stop(load(c => ({ ...c, packages: c.packages.filter(item => item.kind === 'npm'), manifests: Object.fromEntries(Object.entries(c.manifests).filter(([file]) => !file.endsWith('composer.json'))) })), /consumers\.composer is set but packages lists no composer package/);
   stop(load(c => ({ ...c, proof: { gitTag: {} } })), /proof\.gitTag lacks packages\/fixture-rust\/Cargo\.toml, which manifests releases by "git-tag"/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-lib/package.json'] = { kind: 'python', name: 'x', smoke: ['python'] }; return c; }), /proof\.gitTag\.packages\/fixture-lib\/package\.json is not a manifest with the mode "git-tag"/);
   stop(load((c) => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'ruby'; return c; }), /kind is "ruby", the allowed values are rust/);
@@ -75,7 +84,7 @@ test('lock writes the manifests and locks of the archives of the tag, without th
   assert.deepEqual([lock['node_modules/fixture-lib'].integrity, lock['node_modules/fixture-app'].integrity], [undefined, undefined], 'the archives are built in the run that uses them');
   assert.equal(lock['node_modules/fixture-lib'].resolved, 'file:fixture-lib-npm-0.0.1.tgz');
   assert.equal(lock['node_modules/semver'].integrity, 'sha512-third-party', 'a registry package keeps its integrity');
-  assert.deepEqual(readJson(box.root, `${COMPOSER}/composer.lock`).packages.map((entry: JsonData) => [entry.name, entry.version, entry.dist.url, entry.dist.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
+  assert.deepEqual(readJson(box.root, `${COMPOSER}/composer.lock`).packages.map((entry: ComposerEntryJson) => [entry.name, entry.version, entry.dist.url, entry.dist.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
   const before = written.map(file => readFileSync(path.join(box.root, file), 'utf8'));
   box.lock();
   assert.deepEqual(written.map(file => readFileSync(path.join(box.root, file), 'utf8')), before);
@@ -140,7 +149,7 @@ test('install runs npm ci and composer install in clean projects outside the rep
 test('install points the scope of an npm package of the repository at an unreachable registry', (t) => {
   const box = consumerSandbox(t, {
     mutate(root: string) {
-      edit(root, 'config/release.json', (config) => {
+      edit<ConfigJson>(root, 'config/release.json', (config) => {
         config.packages[0].name = '@kit/fixture-lib';
         const { 'fixture-lib': _, ...rest } = config.consumers.npm.smoke;
         config.consumers.npm.smoke = { '@kit/fixture-lib': ['node', '-e', "require('@kit/fixture-lib/package.json')"], ...rest };
@@ -167,9 +176,9 @@ test('install names each difference of the manifests and locks from the archives
   const box = consumerSandbox(t);
   box.lock();
   edit(box.root, `${NPM}/package.json`, manifest => ({ ...manifest, dependencies: { ...manifest.dependencies, 'fixture-lib': 'file:fixture-lib-npm-0.0.0.tgz' } }));
-  edit(box.root, `${NPM}/package-lock.json`, (lock) => { lock.packages['node_modules/fixture-app'].version = '0.0.0'; return lock; });
+  edit<{ packages: { 'node_modules/fixture-app': { version: string } } }>(box.root, `${NPM}/package-lock.json`, (lock) => { lock.packages['node_modules/fixture-app'].version = '0.0.0'; return lock; });
   edit(box.root, `${COMPOSER}/composer.json`, manifest => ({ ...manifest, require: { 'polyspec/kit-fixture': '0.0.0' }, repositories: [] }));
-  edit(box.root, `${COMPOSER}/composer.lock`, (lock) => { lock.packages[0].dist.url = 'artifacts/polyspec-kit-fixture-php-0.0.0.zip'; return lock; });
+  edit<{ packages: [ComposerEntryJson] }>(box.root, `${COMPOSER}/composer.lock`, (lock) => { lock.packages[0].dist.url = 'artifacts/polyspec-kit-fixture-php-0.0.0.zip'; return lock; });
   stop(install.bind(null, box), /dependencies\.fixture-lib is "file:fixture-lib-npm-0\.0\.0\.tgz", expected "file:fixture-lib-npm-0\.0\.1\.tgz"/);
   stop(install.bind(null, box), /node_modules\/fixture-app is 0\.0\.0 resolved file:fixture-app-npm-0\.0\.1\.tgz, expected 0\.0\.1 resolved file:fixture-app-npm-0\.0\.1\.tgz/);
   stop(install.bind(null, box), /require\.polyspec\/kit-fixture is "0\.0\.0", expected "0\.0\.1"/);
@@ -207,20 +216,20 @@ test('install fails when a package is installed at another version', (t) => {
 test('install fails when a smoke command fails and names the package and the command', (t) => {
   const box = consumerSandbox(t);
   box.lock();
-  edit(box.root, 'config/release.json', (config) => { config.consumers.npm.smoke['fixture-app'] = ['node', '-e', "require('fixture-missing/package.json')"]; return config; });
+  edit<ConfigJson>(box.root, 'config/release.json', (config) => { config.consumers.npm.smoke['fixture-app'] = ['node', '-e', "require('fixture-missing/package.json')"]; return config; });
   stop(() => install(box), /node -e require\('fixture-missing\/package\.json'\) exited with 1: .*Cannot find module 'fixture-missing\/package\.json'/s);
 });
 
 test('install fails for a smoke command that does not exist', (t) => {
   const box = consumerSandbox(t);
   box.lock();
-  edit(box.root, 'config/release.json', (config) => { config.consumers.composer.smoke['polyspec/kit-fixture'] = ['kit-no-such-tool', '--check']; return config; });
+  edit<ConfigJson>(box.root, 'config/release.json', (config) => { config.consumers.composer.smoke['polyspec/kit-fixture'] = ['kit-no-such-tool', '--check']; return config; });
   stop(() => install(box), /kit-no-such-tool --check could not start: spawnSync kit-no-such-tool ENOENT/);
 });
 
 test('install needs a consumers section', (t) => {
   const box = consumerSandbox(t);
-  edit(box.root, 'config/release.json', ({ consumers: _consumers, ...config }) => config);
+  edit<ConfigJson>(box.root, 'config/release.json', ({ consumers: _consumers, ...config }) => config);
   // loadConfig refuses the configuration first (K109) and names the section that each package kind lacks.
   stop(() => install(box), /config\/release\.json: consumers\.npm is missing; the npm packages \[[^\]]+\] need a consumer project that installs them/);
 });
@@ -274,10 +283,10 @@ test('the real npm ci and composer install install the archives of a tag from th
       edit(root, 'packages/fixture-lib/package.json', ({ dependencies: _dependencies, ...manifest }) => manifest);
       edit(root, 'packages/fixture-php/composer.json', ({ require: _require, config: _config, ...manifest }) => manifest);
       // The wheel needs the Python of the machine, which this case does not run: the case covers npm and Composer only.
-      edit(root, 'config/release.json', ({ buildBackend: _buildBackend, consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
+      edit<ConfigJson>(root, 'config/release.json', ({ buildBackend: _buildBackend, consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
         ...config,
         consumers,
-        packages: packages.filter((item: { kind: string }) => item.kind !== 'wheel'),
+        packages: packages.filter(item => item.kind !== 'wheel'),
         manifests: Object.fromEntries(Object.entries(manifests).filter(([file]) => file !== 'packages/fixture-python/pyproject.toml')),
       }));
     },
@@ -314,7 +323,7 @@ test('the Composer consumer holds the release zip of each entry of config/releas
   const zip = Buffer.from('the release zip of polyspec/codec 0.0.14');
   writeFileSync(path.join(box.root, '.gitignore'), `${existsSync(path.join(box.root, '.gitignore')) ? readFileSync(path.join(box.root, '.gitignore'), 'utf8') : ''}var/\n`);
   writeJson(box.root, 'config/release-assets.json', { schema: 1, assets: [{ name: 'codec-php', version: '0.0.14', url: 'https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip', sha256: sha256(zip), directory: 'var/composer-artifacts' }] });
-  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: ['codec-php'] } } }));
+  edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: ['codec-php'] } } }));
   edit(box.root, `${COMPOSER}/composer.json`, manifest => ({ ...manifest, require: { ...manifest.require, 'polyspec/codec': '0.0.14' } }));
   stop(() => box.lock(), /var\/composer-artifacts\/polyspec-codec-php-0\.0\.14\.zip does not hold the archive codec-php 0\.0\.14 .*; run make release-assets-fetch/);
   mkdirSync(path.join(box.root, 'var/composer-artifacts'), { recursive: true });
@@ -323,6 +332,6 @@ test('the Composer consumer holds the release zip of each entry of config/releas
   const lock = readJson(box.root, `${COMPOSER}/composer.lock`);
   assert.deepEqual(lock.packages.find((entry: { name: string }) => entry.name === 'polyspec/codec')?.dist, { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip', shasum: 'sha1-own' }, 'the lock keeps the shasum of a dependency, which no run builds again');
   assert.equal(install(box), 4);
-  edit(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: [] } } }));
+  edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: [] } } }));
   assert.match(checkConfig(box.root).join('\n'), /config\/release\.json: \/consumers\/composer\/polyspec must NOT have fewer than 1 items/);
 });
