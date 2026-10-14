@@ -1,10 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: eb4048011a8c846781e8d8d3e7d9f7a1f8dfbd8a2d81251a52bb622c0c1f7469 -->
+<!-- source-sha256: 28e713cb0df0d59ec9ffe5c04d06fc6607c9e88b80a7713b7ba395ee3c1e48f6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 복사되는 `.github/workflows/release.yml`이 actions/checkout v7.0.1, actions/setup-node v7.1.0, shivammathur/setup-php 2.40.0을 각 release의 전체 SHA로 고정합니다. setup-php는 움직이는 tag v2의 SHA로 고정되어 있었습니다. 두 major는 workflow가 넘기는 input을 하나도 바꾸지 않습니다(K169).
+
+### 소비자 이전
+
+실행:
+- `.github/workflows/release.yml`을 쓰는 `make kit-sync`(K169).
 
 ## 0.0.47
 
