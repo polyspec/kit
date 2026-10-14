@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { builtCopy, installedTool, runKitTest } from './checkout.mts';
+import { initRepository } from '../kit/sandbox-repository.mts';
 
 test('a sandbox takes the installed tools of var/tools and neither the caches of mise and uv nor the runs of other tests', () => {
   assert.equal(installedTool('var/tools/mise/shims/python3'), true);
@@ -58,6 +59,8 @@ const CASE = { timeout: 120_000 };
  */
 function stubCheckout(t: TestContext, wait: boolean) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-run-kit-test-'));
+  // The tools of kit run in a checkout and resolve its root through Git (K144), so the stub is a repository.
+  initRepository(directory);
   const pidFile = path.join(directory, 'sleep.pid');
   writeFileSync(path.join(directory, 'Makefile'), `kit-test:\n\t@sleep 600 > /dev/null 2>&1 & echo $$! > sleep.pid; ${wait ? 'wait' : "echo 'node --test: 3 passed, 0 failed'"}\n`);
   writeFileSync(path.join(directory, 'stub.test.mts'), `import test from 'node:test';\nimport { runKitTest } from ${JSON.stringify(CHECKOUT)};\ntest('the nested run', async (t) => { await runKitTest(${JSON.stringify(directory)}, t.signal); });\n`);
