@@ -828,10 +828,13 @@ does not declare is neither installed nor checked.
   `describe`, `it`, `suite`, `skip`, `only` and `todo` of the package `node:test` (K138): a top-level registration returns a
   promise that the runner awaits, and the rule failed each one (516 in crudui), while an un-awaited `fetch` in a test file
   still fails (a fixture). The subtest `t.test` shares the name `test`; the runner of Node 26 waits for it. A consumer's
-  tsconfig covers its own scripts, not the copies of kit in `scripts/kit`, so oxlint-tsgolint checks those copies outside the
-  project, without the types of node; the copies therefore name only types of the standard library in a union (`Uint8Array`,
-  not `NodeJS.ArrayBufferView`, which resolved to an error type and failed `no-redundant-type-constituents` in ordered-json),
-  and the fixture of `tests/source/lint-ts-real.test.mts` lints the real copies with such a tsconfig (K150). The escape
+  tsconfig covers its own scripts, not the copies of kit in `scripts/kit`, so oxlint-tsgolint would check those copies
+  outside the project, without the types of node, where every `node:*` import is `any` (K150). In a consumer lint-ts
+  therefore gives oxlint one `--ignore-pattern` for each file of `kit.copies` of the installed package, the record that
+  kit-sync writes and kit-check compares byte for byte: kit lints its copies with its own tsconfig. A pattern of a
+  configuration file is rooted at the directory of that file, so the patterns go on the command line. A violation planted
+  in a copy passes the lint of the fixture consumer, the same violation in its own script fails, and an installed kit that
+  is not the locked version fails as kit-check does (K157). The escape
   hatches from the types fail (K155): `ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description of
   `@ts-expect-error`, which tsc itself fails once nothing errs, and `no-explicit-any` and `no-unnecessary-type-assertion`
   are on; a fixture plants each one. The non-null assertion and the `no-unsafe-*` family wait for K156 and K157. API

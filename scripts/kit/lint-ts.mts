@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Lints the TypeScript of the checkout with the oxlint, knip and API Extractor of node_modules/.bin (`make lint-ts`):
 //   - `oxlint --type-aware --deny-warnings -c .oxlintrc.json`, the configuration that kit copies, on the checkout; oxlint
-//     reads the files that Git does not ignore, and oxlint-tsgolint checks the rules that need the types of TypeScript 7.
+//     reads the files that Git does not ignore, and oxlint-tsgolint checks the rules that need the types of TypeScript 7. In a
+//     consumer it leaves out the copies of kit (`kit.copies` of the installed package, which kit-sync writes and kit-check
+//     compares byte for byte): kit lints them with its own tsconfig and the types of node, and outside the consumer's project
+//     oxlint-tsgolint would check them without those types (K157).
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
 //     plugins that read the manifests. knip has no `extends`, so the entries that the repository adds in config/knip-entries.json
 //     (K145) are added to `node.entry` of knip.json, its binaries (K152) to `ignoreBinaries`, and its nested npm projects
@@ -18,6 +21,7 @@ import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
+import { installedKit, isSource } from './kit-check.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
 
 /**
@@ -66,6 +70,19 @@ export function knipArguments(root: string): string[] {
   return ['--no-progress', '--config', MERGED_KNIP];
 }
 
+/**
+ * The arguments of oxlint that leave out the copies of kit in `root`: one `--ignore-pattern` for each file of `kit.copies` of
+ * the installed package, the record that kit-sync writes and kit-check compares; none in kit itself, which lints its sources.
+ * A pattern of a configuration file is rooted at the directory of that file, so the copies, outside var/lint-ts, are given on
+ * the command line. Throws when the installed package is not the version that package-lock.json resolves.
+ */
+export function kitCopyIgnores(root: string): string[] {
+  if (isSource(root)) return [];
+  const kit = installedKit(root);
+  if ('finding' in kit) throw new ConfigError(kit.finding);
+  return kit.copies.map(({ file }) => `--ignore-pattern=/${file}`);
+}
+
 /** The steps of the lint of `root`; throws when a tool or a configuration is missing. */
 export function lintSteps(root: string): LintStep[] {
   const tools = lintCommands(root, 'node_modules/.bin', ['oxlint', 'knip', 'api-extractor'], 'run npm ci');
@@ -74,7 +91,7 @@ export function lintSteps(root: string): LintStep[] {
   return [
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
     // leave the rule out, so the format is fixed and the output is the same everywhere.
-    { label: 'oxlint', command: tools.oxlint!, args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json'], cwd: '.' },
+    { label: 'oxlint', command: tools.oxlint!, args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root)], cwd: '.' },
     { label: 'knip', command: tools.knip!, args: knipArguments(root), cwd: '.' },
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: tools['api-extractor']!, args: ['run'], cwd: folder })),
   ];

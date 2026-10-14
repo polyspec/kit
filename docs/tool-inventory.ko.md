@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 707aca108d4ae49f5c0862d3399a24cba92805ba33f77003a520e824d6eac1b4 -->
+<!-- source-sha256: 04679db5e7178604a6fcbbc1a7cb31dd1d0c554c3a931a8e50f734303fa67943 -->
 
 # 도구 목록
 
@@ -759,10 +759,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   `suite`, `skip`, `only`, `todo`를 담은 `allowForKnownSafeCalls`를 받습니다(K138): 최상위 등록은 runner가 기다리는 promise를
   돌려주는데 이 규칙이 그 하나하나를 실패시켰고(crudui에서 516개), test 파일에서 await하지 않은 `fetch`는 여전히 실패합니다
   (fixture). subtest `t.test`도 이름이 `test`이며, Node 26의 runner는 그것을 기다립니다. consumer의 tsconfig는 자기 script를
-  담고 `scripts/kit`의 kit 사본은 담지 않으므로, oxlint-tsgolint는 그 사본을 project 밖에서 node의 type 없이 검사합니다. 그래서
-  사본은 union에 표준 library의 type만 씁니다(`NodeJS.ArrayBufferView`가 아니라 `Uint8Array`; 앞의 것은 error type이 되어
-  ordered-json에서 `no-redundant-type-constituents`를 실패시켰습니다). `tests/source/lint-ts-real.test.mts`의 fixture는 그런
-  tsconfig로 실제 사본을 lint합니다(K150). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
+  담고 `scripts/kit`의 kit 사본은 담지 않으므로, oxlint-tsgolint는 그 사본을 project 밖에서 node의 type 없이 검사하게 되고
+  거기서는 모든 `node:*` import가 `any`입니다(K150). 그래서 consumer에서 lint-ts는 설치된 package의 `kit.copies`, 곧 kit-sync가
+  쓰고 kit-check가 byte 단위로 비교하는 기록의 각 파일마다 oxlint에 `--ignore-pattern`을 하나씩 줍니다: kit은 자기 사본을 자기
+  tsconfig로 lint합니다. 설정 파일의 pattern은 그 파일의 directory를 기준으로 하므로 pattern은 명령줄로 갑니다. fixture
+  consumer에서 사본에 심은 위반은 통과하고 자기 script의 같은 위반은 실패하며, 설치된 kit이 lock된 version이 아니면
+  kit-check처럼 실패합니다(K157). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
   `@ts-nocheck`를 금지하고 `@ts-expect-error`에 설명을 요구하며(아무 error도 없으면 tsc 자신이 실패시킵니다),
   `no-explicit-any`와 `no-unnecessary-type-assertion`이 켜져 있습니다. fixture가 각각을 심습니다. non-null assertion과
   `no-unsafe-*` 계열은 K156과 K157을 기다립니다. API
