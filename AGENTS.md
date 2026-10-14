@@ -28,7 +28,8 @@ and states only its own rules. The rules below are kit's own.
   another repository. A value that differs between repositories is data in
   `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
 - A vendored file is changed in kit and copied with `make kit-sync`, which writes the copies of the version that
-  package-lock.json resolves, never edited in a repository: `make kit-check` fails on a changed or missing vendored file.
+  package-lock.json resolves, never edited in a repository: `make kit-check` fails on a changed or missing vendored file, and
+  on a file of `scripts/kit/` that is no copy, since that directory holds the copies of kit only; `make kit-sync` removes it.
 - The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,
   environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
   creates, is accepted; our rules govern what we create.

@@ -5,11 +5,12 @@
 //
 // The package under node_modules must be the version that package-lock.json resolves; there is no tag or ref to give, so a
 // sync writes the copies of the locked version only. Each copy of `kit.copies` (the package.json of the package) is written
-// to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. The command reads
+// to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
+// that the package does not declare is removed: that directory holds the copies of kit only. The command reads
 // no network; it prints a line for each change.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { installedKit, INSTALLED, PACKAGE } from './kit-check.mts';
+import { COPY_DIRECTORY, installedKit, INSTALLED, PACKAGE, strayCopies } from './kit-check.mts';
 import { isMain, ROOT } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 
@@ -27,6 +28,13 @@ export function sync(root: string): string[] {
     if (existed && readFileSync(target).equals(content)) continue;
     writeAtomic(target, content);
     changes.push(`${existed ? 'written' : 'added'} ${file}`);
+  }
+  // scripts/kit holds the copies of kit only: a file that the package no longer declares is removed, and so is a directory
+  // that it leaves empty.
+  for (const file of strayCopies(root, kit.copies)) {
+    rmSync(path.join(root, file));
+    changes.push(`removed ${file}`);
+    for (let directory = path.dirname(file); directory !== COPY_DIRECTORY && readdirSync(path.join(root, directory)).length === 0; directory = path.dirname(directory)) rmSync(path.join(root, directory), { recursive: true });
   }
   return changes;
 }

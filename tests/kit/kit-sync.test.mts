@@ -83,6 +83,20 @@ test('kit-check names a copy that differs and a copy that is missing, with the v
   ]);
 });
 
+// scripts/kit/ of a repository holds the copies of kit only (K133): a file there that the package no longer declares, such
+// as scripts/kit/bootstrap/bootstrap-npm.mts after 0.0.39, is removed by kit-sync and named by kit-check.
+test('kit-sync removes a file of scripts/kit that is no copy, and kit-check names it (K133)', (t) => {
+  const root = repository(t);
+  sync(root);
+  write(root, 'scripts/kit/bootstrap/bootstrap-npm.mts', 'old\n');
+  assert.deepEqual(check(root), ['scripts/kit/bootstrap/bootstrap-npm.mts is no copy of @polyspec/kit 0.1.0; scripts/kit holds the copies of kit only. Fix: make kit-sync, which removes it']);
+  assert.deepEqual(sync(root), ['removed scripts/kit/bootstrap/bootstrap-npm.mts']);
+  assert.equal(existsSync(path.join(root, 'scripts/kit/bootstrap/bootstrap-npm.mts')), false);
+  assert.equal(existsSync(path.join(root, 'scripts/kit/bootstrap')), false, 'the emptied directory is removed');
+  assert.deepEqual(check(root), []);
+  assert.deepEqual(sync(root), []);
+});
+
 test('kit-check fails while the installed package is not the version that package-lock.json resolves', (t) => {
   const root = repository(t, { installed: '0.0.9' });
   assert.deepEqual(check(root), ['node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages']);

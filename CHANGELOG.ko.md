@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dbbd322ce5a0004a1dfe2776a4143e7a3cb56b6e569d626026c02cdbb0d2bd18 -->
+<!-- source-sha256: 38c41c4c9e8dc43bfd0c53d4b7dfda7179c9148caae3fa14536d8a1b6f6d490d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-sync는 package가 더는 선언하지 않는 `scripts/kit/`의 파일(0.0.39 이후의 `scripts/kit/bootstrap/bootstrap-npm.mts` 등)을 지우고, kit-check는 그런 파일을 보고합니다(K133).
 - make toolchain-lock은 mise 환경이 mise.toml을 global configuration으로 지정하므로 `mise lock --global`로 그 도구를 잠급니다. 0.0.39는 lock이 없는 저장소에서 lock을 쓰지 못했습니다(K127).
 - release workflow는 `make release-tools` 전에 `make release-prepare`를 실행합니다: 저장소는 release에 필요한 준비를 Makefile의 `release-prepare::` 규칙으로 선언합니다(K132).
 
