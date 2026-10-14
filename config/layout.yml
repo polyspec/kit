@@ -43,42 +43,7 @@ rules:
 
   # kit builds its package into dist/ with tsconfig.build.json (make build); the other root files are the common ones.
   - id: layout-root-files
-    paths:
-      - "*"
-      - "!README.md"
-      - "!README.ko.md"
-      - "!AGENTS.md"
-      - "!AGENTS.ko.md"
-      - "!PRINCIPLES.md"
-      - "!PRINCIPLES.ko.md"
-      - "!CHANGELOG.md"
-      - "!CHANGELOG.ko.md"
-      - "!LICENSE"
-      - "!Makefile"
-      - "!kit.json"
-      - "!package.json"
-      - "!package-lock.json"
-      - "!tsconfig.json"
-      - "!tsconfig.build.json"
-      - "!.gitignore"
-      - "!.gitattributes"
-      - "!.node-version"
-      - "!.python-version"
-      - "!.php-version"
-      - "!rust-toolchain.toml"
-      - "!mise.toml"
-      - "!mise.lock"
-      - "!ruff.toml"
-      - "!phpcs.xml.dist"
-      - "!phpstan.dist.neon"
-      - "!Cargo.toml"
-      - "!Cargo.lock"
-      - "!go.work"
-      - "!go.work.sum"
-      - "!.golangci.yml"
-      - "!.oxlintrc.json"
-      - "!knip.json"
-      - "!.editorconfig"
+    vars: { root_files: "{tsconfig.build.json}" }
 
   - id: layout-no-pythonpath
     paths:

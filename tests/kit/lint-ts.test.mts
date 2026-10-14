@@ -57,3 +57,15 @@ test('a missing tool or configuration fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { omit: '.oxlintrc.json' }).root), /\.oxlintrc\.json is missing; it is the oxlint configuration that kit copies into every repository \(make kit-sync\)/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'knip.json' }).root), /knip\.json is missing; it is the knip configuration that kit copies into every repository \(make kit-sync\)/);
 });
+
+test('knip reads knip.json with the entries of config/knip-entries.json after its own, from var/lint-ts/knip.json (K145)', (t) => {
+  const { root, calls } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, entries: { 'packages/js/test/probe.mjs': 'make test-js runs it' } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.equal(calls()[1], 'knip --no-progress --config var/lint-ts/knip.json [root]');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts', 'packages/js/test/probe.mjs'] }, ignoreBinaries: ['make'] });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, entries: { '../outside.mjs': 'leaves the repository' } }));
+  assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/entries/);
+});
