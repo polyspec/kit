@@ -808,7 +808,13 @@ does not declare is neither installed nor checked.
   patterns, such as a probe under `packages/js/test/`, is an entry that the repository declares with its reason in
   `config/knip-entries.json`, its own file with a schema of kit, never in the copy (K145): knip has no `extends`, so
   lint-ts writes knip.json with those entries after its own `node.entry` to `var/lint-ts/knip.json` and runs knip with
-  `--config` on it. A declared file passes and an undeclared orphan still fails (a fixture).
+  `--config` on it. A declared file passes and an undeclared orphan still fails (a fixture). A nested npm project with a
+  package.json of its own, such as the fixtures that the build tests of ssr compile, is a knip workspace that the
+  repository declares in `workspaces` of the same file with its reason, its entries relative to its directory and each
+  dependency that no JavaScript of it imports (`ignoreDependencies`, such as one that only Rust tests load) with its
+  reason; lint-ts adds it to `workspaces` of the generated configuration, whose root stays knip.json (K154). knip's Svelte
+  plugin compiles the `.svelte` files of a workspace that depends on svelte. Declared, its dependencies pass; as root
+  entries, or undeclared, they are unlisted dependencies of the root (a fixture).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says

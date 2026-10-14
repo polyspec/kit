@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ae879b791f9ad7af8b01c5f3db9b9f521e9506763a5d0247de6bc64e5728df69 -->
+<!-- source-sha256: 7a5fe9a07b4ef88aa305b9cdc4e0ef669177862a08dbfc8dacb9651d175482ec -->
 
 # 도구 목록
 
@@ -741,7 +741,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   pattern 밖에서 make가 실행하는 파일(`packages/js/test/` 아래의 probe 등)은 레포가 사본이 아닌 자기 파일
   `config/knip-entries.json`(kit의 schema가 있습니다)에 이유와 함께 선언하는 entry입니다(K145): knip에는 `extends`가 없으므로
   lint-ts가 knip.json의 `node.entry` 뒤에 그 entry를 더한 설정을 `var/lint-ts/knip.json`에 쓰고 knip을 그 파일의 `--config`로
-  실행합니다. 선언한 파일은 통과하고 선언하지 않은 고아 파일은 여전히 실패합니다(fixture).
+  실행합니다. 선언한 파일은 통과하고 선언하지 않은 고아 파일은 여전히 실패합니다(fixture). 자기 package.json을 가진 중첩 npm
+  project(ssr의 build test가 compile하는 fixture 등)는 레포가 같은 파일의 `workspaces`에 이유, 그 directory 기준의 entry,
+  그 JavaScript가 import하지 않는 dependency(`ignoreDependencies`, Rust test만 읽는 것 등)를 각각 이유와 함께 선언하는 knip
+  workspace입니다. lint-ts는 root가 여전히 knip.json인 생성 설정의 `workspaces`에 그것을 더합니다(K154). svelte에 의존하는
+  workspace의 `.svelte` 파일은 knip의 Svelte plugin이 compile합니다. 선언하면 그 dependency는 통과하고, root entry로 두거나
+  선언하지 않으면 root의 unlisted dependency입니다(fixture).
 - **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로

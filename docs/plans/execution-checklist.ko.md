@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: a80ccac2d00e3a7395b325205f7c2913df256b03313322306c6d3a0f5484e0d6 -->
+<!-- source-sha256: b2e87b08e2aa8f3dad07c68a49195a2a19b66c92f406177f147a37fe58396b4a -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -212,3 +212,4 @@
 | K147 | ruff가 복사된 `ruff.toml`의 `cache-dir`, 곧 repository의 모든 실행에 적용되는 ruff 자신의 설정으로 cache를 `var/ruff`에 둔다: `make lint-python`이 repository root에 `.ruff_cache`를 남겼고, ignore하지 않으면 layout S5에서 실패한다 | `ruff.toml`, 문서 | `tests/source/lint-python-real.test.mts` | [o] |
 | K152 | knip.json이 make, go, rustup, shasum에 더해 polyspec이 mise나 setup으로 고정하는 runtime(php, composer, python3, cargo, node, git)의 binary를 무시하고, 레포는 자기 system 도구(hyper의 `container`)를 `config/knip-entries.json`의 선택적 `binaries` map에 이유와 함께 선언하며, lint-ts는 `entries`처럼 그것을 `var/lint-ts/knip.json`의 `ignoreBinaries`에 더한다: php, composer, container, gmake를 spawn하는 consumer가 "Unlisted binaries"로 knip에서 실패했다(template-benchmark, fsm, hyper, template) | `knip.json`, `lint-ts.mts`, `schema/knip-entries.schema.json`, 문서 | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` | [ ] |
 | K153 | `dependency-policy-mutation-check`가 의존성 파일(`COPIED`)과 함께 `go.work`와 `go.work.sum`을 임시 repository에 복사한다: 그것이 없으면 workspace의 다른 member만 요구하는 module에 가질 수 없는 go.sum을 요구했고, gate는 통과하는데 template의 `tools/showcase/adapters/go`에서 이 check가 실패했다 | `check-dependency-policy-mutation.mts`, 문서 | `tests/kit/dependency-policy.test.mts` | [ ] |
+| K154 | 레포가 자기 package.json을 가진 중첩 npm project(ssr `packages/build/tests/fixtures`: react, react-dom, vue, svelte, web-streams-polyfill)를 `config/knip-entries.json`의 `workspaces`에 이유, entry, `ignoreDependencies`(JS가 아닌 code만 읽는 dependency)와 함께, 각각 이유를 붙여 knip workspace로 선언하고, lint-ts는 knip이 문서화한 설정대로 그것을 `var/lint-ts/knip.json`의 `workspaces`에 더한다: 이 파일은 root entry만 더할 수 있었고, 그렇게 두면 그 dependency가 root에서 unlisted였다. 그 `.svelte` 파일은 knip의 Svelte plugin이 compile한다 | `lint-ts.mts`, `schema/knip-entries.schema.json`, 문서 | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` | [ ] |
