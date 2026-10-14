@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a9ab02de3eb0b95bc1f2c33c62054802112dbd8056128b94da250d8b52234f1c -->
+<!-- source-sha256: df0a9786d316df755e2aa51a3458c19d5cf60e08a40afdfde18b0ad8aef1aebd -->
 
 # 도구 목록
 
@@ -807,6 +807,12 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 있는 모든 종류에 project가 필요하고, smoke key는 그 종류의 package여야 합니다. key가 아닌 package는 project에 복사만 하고 설치하지 않습니다
 (예: Composer가 설치하지 않는 type `php-ext`의 Composer package). manifest 파일은 저장소의 `notReleased`에 둡니다.
 
+`composer.polyspec`(선택, K140)는 Composer project의 polyspec 의존성을 `config/release-assets.json`의 entry 이름으로 적습니다: 각각의
+release zip은 sha256을 지녀야 하며(`make release-assets-fetch`가 내려받습니다), tag의 zip 옆에서 project의 `artifacts` repository에
+놓입니다. 그래서 project는 polyspec 의존성을 inline package repository로 선언하지 않고 그 version으로 require하여, consumer처럼
+release된 archive에서 설치합니다. `wheel.polyspec`의 대응입니다. lock은 어떤 실행도 다시 만들지 않는 그 zip의 shasum을 유지하며,
+목록이 있으면 `make release-tools`가 zip을 내려받습니다.
+
 ### 절차
 
 1. `make release-assets TAG=vX.Y.Z`가 archive를 만듭니다. `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)는 각 project를 저장소 밖의 임시 directory에 그 종류의
@@ -855,6 +861,34 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 
 - `smoke`가 모든 package를 나열할 필요는 없습니다: key가 없는 package는 복사만 하고 설치하거나 검사하지 않습니다.
 - lock은 `lock`을 실행한 때 archive가 선언한 dependency를 담으므로, dependency가 바뀌면 `lock`을 다시 실행해야 합니다.
+
+## 다른 repository의 release archive (K140)
+
+다른 polyspec repository의 release archive(예: template release의 php와 php-ext zip, orm과 ordered-json의 Composer zip)를 쓰는
+repository는 자기 downloader 대신 `config/release-assets.json`(schema `scripts/kit/schema/release-assets.schema.json`, `make kit-check`가
+검사)에 그것을 고정합니다:
+
+```json
+{
+  "schema": 1,
+  "assets": [
+    { "name": "codec-php", "version": "0.0.14", "url": "https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip",
+      "sha256": "<64 hex digits>", "directory": "var/composer-artifacts", "unpack": "var/products/codec" }
+  ]
+}
+```
+
+- version은 entry에 한 번만 선언합니다. `url`의 `{version}`이 그것을 뜻하며 다른 placeholder는 받지 않습니다. tag가 필요한
+  Makefile은 그것을 읽습니다: `$(shell node $(KIT)/release-assets.$(KIT_EXT) version codec-php)`.
+- 목적지는 `directory`와 URL의 마지막 path segment입니다. `directory`와 `unpack`은 `..` 없는 `var/` 아래 directory이고 Git이
+  무시해야 합니다(`git check-ignore`). 두 entry가 같은 name이나 목적지를 가지면 거부합니다.
+- `make release-assets-fetch`(ONLINE, install 단계)는 목적지가 sha256을 지니지 않은 archive를 Node의 fetch로 내려받고, sha256이
+  다르면 거부하며 그때는 아무것도 쓰지 않고, `<destination>.next-<pid>`와 rename으로 씁니다. `unpack`이 있는 entry는 zip이며,
+  `unzip`이 `unpack` 옆의 임시 directory에 풀고 rename으로 그것을 바꿉니다. 그 안의 `.release-asset.sha256`가 archive를 기록하므로
+  같은 archive는 다시 풀지 않습니다.
+- `config/release.json`의 `consumers.composer.polyspec`는 Composer consumer project가 담는 zip의 entry를 적습니다(release archive의
+  consumer 설치).
+- `tests/kit/release-assets.test.mts`는 fetch의 stub과 machine의 `zip`이 만든 zip으로 도구를 실행합니다.
 
 ## Release proof (K5.5)
 

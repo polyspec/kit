@@ -3,7 +3,9 @@
 //
 //   consumers.<npm|composer> = { directory, smoke }   the consumer project of the archives of that kind: `directory` holds
 //                                                      its committed manifest and lock; `smoke` maps each package that the
-//                                                      project installs to the command that checks it
+//                                                      project installs to the command that checks it; `polyspec` of the
+//                                                      Composer project names the entries of config/release-assets.json
+//                                                      whose zips its artifact repository holds
 //   consumers.wheel = { smoke, lock, polyspec }        the wheels, installed into a virtual environment: `smoke` maps each
 //                                                      wheel package to the command that checks it in the installed venv;
 //                                                      `lock` maps each wheel package to its PEP 751 lock of dependencies;
@@ -26,7 +28,7 @@ export type ConsumerSection = {
   directory?: string;
   smoke: Record<string, unknown>;
   lock?: Record<string, unknown>;
-  polyspec?: Record<string, unknown>;
+  polyspec?: Record<string, unknown> | string[];
 };
 
 /**

@@ -46,7 +46,7 @@ function capture() {
 test('release-tools runs install-tools for the fixture configuration and asks for the Rust toolchain of a git-tag proof', () => {
   const config = JSON.parse(readFileSync(FIXTURE, 'utf8'));
   assert.ok(config.proof?.gitTag, 'the fixture proves a git-tag manifest, so the proof needs its Rust toolchain');
-  assert.deepEqual(toolsFor(config), { install: true, rust: true });
+  assert.deepEqual(toolsFor(config), { install: true, rust: true, assets: false });
 });
 
 test('release-tools installs only the tools that a configuration without Go modules or git-tag proofs needs', () => {
@@ -56,14 +56,14 @@ test('release-tools installs only the tools that a configuration without Go modu
     goModules: {},
     consumers: { composer: { directory: 'tests/composer', smoke: { 'vendor/php': ['php', '-v'] } } },
   };
-  assert.deepEqual(toolsFor(config), { install: true, rust: false });
+  assert.deepEqual(toolsFor(config), { install: true, rust: false, assets: false });
 });
 
 test('release-tools runs install-tools for a wheel package, and nothing for an npm package, whose npm is the bootstrap', () => {
   const wheel = { packages: [{ kind: 'wheel', directory: 'packages/py', name: 'py' }], goModules: {} };
-  assert.deepEqual(toolsFor(wheel), { install: true, rust: false });
+  assert.deepEqual(toolsFor(wheel), { install: true, rust: false, assets: false });
   const npm = { packages: [{ kind: 'npm', directory: 'packages/js', name: 'js' }], goModules: {} };
-  assert.deepEqual(toolsFor(npm), { install: false, rust: false });
+  assert.deepEqual(toolsFor(npm), { install: false, rust: false, assets: false });
 });
 
 test('prepareRust installs the channel of rust-toolchain.toml with rustup in the checkout and checks rustc against it', (t) => {
@@ -97,4 +97,13 @@ test('release-tools reads config/release.json of the repository it runs in, not 
   const ran = spawnSync(process.execPath, [tool('release-tools')], { cwd: repository, encoding: 'utf8' });
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
   assert.match(ran.stderr, /config\/release\.json: \/ must have required property 'repositoryUrl'/);
+});
+
+test('release-tools fetches the release archives of config/release-assets.json when the Composer consumer installs a polyspec dependency (K140)', () => {
+  const config = {
+    packages: [{ kind: 'composer', directory: 'packages/php', name: 'vendor/php' }],
+    goModules: {},
+    consumers: { composer: { directory: 'tests/composer', smoke: { 'vendor/php': ['php', '-v'] }, polyspec: ['codec-php'] } },
+  };
+  assert.deepEqual(toolsFor(config), { install: true, rust: false, assets: true });
 });

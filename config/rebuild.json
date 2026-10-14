@@ -278,6 +278,10 @@
       "kind": "policy",
       "reason": "checks the classes of config/rebuild.json, polyspec's S1 declaration"
     },
+    "scripts/kit/release-assets.mts": {
+      "kind": "policy",
+      "reason": "polyspec's pins of the release archives of its own repositories, which no registry serves, by version and sha256 under var/; the download is the fetch of Node.js and the extraction unzip"
+    },
     "scripts/kit/release-backend.mts": {
       "kind": "ecosystem",
       "tool": "pip download of the declared wheels"

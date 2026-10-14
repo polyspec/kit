@@ -84,6 +84,8 @@ export interface ReleasePackage {
 export interface ConsumerProject {
   directory: string;
   smoke: Record<string, string[]>;
+  /** The entries of config/release-assets.json whose zips the Composer project holds (consumers.composer.polyspec). */
+  polyspec?: string[];
 }
 
 /** The consumer of the wheels: the smoke command and the lock file of each wheel package, the polyspec repositories. */
