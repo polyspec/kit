@@ -831,7 +831,10 @@ does not declare is neither installed nor checked.
   tsconfig covers its own scripts, not the copies of kit in `scripts/kit`, so oxlint-tsgolint checks those copies outside the
   project, without the types of node; the copies therefore name only types of the standard library in a union (`Uint8Array`,
   not `NodeJS.ArrayBufferView`, which resolved to an error type and failed `no-redundant-type-constituents` in ordered-json),
-  and the fixture of `tests/source/lint-ts-real.test.mts` lints the real copies with such a tsconfig (K150). API
+  and the fixture of `tests/source/lint-ts-real.test.mts` lints the real copies with such a tsconfig (K150). The escape
+  hatches from the types fail (K155): `ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description of
+  `@ts-expect-error`, which tsc itself fails once nothing errs, and `no-explicit-any` and `no-unnecessary-type-assertion`
+  are on; a fixture plants each one. The non-null assertion and the `no-unsafe-*` family wait for K156 and K157. API
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report

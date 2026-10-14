@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7a5fe9a07b4ef88aa305b9cdc4e0ef669177862a08dbfc8dacb9651d175482ec -->
+<!-- source-sha256: 707aca108d4ae49f5c0862d3399a24cba92805ba33f77003a520e824d6eac1b4 -->
 
 # 도구 목록
 
@@ -762,7 +762,10 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   담고 `scripts/kit`의 kit 사본은 담지 않으므로, oxlint-tsgolint는 그 사본을 project 밖에서 node의 type 없이 검사합니다. 그래서
   사본은 union에 표준 library의 type만 씁니다(`NodeJS.ArrayBufferView`가 아니라 `Uint8Array`; 앞의 것은 error type이 되어
   ordered-json에서 `no-redundant-type-constituents`를 실패시켰습니다). `tests/source/lint-ts-real.test.mts`의 fixture는 그런
-  tsconfig로 실제 사본을 lint합니다(K150). API
+  tsconfig로 실제 사본을 lint합니다(K150). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
+  `@ts-nocheck`를 금지하고 `@ts-expect-error`에 설명을 요구하며(아무 error도 없으면 tsc 자신이 실패시킵니다),
+  `no-explicit-any`와 `no-unnecessary-type-assertion`이 켜져 있습니다. fixture가 각각을 심습니다. non-null assertion과
+  `no-unsafe-*` 계열은 K156과 K157을 기다립니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
   줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다. `ae-missing-release-tag`는 꺼져

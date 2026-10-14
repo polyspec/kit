@@ -1,10 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8f64c81d26300638e8b361358335d94727c3aa71d1d53f983fe03bd9f9e4a3f5 -->
+<!-- source-sha256: e781ef9e4bb24e6f9be55618418ede87cfcd89fa76854a1c8120d762a1c6d0f2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 복사되는 `.oxlintrc.json`이 TypeScript type의 비상구를 error로 금지합니다: `typescript/ban-ts-comment`는 `@ts-ignore`와 `@ts-nocheck`를 금지하고 `@ts-expect-error` 뒤에 설명(`// @ts-expect-error: <이유>`)을 요구하며, `typescript/no-explicit-any`와 `typescript/no-unnecessary-type-assertion`은 명시적 `any`와 아무것도 바꾸지 않는 type assertion을 실패시킵니다. 한 레포가 type 검사를 통과하는 code에 `@ts-expect-error`를 달고 cast로 tsc를 잠재웠습니다. 사본 `scripts/kit/bootstrap/files.mts`의 `readJson`은 `any` 대신 `unknown`을 돌려줍니다(K155).
+
+### 소비자 이전
+
+실행:
+- `.oxlintrc.json`을 쓰는 `make kit-sync`(K155).
+
+수정:
+- `make lint-ts`의 새 finding 하나하나를 disable 없이 code에서: tsc를 잠재우는 `@ts-ignore`나 `@ts-nocheck`, cast, `any`를 없애고 tsc가 통과하도록 type을 답니다. test에 필요한 `@ts-expect-error`는 기대하는 error를 밝힙니다(K155).
 
 ## 0.0.45
 

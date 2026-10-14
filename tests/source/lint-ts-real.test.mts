@@ -47,6 +47,11 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a floating promise', files: { [INDEX]: `${DOUBLE}\n/**\n * Waits for nothing.\n */\nexport async function settle(): Promise<void> {\n  Promise.resolve(1);\n}\n` }, finding: /typescript\(no-floating-promises\)/ },
   // A real floating promise among the node:test registrations, which the rule allows (K138), is still one.
   { name: 'a floating promise in a test file', files: { 'tests/index.test.ts': `${TESTS}\nfetch('https://example.com/');\n` }, finding: new RegExp(`tests/index\\.test\\.ts:${TESTS.split('\n').length + 1}:1: .*\\[Error/typescript\\(no-floating-promises\\)\\]`) },
+  // The escape hatches from the types of TypeScript (K155).
+  { name: 'an explicit any', files: { [INDEX]: `${DOUBLE}\n/**\n * Returns its value.\n */\nexport function same(value: any): number {\n  return value;\n}\n` }, finding: /typescript\(no-explicit-any\)/ },
+  { name: 'a @ts-ignore', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  // @ts-ignore\n  return value / 2;\n}\n` }, finding: /typescript\(ban-ts-comment\)/ },
+  { name: 'a @ts-expect-error without a description', files: { 'tests/index.test.ts': `${TESTS}\ntest('double of a string', () => {\n  // @ts-expect-error\n  assert.equal(double('2'), 4);\n});\n` }, finding: /typescript\(ban-ts-comment\)/ },
+  { name: 'a type assertion that changes nothing', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  return (value as number) / 2;\n}\n` }, finding: /typescript\(no-unnecessary-type-assertion\)/ },
   { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/ },
   { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/ },
   { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/ },
@@ -106,6 +111,13 @@ function lintOf(root: string): { failed: string[]; output: string } {
 test('the TypeScript lint passes on a package whose exports are documented, reached and tested', (t) => {
   for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor', 'tsc']) assert.ok(existsSync(path.join(BIN, tool)), `node_modules/.bin/${tool} is missing; run npm ci`);
   const { failed, output } = lintOf(repository(t));
+  assert.deepEqual(failed, [], output);
+});
+
+// A @ts-expect-error that names the error it expects is no escape hatch: tsc fails it once nothing errs (K155).
+test('the TypeScript lint passes on a @ts-expect-error with its description', (t) => {
+  const described = `${TESTS}\ntest('double of a string', () => {\n  // @ts-expect-error: double takes a number, and the multiplication converts the string\n  assert.equal(double('2'), 4);\n});\n`;
+  const { failed, output } = lintOf(repository(t, { 'tests/index.test.ts': described }));
   assert.deepEqual(failed, [], output);
 });
 

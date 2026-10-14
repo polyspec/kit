@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+- The copied `.oxlintrc.json` forbids the escape hatches from the types of TypeScript as errors: `typescript/ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description after `@ts-expect-error` (`// @ts-expect-error: <why>`), and `typescript/no-explicit-any` and `typescript/no-unnecessary-type-assertion` fail an explicit `any` and a type assertion that changes nothing. A repository had silenced tsc with `@ts-expect-error` on code that type-checks and with casts. `readJson` of the copy `scripts/kit/bootstrap/files.mts` returns `unknown` instead of `any` (K155).
+
+### Consumer migration
+
+Run:
+- `make kit-sync`, which writes `.oxlintrc.json` (K155).
+
+Fix:
+- Each new finding of `make lint-ts` in the code, never with a disable: a `@ts-ignore` or `@ts-nocheck` and a cast or `any` that silences tsc go, and the code is typed so that tsc passes; a `@ts-expect-error` that a test needs states the error it expects (K155).
+
 ## 0.0.45
 
 - knip.json ignores the binaries of the runtimes that polyspec pins by mise or by its setup, php, composer, python3, cargo, node and git, besides make, go, rustup and shasum: a script that spawned php or composer was an unlisted binary. A system tool of one repository, such as Apple `container`, is declared with its reason in `binaries` of `config/knip-entries.json` (`{ "<name>": "<reason>" }`), which make lint-ts adds to `ignoreBinaries` as it adds `entries` to the entries; `entries` is now optional (K152).
