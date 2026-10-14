@@ -49,9 +49,9 @@ export function runRequest(request: ToolRequest): ToolRecord {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-tool-record-'));
   try {
     for (const [file, text] of Object.entries(request.files)) if (text !== null) writeFileSync(path.join(directory, file), text);
-    // go mod edit names its go.mod; composer validate reads the files of its working directory, offline and with a home of
-    // its own.
-    const args = request.tool === 'go' ? [...request.args, path.join(directory, 'go.mod')] : request.args;
+    // go mod edit and go work edit name the one file of their request; composer validate reads the files of its working
+    // directory, offline and with a home of its own.
+    const args = request.tool === 'go' ? [...request.args, ...Object.keys(request.files).map(file => path.join(directory, file))] : request.args;
     const tool = pinnedTool(request.tool);
     const env = { ...process.env, PATH: toolPath(tool), COMPOSER_DISABLE_NETWORK: '1', COMPOSER_HOME: path.join(directory, '.composer-home'), COMPOSER_NO_INTERACTION: '1' };
     const result = spawnSync(tool, args, { cwd: directory, env, encoding: 'utf8' });

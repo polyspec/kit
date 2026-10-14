@@ -103,10 +103,52 @@
         "-json"
       ],
       "files": {
+        "go.mod": "module example.com/sibling\n\ngo 1.21\n\nrequire (\n\texample.com/kit-fixture-go v0.0.0\n\tgithub.com/google/uuid v1.6.0\n)\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/sibling\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/kit-fixture-go\",\n\t\t\t\"Version\": \"v0.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"github.com/google/uuid\",\n\t\t\t\"Version\": \"v1.6.0\"\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/sibling\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"example.com/kit-fixture-go\",\n\t\t\t\"Version\": \"v0.0.0\"\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
         "go.mod": "module x\n\ngo 1.21\n\nrequire (\n\t\"github.com/a/b\" v1.2.3\n\tgithub.com/c/d v0.1.0 // indirect\n\texample.com/local v0.0.0\n)\nrequire github.com/e/f v2.0.0+incompatible\nreplace (\n\texample.com/local => ./local\n)\n"
       },
       "status": 0,
       "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"x\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"github.com/a/b\",\n\t\t\t\"Version\": \"v1.2.3\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"github.com/c/d\",\n\t\t\t\"Version\": \"v0.1.0\",\n\t\t\t\"Indirect\": true\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"example.com/local\",\n\t\t\t\"Version\": \"v0.0.0\"\n\t\t},\n\t\t{\n\t\t\t\"Path\": \"github.com/e/f\",\n\t\t\t\"Version\": \"v2.0.0+incompatible\"\n\t\t}\n\t],\n\t\"Replace\": [\n\t\t{\n\t\t\t\"Old\": {\n\t\t\t\t\"Path\": \"example.com/local\"\n\t\t\t},\n\t\t\t\"New\": {\n\t\t\t\t\"Path\": \"./local\"\n\t\t\t}\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "work",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.work": "go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Go\": \"1.21\",\n\t\"Use\": [\n\t\t{\n\t\t\t\"DiskPath\": \"./packages/fixture-go\"\n\t\t},\n\t\t{\n\t\t\t\"DiskPath\": \"./packages/sibling\"\n\t\t}\n\t]\n}\n",
       "stderr": ""
     }
   ]
