@@ -1,6 +1,7 @@
 // The validation of a configuration against its JSON Schema (draft 2020-12) by ajv, in strict mode with every error. A schema
 // that strict mode refuses (an unknown keyword, an invalid value of a keyword) throws, so a schema never passes unchecked.
 // `kit-check` validates config/<name>.json against scripts/kit/schema/<name>.schema.json.
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
@@ -23,6 +24,9 @@ function errorLine(error: ErrorObject): string {
   return `${error.instancePath || '/'} ${error.message} ${JSON.stringify(error.params)}${value}`;
 }
 
+/** A configuration file of the repository that a tool needs and does not find; a tool reports its message without a stack (K146). */
+export class ConfigError extends Error {}
+
 /** The errors of `value` against `schema`, one line each; throws for a schema that ajv refuses. */
 export function validate(value: unknown, schema: Schema): string[] {
   const check = ajv.compile(schema);
@@ -33,6 +37,7 @@ export function validate(value: unknown, schema: Schema): string[] {
 // Config is the shape that the schema declares; it holds only when errors is empty. Its default is any because the callers in
 // other groups name no shape yet.
 export function readConfig<Config = any>(root: string, file: string, schema: string): { value: Config; errors: string[] } {
+  if (!existsSync(path.join(root, file))) throw new ConfigError(`${file} is missing; the repository declares it (schema ${schema} of kit)`);
   const value = readJson(root, file);
   // A schema file of kit is a JSON object; validate throws for a schema that ajv refuses.
   const rules = readJson(SCHEMAS, schema) as Schema;

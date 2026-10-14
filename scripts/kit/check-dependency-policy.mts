@@ -14,7 +14,7 @@ import { isMain, ROOT } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson } from './bootstrap/files.mts';
-import { readConfig } from './schema-validate.mts';
+import { ConfigError, readConfig } from './schema-validate.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -263,7 +263,7 @@ export function acceptedAdvisories(root: string): string[] {
 /** The line of a finding. */
 export const findingLine = (finding: Finding) => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
 
-if (isMain(import.meta.url)) {
+function main(): void {
   const args = process.argv.slice(2);
   if (!(args.length === 0 || (args.length === 2 && args[0] === '--root'))) {
     console.error('Usage: node scripts/kit/check-dependency-policy.mts [--root <checkout>]');
@@ -282,4 +282,15 @@ if (isMain(import.meta.url)) {
   const record = readJson(root, RECORD);
   const policy = readJson(root, POLICY);
   process.stdout.write(`[dependency-policy] ${record.dependencies.length} registry dependencies and ${record.locks.length} locks match the review of ${record.reviewed}; ${policy.exceptions.length} stable-version exceptions; ${accepted.length ? `${accepted.length} accepted ${accepted.length === 1 ? 'advisory' : 'advisories'}` : 'no advisory'}\n`);
+}
+
+if (isMain(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    // A missing configuration is a message for the developer; every other error keeps its stack (K146).
+    if (!(error instanceof ConfigError)) throw error;
+    console.error(`[dependency-policy] ${error.message}`);
+    process.exit(1);
+  }
 }
