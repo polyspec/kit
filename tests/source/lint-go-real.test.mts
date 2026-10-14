@@ -81,3 +81,23 @@ test('the Go lint fails on each planted violation with the linter or the finding
     assert.match(output, finding, `${name} is not named:\n${output}`);
   }
 });
+
+// The error strings of polyspec are the cross-port messages of each repository's spec, which every port returns byte for
+// byte, so they keep the spec's capitalization: staticcheck ST1005 is off (K164).
+test('a capitalized error string of a spec passes the Go lint', (t) => {
+  const { failed, output } = lintOf(repository(t, {
+    [DEMO]: `${GOOD[DEMO]!.replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`)}\n// Check refuses a negative value.\nfunc Check(value int) error {\n\tif value < 0 {\n\t\treturn errors.New("Value must not be negative")\n\t}\n\treturn nil\n}\n`,
+    'packages/go/check_test.go': 'package demo\n\nimport "testing"\n\nfunc TestCheck(t *testing.T) {\n\tif Check(-1) == nil {\n\t\tt.Fatal("Check(-1) == nil")\n\t}\n}\n',
+  }));
+  assert.deepEqual(failed, [], output);
+});
+
+// golangci-lint shows 3 issues of the same text by default and hides the rest; every finding is reported (K164).
+test('the Go lint reports every finding of the same text', (t) => {
+  const calls = Array.from({ length: 4 }, (_, index) => `\tfail(${index})\n`).join('');
+  const { failed, output } = lintOf(repository(t, {
+    [DEMO]: `${GOOD[DEMO]!.replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`).replace('\treturn codec.Double', `${calls}\treturn codec.Double`)}\nfunc fail(value int) error {\n\tif value > 2 {\n\t\treturn errors.New("too large")\n\t}\n\treturn nil\n}\n`,
+  }));
+  assert.notDeepEqual(failed, [], output);
+  assert.equal(output.match(/demo\.go:\d+:\d+: Error return value is not checked \(errcheck\)/g)?.length, 4, output);
+});
