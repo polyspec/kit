@@ -5,7 +5,7 @@
 // rule or the message that names it, including the undocumented export of the plan's verification. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -31,9 +31,10 @@ const GOOD: Record<string, string> = {
   // make runs a script of S9, a copy of kit and a benchmark program, which nothing imports (K142).
   'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n\nbuild:\n\tnode scripts/build.mts\n\tnode scripts/kit/bootstrap/bootstrap.mts\n\tnode benchmarks/run.mts\n',
   'scripts/build.mts': "console.log('build');\n",
-  'scripts/kit/bootstrap/bootstrap.mts': "console.log('bootstrap');\n",
   'benchmarks/run.mts': "console.log('run');\n",
-  // The project covers the tests too, as in a consumer, so oxlint-tsgolint checks their types; the build emits only src.
+  // The project covers the tests too, as in a consumer, so oxlint-tsgolint checks their types; the build emits only src. As in a
+  // consumer, it leaves out the copies of kit in scripts/kit (KIT_COPIES), which oxlint-tsgolint then checks outside the project,
+  // without the types of node (K150).
   'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests'] }, null, 2),
   'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),
   'api-extractor.json': '',
@@ -53,6 +54,10 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'an undocumented export', files: { [INDEX]: `${DOUBLE}\nexport function triple(value: number): number {\n  return value * 3;\n}\n` }, finding: /\(ae-undocumented\) Missing documentation for "triple"/ },
   { name: 'a forgotten export', files: { [INDEX]: `${DOUBLE}\ninterface Options {\n  factor: number;\n}\n\n/**\n * Scales a value.\n */\nexport function scale(value: number, options: Options): number {\n  return value * options.factor;\n}\n` }, finding: /\(ae-forgotten-export\) The symbol "Options" needs to be exported by the entry point index\.d\.ts/ },
 ];
+
+// The copies of kit in TypeScript that a consumer holds and lints (kit.copies of package.json, which kit-sync writes): the
+// path in the consumer and the file of kit.
+const KIT_COPIES = Object.entries((JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { kit: { copies: Record<string, string> } }).kit.copies).filter(([file]) => file.endsWith('.mts'));
 
 /** Writes `files` below `root`. */
 function write(root: string, files: Record<string, string>) {
@@ -76,6 +81,10 @@ function repository(t: TestContext, files: Record<string, string> = {}, { report
   write(root, { ...GOOD, 'api-extractor.json': JSON.stringify(extractor, null, 2), ...files });
   mkdirSync(path.join(root, 'config'), { recursive: true });
   for (const file of ['.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) copyFileSync(path.join(ROOT, file), path.join(root, file));
+  for (const [file, from] of KIT_COPIES) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    copyFileSync(path.join(ROOT, from), path.join(root, file));
+  }
   symlinkSync(path.join(ROOT, 'node_modules'), path.join(root, 'node_modules'));
   const build = run(root, 'tsc', '-p', 'tsconfig.build.json');
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
