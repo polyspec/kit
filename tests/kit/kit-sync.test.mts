@@ -147,6 +147,23 @@ test('the package.json of kit declares its copies: the bootstrap, the release wo
   assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
 });
 
+// K166: the build backend of the wheels has one declaration, pythonBackend of config/toolchain.json, so a release with a
+// wheel package or the wheel consumer and without it fails kit-check with the fix, not later in the release.
+test('kit-check names a wheel release without pythonBackend of config/toolchain.json, with the fix', (t) => {
+  const fixture = readFileSync(path.join(import.meta.dirname, 'fixture/config/release.json'), 'utf8');
+  const root = tree(t, { 'config/release.json': fixture, 'config/toolchain.json': `${JSON.stringify({ schema: 1 })}\n` });
+  const [finding, ...rest] = checkConfig(root);
+  assert.deepEqual(rest, []);
+  assert.match(finding ?? '', /^config\/release\.json: the wheel packages \[kit-fixture\] and the wheel consumer need the build backend of the wheels, pythonBackend of config\/toolchain\.json, which it does not declare\. Fix: declare pythonBackend \{ "requirement": "<name>==<version>", "sha256": "<sha256 of its wheel>" \} in config\/toolchain\.json and run make install-tools$/);
+  rmSync(path.join(root, 'config/toolchain.json'));
+  assert.equal(checkConfig(root).length, 1);
+  const { packages, ...config } = readFixture<{ packages: { kind: string }[] }>(root, 'config/release.json');
+  write(root, 'config/release.json', `${JSON.stringify({ ...config, packages: packages.filter(({ kind }) => kind !== 'wheel') })}\n`);
+  assert.deepEqual(checkConfig(root).map(line => line.split('. Fix:')[0]), ['config/release.json: the wheel consumer needs the build backend of the wheels, pythonBackend of config/toolchain.json, which it does not declare']);
+  write(root, 'config/toolchain.json', `${JSON.stringify({ schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'a'.repeat(64) } })}\n`);
+  assert.deepEqual(checkConfig(root), []);
+});
+
 test('a generated configuration that breaks its schema names the command that writes it as the fix', (t) => {
   const root = tree(t, { 'config/dependency-review.json': `${JSON.stringify({ schema: 1, comment: 'x', reviewed: '2026-01-01T00:00:00.000Z', locks: [], dependencies: [] })}\n` });
   assert.deepEqual(checkConfig(root), ["config/dependency-review.json: / must have required property 'vcs' {\"missingProperty\":\"vcs\"}. Rule: the schema dependency-review.schema.json of @polyspec/kit. Fix: make dependency-review RECORD=1"]);

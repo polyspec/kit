@@ -2,7 +2,8 @@
 // Checks a repository against the installed package @polyspec/kit, without a network (`make kit-check`): the package under
 // node_modules is the version that package-lock.json resolves, and each copy that the package declares (`kit.copies` of its
 // package.json) is byte for byte its file of the package. Both together tie the copies to the locked version. The
-// configuration of config/*.json is checked against the schemas of the package as well. kit itself, the source of the copies,
+// configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
+// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need. kit itself, the source of the copies,
 // checks its configuration only.
 //
 //   node scripts/kit/kit-check.mts
@@ -11,7 +12,8 @@
 // is missing or differs, and the fix.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { readConfigFindings, SCHEMAS } from './schema-validate.mts';
+import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
+import { backendFinding, type WheelUsers } from './release-wheel.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmLock, readNpmManifest } from './manifests.mts';
 
@@ -53,6 +55,9 @@ export function installedKit(root: string): { version: string; copies: { file: s
   return { version: installed.version, copies: copiesOf(installed) };
 }
 
+// The release configuration, whose wheels need pythonBackend of config/toolchain.json.
+const RELEASE = 'config/release.json';
+
 // The configurations that a command writes, and the command, which is the fix of a file that breaks its schema.
 const WRITTEN: Record<string, string> = { 'config/dependency-review.json': 'make dependency-review RECORD=1' };
 
@@ -71,6 +76,11 @@ export function checkConfig(root: string): string[] {
     const { errors } = readConfigFindings<unknown>(root, config, schemaFile);
     const fix = WRITTEN[config] ? `. Fix: ${WRITTEN[config]}` : '';
     for (const error of errors ?? []) found.push(`${error}. Rule: the schema ${schemaFile} of ${PACKAGE}${fix}`);
+  }
+  // A release whose configuration holds its schema needs the build backend that config/toolchain.json declares (K166).
+  if (!found.length && existsSync(path.join(root, RELEASE))) {
+    const backend = backendFinding(root, readConfig<WheelUsers>(root, RELEASE, 'release.schema.json'));
+    if (backend) found.push(backend);
   }
   return found;
 }

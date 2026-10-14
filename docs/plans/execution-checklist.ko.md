@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 5fbfe4e621e249cc99007f5fb54c42f793fd888de3b2ac41b61d1c7c6cc1ae55 -->
+<!-- source-sha256: 5857fc3763b19e3e5ffbba55f7279fae59cbba8f4fc09577d667f46cde63dea2 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -224,3 +224,4 @@
 | K163 | lint-php는 Composer package에 Composer가 그 파일에 주는 autoloader로 PHPStan을 실행한다: package 또는 그 위의 가장 가까운 Composer project의 `vendor/autoload.php`(`COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정)이며, run-tests와 공유하는 `composer-vendor.mts`가 찾는다. 이전에는 `<package>/vendor/autoload.php`를 요구했는데, Composer monorepo(path repository를 쓰는 root development composer.json 하나와 vendor/ 하나)의 library에는 그것이 없다. 자신에게도 위에도 autoloader가 없는 package는 여전히 실패한다 | `lint-php.mts`, `composer-vendor.mts`, `run-tests.mts`, 문서 | `tests/kit/lint-php.test.mts`, `tests/source/lint-php-real.test.mts` | [ ] |
 | K164 | `.golangci.yml`이 staticcheck `ST1005`를 끄고 그 이유를 주석과 CHANGELOG에 적는다: polyspec의 error string은 레포 spec의 cross-port message이고 모든 port가 byte 단위로 같게 돌려주므로 spec의 대소문자를 유지한다. `issues.max-same-issues`와 `issues.max-issues-per-linter`는 0이다: 기본 상한이 한 consumer에서 finding 121개 중 118개를 숨겼다 | `.golangci.yml`, 문서 | `tests/source/lint-go-real.test.mts` | [ ] |
 | K165 | run-tests는 `--php-extension`을 여러 번 받아 각 extension을 PHP 자체의 방식인 자기 `-d extension=<path>`로, 주어진 순서대로 load하고, 각각이 build되었는지 tool이 시작하기 전에 확인한다: 한 consumer는 하나가 다른 하나에 의존하는 extension 둘을 한 PHPUnit run에서 load한다 | `run-tests.mts`, 문서 | `tests/kit/run-tests.test.mts` | [ ] |
+| K166 | Python wheel의 build backend는 tool pin인 `config/toolchain.json`의 `pythonBackend` 하나로만 선언한다: release-backend, release-assets, release-wheel은 그것을 거기서 읽고, `buildBackend`는 `config/release.json`의 schema에서 빠진다. `wheel` package나 consumer가 있고 `pythonBackend`가 없는 `config/release.json`은 kit-check에서 고치는 방법과 함께 실패한다. hyper는 `buildBackend`만 선언했으므로 install-tools가 backend를 설치하지 않았고 release가 release-assets에서 실패했다 | `release-wheel.mts`, `release-backend.mts`, `release.mts`, `kit-check.mts`, `bootstrap/toolchain-declared.mts`, `schema/release.schema.json`, 문서 | `tests/kit/release-wheel.test.mts`, `tests/kit/kit-sync.test.mts` | [ ] |

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bddd33c2e881827863a51d656fc112705f6fa5a43bd868936133f8ac6ac74a09 -->
+<!-- source-sha256: 1eeb17e9ad3a0173881768c58027736d29ff753e255dd6a32746c2c4920610a0 -->
 
 # 도구 목록
 
@@ -991,9 +991,11 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 - `release-assets`는 tag된 commit의 directory 복사본(`git archive`)에서 wheel을 만듭니다. 명령은
   `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`이며,
   `SOURCE_DATE_EPOCH`는 commit의 시각입니다. `--no-index`로 directory가 유일한 source가 되므로 build는 network를 읽지 않습니다.
-- build backend는 `config/release.json`의 `buildBackend`에 고정합니다. `requirement`는 backend의 정확한 requirement
+- build backend는 tool pin이므로 그 유일한 선언인 `config/toolchain.json`의 `pythonBackend`에 고정합니다(K166; `config/release.json`의
+  `buildBackend`는 없어졌습니다). `requirement`는 backend의 정확한 requirement
   (`setuptools==84.0.0`, pyproject의 `[build-system] requires`와 같아야 함)이고, `sha256`은 PyPI release의 그 wheel digest입니다.
-  `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
+  wheel package나 wheel consumer가 있고 `pythonBackend`가 없는 config/release.json은 `make kit-check`와 release에서 고치는 방법과
+  함께 실패합니다. `make install-tools`와 `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
   `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
   파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
 - `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version`, polyspec release 참조 또는 같은
@@ -1005,8 +1007,13 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
   version을 확인하고 `consumers.wheel`의 smoke command를 실행합니다.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } },
-"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } }
+```
+
+config/toolchain.json:
+
+```json
+"pythonBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
 
 ## Wheel dependencies (K49)

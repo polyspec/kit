@@ -17,11 +17,12 @@
 - `run-tests phpunit` takes `--php-extension` more than once and loads each extension with its own `-d extension=<path>`, PHP's own way, in the given order, so an extension loads after one that it depends on; each is checked as built before the tool starts. A repository can load two extensions, one depending on the other, in one PHPUnit run (K165).
 - The copied `.oxlintrc.json` fails every unsafe flow of `any` as an error: `typescript/no-unsafe-argument`, `no-unsafe-assignment`, `no-unsafe-call`, `no-unsafe-member-access` and `no-unsafe-return` fail an any value as an argument, an assignment, a callee, the object of a member access or a return value, and `typescript/no-unsafe-type-assertion` fails a type assertion that narrows a type. kit reads its JSON through its schemas (K158), narrows an unknown value by a check, reads a value that it knows to be there with `present` of `scripts/kit/present.mts` and an errno code with `errorCode` of `process.mts` (K157).
 - `make python-lock` runs the uv shim with the mise environment of the checkout, as `make python-venv` does, so `node scripts/kit/python-lock.mts` outside make no longer fails with `Config files in <checkout>/mise.toml are not trusted`; the real tests of the Python tools give their own calls of a shim the same environment (K157).
+- The build backend of the Python wheels has one declaration, `pythonBackend` of `config/toolchain.json`, which is a tool pin: install-tools installs it, and `make release-backend`, `release-assets` and the wheel build read it there. `buildBackend` of `config/release.json` is gone from its schema. A repository that declared only `buildBackend` had no backend installed by install-tools, so its release failed in release-assets (`setuptools-84.0.0 wheel is missing`). A `config/release.json` with a `wheel` package or the wheel consumer and no `pythonBackend` now fails `make kit-check` and the release with the fix (K166).
 
 ### Consumer migration
 
 Run:
-- `make kit-sync`, which writes `.oxlintrc.json` and the copies of `scripts/kit/bootstrap` (K155, K157, K161).
+- `make kit-sync`, which writes `.oxlintrc.json` and the copies of `scripts/kit/bootstrap` (K155, K157, K161, K166).
 - `make kit-sync`, which writes `.golangci.yml`, then `make lint-go`: it now reports every finding that the caps had hidden, each fixed in the code (K164).
 
 Add:
@@ -35,6 +36,7 @@ Fix:
 - A library of a Composer monorepo that held a lock or a vendor/ of its own only for `make lint-php`: drop them and run `composer install` in the root development project, whose vendor/ now serves the lint (K163).
 - Each new finding of `make lint-ts` of the `no-unsafe-*` rules in the code, never with a disable or a cast: read JSON through a schema or narrow the unknown value of `JSON.parse` by a check, and catch an error as unknown and check it with `instanceof Error` (K157).
 - The tsconfig of the repository: include every TypeScript file that `make lint-ts` lints, the scripts and benchmarks too, and exclude `scripts/kit`, the copies of kit. A file outside the project has no types, so each call of an import there fails `typescript/no-unsafe-call` (K157).
+- `buildBackend` of `config/release.json`, which `make kit-check` now refuses: move it to `pythonBackend` of `config/toolchain.json` (`{ "requirement": "<name>==<version>", "sha256": "<sha256 of its wheel>" }`) and run `make install-tools` (K166).
 
 ## 0.0.45
 

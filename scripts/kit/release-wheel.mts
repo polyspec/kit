@@ -1,6 +1,7 @@
 // The Python wheel of a release (package kind `wheel`): the PEP 427 file name, the build of the tagged commit with the pinned
 // build backend, and the checks of pyproject.toml and of the wheel metadata. The build backend is the wheel of the exact
-// requirement that config/release.json buildBackend names, in var/tools/wheels, and its sha256 is checked before each build.
+// requirement that pythonBackend of config/toolchain.json names (K166), in var/tools/wheels, and its sha256 is checked before
+// each build. A release with a wheel package or the wheel consumer and no pythonBackend fails loadConfig and kit-check.
 // A build runs with --no-index and that directory as its only source, so no build reads the network. release-backend.mts
 // fetches the backend; the Python of a build is the python3 of mise.toml (its shim, mise-tools.mts).
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
@@ -12,11 +13,36 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isTable, readToml } from './toml.mts';
 import { parseJson } from './schema-validate.mts';
+import { declaredPythonBackend } from './bootstrap/toolchain-declared.mts';
 
-/** buildBackend of config/release.json: the pinned requirement of the build backend and the sha256 of its wheel. */
+/** pythonBackend of config/toolchain.json: the pinned requirement of the build backend and the sha256 of its wheel. */
 export interface BuildBackend {
   requirement: string;
   sha256: string;
+}
+
+/** The declaration of the build backend, which the messages name. */
+export const BACKEND_SOURCE = 'config/toolchain.json pythonBackend';
+
+/** The parts of config/release.json that need the build backend: the wheel packages and the wheel consumer. */
+export type WheelUsers = { packages: { kind: string; name: string }[]; consumers?: { wheel?: unknown } };
+
+/**
+ * The finding of config/release.json of `root` when a wheel package or the wheel consumer needs the build backend and
+ * config/toolchain.json declares no pythonBackend, with the fix; null when nothing needs it or it is declared.
+ */
+export function backendFinding(root: string, config: WheelUsers): string | null {
+  const wheels = config.packages.filter(({ kind }) => kind === 'wheel').map(({ name }) => name);
+  const users = [...(wheels.length ? [`the wheel packages [${wheels.join(', ')}]`] : []), ...(config.consumers?.wheel ? ['the wheel consumer'] : [])];
+  if (!users.length || declaredPythonBackend(root)) return null;
+  return `config/release.json: ${users.join(' and ')} ${users.length === 1 && !wheels.length ? 'needs' : 'need'} the build backend of the wheels, pythonBackend of config/toolchain.json, which it does not declare. Fix: declare pythonBackend { "requirement": "<name>==<version>", "sha256": "<sha256 of its wheel>" } in config/toolchain.json and run make install-tools`;
+}
+
+/** The build backend of the wheels of `root`, pythonBackend of config/toolchain.json; Stop with the fix when it is not declared. */
+export function buildBackend(root: string): BuildBackend {
+  const backend = declaredPythonBackend(root);
+  if (!backend) throw new Stop(`config/toolchain.json declares no pythonBackend, the build backend of the wheels. Fix: declare pythonBackend { "requirement": "<name>==<version>", "sha256": "<sha256 of its wheel>" } in config/toolchain.json`);
+  return { requirement: backend.requirement, sha256: backend.sha256 };
 }
 
 // The directory of var/tools that holds the build backend wheel.
@@ -34,7 +60,7 @@ export const wheelName = (name: string, version: string): string => `${distribut
 /** The file name of the build backend wheel of a pinned `name==version` requirement. */
 export function backendName(requirement: string): string {
   const found = REQUIREMENT.exec(requirement);
-  if (!found) throw new Stop(`buildBackend.requirement is ${requirement}, the form is name==version`);
+  if (!found) throw new Stop(`${BACKEND_SOURCE} requirement is ${requirement}, the form is name==version`);
   // Both groups of REQUIREMENT take part in every match.
   return wheelName(found[1]!, found[2]!);
 }
@@ -48,7 +74,7 @@ export function sourceProblems({ file, text, name, requirement }: { file: string
   const declared = isTable(project) && typeof project.name === 'string' ? project.name : null;
   if (declared !== name) problems.push(`${file}: name ${declared ?? 'none'}, config/release.json declares ${name}`);
   const requires = isTable(buildSystem) ? buildSystem.requires ?? [] : [];
-  if (JSON.stringify(requires) !== JSON.stringify([requirement])) problems.push(`${file}: build-system.requires is ${JSON.stringify(requires)}, the buildBackend pins ${requirement}`);
+  if (JSON.stringify(requires) !== JSON.stringify([requirement])) problems.push(`${file}: build-system.requires is ${JSON.stringify(requires)}, ${BACKEND_SOURCE} pins ${requirement}`);
   return problems;
 }
 
@@ -69,7 +95,7 @@ export function verifyBackend(root: string, requirement: string, sha256: string)
   const shown = path.relative(root, file);
   if (!existsSync(file)) throw new Stop(`${shown} is missing; make release-backend fetches it`);
   const actual = fileDigest(file);
-  if (actual !== sha256) throw new Stop(`${shown} has the sha256 ${actual}, config/release.json buildBackend declares ${sha256}`);
+  if (actual !== sha256) throw new Stop(`${shown} has the sha256 ${actual}, ${BACKEND_SOURCE} declares ${sha256}`);
   return file;
 }
 
