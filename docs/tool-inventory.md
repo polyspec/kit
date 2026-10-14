@@ -850,7 +850,13 @@ does not declare is neither installed nor checked.
   are on; a fixture plants each one. `oxc/number-arg-out-of-range` is off (K161): it allows 0 to 20 fraction digits
   for `toFixed` and `toExponential` and a precision of 1 to 21, the limits before ES2018, which raised them to 100
   (ECMA-262 `Number.prototype.toExponential`), so it failed `toExponential(25)`; oxlint 1.88.0, the latest, and oxc main
-  keep the old limits, and no oxc issue reports it. A fixture with `toExponential(25)` passes. The non-null assertion and the `no-unsafe-*` family wait for K156 and K157. API
+  keep the old limits, and no oxc issue reports it. A fixture with `toExponential(25)` passes. No any flows into a typed place (K157):
+  `no-unsafe-argument`, `no-unsafe-assignment`, `no-unsafe-call`, `no-unsafe-member-access` and `no-unsafe-return` fail
+  an any value as an argument, an assignment, a callee, the object of a member access or a return value, and
+  `no-unsafe-type-assertion` fails a type assertion that narrows; a fixture plants each one. JSON is read through a schema
+  (K158) and an unknown value is narrowed by a check. A file outside the TypeScript project has no types, so each call of an
+  import there is an unsafe call of an error type: the tsconfig of a repository covers every TypeScript file that lint-ts
+  lints, its scripts too, and leaves out the copies of kit. The non-null assertion waits for K156. API
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report

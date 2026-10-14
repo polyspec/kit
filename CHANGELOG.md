@@ -15,6 +15,7 @@
 - `config/knip-entries.json` declares in `ignore` (`{ "<glob>": "<reason>" }`) the files that are unused by design, such as a sample source file that a site shows and nothing runs or imports, each glob relative to the root with its reason, and make lint-ts adds them after the `ignore` of knip.json in `var/lint-ts/knip.json`, knip's documented option for such files. An undeclared unused file still fails (K162).
 - The copied `.golangci.yml` turns staticcheck `ST1005` ("error strings should not be capitalized") off: a polyspec error string is a cross-port message of the repository's spec, which every port returns byte for byte, so it keeps the spec's capitalization. The other checks are the default of golangci-lint 2. It also sets `issues.max-same-issues` and `issues.max-issues-per-linter` to 0, so every finding is reported: the default caps of 3 issues of the same text and 50 of one linter hid 118 of 121 findings in a repository (K164).
 - `run-tests phpunit` takes `--php-extension` more than once and loads each extension with its own `-d extension=<path>`, PHP's own way, in the given order, so an extension loads after one that it depends on; each is checked as built before the tool starts. A repository can load two extensions, one depending on the other, in one PHPUnit run (K165).
+- The copied `.oxlintrc.json` fails every unsafe flow of `any` as an error: `typescript/no-unsafe-argument`, `no-unsafe-assignment`, `no-unsafe-call`, `no-unsafe-member-access` and `no-unsafe-return` fail an any value as an argument, an assignment, a callee, the object of a member access or a return value, and `typescript/no-unsafe-type-assertion` fails a type assertion that narrows a type. kit reads its JSON through its schemas (K158), narrows an unknown value by a check, reads a value that it knows to be there with `present` of `scripts/kit/present.mts` and an errno code with `errorCode` of `process.mts` (K157).
 
 ### Consumer migration
 
@@ -31,6 +32,8 @@ Fix:
 - A `go.work` that `make dependency-policy-mutation-check` reports: commit the go.mod of the module that it uses, or remove the `use`; a local clone of a sibling repository goes into an uncommitted go.work or `GOWORK` (K160).
 - Each manifest or configuration that a tool now refuses with a JSON Pointer of its schema, such as a package.json whose `workspaces` is an object or a composer.json whose `repositories` is an object: write it in the form of the schema (K158).
 - A library of a Composer monorepo that held a lock or a vendor/ of its own only for `make lint-php`: drop them and run `composer install` in the root development project, whose vendor/ now serves the lint (K163).
+- Each new finding of `make lint-ts` of the `no-unsafe-*` rules in the code, never with a disable or a cast: read JSON through a schema or narrow the unknown value of `JSON.parse` by a check, and catch an error as unknown and check it with `instanceof Error` (K157).
+- The tsconfig of the repository: include every TypeScript file that `make lint-ts` lints, the scripts and benchmarks too, and exclude `scripts/kit`, the copies of kit. A file outside the project has no types, so each call of an import there fails `typescript/no-unsafe-call` (K157).
 
 ## 0.0.45
 

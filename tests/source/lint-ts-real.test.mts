@@ -57,6 +57,15 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a @ts-ignore', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  // @ts-ignore\n  return value / 2;\n}\n` }, finding: /typescript\(ban-ts-comment\)/ },
   { name: 'a @ts-expect-error without a description', files: { 'tests/index.test.ts': `${TESTS}\ntest('double of a string', () => {\n  // @ts-expect-error\n  assert.equal(double('2'), 4);\n});\n` }, finding: /typescript\(ban-ts-comment\)/ },
   { name: 'a type assertion that changes nothing', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  return (value as number) / 2;\n}\n` }, finding: /typescript\(no-unnecessary-type-assertion\)/ },
+  // The unsafe flows of any (K157): JSON.parse returns any, which no value of a type may take on.
+  ...([
+    ['no-unsafe-argument', 'export function size(text: string): number {\n  return measure(JSON.parse(text));\n}\n\nfunction measure(value: string): number {\n  return value.length;\n}\n'],
+    ['no-unsafe-assignment', 'export function size(text: string): number {\n  const value: string = JSON.parse(text);\n  return value.length;\n}\n'],
+    ['no-unsafe-call', 'export function size(text: string): void {\n  JSON.parse(text)();\n}\n'],
+    ['no-unsafe-member-access', 'export function size(text: string): unknown {\n  const value: unknown = JSON.parse(text).length;\n  return value;\n}\n'],
+    ['no-unsafe-return', 'export function size(text: string): number {\n  return JSON.parse(text);\n}\n'],
+    ['no-unsafe-type-assertion', 'export function size(value: unknown): number {\n  return (value as string).length;\n}\n'],
+  ] as const).map(([rule, code]) => ({ name: `a violation of ${rule}`, files: { [INDEX]: `${DOUBLE}\n/**\n * Measures a value.\n */\n${code}` }, finding: new RegExp(`typescript\\(${rule}\\)`) })),
   { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/ },
   { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/ },
   { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/ },
