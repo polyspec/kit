@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f30aabffb3adb7e214ebc32a8dd96a2db27915af2b309abaf78960bba5616cc2 -->
+<!-- source-sha256: 6a49d3e3d93a604afa5184e9ce9a438fc9ca6b8dd24406a8a9f5e6e045d4ee71 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.42
 
 - bootstrap이 `var/tools/go.mod`를 써서, `var/tools` 아래 mise의 Go와 그 test 소스가 별도 module이 되며, 루트가 Go module인 저장소의 `./...`가 그것을 훑지 않습니다(K135).
 ## 0.0.41
