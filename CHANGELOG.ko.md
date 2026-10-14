@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ab28dcc362bfe3ca308c53c49eb6634cd773aca48f95ece0b2c8ef6e1fa54ee0 -->
+<!-- source-sha256: b9356a52b6920db87dbfb8e772faeeb2aebf03a19a605d601c0f45fea0f0b2a3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.39
 
 - 0.0.38의 원칙 검토(K129): stable release가 없는 Go module, npm advisory 범위, revision의 tracker는 빈 값으로 읽히는 대신 이름과 함께 보고되거나 실패합니다. 모든 npm workspace pattern을 읽고, go.work가 resolve하는 module에는 go.sum이 필요 없으며, PHP lint는 PHP를 선언한 저장소의 도구일 뿐이고, ts extractor는 standard library를 받으며, go.mod와 go.work는 tab으로 들여쓰고, 중첩된 test 실행의 실패한 case는 오류 전문과 함께 보고됩니다.
 - status table, changelog section, release note, checklist, parity 산문을 mdast tree에서 읽습니다(K130).
