@@ -1,6 +1,7 @@
 // Tests of the TypeScript lint: oxlint type-aware with the root .oxlintrc.json and knip run from the root, API Extractor in
 // each package with an api-extractor.json, but not for the base configuration of kit; every step runs after an earlier one
-// failed, and a missing tool or configuration fails with the fix. The tools are stubs.
+// failed, and a missing tool or configuration fails with the fix. In a consumer oxlint leaves out the copies of kit, the files
+// of kit.copies of the installed package (K157); kit itself lints them. The tools are stubs.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,10 +19,16 @@ const FILES: Record<string, string> = {
   'packages/ts/src/index.ts': '',
 };
 
+// The installed @polyspec/kit of a consumer: the version that package-lock.json resolves and the copies that it declares.
+const KIT = { name: '@polyspec/kit', version: '1.2.3', kit: { copies: { 'scripts/kit/bootstrap/files.mts': 'scripts/kit/bootstrap/files.mts', '.oxlintrc.json': '.oxlintrc.json' } } };
+const LOCK = { lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: KIT.version } } };
+
+/** A consumer checkout with stub tools, the lock of KIT and KIT installed; `omit` leaves out one file, the lock among them. */
 function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extractor'], failing = '', omit = '' }: { installed?: string[]; failing?: string; omit?: string } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-ts-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const [file, text] of Object.entries(FILES)) {
+  const files = { ...FILES, 'package-lock.json': JSON.stringify(LOCK), 'node_modules/@polyspec/kit/package.json': JSON.stringify(KIT) };
+  for (const [file, text] of Object.entries(files)) {
     if (file === omit) continue;
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
@@ -37,12 +44,27 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replace(/ \[kit-lint-ts-[^\]]*\]$/, ' [root]')) };
 }
 
-const ALL = ['oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json [root]', 'knip --no-progress [root]', 'api-extractor run [ts]'];
+const OXLINT = 'oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json';
+const ALL = [`${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress [root]', 'api-extractor run [ts]'];
 
 test('oxlint and knip run from the root, and API Extractor in each package but not for the base configuration', (t) => {
   const { root, calls } = checkout(t);
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), ALL);
+});
+
+test('oxlint leaves out no file in kit itself, the source of the copies (K157)', (t) => {
+  const { root, calls } = checkout(t);
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@polyspec/kit', version: KIT.version, kit: KIT.kit }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.equal(calls()[0], `${OXLINT} [root]`);
+});
+
+test('a consumer whose installed kit is not the version of package-lock.json, or that has no lock, fails as kit-check does (K157)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: '0.0.1' } } }));
+  assert.throws(() => lintSteps(root), /node_modules\/@polyspec\/kit is 1\.2\.3, but package-lock\.json resolves 0\.0\.1/);
+  assert.throws(() => lintSteps(checkout(t, { omit: 'package-lock.json' }).root), /package-lock\.json is missing; it locks @polyspec\/kit/);
 });
 
 test('every step runs after an earlier one failed, and each failure is named', (t) => {
