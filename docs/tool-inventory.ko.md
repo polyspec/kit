@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bad341dc89f13a76c72ca7536b04133c097392f38ec716bf1f4cc5e51b637866 -->
+<!-- source-sha256: 01583d9d0d0c80b7d404f02f15e4b6f81b9f958d3b631f2ed98941a1da6b5194 -->
 
 # 도구 목록
 
@@ -105,7 +105,7 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 ### Pin, 하한, 예외(K78)
 
 kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
-`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.11.1, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
+`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
 `toolchain-check`는 어떤 도구를 실행하든, pin 정밀도에서 pin과 다른 선언과 manifest 하한마다 실패합니다
 (`toolchain-floors.mts`, `checkedFiles`의 파일 대상, mise가 `.mise`에 쓰는 도구 환경은 제외). pin은 version만 담고,
 digest는 `mise.lock`의 것입니다. pin마다 출처는 하나입니다. kit이 pin을 배포하고, kit을 포함한 모든 checkout의 `mise.toml`은

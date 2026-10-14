@@ -44,5 +44,5 @@ test('the release of kit installs the package in a consumer project and smokes i
   // the version of package.json that make release-consumer-lock names for the smoke.
   const { version } = readFixture<NpmManifest>(ROOT, 'package.json');
   assert.ok(version);
-  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true, engines: { node: '>=26.11.1' }, dependencies: { '@polyspec/kit': `file:${assetNames(config, version)[0]}` } });
+  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true, engines: { node: '>=26.12.0' }, dependencies: { '@polyspec/kit': `file:${assetNames(config, version)[0]}` } });
 });

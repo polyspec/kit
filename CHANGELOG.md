@@ -9,6 +9,8 @@
 - Each checkout runs its own Node.js (K171). `node` is a tool of `mise.toml`, at the pin of kit, and `mise.lock` pins the archive of each platform; `.node-version` is gone, and the layout of kit no longer allows it. `make install-tools TOOLS=npm` starts with any node of the machine and installs the mise of `config/toolchain.json`, then the node of `mise.toml` with it, then the npm of `packageManager`; `var/tools/bin/node` runs that node by its absolute path, and the wrappers npm and npx run npm with it, so `npm ci` and every later step run the node of the checkout. The bootstrap no longer compares the running node with a declaration. `make toolchain-check` runs `var/tools/bin/node` and names `make install-tools TOOLS=npm` as the fix. `config/toolchain.json` no longer accepts `node`.
 - kit.mk starts each tool of the checkout by its absolute path: `$(NODE)` (`var/tools/bin/node`), `$(NPM)` and `$(ALINT)`; `$(BOOTSTRAP_NODE)` is the node of the machine, which only starts the bootstrap. make 3.81, the make of macOS, looks up a recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so every `node $(KIT)/…` recipe ran the node of the machine on a Mac. `make kit-check` fails a recipe of the Makefile that starts a tool of the checkout (a wrapper of var/tools/bin or a command of `mise.toml`) by its bare name (K171).
 
+- kit pins Node.js 26.12.0 (`scripts/kit/toolchain-pins.json`), the newest release: `node` of `mise.toml` must be it and `engines.node` of every `package.json` `>=26.12.0`. Each checkout installs it into var/tools when it takes this kit, so no machine's node changes (K169, K171).
+
 ### Consumer migration
 
 Run:
@@ -16,7 +18,7 @@ Run:
 - `make toolchain-lock`, after the change below, then `make install-tools TOOLS=npm` and `make install-tools` (K171).
 
 Change:
-- Move the Node.js release from `.node-version` to `node = "<release>"` in `[tools]` of `mise.toml` and delete `.node-version`; CI's setup-node reads `node-version-file: mise.toml` (K171).
+- Move the Node.js release from `.node-version` to `node = "26.12.0"` in `[tools]` of `mise.toml`, set `engines.node` of every `package.json` to `>=26.12.0`, and delete `.node-version`; CI's setup-node reads `node-version-file: mise.toml` (K171).
 - Remove `node` from `config/toolchain.json`, with any download of the repository that read it; mise installs the node (K171).
 - Start each tool of the checkout in a recipe of the Makefile by its absolute path, with the variables of kit.mk (`$(NODE)`, `$(NPM)`, `$(ALINT)`) or `$(CURDIR)/…`, never by its bare name; `make kit-check` names each such line (K171).
 

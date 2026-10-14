@@ -15,7 +15,7 @@ import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 const SHIPPED = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/toolchain-pins.json');
 
 test('kit ships the decided pins: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release', () => {
-  assert.deepEqual(PINS, { node: '26.11.1', python: '3.14', php: '8.5', go: '1.27.2', rust: '1.99.0', typescript: '7.0.2' });
+  assert.deepEqual(PINS, { node: '26.12.0', python: '3.14', php: '8.5', go: '1.27.2', rust: '1.99.0', typescript: '7.0.2' });
   const shipped: unknown = JSON.parse(readFileSync(SHIPPED, 'utf8'));
   assert.ok(isJsonObject(shipped));
   assert.deepEqual(readPins(shipped), PINS);
@@ -51,14 +51,14 @@ test('every declaration equals its pin at the pin\'s precision; each other names
     go: { version: '1.27.1', source: 'mise.toml tools.go' },
   };
   assert.deepEqual(pinFindings(declared, new Pinning(PINS)), [
-    'mise.toml: tools.node is "26.8.1"; kit pins node 26.11.1, so it must be "26.11.1"',
+    'mise.toml: tools.node is "26.8.1"; kit pins node 26.12.0, so it must be "26.12.0"',
     'rust-toolchain.toml: channel is "1.98.1"; kit pins rust 1.99.0, so it must be "1.99.0"',
     'mise.toml: tools.go is "1.27.1"; kit pins go 1.27.2, so it must be "1.27.2"',
     'config/toolchain.json: php is "8.4"; kit pins php 8.5, so it must be "8.5"',
     'mise.toml: tools.python minor is "3.13"; kit pins python 3.14, so it must be "3.14"',
   ]);
   const pinned = {
-    node: { version: '26.11.1', source: 'mise.toml tools.node' },
+    node: { version: '26.12.0', source: 'mise.toml tools.node' },
     php: { minors: ['8.5'], source: 'config/toolchain.json php' },
     python: { version: '3.14.8', source: 'mise.toml tools.python' },
     go: { version: '1.27.2', source: 'mise.toml tools.go' },
