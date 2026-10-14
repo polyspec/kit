@@ -22,6 +22,7 @@ import { HOOKS_PATH } from './git-hooks.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
 import { findingLines, loadCommitRules, logMessages } from './check-commits.mts';
+import { present } from './present.mts';
 
 const USAGE = 'Usage: node scripts/kit/push-gate.mts hook | commit <rev>';
 const NO_OBJECT = /^0+$/;
@@ -97,7 +98,9 @@ export function hook(root: string, input: string): string[] {
     const fields = line.trim().split(/\s+/);
     if (fields.length !== 4) throw new Error(`the pre-push input line ${JSON.stringify(line)} is not "<local ref> <local sha> <remote ref> <remote sha>"`);
     // The check above holds four fields.
-    const [localRef, localSha, , remoteSha] = fields as [string, string, string, string];
+    const localRef = present(fields[0], 'the local ref of a pre-push input line');
+    const localSha = present(fields[1], 'the local sha of a pre-push input line');
+    const remoteSha = present(fields[3], 'the remote sha of a pre-push input line');
     // A deleted ref pushes no commit.
     if (NO_OBJECT.test(localSha)) continue;
     sources.push({ where: `${localRef} ${localSha.slice(0, SHORT)}`, read: committed(root, localSha) });

@@ -9,10 +9,11 @@
 //   node scripts/kit/check-editor-boundaries.mts
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { parse, type Node } from 'acorn';
+import { parse, type Program } from 'acorn';
 import { simple } from 'acorn-walk';
 import { transformSync } from 'amaro';
 import { analyze } from 'eslint-scope';
+import { isJsonObject } from './bootstrap/files.mts';
 import { readNpmManifest } from './manifests.mts';
 import { matchesAny } from './glob.mts';
 import { repositoryRoot, isMain } from './paths.mts';
@@ -32,6 +33,12 @@ const COMMONJS = /\.c[jt]s$/;
 // A relative import of TypeScript names the JavaScript file that the compiler writes.
 const COMPILED: Record<string, string> = { '.js': '.ts', '.mjs': '.mts', '.cjs': '.cts' };
 
+/** The ESTree program that eslint-scope reads. */
+type EstreeProgram = Parameters<typeof analyze>[0];
+
+/** Whether `node` is the ESTree program that its type field names. */
+const isEstreeProgram = (node: unknown): node is EstreeProgram => isJsonObject(node) && node.type === 'Program';
+
 /** An import of a reached file: its specifier, or null for a computed one. */
 type Import = string | null;
 
@@ -39,16 +46,19 @@ type Import = string | null;
 function readSource(file: string, text: string): { imports: Import[]; globals: string[] } {
   const commonjs = COMMONJS.test(file);
   let code = text;
-  let program: Node;
+  let program: Program;
   try {
     if (TYPESCRIPT.test(file)) code = transformSync(text, { mode: 'transform', filename: file }).code;
     program = parse(code, { ecmaVersion: 'latest', sourceType: commonjs ? 'script' : 'module', ranges: true });
   } catch (error) {
-    throw new Error(`${file}: ${(error as Error).message}`, { cause: error });
+    if (!(error instanceof Error)) throw error;
+    throw new Error(`${file}: ${error.message}`, { cause: error });
   }
   const imports: Import[] = [];
   const source = (node: { source?: unknown }) => {
-    const { value } = node.source as { value: string };
+    // The source of an import or an export from another module is a string literal.
+    const value = isJsonObject(node.source) ? node.source.value : undefined;
+    if (typeof value !== 'string') throw new Error(`${file}: an import names no string source`);
     imports.push(value);
   };
   const globalProperties: string[] = [];
@@ -68,8 +78,11 @@ function readSource(file: string, text: string): { imports: Import[]; globals: s
       else if (node.property.type === 'Literal' && typeof node.property.value === 'string') globalProperties.push(node.property.value);
     },
   });
-  // eslint-scope reads the ESTree program that acorn writes; its types name the estree package instead of acorn's.
-  const scopes = analyze(program as never, { ecmaVersion: 2022, sourceType: commonjs ? 'commonjs' : 'module' });
+  // eslint-scope reads the ESTree program that acorn writes; its types name the estree package instead of acorn's, so the
+  // program is read again as the ESTree program that its type field names.
+  const tree: unknown = program;
+  if (!isEstreeProgram(tree)) throw new Error(`${file}: acorn wrote no ESTree program`);
+  const scopes = analyze(tree, { ecmaVersion: 2022, sourceType: commonjs ? 'commonjs' : 'module' });
   // The global scope exists for every program that analyze reads.
   const free = scopes.globalScope!.through.map(reference => reference.identifier.name);
   return { imports, globals: [...new Set([...free, ...globalProperties])] };

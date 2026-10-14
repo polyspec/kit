@@ -59,6 +59,13 @@ function sourceOf(entry: TomlTable, lock: string, name: string): PylockSource<To
   return { kind: 'none', vcs: null, files: [] };
 }
 
+/** `source` with each of its files read by `read`; each variant keeps its form of files. */
+function readFiles(source: PylockSource<TomlValue>, read: (file: TomlValue) => PylockFile): PylockSource<PylockFile> {
+  if (source.kind === 'vcs') return { kind: 'vcs', vcs: source.vcs, files: [] };
+  if (source.kind === 'archive') return { kind: 'archive', vcs: null, files: [read(source.files[0])] };
+  return { kind: source.kind, vcs: null, files: source.files.map(read) };
+}
+
 /** Reads a PEP 751 lock: { lockVersion, createdBy, packages: [{ name, version, kind, vcs, files: [{ url, path, sha256 }] }] }. */
 export function readPylock(text: string, lock: string): Pylock {
   const data = readToml(text, lock);
@@ -72,16 +79,9 @@ export function readPylock(text: string, lock: string): Pylock {
     if (!isTable(entry) || typeof entry.name !== 'string' || typeof entry.version !== 'string') throw new Error(`${lock}: a package has no name or no version`);
     const name = entry.name;
     const source = sourceOf(entry, lock, name);
-    return {
-      name,
-      version: entry.version,
-      kind: source.kind,
-      vcs: source.vcs,
-      files: source.files.map((file) => {
-        const where = `${lock}: a file of ${name}`;
-        return { url: stringField(file, 'url', where), path: stringField(file, 'path', where), sha256: stringField(field(file, 'hashes'), 'sha256', where) };
-      }),
-    } as PylockPackage; // kind, vcs and files come from one source, so they keep its variant through the map of files.
+    const where = `${lock}: a file of ${name}`;
+    const file = (value: TomlValue): PylockFile => ({ url: stringField(value, 'url', where), path: stringField(value, 'path', where), sha256: stringField(field(value, 'hashes'), 'sha256', where) });
+    return { name, version: entry.version, ...readFiles(source, file) };
   });
   return { lockVersion: data['lock-version'], createdBy, packages };
 }

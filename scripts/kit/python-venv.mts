@@ -100,7 +100,8 @@ if (isMain(import.meta.url)) {
     // The check above throws unless args holds one argument.
     makeVenv({ directory: path.resolve(repositoryRoot(), args[0]!), print: text => process.stdout.write(`${text}\n`) });
   } catch (error) {
-    process.stderr.write(`${(error as Error).message}\n`);
+    if (!(error instanceof Error)) throw error;
+    process.stderr.write(`${error.message}\n`);
     process.exitCode = 1;
   }
 }

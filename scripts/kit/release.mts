@@ -169,17 +169,21 @@ export function loadConfig(root: string): ReleaseConfig {
   const { value: config, errors } = readConfigFindings<SchemaReleaseConfig>(root, CONFIG, 'release.schema.json');
   if (errors) throw new Stop(errors.join('; '));
   const problems: string[] = [];
-  const reason = (map: 'manifests' | 'notReleased' | 'goModules', where: string, check: (key: string, value: unknown) => string | null) => {
+  // Each map with the values that pass `check`, which accepts text only; each other value is a problem.
+  const reason = (map: 'manifests' | 'notReleased' | 'goModules', where: string, check: (key: string, value: unknown) => string | null): Record<string, string> => {
+    const read: Record<string, string> = {};
     for (const [key, value] of Object.entries(config[map])) {
       const found = check(key, value);
       if (found) problems.push(`${CONFIG}: ${where}.${key} ${found}`);
+      else if (typeof value === 'string') read[key] = value;
     }
+    return read;
   };
-  reason('manifests', 'manifests', (key, value) => (!MANIFEST_FILES.includes(path.posix.basename(key))
+  const manifests = reason('manifests', 'manifests', (key, value) => (!MANIFEST_FILES.includes(path.posix.basename(key))
     ? `is not a ${MANIFEST_FILES.join(', ')} file`
     : typeof value === 'string' && MODES.includes(value) ? null : `is ${JSON.stringify(value)}, the allowed values are ${MODES.join(', ')}`));
-  reason('notReleased', 'notReleased', (key, value) => (typeof value === 'string' && value.trim() ? null : 'needs a reason, a non-empty string'));
-  reason('goModules', 'goModules', (key, value) => (typeof value === 'string' && value ? null : 'needs the module path of its go.mod'));
+  const notReleased = reason('notReleased', 'notReleased', (key, value) => (typeof value === 'string' && value.trim() ? null : 'needs a reason, a non-empty string'));
+  const goModules = reason('goModules', 'goModules', (key, value) => (typeof value === 'string' && value ? null : 'needs the module path of its go.mod'));
   for (const key of Object.keys(config.manifests)) if (key in config.notReleased) problems.push(`${CONFIG}: ${key} is in both manifests and notReleased`);
   const names = new Set<string>();
   const directories = new Set<string>();
@@ -204,8 +208,7 @@ export function loadConfig(root: string): ReleaseConfig {
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
   problems.push(...consumerConfigProblems(config).map(problem => `${CONFIG}: ${problem}`));
   if (problems.length) throw new Stop(problems.join('; '));
-  // The checks above hold every value of manifests, notReleased and goModules to a string.
-  return { checks: DEFAULT_CHECKS, changelogTranslations: [], ...config } as ReleaseConfig;
+  return { ...config, checks: config.checks ?? DEFAULT_CHECKS, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
 }
 
 const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
@@ -669,7 +672,9 @@ const NPM_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', '
 function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: string[]): string[] {
   const consumer = config.consumers?.npm;
   const archives = new Map(Object.keys(consumer?.smoke ?? {}).map((name) => {
-    const [before, after] = archiveName('npm', name, '\0').split('\0') as [string, string];
+    // The archive name holds the version once, at the \0 that stands for it.
+    const [before, after] = archiveName('npm', name, '\0').split('\0');
+    if (before === undefined || after === undefined) throw new Error(`the npm archive name of ${name} holds no version`);
     return [name, new RegExp(`^file:${RegExp.escape(before)}\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?${RegExp.escape(after)}$`)];
   }));
   const problems: string[] = [];

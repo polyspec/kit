@@ -14,6 +14,7 @@ import path from 'node:path';
 import { writeAtomic } from './bootstrap/files.mts';
 import { git } from './git.mts';
 import { seconds } from './time.mts';
+import { errorCode } from './process.mts';
 
 // The number of failure lines of a failed target in the record and the summary.
 export const FAILURE_LINES = 20;
@@ -74,7 +75,8 @@ export function treeId(root: string): string {
   try {
     return git(root, 'rev-parse', 'HEAD^{tree}').trim();
   } catch (error) {
-    return `unknown (${(error as Error).message})`;
+    if (!(error instanceof Error)) throw error;
+    return `unknown (${error.message})`;
   }
 }
 
@@ -86,7 +88,8 @@ export function reportWriter(print: (line: string) => void): ReportWriter {
       mkdirSync(path.dirname(file), { recursive: true });
       action();
     } catch (error) {
-      const message = `report write failed: ${file}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`;
+      if (!(error instanceof Error)) throw error;
+      const message = `report write failed: ${file}: ${errorCode(error) ?? error.message}`;
       errors.push(message);
       print(`[report] ${message}`);
     }
@@ -187,7 +190,10 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
     const descriptor = openSync(log, 'w');
     const lines: string[] = [];
     const put = (text: string) => {
-      try { writeSync(descriptor, text); } catch (error) { writer.errors.push(`report write failed: ${log}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`); }
+      try { writeSync(descriptor, text); } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        writer.errors.push(`report write failed: ${log}: ${errorCode(error) ?? error.message}`);
+      }
     };
     put(`${make} ${command.join(' ')}\n`);
     const child = spawn(make, command, { cwd: root, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });

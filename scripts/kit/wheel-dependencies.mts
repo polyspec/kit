@@ -64,8 +64,9 @@ export function lockProblems(text: string, lockFile: string): string[] {
   try {
     lock = readPylock(text, lockFile);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // readPylock fails with an Error.
-    return [(error as Error).message];
+    return [error.message];
   }
   return lock.packages.flatMap(({ name, version, kind, files }) => {
     if (kind === 'registry') {

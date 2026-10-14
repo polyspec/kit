@@ -15,17 +15,19 @@ import path from 'node:path';
 import { parse, patch } from '@decimalturn/toml-patch';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isMain } from './paths.mts';
-import { writeAtomic } from './bootstrap/files.mts';
+import { isJsonList, isJsonObject, writeAtomic } from './bootstrap/files.mts';
 
 /** The normalized name of a Python distribution (PEP 503). */
 const normalize = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
 
 /** The text of the file with the pin of `name` set to `version`; the number of changed requirements is returned with it. */
 export function pinPythonRequirement(text: string, name: string, version: string): { text: string; count: number } {
-  const document = parse(text);
+  // toml-patch parses into any; the document is read as the JSON value that it is.
+  const document: unknown = parse(text);
+  if (!isJsonObject(document)) throw new Error('the pyproject holds no TOML table');
   let count = 0;
   const pin = (requirements: unknown) => {
-    if (!Array.isArray(requirements)) return;
+    if (!isJsonList(requirements)) return;
     requirements.forEach((requirement: unknown, index) => {
       // A dependency group may hold an { include-group } table (PEP 735), which pins nothing.
       if (typeof requirement !== 'string') return;
@@ -39,9 +41,12 @@ export function pinPythonRequirement(text: string, name: string, version: string
       count += 1;
     });
   };
-  pin(document.project?.dependencies);
-  for (const requirements of Object.values(document.project?.['optional-dependencies'] ?? {})) pin(requirements);
-  for (const requirements of Object.values(document['dependency-groups'] ?? {})) pin(requirements);
+  // A table that the pyproject lacks holds no requirement.
+  const table = (value: unknown): Record<string, unknown> => (isJsonObject(value) ? value : {});
+  const project = table(document.project);
+  pin(project.dependencies);
+  for (const requirements of Object.values(table(project['optional-dependencies']))) pin(requirements);
+  for (const requirements of Object.values(table(document['dependency-groups']))) pin(requirements);
   if (count === 0) throw new Error(`no exact pin of ${name} in the dependency arrays`);
   return { text: patch(text, document), count };
 }

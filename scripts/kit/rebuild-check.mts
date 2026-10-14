@@ -17,14 +17,15 @@ import { trackedFiles } from './tracked-files.mts';
 
 export const DECLARATION = 'config/rebuild.json';
 
-/** The class of a tool. */
-export type RebuildClass = { kind: 'ecosystem' | 'replaced' | 'record' | 'policy'; tool?: string; reason?: string; record?: string };
+/** The class of a tool: its kind, which rebuildFindings holds to ecosystem, replaced, record or policy, and the field that the kind needs. */
+export type RebuildClass = { kind: string; tool?: string; reason?: string; record?: string };
 
 /** The declaration of config/rebuild.json (scripts/kit/schema/rebuild.schema.json). */
 export type RebuildDeclaration = { schema: 1; comment?: string; paths: string[]; tools: Record<string, RebuildClass> };
 
 // The field that each class needs, with the words of its finding.
 const NEEDS = { ecosystem: ['tool', 'the tool it uses'], replaced: ['reason', 'its reason'], record: ['record', 'its record'], policy: ['reason', 'its reason'] } as const;
+const isKind = (kind: string): kind is keyof typeof NEEDS => Object.hasOwn(NEEDS, kind);
 
 /** The findings of `declaration` against the tracked files of `root`, sorted. */
 export function rebuildFindings(root: string, declaration: RebuildDeclaration, tracked: string[]): string[] {
@@ -38,7 +39,7 @@ export function rebuildFindings(root: string, declaration: RebuildDeclaration, t
       findings.push(`${DECLARATION}: ${file} is not a tracked file`);
       continue;
     }
-    if (!Object.hasOwn(NEEDS, entry.kind)) {
+    if (!isKind(entry.kind)) {
       findings.push(`${DECLARATION}: ${file} has the class ${JSON.stringify(entry.kind)}; the classes are ecosystem, replaced, record and policy`);
       continue;
     }

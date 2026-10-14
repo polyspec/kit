@@ -148,8 +148,9 @@ export function logMessages(root: string, args: string[], label: string): Commit
   try {
     output = git(root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // git fails with a Stop, which is an Error.
-    throw new Error(`the range ${label} does not resolve in this checkout: ${(error as Error).message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
+    throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
     const separator = entry.indexOf('\x1f');
@@ -192,8 +193,9 @@ if (isMain(import.meta.url)) {
       findings = rangeFindings(root, values.range ?? 'HEAD', config);
     }
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // The rules, the files and git fail with an Error.
-    console.error(`[check-commits] ${(error as Error).message}`);
+    console.error(`[check-commits] ${error.message}`);
     process.exit(1);
   }
   for (const line of findings) console.error(`[check-commits] ${line}`);

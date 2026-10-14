@@ -8,6 +8,10 @@ const MAX_BUFFER = 256 * 1024 * 1024;
 /** A step of a tool fails; the message names the cause. */
 export class Stop extends Error {}
 
+/** The code of an errno error, such as ENOENT, or of an object that carries one as a test host throws it; undefined for any other value. */
+export const errorCode = (error: unknown): string | undefined =>
+  (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : undefined);
+
 /** Where and with which environment a command runs. */
 export type RunPlace = { cwd?: string | undefined; env?: NodeJS.ProcessEnv | undefined };
 

@@ -29,6 +29,7 @@ import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
+import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
 type Extracted = { symbols: string[]; error?: never } | { error: string };
@@ -96,7 +97,8 @@ function apiModel(root: string, entry: string): Extracted {
     try {
       result = ApiExtractor.invoke(config, { localBuild: true, messageCallback: (message) => { message.handled = true; if (message.logLevel === 'error') errors.push(message.text); } });
     } catch (error) {
-      return { error: `API Extractor failed on ${entry}: ${(error as Error).message}` };
+      if (!(error instanceof Error)) throw error;
+      return { error: `API Extractor failed on ${entry}: ${error.message}` };
     }
     if (!result.succeeded || errors.length) return { error: `API Extractor failed on ${entry}: ${errors.join(' | ') || `${result.errorCount} errors`}` };
     const api = new ApiModel().loadPackage(path.join(output, 'api.json'));
@@ -107,7 +109,11 @@ function apiModel(root: string, entry: string): Extracted {
 }
 
 // The part of rustdoc JSON (format 61) that the rust extractor reads: the crate root and each item by its id.
-type RustdocItem = { name: string | null; visibility: string | Record<string, unknown>; inner: Record<string, Record<string, unknown>> };
+type RustdocItem = {
+  name: string | null;
+  visibility: string | Record<string, unknown>;
+  inner: { use?: { name: string; id: number | null; is_glob: boolean }; module?: { items: number[] }; impl?: { trait?: unknown; items: number[] }; [kind: string]: Record<string, unknown> | undefined };
+};
 type Rustdoc = { root: number; index: Record<string, RustdocItem> };
 
 /** The public ids of the crate of `doc`: each public item reachable from its root as <crate>::<path>, with its members. */
@@ -115,16 +121,20 @@ export function rustdocSymbols(doc: Rustdoc): string[] {
   const found = new Set<string>();
   const visited = new Set<number>();
   const item = (id: unknown): RustdocItem | undefined => doc.index[String(id)];
-  const ids = (value: unknown): number[] => (Array.isArray(value) ? value : []);
+  // A list of ids, or none where the inner item has no such list.
+  const ids = (value: unknown): number[] => (isJsonList(value) ? value.filter(id => typeof id === 'number') : []);
   // The members of the item `entry` named `name`: public fields, variants, the items of its inherent impls and of a trait.
   const members = (name: string, entry: RustdocItem) => {
-    const [kind, inner] = Object.entries(entry.inner)[0] ?? [];
-    const plain = (inner?.kind as { plain?: { fields?: unknown } } | undefined)?.plain;
+    const [first] = Object.entries(entry.inner);
+    const kind = first?.[0];
+    // The inner item of each kind is a JSON object of its own fields.
+    const inner: Record<string, unknown> | undefined = first?.[1];
+    const plain = isJsonObject(inner?.kind) && isJsonObject(inner.kind.plain) ? inner.kind.plain : undefined;
     const children = [
       ...ids(plain?.fields).map(item).filter(field => field?.visibility === 'public'),
       ...ids(inner?.variants).map(item),
       ...(kind === 'trait' ? ids(inner?.items).map(item) : []),
-      ...ids(inner?.impls).map(item).filter(impl => impl?.inner.impl?.trait === null).flatMap(impl => ids(impl!.inner.impl!.items).map(item)).filter(member => member?.visibility === 'public'),
+      ...ids(inner?.impls).map(item).flatMap(impl => (impl?.inner.impl?.trait === null ? impl.inner.impl.items.map(item) : [])).filter(member => member?.visibility === 'public'),
     ];
     for (const child of children) if (child?.name) found.add(`${name}::${child.name}`);
   };
@@ -134,15 +144,16 @@ export function rustdocSymbols(doc: Rustdoc): string[] {
     for (const id of ids(item(moduleId)?.inner.module?.items)) {
       const entry = item(id);
       if (!entry || entry.visibility !== 'public') continue;
-      const reexport = entry.inner.use as { name: string; id: number | null; is_glob: boolean } | undefined;
+      const reexport = entry.inner.use;
       if (reexport?.is_glob) {
         if (reexport.id !== null) visit(reexport.id, prefix);
         continue;
       }
       const name = `${prefix}::${reexport ? reexport.name : entry.name}`;
-      const target = reexport ? item(reexport.id) : entry;
+      const targetId = reexport ? reexport.id : id;
+      const target = targetId === null ? undefined : item(targetId);
       found.add(name);
-      if (target?.inner.module) visit(reexport ? reexport.id! : id, name);
+      if (target?.inner.module && targetId !== null) visit(targetId, name);
       else if (target) members(name, target);
     }
   };

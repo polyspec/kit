@@ -22,6 +22,11 @@ export type NpmLock = { packages?: Record<string, NpmLockEntry> };
 export type NpmManifest = {
   name?: string;
   version?: string;
+  private?: boolean;
+  license?: string;
+  packageManager?: string;
+  files?: string[];
+  bin?: string | Record<string, string>;
   workspaces?: string[];
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;

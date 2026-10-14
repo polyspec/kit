@@ -53,17 +53,18 @@ const isSchemaObject = (value: unknown): value is SchemaObject => typeof value =
 // The schema files, read once: ajv caches the function that it compiles for a schema object, so a schema is compiled once.
 const schemaFiles = new Map<string, SchemaObject>();
 
-/** The validator of the schema file `schema` (a file name in SCHEMAS) for data of type T; throws for a schema that ajv refuses. */
-function validatorOf<T>(schema: string): ValidateFunction<T> {
-  let rules = schemaFiles.get(schema);
-  if (!rules) {
-    const value = readJson(SCHEMAS, schema);
-    if (!isSchemaObject(value)) throw new Error(`${schema} of kit is no JSON object`);
-    schemaFiles.set(schema, value);
-    rules = value;
-  }
-  return ajv.compile<T>(rules);
+/** The schema file `schema` of kit (a file name in SCHEMAS), read once; throws when it holds no JSON object. */
+export function schemaFile(schema: string): SchemaObject {
+  const read = schemaFiles.get(schema);
+  if (read) return read;
+  const value = readJson(SCHEMAS, schema);
+  if (!isSchemaObject(value)) throw new Error(`${schema} of kit is no JSON object`);
+  schemaFiles.set(schema, value);
+  return value;
 }
+
+/** The validator of the schema file `schema` (a file name in SCHEMAS) for data of type T; throws for a schema that ajv refuses. */
+const validatorOf = <T,>(schema: string): ValidateFunction<T> => ajv.compile<T>(schemaFile(schema));
 
 /**
  * The JSON text `text` as T, the type that the schema file `schema` (a file name in SCHEMAS) describes. `source` names the
@@ -75,7 +76,8 @@ export function parseJson<T>(text: string, schema: string, source: string): T {
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new ConfigError(`${source} is no JSON: ${(error as Error).message}`);
+    if (!(error instanceof Error)) throw error;
+    throw new ConfigError(`${source} is no JSON: ${error.message}`);
   }
   const check = validatorOf<T>(schema);
   if (check(value)) return value;

@@ -14,11 +14,12 @@
 // absent from the result. A malformed declaration throws an error with the file, the expected form and the actual value.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { isJsonObject, readJsonObject } from './files.mts';
+import { isJsonList, isJsonObject, readJsonObject } from './files.mts';
 
 /** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
 export type InstalledExtractor = 'go' | 'php';
 const EXTRACTORS: readonly InstalledExtractor[] = ['go', 'php'];
+const isExtractor = (value: unknown): value is InstalledExtractor => EXTRACTORS.some(name => name === value);
 
 const EXACT = /^\d+\.\d+\.\d+$/;
 const MINOR = /^\d+\.\d+$/;
@@ -123,12 +124,12 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   }
   const phpFile = existsSync(path.join(root, '.php-version')) ? minor('.php-version', 'the PHP minor release', read(root, '.php-version').trim()) : undefined;
   if (config.php) {
-    // The loop fails for a value that is not a list: with a TypeError when it is not iterable, with the minor check on the
-    // first character of a text. Each item that passes is a minor release as text.
-    const php = config.php as string[];
-    for (const value of php) minor('config/toolchain.json', 'php as a list of minor releases', value);
-    if (phpFile && !php.includes(phpFile)) throw new Error(`.php-version declares ${phpFile}, but config/toolchain.json php lists ${php.join(', ')}; list ${phpFile} or change .php-version`);
-    declared.php = { minors: php, source: 'config/toolchain.json php' };
+    const php = config.php;
+    if (!isJsonList(php)) throw new Error(`config/toolchain.json must record php as a list of minor releases; it records ${JSON.stringify(php)}`);
+    // Each item that passes is a minor release as text.
+    const minors = php.map(value => minor('config/toolchain.json', 'php as a list of minor releases', value));
+    if (phpFile && !minors.includes(phpFile)) throw new Error(`.php-version declares ${phpFile}, but config/toolchain.json php lists ${minors.join(', ')}; list ${phpFile} or change .php-version`);
+    declared.php = { minors, source: 'config/toolchain.json php' };
   } else if (phpFile) {
     declared.php = { minors: [phpFile], source: '.php-version' };
   }
@@ -138,8 +139,8 @@ export function declaredToolchain(root: string): DeclaredToolchain {
   }
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   if (config.symbolExtractors !== undefined) {
-    const extractors: unknown = config.symbolExtractors;
-    if (!Array.isArray(extractors) || !extractors.length || extractors.some(name => !EXTRACTORS.includes(name))) throw new Error(`config/toolchain.json symbolExtractors is ${JSON.stringify(extractors)}; expected a list of ${EXTRACTORS.join(', ')}`);
+    const extractors = config.symbolExtractors;
+    if (!isJsonList(extractors) || !extractors.length || !extractors.every(isExtractor)) throw new Error(`config/toolchain.json symbolExtractors is ${JSON.stringify(extractors)}; expected a list of ${EXTRACTORS.join(', ')}`);
     declared.symbolExtractors = { extractors, source: 'config/toolchain.json symbolExtractors' };
   }
   return declared;

@@ -39,15 +39,16 @@ export type Rule = keyof typeof RULES;
 /** A finding of the gate: the rule it breaks, its subject, the problem and the fix. */
 export type Finding = { rule: Rule; subject: string; problem: string; fix: string };
 /** An advisory that the review found for a package of a lock. */
-type Advisory = { package: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
+export type Advisory = { package: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
 /** A git package of a lock as the review recorded it: its URL, requested revision and commit. */
 type ReviewedPin = { lock: string; package: string; url: string; requestedRevision: string; commitId: string };
 /**
  * The review record config/dependency-review.json (schema scripts/kit/schema/dependency-review.schema.json), in the fields
  * that the gate reads.
  */
-type ReviewRecord = {
+export type ReviewRecord = {
   schema: number;
+  comment: string;
   reviewed: string;
   locks: { lock: string; sha256: string; advisories?: Advisory[] }[];
   dependencies: { ecosystem: string; manifest: string; package: string; version: string; latest: string }[];

@@ -29,6 +29,7 @@ import { writeJson } from './bootstrap/files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { git } from './git.mts';
 import { now, seconds } from './time.mts';
+import { present } from './present.mts';
 
 const USAGE = 'Usage: node scripts/kit/full-run.mts run [--key name=value]... <target>... | rerun-failed [--key name=value]...';
 // The record of the last full run of this checkout; /var/ is ignored by Git.
@@ -266,8 +267,9 @@ export function parseArguments(args: string[]): { mode: string; keys: Keys; targ
   const targets: string[] = [];
   for (let index = 0; index < rest.length; index += 1) {
     if (rest[index] === '--key') {
+      const [first, ...value] = (rest[index + 1] ?? '').split('=');
       // split returns at least one part.
-      const [name, ...value] = (rest[index + 1] ?? '').split('=') as [string, ...string[]];
+      const name = present(first, 'the name of --key');
       if (!KEY_NAME.test(name) || value.length === 0 || value.join('=') === '') throw new Error(`--key takes name=value, with a name of letters, digits, _ and -; got ${JSON.stringify(rest[index + 1])}`);
       if (name in keys) throw new Error(`--key ${name} is given twice`);
       keys[name] = value.join('=');

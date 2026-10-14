@@ -70,7 +70,7 @@ export function knipArguments(root: string): string[] {
     const workspaces = Object.entries(value.workspaces).map(([directory, { entries, ignoreDependencies }]) => [directory, {
       ...(entries ? { entry: Object.keys(entries) } : {}),
       ...(ignoreDependencies ? { ignoreDependencies: Object.keys(ignoreDependencies) } : {}),
-    }]);
+    }] as const);
     merged.workspaces = { ...base.workspaces, ...Object.fromEntries(workspaces) };
   }
   writeJson(path.join(root, MERGED_KNIP), merged);

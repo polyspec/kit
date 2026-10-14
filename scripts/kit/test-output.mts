@@ -8,6 +8,7 @@
 // failure): it is no pass. `toProgress` turns a progress reporter into such a sink.
 import type { Progress } from './test-progress.mts';
 import { ConfigError, parseJson } from './schema-validate.mts';
+import { present } from './present.mts';
 
 /** A test as a parser reports it: `id` is the name that the progress shows, `name` the name that the tool reports. */
 export type TestRef = { id: string; name: string };
@@ -59,7 +60,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
     if (event.Action === 'build-fail') return sink.line(`✖ build of ${event.ImportPath} failed`);
     const id = event.Test ? `${event.Package} › ${event.Test.replaceAll('/', ' › ')}` : event.Package;
     // A go test event names its package; test2json writes Package on every event of a test or a package.
-    const test = { id, name: event.Test ?? event.Package } as TestRef;
+    const test: TestRef = { id: present(id, 'the package of a go test event'), name: present(event.Test ?? event.Package, 'the package of a go test event') };
     const group = !event.Test;
     switch (event.Action) {
       case 'start': started.set(event.Package, 0); return sink.start(test, { group: true });
@@ -221,24 +222,24 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
     if (message[1] === 'testStarted') ids.set(attributes.name, qualified(attributes));
     const id = ids.get(attributes.name) ?? attributes.name;
     // PHPUnit names each test and suite; a message without a name, such as testCount, reaches only the default case.
-    const test = { id, name: attributes.name } as TestRef;
+    const test = (): TestRef => ({ id: present(id, 'the id of a PHPUnit test'), name: present(attributes.name, 'the name of a PHPUnit test') });
     switch (message[1]) {
       case 'testSuiteStarted': {
         if (attributes.locationHint) return undefined;
         groups.add(id);
-        return sink.start(test, { group: true });
+        return sink.start(test(), { group: true });
       }
-      case 'testSuiteFinished': return groups.delete(id) ? sink.pass(test) : undefined;
-      case 'testStarted': return sink.start(test);
+      case 'testSuiteFinished': return groups.delete(id) ? sink.pass(test()) : undefined;
+      case 'testStarted': return sink.start(test());
       // PHPUnit reports a test that ran out of its time limit and also made no assertion twice.
       case 'testFailed': failures.set(id, [failures.get(id), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n')); return undefined;
-      case 'testIgnored': ignored.add(id); return sink.skip(test);
+      case 'testIgnored': ignored.add(id); return sink.skip(test());
       case 'testFinished': {
         const duration = Number(attributes.duration);
         if (ignored.delete(id)) return undefined;
         // has() above makes the failure text exist.
-        if (failures.has(id)) { const text = failures.get(id)!; failures.delete(id); return sink.fail(test, duration, text); }
-        return sink.pass(test, duration);
+        if (failures.has(id)) { const text = failures.get(id)!; failures.delete(id); return sink.fail(test(), duration, text); }
+        return sink.pass(test(), duration);
       }
       default: return undefined;
     }

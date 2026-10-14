@@ -29,6 +29,7 @@ import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
 import type { Ecosystem } from './version.mts';
+import { present } from './present.mts';
 
 export const POLICY = 'config/dependency-policy.json';
 export const RECORD = 'config/dependency-review.json';
@@ -444,7 +445,7 @@ export function npmDuplicates(lock: NpmLock) {
       .filter(([left, right]) => left.version !== right.version)
       .map(([left, right]) => {
         // copies holds only copies whose version semver reads, and the sorted pair has two entries.
-        const [low, high] = [left, right].sort((a, b) => semver.compare(a.version!, b.version!)) as [typeof left, typeof left];
+        const [low, high] = semver.compare(present(left.version, 'the version of a copy'), present(right.version, 'the version of a copy')) <= 0 ? [left, right] : [right, left];
         const loaders = [...left.loaders, ...right.loaders];
         const single = [high.version, low.version].find(version => loaders.every(({ range }) => npmSatisfies(version, range)));
         return single && { low: low.version, high: high.version, single, loaders };

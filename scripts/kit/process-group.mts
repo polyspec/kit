@@ -2,6 +2,7 @@
 // member is in exit, although the member is gone from the process table; the group has ended only when the call fails with
 // ESRCH. signalGroup returns 'sent' when the call succeeds, 'exiting' for EPERM and 'ended' for ESRCH; any other errno is an
 // error.
+import { errorCode } from './process.mts';
 
 /** The answer of a signal to a process group. */
 export type GroupState = 'sent' | 'exiting' | 'ended';
@@ -16,9 +17,9 @@ export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill:
     return 'sent';
   } catch (error) {
     // process.kill throws an errno error; a test's kill throws an object with the same code.
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code === 'ESRCH') return 'ended';
-    if (errno.code === 'EPERM') return 'exiting';
+    const code = errorCode(error);
+    if (code === 'ESRCH') return 'ended';
+    if (code === 'EPERM') return 'exiting';
     throw error;
   }
 }
