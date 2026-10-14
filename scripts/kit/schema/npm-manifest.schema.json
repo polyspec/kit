@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "package.json",
+  "description": "The fields of an npm manifest that the tools of kit read (scripts/kit/schema-validate.mts readConfig, K158); a field that a tool checks itself, such as engines, is any JSON, and every other field is free.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "version": { "type": "string" },
+    "workspaces": { "description": "npm reads a list of paths and globs.", "type": "array", "items": { "type": "string" } },
+    "scripts": { "type": "object", "additionalProperties": { "type": "string" } },
+    "dependencies": { "$ref": "#/$defs/specs" },
+    "devDependencies": { "$ref": "#/$defs/specs" },
+    "optionalDependencies": { "$ref": "#/$defs/specs" },
+    "peerDependencies": { "$ref": "#/$defs/specs" },
+    "overrides": { "type": "object" },
+    "engines": { "type": "object" },
+    "kit": {
+      "type": "object",
+      "properties": { "copies": { "$ref": "#/$defs/specs" } }
+    }
+  },
+  "$defs": {
+    "specs": { "type": "object", "additionalProperties": { "type": "string" } }
+  }
+}

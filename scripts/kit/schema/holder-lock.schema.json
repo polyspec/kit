@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A holder lock record",
+  "description": "The record of a lock file of scripts/kit/holder-lock.mts (K158): the checkout, the process and its start time, when it acquired the lock, its command and the token that its release checks.",
+  "type": "object",
+  "required": ["checkout", "pid", "processStart", "acquired", "command", "token"],
+  "properties": {
+    "checkout": { "type": "string" },
+    "pid": { "type": "integer" },
+    "processStart": { "type": "string" },
+    "acquired": { "type": "string" },
+    "command": { "type": "string" },
+    "token": { "type": "string" }
+  }
+}

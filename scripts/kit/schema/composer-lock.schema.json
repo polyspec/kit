@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "composer.lock",
+  "description": "The fields of a Composer lock that the tools of kit read (K158): its packages with their name, version and dist, and its platform overrides. vendor/composer/installed.json of Composer 2 holds its packages in the same shape.",
+  "type": "object",
+  "properties": {
+    "packages": { "$ref": "#/$defs/packages" },
+    "packages-dev": { "$ref": "#/$defs/packages" },
+    "platform-overrides": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "$defs": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "version"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "dist": { "type": "object", "required": ["type", "url"], "properties": { "type": { "type": "string" }, "url": { "type": "string" }, "shasum": { "type": "string" } } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "go work edit -json",
+  "description": "A go.work as `go work edit -json` prints it, in the fields that scripts/kit/toolchain-files.mts reads (K158): the directories of its use directives.",
+  "type": "object",
+  "properties": {
+    "Use": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "DiskPath"
+        ],
+        "properties": {
+          "DiskPath": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

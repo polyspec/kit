@@ -28,7 +28,7 @@
 // group running. A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -41,6 +41,7 @@ import { toolCommand as miseCommand } from './mise-tools.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
+import { readJsonFile } from './schema-validate.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -283,7 +284,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       if (code !== 0) write(`✖ ${label}: the tool ended ${signal ? `on ${signal}` : `with exit code ${status}`}\n`);
       exit = code === 0 ? 0 : 1;
     }
-    const counts: Counts | null = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : null;
+    const counts = existsSync(resultFile) ? readJsonFile<Counts>(resultFile, 'test-result.schema.json') : null;
     if (counts !== null && options.results) {
       const inputs = { paths: options.inputs, digest: inputsDigest(root, options.inputs) };
       writeJson(options.results, { tool: options.tool, inputs, elapsedMs: Date.now() - began, ...counts });

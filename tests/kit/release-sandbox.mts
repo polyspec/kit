@@ -38,7 +38,7 @@ if (args[0] === 'api' && args.some(arg => /\\/git\\/ref\\/tags\\//.test(arg))) {
   }
 } else if (args[0] === 'api' && upload) {
   const release = state.byId[upload[1]];
-  release.assets.push({ id: release.assets.length + 1, name: decodeURIComponent(upload[2]), url: null, digest: null });
+  release.assets.push({ id: release.assets.length + 1, name: decodeURIComponent(upload[2]), url: 'https://example.com/polyspec/kit-fixture/releases/download/' + release.tag_name + '/' + decodeURIComponent(upload[2]), digest: null });
   state.uploads = [...(state.uploads ?? []), { name: decodeURIComponent(upload[2]), input: args[args.indexOf('--input') + 1], type: args[args.indexOf('-H') + 1] }];
   console.log('1');
 } else if (args[0] === 'api' && byId && method === 'PATCH') {

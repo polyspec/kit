@@ -22,7 +22,7 @@ import picomatch from 'picomatch';
 import semver from 'semver';
 
 import { checkedFiles } from './tracked-files.mts';
-import { readJson } from './bootstrap/files.mts';
+import { readComposerLock, readComposerManifest, readNpmLock, readNpmManifest, type NpmLock, type NpmLockEntry } from './manifests.mts';
 import { readConfig } from './schema-validate.mts';
 import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
@@ -57,9 +57,7 @@ export const advisoryRelease = (advisory: { version?: string | undefined; range?
 
 /** The policy of `root` validated against dependency-policy.schema.json; throws with every error of the schema. */
 export function readPolicy<Policy extends DependencyPolicy = DependencyPolicy>(root: string): Policy {
-  const { value, errors } = readConfig<Policy>(root, POLICY, 'dependency-policy.schema.json');
-  if (errors.length) throw new Error(errors.join('; '));
-  return value;
+  return readConfig<Policy>(root, POLICY, 'dependency-policy.schema.json');
 }
 
 /** The kind of a requirement of a pyproject.toml: build-system.requires or an extra. */
@@ -114,26 +112,7 @@ export type LocalPackage = NpmLocalPackage | ComposerLocalPackage;
 /** An exact requirement of a pyproject.toml. */
 export type PythonRequirement = { package: string; kind: PythonRequirementKind; spec: string; version: string };
 
-/** An entry of `packages` of an npm lock (lockfileVersion 3). */
-export type NpmLockEntry = {
-  version?: string;
-  resolved?: string;
-  link?: boolean;
-  dependencies?: Record<string, string>;
-  optionalDependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  peerDependencies?: Record<string, string>;
-  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
-};
-
-/** An npm lock (lockfileVersion 3). */
-export type NpmLock = { packages?: Record<string, NpmLockEntry> };
-
-// An npm manifest and a Composer manifest and lock, as far as the state reads them.
-type NpmManifest = { workspaces?: string[]; overrides?: Record<string, unknown>; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; version?: string; name?: string };
-type ComposerManifest = { require?: Record<string, string>; 'require-dev'?: Record<string, string> };
-type ComposerPackage = { name: string; version: string; dist?: { type: string; url: string } };
-type ComposerLock = { packages?: ComposerPackage[]; 'packages-dev'?: ComposerPackage[] };
+export type { NpmLock, NpmLockEntry } from './manifests.mts';
 type Pylock = ReturnType<typeof readPylock>;
 type VcsSource = NonNullable<Pylock['packages'][number]['vcs']>;
 
@@ -264,7 +243,7 @@ export function lockFix(lock: string, createdBy: string | null, name: string) {
  */
 export function npmManifests(root: string, base = '.') {
   const own = path.posix.join(base, NPM_MANIFEST);
-  const manifest = readJson(root, own) as NpmManifest;
+  const manifest = readNpmManifest(root, own);
   const directories = checkedFiles(root)
     .filter(file => path.posix.basename(file) === NPM_MANIFEST)
     .map(file => path.posix.relative(base, path.posix.dirname(file)))
@@ -310,14 +289,14 @@ export function readState(root: string, policy: DependencyPolicy) {
 
   for (const lockPath of policy.npmLocks) {
     const base = path.posix.dirname(lockPath);
-    const lock = readJson(root, lockPath) as NpmLock;
+    const lock = readNpmLock(root, lockPath);
     npmLocks.set(lockPath, lock);
     locks.push(lockPath);
     // A package that the overrides of the npm project install from a URL (a release archive) is not in the registry: it has no review.
-    const urlOverrides = new Set(Object.entries((readJson(root, path.posix.join(base, NPM_MANIFEST)) as NpmManifest).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
+    const urlOverrides = new Set(Object.entries(readNpmManifest(root, path.posix.join(base, NPM_MANIFEST)).overrides ?? {}).filter(([, value]) => typeof value === 'string' && URL_SPEC.test(value)).map(([name]) => name));
     for (const { directory, manifest: manifestPath } of npmManifests(root, base)) {
       manifests.push({ directory, manifest: manifestPath, lock: lockPath });
-      const manifest = readJson(root, manifestPath) as NpmManifest;
+      const manifest = readNpmManifest(root, manifestPath);
       for (const kind of ['dependencies', 'devDependencies'] as const) {
         for (const [name, spec] of Object.entries(manifest[kind] ?? {})) {
           const entry = npmLockEntry(lock, directory, name);
@@ -325,7 +304,7 @@ export function readState(root: string, policy: DependencyPolicy) {
             const target = entry?.link ? entry.resolved : null;
             const packageDirectory = target ? path.posix.join(base, target) : null;
             const lockVersion = target ? lock.packages?.[target]?.version ?? null : null;
-            const targetManifest: NpmManifest | null = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readJson(root, `${packageDirectory}/${NPM_MANIFEST}`) as NpmManifest : null;
+            const targetManifest = packageDirectory && existsSync(path.join(root, packageDirectory, NPM_MANIFEST)) ? readNpmManifest(root, `${packageDirectory}/${NPM_MANIFEST}`) : null;
             const item: NpmLocalPackage = {
               ecosystem: 'npm', manifest: manifestPath, package: name, spec, kind, base, lock: lockPath, directory: packageDirectory,
               lockVersion, version: targetManifest?.version ?? null, name: targetManifest?.name ?? null,
@@ -345,8 +324,8 @@ export function readState(root: string, policy: DependencyPolicy) {
   for (const { manifest: manifestPath } of policy.composerPlatforms) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
-    const composer = readJson(root, manifestPath) as ComposerManifest;
-    const composerLock = readJson(root, lockPath) as ComposerLock;
+    const composer = readComposerManifest(root, manifestPath);
+    const composerLock = readComposerLock(root, lockPath);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
     for (const kind of ['require', 'require-dev'] as const) {
       for (const [name, spec] of Object.entries(composer[kind] ?? {})) {

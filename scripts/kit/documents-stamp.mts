@@ -7,9 +7,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CONFIG, documentsOf } from './check-documents.mts';
 import { sha256 } from './bootstrap/digest.mts';
-import { readJson, writeAtomic } from './bootstrap/files.mts';
+import { writeAtomic } from './bootstrap/files.mts';
 import { proseLines } from './markdown.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { readConfig } from './schema-validate.mts';
 
 const REVISION = /<!-- source-sha256: [^>]*? -->/;
 const DOC_ID = /<!-- doc-id: [^>]*? -->/;
@@ -75,7 +76,7 @@ if (isMain(import.meta.url)) {
     console.error(`[documents-stamp] ${CONFIG} does not exist`);
     process.exit(1);
   }
-  const { changed, failed } = stampAll(repositoryRoot(), readJson(repositoryRoot(), CONFIG) as DocumentsConfig);
+  const { changed, failed } = stampAll(repositoryRoot(), readConfig<DocumentsConfig>(repositoryRoot(), CONFIG, 'documents.schema.json'));
   for (const file of changed) console.log(`[documents-stamp] stamped ${file}`);
   for (const line of failed) console.error(`[documents-stamp] ${line}`);
   console.log(`[documents-stamp] ${changed.length} stamped, ${failed.length} failed`);

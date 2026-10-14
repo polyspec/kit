@@ -13,6 +13,7 @@ import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { execute } from './process.mts';
 import { readToml } from './toml.mts';
 import type { TomlTable } from './toml.mts';
+import { parseJson } from './schema-validate.mts';
 
 // The output of `command` with `args` that reads `file`; an Error names the file, the reader `shown` and the cause.
 function output(file: string, shown: string, command: string, args: string[], env: NodeJS.ProcessEnv, cwd?: string): string {
@@ -30,17 +31,21 @@ export const readTomlFile = (root: string, file: string): TomlTable => readToml(
 
 /** A module version of `go mod edit -json`; a replacement by a directory has no version. */
 type GoModuleVersion = { Path: string; Version?: string };
+/** A go.mod as `go mod edit -json` prints it; go-mod.schema.json. */
+type GoMod = { Module: { Path: string }; Go?: string; Toolchain?: string; Require?: (GoModuleVersion & { Version: string; Indirect?: boolean })[]; Replace?: { Old: GoModuleVersion; New: GoModuleVersion }[] };
+/** A package of `cargo metadata --no-deps`; cargo-metadata.schema.json. */
+type CargoPackage = { manifest_path: string; version: string; rust_version: string | null };
 
 /**
  * The go.mod `file` of `root` as `go mod edit -json` prints it: the module path, the go line and the toolchain line, and the
  * require and replace directives, each when present.
  */
-export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): { Module: { Path: string }; Go?: string; Toolchain?: string; Require?: (GoModuleVersion & { Version: string; Indirect?: boolean })[]; Replace?: { Old: GoModuleVersion; New: GoModuleVersion }[] } =>
-  JSON.parse(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env));
+export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): GoMod =>
+  parseJson<GoMod>(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env), 'go-mod.schema.json', `go mod edit -json ${file}`);
 
 /** The go.work file `file` (absolute) as `go work edit -json` prints it: the directories of its use directives, when present. */
 export const readGoWork = (file: string, env: NodeJS.ProcessEnv): { Use?: { DiskPath: string }[] } =>
-  JSON.parse(output(file, '`go work edit -json`', 'go', ['work', 'edit', '-json', file], env));
+  parseJson<{ Use?: { DiskPath: string }[] }>(output(file, '`go work edit -json`', 'go', ['work', 'edit', '-json', file], env), 'go-work.schema.json', `go work edit -json ${file}`);
 
 /** The go.work file that the go command uses in the directory `directory` of `root` (`go env GOWORK`), or null for none. */
 export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessEnv): string | null {
@@ -50,8 +55,8 @@ export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessE
 }
 
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
-export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): { manifest_path: string; version: string; rust_version: string | null }[] =>
-  JSON.parse(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env)).packages;
+export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): CargoPackage[] =>
+  parseJson<{ packages: CargoPackage[] }>(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env), 'cargo-metadata.schema.json', `cargo metadata ${file}`).packages;
 
 /**
  * The value of each npm configuration key of `keys` that the .npmrc `file` of `root` gives the project of its directory, as

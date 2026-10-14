@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
-import { readConfig } from './schema-validate.mts';
+import { readConfigFindings } from './schema-validate.mts';
 
 export const CONFIG = 'config/checklist.json';
 export const PRE_PUSH_HOOK = 'pre-push';
@@ -66,15 +66,14 @@ const LIST_ITEM = /^( *)- (\[[^\]]*\]) (\S+)\s*(.*)$/;
 export function loadConfig(root: string): ChecklistConfig {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its trackers and hooks there`);
-  // config is read only when findings is empty, that is when it passed checklist.schema.json.
-  const { value: config, errors: findings } = readConfig<ChecklistConfig>(root, CONFIG, 'checklist.schema.json');
-  if (findings.length === 0) {
-    if (!config.hooks.includes(PRE_PUSH_HOOK)) findings.push(`${CONFIG}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
-    const paths = config.trackers.flatMap(tracker => [tracker.path, ...(tracker.translation ? [tracker.translation] : [])]);
-    for (const duplicate of paths.filter((item, index) => paths.indexOf(item) !== index)) findings.push(`${CONFIG}: ${duplicate} is declared twice in $.trackers`);
-    for (const tracker of config.trackers) {
-      if (tracker.states && !tracker.states.includes(tracker.active)) findings.push(`${CONFIG}: $.trackers ${tracker.path} has the active state ${JSON.stringify(tracker.active)}, which is not in its states ${JSON.stringify(tracker.states)}`);
-    }
+  const { value: config, errors } = readConfigFindings<ChecklistConfig>(root, CONFIG, 'checklist.schema.json');
+  if (errors) throw new Error(errors.join('\n'));
+  const findings: string[] = [];
+  if (!config.hooks.includes(PRE_PUSH_HOOK)) findings.push(`${CONFIG}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
+  const paths = config.trackers.flatMap(tracker => [tracker.path, ...(tracker.translation ? [tracker.translation] : [])]);
+  for (const duplicate of paths.filter((item, index) => paths.indexOf(item) !== index)) findings.push(`${CONFIG}: ${duplicate} is declared twice in $.trackers`);
+  for (const tracker of config.trackers) {
+    if (tracker.states && !tracker.states.includes(tracker.active)) findings.push(`${CONFIG}: $.trackers ${tracker.path} has the active state ${JSON.stringify(tracker.active)}, which is not in its states ${JSON.stringify(tracker.states)}`);
   }
   if (findings.length > 0) throw new Error(findings.join('\n'));
   return config;

@@ -22,7 +22,8 @@ import { toolchainVersions } from './check-toolchain.mts';
 import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mts';
 import type { RunRecord, UnreadRecord } from './target-report.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { jsonText, readJson } from './bootstrap/files.mts';
+import { jsonText } from './bootstrap/files.mts';
+import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 // The toolchains whose releases the record of a run names.
@@ -97,15 +98,23 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
   const file = path.join(report, 'record.json');
   let record: RunRecord | UnreadRecord | null = null;
   if (existsSync(file)) {
-    try { record = readJson(file) as RunRecord; } catch (error) { record = { error: `${path.relative(root, file)}: ${(error as Error).message}` }; }
+    try {
+      record = readJsonFile<RunRecord>(file, 'run-record.schema.json');
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      record = { error: `${path.relative(root, file)}: ${error.message}` };
+    }
   }
-  let steps = {};
+  let steps: Record<string, { outcome?: string }> = {};
   let unreadSteps = false;
   if (env.CI_STEPS) {
     // The summary is still written without the steps, and the run fails.
-    try { steps = JSON.parse(env.CI_STEPS); } catch (error) {
+    try {
+      steps = parseJson<Record<string, { outcome?: string }>>(env.CI_STEPS, 'ci-steps.schema.json', 'CI_STEPS');
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
       unreadSteps = true;
-      print(`[ci-targets] CI_STEPS is not JSON: ${(error as Error).message}`);
+      print(`[ci-targets] ${error.message}`);
     }
   }
   const text = render({ title: record?.title ?? 'make ci-targets', record, steps });

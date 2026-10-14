@@ -63,7 +63,7 @@ const errorsOf = (t: TestContext, declaration: OwnerDeclaration, files?: Record<
 const has = (errors: string[], ...parts: string[]) => assert.ok(errors.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${errors.join('\n')}`);
 
 test('npm workspaces are a list; the object form of Yarn is refused, not read as no workspaces', (t) => {
-  assert.throws(() => project(t, { ...FILES, 'package.json': JSON.stringify({ workspaces: { packages: ['packages/*'] } }) }), /package\.json: workspaces is \{"packages":\["packages\/\*"\]\}; npm reads a list of paths and globs/);
+  assert.throws(() => project(t, { ...FILES, 'package.json': JSON.stringify({ workspaces: { packages: ['packages/*'] } }) }), /package\.json: \/workspaces must be array \{"type":"array"\}/);
 });
 
 test('a declaration that owns every path passes, with targets of an included file and the npm project', (t) => {

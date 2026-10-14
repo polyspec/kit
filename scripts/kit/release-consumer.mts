@@ -39,10 +39,11 @@ import { wheelName } from './release-wheel.mts';
 import { lockRequirements, wheelLocks } from './wheel-dependencies.mts';
 import { toolCommand } from './mise-tools.mts';
 import { makeVenv } from './python-venv.mts';
-import { readJson, writeAtomic } from './bootstrap/files.mts';
+import { writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
 import { fetchedAsset } from './release-assets.mts';
+import { readComposerLock, readComposerLockFile, readComposerManifest, readComposerManifestFile, readNpmLock, readNpmLockFile, readNpmManifest, readNpmManifestFile } from './manifests.mts';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
 export const UNREACHABLE = 'http://127.0.0.1:9/';
@@ -62,14 +63,6 @@ export type { ReleaseConfig, WheelConsumer };
 export type ReleaseContext = Pick<Context, 'root' | 'config' | 'env'>;
 /** An installed package of a consumer project and the name of its archive. */
 type ArchivePackage = { name: string; file: string };
-/** An entry of composer.lock packages or of vendor/composer/installed.json. */
-type ComposerEntry = { name: string; version?: string; dist?: { url?: string; shasum?: string } };
-/** package-lock.json of an npm consumer project: packages maps paths to entries. */
-type NpmLock = { packages?: Record<string, { version?: string; resolved?: string; integrity?: string }> };
-/** composer.lock of a Composer consumer project: packages lists entries. */
-type ComposerLock = { packages?: ComposerEntry[]; 'packages-dev'?: ComposerEntry[] };
-/** The fields of the manifest of a consumer project that the release reads: package.json for npm, composer.json for Composer. */
-type ConsumerManifest = { dependencies?: Record<string, string>; require?: Record<string, string>; repositories?: { type?: string; url?: string }[] };
 
 /**
  * The smoke command of the package `name`, its program first; release-consumer-config.mts requires a non-empty command for
@@ -128,11 +121,18 @@ function outside(ctx: ReleaseContext) {
 function manifestFor(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer, packages: ArchivePackage[], version: string) {
   const file = path.join(ctx.root, consumer.directory, FILES[kind].manifest);
   if (!existsSync(file)) throw new Stop(`${consumer.directory}/${FILES[kind].manifest} is missing; commit the manifest of the ${kind} consumer project, with its name and ${kind === 'npm' ? '"private": true' : '"type": "project" and the artifact repository'}`);
-  const manifest = readJson(file) as ConsumerManifest;
-  const field = kind === 'npm' ? 'dependencies' : 'require';
-  const set: Record<string, string> = { ...manifest[field] };
-  for (const { name, file: archive } of packages) set[name] = kind === 'npm' ? `file:${archive}` : version;
-  return { ...manifest, [field]: set };
+  // The requirements of the manifest with each installed package set to its archive (npm) or to the version (Composer).
+  const installed = (declared: Record<string, string> | undefined) => {
+    const set: Record<string, string> = { ...declared };
+    for (const { name, file: archive } of packages) set[name] = kind === 'npm' ? `file:${archive}` : version;
+    return set;
+  };
+  if (kind === 'npm') {
+    const manifest = readNpmManifestFile(file);
+    return { ...manifest, dependencies: installed(manifest.dependencies) };
+  }
+  const manifest = readComposerManifestFile(file);
+  return { ...manifest, require: installed(manifest.require) };
 }
 
 /** The consumer manifest and lock must name the archives of the tag; each difference names the expected and the actual value. */
@@ -143,24 +143,26 @@ function staleProblems(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consum
   const lockFile = `${directory}/${FILES[kind].lock}`;
   for (const file of [manifestFile, lockFile]) if (!existsSync(path.join(ctx.root, file))) problems.push(`${file} is missing`);
   if (problems.length) return problems;
-  const manifest = readJson(path.join(ctx.root, manifestFile)) as ConsumerManifest;
-  // The lock is package-lock.json or composer.lock as `kind` says; each branch reads the shape of its kind.
-  const lock = readJson(path.join(ctx.root, lockFile));
-  for (const { name, file } of packages) {
-    if (kind === 'npm') {
+  if (kind === 'npm') {
+    const manifest = readNpmManifest(ctx.root, manifestFile);
+    const lock = readNpmLock(ctx.root, lockFile);
+    for (const { name, file } of packages) {
       const spec = manifest.dependencies?.[name];
       if (spec !== `file:${file}`) problems.push(`${manifestFile}: dependencies.${name} is ${JSON.stringify(spec ?? null)}, expected "file:${file}"`);
-      const entry = (lock as NpmLock).packages?.[`node_modules/${name}`];
+      const entry = lock.packages?.[`node_modules/${name}`];
       if (entry?.resolved !== `file:${file}` || entry?.version !== version) problems.push(`${lockFile}: node_modules/${name} is ${entry ? `${entry.version} resolved ${entry.resolved}` : 'missing'}, expected ${version} resolved file:${file}`);
-    } else {
-      const spec = manifest.require?.[name];
-      if (spec !== version) problems.push(`${manifestFile}: require.${name} is ${JSON.stringify(spec ?? null)}, expected "${version}"`);
-      const { packages: entries = [], 'packages-dev': devEntries = [] } = lock as ComposerLock;
-      const entry = [...entries, ...devEntries].find(item => item.name === name);
-      if (entry?.version !== version || entry?.dist?.url !== `${ARTIFACTS}/${file}`) problems.push(`${lockFile}: ${name} is ${entry ? `${entry.version} from ${entry.dist?.url}` : 'missing'}, expected ${version} from ${ARTIFACTS}/${file}`);
     }
+    return problems;
   }
-  if (kind === 'composer' && !(manifest.repositories ?? []).some(item => item.type === 'artifact' && item.url === ARTIFACTS)) problems.push(`${manifestFile}: repositories lacks { "type": "artifact", "url": "${ARTIFACTS}" }`);
+  const manifest = readComposerManifest(ctx.root, manifestFile);
+  const { packages: entries = [], 'packages-dev': devEntries = [] } = readComposerLock(ctx.root, lockFile);
+  for (const { name, file } of packages) {
+    const spec = manifest.require?.[name];
+    if (spec !== version) problems.push(`${manifestFile}: require.${name} is ${JSON.stringify(spec ?? null)}, expected "${version}"`);
+    const entry = [...entries, ...devEntries].find(item => item.name === name);
+    if (entry?.version !== version || entry?.dist?.url !== `${ARTIFACTS}/${file}`) problems.push(`${lockFile}: ${name} is ${entry ? `${entry.version} from ${entry.dist?.url}` : 'missing'}, expected ${version} from ${ARTIFACTS}/${file}`);
+  }
+  if (!(manifest.repositories ?? []).some(item => item.type === 'artifact' && item.url === ARTIFACTS)) problems.push(`${manifestFile}: repositories lacks { "type": "artifact", "url": "${ARTIFACTS}" }`);
   return problems;
 }
 
@@ -193,13 +195,12 @@ function stage(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer, fold
 function installedVersion(kind: ConsumerKind, project: string, name: string) {
   if (kind === 'npm') {
     const file = path.join(project, 'node_modules', name, 'package.json');
-    return existsSync(file) ? (readJson(file) as { version?: string }).version ?? null : null;
+    return existsSync(file) ? readNpmManifestFile(file).version ?? null : null;
   }
   // Composer 2 writes vendor/composer/installed.json as { packages: [...] } on every install.
   const file = path.join(project, 'vendor/composer/installed.json');
   if (!existsSync(file)) throw new Stop(`composer install wrote no vendor/composer/installed.json in ${project}`);
-  const installed = readJson(file) as { packages: ComposerEntry[] };
-  return installed.packages.find(item => item.name === name)?.version ?? null;
+  return (readComposerLockFile(file).packages ?? []).find(item => item.name === name)?.version ?? null;
 }
 
 /**
@@ -298,16 +299,16 @@ function installWheels(ctx: ReleaseContext, version: string, directory: string, 
   return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: wheel.smoke, requirements, step });
 }
 
-/** The lock without the hashes of the archives of this repository, which each run builds again. */
-// The lock is package-lock.json (NpmLock) or composer.lock (ComposerLock) as `kind` says; each branch reads the shape of its kind.
-function withoutArchiveHashes(kind: ConsumerKind, lock: unknown, packages: ArchivePackage[]) {
-  const files = new Set(packages.map(({ file }) => file));
+/** The lock `file` of `kind` without the hashes of the archives of this repository, which each run builds again. */
+function withoutArchiveHashes(kind: ConsumerKind, file: string, packages: ArchivePackage[]) {
+  const files = new Set(packages.map(({ file: archive }) => archive));
   if (kind === 'npm') {
-    for (const entry of Object.values((lock as NpmLock).packages ?? {})) if (files.has(String(entry.resolved).replace(/^file:/, ''))) delete entry.integrity;
-  } else {
-    const { packages: entries = [], 'packages-dev': devEntries = [] } = lock as ComposerLock;
-    for (const { dist } of [...entries, ...devEntries]) if (dist && files.has(String(dist.url).replace(`${ARTIFACTS}/`, ''))) dist.shasum = '';
+    const lock = readNpmLockFile(file);
+    for (const entry of Object.values(lock.packages ?? {})) if (files.has(String(entry.resolved).replace(/^file:/, ''))) delete entry.integrity;
+    return lock;
   }
+  const lock = readComposerLockFile(file);
+  for (const { dist } of [...lock.packages ?? [], ...lock['packages-dev'] ?? []]) if (dist && files.has(dist.url.replace(`${ARTIFACTS}/`, ''))) dist.shasum = '';
   return lock;
 }
 
@@ -329,7 +330,7 @@ export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: str
       const project = stage(ctx, kind, consumer, folder, assets, manifest, null);
       if (kind === 'npm') run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(ctx.config)], { cwd: project, env });
       else run('composer', ['update', '--no-install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
-      const lock = withoutArchiveHashes(kind, readJson(path.join(project, FILES[kind].lock)), packages);
+      const lock = withoutArchiveHashes(kind, path.join(project, FILES[kind].lock), packages);
       for (const [file, value] of [[FILES[kind].manifest, manifest], [FILES[kind].lock, lock]] as const) {
         writeAtomic(path.join(ctx.root, consumer.directory, file), json(value, FILES[kind].indent));
         written.push(`${consumer.directory}/${file}`);

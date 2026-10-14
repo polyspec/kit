@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { run, Stop } from './process.mts';
 import type { RunPlace } from './process.mts';
+import { parseJson } from './schema-validate.mts';
 
 /** An asset of a release as the --jq filter of releaseOf lists it; `digest` is null where GitHub has none. */
 export type ReleaseAsset = { id: number; name: string; url: string; digest: string | null };
@@ -29,7 +30,7 @@ const RELEASE_FIELDS = '{id, tag_name, draft, assets: [.assets[] | {id, name, ur
 /** The release `id` of the repository, a draft included, as releaseOf gives a release. */
 export function releaseById(options: RunPlace, url: string, id: number): GitHubRelease {
   const { hostname, repo } = repositoryParts(url);
-  return JSON.parse(run('gh', ['api', '--hostname', hostname, `repos/${repo}/releases/${id}`, '--jq', RELEASE_FIELDS], options));
+  return parseJson<GitHubRelease>(run('gh', ['api', '--hostname', hostname, `repos/${repo}/releases/${id}`, '--jq', RELEASE_FIELDS], options), 'github-release.schema.json', `gh api repos/${repo}/releases/${id}`);
 }
 
 /**
@@ -45,7 +46,7 @@ export function createDraft(options: RunPlace, url: string, tag: string, notesFi
     if (!(error instanceof Stop)) throw error;
     throw new Stop(`the tag ${tag} is not on ${url}; push it before the release is published: ${error.message}`);
   }
-  const created: { id: number; upload_url: string } = JSON.parse(run('gh', ['api', '--hostname', hostname, '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `name=${tag}`, '-F', `body=@${notesFile}`, '-F', 'draft=true', '--jq', '{id, upload_url}'], options));
+  const created = parseJson<{ id: number; upload_url: string }>(run('gh', ['api', '--hostname', hostname, '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `name=${tag}`, '-F', `body=@${notesFile}`, '-F', 'draft=true', '--jq', '{id, upload_url}'], options), 'github-release-created.schema.json', `gh api repos/${repo}/releases`);
   // The upload URL is an RFC 6570 URI pattern whose query names the asset: https://uploads.github.com/repos/O/R/releases/<id>/assets{?name,label}.
   const upload = created.upload_url.replace(/\{[^}]*\}$/, '');
   for (const file of files) {
@@ -71,7 +72,7 @@ export function releaseOf(options: RunPlace, url: string, tag: string): GitHubRe
   const { hostname, repo } = repositoryParts(url);
   const listed = run('gh', ['api', '--hostname', hostname, '--paginate', `repos/${repo}/releases`, '--jq', `.[] | ${RELEASE_FIELDS} | @json`], options);
   // Each line is an object that the --jq filter above builds with these keys.
-  const releases: GitHubRelease[] = listed.split('\n').filter(line => line.trim() !== '').map(line => JSON.parse(line));
+  const releases = listed.split('\n').filter(line => line.trim() !== '').map(line => parseJson<GitHubRelease>(line, 'github-release.schema.json', `gh api repos/${repo}/releases`));
   return releases.find(release => release.tag_name === tag) ?? null;
 }
 

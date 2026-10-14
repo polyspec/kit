@@ -11,6 +11,7 @@ import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isTable, readToml } from './toml.mts';
+import { parseJson } from './schema-validate.mts';
 
 /** buildBackend of config/release.json: the pinned requirement of the build backend and the sha256 of its wheel. */
 export interface BuildBackend {
@@ -102,8 +103,8 @@ export function buildWheel({ root, env, commit, directory, output, buildBackend 
 export function wheelMetadata(root: string, file: string, env: NodeJS.ProcessEnv): WheelMetadata {
   const python = toolCommand(root, 'python3');
   if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; pip reads the metadata of a wheel with the Python of mise.toml, declare python there and run make install-tools`);
-  const report = JSON.parse(run(python, ['-m', 'pip', 'install', '--dry-run', '--no-deps', '--no-index', '--ignore-installed', '--quiet', '--no-input', '--disable-pip-version-check', '--report', '-', file], { cwd: root, env }));
-  const installs: { metadata: { name: string; version: string; requires_dist?: string[] } }[] = report.install ?? [];
+  const report = parseJson<{ install?: { metadata: { name: string; version: string; requires_dist?: string[] } }[] }>(run(python, ['-m', 'pip', 'install', '--dry-run', '--no-deps', '--no-index', '--ignore-installed', '--quiet', '--no-input', '--disable-pip-version-check', '--report', '-', file], { cwd: root, env }), 'pip-report.schema.json', `pip install --report of ${file}`);
+  const installs = report.install ?? [];
   const [install] = installs;
   if (installs.length !== 1 || !install) throw new Stop(`pip reports ${installs.length} distributions for the wheel ${file}; expected the wheel alone`);
   return { name: install.metadata.name, version: install.metadata.version, requiresDist: install.metadata.requires_dist ?? [] };

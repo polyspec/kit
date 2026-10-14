@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
-import { readJson, writeJson } from './bootstrap/files.mts';
+import { writeJson } from './bootstrap/files.mts';
+import { readConfig } from './schema-validate.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { readGoWork } from './toolchain-files.mts';
@@ -72,13 +73,15 @@ function copy(directory: string) {
   spawnSync('git', ['init', '--quiet'], { cwd: directory });
 }
 
-const editJson = <T,>(root: string, file: string, edit: (data: T) => void) => {
-  const data = readJson(root, file) as T;
+// The policy and the review record, validated against their schemas, as far as the mutations read and change them.
+const SCHEMA_OF = { [POLICY]: 'dependency-policy.schema.json', [RECORD]: 'dependency-review.schema.json' };
+const editJson = <T,>(root: string, file: typeof POLICY | typeof RECORD, edit: (data: T) => void) => {
+  const data = readConfig<T>(root, file, SCHEMA_OF[file]);
   edit(data);
   writeJson(join(root, file), data);
 };
 
-const reviewRecord = (root: string) => readJson(root, RECORD) as ReviewRecordJson;
+const reviewRecord = (root: string) => readConfig<ReviewRecordJson>(root, RECORD, SCHEMA_OF[RECORD]);
 // The first registry dependency of the review record, whatever its ecosystem: the one that the outdated mutation changes.
 const firstDependency = (root: string) => {
   const [first] = reviewRecord(root).dependencies;

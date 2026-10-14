@@ -1,13 +1,13 @@
 // Tests of the schema validator and of the configuration check of kit-check: the schemas accept the fixture's
 // configuration and name each error of a configuration that breaks them.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
-import { validate } from '../../scripts/kit/schema-validate.mts';
+import { ConfigError, parseJson, readConfig, readConfigFindings, SCHEMAS, SchemaError, validate } from '../../scripts/kit/schema-validate.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -73,4 +73,33 @@ test('a key named like a member of Object.prototype is no declared property and 
     assert.notDeepEqual(validate(value, schema), [], `the extra key ${key} is refused`);
   }
   assert.notDeepEqual(validate({}, { type: 'object', required: ['toString'], properties: { toString: { type: 'integer' } } }), [], 'a required key is an own key');
+});
+
+// The JSON boundary of kit (K158): a file or the output of a command is T only once its schema accepts it; otherwise the
+// error names the file or the command and the JSON Pointer of each error of ajv.
+test('readConfig gives the JSON of a file as the type of its schema, and invalid data fails with the file and the ajv path (K158)', (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-json-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(path.join(root, 'record.json'), JSON.stringify({ id: 7 }));
+  const record = readConfig<{ id: number }>(root, 'record.json', 'release-record.schema.json');
+  assert.equal(record.id, 7);
+  writeFileSync(path.join(root, 'record.json'), JSON.stringify({ id: 'seven' }));
+  assert.throws(() => readConfig<{ id: number }>(root, 'record.json', 'release-record.schema.json'), (error: unknown) => {
+    assert.ok(error instanceof SchemaError);
+    assert.deepEqual(error.lines, ['record.json: /id must be integer {"type":"integer"}, value "seven"']);
+    return true;
+  });
+  assert.deepEqual(readConfigFindings<{ id: number }>(root, 'record.json', 'release-record.schema.json'), { errors: ['record.json: /id must be integer {"type":"integer"}, value "seven"'] });
+  writeFileSync(path.join(root, 'record.json'), '{');
+  assert.throws(() => readConfigFindings<{ id: number }>(root, 'record.json', 'release-record.schema.json'), (error: unknown) => error instanceof ConfigError && !(error instanceof SchemaError) && error.message.startsWith('record.json is no JSON: '));
+  assert.throws(() => readConfig<{ id: number }>(root, 'missing.json', 'release-record.schema.json'), /missing\.json is missing; the repository declares it \(schema release-record\.schema\.json of kit\)/);
+  assert.throws(() => parseJson<[number, string, string, string | null]>('[1, "ci", "completed"]', 'github-check-run.schema.json', 'gh api'), /gh api: \/ must NOT have fewer than 4 items/);
+});
+
+test('every schema of kit compiles in the strict mode of ajv (K158)', () => {
+  for (const file of readdirSync(SCHEMAS).filter(name => name.endsWith('.schema.json'))) {
+    const schema: unknown = JSON.parse(readFileSync(path.join(SCHEMAS, file), 'utf8'));
+    assert.ok(typeof schema === 'object' && schema !== null && !Array.isArray(schema), file);
+    assert.doesNotThrow(() => validate(null, Object.fromEntries(Object.entries(schema))), file);
+  }
 });

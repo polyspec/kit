@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CI_STEPS",
+  "description": "The JSON of `toJSON(steps)` of GitHub Actions that make ci-targets --summary reads (scripts/kit/ci-targets.mts, K158): each setup step by its id with its outcome.",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "properties": {
+      "outcome": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -21,7 +21,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
-import { readJson, writeJson } from './bootstrap/files.mts';
+import { writeJson } from './bootstrap/files.mts';
 import { installedKit, isSource } from './kit-check.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
 
@@ -58,9 +58,8 @@ export const MERGED_KNIP = 'var/lint-ts/knip.json';
  */
 export function knipArguments(root: string): string[] {
   if (!existsSync(path.join(root, KNIP_ENTRIES))) return ['--no-progress'];
-  const { value, errors } = readConfig<KnipEntries>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
-  if (errors.length) throw new ConfigError(errors.join('\n'));
-  const base = readJson(root, 'knip.json') as KnipJson;
+  const value = readConfig<KnipEntries>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
+  const base = readConfig<KnipJson>(root, 'knip.json', 'knip.schema.json');
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
   if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];

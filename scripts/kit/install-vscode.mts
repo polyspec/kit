@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import util from '@vscode/test-electron/out/util.js';
-import { readJson } from './bootstrap/files.mts';
+import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
 
 // The file that @vscode/test-electron writes into a copy after its last file.
@@ -24,7 +24,7 @@ export type Download = (options: { version: string; platform: string; cachePath:
 /** The version, the platform and the directory of the VS Code copy of the extension `extension` in the tools directory `base`. */
 export function vscodeCopy(extension: string, base: string, platform: string = util.systemDefaultPlatform): { version: string; platform: string; directory: string } {
   const manifest = path.join(extension, 'package.json');
-  const range = (readJson(manifest) as { engines?: { vscode?: unknown } }).engines?.vscode;
+  const range = readNpmManifestFile(manifest).engines?.vscode;
   const match = typeof range === 'string' ? RANGE.exec(range) : null;
   if (!match) throw new Error(`${manifest}: engines.vscode is ${JSON.stringify(range)}; the install reads the minimum of a range ^X.Y.Z`);
   // RANGE has one group, which matched.

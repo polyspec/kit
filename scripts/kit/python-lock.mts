@@ -28,6 +28,7 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { readConfig } from './schema-validate.mts';
 
 const RELEASE = /^\d+(?:\.\d+)*$/;
 const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
@@ -298,7 +299,7 @@ export function checkPythonLock({ root, entry }: { root: string; entry: LockEntr
 export function pythonLockEntries(root: string): LockEntry[] {
   const file = path.join(root, POLICY);
   if (!existsSync(file)) throw new Error(`${POLICY} is missing; declare pythonLocks in it, each lock with its source`);
-  const entries = JSON.parse(readFileSync(file, 'utf8')).pythonLocks ?? [];
+  const entries = readConfig<{ pythonLocks?: LockEntry[] }>(root, POLICY, 'dependency-policy.schema.json').pythonLocks ?? [];
   if (entries.length === 0) throw new Error(`${POLICY} declares no pythonLocks, so no lock is written or checked; declare each lock with its requirements and constraints`);
   return entries;
 }

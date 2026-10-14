@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A case of the parity node reporter",
+  "description": "One line of scripts/kit/parity-node-reporter.mts, which scripts/kit/parity-runners.mts reads (K158): the name of a test and its outcome.",
+  "type": "object",
+  "required": [
+    "name",
+    "outcome"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "pass",
+        "fail",
+        "skip"
+      ]
+    }
+  }
+}

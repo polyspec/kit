@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "npm view --json",
+  "description": "The output of `npm view <name> dist-tags versions --json`, one package or a list of them, in the fields that the review reads (scripts/kit/dependency-review.mts, K158).",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/view"
+    },
+    {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/view"
+      }
+    }
+  ],
+  "$defs": {
+    "view": {
+      "type": "object",
+      "properties": {
+        "dist-tags": {
+          "type": "object",
+          "properties": {
+            "latest": {
+              "type": "string"
+            }
+          }
+        },
+        "versions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

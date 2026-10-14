@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "An event of go test -json",
+  "description": "An event of test2json, the writer of go test -json, in the fields that scripts/kit/test-output.mts reads (K158); a line that is no such event is output of its own.",
+  "type": "object",
+  "properties": {
+    "Action": {
+      "type": "string"
+    },
+    "Package": {
+      "type": "string"
+    },
+    "Test": {
+      "type": "string"
+    },
+    "Output": {
+      "type": "string"
+    },
+    "Elapsed": {
+      "type": "number"
+    },
+    "ImportPath": {
+      "type": "string"
+    }
+  }
+}

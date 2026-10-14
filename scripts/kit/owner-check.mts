@@ -17,13 +17,15 @@
 //     --dry-run   print the selection without running it
 //     --validate  check the declaration only
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { git } from './git.mts';
+import { readConfig } from './schema-validate.mts';
+import { readNpmManifest } from './manifests.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -258,15 +260,14 @@ export function select(declaration: OwnerDeclaration, changed: string[], order: 
 export function npmProject(root: string, tracked: string[]): NpmProject {
   const manifestFile = path.join(root, 'package.json');
   if (!existsSync(manifestFile)) return { scripts: {}, workspaces: [], prefixes: [] };
-  const manifest: { workspaces?: unknown; scripts?: Record<string, string> } = JSON.parse(readFileSync(manifestFile, 'utf8'));
-  // npm reads workspaces as a list of paths and globs (package.json of npm 7 and later); a package without it has none.
-  const declared = manifest.workspaces ?? [];
-  if (!Array.isArray(declared) || !declared.every(item => typeof item === 'string')) throw new Error(`package.json: workspaces is ${JSON.stringify(declared)}; npm reads a list of paths and globs`);
-  const globs = declared.map(globExpression);
+  // npm reads workspaces as a list of paths and globs (package.json of npm 7 and later), as npm-manifest.schema.json
+  // requires; a package without it has none.
+  const manifest = readNpmManifest(root, 'package.json');
+  const globs = (manifest.workspaces ?? []).map(globExpression);
   const workspaces: string[] = [];
   const prefixes: string[] = [];
   for (const file of tracked.filter(name => name.endsWith('/package.json'))) {
-    const packageManifest: { name?: string; scripts?: Record<string, string> } = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+    const packageManifest = readNpmManifest(root, file);
     if (!packageManifest.scripts?.test) continue;
     const directory = path.dirname(file);
     if (globs.some(glob => glob.test(directory)) && packageManifest.name) workspaces.push(packageManifest.name);
@@ -313,7 +314,7 @@ if (isMain(import.meta.url)) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);
     process.exit(1);
   }
-  const declaration: OwnerDeclaration = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
+  const declaration = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
   const tracked = trackedFiles(root);
   const project = { make: makeDatabase(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);

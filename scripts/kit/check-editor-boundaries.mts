@@ -13,17 +13,17 @@ import { parse, type Node } from 'acorn';
 import { simple } from 'acorn-walk';
 import { transformSync } from 'amaro';
 import { analyze } from 'eslint-scope';
-import { readJson } from './bootstrap/files.mts';
+import { readNpmManifest } from './manifests.mts';
 import { matchesAny } from './glob.mts';
 import { repositoryRoot, isMain } from './paths.mts';
-import { readConfig } from './schema-validate.mts';
+import { readConfigFindings } from './schema-validate.mts';
 
 export const CONFIG = 'config/editor-boundaries.json';
 
 type Boundary = { packages: string[]; sources: string; forbiddenModules: string[]; forbiddenGlobals?: string[]; exempt?: string[] };
 type Config = { schema: 1; boundaries: Boundary[] };
 
-const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 // The files the check reads: JavaScript and TypeScript; .jsx and .tsx are sources it refuses.
 const SOURCE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const DECLARATION = /\.d\.[cm]?ts$/;
@@ -100,7 +100,7 @@ function packageFindings(root: string, directory: string, boundary: Boundary): {
   const findings: string[] = [];
   const sources = path.join(root, directory, boundary.sources);
   if (!existsSync(sources)) return { findings: [`${directory}/${boundary.sources}: the sources of the package do not exist`], files: 0 };
-  const manifest = readJson(root, directory, 'package.json') as Partial<Record<string, Record<string, string>>>;
+  const manifest = readNpmManifest(root, `${directory}/package.json`);
   for (const field of DEPENDENCY_FIELDS) {
     for (const name of Object.keys(manifest[field] ?? {})) {
       if (matchesAny(boundary.forbiddenModules, name)) findings.push(`${directory}/package.json: declares ${name} in ${field}`);
@@ -145,8 +145,8 @@ function packageFindings(root: string, directory: string, boundary: Boundary): {
 
 /** The findings of the boundaries of `root`, the number of packages and boundaries, and the number of files read. */
 export function checkBoundaries(root: string): { findings: string[]; packages: number; boundaries: number; files: number } {
-  const { value: config, errors } = readConfig<Config>(root, CONFIG, 'editor-boundaries.schema.json');
-  if (errors.length > 0) return { findings: errors, packages: 0, boundaries: 0, files: 0 };
+  const { value: config, errors } = readConfigFindings<Config>(root, CONFIG, 'editor-boundaries.schema.json');
+  if (errors) return { findings: errors, packages: 0, boundaries: 0, files: 0 };
   const findings: string[] = [];
   let packages = 0;
   let files = 0;

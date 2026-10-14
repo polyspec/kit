@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "record.json of make ci-targets",
+  "description": "The record of a run of make ci-targets, which scripts/kit/target-report.mts writes and the summary reads back (K158): its title, tree, environment, result, times and the record of each target.",
+  "type": "object",
+  "required": [
+    "title",
+    "tree",
+    "result",
+    "started",
+    "ended",
+    "targets"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "tree": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "result": {
+      "enum": [
+        "incomplete",
+        "passed",
+        "failed"
+      ]
+    },
+    "started": {
+      "type": "string"
+    },
+    "ended": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "log"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "passed",
+              "failed"
+            ]
+          },
+          "log": {
+            "type": "string"
+          },
+          "started": {
+            "type": "string"
+          },
+          "ended": {
+            "type": "string"
+          },
+          "elapsedMs": {
+            "type": "number"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "reportErrors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

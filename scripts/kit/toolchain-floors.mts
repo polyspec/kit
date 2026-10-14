@@ -15,7 +15,7 @@
 // an .npmrc may not keep npm from linking (S1: our rules never block the links of npm): install-links=true and
 // bin-links=false fail, read by npm in the directory of the file.
 import path from 'node:path';
-import { readJson } from './bootstrap/files.mts';
+import { readComposerManifest, readNpmLock, readNpmManifest, type NpmLockEntry } from './manifests.mts';
 import { readCargoPackages, readGoMod, readNpmConfig, readTomlFile } from './toolchain-files.mts';
 import type { Pinning } from './toolchain-exceptions.mts';
 import type { Tool } from './toolchain-pins.mts';
@@ -53,7 +53,7 @@ const named = (root: string, name: string): string[] => checkedFiles(root).filte
 
 /** One line for each package.json whose engines.node is not `>=` the Node.js pin. */
 export const enginesFindings = (root: string, pinning: Pinning): string[] => named(root, 'package.json')
-  .flatMap(file => pinning.check(file, 'engines.node', (readJson(root, file) as { engines?: { node?: unknown } }).engines?.node, 'node', release => `>=${release}`));
+  .flatMap(file => pinning.check(file, 'engines.node', readNpmManifest(root, file).engines?.node, 'node', release => `>=${release}`));
 
 /**
  * One line for each composer.json whose require.php is not `>=` the PHP pin, and for each one beside a composer.lock
@@ -63,7 +63,7 @@ export const enginesFindings = (root: string, pinning: Pinning): string[] => nam
 export function composerFindings(root: string, pinning: Pinning): string[] {
   const locks = new Set(named(root, 'composer.lock'));
   return named(root, 'composer.json').flatMap((file) => {
-    const manifest = readJson(root, file) as { require?: { php?: unknown }; config?: { platform?: { php?: unknown } } };
+    const manifest = readComposerManifest(root, file);
     const locked = locks.has(path.posix.join(path.posix.dirname(file), 'composer.lock'));
     return [
       ...pinning.check(file, 'require.php', manifest.require?.php, 'php', release => `>=${release}`),
@@ -106,19 +106,19 @@ export function cargoFindings(root: string, pinning: Pinning, env: NodeJS.Proces
   return manifests.filter(file => versions.has(file)).flatMap(file => pinning.check(file, 'package.rust-version', versions.get(file) ?? undefined, 'rust'));
 }
 
-const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 
 // Whether the package-lock.json entry `key` is the typescript that a package of the repository declares: the
 // node_modules/typescript of the lock's root or of a workspace (<workspace>/node_modules/typescript), when the lock's entry
 // of that package ('' or <workspace>) names typescript in a dependency field. A typescript that npm hoists for another
 // package, such as the TypeScript 5.9.3 of API Extractor, and a copy nested under another package are that tool's own, and
 // our pin is never forced onto them (S1).
-function declaredTypescript(key: string, packages: Record<string, Record<string, unknown>>): boolean {
+function declaredTypescript(key: string, packages: Record<string, NpmLockEntry>): boolean {
   if (!key.endsWith('node_modules/typescript')) return false;
   const owner = key.slice(0, -'node_modules/typescript'.length);
   if (owner !== '' && (!owner.endsWith('/') || owner.split('/').includes('node_modules'))) return false;
   const declared = packages[owner.replace(/\/$/, '')] ?? {};
-  return DEPENDENCY_FIELDS.some(field => (declared[field] as Record<string, unknown> | undefined)?.typescript !== undefined);
+  return DEPENDENCY_FIELDS.some(field => declared[field]?.typescript !== undefined);
 }
 
 /** One line for each package.json that names typescript other than the TypeScript pin, and each locked typescript of another release. */
@@ -127,14 +127,14 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
   return files.flatMap((file) => {
     const name = path.posix.basename(file);
     if (name === 'package.json') {
-      const manifest = readJson(root, file) as Partial<Record<string, Record<string, unknown>>>;
+      const manifest = readNpmManifest(root, file);
       return DEPENDENCY_FIELDS.flatMap((field) => {
         const typescript = manifest[field]?.typescript;
         return typescript === undefined ? [] : pinning.check(file, `${field}.typescript`, typescript, 'typescript');
       });
     }
     if (name === 'package-lock.json') {
-      const packages = (readJson(root, file) as { packages?: Record<string, Record<string, unknown>> }).packages ?? {};
+      const packages = readNpmLock(root, file).packages ?? {};
       // An entry belongs to the folder of its workspace (packages/w/node_modules/typescript to packages/w), and an exception
       // scoped to that workspace covers it; a top-level entry belongs to the folder of the lock.
       return Object.entries(packages).filter(([key]) => declaredTypescript(key, packages))

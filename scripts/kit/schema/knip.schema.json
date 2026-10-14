@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "knip.json",
+  "description": "The fields of knip.json that make lint-ts extends with config/knip-entries.json (scripts/kit/lint-ts.mts, K158); knip itself checks the rest.",
+  "type": "object",
+  "properties": {
+    "node": { "type": "object", "properties": { "entry": { "type": "array", "items": { "type": "string" } } } },
+    "ignoreBinaries": { "type": "array", "items": { "type": "string" } },
+    "workspaces": { "type": "object" }
+  }
+}

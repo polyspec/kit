@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The JSON report of vitest",
+  "description": "The report of `vitest run --reporter=json` in the fields that scripts/kit/parity-runners.mts reads (K158): the assertion results of each test file with their ancestors, title and status.",
+  "type": "object",
+  "required": [
+    "testResults"
+  ],
+  "properties": {
+    "testResults": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "assertionResults"
+        ],
+        "properties": {
+          "assertionResults": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ancestorTitles",
+                "title",
+                "status"
+              ],
+              "properties": {
+                "ancestorTitles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "skipped",
+                    "pending",
+                    "todo"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
