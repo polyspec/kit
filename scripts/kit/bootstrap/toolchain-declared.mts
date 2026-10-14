@@ -89,10 +89,13 @@ function platformRelease(key: string, value: unknown): PlatformRelease {
   return { version, sha256, source: file };
 }
 
+/** The composer.json of the Composer project of config/phpunit, from which install-tools installs the declared PHPUnit. */
+export const PHPUNIT_MANIFEST = 'config/phpunit/composer.json';
+
 // The PHPUnit release of the PHP tests of kit: its exact version; the Composer project that installs it is config/phpunit.
 function phpunit(value: unknown): Declared & { manifest: string } {
   const file = 'config/toolchain.json phpunit';
-  return { version: exact(file, 'the PHPUnit release', field(value, 'version')), manifest: 'config/phpunit/composer.json', source: file };
+  return { version: exact(file, 'the PHPUnit release', field(value, 'version')), manifest: PHPUNIT_MANIFEST, source: file };
 }
 
 // The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.

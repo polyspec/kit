@@ -428,6 +428,19 @@ test('coverage names each package file that no list classifies, each stale entry
   assert.ok(later.includes('package.json is in both manifests and notReleased of config/release.json; list it once'), later.join('\n'));
 });
 
+// K167: kit writes files of every repository: the copies of kit.copies of the package that runs (make kit-sync), the Composer
+// project of PHPUnit that install-tools installs and the lock tree of mise under .mise/locks (make toolchain-lock). Coverage
+// takes them as not released, so no repository lists them by hand; a package file of the repository is still reported.
+test('coverage takes the files that kit writes as not released, and still names a package file of the repository (K167)', (t) => {
+  const box = releaseSandbox(t);
+  const written = ['.mise/locks/pypi-vulture/2.16/pyproject.toml', 'config/php-lint/composer.json', 'config/phpunit/composer.json'];
+  for (const file of [...written, 'tools/composer.json']) {
+    mkdirSync(path.dirname(path.join(box.root, file)), { recursive: true });
+    writeFileSync(path.join(box.root, file), '{}\n');
+  }
+  assert.deepEqual(release.coverage(context(box)), ['tools/composer.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
+});
+
 test('coverage allows a file: dependency on an archive only in the npm consumer project, and elsewhere only on a folder of the repository (K129)', (t) => {
   const box = releaseSandbox(t);
   const consumer = { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } };

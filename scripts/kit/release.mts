@@ -50,6 +50,7 @@ import { backendFinding, buildBackend, buildWheel, metadataProblems, sourceProbl
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 
@@ -636,7 +637,8 @@ export function undraft(ctx: Context, tag: string): boolean {
 /**
  * The problems of the classification of the package files of the checkout: every tracked or new file named package.json,
  * composer.json, Cargo.toml, pyproject.toml, go.mod or VERSION is a key of `manifests` or `notReleased`, or the go.mod of a
- * Go module; a listed file exists; no file is in two lists.
+ * Go module, or a file that kit writes (writtenByKit of kit-check.mts), which is not released; a listed file exists; no file
+ * is in two lists.
  */
 export function coverage(ctx: Context): string[] {
   const { root, config } = ctx;
@@ -652,8 +654,9 @@ export function coverage(ctx: Context): string[] {
       if (!files.includes(key)) problems.push(`${key} is listed in ${list} of ${CONFIG} but is not a package file of the checkout; remove it from the list`);
     }
   }
+  const kitFile = writtenByKit(copiesOf(runningKit()));
   for (const file of files) {
-    if (!where.has(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
+    if (!where.has(file) && !kitFile(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
   }
   problems.push(...fileDependencyProblems(root, config, files.filter(file => path.posix.basename(file) === 'package.json')));
   return problems;

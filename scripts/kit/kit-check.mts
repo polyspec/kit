@@ -12,10 +12,13 @@
 // is missing or differs, and the fix.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
 import { backendFinding, type WheelUsers } from './release-wheel.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmLock, readNpmManifest } from './manifests.mts';
+import { PHPUNIT_MANIFEST } from './bootstrap/toolchain-declared.mts';
+import { MISE_LOCKS } from './toolchain-lock.mts';
 
 export const PACKAGE = '@polyspec/kit';
 export const INSTALLED = `node_modules/${PACKAGE}`;
@@ -34,6 +37,25 @@ export function copiesOf(manifest: Pick<KitPackage, 'kit'>): { file: string; fro
     }
     return { file, from };
   });
+}
+
+/**
+ * The package.json of the @polyspec/kit that runs this module, found by Node's self-reference of the package by its name:
+ * kit's own in its checkout, and the installed package's in a repository, which runs it from node_modules/@polyspec/kit/dist.
+ */
+export function runningKit(): KitPackage {
+  const manifest = fileURLToPath(import.meta.resolve(`${PACKAGE}/package.json`));
+  return readNpmManifest(path.dirname(manifest), 'package.json');
+}
+
+/**
+ * Whether kit writes the file `file` (relative to the repository root) of every repository: a copy of kit.copies of the
+ * running package (make kit-sync), the Composer project of PHPUnit that install-tools installs, or a file of the lock tree that
+ * mise writes under .mise/locks (make toolchain-lock). Such a file belongs to kit, not to a package of the repository (K167).
+ */
+export function writtenByKit(copies: readonly { file: string }[]): (file: string) => boolean {
+  const files = new Set([...copies.map(({ file }) => file), PHPUNIT_MANIFEST]);
+  return file => files.has(file) || file.startsWith(MISE_LOCKS);
 }
 
 /** The version of @polyspec/kit that package-lock.json of `root` resolves, or undefined when the lock resolves none. */

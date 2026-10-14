@@ -605,7 +605,10 @@ Dropped behaviors:
   from the configuration, not from a list file (orm wrote `assets.txt`).
 - `coverage`: every tracked or new package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION file is in
   `manifests`, `notReleased` or `goModules` (template test, orm `unlistedManifests`); a listed file that does not exist and a file
-  in two lists are findings (orm, wider). A `file:` dependency of a package.json names a folder of the repository, except in the
+  in two lists are findings (orm, wider). A file that kit writes is not released and needs no entry (K167): a copy of
+  `kit.copies` of the package that runs, found by Node's self-reference of `@polyspec/kit/package.json` (make kit-sync), the
+  Composer project of PHPUnit, `config/phpunit/composer.json` (make install-tools), and the lock tree of mise under
+  `.mise/locks/` (make toolchain-lock). A `file:` dependency of a package.json names a folder of the repository, except in the
   npm consumer project that `consumers.npm.directory` declares, whose `file:` dependencies are the archives of the packages of
   its `smoke`, `file:<name>-npm-<version>.tgz` (K129). The rule reads `config/release.json`, so it lives here and not in alint,
   which reads no declaration.
@@ -864,8 +867,8 @@ does not declare is neither installed nor checked.
   `@internal`) choose what the trimmed `.d.ts` rollups keep, and polyspec writes no rollup and tags no export, so the
   message failed every export of every package (187 in crudui) for a tag that changes nothing.
 - **Root files.** The layout allows `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
-  `knip.json`, `.editorconfig`, the Rust workspace (`Cargo.toml`, `Cargo.lock`) and the Go workspace (`go.work`,
-  `go.work.sum`) at the root.
+  `knip.json`, `.editorconfig`, the Rust workspace (`Cargo.toml`, `Cargo.lock`), the Go workspace (`go.work`,
+  `go.work.sum`) and the development project of a Composer monorepo (`composer.json`, `composer.lock`; K167) at the root.
 
 ### Limitations
 

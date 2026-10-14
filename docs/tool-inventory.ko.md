@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1eeb17e9ad3a0173881768c58027736d29ff753e255dd6a32746c2c4920610a0 -->
+<!-- source-sha256: 58a634f39234446f75ee57f52dff13d0bd51c4ccd3f9bbd1f911dc065cd35e13 -->
 
 # 도구 목록
 
@@ -557,6 +557,9 @@ go.mod의 module path에 연결합니다.
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
 - `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
   `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
+  kit이 쓰는 file은 릴리스되지 않으며 항목이 필요 없습니다(K167): Node의 `@polyspec/kit/package.json` self-reference로 찾은 실행 중인
+  package의 `kit.copies` 사본(make kit-sync), PHPUnit의 Composer project `config/phpunit/composer.json`(make install-tools),
+  `.mise/locks/` 아래 mise의 lock tree(make toolchain-lock)입니다.
   package.json의 `file:` dependency는 레포의 folder를 가리킵니다. 단 `consumers.npm.directory`가 선언한 npm consumer project의 `file:`
   dependency는 그 `smoke` package의 archive, `file:<name>-npm-<version>.tgz`입니다(K129). 이 규칙은 `config/release.json`을 읽으므로
   선언을 읽지 않는 alint가 아니라 여기에 있습니다.
@@ -792,7 +795,8 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   polyspec은 rollup을 쓰지 않고 export에 tag를 달지 않으므로, 이 message는 아무것도 바꾸지 않는 tag 때문에 모든 package의
   모든 export를 실패시켰습니다(crudui에서 187개).
 - **Root 파일.** layout은 root에 `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
-  `knip.json`, `.editorconfig`, Rust workspace(`Cargo.toml`, `Cargo.lock`), Go workspace(`go.work`, `go.work.sum`)를 허용합니다.
+  `knip.json`, `.editorconfig`, Rust workspace(`Cargo.toml`, `Cargo.lock`), Go workspace(`go.work`, `go.work.sum`), Composer
+  monorepo의 development project(`composer.json`, `composer.lock`; K167)를 허용합니다.
 
 ### 한계
 

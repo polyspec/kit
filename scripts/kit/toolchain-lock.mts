@@ -16,6 +16,9 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
 import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS } from './toolchain-mise.mts';
 
+/** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
+export const MISE_LOCKS = '.mise/locks/';
+
 /** Writes mise.lock of `root` with the mise of var/tools/bin; throws with the findings of a lock that misses a digest. */
 export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const mise = toolsPath(root, 'bin', 'mise');

@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 5857fc3763b19e3e5ffbba55f7279fae59cbba8f4fc09577d667f46cde63dea2 -->
+<!-- source-sha256: ef86943cd6567af245446085c2f566f4a823a3148b68bbbcb77e13848a38de10 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -225,3 +225,4 @@
 | K164 | `.golangci.yml`이 staticcheck `ST1005`를 끄고 그 이유를 주석과 CHANGELOG에 적는다: polyspec의 error string은 레포 spec의 cross-port message이고 모든 port가 byte 단위로 같게 돌려주므로 spec의 대소문자를 유지한다. `issues.max-same-issues`와 `issues.max-issues-per-linter`는 0이다: 기본 상한이 한 consumer에서 finding 121개 중 118개를 숨겼다 | `.golangci.yml`, 문서 | `tests/source/lint-go-real.test.mts` | [ ] |
 | K165 | run-tests는 `--php-extension`을 여러 번 받아 각 extension을 PHP 자체의 방식인 자기 `-d extension=<path>`로, 주어진 순서대로 load하고, 각각이 build되었는지 tool이 시작하기 전에 확인한다: 한 consumer는 하나가 다른 하나에 의존하는 extension 둘을 한 PHPUnit run에서 load한다 | `run-tests.mts`, 문서 | `tests/kit/run-tests.test.mts` | [ ] |
 | K166 | Python wheel의 build backend는 tool pin인 `config/toolchain.json`의 `pythonBackend` 하나로만 선언한다: release-backend, release-assets, release-wheel은 그것을 거기서 읽고, `buildBackend`는 `config/release.json`의 schema에서 빠진다. `wheel` package나 consumer가 있고 `pythonBackend`가 없는 `config/release.json`은 kit-check에서 고치는 방법과 함께 실패한다. hyper는 `buildBackend`만 선언했으므로 install-tools가 backend를 설치하지 않았고 release가 release-assets에서 실패했다 | `release-wheel.mts`, `release-backend.mts`, `release.mts`, `kit-check.mts`, `bootstrap/toolchain-declared.mts`, `schema/release.schema.json`, 문서 | `tests/kit/release-wheel.test.mts`, `tests/kit/kit-sync.test.mts` | [ ] |
+| K167 | (a) release-coverage는 kit이 쓰는 file을 kit 자신의 기록에서 도출하여 릴리스되지 않는 것으로 본다: 실행 중인 package의 `kit.copies` 사본(Node의 `@polyspec/kit/package.json` self-reference), PHPUnit의 Composer project(`config/phpunit/composer.json`), `.mise/locks/` 아래 mise의 lock tree이며, 어떤 레포도 그것을 손으로 나열하지 않는다. (b) layout은 `package.json`과 `package-lock.json`처럼 Composer monorepo의 root `composer.json`과 `composer.lock`을 허용한다 | `release.mts`, `kit-check.mts`, `toolchain-lock.mts`, `bootstrap/toolchain-declared.mts`, `config/layout.kit.yml`, `config/release.json`, 문서 | `tests/kit/release.test.mts`, `tests/source/layout-real.test.mts` | [ ] |
