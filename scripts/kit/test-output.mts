@@ -131,14 +131,15 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }:
 
 /**
  * Read serial libtest output into the sink. A test prints `test <name> ... ` when it starts and its result (`ok`,
- * `FAILED` or `ignored`) when it ends; a should_panic test prints `test <name> - should panic ... `. cargo names each test
- * binary on standard error before running it.
+ * `FAILED` or `ignored`) when it ends; a should_panic test prints `test <name> - should panic ... `. The text format puts any
+ * run of whitespace before `...`: libtest-mimic, the harness of data-driven tests (harness = false), pads each name to the
+ * longest one. cargo names each test binary on standard error before running it.
  */
 export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stderr(text: string): void } {
   let binary = 'cargo';
   const stdout = startResultLines(sink, {
-    result: /^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored)\b/,
-    pending: /^test (\S+)(?: - should panic)? \.\.\. $/,
+    result: /^test (\S+)(?: - should panic)?\s+\.\.\. (ok|FAILED|ignored)\b/,
+    pending: /^test (\S+)(?: - should panic)?\s+\.\.\. $/,
     // `result` matches only these three words.
     outcome: word => ({ ok: 'pass', FAILED: 'fail', ignored: 'skip' } as Record<string, Outcome>)[word]!,
     idOf: name => ({ id: `${binary} › ${name}`, name }),
