@@ -81,6 +81,21 @@ export function isSource(root: string): boolean {
   return existsSync(path.join(root, 'package.json')) && readJson(root, 'package.json').name === PACKAGE;
 }
 
+/** The directory of a repository that holds the copies of kit only (K133). */
+export const COPY_DIRECTORY = 'scripts/kit';
+
+/** The files of scripts/kit of `root` that `copies` does not declare, as paths of the repository, sorted. */
+export function strayCopies(root: string, copies: { file: string }[]): string[] {
+  const directory = path.join(root, COPY_DIRECTORY);
+  if (!existsSync(directory)) return [];
+  const declared = new Set(copies.map(({ file }) => file));
+  return readdirSync(directory, { recursive: true, withFileTypes: true })
+    .filter(entry => !entry.isDirectory())
+    .map(entry => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+    .filter(file => !declared.has(file))
+    .sort();
+}
+
 /** The findings of `root`: the configuration, and the installed package and its copies; empty when they match. */
 export function check(root: string): string[] {
   const config = checkConfig(root);
@@ -95,6 +110,7 @@ export function check(root: string): string[] {
       found.push(`${file}: differs from ${INSTALLED}/${from} of ${PACKAGE} ${kit.version}. Fix: make kit-sync`);
     }
   }
+  for (const file of strayCopies(root, kit.copies)) found.push(`${file} is no copy of ${PACKAGE} ${kit.version}; ${COPY_DIRECTORY} holds the copies of kit only. Fix: make kit-sync, which removes it`);
   return [...config, ...found];
 }
 
