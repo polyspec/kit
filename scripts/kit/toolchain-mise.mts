@@ -39,8 +39,11 @@ export const MISE_TOOLS = {
 /** A tool of kit that mise installs. */
 export type MiseTool = keyof typeof MISE_TOOLS;
 
-/** The platforms of mise whose archives mise.lock pins: those of the CI runners and of the developers' machines. */
-export const LOCK_PLATFORMS = ['linux-x64', 'macos-arm64'];
+/**
+ * The platforms of mise whose archives mise.lock pins: every platform on which the bootstrap installs mise, the archives of
+ * config/toolchain.json mise, so that make install-tools runs on an x64 or an ARM Linux runner and on either Mac (K134).
+ */
+export const LOCK_PLATFORMS = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
 
 const RELEASE: Record<string, RegExp> = { vulture: /^\d+\.\d+(\.\d+)?$/ };
 const EXACT = /^\d+\.\d+\.\d+$/;

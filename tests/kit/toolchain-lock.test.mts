@@ -17,8 +17,14 @@ backend = "aqua:golangci/golangci-lint"
 [tools.golangci-lint."platforms.linux-x64"]
 checksum = "sha256:ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab"
 
+[tools.golangci-lint."platforms.linux-arm64"]
+checksum = "sha256:ee7ec5f3453d15ddf106fae5a4d6c71737712348a979d1fe9cd52ec7ea299bae"
+
 [tools.golangci-lint."platforms.macos-arm64"]
 checksum = "sha256:5ef5f36a7147e91dc58ef9ef4d11bb7bad5ead0c76eb6c01327a73c641d1dcc3"
+
+[tools.golangci-lint."platforms.macos-x64"]
+checksum = "sha256:a5667c1c3536be1740133213e1e822bfb8f0d98ea12903174d6d5f635e4ed68d"
 `;
 
 // mise with the project's mise.toml as its global configuration: lock locks the global tools only with --global, and writes
@@ -44,7 +50,7 @@ test('toolchain-lock locks the tools of mise.toml, which the environment of mise
   writeStub(mise);
   const printed: string[] = [];
   lockTools({ root, print: text => printed.push(text) });
-  assert.deepEqual(readFileSync(path.join(root, 'args.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['lock', '--global', '--platform', 'linux-x64,macos-arm64']]);
+  assert.deepEqual(readFileSync(path.join(root, 'args.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['lock', '--global', '--platform', 'linux-x64,linux-arm64,macos-arm64,macos-x64']]);
   assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), LOCK);
   assert.deepEqual(printed.at(-1), 'mise.lock pins every tool of mise.toml');
 });

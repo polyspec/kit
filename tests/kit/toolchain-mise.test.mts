@@ -24,7 +24,8 @@ backend = "${key}"
 ${more}
 ${platforms.map(platform => `[tools."${key}"."platforms.${platform}"]\nchecksum = "${SUM}"\nurl = "https://example.invalid/${platform}"\n`).join('\n')}`;
 
-const BOTH = ['linux-x64', 'macos-arm64'];
+// The platforms on which the bootstrap installs mise: the archives of config/toolchain.json mise (K134).
+const BOTH = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
 const LOCK = [
   entry('go', '1.27.2', BOTH),
   entry('python', '3.14.8', BOTH),
@@ -71,10 +72,23 @@ test('a missing lock, tool, release, platform digest or uv lock is a finding wit
   const composer = `${MISE_TOML}"http:composer" = { version = "2.10.3", url = "https://getcomposer.org/download/{{ version }}/composer.phar" }\n`;
   assert.deepEqual(miseLockFindings(toolchainCheckout(t, { 'mise.toml': composer, 'mise.lock': `${lock}\n${entry('http:composer', '2.10.3', [])}` })), [
     'mise.lock does not pin go 1.27.2; run make toolchain-lock',
+    'mise.lock pins python 3.14.8 for linux-arm64 without the sha256 of its archive; run make toolchain-lock',
     'mise.lock pins python 3.14.8 for macos-arm64 without the sha256 of its archive; run make toolchain-lock',
+    'mise.lock pins python 3.14.8 for macos-x64 without the sha256 of its archive; run make toolchain-lock',
     'mise.lock does not pin ruff 0.17.0; run make toolchain-lock',
     'mise.lock pins pypi:vulture 2.16 without the digest of its uv lock; install uv with mise and run make toolchain-lock',
     'mise.lock pins http:composer 2.10.3 for linux-x64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
+    'mise.lock pins http:composer 2.10.3 for linux-arm64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
     'mise.lock pins http:composer 2.10.3 for macos-arm64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
+    'mise.lock pins http:composer 2.10.3 for macos-x64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
   ]);
+});
+
+// An ARM Linux runner or an Intel Mac installs the tools of mise.lock only when the lock pins their archives (K134).
+test('mise.lock pins the archive of every platform on which the bootstrap installs mise (K134)', (t) => {
+  const two = LOCK.replaceAll(/\[tools\."[^"]+"\."platforms\.(linux-arm64|macos-x64)"\]\nchecksum = "[^"]+"\nurl = "[^"]+"\n/g, '');
+  const root = toolchainCheckout(t, { 'mise.toml': MISE_TOML, 'mise.lock': two });
+  const findings = miseLockFindings(root);
+  assert.ok(findings.includes('mise.lock pins go 1.27.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
+  assert.ok(findings.includes('mise.lock pins go 1.27.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
 });

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 606368d4d78ced43f52edf49eb1a4ec6455d405ee728aa7bf5bd5bf0c052bef8 -->
+<!-- source-sha256: 29edef1e4995212059b0525ceab4de7dc6ce70aca98946f08594028072167569 -->
 
 # 도구 목록
 
@@ -35,7 +35,7 @@
 ## Toolchain (K8.2)
 
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
-linux-x64와 macos-arm64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
+mise bootstrap의 플랫폼인 linux-x64, linux-arm64, macos-arm64, macos-x64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
 lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
 것을 설치합니다. wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로 설치하는 `exceptions`의
 Rust channel(`install-rust.mts`), symbol extractor입니다.
@@ -1325,8 +1325,8 @@ macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platfo
 
 ### uv: 설치와 state
 
-- **Release archive (K64, K127):** mise가 uv를 release archive `uv-<target>.tar.gz`(aqua backend)에서 설치하며, linux-x64와
-  macos-arm64의 sha256은 `mise.lock`에 있습니다. K127 이후 uv는 Python을 설치하지 않습니다. Python은 `mise.toml`의 도구입니다.
+- **Release archive (K64, K127):** mise가 uv를 release archive `uv-<target>.tar.gz`(aqua backend)에서 설치하며, linux-x64,
+  linux-arm64, macos-arm64, macos-x64의 sha256은 `mise.lock`에 있습니다. K127 이후 uv는 Python을 설치하지 않습니다. Python은 `mise.toml`의 도구입니다.
 - **state는 `var/tools` 아래, home에는 쓰지 않음:** checkout의 mise 환경(kit.mk, `miseEnvironment`)이
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never`(uv는 interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나
   system의 `uv.toml`을 읽지 않음)을 설정하고, `toolsEnvironment`가 mise의 python3인 `UV_PYTHON`을 더합니다.

@@ -96,14 +96,14 @@ test('a declared Rust channel without rustup fails with the one prerequisite of 
 });
 
 // A mise.lock that pins ruff for both platforms, and pypi:vulture with the digest of its uv lock when `graph` says so.
-const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['linux-x64', 'macos-arm64'].map(platform => `[tools.ruff."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}
+const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.ruff."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}
 [[tools."pypi:vulture"]]\nversion = "2.16"\n${graph ? `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n` : ''}`;
 
-test('toolchain-lock runs mise lock for linux-x64 and macos-arm64 and passes a lock that pins every tool', (t) => {
+test('toolchain-lock runs mise lock for the four platforms of the bootstrap and passes a lock that pins every tool', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
   const result = start('toolchain-lock', root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,macos-arm64']);
+  assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
   assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
 });
 
@@ -126,11 +126,11 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
   assert.equal(result.status, 1);
   assert.deepEqual(stubs.calls(), [
-    'mise lock uv python --global --platform linux-x64,macos-arm64',
+    'mise lock uv python --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
     'mise install --locked uv python',
     'mise which uv',
     'mise which python3',
-    'mise lock --global --platform linux-x64,macos-arm64',
+    'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
   ]);
   const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { args: string[]; PATH: string; UV_PYTHON?: string });
   const last = calls.at(-1)!;
