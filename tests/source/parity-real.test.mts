@@ -1,8 +1,8 @@
 // The language-parity runs of the real tools of this checkout: node runs its test file with node:test, go and cargo run their
-// native tests, python3 runs unittest and PHPUnit 11 runs the PHP case. Nothing is stubbed; a missing tool fails the case.
+// native tests, python3 runs unittest and PHPUnit 13 runs the PHP case. Nothing is stubbed; a missing tool fails the case.
 // The tools come from `make install-tools`: the go, the python3 and the Composer of mise.toml, which a temporary tree runs
 // through shims of its own (real-tools.mts), and var/tools/phpunit/vendor, the Composer project of config/phpunit that holds
-// PHPUnit 11.5.57.
+// PHPUnit 13.4.2.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, symlinkSync } from 'node:fs';
