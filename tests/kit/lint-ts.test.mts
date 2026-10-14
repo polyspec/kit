@@ -128,9 +128,9 @@ test('knip ignores the root dependencies of config/knip-entries.json after those
   const { root } = checkout(t);
   writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
-  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@polyspec/template-compiler': 'only the recipes of the Makefile run it' } }));
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@example/recipe-tool': 'only the recipes of the Makefile run it' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint', '@polyspec/template-compiler'] });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint', '@example/recipe-tool'] });
   for (const ignoreDependencies of [{}, { 'Not A Package': 'not an npm name' }, { 'left-pad': '' }]) {
     writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies }));
     assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignoreDependencies/, JSON.stringify(ignoreDependencies));
