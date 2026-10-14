@@ -9,6 +9,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
+import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -71,7 +72,7 @@ test('run-tests --venv accepts and runs a venv that uv made from the checkout Py
   const directory = path.join(folder, 'venv');
   const uv = path.join(ROOT, 'var/tools/mise/shims/uv');
   assert.ok(existsSync(uv), `${path.relative(ROOT, uv)} is missing; make install-tools installs the uv of mise.toml`);
-  const made = spawnSync(uv, ['venv', '--python', python, directory], { encoding: 'utf8' });
+  const made = spawnSync(uv, ['venv', '--python', python, directory], { encoding: 'utf8', env: toolsEnvironment(ROOT) });
   assert.equal(made.status, 0, made.stderr);
   const links = linksUnder(directory);
   assert.ok(links.length > 0, 'uv made the environment with its links');

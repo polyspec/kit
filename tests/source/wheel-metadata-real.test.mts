@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { wheelMetadata } from '../../scripts/kit/release-wheel.mts';
+import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PYTHON = path.join(ROOT, 'var/tools/mise/shims/python3');
@@ -29,7 +30,7 @@ test('the metadata of a wheel that vendors a distribution is the metadata of the
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-wheel-metadata-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const wheel = path.join(folder, 'pkg-1.0-py3-none-any.whl');
-  const written = spawnSync(PYTHON, ['-c', WRITE_WHEEL, wheel], { encoding: 'utf8' });
+  const written = spawnSync(PYTHON, ['-c', WRITE_WHEEL, wheel], { encoding: 'utf8', env: toolsEnvironment(ROOT) });
   assert.equal(written.status, 0, written.stderr);
-  assert.deepEqual(wheelMetadata(ROOT, wheel, process.env), { name: 'pkg', version: '1.0', requiresDist: ['idna==3.20'] });
+  assert.deepEqual(wheelMetadata(ROOT, wheel, toolsEnvironment(ROOT)), { name: 'pkg', version: '1.0', requiresDist: ['idna==3.20'] });
 });

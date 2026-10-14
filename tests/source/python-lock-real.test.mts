@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { readPylock } from '../../scripts/kit/pylock.mts';
 import { checkPythonLock, writePythonLock } from '../../scripts/kit/python-lock.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { toolCommand } from '../../scripts/kit/mise-tools.mts';
+import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = `var/python-lock-real-${process.pid}`;
@@ -47,7 +47,7 @@ function setup(t: TestContext) {
   copyFileSync(abs('var/tools/wheels/setuptools-84.0.0-py3-none-any.whl'), abs(`${DIR}/links/setuptools-84.0.0-py3-none-any.whl`));
   // The pinned Python builds the wheel with its build environment under var/, and no pip cache outside var/.
   const built = spawnSync(toolCommand(ROOT, 'python3'), ['-m', 'pip', 'wheel', '--no-deps', '--no-index', '--no-cache-dir', '--disable-pip-version-check', '--find-links', toolsPath(ROOT, 'wheels'), '-w', abs(`${DIR}/links`), abs(`${DIR}/tinylib`)], {
-    cwd: abs(DIR), encoding: 'utf8', env: { ...process.env, TMPDIR: abs(`${DIR}/tmp`) },
+    cwd: abs(DIR), encoding: 'utf8', env: toolsEnvironment(ROOT, { ...process.env, TMPDIR: abs(`${DIR}/tmp`) }),
   });
   assert.equal(built.status, 0, built.stderr);
   assert.ok(readdirSync(abs(`${DIR}/links`)).includes('tinylib-0.0.1-py3-none-any.whl'));
