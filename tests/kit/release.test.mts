@@ -11,6 +11,8 @@ import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { KIT_MAKE, tool } from './kit-tools.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { parseJson } from '../../scripts/kit/schema-validate.mts';
 
 const REPOSITORY = 'example/kit-fixture';
 type Box = ReturnType<typeof releaseSandbox>;
@@ -20,7 +22,7 @@ type ConfigJson = Omit<release.ReleaseConfig, 'schema' | 'consumers'> & { schema
 type ManifestJson = Record<string, unknown>;
 const context = (box: Box, extra: { config?: release.ReleaseConfig; log?: (text: string) => void } = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const edit = <Json = ManifestJson,>(root: string, file: string, change: (value: Json) => unknown) => writeJson(root, file, change(readJson(root, file) as Json));
+const edit = <Json = ManifestJson,>(root: string, file: string, change: (value: Json) => unknown) => writeJson(root, file, change(readJson<Json>(root, file)));
 
 test('latest names the newest root release tag reachable from HEAD', (t) => {
   const box = releaseSandbox(t, { version: '0.0.3' });
@@ -57,7 +59,7 @@ test('a release tag is a version or a Go module directory and a version', (t) =>
 test('the schema accepts the configuration of the fixture and names each error of another', (t) => {
   const box = releaseSandbox(t);
   assert.deepEqual(checkConfig(box.root).filter(line => line.startsWith('config/release.json')), []);
-  const config = readJson(box.root, 'config/release.json');
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', { ...config, schema: 2, extra: 1, packages: [{ kind: 'pip', directory: '/abs', name: 'x' }] });
   const findings = checkConfig(box.root).filter(line => line.startsWith('config/release.json'));
   assert.ok(findings.some(line => line.includes('/schema must be equal to constant {"allowedValue":1}, value 2')), findings.join('\n'));
@@ -73,11 +75,11 @@ test('the schema accepts the configuration of the fixture and names each error o
 test('the configuration is checked for the rules that the schema cannot express', (t) => {
   const box = releaseSandbox(t);
   const load = (change: (value: ConfigJson) => unknown) => {
-    writeJson(box.root, 'config/release.json', change(readJson(box.root, 'config/release.json') as ConfigJson));
+    writeJson(box.root, 'config/release.json', change(readJson<ConfigJson>(box.root, 'config/release.json')));
     return () => release.loadConfig(box.root);
   };
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed');
-  const original = readJson(box.root, 'config/release.json') as ConfigJson;
+  const original = readJson<ConfigJson>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', (({ checks: _checks, ...rest }) => rest)(original));
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed', 'the checks default to push-gate and ci-passed');
   writeJson(box.root, 'config/release.json', original);
@@ -367,7 +369,7 @@ test('publish creates the release with the notes and the archives', (t) => {
   assert.ok(state.calls.some((args: string[]) => args.at(-3) === `repos/polyspec/kit-fixture/git/ref/tags/${tag}`), 'the tag is verified on the remote first');
   assert.deepEqual(state.created, { tag, name: tag, draft: 'true' });
   assert.deepEqual(state.uploads, names.map(name => ({ name, input: path.join(target, name), type: 'Content-Type: application/octet-stream' })));
-  assert.deepEqual(state.byId['42'].assets.map((asset: { name: string }) => asset.name), names, 'each archive is uploaded to the release of its id');
+  assert.deepEqual(state.byId?.['42']?.assets.map(asset => asset.name), names, 'each archive is uploaded to the release of its id');
   assert.deepEqual(readJson(box.root, 'var/release/v0.0.1.json'), { id: 42 }, 'the id of the draft is recorded for the proof and undraft');
   assert.equal(state.notes, '- The first entry of 0.0.1.\n- The second entry of 0.0.1.\n');
   assert.ok(lines.some(line => line.includes('creating the draft GitHub Release with 4 archives')), lines.join('\n'));
@@ -419,7 +421,7 @@ test('coverage names each package file that no list classifies, each stale entry
   for (const file of extra) {
     assert.ok(problems.includes(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`), problems.join('\n'));
   }
-  const config = readJson(box.root, 'config/release.json');
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
   const broken = { ...config, notReleased: { ...config.notReleased, 'gone/package.json': 'removed', 'package.json': 'also' } };
   const later = release.coverage(context(box, { config: broken }));
   assert.ok(later.includes('gone/package.json is listed in notReleased of config/release.json but is not a package file of the checkout; remove it from the list'), later.join('\n'));
@@ -431,7 +433,7 @@ test('coverage allows a file: dependency on an archive only in the npm consumer 
   const consumer = { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } };
   writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify(consumer));
   assert.deepEqual(release.coverage(context(box)), [], 'the consumer project installs the archives of its packages');
-  const app = readJson(box.root, 'packages/fixture-app/package.json');
+  const app = readJson<NpmManifest>(box.root, 'packages/fixture-app/package.json');
   writeFileSync(path.join(box.root, 'packages/fixture-app/package.json'), JSON.stringify({ ...app, devDependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', near: 'file:../fixture-lib', outside: 'file:../../../outside' } }));
   writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify({ ...consumer, dependencies: { ...consumer.dependencies, other: 'file:other-npm-0.0.1.tgz', 'fixture-lib': 'file:../../../packages/fixture-lib' } }));
   assert.deepEqual(release.coverage(context(box)), [
@@ -548,7 +550,9 @@ test('the output of npm pack is renamed to the archive name', (t) => {
   assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [...names].sort(), 'no file keeps the name that npm pack gave');
   // names holds four archives.
-  assert.equal(JSON.parse(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', names[1]!))).name, '@polyspec/fixture-app');
+  const [, app] = names;
+  assert.ok(app);
+  assert.equal(parseJson<NpmManifest>(release.packedManifest(ctx, path.join(box.root, 'var/release/assets', app)), 'npm-manifest.schema.json', app).name, '@polyspec/fixture-app');
 });
 
 const sha256 = (file: string) => spawnSync('shasum', ['-a', '256', file], { encoding: 'utf8' }).stdout.split(' ')[0];
@@ -604,8 +608,8 @@ test('undraft finds the draft by the id that publish recorded, also while the li
   mkdirSync(path.join(box.root, 'var/release'), { recursive: true });
   writeFileSync(path.join(box.root, 'var/release/v0.0.1.json'), JSON.stringify({ id: 42 }));
   assert.equal(release.undraft(context(box), tag), true);
-  assert.deepEqual(box.state().byId['42'].draft, false);
+  assert.deepEqual(box.state().byId?.['42']?.draft, false);
   assert.equal(release.undraft(context(box), tag), false, 'a public release stays as it is');
-  assert.equal(box.state().patched.length, 1, 'a public release is not edited again');
+  assert.equal(box.state().patched?.length, 1, 'a public release is not edited again');
 });
 

@@ -11,7 +11,7 @@
 //   cargo, go answer from the state
 // No test reaches a registry, GitHub or a network.
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
@@ -20,6 +20,53 @@ import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import { releaseSandbox } from './release-sandbox.mts';
 import type { ReleaseSandboxOptions } from './release-sandbox.mts';
 import { PIP_FUNCTIONS } from './wheel-stubs.mts';
+import { readFixture } from './json-fixture.mts';
+import { readStub, TEXTS } from './stub-json.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+
+/** A call that a tool stub logged: the tool, its arguments, its directory, the variables it saw and what it read. */
+type ConsumerCall = { tool: string; args: string[]; cwd: string; env: Record<string, string | null>; requirements?: string | null; manifest?: string | null };
+/** The state of the tool stubs in the fields that the tests read and change. */
+type ConsumerState = {
+  calls: ConsumerCall[];
+  modes: Record<string, string>;
+  release: { tag: string; draft: boolean; names: string[]; source: string; published?: Record<string, { url: string; digest: string }>; listed?: boolean };
+};
+const STRING = { type: 'string' } as const;
+const CONSUMER_STATE: JSONSchemaType<ConsumerState> = {
+  type: 'object',
+  required: ['calls', 'modes', 'release'],
+  properties: {
+    calls: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['tool', 'args', 'cwd', 'env'],
+        properties: {
+          tool: STRING,
+          args: TEXTS,
+          cwd: STRING,
+          env: { type: 'object', required: [], additionalProperties: { type: 'string', nullable: true } },
+          requirements: { type: 'string', nullable: true },
+          manifest: { type: 'string', nullable: true },
+        },
+      },
+    },
+    modes: { type: 'object', required: [], additionalProperties: STRING },
+    release: {
+      type: 'object',
+      required: ['tag', 'draft', 'names', 'source'],
+      properties: {
+        tag: STRING,
+        draft: { type: 'boolean' },
+        names: TEXTS,
+        source: STRING,
+        published: { type: 'object', nullable: true, required: [], additionalProperties: { type: 'object', required: ['url', 'digest'], properties: { url: STRING, digest: STRING } } },
+        listed: { type: 'boolean', nullable: true },
+      },
+    },
+  },
+};
 
 // The release of the checkout Python (var/tools/mise/shims/python3) that the stubs report.
 const CHECKOUT_VERSION = '3.14.8';
@@ -220,7 +267,7 @@ export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.
   writeFileSync(path.join(box.root, 'var/tools/mise/shims/uv'), `#!/bin/sh\nexec '${path.join(bin, 'checkout-uv')}' "$@"\n`);
   chmodSync(path.join(box.root, 'var/tools/mise/shims/uv'), 0o755);
   // The published assets: each asset of the release at its URL in the repository and with the sha256 of its file, as GitHub lists them.
-  const config = JSON.parse(readFileSync(path.join(box.root, 'config/release.json'), 'utf8'));
+  const config = readFixture<release.ReleaseConfig>(box.root, 'config/release.json');
   const source = path.join(box.root, release.ASSETS);
   const published = Object.fromEntries(names.map((name: string) => [name, { url: `${config.repositoryUrl}/releases/download/${tag}/${name}`, digest: `sha256:${fileDigest(path.join(source, name))}` }]));
   writeFileSync(stateFile, JSON.stringify({ calls: [], modes: {}, release: { tag: 'v0.0.1', draft: true, names, source, published }, venvPython: VENV_PYTHON, version }));
@@ -245,13 +292,13 @@ export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.
     names,
     env,
     ctx: (extra = {}) => release.context(box.root, { env, ...extra }),
-    state: () => JSON.parse(readFileSync(stateFile, 'utf8')),
+    state: () => readStub(stateFile, CONSUMER_STATE),
     /** Sets the stub behavior (`modes`: tool to mode) and the names that the release lists. */
     stub(change: { modes?: Record<string, string>; [field: string]: unknown }) {
-      const state = JSON.parse(readFileSync(stateFile, 'utf8'));
+      const state = readStub(stateFile, CONSUMER_STATE);
       writeFileSync(stateFile, JSON.stringify({ ...state, ...change, modes: { ...state.modes, ...change.modes } }));
     },
-    calls: (tool: string) => JSON.parse(readFileSync(stateFile, 'utf8')).calls.filter((call: { tool: string }) => call.tool === tool),
+    calls: (tool: string) => readStub(stateFile, CONSUMER_STATE).calls.filter(call => call.tool === tool),
     /** Writes the manifests and locks of the consumer projects for the tag. */
     lock: () => consumer.lockConsumers(sandbox.ctx(), tag),
     /** Runs a command of the sandbox with the stub environment. */

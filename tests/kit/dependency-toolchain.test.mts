@@ -2,16 +2,16 @@
 // is set by hand and locked with make toolchain-lock, and updatePlan never edits mise.toml. The checkout is the
 // fixture copy of tests/kit/checkout.mts; nothing reaches a network.
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { POLICY, TOOLCHAIN, UPDATE, readState } from '../../scripts/kit/dependency-state.mts';
+import { TOOLCHAIN, UPDATE, readPolicy, readState } from '../../scripts/kit/dependency-state.mts';
 import type { Dependency } from '../../scripts/kit/dependency-state.mts';
 import { fixOf, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture } from './checkout.mts';
 
 const toolchainRuff: Dependency = { ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: '==0.16.10', version: '0.16.10', lock: null };
-const policyOf = (root: string) => JSON.parse(readFileSync(path.join(root, POLICY), 'utf8'));
+const policyOf = (root: string) => readPolicy(root);
 
 test('the ruff of mise.toml is a PyPI dependency of the review state', (t) => {
   const root = fixture(t);

@@ -9,6 +9,8 @@ import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist, type Tracker } from '../../scripts/kit/checklist.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
+import { parseJson } from '../../scripts/kit/schema-validate.mts';
+import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -186,7 +188,7 @@ test('loadConfig accepts the configuration of the fixture and names each rule th
   // The schema requires at least one tracker.
   assert.equal(loadConfig(root).trackers[0]!.path, 'docs/plans/execution-checklist.md');
   const write = (value: unknown) => writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify(value));
-  const config = JSON.parse(good);
+  const config = parseJson<ChecklistConfig>(good, 'checklist.schema.json', 'config/checklist.json');
   write({ ...config, hooks: ['commit-msg'] });
   assert.throws(() => loadConfig(root), /\$\.hooks is \["commit-msg"\], it must include "pre-push"/);
   write({ ...config, trackers: [{ ...config.trackers[0], format: 'tree' }] });

@@ -26,8 +26,9 @@ test('a pair with the same doc-id, revision, anchors, fences and links passes', 
 });
 
 test('pair-missing: a file without its twin fails in both directions', (t) => {
-  const files = pair('a.md', 'alpha');
-  const root = tree(t, { 'a.md': files['a.md'], 'b.ko.md': files['a.ko.md'] });
+  const { 'a.md': en, 'a.ko.md': ko } = pair('a.md', 'alpha');
+  assert.ok(en !== undefined && ko !== undefined);
+  const root = tree(t, { 'a.md': en, 'b.ko.md': ko });
   const found = run(root);
   has(found, 'a.md: pair-missing: the Korean twin a.ko.md does not exist; every English document has one');
   has(found, 'b.ko.md: pair-missing: the English file b.md does not exist; every Korean document has an English original');
@@ -41,13 +42,15 @@ test('exclude and include select the documents', (t) => {
 
 test('doc-id: a missing, different or repeated id fails', (t) => {
   const files = pair('a.md', 'alpha');
+  const { 'a.md': en, 'a.ko.md': ko } = files;
+  assert.ok(en !== undefined && ko !== undefined);
   const root = tree(t, { ...files, ...pair('b.md', 'alpha'), 'c.md': '# c\n', 'c.ko.md': '# c\n' });
   const found = run(root);
   has(found, 'b.md: doc-id: the doc-id alpha is also the doc-id of a.md; an id names one document');
   hasPart(found, 'c.md: doc-id: the file has 0 doc-id markers');
-  put(root, { 'a.ko.md': files['a.ko.md'].replace('doc-id: alpha', 'doc-id: beta') });
+  put(root, { 'a.ko.md': ko.replace('doc-id: alpha', 'doc-id: beta') });
   hasPart(run(root), 'a.ko.md: doc-id: the doc-id is beta; the English file a.md has alpha');
-  put(root, { 'a.md': files['a.md'].replace('doc-id: alpha', 'doc-id: Bad_Id') });
+  put(root, { 'a.md': en.replace('doc-id: alpha', 'doc-id: Bad_Id') });
   hasPart(run(root), 'a.md: doc-id: the doc-id "Bad_Id" does not match');
 });
 
@@ -58,11 +61,13 @@ test('doc-id and revision markers written in inline code or a fenced block are n
 
 test('revision: the Korean marker must equal the sha256 of the English file', (t) => {
   const files = pair('a.md', 'alpha', 'text\n');
+  const { 'a.md': en, 'a.ko.md': ko } = files;
+  assert.ok(en !== undefined && ko !== undefined);
   const root = tree(t, files);
   assert.deepEqual(run(root), []);
-  put(root, { 'a.md': `${files['a.md']}changed\n` });
+  put(root, { 'a.md': `${en}changed\n` });
   hasPart(run(root), 'a.ko.md: revision: the source-sha256 is ', 'review the translation');
-  put(root, { 'a.ko.md': files['a.ko.md'].replace(/<!-- source-sha256.*-->\n/, '') });
+  put(root, { 'a.ko.md': ko.replace(/<!-- source-sha256.*-->\n/, '') });
   hasPart(run(root), 'a.ko.md: revision: the file has 0 source-sha256 markers');
 });
 
@@ -108,7 +113,9 @@ test('link: code is not read, a reference needs its definition, an absolute link
   hasPart(found, 'a.md:', 'link: the reference link [other][two] has no definition [two]');
   hasPart(found, 'link: the link /guide/start starts with /');
   assert.equal(run(root, { ...CONFIG, siteLinks: true }).filter(line => line.includes('/guide/start')).length, 0);
-  put(root, { 'a.md': files['a.md'].replace('[abs](/guide/start)', '[site](b)'), 'a.ko.md': files['a.ko.md'].replace('[abs](/guide/start)', '[site](b)') });
+  const { 'a.md': en, 'a.ko.md': ko } = files;
+  assert.ok(en !== undefined && ko !== undefined);
+  put(root, { 'a.md': en.replace('[abs](/guide/start)', '[site](b)'), 'a.ko.md': ko.replace('[abs](/guide/start)', '[site](b)') });
   hasPart(run(root), 'link: the link b names b, which does not exist');
   assert.equal(run(root, { ...CONFIG, siteLinks: true }).filter(line => line.includes('names b,')).length, 0);
 });

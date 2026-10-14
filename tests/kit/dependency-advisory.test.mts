@@ -3,12 +3,12 @@
 // as accepted with its reason; an advisory without an entry still fails both, and an entry that matches no advisory of the
 // review is stale and fails both. cargo-audit is a stub that reports one advisory of the Cargo lock of the fixture.
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { editFixture, readFixture } from './json-fixture.mts';
+import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 
 const LOCK = 'packages/fixture-rust/Cargo.lock';
 const VULNERABLE = {
@@ -20,8 +20,7 @@ const ACCEPTED = { lock: LOCK, package: 'itoa', advisory: 'RUSTSEC-2099-0001', r
 /** The fixture with the advisory exceptions `accepted` in its policy, reviewed with the stub registries and cargo-audit. */
 function reviewed(t: TestContext, accepted: object[]) {
   const root = fixture(t);
-  const policy = path.join(root, 'config/dependency-policy.json');
-  writeFileSync(policy, JSON.stringify({ ...JSON.parse(readFileSync(policy, 'utf8')), advisoryExceptions: accepted }, null, 2));
+  editFixture(root, 'config/dependency-policy.json', (policy: { advisoryExceptions?: object[] }) => { policy.advisoryExceptions = accepted; });
   installCargoAuditStub(root, VULNERABLE);
   installGovulncheckStub(root);
   const stub = stubRegistries(t);
@@ -45,8 +44,8 @@ test('an advisory with an exception passes the review and the gate, which print 
   const { root, result } = reviewed(t, [ACCEPTED]);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, ACCEPTED_REVIEW);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.find((item: { lock: string }) => item.lock === LOCK).advisories.map((item: { id: string }) => item.id), ['RUSTSEC-2099-0001'], 'the record keeps the accepted advisory');
+  const record = readFixture<ReviewRecord>(root, 'config/dependency-review.json');
+  assert.deepEqual(record.locks.find(item => item.lock === LOCK)?.advisories?.map(item => item.id), ['RUSTSEC-2099-0001'], 'the record keeps the accepted advisory');
   const gated = gate(root);
   assert.equal(gated.status, 0, gated.stderr);
   assert.match(gated.stdout, ACCEPTED_GATE);

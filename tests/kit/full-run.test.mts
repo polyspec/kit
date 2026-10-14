@@ -12,8 +12,9 @@ import type { FullRunRecord, Keys } from '../../scripts/kit/full-run.mts';
 import { processStart } from '../../scripts/kit/holder-lock.mts';
 import { CHECKLIST, TRANSLATION, commitAll, git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
-const record = (work: string): FullRunRecord => JSON.parse(readFileSync(path.join(work, RECORD), 'utf8'));
+const record = (work: string): FullRunRecord => readJsonFile<FullRunRecord>(path.join(work, RECORD), 'full-run-record.schema.json');
 const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
 
 // Runs the guard with stub targets that pass unless they are named in `failing`; returns the exit status, the printed lines

@@ -3,7 +3,6 @@
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { once } from 'node:events';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,6 +14,22 @@ import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
 import { put, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readStub, TEXTS } from './stub-json.mts';
+
+/** The record that run-tests --results writes: the tool, the inputs, the time and each case. */
+type Results = { tool: string; ok?: boolean; elapsedMs?: number; inputs?: { paths: string[]; digest: string }; cases: { id: string; status: string; elapsedMs?: number }[] };
+const RESULTS: JSONSchemaType<Results> = {
+  type: 'object',
+  required: ['tool', 'cases'],
+  properties: {
+    tool: { type: 'string' },
+    ok: { type: 'boolean', nullable: true },
+    elapsedMs: { type: 'number', nullable: true },
+    inputs: { type: 'object', nullable: true, required: ['paths', 'digest'], properties: { paths: TEXTS, digest: { type: 'string' } } },
+    cases: { type: 'array', items: { type: 'object', required: ['id', 'status'], properties: { id: { type: 'string' }, status: { type: 'string' }, elapsedMs: { type: 'number', nullable: true } } } },
+  },
+};
 
 const SPEC = "import test from 'node:test';\n";
 
@@ -468,7 +483,7 @@ test('an interrupted runner stops the whole process group of the tool and ends o
   t.after(() => child.kill('SIGKILL'));
   // The runner prints the start of the test after the stub recorded its pids.
   child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });
-  const [status, signal] = await once(child, 'close') as [number | null, NodeJS.Signals | null];
+  const [status, signal] = await new Promise<[number | null, NodeJS.Signals | null]>(resolve => child.once('close', (code: number | null, closed: NodeJS.Signals | null) => resolve([code, closed])));
   assert.deepEqual({ status, signal }, { status: null, signal: 'SIGTERM' });
   const started = recorded(pids);
   assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
@@ -548,9 +563,9 @@ test('--results writes the cases, the tool, the inputs and the elapsed time of a
   const bin = stubTool(t, 'go', `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exitCode = 1;`);
   const result = await inProcess(t, ['go', '--results', '.results/go.json', '--cwd', 'pkg', './...'], { root, path: `${bin}${path.delimiter}${process.env.PATH}` });
   assert.equal(result.status, 1, result.text);
-  const record: { tool: string; ok: boolean; elapsedMs: number; inputs: { paths: string[]; digest: string }; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/go.json'), 'utf8'));
+  const record = readStub(path.join(root, '.results/go.json'), RESULTS);
   assert.deepEqual(record.cases, [{ id: 'p › TestA', status: 'pass', elapsedMs: 250 }, { id: 'p › TestB', status: 'fail', elapsedMs: 500 }]);
-  assert.deepEqual([record.tool, record.inputs.paths, record.inputs.digest, record.ok], ['go', ['pkg'], inputsDigest(root, ['pkg']), false]);
+  assert.deepEqual([record.tool, record.inputs?.paths, record.inputs?.digest, record.ok], ['go', ['pkg'], inputsDigest(root, ['pkg']), false]);
   assert.equal(typeof record.elapsedMs, 'number');
 });
 
@@ -558,7 +573,7 @@ test('--results records the cases of node tests, which the reporter counts in it
   const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('later', { skip: true }, () => {});\n` });
   const result = runner(root, ['node', '--results', '.results/node.json', '--inputs', 'tests', '--', 'tests/a.test.mjs']);
   assert.equal(result.status, 0, output(result));
-  const record: { tool: string; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  const record = readStub(path.join(root, '.results/node.json'), RESULTS);
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/a.test.mjs › adds', 'pass'], ['tests/a.test.mjs › later', 'skip']]);
   assert.equal(record.tool, 'node');
 });
@@ -569,7 +584,7 @@ test('under --cwd a node file group is not a test case, and its ids name the fil
   assert.equal(result.status, 0, output(result));
   assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 timed out, 0 skipped/);
   assert.match(result.stdout, /✔ pkg\/tests\/a\.test\.mjs › adds/);
-  const record: { tool: string; cases: { id: string; status: string }[] } = JSON.parse(readFileSync(path.join(root, '.results/node.json'), 'utf8'));
+  const record = readStub(path.join(root, '.results/node.json'), RESULTS);
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['pkg/tests/a.test.mjs › adds', 'pass'], ['pkg/tests/a.test.mjs › subtracts', 'pass']]);
 });
 

@@ -11,6 +11,7 @@ import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';
+import type { ComposerManifest } from '../../scripts/kit/manifests.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
@@ -64,27 +65,34 @@ test('a released tag is proven in four steps and each step runs the commands of 
     'the Go module example.com/kit-fixture-go resolves at packages/fixture-go/v0.0.1',
   ]);
   const [read, ...downloads] = box.calls('gh');
+  assert.ok(read && downloads[0]);
   assert.deepEqual(read.args, ['api', '--hostname', 'example.com', 'repos/polyspec/kit-fixture/releases/7', '--jq', '{id, tag_name, draft, assets: [.assets[] | {id, name, url: .browser_download_url, digest}]}'], 'the draft is read by the id that publish recorded');
   assert.deepEqual(downloads.map((call: Call) => call.args.at(-1)), ['repos/polyspec/kit-fixture/releases/assets/1', 'repos/polyspec/kit-fixture/releases/assets/2', 'repos/polyspec/kit-fixture/releases/assets/3', 'repos/polyspec/kit-fixture/releases/assets/4']);
   assert.deepEqual(downloads[0].args.slice(0, 5), ['api', '--hostname', 'example.com', '-H', 'Accept: application/octet-stream']);
   const [venvCall] = box.calls('checkout-uv').filter((call: Call) => call.args[0] === 'venv');
+  assert.ok(venvCall);
   assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/mise/shims/python3')]);
-  const venv = { args: [null, null, venvCall.args[4]] };
+  const venv = venvCall.args[4];
+  assert.ok(venv !== undefined);
   const [dependencies, install] = box.calls('checkout-python3').filter((call: Call) => call.args.includes('--require-hashes'));
-  assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv.args[2], 'bin', 'python'), 'install']);
+  assert.ok(dependencies && install);
+  assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv, 'bin', 'python'), 'install']);
   assert.ok(dependencies.args.includes('--no-deps') && dependencies.args.includes('--only-binary'), 'the dependencies install with no dependency of their own and binary files only');
   assert.equal(dependencies.requirements, 'ruff==0.16.10 --hash=sha256:' + '1'.repeat(64) + '\n', 'the lock of the wheel is installed first');
   assert.ok(install.args.includes('--no-index'), 'the wheel itself is installed from its file, with no index');
   assert.ok(box.calls('checkout-python3').some((call: Call) => call.args.at(-1) === 'check'), 'pip check runs in the venv');
-  const python = box.calls('python');
-  assert.deepEqual(python.at(-1).args, ['-c', 'import kit_fixture']);
-  assert.equal(python.at(-1).env.VIRTUAL_ENV, venv.args[2], 'the smoke command runs in the virtual environment');
+  const python = box.calls('python').at(-1);
+  assert.ok(python);
+  assert.deepEqual(python.args, ['-c', 'import kit_fixture']);
+  assert.equal(python.env.VIRTUAL_ENV, venv, 'the smoke command runs in the virtual environment');
   assert.equal(box.calls('python3').length, 0, 'no python3 of PATH runs');
   const [cargo] = box.calls('cargo');
+  assert.ok(cargo && typeof cargo.manifest === 'string');
   assert.deepEqual(cargo.args, ['check']);
   assert.match(cargo.manifest, new RegExp(`\\[dependencies\\]\\nkit-fixture-rust = \\{ git = "${URL}", tag = "v0\\.0\\.1" \\}\\n$`));
   assert.ok(path.relative(box.root, cargo.cwd).startsWith('..'), 'the temporary crate is outside the repository');
   const [go] = box.calls('go');
+  assert.ok(go);
   assert.deepEqual(go.args, ['list', '-m', 'example.com/kit-fixture-go@v0.0.1']);
   assert.deepEqual([go.env.GOFLAGS, go.env.GOPROXY], ['-mod=mod', 'direct']);
 });
@@ -114,14 +122,15 @@ test('the proof fails when the downloaded archives do not install', (t) => {
 
 test('the proof fails when the consumer projects of the checkout name other archives', (t) => {
   const box = locked(t);
-  const lock = readJson(box.root, 'tests/release-consumer/composer/composer.json');
+  const lock = readJson<ComposerManifest>(box.root, 'tests/release-consumer/composer/composer.json');
   writeJson(box.root, 'tests/release-consumer/composer/composer.json', { ...lock, require: { 'polyspec/kit-fixture': '0.0.0' } });
   stop(() => prove(box), /require\.polyspec\/kit-fixture is "0\.0\.0", expected "0\.0\.1"/);
 });
 
 test('the proof fails when a smoke command of an archive fails', (t) => {
   const box = locked(t);
-  const config = readJson(box.root, 'config/release.json');
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
+  assert.ok(config.consumers?.npm);
   config.consumers.npm.smoke['fixture-lib'] = ['node', '-e', 'process.exit(3)'];
   writeJson(box.root, 'config/release.json', config);
   stop(() => prove(box), /node -e process\.exit\(3\) exited with 3/);
@@ -145,7 +154,7 @@ test('the proof fails when cargo cannot resolve the tag', (t) => {
 
 test('the proof fails without a proof entry for a git-tag manifest', (t) => {
   const box = locked(t);
-  const { proof: _, ...config } = readJson(box.root, 'config/release.json');
+  const { proof: _, ...config } = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', config);
   assert.equal(release.loadConfig(box.root).proof, undefined, 'the section is optional for the other release steps');
   stop(() => prove(box), /config\/release\.json proof\.gitTag lacks packages\/fixture-rust\/Cargo\.toml, which manifests releases by "git-tag"/);
@@ -168,7 +177,7 @@ test('the proof fails when the Go tool does not resolve the module or resolves a
 
 test('a Go module at the repository root is resolved at the tag of the release', (t) => {
   const box = locked(t);
-  const config = readJson(box.root, 'config/release.json');
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', { ...config, goModules: { '.': 'example.com/kit-fixture-root' } });
   const steps = prove(box);
   assert.equal(steps.at(-1), 'the Go module example.com/kit-fixture-root resolves at v0.0.1');
@@ -193,7 +202,9 @@ test('the proof removes its temporary directory and changes nothing in the check
   const before = git(box.root, 'status', '--porcelain', '--ignored');
   prove(box);
   assert.equal(git(box.root, 'status', '--porcelain', '--ignored'), before);
-  const folder = path.dirname(path.dirname(box.calls('checkout-uv').find((call: Call) => call.args[0] === 'venv').args[4]));
+  const venv = box.calls('checkout-uv').find((call: Call) => call.args[0] === 'venv')?.args[4];
+  assert.ok(venv !== undefined);
+  const folder = path.dirname(path.dirname(venv));
   assert.match(path.basename(folder), /^kit-release-consumer-/);
   assert.equal(existsSync(folder), false);
 });
@@ -236,8 +247,8 @@ test('the proof downloads each polyspec archive of a wheel lock and names a dige
   const url = `${repo}/releases/download/v0.0.1/${file}`;
   const digest = sha256(bytes);
   const lockWith = (sha: string) => (root: string) => {
-    const config = readJson(root, 'config/release.json');
-    writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': repo } } } });
+    const config = readJson<release.ReleaseConfig>(root, 'config/release.json');
+    writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers?.wheel, polyspec: { 'kit-lib': repo } } } });
     const lock = readFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), 'utf8');
     writeFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), `${lock}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { url = "${url}", hashes = { sha256 = "${sha}" } }\n`);
   };
@@ -261,8 +272,8 @@ test('the proof downloads each polyspec archive of a wheel lock and names a dige
 test('the proof names an archive of a wheel lock that has no url, such as one named by its path (K101)', (t) => {
   // release assets refuses the lock too, so the checkout of the proof gets it after the release is built.
   const box = locked(t);
-  const config = readJson(box.root, 'config/release.json');
-  writeJson(box.root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers.wheel, polyspec: { 'kit-lib': 'https://github.com/polyspec/kit-lib' } } } });
+  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
+  writeJson(box.root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers?.wheel, polyspec: { 'kit-lib': 'https://github.com/polyspec/kit-lib' } } } });
   const lockFile = path.join(box.root, 'packages/fixture-python/pylock.wheel.toml');
   writeFileSync(lockFile, `${readFileSync(lockFile, 'utf8')}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { path = "dist/kit_lib-0.0.1-py3-none-any.whl", hashes = { sha256 = "${'3'.repeat(64)}" } }\n`);
   stop(() => prove(box), /^packages\/fixture-python\/pylock\.wheel\.toml: kit-lib 0\.0\.1 is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset$/);
@@ -276,15 +287,22 @@ test('the proof checks each sibling URL in a wheel against the published asset, 
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: the sha256 of the downloaded file is the one the release lists`), steps.join('\n'));
   // The install of the wheels reads their requirements file (-r); the dry runs that read the metadata of each wheel do not.
   const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index') && call.args.includes('-r'));
+  assert.ok(install && typeof install.requirements === 'string');
   assert.ok(install.args.includes('--no-deps'), 'the wheels install with no dependency resolution, so the sibling is never fetched from its URL');
-  // split returns at least one item, so the first item of each line exists.
-  assert.deepEqual(install.requirements.split('\n').filter(Boolean).map((line: string) => path.basename(line.split(' ')[0]!)), [GENERATOR_WHEEL, SIBLING_WHEEL]);
+  const files = install.requirements.split('\n').filter(Boolean).map((line: string) => {
+    const [file] = line.split(' ');
+    assert.ok(file !== undefined);
+    return path.basename(file);
+  });
+  assert.deepEqual(files, [GENERATOR_WHEEL, SIBLING_WHEEL]);
 });
 
 test('the proof refuses a sibling URL in a wheel that differs from the URL of the published asset', (t) => {
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
   const state = box.state();
-  box.stub({ release: { ...state.release, published: { ...state.release.published, [SIBLING_WHEEL]: { ...state.release.published[SIBLING_WHEEL], url: `${REPOSITORY}/releases/download/v0.0.1/elsewhere/${SIBLING_WHEEL}` } } } });
+  const { published } = state.release;
+  assert.ok(published);
+  box.stub({ release: { ...state.release, published: { ...published, [SIBLING_WHEEL]: { ...published[SIBLING_WHEEL], url: `${REPOSITORY}/releases/download/v0.0.1/elsewhere/${SIBLING_WHEEL}` } } } });
   stop(() => prove(box), new RegExp(escaped(`${GENERATOR_WHEEL} requires ${SIBLING} at ${SIBLING_URL}, the release v0.0.1 publishes ${SIBLING_WHEEL} at ${REPOSITORY}/releases/download/v0.0.1/elsewhere/${SIBLING_WHEEL}`)));
 });
 
@@ -292,6 +310,8 @@ test('the proof refuses a wheel whose downloaded sha256 differs from the digest 
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
   const state = box.state();
   const listed = `sha256:${'0'.repeat(64)}`;
-  box.stub({ release: { ...state.release, published: { ...state.release.published, [GENERATOR_WHEEL]: { ...state.release.published[GENERATOR_WHEEL], digest: listed } } } });
+  const { published } = state.release;
+  assert.ok(published);
+  box.stub({ release: { ...state.release, published: { ...published, [GENERATOR_WHEEL]: { ...published[GENERATOR_WHEEL], digest: listed } } } });
   stop(() => prove(box), new RegExp(escaped(`the release v0.0.1 lists ${GENERATOR_WHEEL} with the sha256 ${'0'.repeat(64)}, the downloaded file has`)));
 });

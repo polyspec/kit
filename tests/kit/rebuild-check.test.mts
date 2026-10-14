@@ -62,7 +62,7 @@ test('each class needs its field: the tool of ecosystem, the reason of replaced 
 });
 
 test('a class that is none of the four is a finding', (t) => {
-  const tools = { ...DECLARATION.tools, 'scripts/kit/lint.mts': { kind: 'own' } } as unknown as RebuildDeclaration['tools']; // The test declares a kind that the type excludes.
+  const tools = { ...DECLARATION.tools, 'scripts/kit/lint.mts': { kind: 'own' } };
   assert.deepEqual(rebuildFindings(tree(t, FILES), { ...DECLARATION, tools }, tracked), [
     'config/rebuild.json: scripts/kit/lint.mts has the class "own"; the classes are ecosystem, replaced, record and policy',
   ]);

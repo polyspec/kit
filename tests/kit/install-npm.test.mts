@@ -11,6 +11,8 @@ import type { TestContext } from 'node:test';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { KIT } from './kit-tools.mts';
+import { readFixture } from './json-fixture.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
 // installNpm of the checkout `root` with the declaration of its package.json, run in a process with the stubs of `env`; each
 // line that it prints goes to the standard output, and an error to the standard error with the exit status 1.
@@ -57,7 +59,7 @@ test('a changed npm declaration replaces the installed release', (t) => {
   const result = install(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /npm: 12\.2\.0 is installed in var\/tools\/npm; installing 12\.3\.1/);
-  assert.equal(JSON.parse(readFileSync(path.join(root, 'var/tools/npm/node_modules/npm/package.json'), 'utf8')).version, '12.3.1');
+  assert.equal(readFixture<NpmManifest>(root, 'var/tools/npm/node_modules/npm/package.json').version, '12.3.1');
   assert.equal(run(path.join(root, 'var/tools/bin/npm'), stubs.env), '12.3.1');
   assert.deepEqual(readdirSync(path.join(root, 'var/tools')).sort(), ['bin', 'npm'], 'no temporary or old directory is left');
 });

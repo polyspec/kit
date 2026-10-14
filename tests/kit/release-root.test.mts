@@ -2,12 +2,13 @@
 // its repository. config/release.json declares it with the directory `.` and the manifest package.json, and the release
 // reads that manifest, not `./package.json`.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { assetNames, context, coverage, loadConfig } from '../../scripts/kit/release.mts';
 import { tree } from './tree.mts';
+import { readFixture } from './json-fixture.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -38,9 +39,10 @@ test('the release of kit installs the package in a consumer project and smokes i
   assert.ok(npm, 'config/release.json of kit declares no npm consumer');
   assert.equal(npm.directory, 'tests/release-consumer/npm');
   assert.deepEqual(Object.keys(npm.smoke), ['@polyspec/kit']);
-  const manifest = JSON.parse(readFileSync(path.join(ROOT, npm.directory, 'package.json'), 'utf8'));
+  const manifest = readFixture<NpmManifest>(ROOT, `${npm.directory}/package.json`);
   // The consumer declares the Node.js floor of the pin, as every package.json does (toolchain-check), and the archive of
   // the version of package.json that make release-consumer-lock names for the smoke.
-  const { version } = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const { version } = readFixture<NpmManifest>(ROOT, 'package.json');
+  assert.ok(version);
   assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true, engines: { node: '>=26.11.1' }, dependencies: { '@polyspec/kit': `file:${assetNames(config, version)[0]}` } });
 });

@@ -1,17 +1,15 @@
 // Tests of scripts/kit/toolchain-exceptions.mts: an exception to a pin of kit is declared with its tool, channel, scope,
 // reason and retry condition; it allows its channel under its scope only, and one that nothing uses is stale.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { Pinning, readExceptions } from '../../scripts/kit/toolchain-exceptions.mts';
 import { typescriptFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
-import { validate } from '../../scripts/kit/schema-validate.mts';
+import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { tree } from './tree.mts';
 
-const SCHEMA = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../scripts/kit/schema/toolchain.schema.json'), 'utf8'));
+const SCHEMA = schemaFile('toolchain.schema.json');
 
 const json = (value: unknown) => JSON.stringify(value);
 const SVELTE = { tool: 'typescript', channel: '6.0.3', scope: 'packages/generator-svelte', reason: 'svelte-check and @sveltejs/package need the TypeScript 6 API', retry: 'the Svelte tools admit TypeScript 7' };

@@ -6,13 +6,18 @@
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseStub, toolchainStubs } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readStubLines, TEXTS } from './stub-json.mts';
+
+/** A call of the mise stub: its arguments, PATH and UV_PYTHON. */
+const MISE_CALL: JSONSchemaType<{ args: string[]; PATH: string; UV_PYTHON?: string }> = { type: 'object', required: ['args', 'PATH'], properties: { args: TEXTS, PATH: { type: 'string' }, UV_PYTHON: { type: 'string', nullable: true } } };
 
 const ROOT = path.resolve(KIT, '../..');
 const SUM = `sha256:${'a'.repeat(64)}`;
@@ -167,7 +172,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
     'mise which python3',
     'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
   ]);
-  const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { args: string[]; PATH: string; UV_PYTHON?: string });
+  const calls = readStubLines(log, MISE_CALL);
   const last = calls.at(-1)!;
   assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 2), [path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
   assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');

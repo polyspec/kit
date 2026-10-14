@@ -10,6 +10,11 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { writePythonLock } from '../../scripts/kit/python-lock.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readStubLines, TEXTS } from './stub-json.mts';
+
+/** A call of the uv stub: its arguments, its directory, the files of the directory and UV_CACHE_DIR. */
+const UV_CALL: JSONSchemaType<{ args: string[]; cwd: string; listing: string[]; env?: string | null }> = { type: 'object', required: ['args', 'cwd', 'listing'], properties: { args: TEXTS, cwd: { type: 'string' }, listing: TEXTS, env: { type: 'string', nullable: true } } };
 
 
 const HEX = 'a'.repeat(64);
@@ -60,7 +65,7 @@ ${extra ? `fs.writeFileSync(${JSON.stringify(extra)}, 'stray');` : ''}
 process.exit(${status});
 `);
   chmodSync(stub, 0o755);
-  return { root, log: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : []) };
+  return { root, log: () => (existsSync(log) ? readStubLines(log, UV_CALL) : []) };
 }
 
 const temporary = (root: string) => readdirSync(path.join(root, 'var/tools')).filter(name => name.startsWith('python-lock-'));
@@ -71,6 +76,7 @@ test('the writer runs uv with the sources by their names, the pinned flags and a
   assert.deepEqual(written, { file: ENTRY.lock });
   assert.equal(readFileSync(path.join(root, ENTRY.lock), 'utf8'), GOOD);
   const [call] = log();
+  assert.ok(call);
   assert.deepEqual(call.args, EXPECTED_ARGS);
   assert.notEqual(call.cwd, root, 'uv runs in a temporary directory, so the header of the lock names only the source names');
   assert.deepEqual(temporary(root), [], 'the temporary directory is removed');
@@ -127,6 +133,7 @@ test('a requirements source that is a pyproject.toml is copied into the temporar
   const { root, log } = checkout(t, { sources: PYPROJECT_SOURCES });
   assert.deepEqual(writePythonLock({ root, entry: PYPROJECT_ENTRY, env: process.env }), { file: ENTRY.lock });
   const [call] = log();
+  assert.ok(call);
   assert.deepEqual(call.args, ['pip', 'compile', 'pyproject.toml', '-c', 'constraints.txt', '--universal', '--python-version', '3.14', '--generate-hashes', '--format', 'pylock.toml', '-o', 'pylock.toml']);
   assert.deepEqual(call.listing, ['constraints.txt', 'pyproject.toml']);
 });
@@ -147,6 +154,7 @@ test('findLinks makes uv offline and the lock keeps no machine path: a file URL 
   const { root, log } = checkout(t, { lock, sources });
   writePythonLock({ root, entry, env: process.env });
   const [call] = log();
+  assert.ok(call);
   assert.deepEqual(call.args, [...EXPECTED_ARGS, '--no-index', '--find-links', path.join(root, 'app/links')]);
   const written = readFileSync(path.join(root, ENTRY.lock), 'utf8');
   assert.ok(written.includes('path = "links/requests-2.34.2-py3-none-any.whl"'), written);

@@ -3,21 +3,22 @@
 // toolchain-lint.test.mts; the tools of mise.toml: toolchain-mise.test.mts) and fails with the file, the expected form and
 // the actual value.
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
+import { readdirSync } from 'node:fs';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { validate } from '../../scripts/kit/schema-validate.mts';
+import { parseJson, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { FIXTURE_CONFIG, fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
 
-const SCHEMA = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/schema/toolchain.schema.json'), 'utf8'));
+const SCHEMA = schemaFile('toolchain.schema.json');
 const DIGEST = 'a'.repeat(128);
 
 test('the schema accepts every representative toolchain configuration', () => {
   const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
   assert.deepEqual(names, ['toolchain-files-only.json', 'toolchain-full.json']);
-  for (const name of names) assert.deepEqual(validate(JSON.parse(fixtureConfig(name)), SCHEMA), [], name);
+  for (const name of names) {
+    const config: unknown = JSON.parse(fixtureConfig(name));
+    assert.deepEqual(validate(config, SCHEMA), [], name);
+  }
 });
 
 test('the schema names an unknown key, a wrong shape and a malformed version; a tool of mise.toml is an unknown key', () => {
@@ -37,7 +38,7 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     '.node-version': '26.8.1\n',
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
   });
-  const mise = JSON.parse(fixtureConfig('toolchain-full.json')).mise;
+  const { mise } = parseJson<{ mise: { sha256: Record<string, string> } }>(fixtureConfig('toolchain-full.json'), 'toolchain.schema.json', 'toolchain-full.json');
   assert.deepEqual(declaredToolchain(root), {
     node: { version: '26.8.1', source: '.node-version' },
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },

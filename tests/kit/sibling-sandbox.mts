@@ -1,10 +1,12 @@
 // Helpers of the sibling tests (release-wheel.test.mts, release-proof.test.mts): a release whose wheel kit-fixture requires
 // kit-fixture-validator, a wheel package of the same release. The second wheel package is added to the configuration of a
 // temporary sandbox (releaseSandbox `mutate`); the committed fixture is not changed.
+import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from './release-sandbox.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
+import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 
 export const REPOSITORY = 'https://example.com/polyspec/kit-fixture';
 const GENERATOR = 'kit-fixture';
@@ -22,9 +24,10 @@ export function addSibling(root: string) {
   mkdirSync(path.join(root, 'packages/fixture-validator'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-validator/pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "${SIBLING}"\nversion = "0.0.1"\n`);
   writeFileSync(path.join(root, SIBLING_LOCK), 'lock-version = "1.0"\ncreated-by = "uv"\n');
-  const config = readJson(root, 'config/release.json');
+  const config = readJson<ReleaseConfig>(root, 'config/release.json');
   config.packages.push({ kind: 'wheel', directory: 'packages/fixture-validator', name: SIBLING });
   config.manifests['packages/fixture-validator/pyproject.toml'] = 'archive';
+  assert.ok(config.consumers?.wheel);
   config.consumers.wheel.smoke[SIBLING] = ['python', '-c', 'import kit_fixture_validator'];
   config.consumers.wheel.lock[SIBLING] = SIBLING_LOCK;
   writeJson(root, 'config/release.json', config);

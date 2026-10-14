@@ -6,6 +6,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readFixture } from './json-fixture.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|limepie)\b/i;
@@ -33,7 +35,7 @@ function allowedImport(file: string, specifier: string, dependencies: readonly s
   return !file.startsWith('scripts/kit/bootstrap/') && dependencies.includes(packageOf(specifier));
 }
 
-const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as Record<'dependencies' | 'peerDependencies', Record<string, string> | undefined>;
+const PACKAGE = readFixture<NpmManifest>(ROOT, 'package.json');
 // The packages that kit declares, by the field of package.json that declares each: a peer dependency, such as the
 // @vscode/test-electron of install-vscode.mts, is one that the repository which runs the tool installs.
 const DECLARED = (['dependencies', 'peerDependencies'] as const).flatMap(field => Object.keys(PACKAGE[field] ?? {}).map(name => ({ field, name })));
@@ -75,7 +77,7 @@ test('every package of dependencies and peerDependencies in package.json is used
   // quoted string of a tool, such as the knip that lint-ts.mts runs), or when it is a peer dependency of a used package,
   // such as the oxlint-tsgolint that oxlint loads for --type-aware; the manifests of node_modules say which.
   const texts = tools.filter(name => name.endsWith('.mts')).map(file => readFileSync(path.join(ROOT, file), 'utf8'));
-  const manifest = (name: string) => JSON.parse(readFileSync(path.join(ROOT, 'node_modules', name, 'package.json'), 'utf8')) as { bin?: string | Record<string, string>; peerDependencies?: Record<string, string> };
+  const manifest = (name: string) => readFixture<NpmManifest>(ROOT, `node_modules/${name}/package.json`);
   const commands = (name: string) => { const { bin } = manifest(name); return typeof bin === 'string' ? [name.split('/').at(-1)!] : Object.keys(bin ?? {}); };
   const used = new Set(texts.flatMap(importsOf).map(packageOf));
   for (const { name } of DECLARED) if (commands(name).some(command => texts.some(text => text.includes(`'${command}'`)))) used.add(name);

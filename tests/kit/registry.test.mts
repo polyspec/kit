@@ -3,12 +3,15 @@
 // test needs neither go nor Composer; tests/source/tool-records-real.test.mts proves the records against the pinned tools.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fixtureCheckout, gate } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { readStubLines } from './stub-json.mts';
+import { TOOL_REQUEST } from './record-tools.mts';
+import { parseJson } from '../../scripts/kit/schema-validate.mts';
 
 const FIXTURE = path.resolve(import.meta.dirname, 'fixture');
 
@@ -29,7 +32,7 @@ test('a go mod edit or composer validate without a record fails with the request
   const composer = spawnSync(path.join(bin, 'composer'), ['validate', '--no-check-publish'], { cwd: directory, env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(composer.status, 1);
   assert.equal(composer.stderr, 'composer stub: no record for composer validate --no-check-publish\n');
-  assert.deepEqual(readFileSync(misses, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [
+  assert.deepEqual(readStubLines(misses, TOOL_REQUEST), [
     { tool: 'go', args: ['mod', 'edit', '-json'], files: { 'go.mod': 'module example.com/unrecorded\n\ngo 1.27.2\n' } },
     { tool: 'composer', args: ['validate', '--no-check-publish'], files: { 'composer.json': '{ "name": "example/unrecorded" }\n', 'composer.lock': null } },
   ]);
@@ -42,7 +45,7 @@ test('the go stub answers go mod edit of the fixture from the record of the real
   const file = path.join(FIXTURE, 'packages/fixture-go/go.mod');
   const go = spawnSync(path.join(bin, 'go'), ['mod', 'edit', '-json', file], { env: stub.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(go.status, 0, go.stderr);
-  assert.equal(JSON.parse(go.stdout).Module.Path, 'example.com/kit-fixture-go');
+  assert.equal(parseJson<{ Module: { Path: string } }>(go.stdout, 'go-mod.schema.json', 'go mod edit -json').Module.Path, 'example.com/kit-fixture-go');
 });
 
 // A vendored test runs in every consumer, and a consumer may install no Go and no Composer: the stubs stand in for them, so

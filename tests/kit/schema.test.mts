@@ -1,13 +1,13 @@
 // Tests of the schema validator and of the configuration check of kit-check: the schemas accept the fixture's
 // configuration and name each error of a configuration that breaks them.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
-import { ConfigError, parseJson, readConfig, readConfigFindings, SCHEMAS, SchemaError, validate } from '../../scripts/kit/schema-validate.mts';
+import { ConfigError, parseJson, readConfig, readConfigFindings, SCHEMAS, SchemaError, schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -46,21 +46,21 @@ test('the validator prints the path, the message and the params of ajv and the v
 });
 
 test('a Composer manifest of the policy is a relative path to a composer.json, at the root or below it', () => {
-  const schema = JSON.parse(readFileSync(path.join(HERE, '../../scripts/kit/schema/dependency-policy.schema.json'), 'utf8'));
+  const schema = schemaFile('dependency-policy.schema.json');
   const policy = (manifest: string) => ({ schema: 1, composerPlatforms: [{ manifest, php: '8.2.0' }], pythonManifests: [], pythonLocks: [], npmLocks: [], exceptions: [] });
   for (const manifest of ['composer.json', 'examples/board/composer.json']) assert.deepEqual(validate(policy(manifest), schema), [], manifest);
   for (const manifest of ['/composer.json', 'a\\composer.json', 'xcomposer.json', 'composer.lock']) assert.notDeepEqual(validate(policy(manifest), schema), [], manifest);
 });
 
 test('a Python manifest of the policy is a relative path to a pyproject.toml, at the root or below it', () => {
-  const schema = JSON.parse(readFileSync(path.join(HERE, '../../scripts/kit/schema/dependency-policy.schema.json'), 'utf8'));
+  const schema = schemaFile('dependency-policy.schema.json');
   const policy = (manifest: string) => ({ schema: 1, composerPlatforms: [], pythonManifests: [manifest], pythonLocks: [], npmLocks: [], exceptions: [] });
   for (const manifest of ['pyproject.toml', 'packages/x-python/pyproject.toml']) assert.deepEqual(validate(policy(manifest), schema), [], manifest);
   for (const manifest of ['/pyproject.toml', 'xpyproject.toml', 'setup.py']) assert.notDeepEqual(validate(policy(manifest), schema), [], manifest);
 });
 
 test('an npm lock of the policy is a relative path to a package-lock.json, at the root or below it', () => {
-  const schema = JSON.parse(readFileSync(path.join(HERE, '../../scripts/kit/schema/dependency-policy.schema.json'), 'utf8'));
+  const schema = schemaFile('dependency-policy.schema.json');
   const policy = (lock: string) => ({ schema: 1, composerPlatforms: [], pythonManifests: [], pythonLocks: [], npmLocks: [lock], exceptions: [] });
   for (const lock of ['package-lock.json', 'tests/package-install/package-lock.json']) assert.deepEqual(validate(policy(lock), schema), [], lock);
   for (const lock of ['/package-lock.json', 'a\\package-lock.json', 'xpackage-lock.json', 'npm-shrinkwrap.json']) assert.notDeepEqual(validate(policy(lock), schema), [], lock);
@@ -69,7 +69,7 @@ test('an npm lock of the policy is a relative path to a package-lock.json, at th
 test('a key named like a member of Object.prototype is no declared property and no present required key (K112)', () => {
   const schema = { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string' } } };
   for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
-    const value = JSON.parse(`{ "name": "a", ${JSON.stringify(key)}: 1 }`);
+    const value: unknown = JSON.parse(`{ "name": "a", ${JSON.stringify(key)}: 1 }`);
     assert.notDeepEqual(validate(value, schema), [], `the extra key ${key} is refused`);
   }
   assert.notDeepEqual(validate({}, { type: 'object', required: ['toString'], properties: { toString: { type: 'integer' } } }), [], 'a required key is an own key');
@@ -98,8 +98,6 @@ test('readConfig gives the JSON of a file as the type of its schema, and invalid
 
 test('every schema of kit compiles in the strict mode of ajv (K158)', () => {
   for (const file of readdirSync(SCHEMAS).filter(name => name.endsWith('.schema.json'))) {
-    const schema: unknown = JSON.parse(readFileSync(path.join(SCHEMAS, file), 'utf8'));
-    assert.ok(typeof schema === 'object' && schema !== null && !Array.isArray(schema), file);
-    assert.doesNotThrow(() => validate(null, Object.fromEntries(Object.entries(schema))), file);
+    assert.doesNotThrow(() => validate(null, schemaFile(file)), file);
   }
 });

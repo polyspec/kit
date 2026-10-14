@@ -11,8 +11,8 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { acquireHolderLock, holderRunning, processStart, procStart, readLockRecord, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
-import type { CommandOutcome, HolderLockRefused, Host } from '../../scripts/kit/holder-lock.mts';
+import { acquireHolderLock, HolderLockRefused, holderRunning, processStart, procStart, readLockRecord, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
+import type { CommandOutcome, Host } from '../../scripts/kit/holder-lock.mts';
 import type { RunPlace } from '../../scripts/kit/process.mts';
 import { initRepository } from './sandbox-repository.mts';
 
@@ -151,7 +151,9 @@ test('on Windows the start time is the creation time from PowerShell and ps is n
   assert.equal(command, 'powershell.exe');
   assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
   // The fourth argument is the script, a text.
-  assert.match(args[3] as string, /Get-Process -Id 42 .*\.StartTime.*\.ToFileTimeUtc\(\)/);
+  const script = args[3];
+  assert.ok(typeof script === 'string');
+  assert.match(script, /Get-Process -Id 42 .*\.StartTime.*\.ToFileTimeUtc\(\)/);
   assert.equal(processStart(42, fakeHost('win32', { commands: { 'powershell.exe': { status: 3, stdout: '', stderr: '' } } })), null, 'a process that ended before the query');
   const denied = fakeHost('win32', { commands: { 'powershell.exe': { status: 4, stdout: '', stderr: '' } } });
   assert.equal(holderRunning({ pid: 42, processStart: 'x' }, denied), true, 'a creation time that cannot be read is a running holder');
@@ -172,7 +174,9 @@ test('on macOS the start time is the lstart of ps in the C locale', () => {
 
 test('the start time of a running process is known and the start time of an ended process is null', () => {
   // The process of this test runs and its start time is readable; assert.match fails for any other value.
-  assert.match(processStart(process.pid) as string, /\S/);
+  const start = processStart(process.pid);
+  assert.ok(typeof start === 'string');
+  assert.match(start, /\S/);
   assert.equal(processStart(process.pid), processStart(process.pid));
   const finished = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
   assert.equal(processStart(Number(finished.stdout)), null);
@@ -261,7 +265,8 @@ test('two clears at once leave one holder: the later clear refuses the lock that
         holders.push(acquireHolderLock(lock, { command: 'Y' }));
       } catch (error) {
         // acquireHolderLock refuses a held lock with a HolderLockRefused.
-        refused = error as HolderLockRefused;
+        assert.ok(error instanceof HolderLockRefused);
+        refused = error;
       }
     },
   }), (error: HolderLockRefused) => {
@@ -341,7 +346,7 @@ test('run holds the lock while the command runs and exits with its status', (t) 
   const ran = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', probe);
   assert.equal(ran.status, 3, ran.stderr);
   assert.match(ran.stderr, /lock: acquired .*resource\.lock \(process \d+\)\nlock: released .*resource\.lock\n/);
-  const seen = JSON.parse(readFileSync(path.join(directory, 'seen'), 'utf8'));
+  const seen = readLockRecord(path.join(directory, 'seen'));
   assert.equal(seen.checkout, realpathSync(directory));
   assert.match(seen.processStart, /\S/);
   assert.equal(seen.command, `${process.execPath} -e ${probe}`);
@@ -433,13 +438,15 @@ test('a clear that holds the claim of an ended holder refuses a second clear and
         acquireHolderLock(lock, { command: 'X' });
       } catch (error) {
         // acquireHolderLock throws an Error.
-        refusedHolder = error as Error;
+        assert.ok(error instanceof Error);
+        refusedHolder = error;
       }
       try {
         removeDeadLock(lock);
       } catch (error) {
         // removeDeadLock throws an Error.
-        refusedClear = error as Error;
+        assert.ok(error instanceof Error);
+        refusedClear = error;
       }
     },
   });

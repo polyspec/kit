@@ -2,7 +2,7 @@
 // module proxy, the vulnerabilities that the code calls from govulncheck, and the install of govulncheck into var/tools.
 // go, govulncheck and the proxy are stubs.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,6 +10,8 @@ import { goRequirements } from '../../scripts/kit/dependency-state.mts';
 import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
+import { readFixture } from './json-fixture.mts';
+import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 
 // A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
 // the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
@@ -102,8 +104,8 @@ test('the review records the Go advisories, and the update plan raises the modul
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-go\/go\.sum github\.com\/google\/uuid v1\.6\.0: advisory GO-2099-0001 \(vulnerability\) uuid generates a predictable identifier https:\/\/pkg\.go\.dev\/vuln\/GO-2099-0001\. Fix: make dependency-review UPDATE=1\.$/m);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.find((item: { lock: string }) => item.lock === 'packages/fixture-go/go.sum').advisories.map((item: { id: string }) => item.id), ['GO-2099-0001']);
+  const record = readFixture<ReviewRecord>(root, 'config/dependency-review.json');
+  assert.deepEqual(record.locks.find(item => item.lock === 'packages/fixture-go/go.sum')?.advisories?.map(item => item.id), ['GO-2099-0001']);
   const plan = updatePlan({
     newer: [{ ecosystem: 'go', manifest: 'packages/fixture-go/go.mod', package: 'github.com/google/uuid', spec: 'v1.6.0', latest: 'v1.7.0' }],
     advisories: [{ lock: 'packages/fixture-go/go.sum', package: 'github.com/google/uuid' }],

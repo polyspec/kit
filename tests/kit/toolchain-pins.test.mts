@@ -10,12 +10,15 @@ import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { pinFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { PINS, readPins } from '../../scripts/kit/toolchain-pins.mts';
 import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const SHIPPED = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/toolchain-pins.json');
 
 test('kit ships the decided pins: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release', () => {
   assert.deepEqual(PINS, { node: '26.11.1', python: '3.14', php: '8.5', go: '1.27.2', rust: '1.99.0', typescript: '7.0.2' });
-  assert.deepEqual(readPins(JSON.parse(readFileSync(SHIPPED, 'utf8'))), PINS);
+  const shipped: unknown = JSON.parse(readFileSync(SHIPPED, 'utf8'));
+  assert.ok(isJsonObject(shipped));
+  assert.deepEqual(readPins(shipped), PINS);
 });
 
 test('the tools of the mise.toml of kit are at the pins: Go by release, Python by minor; mise.lock holds their digests', () => {

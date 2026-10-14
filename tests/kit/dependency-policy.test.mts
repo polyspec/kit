@@ -11,6 +11,10 @@ import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
 
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { tool } from './kit-tools.mts';
+import { readConfig } from '../../scripts/kit/schema-validate.mts';
+import { readNpmManifest } from '../../scripts/kit/manifests.mts';
+import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
+import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
@@ -52,12 +56,12 @@ test('the review records the fixture, and a second run writes the same record', 
   stub.registry(FIXTURE_REGISTRY);
   const first = review(root, ['--record'], stub.env);
   assert.equal(first.status, 0, first.stdout + first.stderr);
-  const once = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
+  const once = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
   const second = review(root, ['--record'], stub.env);
   assert.equal(second.status, 0, second.stdout + second.stderr);
-  const twice = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
+  const twice = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
   assert.deepEqual({ ...twice, reviewed: null }, { ...once, reviewed: null });
-  assert.deepEqual(twice.dependencies.map((item: { ecosystem: string; package: string; version: string }) => [item.ecosystem, item.package, item.version]), [
+  assert.deepEqual(twice.dependencies.map(item => [item.ecosystem, item.package, item.version]), [
     ['npm', 'is-number', '7.0.0'], ['npm', 'semver', '7.6.0'], ['composer', 'psr/log', '3.0.2'], ['pypi', 'click', '8.1.7'], ['pypi', 'setuptools', '84.0.0'], ['go', 'github.com/google/uuid', 'v1.6.0'],
   ]);
 });
@@ -71,8 +75,8 @@ test('the mutation check rejects every mutation of the fixture', (t) => {
 
 test('the mutation check applies to the ecosystems of the repository: no Composer platform, and a record that starts with a Python dependency', (t) => {
   const root = fixture(t);
-  const edit = <T,>(file: string, change: (data: T) => void) => {
-    const data: T = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+  const edit = <T,>(file: typeof POLICY | typeof RECORD, change: (data: T) => void) => {
+    const data = readConfig<T>(root, file, file === POLICY ? 'dependency-policy.schema.json' : 'dependency-review.schema.json');
     change(data);
     writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
   };
@@ -114,15 +118,15 @@ test('a package that the root overrides install from a URL is not reviewed again
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const manifest = readNpmManifest(root, 'package.json');
   manifest.overrides = { 'is-number': 'https://example.org/releases/is-number-7.0.0.tgz' };
   writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   const stub = stubRegistries(t);
   stub.registry({ ...FIXTURE_REGISTRY, npm: Object.fromEntries(Object.entries(FIXTURE_REGISTRY.npm).filter(([name]) => name !== 'is-number')) });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.equal(record.dependencies.some((entry: { package: string }) => entry.package === 'is-number'), false);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  assert.equal(record.dependencies.some(entry => entry.package === 'is-number'), false);
 });
 
 // A package beside the fixture, at tools/sub, with its own lock: it links fixture-lib as a local package, and the lock records
@@ -139,7 +143,7 @@ const addSubPackage = (root: string, lockVersion: string) => {
   } }, null, 2)}\n`);
 };
 const addPolicyLock = (root: string) => {
-  const policy = JSON.parse(readFileSync(path.join(root, 'config/dependency-policy.json'), 'utf8'));
+  const policy = readPolicy(root);
   policy.npmLocks.push(SUB_LOCK);
   writeFileSync(path.join(root, 'config/dependency-policy.json'), `${JSON.stringify(policy, null, 2)}\n`);
 };
@@ -168,8 +172,8 @@ test('the review records and audits every npm lock that the policy names', (t) =
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.map((entry: { lock: string }) => entry.lock).filter((lock: string) => lock.endsWith('package-lock.json')), ['package-lock.json', SUB_LOCK]);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  assert.deepEqual(record.locks.map(entry => entry.lock).filter(lock => lock.endsWith('package-lock.json')), ['package-lock.json', SUB_LOCK]);
   assert.equal(stub.calls().filter(call => call.startsWith('npm audit ')).length, 2, stub.calls().join('\n'));
 });
 
@@ -187,7 +191,7 @@ test('an npm audit that prints nothing is an error of its lock, not a lock witho
 test('the review refuses a policy that breaks its schema instead of reviewing nothing for a missing key', (t) => {
   const root = fixture(t);
   const file = path.join(root, 'config/dependency-policy.json');
-  const policy = JSON.parse(readFileSync(file, 'utf8'));
+  const policy = readConfig<{ pythonLocks?: unknown }>(root, POLICY, 'dependency-policy.schema.json');
   delete policy.pythonLocks;
   writeFileSync(file, JSON.stringify(policy));
   const stub = stubRegistries(t);
@@ -201,7 +205,7 @@ test('the review refuses a policy that breaks its schema instead of reviewing no
 test('the gate reads the review record by its schema and names each error', (t) => {
   const root = fixture(t);
   const file = path.join(root, 'config/dependency-review.json');
-  const record = JSON.parse(readFileSync(file, 'utf8'));
+  const record = readConfig<{ comment?: string }>(root, RECORD, 'dependency-review.schema.json');
   delete record.comment;
   writeFileSync(file, JSON.stringify(record));
   const result = gate(root, stubRegistries(t).env);
@@ -217,9 +221,9 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
   const via = [{ source: 1099, url: 'https://github.com/advisories/GHSA-0000-0000-0001', severity: 'high', title: 'nested overflows' }];
   stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { nested: { range: '<1.2.0', via } } } });
   review(root, ['--record'], stub.env);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  const npm = record.locks.find((entry: { lock: string }) => entry.lock === 'package-lock.json');
-  assert.deepEqual(npm.advisories, [{ package: 'nested', range: '<1.2.0', id: '1099', severity: 'high', title: 'nested overflows', url: via[0]!.url }]);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  const npm = record.locks.find(entry => entry.lock === 'package-lock.json');
+  assert.deepEqual(npm?.advisories, [{ package: 'nested', range: '<1.2.0', id: '1099', severity: 'high', title: 'nested overflows', url: via[0]!.url }]);
 });
 
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.

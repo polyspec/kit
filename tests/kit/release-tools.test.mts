@@ -4,7 +4,7 @@
 // a registry: rustup and rustc are stubs on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -13,6 +13,9 @@ import { prepareRust, toolsFor } from '../../scripts/kit/release-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import { tool } from './kit-tools.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { readStubLines, STUB_CALL } from './stub-json.mts';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
+import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture/config/release.json');
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
@@ -32,7 +35,7 @@ function rustCheckout(t: TestContext, { channel = '1.99.0', rustupStatus = 0 }: 
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log };
   // check-toolchain lists the files of the checkout through Git for the floors, so the checkout is a repository.
   initRepository(root);
-  const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : []);
+  const calls = () => (existsSync(log) ? readStubLines(log, STUB_CALL) : []);
   return { root, env, calls, log };
 }
 
@@ -44,7 +47,7 @@ function capture() {
 }
 
 test('release-tools runs install-tools for the fixture configuration and asks for the Rust toolchain of a git-tag proof', () => {
-  const config = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  const config = readJsonFile<ReleaseConfig>(FIXTURE, 'release.schema.json');
   assert.ok(config.proof?.gitTag, 'the fixture proves a git-tag manifest, so the proof needs its Rust toolchain');
   assert.deepEqual(toolsFor(config), { install: true, rust: true, assets: false });
 });
