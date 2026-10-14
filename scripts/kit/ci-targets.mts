@@ -24,6 +24,7 @@ import type { RunRecord, UnreadRecord } from './target-report.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { jsonText } from './bootstrap/files.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
+import { errorCode } from './process.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 // The toolchains whose releases the record of a run names.
@@ -70,7 +71,10 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
       if (!passed) target.failures = failureLines(lines, exit);
       const warnings = warningLines(lines);
       if (warnings.length) target.warnings = warnings;
-      try { capLog(log); } catch (error) { writer.errors.push(`report write failed: ${log}: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}`); }
+      try { capLog(log); } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        writer.errors.push(`report write failed: ${log}: ${errorCode(error) ?? error.message}`);
+      }
       save();
       print(`[ci-targets] ${target.name} ${target.status} in ${((Date.now() - begin) / 1000).toFixed(1)} s`);
     }
@@ -143,8 +147,9 @@ if (isMain(import.meta.url)) {
       process.exitCode = 2;
     }
   } catch (error) {
-    const failure = error as Error & { usage?: boolean };
-    console.error(`[ci-targets] ${failure.usage ? `${failure.message}; ${USAGE}` : failure.message}`);
-    process.exitCode = failure.usage ? 2 : 1;
+    if (!(error instanceof Error)) throw error;
+    const usage = 'usage' in error && error.usage === true;
+    console.error(`[ci-targets] ${usage ? `${error.message}; ${USAGE}` : error.message}`);
+    process.exitCode = usage ? 2 : 1;
   }
 }

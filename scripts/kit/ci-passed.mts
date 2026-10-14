@@ -6,6 +6,7 @@
 // that is unset, is not JSON or names no job (status 2, because nothing was judged). On GitHub Actions each finding is also
 // written as an `::error::` annotation.
 import { isMain } from './paths.mts';
+import { isJsonObject } from './bootstrap/files.mts';
 
 /** The judgement of the needed jobs: the exit status, the lines to print and the failures. */
 export type Judgement = { status: number; lines: string[]; errors: string[] };
@@ -18,10 +19,11 @@ export function passed(text: string | undefined): Judgement {
   try {
     needs = JSON.parse(text);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // JSON.parse throws only a SyntaxError.
-    return refuse(`RESULTS is not JSON: ${(error as SyntaxError).message}: ${JSON.stringify(text)}`);
+    return refuse(`RESULTS is not JSON: ${error.message}: ${JSON.stringify(text)}`);
   }
-  if (needs === null || typeof needs !== 'object' || Array.isArray(needs)) return refuse(`RESULTS is not a JSON object of jobs: ${JSON.stringify(text)}`);
+  if (!isJsonObject(needs)) return refuse(`RESULTS is not a JSON object of jobs: ${JSON.stringify(text)}`);
   if (Object.keys(needs).length === 0) return refuse(`RESULTS names no job: ${JSON.stringify(text)}; list every other job of the workflow under needs`);
   const lines: string[] = [];
   const errors: string[] = [];

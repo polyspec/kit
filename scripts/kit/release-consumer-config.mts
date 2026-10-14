@@ -12,6 +12,7 @@
 //                                                      `polyspec` maps each polyspec distribution to its repository URL
 //   proof.gitTag = { <manifest>: { kind, name, smoke } }  how the release proof installs a manifest that a tag releases
 //                                                      through git (`git-tag` in `manifests`): kind rust, with its Cargo.toml
+import { isJsonObject } from './bootstrap/files.mts';
 
 /** The package kinds that have a consumer project with a committed manifest and lock. */
 export const CONSUMER_KINDS: ('npm' | 'composer')[] = ['npm', 'composer'];
@@ -106,12 +107,11 @@ export function consumerConfigProblems(config: ConsumerConfig): string[] {
     const gitTag = Object.entries(config.manifests).filter(([, mode]) => mode === 'git-tag').map(([file]) => file);
     for (const [file, entry] of Object.entries(config.proof.gitTag)) {
       if (config.manifests[file] !== 'git-tag') problems.push(`proof.gitTag.${file} is not a manifest with the mode "git-tag" in manifests`);
-      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      if (!isJsonObject(entry)) {
         problems.push(`proof.gitTag.${file} needs an object { kind, name, smoke }`);
         continue;
       }
-      // The check above leaves an object that is neither null nor an array.
-      const fields = entry as Record<string, unknown>;
+      const fields = entry;
       const base = file.split('/').at(-1);
       // The kind is text that is a key of GIT_TAG_KINDS itself, not of every object (toString).
       const { kind } = fields;

@@ -109,8 +109,9 @@ export function parseProjectDependencies(text: string, file: string) {
   try {
     data = readToml(text, file);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // readToml throws an Error that names the file, the line and the column.
-    throw failWith((error as Error).message, `write ${file} as valid TOML`);
+    throw failWith(error.message, `write ${file} as valid TOML`);
   }
   const project = data.project;
   if (!isTable(project)) {
@@ -165,12 +166,14 @@ function parseSources({ requirements, constraints, text }: { requirements: strin
   try {
     pins = parseConstraints(text.constraints, constraints);
   } catch (error) {
-    findings.push(`${(error as Error).message}. Fix: write name==version in ${constraints}, or name @ url#sha256=<digest> for a polyspec archive`);
+    if (!(error instanceof Error)) throw error;
+    findings.push(`${error.message}. Fix: write name==version in ${constraints}, or name @ url#sha256=<digest> for a polyspec archive`);
   }
   try {
     reqs = parseRequirementSource(requirements, text.requirements);
   } catch (error) {
-    findings.push(`${(error as Error).message}. Fix: ${(error as Error & { fix?: string }).fix ?? `write the requirement in a form that ${requirements} reads`}`);
+    if (!(error instanceof Error)) throw error;
+    findings.push(`${error.message}. Fix: ${(error as Error & { fix?: string }).fix ?? `write the requirement in a form that ${requirements} reads`}`);
   }
   return { pins, requirements: reqs, findings };
 }
@@ -192,7 +195,8 @@ function compare({ root, lock, lockText, requirements, constraints, pins, reqs }
   try {
     locked = readPylock(lockText, lock).packages;
   } catch (error) {
-    add((error as Error).message, `write ${lock} with make python-lock`);
+    if (!(error instanceof Error)) throw error;
+    add(error.message, `write ${lock} with make python-lock`);
     return findings;
   }
   const lockedByKey = new Map<string, PylockPackage>();
@@ -386,7 +390,8 @@ if (isMain(import.meta.url)) {
           writePythonLock({ root: repositoryRoot(), entry, print: text => console.log(`[python-lock] ${text}`) });
           console.log(`[python-lock] wrote ${entry.lock}`);
         } catch (error) {
-          console.error(`[python-lock] ${entry.lock} failed: ${(error as Error).message}`);
+          if (!(error instanceof Error)) throw error;
+          console.error(`[python-lock] ${entry.lock} failed: ${error.message}`);
           failed = true;
         }
       } else {
@@ -397,7 +402,8 @@ if (isMain(import.meta.url)) {
     }
     if (command === 'check') console.log(failed ? `[python-lock] ${entries.length} lock(s) checked, some differ from their sources` : `[python-lock] ${entries.length} lock(s) match their sources`);
   } catch (error) {
-    console.error(`[python-lock] ${(error as Error).message}`);
+    if (!(error instanceof Error)) throw error;
+    console.error(`[python-lock] ${error.message}`);
     failed = true;
   }
   if (failed) process.exitCode = 1;

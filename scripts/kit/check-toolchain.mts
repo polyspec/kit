@@ -180,8 +180,9 @@ if (isMain(import.meta.url)) {
     if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0 || locked.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // The declarations and the check fail with an Error.
-    console.error(`[check-toolchain] ${(error as Error).message}`);
+    console.error(`[check-toolchain] ${error.message}`);
     process.exitCode = 1;
   }
 }

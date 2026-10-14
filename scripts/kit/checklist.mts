@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
 import { readConfigFindings } from './schema-validate.mts';
+import { present } from './present.mts';
 
 export const CONFIG = 'config/checklist.json';
 export const PRE_PUSH_HOOK = 'pre-push';
@@ -185,14 +186,15 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
       }
     } else {
       const attempt = block.kind === 'listItem' && /^ *- \[/.test(line);
+      const match = LIST_ITEM.exec(line);
       // Every group of LIST_ITEM takes part in a match.
-      const entry = LIST_ITEM.exec(line) as [string, string, string, string, string] | null;
-      if (attempt && entry && id.test(entry[3])) {
+      const entry = match && { lead: present(match[1], 'the indentation of a list item'), state: present(match[2], 'the state of a list item'), id: present(match[3], 'the id of a list item'), text: present(match[4], 'the text of a list item') };
+      if (attempt && entry && id.test(entry.id)) {
         allowed = true;
-        place = entry[1].length + 2;
-        stateRule(entry[3], number, place + 1, entry[2], entry[2]);
-        add(number, { id: entry[3], title: firstSentence(entry[4]), state: entry[2] });
-        current = { id: entry[3], state: entry[2], line: number, text: line, indent: entry[1].length };
+        place = entry.lead.length + 2;
+        stateRule(entry.id, number, place + 1, entry.state, entry.state);
+        add(number, { id: entry.id, title: firstSentence(entry.text), state: entry.state });
+        current = { id: entry.id, state: entry.state, line: number, text: line, indent: entry.lead.length };
         lists.push(current);
       } else if (attempt) {
         plainOnly(number, 'checklist-line', `${JSON.stringify(line.trim())} is not an item of the form "- [state] ID text"`);
@@ -274,7 +276,8 @@ export function inspectTrackers(config: Pick<ChecklistConfig, 'trackers'>, read:
       english = read(tracker.path);
       for (const item of activeItems(english, tracker)) active.push({ file: tracker.path, id: item.id, title: item.title });
     } catch (error) {
-      problems.push(`${tracker.path}: ${(error as Error).message}`);
+      if (!(error instanceof Error)) throw error;
+      problems.push(`${tracker.path}: ${error.message}`);
       continue;
     }
     if (!tracker.translation) continue;
@@ -282,13 +285,15 @@ export function inspectTrackers(config: Pick<ChecklistConfig, 'trackers'>, read:
     try {
       korean = read(tracker.translation);
     } catch (error) {
-      problems.push(`${tracker.translation}: ${(error as Error).message}`);
+      if (!(error instanceof Error)) throw error;
+      problems.push(`${tracker.translation}: ${error.message}`);
       continue;
     }
     try {
       problems.push(...compareTwin(english, korean, tracker));
     } catch (error) {
-      problems.push((error as Error).message);
+      if (!(error instanceof Error)) throw error;
+      problems.push(error.message);
     }
   }
   return { active, problems };

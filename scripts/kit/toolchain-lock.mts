@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
-import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS } from './toolchain-mise.mts';
 
 /** Writes mise.lock of `root` with the mise of var/tools/bin; throws with the findings of a lock that misses a digest. */
 export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
@@ -24,7 +24,7 @@ export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?
   // locks its tools only with --global, which writes mise.lock beside that file.
   const platforms = ['--global', '--platform', LOCK_PLATFORMS.join(',')];
   const declared = declaredMiseTools(root);
-  const pypi = Object.entries(MISE_TOOLS).some(([name, { key }]) => key.startsWith('pypi:') && declared[name as keyof typeof MISE_TOOLS]);
+  const pypi = MISE_TOOL_NAMES.some(name => MISE_TOOLS[name].key.startsWith('pypi:') && declared[name]);
   // The wrapper sets the environment of mise itself; UV_PYTHON of toolsEnvironment would name a Python before mise installs it.
   let env: NodeJS.ProcessEnv = process.env;
   if (pypi) {

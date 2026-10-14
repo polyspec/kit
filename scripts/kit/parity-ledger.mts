@@ -106,14 +106,15 @@ function runSupport(model: ParityModel, root: string, files: Set<string>, { env,
  * reported name that `group` holds is a group of cases, not a case.
  */
 function twice(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false): [Attempt, Attempt] {
-  return [1, 2].map((attempt): Attempt => {
+  const runOnce = (attempt: number): Attempt => {
     say(`run ${where.unit} ${where.implementation} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
     const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
     const status = result.error ? null : result.status;
     const reported = result.error ? [] : outcomesOf(run, result).filter(([name]) => !group(name));
     ledger.runs.push({ ...where, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
     return { result, status, cases: new Map(reported), repeated: repeated(reported) };
-  }) as [Attempt, Attempt];
+  };
+  return [runOnce(1), runOnce(2)];
 }
 
 /**

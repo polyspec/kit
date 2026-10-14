@@ -20,6 +20,7 @@ import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { present } from './present.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;
 
@@ -44,7 +45,8 @@ export function installBackend({ root, env, requirement, digests, source, print 
   const found = REQUIREMENT.exec(requirement);
   if (!found) throw new Stop(`${source} must record requirement as name==version; it records ${JSON.stringify(requirement)}`);
   // Both groups of REQUIREMENT are required, so a match holds them.
-  const [, name, version] = found as RegExpExecArray & [string, string, string];
+  const name = present(found[1], `the name of ${requirement}`);
+  const version = present(found[2], `the version of ${requirement}`);
   const directory = toolsPath(root, BACKEND_DIRECTORY);
   const kept = wheelsOf(directory, name, version).find(file => digests.includes(fileDigest(file)));
   if (kept) {

@@ -35,9 +35,10 @@ function installedRelease(directory: string): string | undefined {
   try {
     return readFileSync(file, 'utf8');
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // Only a missing file means that nothing is installed; any other error is a broken installation.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw new Error(`${file} cannot be read: ${(error as Error).message}`);
+    throw new Error(`${file} cannot be read: ${error.message}`);
   }
 }
 

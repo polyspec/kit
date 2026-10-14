@@ -8,7 +8,8 @@
 import { statSync } from 'node:fs';
 import path from 'node:path';
 import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
-import { PINNED, PRECISION } from './toolchain-pins.mts';
+import { isTool, PINNED, PRECISION } from './toolchain-pins.mts';
+import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import type { Pins, Tool } from './toolchain-pins.mts';
 
 /** A declared exception to a pin. */
@@ -20,38 +21,40 @@ const NIGHTLY = /^nightly-\d{4}-\d{2}-\d{2}$/;
 // Whether `directory` is a directory of `root`.
 const isDirectory = (root: string, directory: string): boolean => statSync(path.join(root, directory), { throwIfNoEntry: false })?.isDirectory() ?? false;
 
-// The findings of the exception `value` at `where`; none when it is well formed.
-function exceptionFindings(root: string, where: string, value: unknown): string[] {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [`${where} is ${JSON.stringify(value)}, not an object of ${FIELDS.join(', ')}`];
-  const entry = value as Record<string, unknown>;
+// The exception `value` at `where` and its findings; the exception only when it is well formed.
+function readException(root: string, where: string, value: unknown): { exception?: Exception; findings: string[] } {
+  if (!isJsonObject(value)) return { findings: [`${where} is ${JSON.stringify(value)}, not an object of ${FIELDS.join(', ')}`] };
   const findings: string[] = [];
-  for (const key of Object.keys(entry)) if (!(FIELDS as readonly string[]).includes(key)) findings.push(`${where} has ${key}, which is no field; the fields are ${FIELDS.join(', ')}`);
-  for (const field of FIELDS) {
-    if (typeof entry[field] !== 'string' || entry[field].trim() === '') findings.push(`${where} has no ${field}; an exception declares ${FIELDS.join(', ')}`);
-  }
-  if (findings.length > 0) return findings;
-  const { tool, channel, scope } = entry as Record<(typeof FIELDS)[number], string>;
-  if (!PINNED.includes(tool as Tool)) return [`${where} tool is ${JSON.stringify(tool)}, which kit does not pin; the tools are ${PINNED.join(', ')}`];
-  if (!PRECISION[tool as Tool].test(channel) && !(tool === 'rust' && NIGHTLY.test(channel))) {
+  for (const key of Object.keys(value)) if (!FIELDS.some(field => field === key)) findings.push(`${where} has ${key}, which is no field; the fields are ${FIELDS.join(', ')}`);
+  const text = (field: (typeof FIELDS)[number]): string => {
+    const entry = value[field];
+    if (typeof entry === 'string' && entry.trim() !== '') return entry;
+    findings.push(`${where} has no ${field}; an exception declares ${FIELDS.join(', ')}`);
+    return '';
+  };
+  const [tool, channel, scope, reason, retry] = [text('tool'), text('channel'), text('scope'), text('reason'), text('retry')];
+  if (findings.length > 0) return { findings };
+  if (!isTool(tool)) return { findings: [`${where} tool is ${JSON.stringify(tool)}, which kit does not pin; the tools are ${PINNED.join(', ')}`] };
+  if (!PRECISION[tool].test(channel) && !(tool === 'rust' && NIGHTLY.test(channel))) {
     findings.push(`${where} channel is ${JSON.stringify(channel)}, which is no ${tool} release at the precision of the pin${tool === 'rust' ? ' and no nightly-<yyyy-mm-dd>' : ''}`);
   }
   if (scope !== '.' && (path.posix.normalize(scope) !== scope || scope.startsWith('../') || scope.endsWith('/') || path.posix.isAbsolute(scope) || !isDirectory(root, scope))) {
     findings.push(`${where} scope is ${JSON.stringify(scope)}, which is no directory of the checkout; write "." or a path such as packages/<name>`);
   }
-  return findings;
+  return findings.length ? { findings } : { exception: { tool, channel, scope, reason, retry }, findings };
 }
 
 /** The exceptions of config/toolchain.json of `root`, and the findings of the malformed ones, which are left out. */
 export function readExceptions(root: string): { exceptions: Exception[]; findings: string[] } {
   const value = toolchainConfig(root).exceptions;
   if (value === undefined) return { exceptions: [], findings: [] };
-  if (!Array.isArray(value)) return { exceptions: [], findings: [`config/toolchain.json exceptions is ${JSON.stringify(value)}, not a list`] };
+  if (!isJsonList(value)) return { exceptions: [], findings: [`config/toolchain.json exceptions is ${JSON.stringify(value)}, not a list`] };
   const exceptions: Exception[] = [];
   const findings: string[] = [];
-  value.forEach((entry: unknown, index) => {
-    const found = exceptionFindings(root, `config/toolchain.json exceptions[${index}]`, entry);
-    if (found.length === 0) exceptions.push(entry as Exception);
-    findings.push(...found);
+  value.forEach((entry, index) => {
+    const read = readException(root, `config/toolchain.json exceptions[${index}]`, entry);
+    if (read.exception) exceptions.push(read.exception);
+    findings.push(...read.findings);
   });
   return { exceptions, findings };
 }

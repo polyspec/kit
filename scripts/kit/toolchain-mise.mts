@@ -43,6 +43,12 @@ export const MISE_TOOLS = {
 /** A tool of kit that mise installs. */
 export type MiseTool = keyof typeof MISE_TOOLS;
 
+/** Whether `name` is a tool of MISE_TOOLS. */
+const isMiseTool = (name: string): name is MiseTool => Object.hasOwn(MISE_TOOLS, name);
+
+/** The tools of MISE_TOOLS. */
+export const MISE_TOOL_NAMES: MiseTool[] = Object.keys(MISE_TOOLS).filter(isMiseTool);
+
 /**
  * The platforms of mise whose archives mise.lock pins: every platform on which the bootstrap installs mise, the archives of
  * config/toolchain.json mise, so that make install-tools runs on an x64 or an ARM Linux runner and on either Mac (K134).
@@ -63,7 +69,7 @@ function toolsTable(root: string): Record<string, unknown> | undefined {
 /** The tools of mise.toml of `root`, each with its release and `mise.toml tools.<key>`; an absent mise.toml declares none. */
 export function declaredMiseTools(root: string): Partial<Record<MiseTool, Declared>> {
   const tools = toolsTable(root) ?? {};
-  const names = Object.fromEntries(Object.entries(MISE_TOOLS).map(([name, { key }]) => [key, name as MiseTool]));
+  const names = Object.fromEntries(MISE_TOOL_NAMES.map(name => [MISE_TOOLS[name].key, name]));
   const declared: Partial<Record<MiseTool, Declared>> = {};
   for (const [key, value] of Object.entries(tools)) {
     const name = names[key];
@@ -88,7 +94,9 @@ export function miseLockFindings(root: string): string[] {
   const findings: string[] = [];
   for (const [key, value] of Object.entries(tools)) {
     const version = isTable(value) ? value.version : value;
-    const entries = isTable(locked) && Array.isArray(locked[key]) ? locked[key] as Record<string, unknown>[] : [];
+    const listed = isTable(locked) ? locked[key] : undefined;
+    // A tool that mise.lock does not list has no entry.
+    const entries = Array.isArray(listed) ? listed.filter(isTable) : [];
     const entry = entries.find(item => item.version === version);
     if (!entry) {
       findings.push(`mise.lock does not pin ${key} ${String(version)}; run make toolchain-lock`);

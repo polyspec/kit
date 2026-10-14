@@ -6,11 +6,14 @@ import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors } from './markdown.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
+import { isJsonList, isJsonObject, isStringList } from './bootstrap/files.mts';
 
 export const DECLARATION = 'config/parity.json';
 
 /** The runner of an implementation or a test pattern. */
-export type Runner = 'go' | 'cargo' | 'node' | 'vitest' | 'php' | 'python';
+/** The runners of the implementations and the test patterns. */
+export const RUNNERS = ['go', 'cargo', 'node', 'vitest', 'php', 'python'] as const;
+export type Runner = (typeof RUNNERS)[number];
 
 /** The extractor of the public symbols of an implementation (parity-symbols.mts). */
 export type Extractor = 'go' | 'php' | 'python' | 'rust' | 'ts';
@@ -175,7 +178,8 @@ function patternError(source: string): string | undefined {
     // The empty alternative always matches '', so exec finds a match.
     return new RegExp(`${source}|`).exec('')!.length < 2 ? `the pattern ${source} has no group` : undefined;
   } catch (error) {
-    return `the pattern ${source} is no regular expression: ${(error as SyntaxError).message}`;
+    if (!(error instanceof Error)) throw error;
+    return `the pattern ${source} is no regular expression: ${error.message}`;
   }
 }
 
@@ -190,18 +194,18 @@ export function casesOf(value: unknown, cases: string): { names: string[]; entri
   for (const [step, key] of cases.slice(1).matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)|\[\*\]|\.~/g)) {
     selected = selected.flatMap(({ value: item, where }): Selected[] => {
       if (step === '.~') {
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
-          return Object.entries(item).map(([name, entry]) => ({ value: name, where: `${where}.~`, parent: entry && typeof entry === 'object' ? entry as Record<string, unknown> | unknown[] : undefined }));
+        if (isJsonObject(item)) {
+          return Object.entries(item).map(([name, entry]) => ({ value: name, where: `${where}.~`, parent: isJsonObject(entry) || isJsonList(entry) ? entry : undefined }));
         }
         errors.push(`${where} is no object`);
         return [];
       }
       if (key !== undefined) {
-        if (item && typeof item === 'object' && !Array.isArray(item) && key in item) return [{ value: (item as Record<string, unknown>)[key], where: `${where}${step}`, parent: item as Record<string, unknown> }];
+        if (isJsonObject(item) && key in item) return [{ value: item[key], where: `${where}${step}`, parent: item }];
         errors.push(`${where} has no ${key}`);
         return [];
       }
-      if (Array.isArray(item)) return item.map((entry, index) => ({ value: entry, where: `${where}[${index}]`, parent: item }));
+      if (isJsonList(item)) return item.map((entry, index) => ({ value: entry, where: `${where}[${index}]`, parent: item }));
       errors.push(`${where} is no array`);
       return [];
     });
@@ -357,7 +361,8 @@ function readTrackedJson(root: string, files: ReadonlySet<string>, file: string,
   try {
     return JSON.parse(readFileSync(path.join(root, file), 'utf8'));
   } catch (error) {
-    errors.push(finding('declaration', `${where}: ${file} is no JSON: ${(error as Error).message}`, { place: DECLARATION }));
+    if (!(error instanceof Error)) throw error;
+    errors.push(finding('declaration', `${where}: ${file} is no JSON: ${error.message}`, { place: DECLARATION }));
     return undefined;
   }
 }
@@ -380,11 +385,12 @@ function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: stri
   try {
     value = JSON.parse(text);
   } catch (error) {
-    return `${file} is no JSON: ${(error as Error).message}`;
+    if (!(error instanceof Error)) throw error;
+    return `${file} is no JSON: ${error.message}`;
   }
   for (const token of fragment.slice(1).split('/').map(part => part.replaceAll('~1', '/').replaceAll('~0', '~'))) {
-    if (!value || typeof value !== 'object' || !Object.hasOwn(value, token)) return `${file} has no value at ${fragment}`;
-    value = (value as Record<string, unknown>)[token];
+    if (!(isJsonObject(value) || isJsonList(value)) || !Object.hasOwn(value, token)) return `${file} has no value at ${fragment}`;
+    value = isJsonList(value) ? value[Number(token)] : value[token];
   }
   return undefined;
 }
@@ -481,7 +487,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   // its runner in its roots, and those of its tests globs.
   const testRunners = new Map<string, Runner[]>();
   for (const file of files) {
-    const runners = (Object.keys(CONVENTIONS) as Runner[]).filter(runner => matchesAny([...CONVENTIONS[runner], ...(config.testPatterns ?? []).filter(pattern => pattern.runner === runner).flatMap(pattern => pattern.globs)], file)
+    const runners = RUNNERS.filter(runner => matchesAny([...CONVENTIONS[runner], ...(config.testPatterns ?? []).filter(pattern => pattern.runner === runner).flatMap(pattern => pattern.globs)], file)
       || (runner === 'cargo' && file.endsWith('.rs') && readFileSync(path.join(root, file), 'utf8').search(CARGO_TEST) !== -1));
     if (runners.length) testRunners.set(file, runners);
   }
@@ -591,7 +597,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
         if (!(unit.admit in parent)) continue;
         carriers++;
         const list = parent[unit.admit];
-        if (!Array.isArray(list) || list.some(entry => typeof entry !== 'string')) {
+        if (!isStringList(list)) {
           fail(`${where}: case ${name} has ${unit.admit} that is no array of implementation names`);
           continue;
         }

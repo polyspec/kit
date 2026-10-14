@@ -52,8 +52,9 @@ if (isMain(import.meta.url)) {
     const { version } = readNpmManifest(repositoryRoot(), `${INSTALLED}/package.json`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${PACKAGE} ${version}` : `[kit-sync] unchanged: ${PACKAGE} ${version}`);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // The installed package, the copies and the writes fail with an Error.
-    console.error(`[kit-sync] ${(error as Error).message}`);
+    console.error(`[kit-sync] ${error.message}`);
     process.exit(1);
   }
 }

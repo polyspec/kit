@@ -200,8 +200,9 @@ export function check(root: string, config: DocumentsConfig) {
   let checklists: Tracker[] = [];
   if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
     try { checklists = loadChecklists(root).trackers; } catch (error) {
+      if (!(error instanceof Error)) throw error;
       // loadConfig fails with an Error.
-      add(CHECKLIST_CONFIG, { rule: 'config', message: (error as Error).message });
+      add(CHECKLIST_CONFIG, { rule: 'config', message: error.message });
     }
   }
   for (const list of checklists) {
@@ -221,9 +222,10 @@ export function check(root: string, config: DocumentsConfig) {
       for (const entry of result.findings) add(name, entry);
       results.push([name, result.rows]);
     });
-    if (results.length === 2) {
-      // The length check above leaves the English and the Korean entry.
-      const [[, en], [ko, kor]] = results as Pair<(typeof results)[number]>;
+    const [english, korean] = results;
+    if (english && korean) {
+      const [, en] = english;
+      const [ko, kor] = korean;
       const show = (rows: StatusRow[]) => rows.map(row => [row.id, ...row.values].join('/')).join(' ');
       if (show(en) !== show(kor)) add(ko, { rule: 'status-table', message: `the rows differ from ${table.path}: [${show(kor)}] and [${show(en)}]` });
     }

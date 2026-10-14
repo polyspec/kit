@@ -26,7 +26,7 @@ function hook(register: 'before' | 'after', kind: string, name: string, operatio
       write(`[${kind}] ${name}: finished in ${elapsed()}\n`);
     } catch (error) {
       // Any value can be thrown; one without a text message is printed as util.inspect shows it (a text as it is).
-      const message = (error as { message?: unknown } | null | undefined)?.message;
+      const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : undefined;
       write(`[${kind}] ${name}: failed after ${elapsed()}: ${typeof message === 'string' ? message : typeof error === 'string' ? error : inspect(error)}\n`);
       throw error;
     } finally {

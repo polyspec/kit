@@ -2,6 +2,12 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+/** Whether `value` is a JSON list, whose items are still unknown. */
+export const isJsonList = (value: unknown): value is unknown[] => Array.isArray(value);
+
+/** Whether `value` is a JSON list of strings. */
+export const isStringList = (value: unknown): value is string[] => isJsonList(value) && value.every(item => typeof item === 'string');
+
 /** Whether `value` is a JSON object: neither null nor an array. */
 export const isJsonObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 

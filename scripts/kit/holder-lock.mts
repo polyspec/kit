@@ -22,7 +22,7 @@ import { linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'no
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMain, repositoryRoot } from './paths.mts';
-import { execute } from './process.mts';
+import { errorCode, execute } from './process.mts';
 import type { Outcome, RunPlace } from './process.mts';
 import { ConfigError, parseJson } from './schema-validate.mts';
 
@@ -76,9 +76,9 @@ function processExists(pid: number, host: Host): boolean {
     return true;
   } catch (error) {
     // process.kill throws an errno error; the kill of a test host throws an object with the same code.
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code === 'ESRCH') return false;
-    if (errno.code === 'EPERM') return true;
+    const code = errorCode(error);
+    if (code === 'ESRCH') return false;
+    if (code === 'EPERM') return true;
     throw error;
   }
 }
@@ -122,8 +122,9 @@ export function processStart(pid: number, host: Host = HOST): ProcessStart {
     try {
       stat = host.readFile(`/proc/${pid}/stat`);
     } catch (error) {
-      // The read throws an errno error; the list is widened so that it takes an absent code.
-      if (!(['ENOENT', 'EACCES', 'EPERM', 'ESRCH'] as (string | undefined)[]).includes((error as NodeJS.ErrnoException).code)) throw error;
+      // The read throws an errno error.
+      const code = errorCode(error);
+      if (code === undefined || !['ENOENT', 'EACCES', 'EPERM', 'ESRCH'].includes(code)) throw error;
       return processExists(pid, host) ? START_UNREADABLE : null;
     }
     return procStart(stat, host.readFile('/proc/sys/kernel/random/boot_id'));
@@ -198,7 +199,7 @@ export function acquireHolderLock(lock: string, { checkout = process.cwd(), comm
     linkSync(pending, lock);
   } catch (error) {
     // linkSync throws an errno error.
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    if (errorCode(error) !== 'EEXIST') throw error;
     throw refusal(lock, readLockRecord(lock));
   } finally {
     unlinkSync(pending);
@@ -257,9 +258,9 @@ export function removeDeadLock(lock: string, { afterCheck = () => {}, afterClaim
     linkSync(lock, claim);
   } catch (error) {
     // linkSync throws an errno error.
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code === 'EEXIST') throw new Error(`${claim} exists: another clear of this holder is running or was interrupted; remove ${claim} after checking that no clear runs`, { cause: error });
-    if (errno.code === 'ENOENT') throw new Error(`${lock} was removed during the clear`, { cause: error });
+    const code = errorCode(error);
+    if (code === 'EEXIST') throw new Error(`${claim} exists: another clear of this holder is running or was interrupted; remove ${claim} after checking that no clear runs`, { cause: error });
+    if (code === 'ENOENT') throw new Error(`${lock} was removed during the clear`, { cause: error });
     throw error;
   }
   afterClaim();
@@ -321,8 +322,9 @@ if (isMain(import.meta.url)) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // main and the functions it calls throw only an Error.
-    process.stderr.write(`lock: ${(error as Error).message}\n`);
+    process.stderr.write(`lock: ${error.message}\n`);
     process.exitCode = 1;
   }
 }

@@ -70,8 +70,9 @@ export function lintMain(url: string, name: string, lintSteps: (root: string) =>
       process.exitCode = 1;
     }
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     // lintSteps and the modules it calls throw only an Error.
-    console.error(`[${name}] ${(error as Error).message}`);
+    console.error(`[${name}] ${error.message}`);
     process.exitCode = 1;
   }
 }

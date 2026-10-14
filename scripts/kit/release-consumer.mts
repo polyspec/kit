@@ -258,7 +258,8 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   try {
     makeVenv({ root, directory: venv, env });
   } catch (error) {
-    throw new Stop((error as Error).message);
+    if (!(error instanceof Error)) throw error;
+    throw new Stop(error.message);
   }
   const bin = path.join(venv, 'bin');
   const python = path.join(bin, 'python');
