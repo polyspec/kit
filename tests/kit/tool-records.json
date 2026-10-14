@@ -61,6 +61,34 @@
         "-json"
       ],
       "files": {
+        "go.mod": "module \"example.com/kit-fixture-go\"\n\ngo 1.21\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/kit-fixture-go\"\n\t},\n\t\"Go\": \"1.21\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/changed\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/changed\"\n\t}\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
         "go.mod": "module example.com/fixture\n\ngo 1.27.2\n"
       },
       "status": 0,
@@ -93,6 +121,34 @@
       },
       "status": 0,
       "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/kit-root\"\n\t},\n\t\"Go\": \"1.21\",\n\t\"Require\": [\n\t\t{\n\t\t\t\"Path\": \"github.com/google/uuid\",\n\t\t\t\"Version\": \"v1.6.0\"\n\t\t}\n\t]\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/other\n\ngo 1.21\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/other\"\n\t},\n\t\"Go\": \"1.21\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "tool": "go",
+      "args": [
+        "mod",
+        "edit",
+        "-json"
+      ],
+      "files": {
+        "go.mod": "module example.com/root\n\ngo 1.21\n"
+      },
+      "status": 0,
+      "stdout": "{\n\t\"Module\": {\n\t\t\"Path\": \"example.com/root\"\n\t},\n\t\"Go\": \"1.21\"\n}\n",
       "stderr": ""
     },
     {
