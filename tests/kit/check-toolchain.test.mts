@@ -79,7 +79,7 @@ test('every tool that differs is named with the declaring file, the expected and
   assert.equal(result.status, 1);
   assert.deepEqual(result.stderr.trim().split('\n'), [
     '[check-toolchain] npm: 12.1.0 runs here and packageManager of package.json declares 12.2.0; fix: make install-tools TOOLS=npm',
-    `[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares ${RUST}; fix: rustup toolchain install --no-self-update, in the checkout`,
+    `[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares ${RUST}; fix: make install-tools`,
     '[check-toolchain] php: 8.4.9 runs here and config/toolchain.json php declares 8.5; fix: install PHP 8.5',
     `[check-toolchain] go: 1.26.0 runs here and mise.toml tools.go declares ${GO}; fix: make install-tools`,
     `[check-toolchain] python: 3.13.2 runs here and mise.toml tools.python declares ${PYTHON}; fix: make install-tools`,
@@ -191,6 +191,15 @@ test('the commands of var/tools/bin and the shims of mise run before those of PA
   assert.ok(stubs.calls().every(line => !line.startsWith('npm ') && !line.startsWith('ruff ')), 'the npm and the ruff of PATH did not run');
   assert.ok(stubs.calls().includes('go env GOVERSION [GOTOOLCHAIN=local RUSTUP_AUTO_INSTALL=0]'), stubs.calls().join('\n'));
   assert.ok(stubs.calls().includes('rustc --version [GOTOOLCHAIN=local RUSTUP_AUTO_INSTALL=0]'));
+});
+
+test('a Rust toolchain that rustup has not installed is named with the declaring file and make install-tools (K151)', (t) => {
+  const { root, stubs } = setup(t);
+  // rustup's proxy of rustc, with RUSTUP_AUTO_INSTALL=0, as for a toolchain of rust-toolchain.toml that is not installed.
+  writeFileSync(path.join(stubs.directory, 'bin', 'rustc'), `#!/bin/sh\necho "error: toolchain '${RUST}-x86_64-unknown-linux-gnu' is not installed" >&2\necho "help: run \\\`rustup toolchain install\\\` to install it" >&2\nexit 1\n`, { mode: 0o755 });
+  const result = check(root, stubs.env, 'rust');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, new RegExp(`^\\[check-toolchain\\] rust: the toolchain ${RUST.replaceAll('.', '\\.')}-x86_64-unknown-linux-gnu is not installed; rust-toolchain\\.toml channel declares ${RUST.replaceAll('.', '\\.')}; fix: make install-tools$`, 'm'));
 });
 
 test('a command that is missing or prints no release is a mismatch that names the command and the declared version', (t) => {

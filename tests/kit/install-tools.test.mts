@@ -95,6 +95,27 @@ test('a declared Rust channel without rustup fails with the one prerequisite of 
   assert.match(result.stderr, /config\/toolchain\.json exceptions declare the Rust channel nightly-2026-10-01, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
 
+// A checkout whose rust-toolchain.toml pins the Rust toolchain with a component, as a Rust repository does.
+const TOOLCHAIN_FILES = { 'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0"\nprofile = "minimal"\ncomponents = ["clippy"]\n' };
+
+test('install-tools installs the toolchain of rust-toolchain.toml with rustup, which reads the file (K151)', (t) => {
+  // rustup 1.28 no longer installs that toolchain as cargo first runs; `rustup toolchain install` without a name installs the
+  // active toolchain, which the file names, with its profile and components.
+  const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
+  writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
+  const result = start('install-tools', root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install --locked', 'rustup toolchain install --no-self-update']);
+  assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update$/m);
+});
+
+test('a rust-toolchain.toml without rustup fails with the one prerequisite of the machine (K151)', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
+  const result = start('install-tools', root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml pins the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
+});
+
 // A mise.lock that pins ruff for both platforms, and pypi:vulture with the digest of its uv lock when `graph` says so.
 const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.ruff."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}
 [[tools."pypi:vulture"]]\nversion = "2.16"\n${graph ? `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n` : ''}`;

@@ -59,8 +59,10 @@ and states only its own rules. The rules below are kit's own.
 - kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`. Every recipe of kit.mk runs with the environment of mise of the
   checkout and with var/tools/bin and the shims of mise first on PATH. A machine or CI runner provides the two toolchains
-  that mise does not install. rustup installs that channel (`rustup toolchain install`) and, through `make install-tools`,
-  each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its install. PHP is the
+  that mise does not install. `make install-tools` installs, with rustup, the toolchain of `rust-toolchain.toml` with its
+  components (`rustup toolchain install` in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo
+  first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
+  install, and `make toolchain-check` names a toolchain that is not installed. PHP is the
   release of `.php-version` (in CI, the setup-php step before install-tools), which `make toolchain-check` verifies.
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands

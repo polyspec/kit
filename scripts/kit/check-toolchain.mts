@@ -46,7 +46,8 @@ const declaredTools = (root: string): Record<string, DeclaredTool | undefined> =
 
 // The command that prints the release of a tool and its arguments. deadcode prints no release, so go version -m reads the
 // release of golang.org/x/tools from its binary, whose path `mise which` prints first (`which`): its shim is mise itself.
-type Probe = { command: (root: string) => string; args: string[]; which?: string; pattern: RegExp; fix: (version: string | undefined) => string };
+// `absent` reads the name of a declared toolchain that is not installed from the error output of the command (rustup's proxy).
+type Probe = { command: (root: string) => string; args: string[]; which?: string; pattern: RegExp; absent?: RegExp; fix: (version: string | undefined) => string };
 
 // The probe of the tool `tool` of mise.toml, run from its shim.
 const shim = (tool: keyof typeof MISE_TOOLS, output: { args: string[]; pattern: RegExp }): Probe => ({ command: root => toolCommand(root, MISE_TOOLS[tool].command), ...output, fix: () => INSTALL });
@@ -56,7 +57,8 @@ const probes: Record<string, Probe> = {
   node: { command: () => 'node', args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: v => `install Node.js ${v}` },
   npm: { command: () => 'npm', args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
   mise: { command: root => toolsPath(root, 'bin', 'mise'), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
-  rust: { command: () => 'rustc', args: ['--version'], pattern: /^rustc (\d+\.\d+\.\d+) /m, fix: () => 'rustup toolchain install --no-self-update, in the checkout' },
+  // rustup installs the toolchain of rust-toolchain.toml through make install-tools (install-rust.mts); its proxy names a missing one.
+  rust: { command: () => 'rustc', args: ['--version'], pattern: /^rustc (\d+\.\d+\.\d+) /m, absent: /toolchain '([^']+)' is not installed/, fix: () => INSTALL },
   php: { command: () => 'php', args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `install PHP ${v}` },
   phpunit: { command: () => 'phpunit', ...RELEASE_OUTPUT.phpunit, fix: () => INSTALL },
   phpcs: { command: () => 'phpcs', ...RELEASE_OUTPUT.phpcs, fix: () => INSTALL },
@@ -87,7 +89,7 @@ const defaultRun = (root: string, env: NodeJS.ProcessEnv): Run => (command, args
 const shownPath = (root: string, command: string): string => (path.relative(root, command).startsWith('..') ? command : path.relative(root, command));
 
 // The release that `tool` runs at, or the reason that it cannot be read.
-function probe(root: string, tool: string, run: Run): { release: string; error?: undefined } | { release?: undefined; error: string } {
+function probe(root: string, tool: string, run: Run): { release: string; error?: undefined; absent?: undefined } | { release?: undefined; error: string; absent?: string | undefined } {
   const entry = probes[tool];
   // Destructuring the probe of an unknown tool failed here before.
   if (!entry) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
@@ -95,7 +97,7 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
   const failure = (shown: string, result: RunResult) => {
     const detail = String(result.stderr ?? '').trim();
     const ended = result.signal ? `ended by signal ${result.signal}` : `exit status ${result.status}`;
-    return { error: `\`${shown}\` failed (${result.error?.message ?? ended})${detail ? `: ${detail}` : ''}` };
+    return { error: `\`${shown}\` failed (${result.error?.message ?? ended})${detail ? `: ${detail}` : ''}`, absent: entry.absent?.exec(detail)?.[1] };
   };
   const args = [...entry.args];
   if (entry.which) {
@@ -130,6 +132,10 @@ export function toolchainMismatches(tools: string[], { root = repositoryRoot(), 
     const { source } = declared[tool];
     // PHP is declared by minor release; the patch of the run is evidence, not a requirement.
     const minors = declared[tool].minors;
+    if (found.absent) {
+      mismatches.push(`${tool}: the toolchain ${found.absent} is not installed; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(declared[tool].version)}`);
+      continue;
+    }
     if (found.error) {
       mismatches.push(`${tool}: ${found.error}; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version)}`);
       continue;
