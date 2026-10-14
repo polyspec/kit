@@ -25,6 +25,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { jsonText } from './bootstrap/files.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { errorCode } from './process.mts';
+import { present } from './present.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 // The toolchains whose releases the record of a run names.
@@ -135,7 +136,7 @@ if (isMain(import.meta.url)) {
   try {
     if (first === '--summary' && rest.length === 1) {
       // The condition holds exactly one argument after --summary.
-      process.exitCode = ciSummary({ root, directory: rest[0]! });
+      process.exitCode = ciSummary({ root, directory: present(rest[0], 'rest[0]') });
     } else if (first && first !== '--summary' && rest.length > 0) {
       const bad = rest.find(name => !TARGET_NAME.test(name));
       if (bad !== undefined) throw Object.assign(new Error(`the target name ${JSON.stringify(bad)} is not a make target name [A-Za-z0-9_.-]+`), { usage: true });

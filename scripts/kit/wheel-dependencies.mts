@@ -16,6 +16,7 @@ import type { PylockPackage } from './pylock.mts';
 import { Stop } from './process.mts';
 import { wheelName } from './release-wheel.mts';
 import type { ReleaseConfig } from './release.mts';
+import { present } from './present.mts';
 
 const PLAIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)==(\d+(?:\.\d+)*)$/;
 const DIRECT = /^([A-Za-z0-9][A-Za-z0-9._-]*) @ (\S+)$/;
@@ -40,7 +41,7 @@ export const canonicalName = (name: string) => name.toLowerCase().replace(/[-_.]
 /** The URL of the archive of a lock entry; lockProblems refuses an archive with no url before this reads it. */
 function archiveUrl(entry: PylockPackage, lockFile: string): string {
   // lockProblems accepts an archive with exactly one file.
-  const { url } = entry.files[0]!;
+  const { url } = present(entry.files[0], 'entry.files[0]');
   if (typeof url !== 'string') throw new Error(`${lockFile}: the archive of ${entry.name} has no url, which lockProblems refuses first`);
   return url;
 }
@@ -147,17 +148,17 @@ export function siblingLinks(requiresDist: string[], siblings: string[]) {
   const names = new Set(siblings.map(canonicalName));
   return requiresDist
     .map(line => DIRECT.exec(line.trim()))
-    .filter((found): found is RegExpExecArray => found !== null && names.has(canonicalName(found[1]!))) // The groups of the pattern are not optional.
-    .map(([, name, url]) => ({ name: name!, url: url! })); // The groups of the pattern are not optional.
+    .filter((found): found is RegExpExecArray => found !== null && names.has(canonicalName(present(found[1], 'found[1]')))) // The groups of the pattern are not optional.
+    .map(([, name, url]) => ({ name: present(name, 'name'), url: present(url, 'url') })); // The groups of the pattern are not optional.
 }
 
 /** The problems of one Requires-Dist line against the lock, the declared polyspec packages and the siblings. */
 function requirementProblems(spec: string, context: Context) {
   // The groups of PLAIN and DIRECT are not optional, so every match holds them.
   const plain = PLAIN.exec(spec);
-  if (plain) return plainProblems(spec, plain[1]!, plain[2]!, context); // The groups of the pattern are not optional.
+  if (plain) return plainProblems(spec, present(plain[1], 'plain[1]'), present(plain[2], 'plain[2]'), context); // The groups of the pattern are not optional.
   const direct = DIRECT.exec(spec);
-  if (direct && requirementForm(spec) === 'a URL') return directProblems(spec, direct[1]!, direct[2]!, context); // The groups of the pattern are not optional.
+  if (direct && requirementForm(spec) === 'a URL') return directProblems(spec, present(direct[1], 'direct[1]'), present(direct[2], 'direct[2]'), context); // The groups of the pattern are not optional.
   return [`Requires-Dist ${spec} is ${requirementForm(spec)}, not name==version or a polyspec release asset with a sha256 fragment`];
 }
 
@@ -176,7 +177,7 @@ function plainProblems(spec: string, name: string, pinned: string, context: Cont
 function releaseAsset(url: string, repo: string) {
   const found = new RegExp(`^${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/releases/download/v(\\d+(?:\\.\\d+)*)/([^/]+)$`).exec(url);
   // Neither group of the pattern is optional, so a match holds both.
-  return found ? { version: found[1]!, file: found[2]! } : null;
+  return found ? { version: present(found[1], 'found[1]'), file: present(found[2], 'found[2]') } : null;
 }
 
 /** A sibling is a direct reference to its asset of this release, without a fragment; each failure names its reason. */
@@ -223,7 +224,7 @@ export function wheelLocks(root: string, config: Pick<ReleaseConfig, 'packages' 
     const wheel = config.consumers?.wheel;
     if (wheel === undefined) throw new Error(`config/release.json: consumers.wheel is missing; the wheel package ${name} needs its lock there`);
     // release-consumer-config.mts requires a lock of each wheel package.
-    const file = wheel.lock[name]!;
+    const file = present(wheel.lock[name], 'wheel.lock[name]');
     if (!existsSync(path.join(root, file))) throw new Stop(`${file} is missing; consumers.wheel.lock declares the lock of ${name}`);
     return { name, file, text: readFileSync(path.join(root, file), 'utf8') };
   });

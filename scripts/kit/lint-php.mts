@@ -18,6 +18,7 @@ import { composerVendor, packageAutoloader } from './composer-vendor.mts';
 import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { present } from './present.mts';
 
 /** The steps of the lint of `root`; throws when a tool, a configuration or the autoloader of a package is missing. */
 export function lintSteps(root: string): LintStep[] {
@@ -28,13 +29,13 @@ export function lintSteps(root: string): LintStep[] {
   if (sources.length === 0) return [];
   const packages = foldersOf(root, 'composer.json');
   const owner = packageOwner(packages);
-  const steps: LintStep[] = [{ label: 'phpcs', command: tools.phpcs!, args: ['-q', '-s', '--report=emacs', '--standard=phpcs.xml.dist', ...sources], cwd: '.' }];
+  const steps: LintStep[] = [{ label: 'phpcs', command: present(tools.phpcs, 'tools.phpcs'), args: ['-q', '-s', '--report=emacs', '--standard=phpcs.xml.dist', ...sources], cwd: '.' }];
   for (const folder of packages) {
     const own = sources.filter(file => owner(file) === folder).map(file => path.posix.relative(folder, file));
     if (own.length === 0) continue;
     const autoloader = packageAutoloader(root, folder, packages);
     if (!autoloader) throw new Error(`${path.relative(root, path.join(composerVendor(path.join(root, folder)), 'autoload.php'))} is missing, and no Composer project above ${folder} has one; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}, or in the project that requires it`);
-    steps.push({ label: `phpstan ${folder}`, command: tools.phpstan!, args: ['analyse', '--no-progress', '--error-format=raw', `--configuration=${path.join(root, 'phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
+    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', `--configuration=${path.join(root, 'phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
   }
   return steps;
 }

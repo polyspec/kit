@@ -26,6 +26,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { git } from './git.mts';
 import { readConfig } from './schema-validate.mts';
 import { readNpmManifest } from './manifests.mts';
+import { present } from './present.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -85,7 +86,7 @@ export function parseMakeDatabase(text: string): MakeDatabase {
   lines.forEach((line, index) => {
     const assignment = /^([^#\s=:]+) (?::{1,2}=|\?=|=) ?(.*)$/.exec(line);
     // A variable of a makefile follows its origin comment; the groups of the pattern always take part in a match.
-    if (assignment && lines[index - 1]?.startsWith('# makefile')) variables.set(assignment[1]!, assignment[2]!);
+    if (assignment && lines[index - 1]?.startsWith('# makefile')) variables.set(present(assignment[1], 'assignment[1]'), present(assignment[2], 'assignment[2]'));
   });
   const targets = new Map<string, { prerequisites: string[]; recipe: string }>();
   const files = text.slice(text.indexOf('\n# Files\n'), text.indexOf('\n# files hash-table stats'));
@@ -98,8 +99,8 @@ export function parseMakeDatabase(text: string): MakeDatabase {
     const rule = entryLines.find((line, index) => !line.startsWith('#') && !line.startsWith('\t') && !/^# (?:makefile|command line|environment|override|automatic|default)\b/.test(entryLines[index - 1] ?? ''));
     const match = rule === undefined ? null : /^(.+?)::?(?:\s+(.*))?$/.exec(rule);
     // The first group of the pattern always takes part in a match; a special target such as .PHONY is no check.
-    if (!match || match[1]!.startsWith('.')) continue;
-    const name = match[1]!;
+    if (!match || present(match[1], 'match[1]').startsWith('.')) continue;
+    const name = present(match[1], 'match[1]');
     const prerequisites = (match[2] ?? '').split(/\s+/).filter(word => word && word !== '|');
     const recipe = entryLines.filter(line => line.startsWith('\t')).map(line => line.slice(1)).join('\n');
     // A double-colon target has an entry for each of its rules.
@@ -164,7 +165,7 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
     const label = rule.paths.join(' ');
     rule.paths.forEach((glob, index) => {
       // expressions holds the expression of each glob of paths at its index.
-      if (!tracked.some(file => rule.expressions[index]!.test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
+      if (!tracked.some(file => present(rule.expressions[index], 'rule.expressions[index]').test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
     for (const target of rule.targets ?? []) {
       if (!targets.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} is not a target of the Makefile or of a file it includes`);
@@ -192,7 +193,7 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
     if (!target || !check.startsWith('make ')) return false;
     if (!runs.has(target)) runs.set(target, closure(target, prerequisites));
     // The line above sets every missing target.
-    return runs.get(target)!.has(check.slice('make '.length));
+    return present(runs.get(target), 'runs.get(target)').has(check.slice('make '.length));
   });
   const known = new Set([...targets].map(target => `make ${target}`).concat(
     Object.keys(project.scripts).map(script => `npm run ${script}`),

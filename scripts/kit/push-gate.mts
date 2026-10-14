@@ -147,11 +147,11 @@ if (isMain(import.meta.url)) {
     let result;
     try {
       // The condition of this branch holds one argument.
-      result = commit(root, args[0]!);
+      result = commit(root, present(args[0], 'args[0]'));
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       // The condition of this branch holds one argument.
-      result = { sha: args[0]!, lines: [`push refused: the push gate failed: ${error.message}`] };
+      result = { sha: present(args[0], 'args[0]'), lines: [`push refused: the push gate failed: ${error.message}`] };
     }
     for (const line of result.lines) {
       console.error(line);

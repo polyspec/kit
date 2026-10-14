@@ -25,6 +25,7 @@ import { toolCommand } from './mise-tools.mts';
 import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
 import { parseJson, readJsonFile } from './schema-validate.mts';
+import { present } from './present.mts';
 
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
@@ -101,7 +102,7 @@ const methodFilter = (symbol: string): string => `/^${symbol.replaceAll('\\', '\
  */
 function dataSetCase(symbol: string): (name: string) => string | undefined {
   // The declaration requires `<class>::<method>`, so the symbol has a method part.
-  const method = symbol.split('::')[1]!;
+  const method = present(symbol.split('::')[1], 'symbol.split(\'::\')[1]');
   return (name) => {
     const set = after(`${method} with data set `, name);
     return set === undefined ? undefined : /^"(.*)"$/s.exec(set)?.[1] ?? set;

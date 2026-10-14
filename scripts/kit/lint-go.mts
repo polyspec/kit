@@ -13,6 +13,7 @@ import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { SHIMS } from './mise-tools.mts';
+import { present } from './present.mts';
 
 /** The steps of the lint of `root`; throws when a tool or .golangci.yml is missing. */
 export function lintSteps(root: string): LintStep[] {
@@ -21,9 +22,9 @@ export function lintSteps(root: string): LintStep[] {
   const tools = lintCommands(root, SHIMS, ['golangci-lint', 'deadcode'], 'declare golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
   requireConfigurations(root, [['.golangci.yml', 'golangci-lint']]);
   return modules.flatMap(folder => [
-    { label: `golangci-lint ${folder}`, command: tools['golangci-lint']!, args: ['run', `--config=${path.join(root, '.golangci.yml')}`, './...'], cwd: folder },
+    { label: `golangci-lint ${folder}`, command: present(tools['golangci-lint'], 'tools[\'golangci-lint\']'), args: ['run', `--config=${path.join(root, '.golangci.yml')}`, './...'], cwd: folder },
     // deadcode exits 0 when it reports a function, so its output fails the step.
-    { label: `deadcode ${folder}`, command: tools.deadcode!, args: ['-test', './...'], cwd: folder, quiet: true },
+    { label: `deadcode ${folder}`, command: present(tools.deadcode, 'tools.deadcode'), args: ['-test', './...'], cwd: folder, quiet: true },
   ]);
 }
 

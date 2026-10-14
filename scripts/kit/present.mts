@@ -2,8 +2,8 @@
 // or a group of a regular expression that takes part in every match (noUncheckedIndexedAccess). The read states what it
 // expects and fails with that, instead of asserting it away with `!` or a type assertion (K156, K157).
 
-/** `value`, which the code knows to be there; throws an Error that names `what` when it is undefined. */
-export function present<T>(value: T | undefined, what: string): T {
-  if (value === undefined) throw new Error(`${what} is missing`);
+/** `value`, which the code knows to be there; throws an Error that names `what` when it is undefined or null. */
+export function present<T>(value: T | undefined | null, what: string): T {
+  if (value === undefined || value === null) throw new Error(`${what} is missing`);
   return value;
 }

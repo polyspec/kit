@@ -14,6 +14,7 @@ import { toolCommand } from './mise-tools.mts';
 import { isTable, readToml } from './toml.mts';
 import { parseJson } from './schema-validate.mts';
 import { declaredPythonBackend } from './bootstrap/toolchain-declared.mts';
+import { present } from './present.mts';
 
 /** pythonBackend of config/toolchain.json: the pinned requirement of the build backend and the sha256 of its wheel. */
 export interface BuildBackend {
@@ -62,7 +63,7 @@ export function backendName(requirement: string): string {
   const found = REQUIREMENT.exec(requirement);
   if (!found) throw new Stop(`${BACKEND_SOURCE} requirement is ${requirement}, the form is name==version`);
   // Both groups of REQUIREMENT take part in every match.
-  return wheelName(found[1]!, found[2]!);
+  return wheelName(present(found[1], 'found[1]'), present(found[2], 'found[2]'));
 }
 
 /** The problems of the pyproject.toml `file` of a wheel package: its project name and its build backend, which is only the pinned requirement. */

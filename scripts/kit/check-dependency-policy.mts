@@ -16,6 +16,7 @@ import { fileDigest } from './bootstrap/digest.mts';
 import { ConfigError, readConfig, readConfigFindings } from './schema-validate.mts';
 import { readComposerLock, readComposerManifest, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
+import { present } from './present.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -281,7 +282,7 @@ function main(): void {
     process.exit(2);
   }
   // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
-  const root = args.length ? path.resolve(args[1]!) : repositoryRoot();
+  const root = args.length ? path.resolve(present(args[1], 'args[1]')) : repositoryRoot();
   const findings = check(root);
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);

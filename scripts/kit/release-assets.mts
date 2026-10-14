@@ -21,6 +21,7 @@ import { gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, Stop } from './process.mts';
 import { readConfigFindings } from './schema-validate.mts';
+import { present } from './present.mts';
 
 export const CONFIG = 'config/release-assets.json';
 /** The file in an unpacked directory that holds the sha256 of the archive it was extracted from. */
@@ -135,7 +136,7 @@ export async function main(argv: string[], { root = repositoryRoot(), fetch = gl
   }
   try {
     if (mode === 'version') {
-      print(releaseAsset(root, name!).version);
+      print(releaseAsset(root, present(name, 'name')).version);
     } else {
       const downloaded = await fetchReleaseAssets({ root, fetch, print: text => print(`[release-assets] ${text}`) });
       print(`[release-assets] ${downloaded.length ? `downloaded ${downloaded.join(', ')}` : 'every archive is in place'}`);

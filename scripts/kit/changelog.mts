@@ -6,6 +6,7 @@ import semver from 'semver';
 import { finding } from './findings.mts';
 import type { Finding } from './findings.mts';
 import { headings } from './markdown.mts';
+import { present } from './present.mts';
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
 
@@ -25,7 +26,7 @@ export function changelogFindings(text: string): Finding[] {
   }
   const unreleased = headings.filter(heading => heading.title === 'Unreleased');
   // The length check makes the second heading exist.
-  if (unreleased.length > 1) found.push(changelogFinding(unreleased[1]!.line, `## Unreleased appears ${unreleased.length} times; keep one at the top`));
+  if (unreleased.length > 1) found.push(changelogFinding(present(unreleased[1], 'unreleased[1]').line, `## Unreleased appears ${unreleased.length} times; keep one at the top`));
   const released = headings.filter(heading => heading.title !== 'Unreleased');
   for (const heading of released) {
     if (!SEMVER.test(heading.title)) found.push(changelogFinding(heading.line, `the section ## ${heading.title} is neither ## Unreleased nor a released version X.Y.Z`));
@@ -33,7 +34,7 @@ export function changelogFindings(text: string): Finding[] {
   const versions = released.filter(heading => SEMVER.test(heading.title));
   versions.slice(1).forEach((heading, index) => {
     // versions[index] precedes heading, so it exists.
-    const previous = versions[index]!;
+    const previous = present(versions[index], 'versions[index]');
     // Every title of versions matches SEMVER, so semver reads it.
     if (semver.compare(previous.title, heading.title) <= 0) found.push(changelogFinding(heading.line, `the section ## ${heading.title} follows ## ${previous.title}; the newer version comes first and each version appears once`));
   });

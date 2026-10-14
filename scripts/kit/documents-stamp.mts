@@ -11,6 +11,7 @@ import { writeAtomic } from './bootstrap/files.mts';
 import { proseLines } from './markdown.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
+import { present } from './present.mts';
 
 const REVISION = /<!-- source-sha256: [^>]*? -->/;
 const DOC_ID = /<!-- doc-id: [^>]*? -->/;
@@ -35,7 +36,7 @@ export function stamped(text: string, sha: string): string | null {
   const existing = prose.find((entry: ProseLine) => REVISION.test(entry.text));
   if (existing) {
     // existing is a line of text, so lines holds it.
-    lines[existing.line - 1] = lines[existing.line - 1]!.replace(REVISION, marker);
+    lines[existing.line - 1] = present(lines[existing.line - 1], 'lines[existing.line - 1]').replace(REVISION, marker);
     return lines.join('\n');
   }
   const id = prose.find((entry: ProseLine) => DOC_ID.test(entry.text));

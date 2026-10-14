@@ -15,6 +15,7 @@ import { writeAtomic } from './bootstrap/files.mts';
 import { git } from './git.mts';
 import { seconds } from './time.mts';
 import { errorCode } from './process.mts';
+import { present } from './present.mts';
 
 // The number of failure lines of a failed target in the record and the summary.
 export const FAILURE_LINES = 20;
@@ -208,7 +209,7 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
     const take = (name: Stream) => (data: Buffer) => {
       const parts = `${pending[name]}${data.toString()}`.split('\n');
       // split returns at least one part.
-      pending[name] = parts.pop()!;
+      pending[name] = present(parts.pop(), 'parts.pop()');
       pass(name, parts);
     };
     child.stdout.on('data', take('stdout'));

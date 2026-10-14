@@ -27,6 +27,7 @@ import { declaredLintTools } from './toolchain-lint.mts';
 import { PINS } from './toolchain-pins.mts';
 import { Pinning, readExceptions } from './toolchain-exceptions.mts';
 import { floorFindings, npmrcFindings, pinFindings } from './toolchain-floors.mts';
+import { present } from './present.mts';
 
 const INSTALL = 'make install-tools';
 
@@ -141,7 +142,7 @@ export function toolchainMismatches(tools: string[], { root = repositoryRoot(), 
       continue;
     }
     // probe returns a release whenever it returns no error.
-    const minor = found.release!.split('.').slice(0, 2).join('.');
+    const minor = present(found.release, 'found.release').split('.').slice(0, 2).join('.');
     const accepted = minors ? minors.includes(minor) : found.release === declared[tool].version;
     if (!accepted) {
       const fix = probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version);

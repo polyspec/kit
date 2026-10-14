@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { createProgress, type Progress } from './test-progress.mts';
 import { testRoot } from './paths.mts';
+import { present } from './present.mts';
 
 // The repository root of the run, which run-tests passes; the working directory of this process is the --cwd directory.
 const ROOT = testRoot();
@@ -54,7 +55,7 @@ export default class ProgressReporter {
 
   id(entity: ReportedEntity): string {
     // A module has moduleId, and a suite and a case have module.
-    const file = path.relative(ROOT, entity.module?.moduleId ?? entity.moduleId!);
+    const file = path.relative(ROOT, entity.module?.moduleId ?? present(entity.moduleId, 'entity.moduleId'));
     return entity.fullName ? `${file} › ${entity.fullName.replaceAll(' > ', ' › ')}` : file;
   }
 

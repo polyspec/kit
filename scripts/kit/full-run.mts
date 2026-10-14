@@ -222,7 +222,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
   const current: FullRunRecord = mode === 'run'
     ? { tree, commit, keys, result: 'incomplete', ...own, started: now(), ended: null, targets: targets.map(name => ({ name, status: 'pending' })), reruns: [] }
     // decide runs rerun-failed only with a record of the current tree.
-    : { ...record!, result: 'incomplete', ...own };
+    : { ...present(record, 'record'), result: 'incomplete', ...own };
   const rerun: RerunRecord | null = mode === 'run' ? null : { started: now(), ended: null, targets: decision.targets, result: 'incomplete' };
   if (rerun) current.reruns.push(rerun);
   writeRecord(root, current);
@@ -231,7 +231,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
   const begin = Date.now();
   for (const [index, name] of decision.targets.entries()) {
     // Each target of the decision is a target of the record: the targets of a run, or those of the record that did not pass.
-    const target = current.targets.find(entry => entry.name === name)!;
+    const target = present(current.targets.find(entry => entry.name === name), 'current.targets.find(entry => entry.name === name)');
     Object.assign(target, { status: 'running', started: now(), ended: null, elapsedMs: null });
     delete target.lastLines;
     writeRecord(root, current);
@@ -242,7 +242,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
     if (!passed) target.lastLines = lastLines;
     writeRecord(root, current);
     // Object.assign above sets elapsedMs to a number.
-    print(`[full-run] ${name} ${target.status} in ${seconds(target.elapsedMs!)}`);
+    print(`[full-run] ${name} ${target.status} in ${seconds(present(target.elapsedMs, 'target.elapsedMs'))}`);
     // The cause of a failure stands with its result.
     if (!passed) print(`[full-run] ${name} failed; its last ${plural(lastLines.length, 'line')}:\n${lastLines.map(line => `  | ${line}`).join('\n')}`);
   }
@@ -275,9 +275,9 @@ export function parseArguments(args: string[]): { mode: string; keys: Keys; targ
       keys[name] = value.join('=');
       index += 1;
     // index is below rest.length.
-    } else if (TARGET_NAME.test(rest[index]!) && !targets.includes(rest[index]!)) {
+    } else if (TARGET_NAME.test(present(rest[index], 'rest[index]')) && !targets.includes(present(rest[index], 'rest[index]'))) {
       // index is below rest.length.
-      targets.push(rest[index]!);
+      targets.push(present(rest[index], 'rest[index]'));
     } else {
       throw new Error(`${JSON.stringify(rest[index])} is not a target name that is given once (${TARGET_NAME})`);
     }

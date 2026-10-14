@@ -7,6 +7,7 @@ import { matchesAny } from './glob.mts';
 import { prosePassages } from './markdown.mts';
 import { captured, difference, finding } from './parity-declaration.mts';
 import type { ParityModel } from './parity-declaration.mts';
+import { present } from './present.mts';
 
 /** The words of a list: each run of letters, digits, _ and - that starts with a letter. */
 const words = (text: string) => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].map(match => match[0].toLowerCase());
@@ -15,7 +16,7 @@ const words = (text: string) => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].ma
 export function languageLists(model: ParityModel, root: string) {
   return (model.config.languageLists ?? []).flatMap((list) => {
     // readDeclaration reports an unknown profile of a list, and the rules do not run on a declaration with findings.
-    const expected = model.profiles.get(list.profile)!;
+    const expected = present(model.profiles.get(list.profile), 'model.profiles.get(list.profile)');
     const matches = captured(readFileSync(path.join(root, list.file), 'utf8'), list.pattern);
     if (!matches.length) return [finding('R9', `the pattern ${list.pattern} matches nothing; the list moved or the declaration is stale`, { place: list.file })];
     return matches.flatMap((match) => {
@@ -40,7 +41,7 @@ const SEPARATOR = /^(?:\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과
 function countsOf(text: string, nouns: string[]) {
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
   // The first group of the pattern is not optional, so every match holds it.
-  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(match[1]!) ? Number(match[1]) : NUMBERS[match[1]!.toLowerCase()], index: match.index }));
+  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(present(match[1], 'match[1]')) ? Number(match[1]) : NUMBERS[present(match[1], 'match[1]').toLowerCase()], index: match.index }));
 }
 
 /**
@@ -49,7 +50,7 @@ function countsOf(text: string, nouns: string[]) {
  */
 function namesOf(text: string, written: Map<string, string>) {
   const pattern = new RegExp(`(?<![A-Za-z0-9_-])(?:${[...written.keys()].sort((a, b) => b.length - a.length).map(escape).join('|')})(?![A-Za-z0-9_-])`, 'gi');
-  return [...text.matchAll(pattern)].map(match => ({ name: written.get(match[0].toLowerCase())!, index: match.index, end: match.index + match[0].length }));
+  return [...text.matchAll(pattern)].map(match => ({ name: present(written.get(match[0].toLowerCase()), 'written.get(match[0].toLowerCase())'), index: match.index, end: match.index + match[0].length }));
 }
 
 /** The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. */
@@ -100,7 +101,7 @@ export function documentCounts(model: ParityModel, root: string, files: Iterable
       if (!each.every(names => names.length === 1)) continue;
       const names = [...new Set(each.flat())];
       if (names.length < 3 || profiles.some(profile => sameSet(names, profile.members))) continue;
-      found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is no profile (${listed})`, { place: `${file}:${items[0]!.line}` }));
+      found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is no profile (${listed})`, { place: `${file}:${present(items[0], 'items[0]').line}` }));
     }
     for (const passage of passages) {
       const prose = passage.text;
