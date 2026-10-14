@@ -7,6 +7,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout } from './checkout.mts';
+import { toolStubs } from './registry.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
@@ -170,7 +171,10 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   writeFileSync(path.join(root, 'var/tools/wheels', BACKEND_FILE), BACKEND_BYTES);
   const pythonLog = path.join(root, '.stubs/python.log');
   writeFileSync(pythonLog, '');
-  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_STATE: state, STUB_NPM_LOG: npmLog, STUB_NPM_MODE: '', STUB_PYTHON_LOG: pythonLog, STUB_WHEEL_REQUIRES_FILE: path.join(root, '.stubs/wheel-requires.json') };
+  // The tools of the sandbox are the stubs: gh, npm and python3 here, and go and composer answering from their records
+  // (toolStubs), never a go or Composer of the machine, whose release differs between machines.
+  const stubs = toolStubs();
+  const env = { ...stubs, PATH: `${bin}${path.delimiter}${stubs.PATH}`, STUB_STATE: state, STUB_NPM_LOG: npmLog, STUB_NPM_MODE: '', STUB_PYTHON_LOG: pythonLog, STUB_WHEEL_REQUIRES_FILE: path.join(root, '.stubs/wheel-requires.json') };
   const box = {
     root,
     env,
