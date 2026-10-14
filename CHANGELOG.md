@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+- The copied `.oxlintrc.json` fails a non-null assertion as an error (`typescript/no-non-null-assertion`): a value whose type admits undefined or null, such as an entry of a list or a group of a regular expression under `noUncheckedIndexedAccess`, is read with a check. kit reads it with `present` of `scripts/kit/present.mts`, which throws with the expression that it expected, and its tests with `known` of `tests/kit/known.mts`, which asserts it (K156).
+
+### Consumer migration
+
+Run:
+- `make kit-sync`, which writes `.oxlintrc.json` (K156).
+
+Fix:
+- Each `!` that `make lint-ts` now reports, never with a disable: destructure the value and check it, or read it with a throwing accessor of the repository that names what it expects (K156).
+
 ## 0.0.46
 
 - The copied `.oxlintrc.json` forbids the escape hatches from the types of TypeScript as errors: `typescript/ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description after `@ts-expect-error` (`// @ts-expect-error: <why>`), and `typescript/no-explicit-any` and `typescript/no-unnecessary-type-assertion` fail an explicit `any` and a type assertion that changes nothing. A repository had silenced tsc with `@ts-expect-error` on code that type-checks and with casts. `readJson` of the copy `scripts/kit/bootstrap/files.mts` returns `unknown` instead of `any` (K155).
