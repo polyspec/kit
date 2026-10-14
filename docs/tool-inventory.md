@@ -36,8 +36,10 @@ repositories (lines).
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
 its sha256 for linux-x64, linux-arm64, macos-arm64 and macos-x64, the platforms of the bootstrap of mise; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
-not: the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, the Rust channels
-of `exceptions` with rustup (`install-rust.mts`) and the symbol extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
+not: the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
+(`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
+in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
+`exceptions`, and the symbol extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
 `packageManager` and mise itself, by the sha256 of `config/toolchain.json` `mise`; `install-tool.mts` builds each of them beside
 its target, checks it there and renames it, so a second run changes nothing. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the

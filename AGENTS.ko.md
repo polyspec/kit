@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: c2a44a674994d8fcc8c7fd4ee5e3f71dde54b6230e7975bea8a4c66b4a7035d0 -->
+<!-- source-sha256: 3740ac6a96037b93f9f25054317f14afbf329b752d38ea3d5e76723b8533683c -->
 # 개발
 
 [English](AGENTS.md)
@@ -52,9 +52,11 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
 - kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
   Rust는 `rust-toolchain.toml`의 것을 씁니다. kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을
-  PATH 맨 앞에 두고 실행됩니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. rustup이 그 channel을
-  설치하고(`rustup toolchain install`), `make install-tools`를 통해 config/toolchain.json `exceptions`가 선언한 Rust
-  channel도 설치합니다. rustup이 없으면 그 설치 방법과 함께 실패합니다. PHP는 `.php-version`의 release이며(CI에서는
+  PATH 맨 앞에 두고 실행됩니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
+  rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;
+  rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
+  설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, `make toolchain-check`는 설치되지 않은 toolchain을 이름으로
+  알립니다. PHP는 `.php-version`의 release이며(CI에서는
   install-tools 앞의 setup-php 단계), `make toolchain-check`가 이를 검증합니다.
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).

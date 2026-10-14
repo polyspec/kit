@@ -7,18 +7,19 @@
 // var/tools/bin/mise, which keeps mise and the builds of its tools under var/tools/mise); a tool that mise.lock does not pin
 // fails the install. Then kit installs what mise does not: the build backend of the Python wheels (config/toolchain.json
 // pythonBackend, by the sha256 of its wheel), the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
-// channels of config/toolchain.json exceptions (install-rust.mts, with rustup, which stays the toolchain manager of Rust) and the
-// symbol extractors of symbolExtractors, which build with the Go and the Composer of mise. Each is installed only when it is
-// declared, and an install of the release that is present changes nothing, so a second run installs nothing. The tools of
-// the machine are never changed. Node.js, Rust and PHP are verified by check-toolchain.mts, not installed. The command takes
-// no tool names: mise.lock is one set of tools. It prints a line for each step and has no time limit.
+// toolchain of rust-toolchain.toml with its components and the Rust channels of config/toolchain.json exceptions (install-rust.mts,
+// with rustup, which stays the toolchain manager of Rust) and the symbol extractors of symbolExtractors, which build with the Go
+// and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
+// nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js and PHP are verified by
+// check-toolchain.mts, not installed. The command takes no tool names: mise.lock is one set of tools. It prints a line for each
+// step and has no time limit.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { installPhpLint } from './install-php-lint.mts';
 import { installPhpunit } from './install-phpunit.mts';
-import { installRustChannels } from './install-rust.mts';
+import { installRustChannels, installRustToolchain } from './install-rust.mts';
 import { installExtractor } from './install-symbols.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -42,6 +43,7 @@ export function installTools({ root = repositoryRoot(), print = () => {} }: { ro
   if (pythonBackend) installBackend({ root, env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print });
   if (phpunit) installPhpunit({ root, declared: phpunit, print });
   if (phpLint) installPhpLint({ root, declared: phpLint, print });
+  if (existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, print });
   if (rustChannels.length > 0) installRustChannels({ root, channels: rustChannels, print });
   for (const extractor of symbolExtractors?.extractors ?? []) installExtractor({ root, extractor, print });
 }
