@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: ecf57ff14e2dd2e7a7834b6f68c1dd95b3215761b788e90da9c5c78b4f34d11e -->
+<!-- source-sha256: 8e9820e247e4b501697b014579c1a3ccafe4863eb902fa748049453602f7f6e6 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -209,4 +209,4 @@
 | K151 | `make install-tools`가 checkout에서 파일을 읽는 `rustup toolchain install --no-self-update`로 `rust-toolchain.toml`의 Rust toolchain을 그 component와 함께 설치하고, rustup이 없으면 그 설치 방법과 함께 거부하며, toolchain-check는 설치되지 않은 toolchain을 이름으로 알린다: rustup 1.28은 cargo가 처음 실행될 때 이를 더는 설치하지 않아, cargo를 실행하는 모든 CI job이 "toolchain '1.99.0-x86_64-unknown-linux-gnu' is not installed"로 실패했다(cargo metadata를 거치는 ordered-json의 docs job, ssr의 push gate) | `install-rust.mts`, `install-tools.mts`, `check-toolchain.mts`, 문서 | `tests/kit/install-tools.test.mts`, `tests/kit/check-toolchain.test.mts` | [ ] |
 | K149 | `make install-tools`가 kit이 checkout의 선언에 따라 더는 쓰지 않는 `var/tools/bin`의 file을 모두 지운다(bootstrap의 mise, npm, npx와 선언된 Composer project의 wrapper는 남는다): kit 0.0.38이 쓴 wrapper go, gofmt, python3, alint가 그 도구가 mise로 옮긴 뒤에도 남아 PATH에서 mise의 shim을 가렸다 | `install-tools.mts`, `install-mise.mts`, `install-npm.mts`, `install-phpunit.mts`, `install-php-lint.mts`의 wrapper 이름, 문서 | `tests/kit/install-tools.test.mts` | [ ] |
 | K150 | 사본 `scripts/kit/bootstrap/files.mts`와 `digest.mts`가 consumer에서 깨끗하게 lint된다: consumer의 tsconfig는 자기 script를 담고 kit의 사본은 담지 않아 oxlint-tsgolint가 이를 project 밖에서 node의 type 없이 검사했고, `NodeJS.ArrayBufferView`가 error type이 되어 `no-redundant-type-constituents`를 실패시켰다(0.0.43의 ordered-json; kit 자신의 lint는 통과). 사본은 `Uint8Array`를 받고, lint-ts-real의 fixture는 consumer 모양의 tsconfig로 `kit.copies`의 실제 사본을 lint한다 | `bootstrap/files.mts`, `bootstrap/digest.mts`, 문서 | `tests/source/lint-ts-real.test.mts` | [ ] |
-| K147 | ruff가 복사된 `ruff.toml`의 `cache-dir`, 곧 repository의 모든 실행에 적용되는 ruff 자신의 설정으로 cache를 `var/ruff`에 둔다: `make lint-python`이 repository root에 `.ruff_cache`를 남겼고, ignore하지 않으면 layout S5에서 실패한다 | `ruff.toml`, 문서 | `tests/source/lint-python-real.test.mts` | [ ] |
+| K147 | ruff가 복사된 `ruff.toml`의 `cache-dir`, 곧 repository의 모든 실행에 적용되는 ruff 자신의 설정으로 cache를 `var/ruff`에 둔다: `make lint-python`이 repository root에 `.ruff_cache`를 남겼고, ignore하지 않으면 layout S5에서 실패한다 | `ruff.toml`, 문서 | `tests/source/lint-python-real.test.mts` | [o] |
