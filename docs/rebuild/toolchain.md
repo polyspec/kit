@@ -32,7 +32,7 @@ toolchains that a repository does not install. This record covers those parts. M
 
 | Tool | State | Verdict |
 |---|---|---|
-| mise with `mise.lock` | 2026.10.8; `mise.toml` declares the tools, `make toolchain-lock` runs `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`, `make install-tools` runs `mise install --locked` | **replaces** the release installers of Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer and vulture (P1, P4, P5); the gaps below are each decided |
+| mise with `mise.lock` | 2026.10.8; `mise.toml` declares the tools, `make toolchain-lock` runs `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`, `make install-tools` runs `mise install --locked` | **replaces** the release installers of Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer and vulture (P1, P4, P5); the gaps below are each decided |
 | mise for P2 | the `npm:` backend installs with npm | circular: it needs an npm before the pinned npm |
 | mise for itself | the npm package `@jdxcode/mise` holds no binary and fetches an unlocked platform package in a preinstall script | none fits: the bootstrap installs mise from its release archive by the sha256 of `config/toolchain.json` `mise` |
 | asdf | plugins, no checksums in a lock | out |
@@ -45,6 +45,10 @@ The gaps that the measurement found, each with its decision:
   `composer.phar.sha256sum` of getcomposer.org, and `mise.lock` records it.
 - cargo-audit is `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`, which locks the native binaries of
   aarch64-apple-darwin and x86_64-linux with their checksums (the aqua entry gave macos-arm64 the x86_64 binary).
+- cargo-nextest is `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }` and cargo-deny is
+  `cargo-deny`, the `aqua:EmbarkStudios/cargo-deny` of the registry of mise (K143). `mise lock` pinned the archive of each of
+  the four platforms by its sha256, each a native binary (nextest ships one universal binary for both Macs, cargo-deny static
+  musl binaries for Linux), measured with mise 2026.10.8 at nextest 0.9.146 and cargo-deny 0.20.2.
 - govulncheck and deadcode are built by the `go:` backend, and `mise.lock` records their release only. Their integrity is that
   of Go, which checks every module against its checksum database (`GOSUMDB`, no module exempt) with `GOFLAGS=-mod=readonly`.
   This is the one declared exception of the lock check (`miseLockFindings` of `toolchain-mise.mts`).

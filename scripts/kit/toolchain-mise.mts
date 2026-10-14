@@ -6,6 +6,8 @@
 //   alint         github:asamarts/alint                  golangciLint  golangci-lint
 //   deadcode      go:golang.org/x/tools/cmd/deadcode     govulncheck   go:golang.org/x/vuln/cmd/govulncheck
 //   cargoAudit    github:rustsec/rustsec, with version_prefix = "cargo-audit/v", the native binary of each platform
+//   cargoNextest  github:nextest-rs/nextest, with version_prefix = "cargo-nextest-", the native binary of each platform
+//   cargoDeny     cargo-deny (aqua:EmbarkStudios/cargo-deny of the registry of mise), the native binary of each platform
 //   composer      http:composer, with the url of composer.phar and its checksum from getcomposer.org
 //   vulture       pypi:vulture, whose wheel and dependencies mise.lock pins with uv (.mise/locks)
 // Every release is exact: <major>.<minor>.<patch>, and vulture the PyPI release, which may have two parts. A key of another
@@ -32,6 +34,8 @@ export const MISE_TOOLS = {
   deadcode: { key: 'go:golang.org/x/tools/cmd/deadcode', command: 'deadcode' },
   govulncheck: { key: 'go:golang.org/x/vuln/cmd/govulncheck', command: 'govulncheck' },
   cargoAudit: { key: 'github:rustsec/rustsec', command: 'cargo-audit' },
+  cargoNextest: { key: 'github:nextest-rs/nextest', command: 'cargo-nextest' },
+  cargoDeny: { key: 'cargo-deny', command: 'cargo-deny' },
   composer: { key: 'http:composer', command: 'composer' },
   vulture: { key: 'pypi:vulture', command: 'vulture' },
 } as const;

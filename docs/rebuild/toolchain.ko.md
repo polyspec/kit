@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: 0de48e95130577e96ee1a15a4a18fc795e22a83027d7cfe110b09b1eb4012873 -->
+<!-- source-sha256: 374a0553d2a0191967b36be13391954cfc4910b0d22fe5655b7c2f94fd8e562c -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -32,7 +32,7 @@
 
 | 도구 | 상태 | 판정 |
 |---|---|---|
-| mise와 `mise.lock` | 2026.10.8. `mise.toml`이 도구를 선언하고, `make toolchain-lock`이 `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`를, `make install-tools`가 `mise install --locked`를 실행합니다 | Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture의 release installer를 **교체**합니다(P1, P4, P5). 아래 빈틈은 각각 결정했습니다 |
+| mise와 `mise.lock` | 2026.10.8. `mise.toml`이 도구를 선언하고, `make toolchain-lock`이 `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`를, `make install-tools`가 `mise install --locked`를 실행합니다 | Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture의 release installer를 **교체**합니다(P1, P4, P5). 아래 빈틈은 각각 결정했습니다 |
 | P2를 위한 mise | `npm:` backend는 npm으로 설치합니다 | 순환: 고정한 npm보다 먼저 npm이 있어야 합니다 |
 | mise 자체를 위한 mise | npm package `@jdxcode/mise`는 binary가 없고, preinstall script에서 lock되지 않은 platform package를 가져옵니다 | 맞는 도구 없음: bootstrap이 `config/toolchain.json` `mise`의 sha256으로 release archive에서 mise를 설치합니다 |
 | asdf | plugin, lock에 checksum 없음 | 제외 |
@@ -45,6 +45,10 @@
   `checksum = "sha256:…"`을 선언하고, `mise.lock`이 이를 기록합니다.
 - cargo-audit은 `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`이며, aarch64-apple-darwin과
   x86_64-linux의 native binary를 checksum과 함께 lock합니다(aqua 항목은 macos-arm64에 x86_64 binary를 주었습니다).
+- cargo-nextest는 `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }`이고, cargo-deny는 mise
+  registry의 `aqua:EmbarkStudios/cargo-deny`인 `cargo-deny`입니다(K143). `mise lock`은 네 platform의 archive를 각각 sha256으로
+  pin했고, 모두 native binary입니다(nextest는 두 Mac에 universal binary 하나, cargo-deny는 Linux에 static musl binary). mise
+  2026.10.8, nextest 0.9.146, cargo-deny 0.20.2로 측정했습니다.
 - govulncheck와 deadcode는 `go:` backend가 build하며, `mise.lock`은 release만 기록합니다. 그 무결성은 Go의 것입니다. Go는
   `GOFLAGS=-mod=readonly`로 모든 module을 checksum database(`GOSUMDB`, 예외 module 없음)에 비추어 확인합니다. 이것이 lock
   검사(`toolchain-mise.mts`의 `miseLockFindings`)의 유일한 선언된 예외입니다.
