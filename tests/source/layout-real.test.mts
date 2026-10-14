@@ -170,6 +170,18 @@ test('a repository declares only its own root files in vars.root_files, and the 
   assert.doesNotMatch(undeclared.stdout, /(README\.md|Makefile|notes\.txt): error/);
 });
 
+// The root of a Composer monorepo holds its development composer.json, which requires the libraries through path
+// repositories, and its one composer.lock, as an npm monorepo root holds package.json and package-lock.json (K167).
+test('the root composer.json and composer.lock of a Composer monorepo are root files of kit (K167)', (t) => {
+  assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
+  const root = {
+    'composer.json': JSON.stringify({ name: 'polyspec/demo-development', type: 'project', license: 'MIT', repositories: [{ type: 'path', url: 'packages/php' }], require: { 'polyspec/demo': '*@dev' } }, null, 4),
+    'composer.lock': JSON.stringify({ packages: [], 'packages-dev': [] }, null, 4),
+  };
+  const result = layoutCheck(repository(t, root));
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});
+
 test('make layout-check passes on this checkout', () => {
   const result = layoutCheck(ROOT);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
