@@ -76,6 +76,7 @@ console.log(JSON.stringify(fs.readFileSync(path.join(process.argv[2], 'symbols.t
 // The stub of cargo: `cargo test --manifest-path <crate>/Cargo.toml (--test <name> | --lib) -- --test-threads=1 <filter>`
 // reads tests/<name>.rs or src/lib.rs of the crate and runs each test whose name starts with the filter. It writes what cargo
 // writes for serial tests: `running <n> tests`, then `test <name> ... ok` or `FAILED` for each test, then the result line.
+// A file with the line `HARNESS libtest-mimic` writes what libtest-mimic 0.8 writes, which pads each name to the longest one.
 //
 // Run as \`cargo +<nightly> rustdoc --manifest-path <crate>/Cargo.toml --lib --target-dir <dir> -- ... --output-format json\`,
 // it writes <dir>/doc/codec.json in the shape of rustdoc JSON: the crate codec whose root module holds a public function for
@@ -101,8 +102,9 @@ const tests = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAI
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
 let exit = 0;
+const width = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS libtest-mimic') ? Math.max(...tests.map(([, , name]) => name.length)) : 0;
 for (const [, outcome, name] of tests) {
-  process.stdout.write('test ' + name + ' ... ' + (outcome === 'PASS' ? 'ok' : 'FAILED') + '\\n');
+  process.stdout.write('test ' + name.padEnd(width) + ' ... ' + (outcome === 'PASS' ? 'ok' : 'FAILED') + '\\n');
   if (outcome === 'FAIL') exit = 1;
 }
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
@@ -1135,6 +1137,12 @@ test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
+});
+
+test('R3 reads each case of a cargo binding whose harness libtest-mimic pads the test names (K136)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, { files: { 'rust/src/lib.rs': 'HARNESS libtest-mimic\nPASS width::tests::vectors::narrow\nPASS width::tests::vectors::wide\n' } });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['narrow pass', 'wide pass']);
 });
 
 test('R3: a case that one run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {

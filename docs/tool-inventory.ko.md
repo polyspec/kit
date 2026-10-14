@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 31f4976c1aff2ca69fad38d6e4c50f184dc12673e3ec30cd2171dd484e96b2b6 -->
+<!-- source-sha256: cf1a9a010ee9b17fe44ceb9418b544ebebd83f874085e9ae39a7b0411445d040 -->
 
 # 도구 목록
 
@@ -1103,7 +1103,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | Runner | 명령 | Case | Feature id |
 |---|---|---|---|
 | `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>`. feature는 `-run` 없이 실행합니다 | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event | test 또는 subtest 이름 `TestX/case` |
-| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --test-threads=1 <symbol>::`. feature는 filter 없이 실행합니다 | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored` | libtest 경로 `module::test` |
+| `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --test-threads=1 <symbol>::`. feature는 filter 없이 실행합니다 | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored`. libtest-mimic(`harness = false` test target)은 각 이름을 가장 긴 이름에 맞춰 채우므로 `...` 앞의 공백은 몇 칸이든 됩니다 | libtest 경로 `module::test` |
 | `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다 | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
 | `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다 | TeamCity 메시지의 test method `test_<case>` | test method |

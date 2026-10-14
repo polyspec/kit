@@ -270,6 +270,16 @@ test('the cargo events read a should_panic test by its name and result (K47)', (
   assert.deepEqual(calls, ['start tests/t.rs › sym::panics', 'pass tests/t.rs › sym::panics', 'start tests/t.rs › sym::fails', 'fail tests/t.rs › sym::fails']);
 });
 
+test('the cargo events read the names that libtest-mimic pads to the longest one (K136)', () => {
+  const { calls, sink } = recording();
+  const events = cargoEvents(sink);
+  events.stderr('     Running tests/cases.rs (target/debug/deps/cases-1)');
+  // The output of libtest-mimic 0.8.2, the harness of a data-driven test (harness = false), which pads each name.
+  events.stdout('\nrunning 2 tests\ntest tokens::a/b          ... ok\ntest tokens::longer/name    ');
+  events.stdout('... FAILED\n');
+  assert.deepEqual(calls, ['start tests/cases.rs › tokens::a/b', 'pass tests/cases.rs › tokens::a/b', 'start tests/cases.rs › tokens::longer/name', 'fail tests/cases.rs › tokens::longer/name']);
+});
+
 test('the python events report an expected failure as todo, which is no pass (K47)', () => {
   const { calls, sink } = recording();
   pythonEvents(sink)('test_known (tests.test_x.T.test_known) ... expected failure\ntest_ok (tests.test_x.T.test_ok) ... ok\n');
