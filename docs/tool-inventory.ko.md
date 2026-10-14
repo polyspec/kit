@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 71f3640f347751594e4d3875542374841a19a74bd00cb920557ebb058ed8ba2b -->
+<!-- source-sha256: ae879b791f9ad7af8b01c5f3db9b9f521e9506763a5d0247de6bc64e5728df69 -->
 
 # 도구 목록
 
@@ -733,7 +733,10 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   `@polyspec/kit`은 무시하는 dependency입니다. Makefile이 실행하는 script는 통과하고, 아무도 import하거나 실행하지 않는 파일은
   여전히 실패합니다(fixture). kit은 같은 설정으로 자신을 lint하며, CI와 `scripts/kit`, `tests`, lint 설정의 owner check에서
   실행합니다(K142). knip.json의 `ignoreBinaries`는 script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구를
-  적고, knip.json의 나머지는 kit 자신을 위한 것입니다: make가 kit의 fixture recorder를 실행하고, kit의 script가
+  적습니다: make, shasum, 그리고 polyspec이 mise나 setup으로 고정하는 runtime(go, rustup, php, composer, python3, cargo,
+  node, git; K152)입니다. 한 레포만의 도구(Apple `container` 등)는 `config/knip-entries.json`의 `binaries`에 이유와 함께
+  선언하고, lint-ts가 그 목록 뒤에 더합니다. 선언한 binary는 통과하고 선언하지 않은 binary는 여전히 unlisted binary입니다
+  (fixture). knip.json의 나머지는 kit 자신을 위한 것입니다: make가 kit의 fixture recorder를 실행하고, kit의 script가
   `node_modules/.bin`의 oxlint, oxlint-tsgolint, jscpd를 실행합니다. knip.json은 평범한 JSON이므로 lint-ts가 읽습니다. 그
   pattern 밖에서 make가 실행하는 파일(`packages/js/test/` 아래의 probe 등)은 레포가 사본이 아닌 자기 파일
   `config/knip-entries.json`(kit의 schema가 있습니다)에 이유와 함께 선언하는 entry입니다(K145): knip에는 `extends`가 없으므로

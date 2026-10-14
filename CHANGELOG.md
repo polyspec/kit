@@ -5,6 +5,16 @@
 
 ## Unreleased
 
+- knip.json ignores the binaries of the runtimes that polyspec pins by mise or by its setup, php, composer, python3, cargo, node and git, besides make, go, rustup and shasum: a script that spawned php or composer was an unlisted binary. A system tool of one repository, such as Apple `container`, is declared with its reason in `binaries` of `config/knip-entries.json` (`{ "<name>": "<reason>" }`), which make lint-ts adds to `ignoreBinaries` as it adds `entries` to the entries; `entries` is now optional (K152).
+
+### Consumer migration
+
+Run:
+- `make kit-sync`, which writes knip.json (K152).
+
+Add:
+- `binaries` in `config/knip-entries.json` for each system tool of the repository that a script spawns and knip reports as an unlisted binary, such as `container` (hyper) or `gmake` (template), with its reason (K152).
+
 ## 0.0.44
 
 - A tool of kit resolves the repository root itself, the top level of the Git work tree of its working directory, so a tool started below the root, as `npm -w` starts it in a package directory, reads and writes the paths of the repository; `ROOT` of `paths.mts` is now `repositoryRoot()`, read on its first use, and a tool that needs the root fails outside a Git work tree (K144).

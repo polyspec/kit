@@ -131,6 +131,19 @@ test('a file that make runs outside the layout entries passes once config/knip-e
   assert.match(undeclared.output, /Unused files \(1\)\npackages\/js\/test\/probe\.mjs/);
 });
 
+// A script spawns system tools that no npm package provides: php, a runtime that polyspec pins, is in ignoreBinaries of
+// knip.json, and container, a tool of one repository, is declared in config/knip-entries.json, its own file (K152).
+const SPAWNS = (...tools: string[]) => ({ 'scripts/build.mts': `import { spawnSync } from 'node:child_process';\n\n${tools.map(tool => `spawnSync('${tool}', ['--version']);\n`).join('')}` });
+const CONTAINER = { 'config/knip-entries.json': JSON.stringify({ schema: 1, binaries: { container: 'the virtiofs tests run Apple container' } }) };
+
+test('a pinned runtime and a declared binary that a script spawns pass, and an undeclared binary still fails (K152)', (t) => {
+  const declared = lintOf(repository(t, { ...SPAWNS('php', 'composer', 'python3', 'cargo', 'git', 'container'), ...CONTAINER }));
+  assert.deepEqual(declared.failed, [], declared.output);
+  const undeclared = lintOf(repository(t, { ...SPAWNS('php', 'container', 'gmake'), ...CONTAINER }));
+  assert.deepEqual(undeclared.failed, ['knip'], undeclared.output);
+  assert.match(undeclared.output, /Unlisted binaries \(1\)\ngmake +scripts\/build\.mts/);
+});
+
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
   const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
   assert.deepEqual(failed, [], output);

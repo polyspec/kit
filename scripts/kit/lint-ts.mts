@@ -4,7 +4,8 @@
 //     reads the files that Git does not ignore, and oxlint-tsgolint checks the rules that need the types of TypeScript 7.
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
 //     plugins that read the manifests. knip has no `extends`, so the entries that the repository adds in config/knip-entries.json
-//     (K145) are added to `node.entry` of knip.json in var/lint-ts/knip.json, which knip then reads with --config.
+//     (K145) are added to `node.entry` of knip.json, and its binaries (K152) to `ignoreBinaries`, in var/lint-ts/knip.json,
+//     which knip then reads with --config.
 //   - `api-extractor run` for each package with an api-extractor.json, which extends config/api-extractor.kit.json: every export
 //     is documented and reachable, and the public API equals the committed API report. It reads the .d.ts that the build of
 //     the package wrote.
@@ -18,21 +19,27 @@ import type { LintStep } from './lint-steps.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
 
-/** The entries that a repository adds to the layout entries of knip.json (scripts/kit/schema/knip-entries.schema.json). */
+/**
+ * The entries that a repository adds to the layout entries of knip.json, and the binaries to its ignoreBinaries
+ * (scripts/kit/schema/knip-entries.schema.json).
+ */
 export const KNIP_ENTRIES = 'config/knip-entries.json';
 /** The knip configuration of a repository with entries of its own: knip.json with those entries, written by lintSteps. */
 export const MERGED_KNIP = 'var/lint-ts/knip.json';
 
 /**
  * The arguments of knip for `root`: knip.json alone, or, when the repository declares config/knip-entries.json, the
- * configuration of MERGED_KNIP, which this function writes: knip.json with the declared entries after its own `node.entry`.
+ * configuration of MERGED_KNIP, which this function writes: knip.json with the declared entries after its own `node.entry`
+ * and the declared binaries after its own `ignoreBinaries`.
  */
 export function knipArguments(root: string): string[] {
   if (!existsSync(path.join(root, KNIP_ENTRIES))) return ['--no-progress'];
-  const { value, errors } = readConfig<{ entries: Record<string, string> }>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
+  const { value, errors } = readConfig<{ entries?: Record<string, string>; binaries?: Record<string, string> }>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
   if (errors.length) throw new ConfigError(errors.join('\n'));
   const base = readJson(root, 'knip.json');
-  const merged = { ...base, node: { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] } };
+  const merged = { ...base };
+  if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
+  if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];
   writeJson(path.join(root, MERGED_KNIP), merged);
   return ['--no-progress', '--config', MERGED_KNIP];
 }

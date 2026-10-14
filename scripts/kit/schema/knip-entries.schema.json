@@ -1,9 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/knip-entries.json",
-  "description": "The entry files of knip that the repository adds to the layout entries of knip.json, the copy of kit: the files that make runs outside those patterns, each with its reason. make lint-ts runs knip with knip.json and these entries (scripts/kit/lint-ts.mts).",
+  "description": "What the repository adds to knip.json, the copy of kit: the entry files that make runs outside its layout entries and the system tools of the repository that its scripts spawn, each with its reason. make lint-ts runs knip with knip.json and these additions (scripts/kit/lint-ts.mts).",
   "type": "object",
-  "required": ["schema", "entries"],
+  "required": ["schema"],
+  "anyOf": [{ "properties": { "entries": true }, "required": ["entries"] }, { "properties": { "binaries": true }, "required": ["binaries"] }],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -13,6 +14,13 @@
       "type": "object",
       "minProperties": 1,
       "propertyNames": { "minLength": 1, "pattern": "^[^/!][^\\\\]*$", "not": { "pattern": "(^|/)\\.\\.(/|$)" } },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "binaries": {
+      "description": "Each system tool of the repository that its scripts or tests spawn and no npm package provides, such as Apple container, with the reason; knip ignores it after the ignoreBinaries of knip.json, which name the runtimes that polyspec pins.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$" },
       "additionalProperties": { "type": "string", "minLength": 1 }
     }
   }
