@@ -17,9 +17,39 @@ import { tree } from './tree.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 
 const TIMEOUT = { timeout: 120_000 };
-// A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose, so it has no
-// fixed type.
-type Declaration = any;
+// A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
+// the fields that the cases read, and every value that a case replaces is unknown.
+type Entry = { [field: string]: unknown };
+type BindingJson = Entry & { implementation: string };
+// A unit of the kind api declares symbols, every other kind bindings.
+type UnitJson = Entry & { id: string; bindings?: BindingJson[]; symbols?: BindingJson[] };
+type ImplementationJson = Entry & { name: string; runner: string; env?: Entry[] };
+type Declaration = Entry & {
+  implementations: ImplementationJson[];
+  profiles: (Entry & { implementations: string[] })[];
+  units: UnitJson[];
+  suites: string[];
+  testPatterns?: { runner: string; globs: string[] }[];
+  nativeOnly: Entry[];
+  exclusions: Entry[];
+  errors: { profile: string; catalog: { file: string; pattern: string } };
+  languageLists: Entry[];
+  documents: { globs: string[]; nouns: string[] };
+};
+
+/** The item at `index` of `list`; a missing item fails the case. */
+function itemAt<T>(list: T[], index: number): T {
+  const found = list[index];
+  if (found === undefined) throw new Error(`the list holds no item ${index}: ${list.length} items`);
+  return found;
+}
+
+/** The first item of `list` that `test` accepts; a missing item fails the case. */
+function itemWhere<T>(list: T[], test: (item: T) => boolean): T {
+  const found = list.find(test);
+  if (found === undefined) throw new Error('the list holds no item that the case names');
+  return found;
+}
 /** The change of a mini repository: files to write or remove (null), and the edit of the declaration. */
 type Change = { files?: Record<string, string | null>; edit?: (config: Declaration) => Declaration };
 
@@ -324,7 +354,7 @@ function findingAt(findings: ParityFinding[], index: number) {
   return found;
 }
 
-const binding = (config: Declaration, unit: string, implementation: string) => config.units.find((entry: { id: string }) => entry.id === unit).bindings.find((entry: { implementation: string }) => entry.implementation === implementation);
+const binding = (config: Declaration, unit: string, implementation: string) => itemWhere(itemWhere(config.units, (entry: { id: string }) => entry.id === unit).bindings ?? [], (entry: { implementation: string }) => entry.implementation === implementation);
 
 test('the declaration of five implementations passes, with every case of every suite executed twice alike', TIMEOUT, (t) => {
   const { findings, ledger } = check(t);
@@ -352,16 +382,16 @@ test('a profile narrower than every implementation is printed on every run with 
 
 test('a narrower profile without a reason or with one unit, and an implementation in no profile, fail the declaration', TIMEOUT, (t) => {
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: (config) => { delete config.profiles[1].reason; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { delete itemAt(config.profiles, 1).reason; return config; } }), [
     'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { config.profiles[1].reason = ' '; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { itemAt(config.profiles, 1).reason = ' '; return config; } }), [
     'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
   ]);
   assert.deepEqual(messages({ files: { 'go/size_test.go': null, 'rust/tests/size.rs': null, 'tests/vectors/size.json': null }, edit: (config) => { config.units = config.units.filter((unit: { id: string }) => unit.id !== 'size'); return config; } }), [
     'declaration: profile compiled omits implementations and only the unit width uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); config.profiles[0].reason = 'kotlin starts later'; config.profiles[0].spec = ['docs/spec/codec.md#codec']; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); itemAt(config.profiles, 0).reason = 'kotlin starts later'; itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec']; return config; } }), [
     'declaration: the implementation kotlin is in no profile, so no unit applies to it',
   ]);
 });
@@ -380,7 +410,7 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
 
 test('an implementation declares the command, the arguments and the environment of its runner', TIMEOUT, (t) => {
   const declare = (withEnvironment: boolean) => (config: Declaration) => {
-    const implementation = (name: string) => config.implementations.find((entry: { name: string }) => entry.name === name);
+    const implementation = (name: string) => itemWhere(config.implementations, (entry: { name: string }) => entry.name === name);
     Object.assign(implementation('python'), { command: 'python/.venv/bin/python', args: ['-B'], env: withEnvironment ? [{ name: 'CODEC_SOURCE', value: 'python/src' }, { name: 'REQUIRE_SOURCE', value: '1' }] : [{ name: 'REQUIRE_SOURCE', value: '1' }] });
     implementation('php').args = ['-d', 'extension=php/modules/codec.so'];
     implementation('go').args = ['-tags', 'parity'];
@@ -407,7 +437,7 @@ test('an implementation declares the command, the arguments and the environment 
 
 test('a runner value references the invoking environment as ${NAME}, resolved when the bindings run and never printed', TIMEOUT, (t) => {
   const declare = (config: Declaration) => {
-    const implementation = (name: string) => config.implementations.find((entry: { name: string }) => entry.name === name);
+    const implementation = (name: string) => itemWhere(config.implementations, (entry: { name: string }) => entry.name === name);
     Object.assign(implementation('python'), { command: '${PARITY_VENV}/bin/python', args: ['-B'], env: [{ name: 'CODEC_SOURCE', value: '${PARITY_PYTHON}/src' }, { name: 'REQUIRE_SOURCE', value: '1' }] });
     implementation('php').args = ['-d', 'extension=${PARITY_PHP}/codec.so'];
     return config;
@@ -430,11 +460,11 @@ test('a runner value references the invoking environment as ${NAME}, resolved wh
   delete unset.PARITY_PHP;
   assert.deepEqual(messages(unset), ['R3 codec php: cannot start: args references ${PARITY_PHP}, which the environment does not set']);
   assert.deepEqual(messages({ ...env, PARITY_VENV: '' }), ['R3 codec python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string']);
-  const other = repository(t, { files, edit: (config) => { declare(config).implementations.find((entry: { name: string }) => entry.name === 'python').env[0].value = '${PARITY_PYTHON:-python}/src'; return config; } });
+  const other = repository(t, { files, edit: (config) => { itemAt(itemWhere(declare(config).implementations, (entry: { name: string }) => entry.name === 'python').env ?? [], 0).value = '${PARITY_PYTHON:-python}/src'; return config; } });
   assert.deepEqual(checkParity(other, { execute: false, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: implementation python: env CODEC_SOURCE holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
   ]);
-  const empty = repository(t, { files, edit: (config) => { declare(config).implementations.find((entry: { name: string }) => entry.name === 'python').command = ''; return config; } });
+  const empty = repository(t, { files, edit: (config) => { itemWhere(declare(config).implementations, (entry: { name: string }) => entry.name === 'python').command = ''; return config; } });
   assert.deepEqual(checkParity(empty, { execute: true, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: /implementations/4/command must NOT have fewer than 1 characters {"limit":1}, value ""',
   ]);
@@ -455,7 +485,7 @@ test('a support file of an implementation is never a test: it lies in its roots 
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(messages({
     files: { ...files, 'go/helpers_test.go': 'package codec\n\nfunc TestHelper(t *testing.T) {}\nfunc Example() {}\n', 'rust/tests/support.rs': '#[tokio::test]\nasync fn helper() {}\n', 'tools/tests/case.mjs': 'export const cases = [];\n' },
-    edit: (config) => { declare({ rust: ['rust/tests/support.rs'], ts: ['tools/tests/case.mjs', 'ts/tests/gone.mjs'] })(config); config.implementations.find((entry: { name: string }) => entry.name === 'python').support = ['python/tests/test_codec.py']; return config; },
+    edit: (config) => { declare({ rust: ['rust/tests/support.rs'], ts: ['tools/tests/case.mjs', 'ts/tests/gone.mjs'] })(config); itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'python').support = ['python/tests/test_codec.py']; return config; },
   }), [
     'declaration: implementation go: the support file go/helpers_test.go declares func TestHelper, which go test runs; a support file holds no test',
     'declaration: implementation go: the support file go/helpers_test.go declares func Example, which go test runs; a support file holds no test',
@@ -465,7 +495,7 @@ test('a support file of an implementation is never a test: it lies in its roots 
     'declaration: unit codec: the test python/tests/test_codec.py of python matches its support globs',
   ]);
   // A support file exempts a file only from the pattern of the runner of its implementation.
-  assert.deepEqual(messages({ files, edit: (config) => { declare()(config); config.testPatterns.find((pattern: { runner: string }) => pattern.runner === 'node').globs.push('**/tests/**/*.php'); return config; } }), [
+  assert.deepEqual(messages({ files, edit: (config) => { declare()(config); itemWhere(config.testPatterns ?? [], (pattern: { runner: string }) => pattern.runner === 'node').globs.push('**/tests/**/*.php'); return config; } }), [
     'R6: a node test outside ts, the roots of the node implementations, and outside tests/compare, the comparator roots; move it into the package of its implementation',
   ]);
   // parity-check runs each node, php and python support file once; a harness line in its output is a test that no binding declares.
@@ -479,17 +509,17 @@ test('a support file of an implementation is never a test: it lies in its roots 
 test('the reason of a narrow profile and of a native-only entry cites a spec anchor that resolves (K75)', TIMEOUT, (t) => {
   // A schema finding names the path in the declaration; another names the anchor, or the profile.
   const findings = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${(finding.message.startsWith('config/parity.json: ') ? /(?<=^config\/parity\.json: )\/\S*/.exec(finding.message) : /(?:docs|contracts)\/\S+/.exec(finding.message) ?? /profile \S+/.exec(finding.message))?.[0]}`);
-  assert.deepEqual(findings((config) => { delete config.profiles[1].spec; config.profiles[0].spec = ['docs/spec/codec.md#codec']; return config; }), [
+  assert.deepEqual(findings((config) => { delete itemAt(config.profiles, 1).spec; itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec']; return config; }), [
     'declaration profile all',
     'declaration profile compiled',
   ]);
-  assert.deepEqual(findings((config) => { delete config.nativeOnly[0].spec; config.profiles[1].spec = ['docs/notes.md#width']; return config; }), [
+  assert.deepEqual(findings((config) => { delete itemAt(config.nativeOnly, 0).spec; itemAt(config.profiles, 1).spec = ['docs/notes.md#width']; return config; }), [
     'declaration /profiles/1/spec/0',
     'declaration /nativeOnly/0',
   ]);
   assert.deepEqual(findings((config) => {
-    config.profiles[1].spec = ['docs/spec/missing.md#width', 'docs/spec/codec.md#depth-tables', 'contracts/codec.json#/benchmarks/hex'];
-    config.nativeOnly[0].spec = ['contracts/codec.json#/benchmarks/octal', 'docs/spec/codec.md#codec'];
+    itemAt(config.profiles, 1).spec = ['docs/spec/missing.md#width', 'docs/spec/codec.md#depth-tables', 'contracts/codec.json#/benchmarks/hex'];
+    itemAt(config.nativeOnly, 0).spec = ['contracts/codec.json#/benchmarks/octal', 'docs/spec/codec.md#codec'];
     return config;
   }), [
     'declaration docs/spec/missing.md#width',
@@ -517,7 +547,7 @@ const FEATURE = {
   ],
 };
 /** The feature change: FEATURE_FILES with `files` over them, and FEATURE (edited by `edit`) as a unit of the declaration. */
-const feature = (files: Record<string, string | null> = {}, edit = (unit: Declaration) => unit): Change => ({ files: { ...FEATURE_FILES, ...files }, edit: (config) => { config.units.push(edit(structuredClone(FEATURE))); return config; } });
+const feature = (files: Record<string, string | null> = {}, edit = (unit: UnitJson) => unit): Change => ({ files: { ...FEATURE_FILES, ...files }, edit: (config) => { config.units.push(edit(structuredClone(FEATURE))); return config; } });
 
 test('a feature unit holds when the id of each binding passed in both unfiltered runs of its test (K75)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature());
@@ -536,19 +566,19 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
     'rust/tests/roundtrip.rs': null,
     'rust/tests/roundtrip/main.rs': 'mod vectors;\nPASS roundtrip::bytes\n',
     'rust/tests/roundtrip/vectors.rs': '#[test]\nfn bytes() {}\n',
-  }, (unit) => { unit.bindings[1].test = 'rust/tests/roundtrip/main.rs'; return unit; }));
+  }, (unit) => { itemAt(unit.bindings ?? [], 1).test = 'rust/tests/roundtrip/main.rs'; return unit; }));
   assert.deepEqual(findings, []);
   const rust = ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust')!;
   assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
 test('a feature unit fails R2 without a binding and R3 when its id is missing, fails or is not the full native id (K75)', TIMEOUT, (t) => {
-  const missing = check(t, feature({ 'python/tests/test_roundtrip.py': null }, (unit) => { unit.bindings.pop(); return unit; }));
+  const missing = check(t, feature({ 'python/tests/test_roundtrip.py': null }, (unit) => { unit.bindings?.pop(); return unit; }));
   assert.deepEqual(keys(missing.findings), ['R2 roundtrip python']);
   const { findings } = check(t, feature({ 'rust/tests/roundtrip.rs': 'FAIL roundtrip::bytes\n' }, (unit) => {
-    unit.bindings[0].id = 'TestRoundtrip/binary';
+    itemAt(unit.bindings ?? [], 0).id = 'TestRoundtrip/binary';
     // node reports the nested test as roundtrip › bytes; its bare name is no id of the run.
-    unit.bindings[2].id = 'bytes';
+    itemAt(unit.bindings ?? [], 2).id = 'bytes';
     return unit;
   }));
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.unit} ${finding.implementation} ${finding.place}`), [
@@ -563,8 +593,8 @@ test('a feature unit fails R2 without a binding and R3 when its id is missing, f
 
 test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, feature({}, (unit) => {
-    delete unit.bindings[0].id;
-    unit.bindings[1].symbol = 'roundtrip';
+    delete itemAt(unit.bindings ?? [], 0).id;
+    itemAt(unit.bindings ?? [], 1).symbol = 'roundtrip';
     unit.file = 'tests/vectors/codec.json';
     return unit;
   }), { execute: false });
@@ -595,8 +625,8 @@ process.stdout.write('JSON report written to ' + output + '\\n');
 process.exit(assertionResults.some(result => result.status === 'failed') ? 1 : 0);
 `;
 
-/** A repository of a node and a vitest implementation with a suite and a feature unit; `edit` changes its declaration. */
-function vitestRepository(t: TestContext, files: Record<string, string | null> = {}, edit = (config: Declaration) => config) {
+/** A repository of a node and a vitest implementation with a suite and a feature unit. */
+function vitestRepository(t: TestContext, files: Record<string, string | null> = {}) {
   const config = {
     schema: 1,
     implementations: [{ name: 'ts', runner: 'node', roots: ['ts'] }, { name: 'web', runner: 'vitest', roots: ['web'] }],
@@ -614,7 +644,7 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
     'web/src/roundtrip.test.ts': 'PASS roundtrip › nested › bytes\nSKIP roundtrip › later\n',
     'node_modules/vitest/vitest.mjs': VITEST_STUB.replaceAll('require(', 'process.getBuiltinModule('),
     ...files,
-    'config/parity.json': `${JSON.stringify(edit(config), null, 2)}\n`,
+    'config/parity.json': `${JSON.stringify(config, null, 2)}\n`,
   };
   return tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
 }
@@ -647,8 +677,8 @@ test('R1: an API unit whose symbol an extractor does not give, or that declares 
   const { findings } = check(t, {
     files: { 'rust/symbols.txt': 'hex_upper\n' },
     edit: config => {
-      const unit = config.units.find((entry: { id: string }) => entry.id === 'encode');
-      unit.symbols = unit.symbols.filter((entry: { implementation: string }) => entry.implementation !== 'python');
+      const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode');
+      unit.symbols = (unit.symbols ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
       return config;
     },
   });
@@ -680,7 +710,7 @@ test('the ts extractor reads a declaration of the ES2015+ library, such as Reado
 test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, (t) => {
   const without = check(t, {
     edit: config => {
-      delete config.units.find((entry: { id: string }) => entry.id === 'encode').symbols;
+      delete itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode').symbols;
       return config;
     },
   }, { execute: false });
@@ -688,7 +718,7 @@ test('an API unit without symbols fails the declaration and names the unit, and 
   assert.equal(findingAt(without.findings, 0).message, 'unit encode: a unit of kind api needs symbols');
   const empty = check(t, {
     edit: config => {
-      config.units.find((entry: { id: string }) => entry.id === 'encode').symbols = [];
+      itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode').symbols = [];
       return config;
     },
   });
@@ -711,8 +741,8 @@ test('R2: a suite without a binding of an implementation of its profile fails', 
   const { findings } = check(t, {
     files: { 'python/tests/test_codec.py': null },
     edit: config => {
-      const unit = config.units.find((entry: { id: string }) => entry.id === 'codec');
-      unit.bindings = unit.bindings.filter((entry: { implementation: string }) => entry.implementation !== 'python');
+      const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec');
+      unit.bindings = (unit.bindings ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
       return config;
     },
   });
@@ -791,7 +821,7 @@ test('a case name that a runner cannot report, and a Go symbol that is no test f
     'declaration: unit width: the go binding names Width, which is no test function (^Test\\w*$)',
     'declaration: unit width: tests/vectors/width.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
   ]);
-  assert.deepEqual(messages({ files: { 'tests/vectors/size.json': JSON.stringify(['a/b']) }, edit: (config) => { config.units.find((unit: { id: string }) => unit.id === 'size').bindings.shift(); config.exclusions.push({ unit: 'size', implementation: 'go', reason: 'r', item: 'T1' }); return config; } }).filter(message => message.startsWith('declaration')), [], 'without a go binding, a harness line reports a case with /');
+  assert.deepEqual(messages({ files: { 'tests/vectors/size.json': JSON.stringify(['a/b']) }, edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'size').bindings?.shift(); config.exclusions.push({ unit: 'size', implementation: 'go', reason: 'r', item: 'T1' }); return config; } }).filter(message => message.startsWith('declaration')), [], 'without a go binding, a harness line reports a case with /');
 });
 
 test('R4: a suite file that no unit declares fails', TIMEOUT, (t) => {
@@ -851,7 +881,7 @@ test('R5: a file named like a test that its runner does not run, and that no bin
   // A support glob takes a file named like a test out of the rule; it holds no test.
   assert.deepEqual(check(t, {
     files: { 'go/testdata/test_input.json': '{}' },
-    edit: (config) => { config.implementations[0].support = ['go/testdata/**']; return config; },
+    edit: (config) => { itemAt(config.implementations, 0).support = ['go/testdata/**']; return config; },
   }, { execute: false }).findings, []);
 });
 
@@ -883,25 +913,25 @@ test('R6: a test of a runner outside the roots of every implementation of that r
 
 test('the whole repository is no root, and a declared tests list is not empty', TIMEOUT, (t) => {
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: (config) => { config.implementations[0].roots = ['.']; config.comparators = ['./']; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { itemAt(config.implementations, 0).roots = ['.']; config.comparators = ['./']; return config; } }), [
     'declaration: implementation go: the root . is the whole repository; name the directories of the implementation',
     'declaration: comparators: the root ./ is the whole repository; name the directories of the comparators',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { config.implementations[0].tests = []; return config; } }), [
+  assert.deepEqual(messages({ edit: (config) => { itemAt(config.implementations, 0).tests = []; return config; } }), [
     'declaration: config/parity.json: /implementations/0/tests must NOT have fewer than 1 items {"limit":1}',
   ]);
 });
 
 test('the schema rejects PYTHONPATH and every path that leaves the repository; a resolved reference may not leave it either (K75)', TIMEOUT, (t) => {
   const places = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${/(?<=^config\/parity\.json: )\/\S*/.exec(finding.message)?.[0]}`);
-  const python = (config: Declaration) => config.implementations.find((entry: { name: string }) => entry.name === 'python');
+  const python = (config: Declaration) => itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'python');
   assert.deepEqual(places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration /implementations/4/env/0/name']);
   assert.deepEqual(places((config) => {
-    config.implementations[0].roots = ['go', '../shared'];
+    itemAt(config.implementations, 0).roots = ['go', '../shared'];
     python(config).command = '/usr/bin/python3';
     python(config).args = ['-d', 'extension=../modules/codec.so', '--root=/opt/codec', '~/codec'];
     python(config).env = [{ name: 'CODEC_SOURCE', value: 'python/../../src' }];
-    config.units[0].file = '../vectors/codec.json';
+    itemAt(config.units, 0).file = '../vectors/codec.json';
     config.comparators = ['/srv/compare'];
     return config;
   }), [
@@ -926,7 +956,7 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
 test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'python/codes.py': 'CONFIG = "CONFIG"\nEXTRA = "EXTRA"\n' },
-    edit: config => { delete config.implementations.find((entry: { name: string }) => entry.name === 'php').errors; return config; },
+    edit: config => { delete itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'php').errors; return config; },
   }, { execute: false });
   assert.deepEqual(keys(findings), ['R7 - php', 'R7 - python']);
   assert.match(findingAt(findings, 0).message, /declares no error codes/);
@@ -955,8 +985,8 @@ test('R8: an exclusion is always a finding, with its reason and item', TIMEOUT, 
   const change: Change = {
     files: { 'python/tests/test_codec.py': null },
     edit: config => {
-      const unit = config.units.find((entry: { id: string }) => entry.id === 'codec');
-      unit.bindings = unit.bindings.filter((entry: { implementation: string }) => entry.implementation !== 'python');
+      const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec');
+      unit.bindings = (unit.bindings ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
       config.exclusions.push({ unit: 'codec', implementation: 'python', reason: 'the Python harness reports no cases yet', item: 'T76-1' });
       return config;
     },
@@ -1040,7 +1070,7 @@ test('R10: a count or a list is judged with the implementations of its sentence,
 });
 
 test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, (t) => {
-  const prose = (config: Declaration) => { config.implementations.find((entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
+  const prose = (config: Declaration) => { itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
   const { findings } = check(t, {
     files: {
       'docs/index.md': [
@@ -1061,16 +1091,16 @@ test('R10: a bullet list of one implementation per item is one list, and a decla
     'R10 docs/index.md:22: the list ts, go, php, rust is in a sentence that names ts, go, php, rust, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
   ]);
   const messages = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages((config) => { prose(config).implementations[0].prose = ['typescript']; return config; }), [
+  assert.deepEqual(messages((config) => { itemAt(prose(config).implementations, 0).prose = ['typescript']; return config; }), [
     'declaration: implementation go: the prose name typescript is also a name of ts',
     'declaration: implementation ts: the prose name TypeScript is also a name of go',
   ]);
-  assert.deepEqual(messages((config) => { config.implementations[0].prose = ['Rust']; return config; }), [
+  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = ['Rust']; return config; }), [
     'declaration: implementation go: the prose name Rust is also a name of rust',
   ]);
-  assert.deepEqual(messages((config) => { config.implementations[0].prose = [' Go']; return config; }).length, 1);
+  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = [' Go']; return config; }).length, 1);
   // A prose name is declared once: a repeated one breaks the schema.
-  assert.deepEqual(messages((config) => { config.implementations[0].prose = ['Golang', 'Golang']; return config; }), [
+  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = ['Golang', 'Golang']; return config; }), [
     'declaration: config/parity.json: /implementations/0/prose must NOT have duplicate items (items ## 1 and 0 are identical) {"i":0,"j":1}',
   ]);
 });
@@ -1089,7 +1119,7 @@ test('R11: a public symbol that no API unit and no native-only entry declares, a
 });
 
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
-  const { findings } = check(t, { edit: (config) => { config.extra = true; config.units[0].kind = 'vector'; return config; } });
+  const { findings } = check(t, { edit: (config) => { config.extra = true; itemAt(config.units, 0).kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"extra"}',
     'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","feature","api"]}, value "vector"',
@@ -1100,12 +1130,12 @@ test('a declaration that names what does not exist or holds a stale entry fails,
   const { findings, ledger } = check(t, {
     files: { 'tests/vectors/width.json': JSON.stringify(['narrow', 'narrow']) },
     edit: (config) => {
-      config.profiles[1].implementations.push('swift');
+      itemAt(config.profiles, 1).implementations.push('swift');
       config.nativeOnly.push({ implementation: 'swift', symbol: 'Codec.encode', reason: 'no implementation, so the entry is stale', spec: ['docs/spec/codec.md#codec'] });
       binding(config, 'codec', 'php').test = 'php/tests/missing.php';
       delete binding(config, 'codec', 'go').symbol;
       config.exclusions.push({ unit: 'codec', implementation: 'ts', reason: 'bound and excluded', item: 'T1' });
-      config.languageLists[0].pattern = 'LANGUAGES = [^\\]]*';
+      itemAt(config.languageLists, 0).pattern = 'LANGUAGES = [^\\]]*';
       return config;
     },
   });
@@ -1191,7 +1221,7 @@ test('R3: a case that one run reports twice fails, and the finding names the cas
 
 test('a case that the admit list of its suite does not name is not run for the implementation, and every run prints it (K47)', TIMEOUT, (t) => {
   const vectors = JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }] });
-  const edit = (config: Declaration) => { config.units.find((unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
+  const edit = (config: Declaration) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
   const lines: string[] = [];
   const root = repository(t, { files: { 'tests/vectors/codec.json': vectors, 'python/tests/test_codec.py': 'PASS test_empty\n' }, edit });
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: line => lines.push(line) });
@@ -1218,7 +1248,7 @@ test('the PHPUnit run names the configuration of its package, phpunit.xml or php
 });
 
 test('admit: an implementation that admits no case, a key on no case, an empty list and a repeated name are declaration findings (K47)', TIMEOUT, (t) => {
-  const edit = (config: Declaration) => { config.units.find((unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
+  const edit = (config: Declaration) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
   const all = ['go', 'rust', 'ts', 'php', 'python'];
   const findings = (vectors: unknown[], change: Change = {}) => check(t, { files: { 'tests/vectors/codec.json': JSON.stringify({ vectors }), ...change.files }, edit: change.edit ?? edit }, { execute: false }).findings.map(finding => `${finding.rule} ${finding.message}`);
   // python admits no case of the suite: the finding names the implementation and the way out.
@@ -1231,7 +1261,7 @@ test('admit: an implementation that admits no case, a key on no case, an empty l
     files: { 'python/tests/test_codec.py': null },
     edit: (config) => {
       edit(config);
-      config.units.find((unit: { id: string }) => unit.id === 'codec').bindings = config.units.find((unit: { id: string }) => unit.id === 'codec').bindings.filter((entry: { implementation: string }) => entry.implementation !== 'python');
+      itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').bindings = (itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').bindings ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
       config.exclusions.push({ unit: 'codec', implementation: 'python', reason: 'the Python harness reports no cases yet', item: 'T76-1' });
       return config;
     },
@@ -1245,7 +1275,7 @@ test('admit: an implementation that admits no case, a key on no case, an empty l
 
 
 /** The unit width of `config`, the go and rust suite that the K42 cases read in other forms. */
-const widthUnit = (config: Declaration) => config.units.find((unit: { id: string }) => unit.id === 'width');
+const widthUnit = (config: Declaration) => itemWhere(config.units, (unit: { id: string }) => unit.id === 'width');
 
 test('a case path step .~ selects the keys of an object as the case names (K42)', TIMEOUT, (t) => {
   const keyed = { files: { 'tests/vectors/width.json': JSON.stringify({ narrow: { width: 1 }, wide: { width: 2 } }) }, edit: (config: Declaration) => { widthUnit(config).cases = '$.~'; return config; } };
@@ -1272,7 +1302,7 @@ const caseDirectories = (config: Declaration) => {
   Object.assign(widthUnit(config), { file: 'tests/cases', cases: '*/*' });
   config.suites.push('tests/cases/**');
   // cargo names no test with a /, so the rust half of the profile is excluded here.
-  widthUnit(config).bindings = widthUnit(config).bindings.filter((entry: { implementation: string }) => entry.implementation === 'go');
+  widthUnit(config).bindings = (widthUnit(config).bindings ?? []).filter((entry: { implementation: string }) => entry.implementation === 'go');
   config.exclusions.push({ unit: 'width', implementation: 'rust', reason: 'cargo names no test with a /', item: 'K42' });
   return config;
 };

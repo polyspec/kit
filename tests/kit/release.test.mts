@@ -14,11 +14,13 @@ import { KIT_MAKE, tool } from './kit-tools.mts';
 
 const REPOSITORY = 'example/kit-fixture';
 type Box = ReturnType<typeof releaseSandbox>;
-// A test writes JSON files into shapes that their schema refuses, so an edited value has no precise type.
-type Json = any;
+// config/release.json as the fixture holds it, which a test also edits into shapes that the schema refuses.
+type ConfigJson = Omit<release.ReleaseConfig, 'schema' | 'consumers'> & { schema: number; consumers: { npm: release.ConsumerProject; composer: release.ConsumerProject; wheel?: release.WheelConsumer } };
+// A manifest of the fixture, package.json or composer.json, which a test edits.
+type ManifestJson = Record<string, unknown>;
 const context = (box: Box, extra: { config?: release.ReleaseConfig; log?: (text: string) => void } = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const edit = (root: string, file: string, change: (value: Json) => unknown) => writeJson(root, file, change(readJson(root, file)));
+const edit = <Json = ManifestJson,>(root: string, file: string, change: (value: Json) => unknown) => writeJson(root, file, change(readJson(root, file) as Json));
 
 test('latest names the newest root release tag reachable from HEAD', (t) => {
   const box = releaseSandbox(t, { version: '0.0.3' });
@@ -70,12 +72,12 @@ test('the schema accepts the configuration of the fixture and names each error o
 
 test('the configuration is checked for the rules that the schema cannot express', (t) => {
   const box = releaseSandbox(t);
-  const load = (change: (value: Json) => unknown) => {
-    writeJson(box.root, 'config/release.json', change(readJson(box.root, 'config/release.json')));
+  const load = (change: (value: ConfigJson) => unknown) => {
+    writeJson(box.root, 'config/release.json', change(readJson(box.root, 'config/release.json') as ConfigJson));
     return () => release.loadConfig(box.root);
   };
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed');
-  const original = readJson(box.root, 'config/release.json');
+  const original = readJson(box.root, 'config/release.json') as ConfigJson;
   writeJson(box.root, 'config/release.json', (({ checks: _checks, ...rest }) => rest)(original));
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed', 'the checks default to push-gate and ci-passed');
   writeJson(box.root, 'config/release.json', original);
@@ -87,8 +89,8 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(() => ({ ...original, manifests: { ...original.manifests, 'packages/fixture-lib/package.json': 'version' } })), /the package fixture-lib needs manifests\.packages\/fixture-lib\/package\.json = "archive", found "version"/);
   stop(load(() => ({ ...original, packages: original.packages.slice(1) })), /manifests\.packages\/fixture-lib\/package\.json is "archive" but no package of packages has that manifest/);
   stop(load(() => ({ ...original, packages: [...original.packages, original.packages[0]] })), /the npm package fixture-lib is listed twice/);
-  stop(load(() => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
-  stop(load(() => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
   stop(load(() => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
   stop(load(() => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
@@ -138,7 +140,7 @@ test('a missing, running or failed check is named and the latest run of a check 
 test('the checks come from the configuration', (t) => {
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
-  edit(box.root, 'config/release.json', c => ({ ...c, checks: ['build'] }));
+  edit<ConfigJson>(box.root, 'config/release.json', c => ({ ...c, checks: ['build'] }));
   box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);
   stop(() => release.verify(context(box), tag), /the check build is missing/);
   box.checkRuns([['build', 'success']]);
@@ -174,7 +176,7 @@ test('a version mismatch names the file, the tag and both values for each manife
 test('a VERSION file is a manifest', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => {
     writeFileSync(path.join(root, 'VERSION'), '0.0.1\n');
-    edit(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, VERSION: 'version' } }));
+    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, VERSION: 'version' } }));
   } });
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
   writeFileSync(path.join(box.root, 'VERSION'), '0.0.9\n');
@@ -184,7 +186,7 @@ test('a VERSION file is a manifest', (t) => {
 test('a composer.json of an archive declares the version, any other may leave it to the tag', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => {
     writeJson(root, 'composer.json', { name: 'polyspec/root', type: 'project' });
-    edit(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
+    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
   } });
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
   edit(box.root, 'packages/fixture-php/composer.json', ({ version: _version, ...rest }) => rest);
@@ -197,7 +199,7 @@ test('a missing change log section, a section without an entry and a missing tra
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), '# Changelog\n\n## 0.0.1\n\n<a id="001"></a>\n\n## 0.0.0\n\n- Old.\n');
   stop(() => release.versions(context(box), 'v0.0.1'), /CHANGELOG\.md: the section ## 0\.0\.1 has no entry for the tag v0\.0\.1/);
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), CHANGELOG);
-  edit(box.root, 'config/release.json', c => ({ ...c, changelogTranslations: ['CHANGELOG.ko.md'] }));
+  edit<ConfigJson>(box.root, 'config/release.json', c => ({ ...c, changelogTranslations: ['CHANGELOG.ko.md'] }));
   stop(() => release.versions(context(box), 'v0.0.1'), /CHANGELOG\.ko\.md: the file is missing for the tag v0\.0\.1/);
   writeFileSync(path.join(box.root, 'CHANGELOG.ko.md'), '# Changelog\n\n## 0.0.1\n\n- Entry.\n');
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
@@ -222,7 +224,7 @@ test('a Go module tag requires the module path of its go.mod and the change log 
 test('a Go module at the repository root is checked by the root tag', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => {
     writeFileSync(path.join(root, 'go.mod'), 'module example.com/root\n\ngo 1.21\n');
-    edit(root, 'config/release.json', c => ({ ...c, goModules: { ...c.goModules, '.': 'example.com/root' } }));
+    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, goModules: { ...c.goModules, '.': 'example.com/root' } }));
   } });
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
   stop(() => release.parseTag(release.loadConfig(box.root), './v0.0.1'), /\. is not a Go module directory/);
@@ -522,9 +524,9 @@ test('the archive names of a repository with scoped packages differ by language 
   const box = releaseSandbox(t, { mutate: (root: string) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
     edit(root, 'packages/fixture-php/composer.json', m => ({ ...m, name: 'polyspec/fixture-app' }));
-    edit(root, 'config/release.json', c => ({
+    edit<ConfigJson>(root, 'config/release.json', c => ({
       ...c,
-      packages: c.packages.map((p: release.ReleasePackage) => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
+      packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
       consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } }, composer: { ...c.consumers.composer, smoke: { 'polyspec/fixture-app': c.consumers.composer.smoke['polyspec/kit-fixture'] } } },
     }));
   } });
@@ -535,9 +537,9 @@ test('the archive names of a repository with scoped packages differ by language 
 test('the output of npm pack is renamed to the archive name', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => {
     edit(root, 'packages/fixture-app/package.json', m => ({ ...m, name: '@polyspec/fixture-app' }));
-    edit(root, 'config/release.json', c => ({
+    edit<ConfigJson>(root, 'config/release.json', c => ({
       ...c,
-      packages: c.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
+      packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
       consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } } },
     }));
   } });

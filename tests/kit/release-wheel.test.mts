@@ -223,14 +223,15 @@ test('release-consumer stops when the smoke import of the wheel fails and names 
 });
 
 test('config: a wheel package needs its consumer smoke and a pinned build backend; a Python git-tag is refused', (t) => {
-  // The test edits the raw JSON into shapes that the schema refuses, so no type of the configuration describes it.
-  const edit = (change: (config: any) => unknown) => {
+  // The test edits the raw JSON into shapes that the schema refuses; the type names the fields that it edits.
+  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; buildBackend?: unknown; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
+  const edit = (change: (config: ConfigJson) => unknown) => {
     const box = releaseSandbox(t);
-    const config = readJson(box.root, 'config/release.json');
+    const config = readJson(box.root, 'config/release.json') as ConfigJson;
     writeJson(box.root, 'config/release.json', change(structuredClone(config)));
     return box;
   };
-  stop(() => release.loadConfig(edit(c => { delete c.consumers.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
+  stop(() => release.loadConfig(edit(c => { delete c.consumers?.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
   // K109: a configuration without consumers is refused with the section that each package kind needs.
   stop(() => release.loadConfig(edit(c => { delete c.consumers; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
   stop(() => release.loadConfig(edit(c => { delete c.buildBackend; return c; }).root), /buildBackend is missing; the wheel packages \[kit-fixture\] need a pinned build backend/);

@@ -9,9 +9,9 @@ import { npmDuplicates, npmManifests, npmSatisfies, pythonRequirements } from '.
 import { tree } from './tree.mts';
 import { fixtureCheckout as fixture, gate } from './checkout.mts';
 
-// The data is the parsed JSON of a fixture file, whose shape each test edits as it needs.
-const edit = (root: string, file: string, change: (data: any) => void) => {
-  const data = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+// The data is the parsed JSON of a fixture file; Data names the fields that a test edits.
+const edit = <Data,>(root: string, file: string, change: (data: Data) => void) => {
+  const data = JSON.parse(readFileSync(path.join(root, file), 'utf8')) as Data;
   change(data);
   writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
 };
@@ -45,7 +45,7 @@ test('a package installed at two versions that one version satisfies is reported
 
 test('the gate fails when a workspace package has another version than its lock entry', (t) => {
   const root = fixture(t);
-  edit(root, 'packages/fixture-lib/package.json', (manifest) => { manifest.version = '0.0.1'; });
+  edit(root, 'packages/fixture-lib/package.json', (manifest: { version: string }) => { manifest.version = '0.0.1'; });
   const result = gate(root);
   assert.equal(result.status, 1);
   assert.ok(findings(result).some(line => line.startsWith('[dependency-policy] packages/fixture-app/package.json fixture-lib: the manifest requires 0.0.0, packages/fixture-lib has version 0.0.1')), result.stderr);
@@ -53,7 +53,7 @@ test('the gate fails when a workspace package has another version than its lock 
 
 test('the gate fails when a tagged package has another version than its tag, and prints the fix of the policy', (t) => {
   const root = fixture(t);
-  edit(root, 'external/tagged/js/package.json', (manifest) => { manifest.version = '9.9.9'; });
+  edit(root, 'external/tagged/js/package.json', (manifest: { version: string }) => { manifest.version = '9.9.9'; });
   const result = gate(root);
   assert.equal(result.status, 1);
   const line = findings(result).find(item => item.includes('tagged-lib'));
@@ -63,7 +63,7 @@ test('the gate fails when a tagged package has another version than its tag, and
 
 test('a package that npm installed as a copy (install-links) is no link, and the gate names the tag it must link to', (t) => {
   const root = fixture(t);
-  edit(root, 'package-lock.json', (lock) => {
+  edit(root, 'package-lock.json', (lock: { packages: Record<string, { version: string; resolved: string }> }) => {
     lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:external/tagged/js' };
   });
   assert.deepEqual(findings(gate(root)).filter(line => line.includes('tagged-lib')).map(line => line.split('. Rule:')[0]), [
@@ -74,8 +74,8 @@ test('a package that npm installed as a copy (install-links) is no link, and the
 test('a package required as file:<directory> is the package of that directory, and another directory fails', (t) => {
   const root = fixture(t);
   const findingsOf = (spec: string) => {
-    edit(root, 'packages/fixture-app/package.json', (manifest) => { manifest.dependencies['fixture-lib'] = spec; });
-    edit(root, 'package-lock.json', (lock) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
+    edit(root, 'packages/fixture-app/package.json', (manifest: { dependencies: Record<string, string> }) => { manifest.dependencies['fixture-lib'] = spec; });
+    edit(root, 'package-lock.json', (lock: { packages: { 'packages/fixture-app': { dependencies: Record<string, string> } } }) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
     return findings(gate(root)).filter(line => line.includes('fixture-lib'));
   };
   assert.deepEqual(findingsOf('file:packages/fixture-lib'), []);
@@ -85,7 +85,7 @@ test('a package required as file:<directory> is the package of that directory, a
 
 test('the gate fails when the Composer platform of a manifest is not the policy minimum', (t) => {
   const root = fixture(t);
-  edit(root, 'packages/fixture-php/composer.json', (manifest) => { manifest.config.platform.php = '8.1.0'; });
+  edit(root, 'packages/fixture-php/composer.json', (manifest: { config: { platform: { php: string } } }) => { manifest.config.platform.php = '8.1.0'; });
   const result = gate(root);
   assert.equal(result.status, 1);
   assert.ok(findings(result).some(line => line.startsWith('[dependency-policy] packages/fixture-php/composer.json: config.platform.php is 8.1.0, the policy declares 8.2.0')), result.stderr);
