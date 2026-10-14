@@ -1,10 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0e7172251b75684d4d5f61fa334e45bdcde240138d05549eff8e094b1cfdc9ea -->
+<!-- source-sha256: d79fee5dc17a559602ce743e0e3e66cf5615ddb4b17fcf81d0fbf4f0b3227738 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release workflow는 `make release-tools` 전에 `make release-prepare`를 실행합니다: 저장소는 release에 필요한 준비를 Makefile의 `release-prepare::` 규칙으로 선언합니다(K132).
+
+### 소비자 이전
+
+추가:
+- sibling release의 checkout처럼 release에 준비가 필요한 저장소는 workflow의 단계 대신 Makefile의 `release-prepare::`로 이를 선언합니다.
 
 ## 0.0.39
 

@@ -134,7 +134,12 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	node $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
+.PHONY: release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
+
+# release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
+# release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
+release-prepare:: ## Prepare what the release of this repository needs before release-tools; a repository declares it with release-prepare::
+	@:
 
 release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and its backend, Go) and check cargo when a git-tag proof needs it; ONLINE
 	$(ONLINE) node $(KIT)/release-tools.$(KIT_EXT)

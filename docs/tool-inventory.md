@@ -912,6 +912,9 @@ fails that run and the release stays a draft. A developer may run it for any rel
 
 - `workflows/release.yml` is the source of the copy `.github/workflows/release.yml` (`kit.copies` of package.json): `make kit-sync`
   writes it from the installed package, and `make kit-check` fails on a difference.
+- `make release-prepare` runs the preparation that a repository's release needs before release-tools, such as the checkout of a
+  sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
+  to its Makefile (K132). The vendored release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) derives the install-tools names from config/release.json: npm for an npm package or
   consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
   `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
