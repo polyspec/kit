@@ -25,14 +25,14 @@ test('every package.json of the checkout declares engines.node as >= the Node.js
     'mise.toml': '[tools]\nnode = "26.8.1"\n',
     'package.json': JSON.stringify({ packageManager: 'npm@12.2.0', engines: { node: '>=26.0.0' } }),
     'packages/a/package.json': JSON.stringify({ name: 'a' }),
-    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.11.1' } }),
+    'packages/b/package.json': JSON.stringify({ name: 'b', engines: { node: '>=26.12.0' } }),
     'packages/c/package.json': JSON.stringify({ name: 'c', engines: { node: '>=26.8.1' } }),
     'tests/kit/fixture/package.json': JSON.stringify({ name: 'fixture' }),
   });
   assert.deepEqual(enginesFindings(root, new Pinning(PINS)), [
-    'package.json: engines.node is ">=26.0.0"; kit pins node 26.11.1, so it must be ">=26.11.1"',
-    'packages/a/package.json: engines.node is missing; kit pins node 26.11.1, so it must be ">=26.11.1"',
-    'packages/c/package.json: engines.node is ">=26.8.1"; kit pins node 26.11.1, so it must be ">=26.11.1"',
+    'package.json: engines.node is ">=26.0.0"; kit pins node 26.12.0, so it must be ">=26.12.0"',
+    'packages/a/package.json: engines.node is missing; kit pins node 26.12.0, so it must be ">=26.12.0"',
+    'packages/c/package.json: engines.node is ">=26.8.1"; kit pins node 26.12.0, so it must be ">=26.12.0"',
   ], 'the floor is the pin of kit, not the node of mise.toml');
 });
 
