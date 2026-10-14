@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a226a92b99ac870313a62876c3e5ace8a4d4ffa682d9814babee29400508d80b -->
+<!-- source-sha256: 4c2ef948317095db615fc694c4992f4cce8caccd0ce972f9c466b6f482a9fff9 -->
 
 # 도구 목록
 
@@ -727,7 +727,10 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
-  줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다.
+  줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다. `ae-missing-release-tag`는 꺼져
+  있습니다(K139): release tag(`@public`, `@beta`, `@alpha`, `@internal`)는 잘라낸 `.d.ts` rollup에 무엇이 남을지 정하는데,
+  polyspec은 rollup을 쓰지 않고 export에 tag를 달지 않으므로, 이 message는 아무것도 바꾸지 않는 tag 때문에 모든 package의
+  모든 export를 실패시켰습니다(crudui에서 187개).
 - **Root 파일.** layout은 root에 `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
   `knip.json`, `.editorconfig`, Rust workspace(`Cargo.toml`, `Cargo.lock`), Go workspace(`go.work`, `go.work.sum`)를 허용합니다.
 
