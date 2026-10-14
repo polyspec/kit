@@ -741,6 +741,8 @@ The Python lint was a target of one repository that ran `ruff check` and `ruff f
 `scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded and with
 `--config ruff.toml`, the configuration that kit copies (Lint configuration, K77), and ruff is the shim of mise at the version
 that `ruff` of `mise.toml` declares (K127), so the result does not depend on the ruff configuration of a machine.
+ruff keeps its cache in `var/ruff` by `cache-dir` of `ruff.toml`, ruff's own setting, which holds for every ruff run of the
+repository; it wrote `.ruff_cache` at the root before, which layout S5 refuses (K147).
 Every step runs after a failure of an earlier one. A missing tool fails with its fix.
 
 The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff, and the

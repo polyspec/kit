@@ -71,8 +71,12 @@ function lintOf(root: string): { failed: string[]; output: string } {
 
 test('the Python lint passes on a package that follows S3 and uses its code', (t) => {
   for (const tool of TOOLS) assert.ok(existsSync(installedBinary(tool)), `the ${tool} of mise.toml is missing; make install-tools installs it`);
-  const { failed, output } = lintOf(repository(t));
+  const root = repository(t);
+  const { failed, output } = lintOf(root);
   assert.deepEqual(failed, [], output);
+  // ruff keeps its cache in var/ruff (cache-dir of ruff.toml), not in .ruff_cache at the root, which layout S5 refuses (K147).
+  assert.ok(!existsSync(path.join(root, '.ruff_cache')), 'ruff wrote .ruff_cache at the root');
+  assert.ok(existsSync(path.join(root, 'var/ruff')), 'ruff wrote no cache in var/ruff');
 });
 
 test('the Python lint fails on each planted violation with the finding that names it', (t) => {
