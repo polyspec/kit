@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readFixture } from '../kit/json-fixture.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
@@ -68,7 +69,8 @@ test('the CI workflow installs the PHP of .php-version before install-tools, whi
 test('kit declares every Rust nightly that parity-real runs, which make install-tools installs before the tests (K75)', () => {
   const used = new Set(readFileSync(path.join(ROOT, 'tests/source/parity-real.test.mts'), 'utf8').match(/nightly-\d{4}-\d{2}-\d{2}/g) ?? []);
   assert.ok(used.size > 0, 'parity-real names a nightly');
-  const exceptions: { tool: string; channel: string }[] = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8')).exceptions ?? [];
+  const { exceptions } = readFixture<{ pythonBackend: { requirement: string; sha256: string }; exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
+  assert.ok(exceptions, 'config/toolchain.json declares no exceptions');
   const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
   assert.ok(runs.indexOf('make install-tools') < runs.indexOf('make source-test'), 'make install-tools runs before make source-test');

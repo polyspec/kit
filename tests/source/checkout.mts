@@ -2,11 +2,27 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from '../kit/sandbox-repository.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readFixture } from '../kit/json-fixture.mts';
+import { parseStub } from '../kit/stub-json.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+
+/** The output of `npm pack --json` of npm 12: each packed package by its name, with its file and its files. */
+type Packed = Record<string, { version: string; filename: string; integrity: string; files: { path: string }[] }>;
+const PACKED: JSONSchemaType<Packed> = {
+  type: 'object',
+  required: [],
+  additionalProperties: {
+    type: 'object',
+    required: ['version', 'filename', 'integrity', 'files'],
+    properties: { version: { type: 'string' }, filename: { type: 'string' }, integrity: { type: 'string' }, files: { type: 'array', items: { type: 'object', required: ['path'], properties: { path: { type: 'string' } } } } },
+  },
+};
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -18,7 +34,8 @@ export type LockEntry = { version: string; resolved: string; integrity: string; 
 
 /** The entries of package-lock.json of kit that `keep` accepts, as [node_modules/<name>, entry]. */
 function lockEntries(keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] {
-  const packages = JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, LockEntry>;
+  const { packages } = readFixture<{ packages?: Record<string, LockEntry> }>(ROOT, 'package-lock.json');
+  assert.ok(packages, 'package-lock.json of kit has no packages');
   return Object.entries(packages).filter(([entry, item]) => entry !== '' && keep(item));
 }
 
@@ -57,7 +74,7 @@ export const runtimePackage = (item: LockEntry): boolean => !item.dev && !item.d
  * with the packages that kit depends on at run time at the versions of its package-lock.
  */
 export function kitConsumer(packed: { version: string; integrity: string }, manifest: Record<string, unknown> = {}) {
-  const kit = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const kit = readFixture<NpmManifest>(ROOT, 'package.json');
   const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/polyspec-kit-npm-${packed.version}.tgz`;
   const devDependencies = { '@polyspec/kit': asset };
   const lock = {
@@ -79,7 +96,7 @@ export function kitConsumer(packed: { version: string; integrity: string }, mani
 export function primeCache(cache: string, work: string, entries: readonly [string, LockEntry][]): void {
   for (const [entry, item] of entries) {
     const name = entry.split('node_modules/').at(-1)!;
-    const dependency: { filename: string } | undefined = JSON.parse(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work))[name];
+    const dependency = parseStub(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work), PACKED, 'npm pack --json')[name];
     assert.ok(dependency, `npm pack printed no ${name}`);
     run(NPM, ['cache', 'add', path.join(work, dependency.filename), '--cache', cache], work);
   }
@@ -87,7 +104,7 @@ export function primeCache(cache: string, work: string, entries: readonly [strin
 
 /** The entry of @polyspec/kit in the output of `npm pack --json`, which npm 12 keys by the name of the package. */
 export function packedKit(output: string): { version: string; filename: string; integrity: string; files: { path: string }[] } {
-  const packed = JSON.parse(output)['@polyspec/kit'];
+  const packed = parseStub(output, PACKED, 'npm pack --json')['@polyspec/kit'];
   assert.ok(packed, `npm pack --json names no @polyspec/kit: ${output}`);
   return packed;
 }

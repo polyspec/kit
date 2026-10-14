@@ -11,6 +11,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { builtCopy, installedTool, runKitTest } from './checkout.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
+import { errorCode } from '../../scripts/kit/process.mts';
 
 test('a sandbox takes the installed tools of var/tools and neither the caches of mise and uv nor the runs of other tests', () => {
   assert.equal(installedTool('var/tools/mise/shims/python3'), true);
@@ -34,7 +35,7 @@ function alive(pid: number) {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; // process.kill throws an errno error.
+    if (errorCode(error) === 'ESRCH') return false; // process.kill throws an errno error.
     return true;
   }
 }
