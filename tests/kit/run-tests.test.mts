@@ -2,8 +2,9 @@
 // without a test, the file that registers no test or registers it late, and the parsers of the output of go, cargo and
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -409,6 +410,59 @@ test('python tests run through var/tools/mise/shims/python3, pass, fail and stop
   const none = await inProcess(t, ['python', 'tests'], { root: empty });
   assert.equal(none.status, 1, none.text);
   assert.match(none.text, /no test ran/);
+});
+
+// A stopped tool leaves no process (K141): the runner starts the tool in its own process group and stops the whole group, at a
+// timeout and when the runner itself is interrupted. The hanging stub starts a grandchild, as the mise shim starts the
+// interpreter, and records both pids in a file of its own directory; t.after kills every recorded pid that is still alive, so a
+// failing case leaves no orphan.
+function hangingPython(t: TestContext, { ignoreTerm = false } = {}) {
+  const log = mkdtempSync(path.join(tmpdir(), 'kit-pids-'));
+  const pids = path.join(log, 'pids');
+  t.after(() => {
+    for (const pid of recorded(pids)) {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* the process has ended */ }
+    }
+    rmSync(log, { recursive: true, force: true });
+  });
+  const ignore = ignoreTerm ? "process.on('SIGTERM', () => {});" : '';
+  const root = pythonRoot(t, [
+    "const { spawn } = process.getBuiltinModule('node:child_process');",
+    "const { appendFileSync } = process.getBuiltinModule('node:fs');",
+    `const grandchild = spawn(process.execPath, ['-e', ${JSON.stringify(`${ignore} setInterval(() => {}, 1000);`)}], { stdio: 'inherit' });`,
+    `appendFileSync(${JSON.stringify(pids)}, process.pid + '\\n' + grandchild.pid + '\\n');`,
+    ignore,
+    "process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);",
+  ].join('\n'));
+  return { root, pids };
+}
+const recorded = (pids: string) => (existsSync(pids) ? readFileSync(pids, 'utf8').split('\n').filter(Boolean).map(Number) : []);
+// A process is alive while ps lists it and it is not a zombie that its new parent has yet to reap.
+const alive = (pid: number) => {
+  const listed = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+  return listed.status === 0 && !listed.stdout.trim().startsWith('Z');
+};
+
+test('a timeout stops the whole process group of the tool, with SIGKILL after the grace period (K141)', { timeout: 30_000 }, async (t) => {
+  const { root, pids } = hangingPython(t, { ignoreTerm: true });
+  const hung = await run(['python', '--timeout', '1', 'tests'], { root, write: () => {}, graceMs: 200 });
+  assert.equal(hung, 1);
+  const started = recorded(pids);
+  assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
+  assert.deepEqual(started.filter(alive), [], 'expected no process of the stopped group alive');
+});
+
+test('an interrupted runner stops the whole process group of the tool and ends on its signal (K141)', { timeout: 30_000 }, async (t) => {
+  const { root, pids } = hangingPython(t);
+  const child = spawn(process.execPath, [tool('run-tests'), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  t.after(() => child.kill('SIGKILL'));
+  // The runner prints the start of the test after the stub recorded its pids.
+  child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });
+  const [status, signal] = await once(child, 'close') as [number | null, NodeJS.Signals | null];
+  assert.deepEqual({ status, signal }, { status: null, signal: 'SIGTERM' });
+  const started = recorded(pids);
+  assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
+  assert.deepEqual(started.filter(alive), [], 'expected no process of the stopped group alive');
 });
 
 // A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/mise as its home and

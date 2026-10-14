@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 822ffcd0f662cc9970b9011ab4b584430831ff557df0027e8eb276a70178a5f8 -->
+<!-- source-sha256: 49a3a3911d18ec970dd7af943c163eb173889168eea052d13d903939f7142725 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -194,3 +194,4 @@
 | K135 | bootstrap이 `var/tools/go.mod`를 쓴다: mise가 Go를 배포본의 test 소스와 함께 루트가 Go module인 저장소 안의 var/tools 아래에 설치해서, orm의 `go vet ./...`와 `go test ./...`가 그것을 훑었다("found packages main (235.go) and p (alias2.go)", orm T165에서 발견) | `bootstrap/install-mise.mts` | `tests/kit/install-mise.test.mts`, `tests/source/tools-go-mod-real.test.mts` | [o] |
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
+| K141 | run-tests가 test가 timeout을 넘었을 때와 실행기 자신이 중단될 때 tool의 process group 전체를 멈추고, 유예 뒤에 SIGKILL을 보낸다: 중단된 실행기는 detached tool을 실행 중으로 남겼고, `tests/kit/run-tests.test.mts`의 stub(`node …/var/tools/mise/shims/python3 -m unittest tests -v`)이 12시간 뒤 launchd 아래 고아로 발견되었으며, timeout에서 SIGTERM을 무시한 tool은 실행을 기다리게 했다 | `run-tests.mts`, `docs/tool-inventory.md` | `tests/kit/run-tests.test.mts`(timeout 뒤와 실행기의 SIGTERM 뒤에 stub과 그 손자 process가 없음) | [ ] |
