@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b7da6a03381acf5ef75f8e74361bb8b9ba3595d8f0d4c4439ad255311c07a111 -->
+<!-- source-sha256: f30aabffb3adb7e214ebc32a8dd96a2db27915af2b309abaf78960bba5616cc2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- bootstrap이 `var/tools/go.mod`를 써서, `var/tools` 아래 mise의 Go와 그 test 소스가 별도 module이 되며, 루트가 Go module인 저장소의 `./...`가 그것을 훑지 않습니다(K135).
 ## 0.0.41
 
 - mise.lock은 bootstrap이 mise를 설치하는 모든 플랫폼인 linux-arm64와 macos-x64의 archive도 고정합니다. 0.0.39와 0.0.40은 ARM Linux runner에서 make install-tools가 실패했습니다(K134).

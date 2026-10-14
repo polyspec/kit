@@ -14,6 +14,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
+import { TOOLS_GO_MOD } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 
 const VERSION = '2026.10.8';
@@ -60,6 +61,9 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('curl')).map(line => line.split(' ').at(-1)), [release.url]);
   const wrapper = path.join(root, 'var/tools/bin/mise');
   assert.equal(spawnSync(wrapper, ['--version'], { encoding: 'utf8' }).stdout.trim(), `${VERSION} ${ASSET[KEY]} (2026-10-11)`);
+  // mise installs Go, with the test sources of its distribution, under var/tools; the go.mod of var/tools makes it a module
+  // of its own, which the ./... of a repository whose root is a Go module does not walk (K135).
+  assert.equal(readFileSync(path.join(root, 'var/tools/go.mod'), 'utf8'), TOOLS_GO_MOD);
   const text = readFileSync(wrapper, 'utf8');
   const tools = path.join(root, 'var/tools');
   const expected = {
