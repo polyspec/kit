@@ -274,3 +274,19 @@ test('an undocumented export passes API Extractor once the API report is off, wh
   const { failed, output } = lintOf(repository(t, known(VIOLATIONS.find(({ name }) => name === 'an undocumented export'), 'VIOLATIONS.find(({ name }) => name === …)').files, { report: false }));
   assert.deepEqual(failed, [], output);
 });
+
+// The type-aware rules apply to TypeScript only, as typescript-eslint's disableTypeChecked does for JavaScript: in a plain
+// .mjs file every untyped parameter is any, so no-unsafe-member-access would report each of its member accesses. The same
+// code in a .mts file still fails, and so does a non-type-aware rule in the .mjs file (K170).
+const UNTYPED = 'export function size(value) {\n  return value.length;\n}\n';
+
+test('the type-aware rules leave a plain JavaScript file alone and still fail the same code in TypeScript (K170)', (t) => {
+  const javascript = lintOf(repository(t, { 'scripts/size.mjs': UNTYPED }));
+  assert.deepEqual(javascript.failed, [], javascript.output);
+  const typescript = lintOf(repository(t, { 'scripts/size.mts': UNTYPED }));
+  assert.deepEqual(typescript.failed, ['oxlint'], typescript.output);
+  assert.match(typescript.output, /scripts\/size\.mts:.*typescript\(no-unsafe-member-access\)/);
+  const debug = lintOf(repository(t, { 'scripts/size.mjs': `${UNTYPED}debugger;\n` }));
+  assert.deepEqual(debug.failed, ['oxlint'], debug.output);
+  assert.match(debug.output, /scripts\/size\.mjs:.*eslint\(no-debugger\)/);
+});

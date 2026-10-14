@@ -16,6 +16,11 @@
 // ES2018, which raised them to 100 (ECMA-262 Number.prototype.toExponential, toFixed and toPrecision: fractionDigits 0 to
 // 100, precision 1 to 100), so it fails valid code such as toExponential(25); oxlint 1.88.0 and oxc main keep the old
 // limits, and no oxc issue reports it (K161).
+// The type-aware rules, which oxlint-tsgolint runs, apply to TypeScript files only, as typescript-eslint's disableTypeChecked
+// turns them off for JavaScript (K170): in a plain .js or .mjs file every untyped parameter is any, so they report only that
+// the file is JavaScript. An override cannot enable a category, so the base turns off the type-aware rules of correctness
+// (the type_aware rules of oxlint --rules) and the override of TypeScript enables them with the rules above; the rules
+// without types (ban-ts-comment, no-explicit-any, no-non-null-assertion and the rest of correctness) apply to every file.
 {
   "categories": {
     "correctness": "error"
@@ -28,20 +33,56 @@
     ],
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    "typescript/no-unnecessary-type-assertion": "error",
-    "typescript/no-unsafe-argument": "error",
-    "typescript/no-unsafe-assignment": "error",
-    "typescript/no-unsafe-call": "error",
-    "typescript/no-unsafe-member-access": "error",
-    "typescript/no-unsafe-return": "error",
-    "typescript/no-unsafe-type-assertion": "error",
-    "typescript/no-floating-promises": [
-      "error",
-      {
-        "allowForKnownSafeCalls": [
-          { "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "skip", "only", "todo"] }
-        ]
+    "typescript/no-floating-promises": "off",
+    "typescript/await-thenable": "off",
+    "typescript/no-array-delete": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-for-in-array": "off",
+    "typescript/no-implied-eval": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-unsafe-unary-minus": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{ts,mts,cts,tsx}"],
+      "rules": {
+        "typescript/no-unnecessary-type-assertion": "error",
+        "typescript/no-unsafe-argument": "error",
+        "typescript/no-unsafe-assignment": "error",
+        "typescript/no-unsafe-call": "error",
+        "typescript/no-unsafe-member-access": "error",
+        "typescript/no-unsafe-return": "error",
+        "typescript/no-unsafe-type-assertion": "error",
+        "typescript/no-floating-promises": [
+          "error",
+          {
+            "allowForKnownSafeCalls": [
+              { "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "skip", "only", "todo"] }
+            ]
+          }
+        ],
+        "typescript/await-thenable": "error",
+        "typescript/no-array-delete": "error",
+        "typescript/no-base-to-string": "error",
+        "typescript/no-duplicate-type-constituents": "error",
+        "typescript/no-for-in-array": "error",
+        "typescript/no-implied-eval": "error",
+        "typescript/no-meaningless-void-operator": "error",
+        "typescript/no-misused-spread": "error",
+        "typescript/no-redundant-type-constituents": "error",
+        "typescript/no-unsafe-unary-minus": "error",
+        "typescript/no-useless-default-assignment": "error",
+        "typescript/require-array-sort-compare": "error",
+        "typescript/restrict-template-expressions": "error",
+        "typescript/unbound-method": "error"
       }
-    ]
-  }
+    }
+  ]
 }

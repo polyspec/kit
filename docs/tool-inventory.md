@@ -836,7 +836,13 @@ does not declare is neither installed nor checked.
   a released go.mod never holds a replace that its consumers would not see. It also forbids a toolchain line, since `go mod
   tidy` removes one equal to the go directive. forbidigo is left out: no standard names a Go API to forbid, and its default
   bans `fmt.Print` of every CLI.
-- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's.
+- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. They
+  apply to TypeScript files only, an `overrides` entry of `.oxlintrc.json` for `**/*.{ts,mts,cts,tsx}`, as
+  typescript-eslint's `disableTypeChecked` turns them off for JavaScript: in a plain .js or .mjs file every untyped
+  parameter is `any`, so they reported only that the file is JavaScript. An override cannot enable a category, so the base
+  turns off the type-aware rules of correctness and the override enables them; the rules without types apply to every
+  file. An untyped member access passes in a .mjs file and fails in a .mts file, and a `debugger` in the .mjs file still
+  fails (a fixture, K170).
   `no-floating-promises` takes the option of typescript-eslint for node:test, `allowForKnownSafeCalls` with `test`,
   `describe`, `it`, `suite`, `skip`, `only` and `todo` of the package `node:test` (K138): a top-level registration returns a
   promise that the runner awaits, and the rule failed each one (516 in crudui), while an un-awaited `fetch` in a test file
