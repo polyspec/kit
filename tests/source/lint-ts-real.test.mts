@@ -210,6 +210,22 @@ test('a nested npm project passes once config/knip-entries.json declares it as a
   assert.match(undeclared.output, /Unlisted dependencies \(1\)\nreact +tests\/other\/src\/react\.jsx/);
 });
 
+// The root depends on a package that only the recipes of the Makefile run, such as the template compiler that hyper installs
+// by its URL; knip does not read the Makefile, so the repository declares it in config/knip-entries.json (K159).
+const COMPILER = '@polyspec/template-compiler';
+const RECIPE = {
+  'package.json': JSON.stringify({ ...JSON.parse(GOOD['package.json']!) as object, dependencies: { [COMPILER]: 'https://github.com/polyspec/template/releases/download/v0.1.0/polyspec-template-compiler-0.1.0.tgz' } }, null, 2),
+  'Makefile': `${GOOD['Makefile']!}\ntemplates:\n\tnode node_modules/${COMPILER}/bin/compile.mjs templates\n`,
+};
+
+test('a root dependency that only the Makefile runs passes once config/knip-entries.json declares it, and an undeclared one still fails (K159)', (t) => {
+  const undeclared = lintOf(repository(t, RECIPE));
+  assert.deepEqual(undeclared.failed, ['knip'], undeclared.output);
+  assert.match(undeclared.output, /Unused dependencies \(1\)\n@polyspec\/template-compiler +package\.json/);
+  const declared = lintOf(repository(t, { ...RECIPE, ...knipEntries({ ignoreDependencies: { [COMPILER]: 'only the recipes of the Makefile run the template compiler' } }) }));
+  assert.deepEqual(declared.failed, [], declared.output);
+});
+
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
   const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
   assert.deepEqual(failed, [], output);

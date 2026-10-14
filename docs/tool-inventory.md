@@ -814,7 +814,11 @@ does not declare is neither installed nor checked.
   dependency that no JavaScript of it imports (`ignoreDependencies`, such as one that only Rust tests load) with its
   reason; lint-ts adds it to `workspaces` of the generated configuration, whose root stays knip.json (K154). knip's Svelte
   plugin compiles the `.svelte` files of a workspace that depends on svelte. Declared, its dependencies pass; as root
-  entries, or undeclared, they are unlisted dependencies of the root (a fixture).
+  entries, or undeclared, they are unlisted dependencies of the root (a fixture). A dependency of the root that no
+  JavaScript imports and only a recipe of the Makefile runs, such as the template compiler that hyper installs by its URL,
+  is declared with its reason in `ignoreDependencies` of the same file, which lint-ts adds after the `ignoreDependencies`
+  of knip.json, since knip does not read a Makefile (K159). Declared, it passes; undeclared, it is still an unused
+  dependency (a fixture).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says
