@@ -13,6 +13,7 @@ import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { fetchedAsset, fetchReleaseAssets, main, releaseAssets, UNPACKED_MARK } from '../../scripts/kit/release-assets.mts';
 import { KIT_MAKE } from './kit-tools.mts';
 import { tree } from './tree.mts';
+import { known } from './known.mts';
 
 const URL_PATTERN = 'https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip';
 const URL = 'https://github.com/polyspec/codec/releases/download/v0.0.14/polyspec-codec-php-0.0.14.zip';
@@ -116,7 +117,7 @@ test('version prints the version that the entry declares once, and the command l
   assert.equal(await main(['version', 'codec-php'], out), 0);
   assert.deepEqual(printed, ['0.0.14']);
   assert.equal(await main(['version', 'codec-js'], out), 1);
-  assert.match(errors.at(-1)!, /declares no entry codec-js; it declares \[codec-php\]/);
+  assert.match(known(errors.at(-1), 'errors.at(-1)'), /declares no entry codec-js; it declares \[codec-php\]/);
   for (const argv of [[], ['version'], ['fetch', 'codec-php'], ['unpack']]) assert.equal(await main(argv, out), 2, argv.join(' '));
 });
 

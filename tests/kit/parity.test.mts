@@ -15,6 +15,7 @@ import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
 import { runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
+import { known } from './known.mts';
 
 const TIMEOUT = { timeout: 120_000 };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
@@ -568,7 +569,7 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
     'rust/tests/roundtrip/vectors.rs': '#[test]\nfn bytes() {}\n',
   }, (unit) => { itemAt(unit.bindings ?? [], 1).test = 'rust/tests/roundtrip/main.rs'; return unit; }));
   assert.deepEqual(findings, []);
-  const rust = ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust')!;
+  const rust = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust'), 'ledger.runs.find(run => run.unit === … && run.implementation === …)');
   assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
@@ -656,7 +657,7 @@ test('the vitest runner reads the JSON report of vitest: a suite case is a top-l
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web').map(entry => `${entry.unit} ${entry.case} ${entry.outcome}`), [
     'codec empty pass', 'codec ascii pass', 'roundtrip roundtrip › nested › bytes pass',
   ]);
-  const run = ledger.runs.find(entry => entry.implementation === 'web')!;
+  const run = known(ledger.runs.find(entry => entry.implementation === 'web'), 'ledger.runs.find(entry => entry.implementation === …)');
   assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
   const failing = checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} }).findings;
   assert.deepEqual(keys(failing), ['R3 codec web', 'R3 roundtrip web']);
@@ -730,11 +731,11 @@ test('the rust extractor runs the Rust nightly of the exception whose scope hold
   const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
   assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
   const [none] = messages([exception('nightly-2026-10-01', 'go')]);
-  assert.match(none!, /^R1 rust: the rust extractor of rust\/Cargo\.toml gives no symbols: rustdoc JSON needs a Rust nightly \(rust-lang\/rust#76578\), and config\/toolchain\.json exceptions declares none whose scope holds rust\/Cargo\.toml/);
+  assert.match(known(none, 'none'), /^R1 rust: the rust extractor of rust\/Cargo\.toml gives no symbols: rustdoc JSON needs a Rust nightly \(rust-lang\/rust#76578\), and config\/toolchain\.json exceptions declares none whose scope holds rust\/Cargo\.toml/);
   const [two] = messages([exception('nightly-2026-10-01'), exception('nightly-2026-09-01', 'rust')]);
-  assert.match(two!, /holds 2 Rust nightlies whose scope holds rust\/Cargo\.toml: nightly-2026-10-01, nightly-2026-09-01; keep one/);
+  assert.match(known(two, 'two'), /holds 2 Rust nightlies whose scope holds rust\/Cargo\.toml: nightly-2026-10-01, nightly-2026-09-01; keep one/);
   const [uninstalled] = messages([exception('nightly-2026-09-01')]);
-  assert.match(uninstalled!, /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
+  assert.match(known(uninstalled, 'uninstalled'), /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
 });
 
 test('R2: a suite without a binding of an implementation of its profile fails', TIMEOUT, (t) => {
@@ -1201,7 +1202,7 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
-  const run = ledger.runs.find(entry => entry.unit === 'codec' && entry.implementation === 'php')!;
+  const run = known(ledger.runs.find(entry => entry.unit === 'codec' && entry.implementation === 'php'), 'ledger.runs.find(entry => entry.unit === … && entry.implementation === …)');
   assert.deepEqual([run.command, ...run.args], ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', '--filter', '/^CodecTest::testCodec(?: with data set |$)/', 'php/tests/codec.php']);
   // A namespaced class is escaped for the regular expression; an integer key of a data set is a case that no suite declares.
   const namespaced = runOf({ name: 'php', runner: 'php' }, root, { test: 'php/tests/codec.php', symbol: 'Example\\Tests\\CodecTest::testCodec' }, 'suite', ENV);
@@ -1255,7 +1256,7 @@ test('admit: an implementation that admits no case, a key on no case, an empty l
   const none = findings([{ name: 'empty', kinds: ['go', 'rust', 'ts', 'php'] }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }]);
   assert.equal(none.length, 1, none.join('\n'));
   // The line above asserts one finding; without it, assert.match fails on undefined as before.
-  assert.match(none[0]!, /^declaration unit codec: no case of .* admits python, so the suite runs nothing.*R8/);
+  assert.match(known(none[0], 'none[0]'), /^declaration unit codec: no case of .* admits python, so the suite runs nothing.*R8/);
   // An excluded implementation is reported by R8 only.
   const excluded = findings([{ name: 'empty', kinds: ['go', 'rust', 'ts', 'php'] }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }], {
     files: { 'python/tests/test_codec.py': null },

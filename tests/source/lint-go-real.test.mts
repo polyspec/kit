@@ -11,6 +11,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-go.mts';
 import { installedBinary, sandboxShims } from './real-tools.mts';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // deadcode and golangci-lint load the packages with the go of mise.toml, so the repository gets its shim too.
@@ -35,7 +36,7 @@ const GOOD: Record<string, string> = {
 // One violation for each linter: the files it adds or replaces, and the text that the failing step prints for it.
 const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp }[] = [
   { name: 'a replace of a sibling module', files: { [MOD]: `${GOOD[MOD]}\nreplace ${CODEC} => ../codec/go\n` }, finding: /go\.mod:\d+:\d+: local replacement are not allowed: github\.com\/polyspec\/demo\/packages\/codec\/go \(gomoddirectives\)/ },
-  { name: 'a toolchain line', files: { [MOD]: GOOD[MOD]!.replace('go 1.27.2\n', 'go 1.27.2\n\ntoolchain go1.27.2\n') }, finding: /go\.mod:\d+:\d+: toolchain directive is not allowed \(gomoddirectives\)/ },
+  { name: 'a toolchain line', files: { [MOD]: known(GOOD[MOD], 'GOOD[MOD]').replace('go 1.27.2\n', 'go 1.27.2\n\ntoolchain go1.27.2\n') }, finding: /go\.mod:\d+:\d+: toolchain directive is not allowed \(gomoddirectives\)/ },
   { name: 'an unused function', files: { [DEMO]: `${GOOD[DEMO]}\nfunc triple(value int) int {\n\treturn value * 3\n}\n` }, finding: /demo\.go:\d+:\d+: func triple is unused \(unused\)/ },
   { name: 'a wrong format verb', files: { [DEMO]: `${GOOD[DEMO]}\n// Name names a value.\nfunc Name(value int) string {\n\treturn fmt.Sprintf("%s", value)\n}\n`.replace(`import "${CODEC}"`, `import (\n\t"fmt"\n\n\t"${CODEC}"\n)`) }, finding: /\(govet\)/ },
   { name: 'an exported function that no test reaches', files: { [DEMO]: `${GOOD[DEMO]}\n// Octuple octuples a value.\nfunc Octuple(value int) int {\n\treturn Quadruple(Quadruple(value)) / value\n}\n` }, finding: /demo\.go:\d+:\d+: unreachable func: Octuple/ },
@@ -86,7 +87,7 @@ test('the Go lint fails on each planted violation with the linter or the finding
 // byte, so they keep the spec's capitalization: staticcheck ST1005 is off (K164).
 test('a capitalized error string of a spec passes the Go lint', (t) => {
   const { failed, output } = lintOf(repository(t, {
-    [DEMO]: `${GOOD[DEMO]!.replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`)}\n// Check refuses a negative value.\nfunc Check(value int) error {\n\tif value < 0 {\n\t\treturn errors.New("Value must not be negative")\n\t}\n\treturn nil\n}\n`,
+    [DEMO]: `${known(GOOD[DEMO], 'GOOD[DEMO]').replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`)}\n// Check refuses a negative value.\nfunc Check(value int) error {\n\tif value < 0 {\n\t\treturn errors.New("Value must not be negative")\n\t}\n\treturn nil\n}\n`,
     'packages/go/check_test.go': 'package demo\n\nimport "testing"\n\nfunc TestCheck(t *testing.T) {\n\tif Check(-1) == nil {\n\t\tt.Fatal("Check(-1) == nil")\n\t}\n}\n',
   }));
   assert.deepEqual(failed, [], output);
@@ -96,7 +97,7 @@ test('a capitalized error string of a spec passes the Go lint', (t) => {
 test('the Go lint reports every finding of the same text', (t) => {
   const calls = Array.from({ length: 4 }, (_, index) => `\tfail(${index})\n`).join('');
   const { failed, output } = lintOf(repository(t, {
-    [DEMO]: `${GOOD[DEMO]!.replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`).replace('\treturn codec.Double', `${calls}\treturn codec.Double`)}\nfunc fail(value int) error {\n\tif value > 2 {\n\t\treturn errors.New("too large")\n\t}\n\treturn nil\n}\n`,
+    [DEMO]: `${known(GOOD[DEMO], 'GOOD[DEMO]').replace(`import "${CODEC}"`, `import (\n\t"errors"\n\n\t"${CODEC}"\n)`).replace('\treturn codec.Double', `${calls}\treturn codec.Double`)}\nfunc fail(value int) error {\n\tif value > 2 {\n\t\treturn errors.New("too large")\n\t}\n\treturn nil\n}\n`,
   }));
   assert.notDeepEqual(failed, [], output);
   assert.equal(output.match(/demo\.go:\d+:\d+: Error return value is not checked \(errcheck\)/g)?.length, 4, output);

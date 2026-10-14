@@ -8,6 +8,7 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
 import { tree } from './tree.mts';
+import { known } from './known.mts';
 
 // A venv tree as `uv venv` writes it: bin/python links to the interpreter of var/tools/mise/installs, bin/python3 links to python,
 // and pyvenv.cfg names the interpreter's directory as its home (`home` overrides it).
@@ -34,9 +35,9 @@ test('a directory without pyvenv.cfg or a venv of another Python is refused with
   const root = tree(t);
   mkdirSync(path.join(root, 'pkg/.venv'), { recursive: true });
   // Each venv below is refused, so venvProblem returns its problem.
-  assert.match(venvProblem(path.join(root, 'pkg/.venv'), root)!, /^pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/mise\/shims\/uv venv --python var\/tools\/mise\/shims\/python3 pkg\/\.venv$/);
+  assert.match(known(venvProblem(path.join(root, 'pkg/.venv'), root), 'venvProblem(path.join(root, …), root)'), /^pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/mise\/shims\/uv venv --python var\/tools\/mise\/shims\/python3 pkg\/\.venv$/);
   const other = venvTree(t, { home: '/usr/bin' });
-  assert.match(venvProblem(other.venv, other.root)!, /^pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/mise\); make it/);  // refused, as above.
+  assert.match(known(venvProblem(other.venv, other.root), 'venvProblem(other.venv, other.root)'), /^pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/mise\); make it/);  // refused, as above.
 });
 
 test('makeVenv names the missing uv or Python and the install that provides it', (t) => {

@@ -16,6 +16,7 @@ import { put, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readStub, TEXTS } from './stub-json.mts';
+import { known } from './known.mts';
 
 /** The record that run-tests --results writes: the tool, the inputs, the time and each case. */
 type Results = { tool: string; ok?: boolean; elapsedMs?: number; inputs?: { paths: string[]; digest: string }; cases: { id: string; status: string; elapsedMs?: number }[] };
@@ -182,9 +183,9 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   const result = progress.close('suite');
   assert.deepEqual({ ...result, cases: undefined }, { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true, cases: undefined });
   assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['a', 'pass'], ['b', 'skip']]);
-  assert.equal(result.cases[0]!.elapsedMs, 10); // The cases are asserted above.
+  assert.equal(known(result.cases[0], 'result.cases[0]').elapsedMs, 10); // The cases are asserted above.
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), result);
-  assert.match(lines.at(-1)!, /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/); // close wrote its summary line.
+  assert.match(known(lines.at(-1), 'lines.at(-1)'), /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/); // close wrote its summary line.
 
   const failing = counts();
   failing.start('x'); failing.fail('x', 5, 'boom\nmore');
@@ -194,16 +195,16 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   const group = counts();
   group.start('file', { group: true }); group.start('t'); group.pass('t', 1); group.fail('file', 1, 'hook failed');
   assert.equal(group.close('suite').ok, false);
-  assert.match(lines.at(-1)!, /1 group failed/); // close wrote its summary line.
+  assert.match(known(lines.at(-1), 'lines.at(-1)'), /1 group failed/); // close wrote its summary line.
 
   const exiting = counts();
   exiting.start('t'); exiting.pass('t', 1);
   assert.equal(exiting.close('suite', { exitCode: 2, errors: ['error: link failed'] }).ok, false);
-  assert.match(lines.at(-1)!, /the tool exited with 2: error: link failed/); // close wrote its summary line.
+  assert.match(known(lines.at(-1), 'lines.at(-1)'), /the tool exited with 2: error: link failed/); // close wrote its summary line.
 
   const empty = counts();
   empty.start('t'); empty.skip('t');
-  assert.deepEqual([empty.close('suite').ok, lines.at(-1)!.includes('no test ran')], [false, true]); // close wrote its summary line.
+  assert.deepEqual([empty.close('suite').ok, known(lines.at(-1), 'lines.at(-1)').includes('no test ran')], [false, true]); // close wrote its summary line.
 
   const unfinished = counts();
   unfinished.start('hang');

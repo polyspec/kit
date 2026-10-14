@@ -11,6 +11,7 @@ import { runRequest } from '../kit/record-tools.mts';
 import { TOOL_RECORDS } from '../kit/registry.mts';
 import { TOOL_RECORDS_FILE } from '../kit/record-tools.mts';
 import { readStub } from '../kit/stub-json.mts';
+import { known } from '../kit/known.mts';
 
 const records = Object.values(readStub(TOOL_RECORDS, TOOL_RECORDS_FILE)).flat();
 
@@ -39,7 +40,7 @@ test('a request runs no command of a stub directory on the PATH of the caller', 
   process.env.PATH = `${stubs}${path.delimiter}${saved}`;
   try {
     for (const tool of ['go', 'composer']) {
-      const record = records.find(entry => entry.tool === tool)!;
+      const record = known(records.find(entry => entry.tool === tool), 'records.find(entry => entry.tool === tool)');
       const { status: _status, stdout: _stdout, stderr: _stderr, ...request } = record;
       assert.deepEqual(runRequest(request), record);
     }

@@ -15,6 +15,7 @@ import { readConfig } from '../../scripts/kit/schema-validate.mts';
 import { readNpmManifest } from '../../scripts/kit/manifests.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
+import { known } from './known.mts';
 
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
@@ -223,7 +224,7 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
   review(root, ['--record'], stub.env);
   const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
   const npm = record.locks.find(entry => entry.lock === 'package-lock.json');
-  assert.deepEqual(npm?.advisories, [{ package: 'nested', range: '<1.2.0', id: '1099', severity: 'high', title: 'nested overflows', url: via[0]!.url }]);
+  assert.deepEqual(npm?.advisories, [{ package: 'nested', range: '<1.2.0', id: '1099', severity: 'high', title: 'nested overflows', url: known(via[0], 'via[0]').url }]);
 });
 
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.

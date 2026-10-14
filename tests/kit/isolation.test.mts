@@ -8,6 +8,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { known } from './known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|consumer)\b/i;
@@ -41,7 +42,7 @@ const PACKAGE = readFixture<NpmManifest>(ROOT, 'package.json');
 const DECLARED = (['dependencies', 'peerDependencies'] as const).flatMap(field => Object.keys(PACKAGE[field] ?? {}).map(name => ({ field, name })));
 const DEPENDENCIES = DECLARED.map(({ name }) => name);
 // The specifiers of the imports of a module: `from '…'`, `import '…'` and `import('…')`.
-const importsOf = (text: string) => [...text.matchAll(/(?:from|import\(?)\s*'([^']+)'/g)].map(([, specifier]) => specifier!);
+const importsOf = (text: string) => [...text.matchAll(/(?:from|import\(?)\s*'([^']+)'/g)].map(([, specifier]) => known(specifier, 'specifier'));
 
 test('the import rule allows built-ins, files of scripts/kit and declared packages, and keeps bootstrap to built-ins', () => {
   const declared = ['ajv', '@scope/name'];
@@ -78,7 +79,7 @@ test('every package of dependencies and peerDependencies in package.json is used
   // such as the oxlint-tsgolint that oxlint loads for --type-aware; the manifests of node_modules say which.
   const texts = tools.filter(name => name.endsWith('.mts')).map(file => readFileSync(path.join(ROOT, file), 'utf8'));
   const manifest = (name: string) => readFixture<NpmManifest>(ROOT, `node_modules/${name}/package.json`);
-  const commands = (name: string) => { const { bin } = manifest(name); return typeof bin === 'string' ? [name.split('/').at(-1)!] : Object.keys(bin ?? {}); };
+  const commands = (name: string) => { const { bin } = manifest(name); return typeof bin === 'string' ? [known(name.split('/').at(-1), 'name.split(…).at(-1)')] : Object.keys(bin ?? {}); };
   const used = new Set(texts.flatMap(importsOf).map(packageOf));
   for (const { name } of DECLARED) if (commands(name).some(command => texts.some(text => text.includes(`'${command}'`)))) used.add(name);
   for (const name of DEPENDENCIES.filter(name => used.has(name))) for (const peer of Object.keys(manifest(name).peerDependencies ?? {})) used.add(peer);

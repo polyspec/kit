@@ -15,6 +15,7 @@ import { acquireHolderLock, HolderLockRefused, holderRunning, processStart, proc
 import type { CommandOutcome, Host } from '../../scripts/kit/holder-lock.mts';
 import type { RunPlace } from '../../scripts/kit/process.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { known } from './known.mts';
 
 /** A lock that a process holds. */
 type Held = ReturnType<typeof acquireHolderLock>;
@@ -29,10 +30,10 @@ function onEnd(t: TestContext, cleanup: () => unknown): void {
     cleanups.set(t, []);
     t.after(async () => {
       // The list is set above.
-      for (const item of cleanups.get(t)!.reverse()) await item();
+      for (const item of known(cleanups.get(t), 'cleanups.get(t)').reverse()) await item();
     });
   }
-  cleanups.get(t)!.push(cleanup); // The list is set above.
+  known(cleanups.get(t), 'cleanups.get(t)').push(cleanup); // The list is set above.
 }
 
 function workspace(t: TestContext): string {
@@ -107,7 +108,7 @@ function fakeHost(platform: NodeJS.Platform, { files = {}, kills = [], commands 
     execute(command: string, args: readonly string[], options?: RunPlace) {
       calls.push(['execute', command, ...args, options?.env?.LC_ALL]);
       if (!(command in commands)) throw new Error(`${command} was run`);
-      return commands[command]!; // The check above found the command.
+      return known(commands[command], 'commands[command]'); // The check above found the command.
     },
   };
 }
@@ -147,7 +148,7 @@ test('on Windows the start time is the creation time from PowerShell and ps is n
   const host = fakeHost('win32', { commands: { 'powershell.exe': { status: 0, stdout: '134044416000000000\r\n', stderr: '' } } });
   assert.equal(processStart(42, host), '134044416000000000 (the Windows FILETIME of the creation)');
   // The second call is the execute of PowerShell, after the kill.
-  const [, command, ...args] = host.calls[1]!;
+  const [, command, ...args] = known(host.calls[1], 'host.calls[1]');
   assert.equal(command, 'powershell.exe');
   assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
   // The fourth argument is the script, a text.
@@ -190,7 +191,7 @@ test('a lock names its holder, a second holder is refused with it, and the holde
   assert.equal(record.checkout, '/work/checkout');
   assert.equal(record.command, 'holder');
   // The holder has started, so it has a process ID.
-  assert.equal(record.processStart, processStart(child.pid!));
+  assert.equal(record.processStart, processStart(known(child.pid, 'child.pid')));
   assert.match(record.token, /^[0-9a-f]{32}$/);
   assert.deepEqual(readdirSync(path.dirname(lock)), ['resource.lock'], 'a file of the write stayed beside the lock');
 
@@ -277,7 +278,7 @@ test('two clears at once leave one holder: the later clear refuses the lock that
   assert.deepEqual(holders.map(holder => holder.record.command), ['X'], 'two holders hold the lock');
   assert.match(refused?.message ?? '', /for "X"; the holder releases it/);
   // The check above found one holder.
-  assert.equal(readLockRecord(lock).token, holders[0]!.record.token);
+  assert.equal(readLockRecord(lock).token, known(holders[0], 'holders[0]').record.token);
   assert.deepEqual(readdirSync(directory), ['resource.lock'], 'a claim stayed beside the lock');
 });
 
@@ -397,7 +398,7 @@ test('only one of several processes that take the lock at once holds it', { time
   // The winner is the racer whose report is 'won'; its input closes once all six reports are in, which is the event that ends its hold.
   const results = await Promise.all(reports);
   // Each report has the index of its racer.
-  for (const [index, result] of results.entries()) if (result === 'won') racers[index]!.stdin.end();
+  for (const [index, result] of results.entries()) if (result === 'won') known(racers[index], 'racers[index]').stdin.end();
   await Promise.all(exits);
   assert.equal(results.filter(result => result === 'won').length, 1, results.join(', '));
   assert.deepEqual(results.filter(result => result !== 'won'), Array(5).fill('HolderLockRefused'));
@@ -422,7 +423,7 @@ test('a clear that checked an ended holder cannot remove the lock that a new hol
     return true;
   });
   // afterCheck took the lock as holder X.
-  assert.equal(readLockRecord(lock).token, holder!.record.token, 'the live holder keeps its lock');
+  assert.equal(readLockRecord(lock).token, known(holder, 'holder').record.token, 'the live holder keeps its lock');
   assert.deepEqual(readdirSync(directory), ['resource.lock'], 'no claim stays beside the lock');
 });
 

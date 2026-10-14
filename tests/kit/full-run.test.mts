@@ -13,6 +13,7 @@ import { processStart } from '../../scripts/kit/holder-lock.mts';
 import { CHECKLIST, TRANSLATION, commitAll, git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
+import { known } from './known.mts';
 
 const record = (work: string): FullRunRecord => readJsonFile<FullRunRecord>(path.join(work, RECORD), 'full-run-record.schema.json');
 const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
@@ -32,7 +33,7 @@ async function guard(work: string, mode: string, targets: string[], { failing = 
       const current = record(work);
       assert.equal(current.result, 'incomplete');
       // The test fails when the record lacks the target.
-      assert.equal(current.targets.find(target => target.name === name)!.status, 'running');
+      assert.equal(known(current.targets.find(target => target.name === name), 'current.targets.find(target => target.name === name)').status, 'running');
       assert.equal(existsSync(path.join(work, LOCK)), true, 'the guard does not hold its lock while a target runs');
       ran.push(name);
       return { passed: !failing.includes(name), lastLines: failing.includes(name) ? [`${name} output 1`, `${name} output 2`] : [] };
@@ -210,9 +211,9 @@ test('a failed target keeps its last lines in the record and in the output, and 
   assert.equal(written.result, 'failed');
   assert.deepEqual(written.failed, ['b']);
   // The test fails when the record lacks a target.
-  assert.deepEqual(written.targets.find(target => target.name === 'b')!.lastLines, ['b output 1', 'b output 2']);
+  assert.deepEqual(known(written.targets.find(target => target.name === 'b'), 'written.targets.find(target => target.name === …)').lastLines, ['b output 1', 'b output 2']);
   // The test fails when the record lacks a target.
-  assert.equal('lastLines' in written.targets.find(target => target.name === 'a')!, false);
+  assert.equal('lastLines' in known(written.targets.find(target => target.name === 'a'), 'written.targets.find(target => target.name === …)'), false);
 });
 
 test('rerun-failed without a record is refused', async (t) => {
@@ -241,7 +242,7 @@ test('rerun-failed reruns only the failed targets, and a passing rerun completes
   assert.deepEqual(completed.failed, []);
   assert.deepEqual(completed.targets.map(target => target.status), ['passed', 'passed', 'passed']);
   // The test fails when the record lacks the target.
-  assert.equal('lastLines' in completed.targets[1]!, false, 'a passed target keeps the lines of its failure');
+  assert.equal('lastLines' in known(completed.targets[1], 'completed.targets[1]'), false, 'a passed target keeps the lines of its failure');
   assert.deepEqual(completed.reruns.map(rerun => [rerun.targets, rerun.result]), [[['b'], 'failed'], [['b'], 'passed']]);
 
   const again = await guard(work, 'rerun-failed', []);
@@ -292,7 +293,7 @@ test('an incomplete record whose process runs refuses the run; a reused process 
   const other = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => other.kill());
   // spawn gives the child its pid; the test fails when it does not start.
-  const stopped = { tree: 'tree-old', commit: 'c0', keys: {}, result: 'incomplete', pid: other.pid, processStart: processStart(other.pid!), started: '2026-10-05T01:00:00.000Z', ended: null, targets: [{ name: 'a', status: 'running' }], reruns: [] };
+  const stopped = { tree: 'tree-old', commit: 'c0', keys: {}, result: 'incomplete', pid: other.pid, processStart: processStart(known(other.pid, 'other.pid')), started: '2026-10-05T01:00:00.000Z', ended: null, targets: [{ name: 'a', status: 'running' }], reruns: [] };
   mkdirSync(path.join(work, 'var'), { recursive: true });
   writeFileSync(path.join(work, RECORD), JSON.stringify(stopped));
   const refused = await guard(work, 'run', ['a']);
@@ -311,7 +312,7 @@ test('a guard is refused while another process holds the lock of the record, and
   t.after(() => other.kill());
   mkdirSync(path.join(work, 'var'), { recursive: true });
   // spawn gives the child its pid; the test fails when it does not start.
-  writeFileSync(path.join(work, LOCK), `${JSON.stringify({ checkout: work, pid: other.pid, processStart: processStart(other.pid!), acquired: '2026-10-05T00:00:00.000Z', command: 'full-run run', token: 'other' })}\n`);
+  writeFileSync(path.join(work, LOCK), `${JSON.stringify({ checkout: work, pid: other.pid, processStart: processStart(known(other.pid, 'other.pid')), acquired: '2026-10-05T00:00:00.000Z', command: 'full-run run', token: 'other' })}\n`);
   const refused = await guard(work, 'run', ['a']);
   assert.equal(refused.status, 1, refused.output);
   assert.match(refused.output, new RegExp(`^\\[full-run\\] refuse: .*full-run\\.lock is held by process ${other.pid} .*; the guard of another run reads or writes var/full-run\\.json$`, 'm'));
@@ -359,7 +360,7 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   const written = record(work);
   assert.deepEqual([written.keys, written.failed, written.targets.map(target => target.status)], [{ dep: 'c1' }, ['bad'], ['passed', 'failed']]);
   // The test fails when the record lacks the target.
-  assert.deepEqual(written.targets[1]!.lastLines, ['building bad', 'error: bad broke']);
+  assert.deepEqual(known(written.targets[1], 'written.targets[1]').lastLines, ['building bad', 'error: bad broke']);
 
   const repeated = run(work, process.execPath, [tool('full-run'), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
   assert.equal(repeated.status, 1);

@@ -11,6 +11,7 @@ import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readFixture } from '../kit/json-fixture.mts';
 import { parseStub } from '../kit/stub-json.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { known } from '../kit/known.mts';
 
 /** The output of `npm pack --json` of npm 12: each packed package by its name, with its file and its files. */
 type Packed = Record<string, { version: string; filename: string; integrity: string; files: { path: string }[] }>;
@@ -95,7 +96,7 @@ export function kitConsumer(packed: { version: string; integrity: string }, mani
  */
 export function primeCache(cache: string, work: string, entries: readonly [string, LockEntry][]): void {
   for (const [entry, item] of entries) {
-    const name = entry.split('node_modules/').at(-1)!;
+    const name = known(entry.split('node_modules/').at(-1), 'entry.split(…).at(-1)');
     const dependency = parseStub(run(NPM, ['pack', '--json', '--offline', '--allow-remote=all', '--pack-destination', work, item.resolved], work), PACKED, 'npm pack --json')[name];
     assert.ok(dependency, `npm pack printed no ${name}`);
     run(NPM, ['cache', 'add', path.join(work, dependency.filename), '--cache', cache], work);
