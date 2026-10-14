@@ -1,0 +1,55 @@
+// make toolchain-lock (scripts/kit/toolchain-lock.mts) writes mise.lock with the mise of var/tools/bin. The environment of mise
+// of the checkout names its mise.toml as the global configuration (K127), and mise 2026.10.8 then reads no tool of the project
+// (measured: "No tools configured to lock in this project, but global config declares tools. Run mise lock --global to lock
+// those."), so the lock is written with `mise lock --global`, which writes mise.lock beside that mise.toml. The stub of mise
+// answers as mise does.
+import assert from 'node:assert/strict';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import { lockTools } from '../../scripts/kit/toolchain-lock.mts';
+import { tree } from './tree.mts';
+
+const LOCK = `[[tools.golangci-lint]]
+version = "2.14.0"
+backend = "aqua:golangci/golangci-lint"
+
+[tools.golangci-lint."platforms.linux-x64"]
+checksum = "sha256:ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab"
+
+[tools.golangci-lint."platforms.macos-arm64"]
+checksum = "sha256:5ef5f36a7147e91dc58ef9ef4d11bb7bad5ead0c76eb6c01327a73c641d1dcc3"
+`;
+
+// mise with the project's mise.toml as its global configuration: lock locks the global tools only with --global, and writes
+// mise.lock beside that file.
+const MISE = `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.STUB_MISE_ARGS, JSON.stringify(args) + '\\n');
+if (args[0] === 'lock' && !args.includes('--global')) {
+  console.error('! No tools configured to lock in this project, but global config declares tools. Run mise lock --global to lock those.');
+  process.exit(2);
+}
+if (args[0] === 'lock') fs.writeFileSync('mise.lock', ${JSON.stringify(LOCK)});
+`;
+
+test('toolchain-lock locks the tools of mise.toml, which the environment of mise names as the global configuration (K127)', (t) => {
+  const root = tree(t, { 'mise.toml': '[tools]\ngolangci-lint = "2.14.0"\n' });
+  const mise = path.join(root, 'var/tools/bin/mise');
+  writeFileSync(path.join(root, 'args.jsonl'), '');
+  const previous = process.env.STUB_MISE_ARGS;
+  process.env.STUB_MISE_ARGS = path.join(root, 'args.jsonl');
+  t.after(() => { if (previous === undefined) delete process.env.STUB_MISE_ARGS; else process.env.STUB_MISE_ARGS = previous; });
+  writeStub(mise);
+  const printed: string[] = [];
+  lockTools({ root, print: text => printed.push(text) });
+  assert.deepEqual(readFileSync(path.join(root, 'args.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['lock', '--global', '--platform', 'linux-x64,macos-arm64']]);
+  assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), LOCK);
+  assert.deepEqual(printed.at(-1), 'mise.lock pins every tool of mise.toml');
+});
+
+function writeStub(file: string) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, MISE, { mode: 0o755 });
+}
