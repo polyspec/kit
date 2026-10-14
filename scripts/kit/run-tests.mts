@@ -71,12 +71,12 @@ type Ended = { error: Error } | { error?: undefined; status: number | null; sign
 type Counts = { ran: number; skipped: number; [key: string]: unknown };
 
 // The fix for a tool that cannot start.
-const INSTALL: Record<string, (options: { cwd: string }) => string> = {
+const INSTALL: Record<string, (options: { cwd: string; root: string }) => string> = {
   node: () => 'install the Node.js release of .node-version',
   vitest: () => 'run make install',
   go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
-  phpunit: ({ cwd }) => `run composer install in ${path.relative(repositoryRoot(), cwd) || '.'}`,
+  phpunit: ({ cwd, root }) => `run composer install in ${path.relative(root, cwd) || '.'}`,
   python: () => 'declare python in mise.toml and run make install-tools, which installs it into var/tools/mise',
 };
 
@@ -268,7 +268,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     }
     if (ended.error) {
       // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
-      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool]!(options)}\n`);
+      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool]!({ cwd: options.cwd, root })}\n`);
       return 1;
     }
     const { status, signal } = ended;
