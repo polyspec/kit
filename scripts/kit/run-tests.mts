@@ -32,7 +32,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
@@ -247,7 +247,7 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
     if (cargo) {
       const events = cargoEvents(sink!); // A tool that this runner reads has a sink.
       child.stdout!.setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
-      readline.createInterface({ input: child.stderr! }).on('line', noting(events.stderr)); // The stream is piped for this tool.
+      readline.createInterface({ input: child.stderr! }).on('line', noting(line => events.stderr(line))); // The stream is piped for this tool.
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(sink!); // A tool that this runner reads has a sink.

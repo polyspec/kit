@@ -4,8 +4,7 @@
 // output of the tool (`make kit-fixture-record`). A second run changes only the time.
 //
 //   node tests/kit/record-fixture.mts
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureCheckout, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';

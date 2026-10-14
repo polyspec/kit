@@ -16,7 +16,7 @@ const FIXTURE = path.join(HERE, 'fixture');
 export const CHECKLIST = 'docs/plans/execution-checklist.md';
 export const TRANSLATION = 'docs/plans/execution-checklist.ko.md';
 // The commit rules of the checkout: the same rules as the kit repository's config/commits.json.
-export const COMMITS = { schema: 1, types: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'], subjectMax: 50, bodyMax: 72 };
+const COMMITS = { schema: 1, types: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'], subjectMax: 50, bodyMax: 72 };
 
 export function run(cwd: string, command: string, args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> = {}) {
   return spawnSync(command, args, { cwd, encoding: 'utf8', ...options });
@@ -41,7 +41,7 @@ export function commitAll(cwd: string, message: string) {
 }
 
 /** The checklist of the fixture with the first task in the state `state`, in English and in Korean. */
-export function checklists(state: string) {
+function checklists(state: string) {
   const read = (name: string) => readFileSync(path.join(FIXTURE, name), 'utf8');
   const set = (text: string) => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, `$1| ${state} |`);
   return { english: set(read(CHECKLIST)), korean: set(read(TRANSLATION)) };

@@ -105,7 +105,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
      */
     close(label: string, { exitCode = 0, errors = [], build = [] }: { exitCode?: number | null | undefined; errors?: readonly string[] | undefined; build?: readonly string[] | undefined } = {}) {
       clearInterval(timer);
-      for (const id of [...running.keys()]) this.fail(id, undefined, 'the test did not finish');
+      for (const id of running.keys()) this.fail(id, undefined, 'the test did not finish');
       const ran = counts.passed + counts.failed + counts.timedOut;
       const none = ran === 0;
       const failed = counts.failed + counts.timedOut + groupCounts.failed + (exitCode === 0 ? 0 : 1) + (none ? 1 : 0);

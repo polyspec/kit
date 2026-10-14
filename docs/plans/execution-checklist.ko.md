@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 1d1064ab9ad4993c9b0483b9a71a6ea89e0950804bf3f936792d635853c71077 -->
+<!-- source-sha256: 2737e2f56563a7b72776d737e9e5ce367614618f9223bf6c08a61322dafabec9 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -200,3 +200,4 @@
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
 | K141 | run-tests가 test가 timeout을 넘었을 때와 실행기 자신이 중단될 때 tool의 process group 전체를 멈추고, 유예 뒤에 SIGKILL을 보낸다: 중단된 실행기는 detached tool을 실행 중으로 남겼고, `tests/kit/run-tests.test.mts`의 stub(`node …/var/tools/mise/shims/python3 -m unittest tests -v`)이 12시간 뒤 launchd 아래 고아로 발견되었으며, timeout에서 SIGTERM을 무시한 tool은 실행을 기다리게 했다 | `run-tests.mts`, `docs/tool-inventory.md` | `tests/kit/run-tests.test.mts`(timeout 뒤와 실행기의 SIGTERM 뒤에 stub과 그 손자 process가 없음) | [o] |
 | K143 | mise.toml이 cargo-nextest(`github:nextest-rs/nextest`, version_prefix `cargo-nextest-`)와 cargo-deny(`cargo-deny`, mise registry의 aqua)를 선언한다: kit가 이를 거부해서("mise.toml tools declares github:nextest-rs/nextest, which kit does not check") ssr가 자체 tool_versions.py와 fetch_tools.py를 유지했다. mise.lock이 네 플랫폼의 native binary를 고정하고 toolchain-check가 그 `--version`을 읽는다 | `toolchain-mise.mts`, `check-toolchain.mts`, schema, 문서 | `tests/kit/toolchain-mise.test.mts`, `tests/kit/check-toolchain.test.mts` | [o] |
+| K142 | kit은 consumer의 TypeScript lint인 `make lint-ts`로 CI와 owner check에서 자신을 lint하고, knip은 make가 실행하는 파일을 layout에 따라 entry로 두며(`scripts/**`, `benchmarks/**`, node:test 파일) `@polyspec/kit`을 무시한다: kit은 자신에게 lint를 돌린 적이 없어 oxlint finding 93개와 knip finding이 보이지 않았고, 그중 하나는 모든 consumer의 lint를 실패시킨 사본 `scripts/kit/bootstrap/install-mise.mts`에 있었으며, knip은 consumer가 make로 실행하는 모든 script를 쓰이지 않는다고 보고했다(template-benchmark) | `knip.json`, `.github/workflows/ci.yml`, `config/owner-checks.json`, `scripts/kit`과 `tests`의 finding, 문서 | `tests/source/lint-ts-real.test.mts`, `tests/source/ci-workflow.test.mts`, `make lint-ts` | [ ] |

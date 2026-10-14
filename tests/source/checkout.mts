@@ -17,7 +17,7 @@ export const NPM = path.join(ROOT, 'var/tools/bin/npm');
 export type LockEntry = { version: string; resolved: string; integrity: string; dev?: boolean; devOptional?: boolean };
 
 /** The entries of package-lock.json of kit that `keep` accepts, as [node_modules/<name>, entry]. */
-export function lockEntries(keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] {
+function lockEntries(keep: (item: LockEntry) => boolean = () => true): [string, LockEntry][] {
   const packages = JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages as Record<string, LockEntry>;
   return Object.entries(packages).filter(([entry, item]) => entry !== '' && keep(item));
 }
@@ -35,7 +35,7 @@ let primed: string | undefined;
  * An npm cache primed once per process with every package of package-lock.json of kit that this machine installed
  * (primeCache), removed when the process exits. A copy or a sandbox of the checkout installs from it with npm ci --offline.
  */
-export function primedCache(): string {
+function primedCache(): string {
   if (primed) return primed;
   const work = mkdtempSync(path.join(tmpdir(), 'kit-npm-cache-'));
   process.on('exit', () => rmSync(work, { recursive: true, force: true }));
@@ -158,14 +158,6 @@ export function copyTracked(root: string, sandbox: string, keep: (file: string) 
 export function installedTool(file: string) {
   const inside = (directory: string) => file === directory || file.startsWith(`${directory}/`);
   return inside('var/tools') && !inside('var/tools/mise/cache');
-}
-
-/** Copies the installed tools of the checkout `root` to var/tools of `sandbox`. */
-export function copyInstalledTools(root: string, sandbox: string) {
-  cpSync(path.join(root, 'var/tools'), path.join(sandbox, 'var/tools'), {
-    recursive: true,
-    filter: source => installedTool(path.relative(root, source)),
-  });
 }
 
 /**

@@ -25,7 +25,6 @@ import { checkedFiles } from './tracked-files.mts';
 import { readJson } from './bootstrap/files.mts';
 import { readConfig } from './schema-validate.mts';
 import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
-import { toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';

@@ -200,7 +200,7 @@ export function runLogged({ root, target, log, writer, output, make = 'make', en
       lines.push(...complete);
     };
     const take = (name: Stream) => (data: Buffer) => {
-      const parts = `${pending[name]}${data}`.split('\n');
+      const parts = `${pending[name]}${data.toString()}`.split('\n');
       // split returns at least one part.
       pending[name] = parts.pop()!;
       pass(name, parts);

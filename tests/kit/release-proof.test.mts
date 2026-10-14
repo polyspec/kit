@@ -8,7 +8,7 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
-import { Stop, run } from '../../scripts/kit/process.mts';
+import { Stop } from '../../scripts/kit/process.mts';
 import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';

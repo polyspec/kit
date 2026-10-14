@@ -146,7 +146,7 @@ function proveGitTag(ctx: ReleaseContext, tag: string, folder: string, step: Ste
 /** Step 4: the tag of each Go module is on the remote and the Go tool resolves the module at it. */
 function proveGoModules(ctx: ReleaseContext, tag: string, version: string, directory: string | null, folder: string, step: Step) {
   const { config } = ctx;
-  const modules = Object.entries(config.goModules).filter(([module]) => directory === null || module === directory).sort();
+  const modules = Object.entries(config.goModules).filter(([module]) => directory === null || module === directory).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   const env = { ...ctx.env, GIT_TERMINAL_PROMPT: '0' };
   for (const [module, modulePath] of modules) {
     const goTag = module === '.' ? `v${version}` : `${module}/v${version}`;

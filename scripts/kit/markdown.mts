@@ -260,7 +260,7 @@ export function prosePassages(text: string): Passage[] {
   visit(tree, (node, _index, parent) => {
     if (node.type !== 'paragraph' && node.type !== 'heading' && node.type !== 'tableRow') return;
     const place = placeOf(node);
-    const chars = [...text.slice(place.start, place.end)];
+    const chars = text.slice(place.start, place.end).split(''); // UTF-16 code units, which the offsets of the tree count
     const at = (offset: number) => offset - place.start;
     visit(node, (inner) => {
       if (inner === node) return;

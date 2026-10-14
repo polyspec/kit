@@ -18,7 +18,7 @@ test('the records hold a request of each tool that the stubs answer', () => {
 });
 
 for (const record of records) {
-  const { status, stdout, stderr, ...request } = record;
+  const { status, stdout: _stdout, stderr: _stderr, ...request } = record;
   test(`${request.tool} ${request.args.join(' ')} of ${Object.keys(request.files).filter(file => request.files[file] !== null).join(', ')} prints its record (status ${status})`, () => {
     assert.deepEqual(runRequest(request), record);
   });
@@ -39,7 +39,7 @@ test('a request runs no command of a stub directory on the PATH of the caller', 
   try {
     for (const tool of ['go', 'composer']) {
       const record = records.find(entry => entry.tool === tool)!;
-      const { status, stdout, stderr, ...request } = record;
+      const { status: _status, stdout: _stdout, stderr: _stderr, ...request } = record;
       assert.deepEqual(runRequest(request), record);
     }
   } finally {

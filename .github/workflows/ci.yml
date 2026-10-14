@@ -53,6 +53,10 @@ jobs:
       # jscpd, which npm ci installs, fails while a piece of scripts/kit exists twice (K126).
       - name: duplication check
         run: make duplication-check
+      # kit lints itself with the TypeScript lint that its consumers get (K142): oxlint type-aware with .oxlintrc.json and
+      # knip with knip.json, over scripts/kit (the copies of scripts/kit/bootstrap included) and the tests.
+      - name: lint
+        run: make lint-ts
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         run: make kit-test

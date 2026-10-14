@@ -102,7 +102,7 @@ export const CHANGELOG = `# Changelog
 `;
 
 // The time of every commit of the sandbox; the zip entries of an archive carry it.
-export const COMMIT_DATE = '2001-02-03T04:05:06Z';
+const COMMIT_DATE = '2001-02-03T04:05:06Z';
 
 export const git = (root: string, ...args: string[]) => {
   const env = { ...process.env, GIT_AUTHOR_DATE: COMMIT_DATE, GIT_COMMITTER_DATE: COMMIT_DATE };

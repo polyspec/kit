@@ -24,7 +24,7 @@ const step = (command: string, pattern: RegExp) => {
 };
 
 test('the release workflow has one job, so every step runs in the job that creates the release', () => {
-  const jobs = lines.slice(lines.findIndex(line => /^jobs:/.test(line)) + 1);
+  const jobs = lines.slice(lines.findIndex(line => line.startsWith('jobs:')) + 1);
   assert.equal(jobs.filter(line => /^  [a-z-]+:$/.test(line)).length, 1, 'the workflow names one job');
 });
 

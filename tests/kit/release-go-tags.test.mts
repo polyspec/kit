@@ -2,7 +2,7 @@
 // <directory>/vX.Y.Z of every declared Go module at the same commit, because a Go proxy resolves a module from that tag only.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { Stop } from '../../scripts/kit/process.mts';

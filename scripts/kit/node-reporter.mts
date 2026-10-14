@@ -3,6 +3,7 @@
 // fails, and so does a run in which no test ran.
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { inspect } from 'node:util';
 import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
@@ -20,9 +21,10 @@ type TestPlace = Pick<EventData.TestComplete, 'file' | 'nesting' | 'name' | 'lin
 
 // The failure of a test: what failed (for example `failed running after hook`), then its cause.
 const failureText = (error: TestFailure | undefined): string => {
-  // A test may throw any value; the stack and message of a value that has none read as undefined.
-  const cause = (error?.cause ?? error) as { stack?: string; message?: string } | null | undefined;
-  const text = cause?.stack ?? cause?.message ?? String(cause);
+  // A test may throw any value: its stack, else its message, else the value as util.inspect shows it (a text as it is).
+  const cause: unknown = error?.cause ?? error;
+  const { stack, message } = (typeof cause === 'object' && cause !== null ? cause : {}) as { stack?: unknown; message?: unknown };
+  const text = typeof stack === 'string' ? stack : typeof message === 'string' ? message : typeof cause === 'string' ? cause : inspect(cause);
   return error?.cause && error.message && !text.includes(error.message) ? `${error.message}\n${text}` : text;
 };
 

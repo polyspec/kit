@@ -73,13 +73,13 @@ test('a package that npm installed as a copy (install-links) is no link, and the
 
 test('a package required as file:<directory> is the package of that directory, and another directory fails', (t) => {
   const root = fixture(t);
-  const require = (spec: string) => {
+  const findingsOf = (spec: string) => {
     edit(root, 'packages/fixture-app/package.json', (manifest) => { manifest.dependencies['fixture-lib'] = spec; });
     edit(root, 'package-lock.json', (lock) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
     return findings(gate(root)).filter(line => line.includes('fixture-lib'));
   };
-  assert.deepEqual(require('file:packages/fixture-lib'), []);
-  const other = require('file:packages/other');
+  assert.deepEqual(findingsOf('file:packages/fixture-lib'), []);
+  const other = findingsOf('file:packages/other');
   assert.ok(other.some(line => line.includes('requires file:packages/other')), other.join('\n'));
 });
 
