@@ -7,6 +7,7 @@ import { npmDuplicates, npmManifests, npmSatisfies, pythonRequirements } from '.
 import { tree } from './tree.mts';
 import { fixtureCheckout as fixture, gate } from './checkout.mts';
 import { editFixture } from './json-fixture.mts';
+import { known } from './known.mts';
 
 // Data names the fields of the fixture file that a test edits.
 const edit = editFixture;
@@ -35,7 +36,7 @@ test('a package installed at two versions that one version satisfies is reported
   } };
   const lines = npmDuplicates(lock);
   assert.equal(lines.length, 1, lines.join('\n'));
-  assert.match(lines[0]!, /shared/); // The length is asserted above.
+  assert.match(known(lines[0], 'lines[0]'), /shared/); // The length is asserted above.
 });
 
 test('the gate fails when a workspace package has another version than its lock entry', (t) => {

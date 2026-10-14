@@ -7,11 +7,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFixture } from '../kit/json-fixture.mts';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 // The group always takes part in a match of the pattern.
-const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1]!);
+const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
 
 test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
   const check = runs.indexOf('make duplication-check');

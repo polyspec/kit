@@ -11,6 +11,7 @@ import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
+import { known } from './known.mts';
 
 const MAKEFILE = `CHECK_TARGETS := docs-check unit-test lint
 include extra.mk
@@ -77,7 +78,7 @@ test('a declaration that owns every path passes, with targets of an included fil
 
 test('a tracked path without an owner and a glob without a path fail', (t) => {
   // DECLARATION declares seven owners.
-  const declaration = { ...DECLARATION, owners: [DECLARATION.owners[1]!, { paths: ['gone/**'], targets: ['lint'] }] };
+  const declaration = { ...DECLARATION, owners: [known(DECLARATION.owners[1], 'DECLARATION.owners[1]'), { paths: ['gone/**'], targets: ['lint'] }] };
   const errors = errorsOf(t, declaration);
   has(errors, 'README.md', 'matches no owner in config/owner-checks.json', 'add a rule');
   has(errors, 'the glob gone/** matches no tracked path');
@@ -181,7 +182,7 @@ test('select: a changed path selects its owners; always, $path, variables and th
   const result = select(declaration, ['src/a.js', 'src/b.js', 'tests/x.test.mjs'], ['docs-check', 'lint'], () => true);
   assert.deepEqual(result.checks.map(check => check.name), ['make docs-check', 'make lint CASES=src/a.js src/b.js', 'npm run s']);
   // The names above are three checks.
-  assert.deepEqual(result.checks[1]!.args, ['--no-print-directory', 'lint', 'CASES=src/a.js src/b.js']);
+  assert.deepEqual(known(result.checks[1], 'result.checks[1]').args, ['--no-print-directory', 'lint', 'CASES=src/a.js src/b.js']);
   assert.deepEqual(result.tests, ['tests/always.test.mjs', 'tests/x.test.mjs']);
   assert.deepEqual(result.unowned, []);
   assert.ok(result.reasons.includes('tests/x.test.mjs -> tests/x.test.mjs'));
@@ -201,7 +202,7 @@ test('the tests run through run-tests.mts or through the declared test target', 
   assert.deepEqual(direct.map(command => command.args), [[path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts'), 'node', '--', 'tests/a.test.mjs', 'tests/b.test.mjs']]);
   const target = commandsOf(selection, { testTarget: 'test-scripts' });
   // A selection with tests has the command of the tests.
-  assert.deepEqual(target[0]!.args, ['--no-print-directory', 'test-scripts', 'TESTS=tests/a.test.mjs tests/b.test.mjs']);
+  assert.deepEqual(known(target[0], 'target[0]').args, ['--no-print-directory', 'test-scripts', 'TESTS=tests/a.test.mjs tests/b.test.mjs']);
   assert.deepEqual(commandsOf({ checks: [], tests: [] }, {}), []);
 });
 

@@ -9,6 +9,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { known } from './known.mts';
 
 const FILES: Record<string, string> = {
   'phpcs.xml.dist': '<ruleset/>\n',
@@ -75,7 +76,7 @@ const MONOREPO = { 'composer.json': '{}\n', 'vendor/autoload.php': '<?php\n' };
 test('PHPStan runs a package of a Composer monorepo with the autoloader of the root project', (t) => {
   const { root, calls } = checkout(t, { omit: 'packages/php/vendor/autoload.php', files: MONOREPO });
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(calls(), [ALL[0], ALL[1]!.replace('--autoload-file=vendor/autoload.php', '--autoload-file=../../vendor/autoload.php')]);
+  assert.deepEqual(calls(), [ALL[0], known(ALL[1], 'ALL[1]').replace('--autoload-file=vendor/autoload.php', '--autoload-file=../../vendor/autoload.php')]);
 });
 
 test('the autoloader of a package is the one of the nearest project that installed its vendor directory', (t) => {
@@ -93,5 +94,5 @@ test('COMPOSER_VENDOR_DIR names the vendor directory of each project, as for run
   t.after(() => { delete process.env.COMPOSER_VENDOR_DIR; });
   process.env.COMPOSER_VENDOR_DIR = 'var/vendor';
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(calls(), [ALL[0], ALL[1]!.replace('--autoload-file=vendor/autoload.php', '--autoload-file=../../var/vendor/autoload.php')]);
+  assert.deepEqual(calls(), [ALL[0], known(ALL[1], 'ALL[1]').replace('--autoload-file=vendor/autoload.php', '--autoload-file=../../var/vendor/autoload.php')]);
 });

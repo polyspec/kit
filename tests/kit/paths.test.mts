@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isMain, repositoryRoot, siblingTool } from '../../scripts/kit/paths.mts';
 import { english, korean, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
+import { known } from './known.mts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 
@@ -34,7 +35,7 @@ test('isMain is true when the command names the tool through a link of its direc
     assert.equal(isMain(module), false, 'another file is not the command');
   } finally {
     // node --test runs this file, so the command names it.
-    process.argv[1] = argv!;
+    process.argv[1] = known(argv, 'argv');
   }
   assert.equal(fileURLToPath(module), path.join(ROOT, 'scripts/kit/paths.mts'));
   assert.equal(repositoryRoot(), ROOT, 'node --test runs in the root of this checkout');

@@ -15,6 +15,7 @@ import type { ComposerManifest } from '../../scripts/kit/manifests.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
+import { known } from './known.mts';
 type Box = ReturnType<typeof consumerSandbox>;
 /** A command that a stub of the sandbox recorded. */
 type Call = { args: string[] };
@@ -221,10 +222,10 @@ test('the command line prints one line for each step and the exit status', (t) =
   box.stub({ modes: { go: 'fail' } });
   assert.equal(run(['v0.0.1']), 1);
   // Each failed run wrote an error line; without one, assert.match fails on undefined as before.
-  assert.match(errors.at(-1)!, /^\[release-proof\] v0\.0\.1 failed: go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
+  assert.match(known(errors.at(-1), 'errors.at(-1)'), /^\[release-proof\] v0\.0\.1 failed: go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
   assert.equal(run(['v0.0']), 1);
   // The refused tag wrote an error line, as above.
-  assert.match(errors.at(-1)!, /v0\.0 failed: v0\.0: a release tag is vX\.Y\.Z/);
+  assert.match(known(errors.at(-1), 'errors.at(-1)'), /v0\.0 failed: v0\.0: a release tag is vX\.Y\.Z/);
   for (const argv of [[], ['v0.0.1', 'x']]) assert.equal(run(argv), 2);
   assert.equal(errors.at(-1), 'usage: node scripts/kit/release-proof.mts TAG');
 });

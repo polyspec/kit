@@ -13,6 +13,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
 import { readFixture } from '../kit/json-fixture.mts';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const BIN = path.join(ROOT, 'node_modules/.bin');
@@ -240,7 +241,7 @@ test('a nested npm project passes once config/knip-entries.json declares it as a
 const COMPILER = '@example/recipe-tool';
 const RECIPE = {
   'package.json': JSON.stringify({ ...MANIFEST, dependencies: { [COMPILER]: 'https://example.com/recipe-tool-0.1.0.tgz' } }, null, 2),
-  'Makefile': `${GOOD['Makefile']!}\ntemplates:\n\tnode node_modules/${COMPILER}/bin/compile.mjs templates\n`,
+  'Makefile': `${known(GOOD['Makefile'], 'GOOD[…]')}\ntemplates:\n\tnode node_modules/${COMPILER}/bin/compile.mjs templates\n`,
 };
 
 test('a root dependency that only the Makefile runs passes once config/knip-entries.json declares it, and an undeclared one still fails (K159)', (t) => {
@@ -268,6 +269,6 @@ test('an unused sample file passes once config/knip-entries.json ignores it, and
 });
 
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
-  const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
+  const { failed, output } = lintOf(repository(t, known(VIOLATIONS.find(({ name }) => name === 'an undocumented export'), 'VIOLATIONS.find(({ name }) => name === …)').files, { report: false }));
   assert.deepEqual(failed, [], output);
 });

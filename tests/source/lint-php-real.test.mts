@@ -12,6 +12,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-php.mts';
 import { installedBinary } from './real-tools.mts';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // phpcs and phpstan are the wrappers of the Composer project config/php-lint; Composer is the one of mise.toml.
@@ -102,8 +103,8 @@ test('the PHP lint resolves a library of a Composer monorepo with the autoloader
   assert.ok(!existsSync(path.join(root, 'packages/php/vendor')), 'the library has a vendor/ of its own');
   const { failed, output } = lintOf(root);
   assert.deepEqual(failed, [], output);
-  const planted = repository(t, { ...MONOREPO, ...VIOLATIONS[4]!.files }, '.');
-  assert.match(lintOf(planted).output, VIOLATIONS[4]!.finding);
+  const planted = repository(t, { ...MONOREPO, ...known(VIOLATIONS[4], 'VIOLATIONS[4]').files }, '.');
+  assert.match(lintOf(planted).output, known(VIOLATIONS[4], 'VIOLATIONS[4]').finding);
 });
 
 test('a library with no vendor/ in it or in a project above it still fails with the install it needs', (t) => {
@@ -114,7 +115,7 @@ test('a library with no vendor/ in it or in a project above it still fails with 
 // The false green of the plan's verification: --strict-psr accepts a file whose first class matches its name and drops the
 // others in silence, so only the phpcs sniff of the lint holds one class per file.
 test('composer dump-autoload --strict-psr passes the extra class that the PHP lint fails', (t) => {
-  const root = repository(t, VIOLATIONS[0]!.files);
+  const root = repository(t, known(VIOLATIONS[0], 'VIOLATIONS[0]').files);
   const strict = composer(path.join(root, 'packages/php'), 'dump-autoload', '--optimize', '--strict-psr');
   assert.equal(strict.status, 0, `${strict.stdout}${strict.stderr}`);
   assert.deepEqual(lintOf(root).failed, ['phpcs']);

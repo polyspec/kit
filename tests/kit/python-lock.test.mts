@@ -14,6 +14,7 @@ import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 import { editFixture, readFixture } from './json-fixture.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import type { LockEntry } from '../../scripts/kit/python-lock.mts';
+import { known } from './known.mts';
 
 const LOCK = 'packages/fixture-python/pylock.toml';
 // A lock with a git pin. python-lock-check refuses a git package (the writer resolves registry files and archives only), so the
@@ -43,9 +44,9 @@ test('the parser reads the tables of a uv export: registry files with their hash
   assert.equal(lock.lockVersion, '1.0');
   assert.equal(lock.createdBy, 'uv');
   // The fixture lock holds click first; without it, reading its fields fails the case as before.
-  const click = lock.packages[0]!;
+  const click = known(lock.packages[0], 'lock.packages[0]');
   // GIT_TEXT holds the package pip-tools.
-  const pipTools = readPylock(GIT_TEXT.replace('COMMIT', PIP_TOOLS_COMMIT), GIT_LOCK).packages[0]!;
+  const pipTools = known(readPylock(GIT_TEXT.replace('COMMIT', PIP_TOOLS_COMMIT), GIT_LOCK).packages[0], 'readPylock(GIT_TEXT.replace(…, PIP_TOOLS_COMMIT), GIT_LOCK).packages[0]');
   assert.equal(click.kind, 'registry');
   assert.equal(click.name, 'click');
   assert.equal(click.version, '8.1.7');

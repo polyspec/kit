@@ -13,6 +13,7 @@ import { toolchainStubs } from './toolchain-stubs.mts';
 import { KIT } from './kit-tools.mts';
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { known } from './known.mts';
 
 // installNpm of the checkout `root` with the declaration of its package.json, run in a process with the stubs of `env`; each
 // line that it prints goes to the standard output, and an error to the standard error with the exit status 1.
@@ -81,7 +82,7 @@ test('the npm bootstrap runs without var/tools/bin on PATH', (t) => {
   const env = { ...stubs.env, PATH: `${bin}${path.delimiter}${stubs.env.PATH}`, STUB_PATH_LOG: log };
   assert.equal(install(root, env).status, 0);
   // split returns at least one part.
-  assert.equal(readFileSync(log, 'utf8').split('\n')[0]!.split(path.delimiter).includes(bin), false);
+  assert.equal(known(readFileSync(log, 'utf8').split('\n')[0], 'readFileSync(log, …).split(…)[0]').split(path.delimiter).includes(bin), false);
 });
 
 // A tarball of an npm release: package/package.json and package/bin/npm-cli.js, as the registry serves it.

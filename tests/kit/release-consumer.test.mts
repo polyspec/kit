@@ -16,6 +16,7 @@ import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts'
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
 import type { ComposerLock, ComposerManifest, NpmLock } from '../../scripts/kit/manifests.mts';
+import { known } from './known.mts';
 
 // The JSON files that the cases edit, in the fields that they read. A case also writes a value that breaks the schema on
 // purpose, so the values that a case replaces are unknown.
@@ -257,7 +258,7 @@ test('the command line locks, installs, ends a Go module tag without an install 
   assert.deepEqual(lines, ['[release-consumer] packages/fixture-go/v0.0.1: a Go module tag releases no archive; nothing to install']);
   assert.equal(run(['install', 'v0.0.2']), 1);
   // The failed run wrote an error line; without one, assert.match fails on undefined as before.
-  assert.match(errors.at(-1)!, /^\[release-consumer\] install v0\.0\.2 failed: var\/release\/assets holds \[/);
+  assert.match(known(errors.at(-1), 'errors.at(-1)'), /^\[release-consumer\] install v0\.0\.2 failed: var\/release\/assets holds \[/);
   for (const argv of [[], ['install'], ['verify', 'v0.0.1'], ['install', 'v0.0.1', 'x']]) assert.equal(run(argv), 2);
   assert.equal(errors.at(-1), 'usage: node scripts/kit/release-consumer.mts install|lock TAG');
 });

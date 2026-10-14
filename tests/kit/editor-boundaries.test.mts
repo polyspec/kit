@@ -7,6 +7,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { checkBoundaries } from '../../scripts/kit/check-editor-boundaries.mts';
 import { tree } from './tree.mts';
+import { known } from './known.mts';
 
 const TOOL = path.resolve('scripts/kit/check-editor-boundaries.mts');
 
@@ -55,7 +56,7 @@ test('an unknown rule key is refused before any package is read', (t) => {
   const config = { ...CONFIG, boundaries: [{ ...CONFIG.boundaries[0], forbiddenModule: ['x'] }] };
   const findings = boundaryFindings(checkout(t, {}, config));
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0]!, /^config\/editor-boundaries\.json: .*forbiddenModule.*not in the schema|^config\/editor-boundaries\.json: .*additional/);
+  assert.match(known(findings[0], 'findings[0]'), /^config\/editor-boundaries\.json: .*forbiddenModule.*not in the schema|^config\/editor-boundaries\.json: .*additional/);
 });
 
 test('every way of importing a forbidden module and declaring it fails', (t) => {

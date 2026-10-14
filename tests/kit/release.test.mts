@@ -13,6 +13,7 @@ import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-s
 import { KIT_MAKE, tool } from './kit-tools.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
+import { known } from './known.mts';
 
 const REPOSITORY = 'example/kit-fixture';
 type Box = ReturnType<typeof releaseSandbox>;
@@ -298,9 +299,9 @@ test('each archive carries the manifest of its package unchanged', (t) => {
   const target = path.join(box.root, 'var/release/assets');
   const sources = ['packages/fixture-lib/package.json', 'packages/fixture-app/package.json', 'packages/fixture-php/composer.json'];
   // sources holds the manifest of each of the first three archives, and names holds four archives.
-  names.slice(0, 3).forEach((name, index) => assert.equal(release.packedManifest(ctx, path.join(target, name)), readFileSync(path.join(box.root, sources[index]!), 'utf8'), name));
+  names.slice(0, 3).forEach((name, index) => assert.equal(release.packedManifest(ctx, path.join(target, name)), readFileSync(path.join(box.root, known(sources[index], 'sources[index]')), 'utf8'), name));
   // names holds four archives.
-  const zip = spawnSync('unzip', ['-Z1', path.join(target, names[2]!)], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+  const zip = spawnSync('unzip', ['-Z1', path.join(target, known(names[2], 'names[2]'))], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
   assert.deepEqual(zip, ['composer.json', 'composer.lock', 'src/', 'src/Engine.php']);
 });
 

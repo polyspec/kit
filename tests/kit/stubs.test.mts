@@ -11,6 +11,7 @@ import { toolchainEnvironment } from '../../scripts/kit/check-toolchain.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { versionStubs } from './toolchain-stubs.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
+import { known } from './known.mts';
 
 const HERE = import.meta.dirname;
 const ROOT = path.resolve(HERE, '../..');
@@ -51,7 +52,7 @@ test('a version stub answers go mod edit and ends under the environment of kit.m
     new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 5000)),
   ]);
   const members = spawnSync('ps', ['-A', '-o', 'pgid=,command='], { encoding: 'utf8' }).stdout.split('\n').map(line => line.trim().split(/\s+/)).filter(([pgid]) => Number(pgid) === child.pid).map(([, ...command]) => command.join(' '));
-  if (ended === 'timeout') process.kill(-child.pid!, 'SIGKILL');
+  if (ended === 'timeout') process.kill(-known(child.pid, 'child.pid'), 'SIGKILL');
   assert.notEqual(ended, 'timeout', `go mod edit through the version stub did not end within 5 s; its process group held ${members.length} processes: ${[...new Set(members)].join('; ')}`);
   assert.equal(ended, 0);
   assert.equal(parseJson<{ Module: { Path: string } }>(stdout, 'go-mod.schema.json', 'go mod edit -json').Module.Path, 'example.com/kit-fixture-go');

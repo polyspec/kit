@@ -11,6 +11,7 @@ import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadCo
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
+import { known } from './known.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -113,11 +114,11 @@ test('a document that cannot be read as the tracker is an error and never an emp
   // Each document below has a finding, so [0] exists.
   const errors = (text: string) => parseTracker(text, TABLE).errors;
   assert.deepEqual(errors('# Tasks\n\nNo table.\n'), ['it has no item']);
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0]!, /line 3: T1 has the state "\[x\]", the states are "\[ \]", "\[~\]", "\[o\]", "\[!\]"/);  // the document has a finding.
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T1 | B | [o] |\n')[0]!, /line 4: the item T1 is listed twice/);  // the document has a finding.
-  assert.match(errors('| ID | Task | Done |\n|---|---|---|\n| not an id | A | [o] |\n')[0]!, /line 3: .* is not a row with an ID in its first cell and a state in cell 3/);  // the document has a finding.
-  assert.match(parseTracker('- [x] T1 Done.\n', LIST).errors[0]!, /line 1: T1 has the state "\[x\]"/);  // the document has a finding.
-  assert.match(parseTracker('- [o]T1 Done.\n', LIST).errors[0]!, /line 1: .* is not an item of the form "- \[state\] ID text"/);  // the document has a finding.
+  assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0], 'errors(…)[0]'), /line 3: T1 has the state "\[x\]", the states are "\[ \]", "\[~\]", "\[o\]", "\[!\]"/);  // the document has a finding.
+  assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T1 | B | [o] |\n')[0], 'errors(…)[0]'), /line 4: the item T1 is listed twice/);  // the document has a finding.
+  assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| not an id | A | [o] |\n')[0], 'errors(…)[0]'), /line 3: .* is not a row with an ID in its first cell and a state in cell 3/);  // the document has a finding.
+  assert.match(known(parseTracker('- [x] T1 Done.\n', LIST).errors[0], 'parseTracker(…, LIST).errors[0]'), /line 1: T1 has the state "\[x\]"/);  // the document has a finding.
+  assert.match(known(parseTracker('- [o]T1 Done.\n', LIST).errors[0], 'parseTracker(…, LIST).errors[0]'), /line 1: .* is not an item of the form "- \[state\] ID text"/);  // the document has a finding.
 });
 
 test('the impossible state is a state of its own that the lenient reading accepts', () => {
@@ -161,7 +162,7 @@ test('inspectTrackers names each active item with its file and ID, and each unre
   const read = (name: string) => {
     if (!(name in files)) throw new Error('does not exist');
     // The check above throws for a name that files lacks.
-    return files[name]!;
+    return known(files[name], 'files[name]');
   };
   const found = inspectTrackers(config, read);
   assert.deepEqual(found.problems, []);
@@ -186,7 +187,7 @@ test('loadConfig accepts the configuration of the fixture and names each rule th
   const good = readFileSync(path.join(FIXTURE, 'config/checklist.json'), 'utf8');
   const root = checkout(t, { 'config/checklist.json': good });
   // The schema requires at least one tracker.
-  assert.equal(loadConfig(root).trackers[0]!.path, 'docs/plans/execution-checklist.md');
+  assert.equal(known(loadConfig(root).trackers[0], 'loadConfig(root).trackers[0]').path, 'docs/plans/execution-checklist.md');
   const write = (value: unknown) => writeFileSync(path.join(root, 'config/checklist.json'), JSON.stringify(value));
   const config = parseJson<ChecklistConfig>(good, 'checklist.schema.json', 'config/checklist.json');
   write({ ...config, hooks: ['commit-msg'] });

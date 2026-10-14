@@ -15,6 +15,7 @@ import { miseStub, toolchainStubs } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readStubLines, TEXTS } from './stub-json.mts';
+import { known } from './known.mts';
 
 /** A call of the mise stub: its arguments, PATH and UV_PYTHON. */
 const MISE_CALL: JSONSchemaType<{ args: string[]; PATH: string; UV_PYTHON?: string }> = { type: 'object', required: ['args', 'PATH'], properties: { args: TEXTS, PATH: { type: 'string' }, UV_PYTHON: { type: 'string', nullable: true } } };
@@ -173,7 +174,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
     'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
   ]);
   const calls = readStubLines(log, MISE_CALL);
-  const last = calls.at(-1)!;
+  const last = known(calls.at(-1), 'calls.at(-1)');
   assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 2), [path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
   assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');
   assert.match(result.stderr, /mise\.lock pins pypi:vulture 2\.16 without the digest of its uv lock/);
