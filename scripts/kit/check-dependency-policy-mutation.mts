@@ -6,12 +6,13 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { readGoWork } from './toolchain-files.mts';
 
 
 /** The fields of config/dependency-review.json that the mutations change. */
@@ -40,6 +41,20 @@ interface Mutation {
 }
 
 const COPIED = /(^|\/)(package\.json|package-lock\.json|composer\.json|composer\.lock|pyproject\.toml|pylock(\.[A-Za-z0-9_-]+)?\.toml|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|go\.work|go\.work\.sum)$/;
+
+/**
+ * The findings of each go.work of `root` that uses a module whose go.mod Git does not track, such as an ignored clone of a
+ * sibling repository: the copy of the gate holds the tracked files only, and no other checkout holds that module (K160).
+ */
+function untrackedUses(root: string): string[] {
+  const files = checkedFiles(root);
+  const tracked = new Set(files);
+  return files.filter(file => posix.basename(file) === 'go.work').flatMap(file =>
+    (readGoWork(join(root, file), process.env).Use ?? [])
+      .map(use => ({ use: use.DiskPath, mod: posix.join(posix.dirname(file), use.DiskPath, 'go.mod') }))
+      .filter(({ mod }) => !tracked.has(mod))
+      .map(({ use, mod }) => `${file}: uses ${use}, whose go.mod Git does not track; a committed go.work may only use tracked modules. Fix: commit ${mod} or remove the use from ${file}`));
+}
 
 /**
  * A copy of the files that the gate reads: every tracked manifest and lock (npm workspaces and local packages included), each
@@ -112,6 +127,11 @@ const MUTATIONS: Mutation[] = [
 
 /** Applies each mutation that the repository root has to a copy of its dependency files; the exit status of the command. */
 function run() {
+  const untracked = untrackedUses(repositoryRoot());
+  if (untracked.length) {
+    for (const finding of untracked) console.error(`[dependency-policy] ${finding}`);
+    return 1;
+  }
   const mutations = MUTATIONS.filter(mutation => !mutation.applies || mutation.applies(repositoryRoot()));
   const accepted: string[] = [];
   for (const mutation of mutations) {
