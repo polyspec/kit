@@ -782,7 +782,11 @@ does not declare is neither installed nor checked.
   consumers use by an entry of its `vulture_whitelist.py` (the format of `vulture --make-whitelist`) with its reason (S8);
   `[tool.vulture]` may only `exclude` generated code, each path with its reason. deadcode runs with `-test`, so the tests of a
   library are its roots and an exported function that no test reaches is a finding; deadcode exits 0 when it reports one, so
-  its runner fails on any output. knip names the node:test files of S3 as entries, since a repository runs them through make.
+  its runner fails on any output. knip reads no Makefile and no path that a script passes to spawn, so the files that make
+  runs are entries by the layout (K142): the node:test files of S3, the scripts of S9 under `scripts/` with the copies of
+  kit, and the programs of `benchmarks/`; `@polyspec/kit`, which the Makefile includes, is an ignored dependency. A
+  Makefile-run script passes and a file that nothing imports or runs still fails (a fixture). kit lints itself with the
+  same configuration, in CI and as an owner check of `scripts/kit`, `tests` and the lint configurations (K142).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says

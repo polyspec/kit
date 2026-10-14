@@ -26,7 +26,13 @@ const TESTS = "import assert from 'node:assert/strict';\nimport test, { describe
 // as in every polyspec repository: the base configuration turns ae-missing-release-tag off (K139).
 const GOOD: Record<string, string> = {
   '.gitignore': 'node_modules/\ndist/\nvar/\n',
-  'package.json': JSON.stringify({ name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } } }, null, 2),
+  // kit comes in through the include of its Makefile and its copies, which knip does not read (K142).
+  'package.json': JSON.stringify({ name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } }, devDependencies: { '@polyspec/kit': '0.0.42' } }, null, 2),
+  // make runs a script of S9, a copy of kit and a benchmark program, which nothing imports (K142).
+  'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n\nbuild:\n\tnode scripts/build.mts\n\tnode scripts/kit/bootstrap/bootstrap.mts\n\tnode benchmarks/run.mts\n',
+  'scripts/build.mts': "console.log('build');\n",
+  'scripts/kit/bootstrap/bootstrap.mts': "console.log('bootstrap');\n",
+  'benchmarks/run.mts': "console.log('run');\n",
   // The project covers the tests too, as in a consumer, so oxlint-tsgolint checks their types; the build emits only src.
   'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests'] }, null, 2),
   'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),

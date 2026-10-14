@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8f782f5393c892fd2b5d7ee52535bead3e20a9b7a7751edcbc82de2308ca23fe -->
+<!-- source-sha256: 811a7d3b6f35478917964382be5f20ebdcbc0e2b31a04a6bff42192a1c5c80b5 -->
 
 # 도구 목록
 
@@ -718,7 +718,11 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   `vulture_whitelist.py`(`vulture --make-whitelist` 형식) 항목과 그 이유로 유지합니다(S8). `[tool.vulture]`는 생성된 code만
   `exclude`할 수 있으며 각 경로에 이유를 답니다. deadcode는 `-test`로 실행하므로 library의 테스트가 root이고, 어떤 테스트도
   닿지 않는 exported function은 finding입니다. deadcode는 finding을 보고해도 0으로 끝나므로 runner는 출력이 있으면 실패합니다.
-  저장소는 node:test 파일을 make로 실행하므로 knip은 S3의 node:test 파일을 entry로 둡니다.
+  knip은 Makefile도, script가 spawn에 넘기는 경로도 읽지 않으므로 make가 실행하는 파일은 layout에 따라 entry입니다(K142):
+  S3의 node:test 파일, kit의 사본을 포함한 `scripts/` 아래 S9의 script, `benchmarks/`의 프로그램입니다. Makefile이 include하는
+  `@polyspec/kit`은 무시하는 dependency입니다. Makefile이 실행하는 script는 통과하고, 아무도 import하거나 실행하지 않는 파일은
+  여전히 실패합니다(fixture). kit은 같은 설정으로 자신을 lint하며, CI와 `scripts/kit`, `tests`, lint 설정의 owner check에서
+  실행합니다(K142).
 - **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로

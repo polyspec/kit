@@ -67,7 +67,7 @@ test('every declared tool at its declared version passes, offline, and the run p
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php 8.5.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run at the declared versions\n`);
   assert.equal(result.stderr, '');
-  assert.deepEqual(stubs.calls().map(line => line.split(' ')[0]).sort(), ['composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
+  assert.deepEqual(stubs.calls().map(line => line.split(' ')[0]!).sort(), ['composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
 });
 
 test('every tool that differs is named with the declaring file, the expected and the running version, and the fix', (t) => {

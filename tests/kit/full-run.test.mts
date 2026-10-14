@@ -15,9 +15,6 @@ import { tool } from './kit-tools.mts';
 
 const record = (work: string): FullRunRecord => JSON.parse(readFileSync(path.join(work, RECORD), 'utf8'));
 const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
-const start = (work: string) => {
-  for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
-};
 
 // Runs the guard with stub targets that pass unless they are named in `failing`; returns the exit status, the printed lines
 // and the targets that ran. A stub checks that the record names it as running while it runs.

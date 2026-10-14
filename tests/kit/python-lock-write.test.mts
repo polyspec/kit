@@ -3,7 +3,6 @@
 // --generate-hashes --format pylock.toml -o pylock.toml`, checks the written lock against the sources, and renames it into
 // place only when the check passes. The uv here is a stub that writes the lock text of STUB_LOCK, so no test reaches a network.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,7 +11,6 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { writePythonLock } from '../../scripts/kit/python-lock.mts';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 
 const HEX = 'a'.repeat(64);
 const ENTRY = { lock: 'app/pylock.toml', source: { requirements: 'app/requirements.txt', constraints: 'app/constraints.txt' } };

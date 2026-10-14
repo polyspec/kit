@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import * as release from '../../scripts/kit/release.mts';
-import { Stop, run } from '../../scripts/kit/process.mts';
+import { Stop } from '../../scripts/kit/process.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
@@ -219,7 +219,7 @@ test('install fails for a smoke command that does not exist', (t) => {
 
 test('install needs a consumers section', (t) => {
   const box = consumerSandbox(t);
-  edit(box.root, 'config/release.json', ({ consumers, ...config }) => config);
+  edit(box.root, 'config/release.json', ({ consumers: _consumers, ...config }) => config);
   // loadConfig refuses the configuration first (K109) and names the section that each package kind lacks.
   stop(() => install(box), /config\/release\.json: consumers\.npm is missing; the npm packages \[[^\]]+\] need a consumer project that installs them/);
 });
@@ -270,10 +270,10 @@ test('the real npm ci and composer install install the archives of a tag from th
   // The packages of the fixture without a registry dependency, so that nothing is downloaded.
   const box = releaseSandbox(t, {
     mutate(root: string) {
-      edit(root, 'packages/fixture-lib/package.json', ({ dependencies, ...manifest }) => manifest);
-      edit(root, 'packages/fixture-php/composer.json', ({ require, config, ...manifest }) => manifest);
+      edit(root, 'packages/fixture-lib/package.json', ({ dependencies: _dependencies, ...manifest }) => manifest);
+      edit(root, 'packages/fixture-php/composer.json', ({ require: _require, config: _config, ...manifest }) => manifest);
       // The wheel needs the Python of the machine, which this case does not run: the case covers npm and Composer only.
-      edit(root, 'config/release.json', ({ buildBackend, consumers: { wheel, ...consumers }, packages, manifests, ...config }) => ({
+      edit(root, 'config/release.json', ({ buildBackend: _buildBackend, consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
         ...config,
         consumers,
         packages: packages.filter((item: { kind: string }) => item.kind !== 'wheel'),

@@ -4,6 +4,7 @@
 // exited), and its result or error decides it. Each prints its start, a line while it is still running and its end with the
 // elapsed time.
 import { after, before } from 'node:test';
+import { inspect } from 'node:util';
 import { compactSeconds } from './time.mts';
 
 /** Where a hook is registered and how it reports. */
@@ -24,8 +25,9 @@ function hook(register: 'before' | 'after', kind: string, name: string, operatio
       await operation();
       write(`[${kind}] ${name}: finished in ${elapsed()}\n`);
     } catch (error) {
-      // Any value can be thrown; one without a message is printed itself.
-      write(`[${kind}] ${name}: failed after ${elapsed()}: ${(error as { message?: unknown } | null | undefined)?.message ?? error}\n`);
+      // Any value can be thrown; one without a text message is printed as util.inspect shows it (a text as it is).
+      const message = (error as { message?: unknown } | null | undefined)?.message;
+      write(`[${kind}] ${name}: failed after ${elapsed()}: ${typeof message === 'string' ? message : typeof error === 'string' ? error : inspect(error)}\n`);
       throw error;
     } finally {
       clearInterval(running);

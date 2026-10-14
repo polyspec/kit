@@ -76,21 +76,21 @@ test('the configuration is checked for the rules that the schema cannot express'
   };
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed');
   const original = readJson(box.root, 'config/release.json');
-  writeJson(box.root, 'config/release.json', (({ checks, ...rest }) => rest)(original));
+  writeJson(box.root, 'config/release.json', (({ checks: _checks, ...rest }) => rest)(original));
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed', 'the checks default to push-gate and ci-passed');
   writeJson(box.root, 'config/release.json', original);
   stop(load(c => ({ ...c, manifests: { ...c.manifests, 'package.json': 'tarball' } })), /manifests\.package\.json is "tarball", the allowed values are archive, version, git-tag/);
   writeJson(box.root, 'config/release.json', original);
   stop(load(c => ({ ...c, manifests: { ...c.manifests, 'README.md': 'version' } })), /manifests\.README\.md is not a package\.json, composer\.json, Cargo\.toml, pyproject\.toml, VERSION file/);
-  stop(load(c => ({ ...original, notReleased: { 'a/package.json': '' } })), /notReleased\.a\/package\.json needs a reason/);
-  stop(load(c => ({ ...original, notReleased: { 'package.json': 'private root' } })), /package\.json is in both manifests and notReleased/);
-  stop(load(c => ({ ...original, manifests: { ...original.manifests, 'packages/fixture-lib/package.json': 'version' } })), /the package fixture-lib needs manifests\.packages\/fixture-lib\/package\.json = "archive", found "version"/);
-  stop(load(c => ({ ...original, packages: original.packages.slice(1) })), /manifests\.packages\/fixture-lib\/package\.json is "archive" but no package of packages has that manifest/);
-  stop(load(c => ({ ...original, packages: [...original.packages, original.packages[0]] })), /the npm package fixture-lib is listed twice/);
-  stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
-  stop(load(c => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
-  stop(load(c => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
-  stop(load(c => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
+  stop(load(() => ({ ...original, notReleased: { 'a/package.json': '' } })), /notReleased\.a\/package\.json needs a reason/);
+  stop(load(() => ({ ...original, notReleased: { 'package.json': 'private root' } })), /package\.json is in both manifests and notReleased/);
+  stop(load(() => ({ ...original, manifests: { ...original.manifests, 'packages/fixture-lib/package.json': 'version' } })), /the package fixture-lib needs manifests\.packages\/fixture-lib\/package\.json = "archive", found "version"/);
+  stop(load(() => ({ ...original, packages: original.packages.slice(1) })), /manifests\.packages\/fixture-lib\/package\.json is "archive" but no package of packages has that manifest/);
+  stop(load(() => ({ ...original, packages: [...original.packages, original.packages[0]] })), /the npm package fixture-lib is listed twice/);
+  stop(load(() => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.kind === 'composer' ? { ...p, name: 'nodash' } : p)) })), /the composer package nodash is not a `vendor\/name`/);
+  stop(load(() => ({ ...original, packages: original.packages.map((p: release.ReleasePackage) => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
+  stop(load(() => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
+  stop(load(() => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
 });
@@ -187,7 +187,7 @@ test('a composer.json of an archive declares the version, any other may leave it
     edit(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
   } });
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  edit(box.root, 'packages/fixture-php/composer.json', ({ version, ...rest }) => rest);
+  edit(box.root, 'packages/fixture-php/composer.json', ({ version: _version, ...rest }) => rest);
   stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-php\/composer\.json: version none, the tag v0\.0\.1 is 0\.0\.1/);
 });
 
@@ -243,7 +243,7 @@ test('a section over the limit of GitHub becomes a link to the section, and a se
   const entry = (length: number) => `- ${'x'.repeat(length - 2)}`;
   const box = releaseSandbox(t, { changelog: `# Changelog\n\n<a id="release-001"></a>\n\n## 0.0.1\n\n${entry(release.NOTES_LIMIT - 1)}\n\n## 0.0.0\n\n- Old.\n` });
   const notes = release.releaseNotes(context(box), 'v0.0.1');
-  assert.equal([...notes].length, release.NOTES_LIMIT, 'the section and its newline are exactly at the limit');
+  assert.equal(notes.length, release.NOTES_LIMIT, 'the section and its newline are exactly at the limit');
   assert.ok(notes.startsWith('- xxx'));
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), `# Changelog\n\n<a id="release-001"></a>\n\n## 0.0.1\n\n${entry(release.NOTES_LIMIT)}\n\n## 0.0.0\n\n- Old.\n`);
   assert.equal(release.releaseNotes(context(box), 'v0.0.1'),

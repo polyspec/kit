@@ -14,7 +14,7 @@
 /** The package kinds that have a consumer project with a committed manifest and lock. */
 export const CONSUMER_KINDS: ('npm' | 'composer')[] = ['npm', 'composer'];
 /** The package kind of the wheels, whose consumer is a clean virtual environment with no committed lock. */
-export const WHEEL_KIND: 'wheel' = 'wheel';
+export const WHEEL_KIND = 'wheel' as const;
 /** The kind of the git-tag manifests with their file names. */
 export const GIT_TAG_KINDS: Record<string, string> = { rust: 'Cargo.toml' };
 

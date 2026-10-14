@@ -7,7 +7,7 @@ import { readJson, writeJson } from './release-sandbox.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
 
 export const REPOSITORY = 'https://example.com/polyspec/kit-fixture';
-export const GENERATOR = 'kit-fixture';
+const GENERATOR = 'kit-fixture';
 export const GENERATOR_WHEEL = 'kit_fixture-0.0.1-py3-none-any.whl';
 export const SIBLING = 'kit-fixture-validator';
 export const SIBLING_WHEEL = 'kit_fixture_validator-0.0.1-py3-none-any.whl';

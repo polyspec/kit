@@ -4,16 +4,25 @@
 // `readPylock` returns the lock version, the writer named by `created-by` (null when absent) and each package with its source:
 // `registry` (sdist and wheels, each with its sha256 or null), `archive` (one URL file), `vcs` (git with its requested revision
 // and commit), `directory` (a local path) or `none` (no source table). The gate judges the hashes, the commit and the sources.
+// PEP 751 makes each of these fields a string; a value of another type fails with the field and the package.
 import { isTable, readToml, type TomlTable, type TomlValue } from './toml.mts';
 
 /** The field `key` of `value`; undefined for a value that is not a table, as reading the property of such a value gives. */
 const field = (value: TomlValue | undefined, key: string): TomlValue | undefined => (isTable(value) ? value[key] : undefined);
 
+/** The string field `key` of `value`, null when it is absent; throws for a value of another type. */
+function stringField(value: TomlValue | undefined, key: string, where: string): string | null {
+  const item = field(value, key);
+  if (item === undefined) return null;
+  if (typeof item !== 'string') throw new Error(`${where}: ${key} is ${JSON.stringify(item)}, PEP 751 makes it a string`);
+  return item;
+}
+
 /** The vcs table of a package as the lock holds it; a field the lock lacks is null. */
-export type PylockVcs = { type: TomlValue | null; url: TomlValue | null; requestedRevision: TomlValue | null; commitId: TomlValue | null; subdirectory: TomlValue | null };
+export type PylockVcs = { type: string | null; url: string | null; requestedRevision: string | null; commitId: string | null; subdirectory: string | null };
 
 /** A file of a package as the lock holds it; a field the lock lacks is null. */
-export type PylockFile = { url: TomlValue | null; path: TomlValue | null; sha256: TomlValue | null };
+export type PylockFile = { url: string | null; path: string | null; sha256: string | null };
 
 /** The source of a package: a vcs table, or the archive file, or the registry files, or none. */
 export type PylockSource<File> =
@@ -31,12 +40,13 @@ export type Pylock = { lockVersion: string; createdBy: string | null; packages: 
 function sourceOf(entry: TomlTable, lock: string, name: string): PylockSource<TomlValue> {
   if (entry.vcs !== undefined) {
     const vcs = entry.vcs;
+    const where = `${lock}: the vcs of ${name}`;
     return { kind: 'vcs', vcs: {
-      type: field(vcs, 'type') ?? null,
-      url: field(vcs, 'url') ?? null,
-      requestedRevision: field(vcs, 'requested-revision') ?? null,
-      commitId: field(vcs, 'commit-id') ?? null,
-      subdirectory: field(vcs, 'subdirectory') ?? null,
+      type: stringField(vcs, 'type', where),
+      url: stringField(vcs, 'url', where),
+      requestedRevision: stringField(vcs, 'requested-revision', where),
+      commitId: stringField(vcs, 'commit-id', where),
+      subdirectory: stringField(vcs, 'subdirectory', where),
     }, files: [] };
   }
   if (entry.directory !== undefined) return { kind: 'directory', vcs: null, files: [] };
@@ -60,13 +70,17 @@ export function readPylock(text: string, lock: string): Pylock {
   const packages = listed.map((entry) => {
     // A value that is not a table has no name, so it failed the same check.
     if (!isTable(entry) || typeof entry.name !== 'string' || typeof entry.version !== 'string') throw new Error(`${lock}: a package has no name or no version`);
-    const source = sourceOf(entry, lock, entry.name);
+    const name = entry.name;
+    const source = sourceOf(entry, lock, name);
     return {
-      name: entry.name,
+      name,
       version: entry.version,
       kind: source.kind,
       vcs: source.vcs,
-      files: source.files.map(file => ({ url: field(file, 'url') ?? null, path: field(file, 'path') ?? null, sha256: field(field(file, 'hashes'), 'sha256') ?? null })),
+      files: source.files.map((file) => {
+        const where = `${lock}: a file of ${name}`;
+        return { url: stringField(file, 'url', where), path: stringField(file, 'path', where), sha256: stringField(field(file, 'hashes'), 'sha256', where) };
+      }),
     } as PylockPackage; // kind, vcs and files come from one source, so they keep its variant through the map of files.
   });
   return { lockVersion: data['lock-version'], createdBy, packages };

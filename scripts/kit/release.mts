@@ -244,7 +244,7 @@ export function goTagProblems(ctx: Context, tag: string): string[] {
   if (directory !== null) return [];
   const commit = taggedCommit(ctx, tag);
   const problems: string[] = [];
-  for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort()) {
+  for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (module === '.') continue;
     const goTag = `${module}/v${version}`;
     const found = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${goTag}^{commit}`], at(ctx));
@@ -353,7 +353,7 @@ export function releaseNotes(ctx: Context, tag: string): string {
   const [, version] = parseTag(ctx.config, tag);
   const { changelog, repositoryUrl } = ctx.config;
   const section = changelogSection(ctx.root, changelog, version);
-  if ([...section].length <= NOTES_LIMIT) return section;
+  if (section.length <= NOTES_LIMIT) return section;
   const tagPath = tag.split('/').map(encodeURIComponent).join('/');
   return `The changes of ${version} are listed in [${path.posix.basename(changelog)}](${repositoryUrl}/blob/${tagPath}/${changelog}#${changelogAnchor(ctx.root, changelog, version)}).\n`;
 }
@@ -457,7 +457,7 @@ export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: 
   }
   if (kind === 'npm' && 'overrides' in manifest) problems.push(`overrides: ${JSON.stringify(manifest.overrides)}; a published package.json resolves only by name and version`);
   if (kind === 'composer') {
-    if (manifest.version !== version) problems.push(`version: ${manifest.version ?? 'none'}, not ${version}`);
+    if (manifest.version !== version) problems.push(`version: ${typeof manifest.version === 'string' ? manifest.version : (JSON.stringify(manifest.version) ?? 'none')}, not ${version}`);
     if ('repositories' in manifest) problems.push(`repositories: ${JSON.stringify(manifest.repositories)}; a release zip declares none`);
   }
   return problems;

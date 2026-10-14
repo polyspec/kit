@@ -17,6 +17,11 @@ test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)
   assert.ok(check > runs.indexOf('make install-packages'), 'a step runs make duplication-check after npm ci');
 });
 
+test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its consumers, after npm ci installed it (K142)', () => {
+  const lint = runs.indexOf('make lint-ts');
+  assert.ok(lint > runs.indexOf('make install-packages'), 'a step runs make lint-ts after npm ci');
+});
+
 test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of the runner image (K78, K127)', () => {
   const tools = runs.indexOf('make install-tools');
   const rust = runs.indexOf('rustup toolchain install');

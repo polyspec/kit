@@ -38,7 +38,7 @@ const wheelsOf = (directory: string, name: string, version: string) => (existsSy
  * listed. The digest of the file is checked again after the download, and a file that differs is removed. A wheel that already
  * has a listed digest is kept, so a second run changes nothing. Returns { installed, file }.
  */
-export function installBackend({ root, env, requirement, digests, source, print = () => {} }: { root: string; env: NodeJS.ProcessEnv; requirement: string; digests: unknown[]; source: string; print?: (text: string) => void }) {
+export function installBackend({ root, env, requirement, digests, source, print = () => {} }: { root: string; env: NodeJS.ProcessEnv; requirement: string; digests: string[]; source: string; print?: (text: string) => void }) {
   const python = toolCommand(root, 'python3');
   if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; declare python in mise.toml and run make install-tools`);
   const found = REQUIREMENT.exec(requirement);

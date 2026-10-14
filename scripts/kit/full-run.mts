@@ -94,7 +94,8 @@ export interface Decision {
 
 const notPassed = (record: DecidedRecord) => record.targets.filter(target => target.status !== 'passed').map(target => target.name);
 const describeKeys = (keys: Keys) => (Object.keys(keys).length === 0 ? 'no keys' : Object.entries(keys).map(([name, value]) => `${name}=${value}`).join(', '));
-const sameKeys = (a: Keys | undefined, b: Keys | undefined) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
+const sortedEntries = (keys: Keys | undefined) => Object.entries(keys ?? {}).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
+const sameKeys = (a: Keys | undefined, b: Keys | undefined) => JSON.stringify(sortedEntries(a)) === JSON.stringify(sortedEntries(b));
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 /**

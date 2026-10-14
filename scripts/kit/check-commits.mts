@@ -136,7 +136,7 @@ export function indexItemFindings(root: string, config: CommitRules) {
 /** The message of a commit-msg file: without the comment lines that Git removes; null for a merge commit. */
 export function fileMessage(text: string) {
   const message = text.split('\n').filter(line => !line.startsWith('#')).join('\n').replace(/^\n+/, '');
-  return /^Merge /.test(message) ? null : message;
+  return message.startsWith('Merge ') ? null : message;
 }
 
 /**
