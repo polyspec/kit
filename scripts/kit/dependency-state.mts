@@ -4,7 +4,8 @@
 //
 // Scope: a registry dependency is an entry of `dependencies` or `devDependencies` of the root package.json or of a
 // workspace package.json, of `require` or `require-dev` of a Composer manifest that config/dependency-policy.json
-// names (`composerPlatforms`), or a requirement of a Python manifest of the policy (`pythonManifests`: `build-system.requires`
+// names (`composerPlatforms`) and of `require` of each package that a path repository of such a manifest provides (a
+// published package of a Composer monorepo, at the version of the root lock; K168), or a requirement of a Python manifest of the policy (`pythonManifests`: `build-system.requires`
 // and each extra of `project.optional-dependencies`, each pinned exactly as `name==version`), that a registry resolves. Peer dependencies are not read. A URL dependency names its source itself, a package
 // of this repository (an npm workspace or a Composer path repository) is built from the checkout, a polyspec package
 // taken from a GitHub tag (`taggedNpmPackages` of the policy, linked with `file:`) is the release of that tag,
@@ -337,6 +338,16 @@ export function readState(root: string, policy: DependencyPolicy) {
           continue;
         }
         dependencies.push({ ecosystem: 'composer', manifest: manifestPath, package: name, kind, spec, version: entry?.version ?? null, lock: lockPath });
+      }
+    }
+    // The packages that a path repository of the root provides, which the lock records as path dist entries, are published
+    // with their own requirements: those are first-party requirements of the root too, at the versions of the root lock
+    // (K168). The package commits no lock; a requirement that is itself a path package is a package of this repository.
+    for (const item of [...locked.values()].filter(entry => entry.dist?.type === 'path')) {
+      const packageManifest = path.posix.join(path.posix.dirname(manifestPath), present(item.dist?.url, `the path of ${item.name}`), 'composer.json');
+      for (const [name, spec] of Object.entries(readComposerManifest(root, packageManifest).require ?? {})) {
+        if (PLATFORM_REQUIREMENT.test(name) || locked.get(name)?.dist?.type === 'path') continue;
+        dependencies.push({ ecosystem: 'composer', manifest: packageManifest, package: name, kind: 'require', spec, version: locked.get(name)?.version ?? null, lock: lockPath });
       }
     }
   }
