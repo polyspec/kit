@@ -103,7 +103,9 @@ A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` se
 `package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. The release commit also carries
 the consumer locks: `make release-assets TAG=vX.Y.Z`, then `make release-consumer-lock TAG=vX.Y.Z` (ONLINE), and the manifests
 and locks that it writes in `tests/release-consumer/*/` are committed with the version change, or in a following commit before
-the tag (docs/tool-inventory.md, Consumer install of the release archives, steps 1 and 2). The proof of the draft installs the
+the tag (docs/tool-inventory.md, Consumer install of the release archives, steps 1 and 2). The version change rewrites
+`package-lock.json`, so the release commit also carries `config/dependency-review.json` that `make dependency-review RECORD=1`
+(ONLINE) writes for it; CI runs `make dependency-policy-check`, which fails a lock that differs from the review (K169). The proof of the draft installs the
 archives from those locks, so a tag without them fails. The commit lands on `main` and its CI concludes success; the tag goes
 only on a commit whose CI concluded success and that holds those locks. (2) The annotated tag `vX.Y.Z` of that commit is pushed. (3) The push runs `.github/workflows/release.yml`,
 which is the vendored `workflows/release.yml` itself: it builds the npm archive of `@polyspec/kit` that `config/release.json`
