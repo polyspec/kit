@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/knip-entries.json",
-  "description": "What the repository adds to knip.json, the copy of kit: the entry files that make runs outside its layout entries, the system tools of the repository that its scripts spawn, and its nested npm projects as knip workspaces, each with its reason. make lint-ts runs knip with knip.json and these additions (scripts/kit/lint-ts.mts).",
+  "description": "What the repository adds to knip.json, the copy of kit: the entry files that make runs outside its layout entries, the system tools of the repository that its scripts spawn, the root dependencies that only make runs, and its nested npm projects as knip workspaces, each with its reason. make lint-ts runs knip with knip.json and these additions (scripts/kit/lint-ts.mts).",
   "type": "object",
   "required": ["schema"],
-  "anyOf": [{ "properties": { "entries": true }, "required": ["entries"] }, { "properties": { "binaries": true }, "required": ["binaries"] }, { "properties": { "workspaces": true }, "required": ["workspaces"] }],
+  "anyOf": [{ "properties": { "entries": true }, "required": ["entries"] }, { "properties": { "binaries": true }, "required": ["binaries"] }, { "properties": { "ignoreDependencies": true }, "required": ["ignoreDependencies"] }, { "properties": { "workspaces": true }, "required": ["workspaces"] }],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -21,6 +21,13 @@
       "type": "object",
       "minProperties": 1,
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "ignoreDependencies": {
+      "description": "Each dependency of the root package.json that no JavaScript imports and only make runs, such as a compiler that a recipe of the Makefile runs (knip does not read the Makefile), with the reason; knip ignores it after the ignoreDependencies of knip.json.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*$" },
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
     "workspaces": {

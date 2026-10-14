@@ -8,11 +8,15 @@
 - The copied `.oxlintrc.json` forbids the escape hatches from the types of TypeScript as errors: `typescript/ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description after `@ts-expect-error` (`// @ts-expect-error: <why>`), and `typescript/no-explicit-any` and `typescript/no-unnecessary-type-assertion` fail an explicit `any` and a type assertion that changes nothing. A repository had silenced tsc with `@ts-expect-error` on code that type-checks and with casts. `readJson` of the copy `scripts/kit/bootstrap/files.mts` returns `unknown` instead of `any` (K155).
 - In a consumer, `make lint-ts` leaves the copies of kit out of oxlint: one `--ignore-pattern` for each file of `kit.copies` of the installed package, the record that make kit-sync writes and make kit-check compares byte for byte. kit lints its copies with its own tsconfig and the types of node; in a consumer oxlint-tsgolint checked them outside the project, where every `node:*` import is `any`. An installed kit that is not the version of package-lock.json fails make lint-ts with the finding of make kit-check. The copies `scripts/kit/bootstrap/files.mts` and `digest.mts` take bytes as `NodeJS.ArrayBufferView` again, which K150 had narrowed only for that lint (K157).
 - `make dependency-policy-mutation-check` fails with one finding when a `go.work` uses a module whose go.mod Git does not track, such as an ignored clone of a sibling repository: it names go.work and the `use` path and states that a committed go.work may only use tracked modules. The copy of the check holds the tracked files only, so it had thrown ENOENT with a stack while reading that go.mod (K160).
+- `config/knip-entries.json` declares a dependency of the root that no JavaScript imports and only make runs, such as the template compiler that hyper installs by its URL for its recipes, in `ignoreDependencies` (`{ "<package>": "<reason>" }`), and make lint-ts adds it after the `ignoreDependencies` of knip.json in `var/lint-ts/knip.json`: knip does not read a Makefile, so it reported the dependency unused (K159).
 
 ### Consumer migration
 
 Run:
 - `make kit-sync`, which writes `.oxlintrc.json` and the copies of `scripts/kit/bootstrap` (K155, K157).
+
+Add:
+- `ignoreDependencies` in `config/knip-entries.json` for each root dependency that only make runs, such as `@polyspec/template-compiler` (hyper), with its reason (K159).
 
 Fix:
 - Each new finding of `make lint-ts` in the code, never with a disable: a `@ts-ignore` or `@ts-nocheck` and a cast or `any` that silences tsc go, and the code is typed so that tsc passes; a `@ts-expect-error` that a test needs states the error it expects (K155).

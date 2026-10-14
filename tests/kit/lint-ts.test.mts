@@ -124,3 +124,15 @@ test('knip reads each nested project of config/knip-entries.json as a workspace 
   }
 });
 
+test('knip ignores the root dependencies of config/knip-entries.json after those of knip.json (K159)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint'] }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@polyspec/template-compiler': 'only the recipes of the Makefile run it' } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint', '@polyspec/template-compiler'] });
+  for (const ignoreDependencies of [{}, { 'Not A Package': 'not an npm name' }, { 'left-pad': '' }]) {
+    writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies }));
+    assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignoreDependencies/, JSON.stringify(ignoreDependencies));
+  }
+});
