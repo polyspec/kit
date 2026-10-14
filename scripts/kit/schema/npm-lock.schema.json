@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "package-lock.json",
+  "description": "The fields of an npm lock (lockfileVersion 3) that the tools of kit read (K158): each entry of packages by its path.",
+  "type": "object",
+  "properties": {
+    "packages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "resolved": { "type": "string" },
+          "integrity": { "type": "string" },
+          "link": { "type": "boolean" },
+          "dependencies": { "$ref": "#/$defs/specs" },
+          "optionalDependencies": { "$ref": "#/$defs/specs" },
+          "devDependencies": { "$ref": "#/$defs/specs" },
+          "peerDependencies": { "$ref": "#/$defs/specs" },
+          "peerDependenciesMeta": { "type": "object", "additionalProperties": { "type": "object", "properties": { "optional": { "type": "boolean" } } } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "specs": { "type": "object", "additionalProperties": { "type": "string" } }
+  }
+}

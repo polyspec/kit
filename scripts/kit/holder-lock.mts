@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import type { Outcome, RunPlace } from './process.mts';
+import { ConfigError, parseJson } from './schema-validate.mts';
 
 const SCRIPT = fileURLToPath(import.meta.url);
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
@@ -162,18 +163,12 @@ export class HolderLockRefused extends Error {
 export const readLockRecord = (lock: string): LockRecord => parseLockRecord(lock, readFileSync(lock, 'utf8'));
 
 function parseLockRecord(lock: string, text: string): LockRecord {
-  let record: unknown;
   try {
-    record = JSON.parse(text);
-  } catch {
-    throw new Error(`${lock} holds no lock record: ${JSON.stringify(text)}`);
+    return parseJson<LockRecord>(text, 'holder-lock.schema.json', lock);
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    throw new Error(`${lock} holds no lock record: ${JSON.stringify(text.trim())}: ${error.message}`);
   }
-  for (const [field, type] of [['checkout', 'string'], ['pid', 'number'], ['processStart', 'string'], ['acquired', 'string'], ['command', 'string'], ['token', 'string']] as const) {
-    // A value that is not an object has none of the fields; null and undefined end at `?.` as before.
-    if (typeof (record as Record<string, unknown> | null | undefined)?.[field] !== type) throw new Error(`${lock} has no ${field} of type ${type}: ${text.trim()}`);
-  }
-  // Validated by the loop above: each field of LockRecord has its type.
-  return record as LockRecord;
 }
 
 function refusal(lock: string, record: LockRecord): HolderLockRefused {

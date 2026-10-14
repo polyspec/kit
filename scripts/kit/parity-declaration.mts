@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors } from './markdown.mts';
-import { readConfig } from './schema-validate.mts';
+import { ConfigError, readConfigFindings } from './schema-validate.mts';
 
 export const DECLARATION = 'config/parity.json';
 
@@ -397,15 +397,15 @@ function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: stri
  */
 export function readDeclaration(root: string, files: ReadonlySet<string>): { errors: Finding[]; model?: ParityModel } {
   if (!existsSync(path.join(root, DECLARATION))) return { errors: [finding('declaration', `${DECLARATION} does not exist; declare the implementations and units there (scripts/kit/schema/parity.schema.json)`)] };
-  let read: ReturnType<typeof readConfig>;
+  let read: ReturnType<typeof readConfigFindings<ParityConfig>>;
   try {
-    read = readConfig(root, DECLARATION, 'parity.schema.json');
+    read = readConfigFindings<ParityConfig>(root, DECLARATION, 'parity.schema.json');
   } catch (error) {
-    return { errors: [finding('declaration', `${DECLARATION} is no JSON: ${(error as Error).message}`, { place: DECLARATION })] };
+    if (!(error instanceof ConfigError)) throw error;
+    return { errors: [finding('declaration', error.message, { place: DECLARATION })] };
   }
-  if (read.errors.length) return { errors: read.errors.map((message: string) => finding('declaration', message, { place: DECLARATION })) };
-  // Validated against parity.schema.json above.
-  const config = read.value as ParityConfig;
+  if (read.errors) return { errors: read.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
+  const config = read.value;
   const errors: Finding[] = [];
   const fail = (message: string) => errors.push(finding('declaration', message, { place: DECLARATION }));
   const implementations = new Map<string, ParityImplementation>();

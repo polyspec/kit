@@ -110,7 +110,7 @@ const GH = `${PRELUDE}
 if (mode === 'fail') finish(1, 'gh stub: api failed');
 const listed = args.find(arg => arg.startsWith('repos/') && arg.endsWith('/releases'));
 // The release of the tag, a draft included, as the API returns it by its id: its assets carry the ids that the download names.
-const own = () => ({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url, digest: state.release.published?.[name]?.digest })) });
+const own = () => ({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url ?? 'https://example.com/polyspec/kit-fixture/releases/download/' + state.release.tag + '/' + name, digest: state.release.published?.[name]?.digest ?? null })) });
 if (args[0] === 'api' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/\\d+$/.test(arg))) {
   const id = Number(args.find(arg => /\\/releases\\/\\d+$/.test(arg)).split('/').pop());
   if (id !== 7) finish(1, 'gh: Not Found (HTTP 404)');
@@ -119,7 +119,7 @@ if (args[0] === 'api' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/\
 } else if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
   const other = (state.dependencies ?? []).find(item => listed === 'repos/' + item.repo + '/releases');
   // The release of the tag, a draft included: its assets carry the ids that the download names.
-  if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file }] }));
+  if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file, url: 'https://example.com/' + other.repo + '/releases/download/' + other.tag + '/' + other.file, digest: null }] }));
   // A draft that was just created may be missing from the list for a while (listed: false).
   else if (state.release.listed !== false) console.log(JSON.stringify(own()));
   finish();

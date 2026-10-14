@@ -414,7 +414,7 @@ test('coverage names each package file that no list classifies, each stale entry
   const box = releaseSandbox(t);
   const extra = ['extra/package.json', 'extra/composer.json', 'extra/Cargo.toml', 'extra/pyproject.toml', 'extra/go.mod', 'extra/VERSION'];
   mkdirSync(path.join(box.root, 'extra'));
-  for (const file of extra) writeFileSync(path.join(box.root, file), '1\n');
+  for (const file of extra) writeFileSync(path.join(box.root, file), file.endsWith('.json') ? '{}\n' : '1\n');
   const problems = release.coverage(context(box));
   for (const file of extra) {
     assert.ok(problems.includes(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`), problems.join('\n'));

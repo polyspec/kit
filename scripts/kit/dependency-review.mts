@@ -25,11 +25,12 @@ import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, ad
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
-import { ConfigError } from './schema-validate.mts';
+import { ConfigError, parseJson } from './schema-validate.mts';
+import { readComposerLock } from './manifests.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
-import { readJson, writeJson } from './bootstrap/files.mts';
+import { writeJson } from './bootstrap/files.mts';
 import { isPrerelease, older, stableDescending } from './version.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
@@ -105,7 +106,8 @@ interface CargoAudit {
   warnings?: Record<string, { package: CargoPackage; advisory?: { id: string; title: string; url?: string | null } | null }[]>;
 }
 interface ComposerAdvisory { advisoryId: string | number; severity?: string | null; title: string; link: string }
-interface ComposerAudit { advisories?: Record<string, ComposerAdvisory[] | Record<string, ComposerAdvisory>>; abandoned?: Record<string, string | null> }
+// PHP encodes an empty map as an empty list.
+interface ComposerAudit { advisories?: Record<string, ComposerAdvisory[] | Record<string, ComposerAdvisory>> | []; abandoned?: Record<string, string | null> | [] }
 
 function run(command: string, args: string[], cwd: string, statuses?: number[]): Ran {
   try {
@@ -116,24 +118,24 @@ function run(command: string, args: string[], cwd: string, statuses?: number[]):
   }
 }
 
-// The JSON that `command` prints, or { error }. An empty output is an error, unless `empty` is the documented answer of the
-// command that prints nothing.
-function query<T>(command: string, args: string[], cwd: string, statuses?: number[], empty?: T): Answer<T> {
+// The JSON that `command` prints as T, the type that the schema file `schema` describes, or { error }. An empty output is an
+// error, unless `empty` is the documented answer of the command that prints nothing.
+function query<T>(schema: string, command: string, args: string[], cwd: string, statuses?: number[], empty?: T): Answer<T> {
   const result = run(command, args, cwd, statuses);
   if (result.error) return result;
   // A result without an error message has stdout.
   if (!result.stdout!.trim()) return empty === undefined ? { error: `${command} ${args.join(' ')} printed no JSON: the output is empty` } : { value: empty };
   try {
-    return { value: JSON.parse(result.stdout!) };
+    return { value: parseJson<T>(result.stdout!, schema, `${command} ${args.join(' ')}`) };
   } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return { error: `${command} ${args.join(' ')} printed no JSON: ${error.message}` };
+    if (!(error instanceof ConfigError)) throw error;
+    return { error: error.message };
   }
 }
 
 /** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
 function npmLatest(root: string, name: string): Latest {
-  const answer = query<NpmView | NpmView[]>('npm', ['view', name, 'dist-tags', 'versions', '--json'], root);
+  const answer = query<NpmView | NpmView[]>('npm-view.schema.json', 'npm', ['view', name, 'dist-tags', 'versions', '--json'], root);
   if (answer.error) return answer;
   // A result without an error message has its value.
   const value = answer.value!;
@@ -199,7 +201,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     }
     if (dependency.ecosystem === 'go') {
       const directory = path.posix.dirname(dependency.manifest);
-      const answer = query<GoVersions>('go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
+      const answer = query<GoVersions>('go-versions.schema.json', 'go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
       if (answer.error) {
         latest.set(key, { error: answer.error });
         continue;
@@ -210,7 +212,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
       continue;
     }
     if (dependency.ecosystem === 'pypi') {
-      const answer = query<PypiProject>('curl', ['-fsSL', `https://pypi.org/pypi/${dependency.package}/json`], root);
+      const answer = query<PypiProject>('pypi-project.schema.json', 'curl', ['-fsSL', `https://pypi.org/pypi/${dependency.package}/json`], root);
       if (answer.error) {
         latest.set(key, { error: answer.error });
         continue;
@@ -223,7 +225,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     const directory = path.posix.dirname(dependency.manifest);
     // composer outdated reports the latest stable release of each direct requirement; composer audit reports an
     // abandoned package.
-    if (!composer.has(directory)) composer.set(directory, query('composer', ['outdated', '--direct', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
+    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--direct', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
     // The line above sets the directory.
     const answer = composer.get(directory)!;
     if (answer.error) {
@@ -257,7 +259,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'npm')) {
     // readState holds the lock of each npm lock.
     const npmVersions = state.npmLocks.get(lock)!.packages ?? {};
-    const npm = query<NpmAudit>('npm', ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
+    const npm = query<NpmAudit>('npm-audit.schema.json', 'npm', ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
     if (npm.error) result.set(lock, { error: npm.error });
     else {
       const list: Advisory[] = [];
@@ -278,7 +280,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     const command = toolCommand(root, MISE_TOOLS.cargoAudit.command);
     const args: string[] = ['audit', '--db', path.join(root, 'var', 'tools', 'rustsec-advisory-db'), ...(fetched ? ['--no-fetch'] : []), '--file', path.join(root, lock), '--json'];
     // cargo-audit exits with 1 when it finds a vulnerability.
-    const answer: Answer<CargoAudit> = existsSync(command) ? query(command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.cargoAudit.key} in mise.toml and run make install-tools` };
+    const answer: Answer<CargoAudit> = existsSync(command) ? query<CargoAudit>('cargo-audit.schema.json', command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.cargoAudit.key} in mise.toml and run make install-tools` };
     fetched ||= !answer.error;
     if (answer.error) {
       result.set(lock, { error: answer.error });
@@ -304,7 +306,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     let failure: string | null = null;
     // readState holds each Python lock of the locks in pythonLocks.
     for (const item of state.pythonLocks.find(entry => entry.lock === lock)!.packages.filter(entry => entry.kind === 'registry')) {
-      const answer = query<PypiRelease>('curl', ['-fsSL', `https://pypi.org/pypi/${item.name}/${item.version}/json`], root);
+      const answer = query<PypiRelease>('pypi-release.schema.json', 'curl', ['-fsSL', `https://pypi.org/pypi/${item.name}/${item.version}/json`], root);
       if (answer.error) {
         failure = answer.error;
         break;
@@ -340,15 +342,20 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       continue;
     }
     // A result without an error message has stdout.
-    result.set(lock, { advisories: goAdvisories(JSON.parse(answer.stdout!)) });
+    try {
+      result.set(lock, { advisories: goAdvisories(parseJson<GovulncheckSarif>(answer.stdout!, 'govulncheck-sarif.schema.json', `${command} -format sarif`)) });
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      result.set(lock, { error: error.message });
+    }
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
     const directory = path.posix.dirname(lock);
-    const lockData = readJson(root, lock) as Partial<Record<'packages' | 'packages-dev', { name: string; version: string }[]>>;
+    const lockData = readComposerLock(root, lock);
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
     // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.
-    const answer = query<ComposerAudit>('composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {});
+    const answer = query<ComposerAudit>('composer-audit.schema.json', 'composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {});
     if (answer.error) {
       result.set(lock, { error: answer.error });
       continue;

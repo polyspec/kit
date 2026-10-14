@@ -13,6 +13,7 @@ import path from 'node:path';
 import { COPY_DIRECTORY, installedKit, INSTALLED, PACKAGE, strayCopies } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
+import { readNpmManifest } from './manifests.mts';
 
 const USAGE = 'Usage: node scripts/kit/kit-sync.mts';
 
@@ -48,7 +49,7 @@ if (isMain(import.meta.url)) {
     const changes = sync(repositoryRoot());
     for (const line of changes) console.log(`[kit-sync] ${line}`);
     // sync returned, so the installed package is the version that package-lock.json resolves.
-    const version = JSON.parse(readFileSync(path.join(repositoryRoot(), INSTALLED, 'package.json'), 'utf8')).version;
+    const { version } = readNpmManifest(repositoryRoot(), `${INSTALLED}/package.json`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${PACKAGE} ${version}` : `[kit-sync] unchanged: ${PACKAGE} ${version}`);
   } catch (error) {
     // The installed package, the copies and the writes fail with an Error.

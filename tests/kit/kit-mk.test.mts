@@ -3,7 +3,7 @@
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -53,12 +53,16 @@ test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.ok(dry.stdout.split('\n').includes('node scripts/kit/run-tests.mts node -- tests/kit'), dry.stdout);
 });
 
-/** A kit checkout in a sandbox with the Makefile and tools of kit and `tests` as its tests/kit; a Git repository with everything committed. */
+/**
+ * A kit checkout in a sandbox with the Makefile, the tools and the packages of kit (the tools read JSON through ajv) and
+ * `tests` as its tests/kit; a Git repository with everything committed.
+ */
 function kitCheckout(t: TestContext, tests: Record<string, string>) {
   const root = tree(t, {});
   cpSync(path.join(ROOT, 'Makefile'), path.join(root, 'Makefile'));
   cpSync(path.join(ROOT, 'scripts/kit'), path.join(root, 'scripts/kit'), { recursive: true });
-  writeFileSync(path.join(root, '.gitignore'), 'var/\n');
+  symlinkSync(path.join(ROOT, 'node_modules'), path.join(root, 'node_modules'));
+  writeFileSync(path.join(root, '.gitignore'), 'var/\n/node_modules\n');
   put(root, tests);
   spawnSync('git', ['add', '-A'], { cwd: root });
   spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'kit'], { cwd: root });

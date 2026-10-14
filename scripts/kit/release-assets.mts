@@ -20,7 +20,7 @@ import { installOnce } from './bootstrap/install-tool.mts';
 import { gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, Stop } from './process.mts';
-import { readConfig } from './schema-validate.mts';
+import { readConfigFindings } from './schema-validate.mts';
 
 export const CONFIG = 'config/release-assets.json';
 /** The file in an unpacked directory that holds the sha256 of the archive it was extracted from. */
@@ -42,8 +42,8 @@ type Fetch = (url: string) => Promise<Response>;
  */
 export function releaseAssets(root: string): ReleaseAsset[] {
   if (!existsSync(path.join(root, CONFIG))) throw new Stop(`${CONFIG} is missing; it declares the release archives of other repositories that this repository uses`);
-  const { value, errors } = readConfig<{ assets: Entry[] }>(root, CONFIG, 'release-assets.schema.json');
-  if (errors.length) throw new Stop(errors.join('\n'));
+  const { value, errors } = readConfigFindings<{ assets: Entry[] }>(root, CONFIG, 'release-assets.schema.json');
+  if (errors) throw new Stop(errors.join('\n'));
   const problems: string[] = [];
   const names = new Set<string>();
   const destinations = new Set<string>();

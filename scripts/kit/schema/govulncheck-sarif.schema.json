@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "govulncheck -format sarif",
+  "description": "The SARIF report of govulncheck in the fields that the review reads: the rules of the vulnerabilities and the results with their code flows (scripts/kit/dependency-review.mts, K158).",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "object",
+            "properties": {
+              "driver": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "fullDescription": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "driver"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ruleId": {
+                  "type": "string"
+                },
+                "codeFlows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "threadFlows": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "locations": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "module": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "locations"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "threadFlows"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "ruleId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tool"
+        ]
+      }
+    }
+  },
+  "required": [
+    "runs"
+  ]
+}

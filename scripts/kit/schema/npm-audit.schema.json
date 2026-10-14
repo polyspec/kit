@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "npm audit --json",
+  "description": "The output of `npm audit --json --package-lock-only` in the fields that the review reads (scripts/kit/dependency-review.mts, K158).",
+  "type": "object",
+  "properties": {
+    "vulnerabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "type": "string"
+          },
+          "via": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "severity": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "number"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "severity",
+                    "url",
+                    "title"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "range"
+        ]
+      }
+    }
+  }
+}

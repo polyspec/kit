@@ -16,7 +16,7 @@
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
@@ -28,6 +28,7 @@ import type { Environment, Extractor, Finding, ParityModel } from './parity-decl
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
+import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
 type Extracted = { symbols: string[]; error?: never } | { error: string };
@@ -42,14 +43,12 @@ function listed(root: string, command: string, args: string[], env: Environment)
   const result = execute(command, args, { cwd: root, env });
   if (result.error) return { error: `${shown} could not start: ${result.error.message}` };
   if (result.status !== 0) return { error: `${shown} exited with ${result.status ?? result.signal}: ${tail(result.stderr)}` };
-  let value: unknown;
   try {
-    value = JSON.parse(result.stdout);
+    return { symbols: parseJson<string[]>(result.stdout, 'symbol-ids.schema.json', shown) };
   } catch (error) {
-    return { error: `${shown} printed no JSON: ${(error as Error).message}` };
+    if (!(error instanceof ConfigError)) throw error;
+    return { error: error.message };
   }
-  if (!Array.isArray(value) || value.some(id => typeof id !== 'string')) return { error: `${shown} printed no array of symbol ids` };
-  return { symbols: value };
 }
 
 /** The directory of the nearest package.json at or above the directory of `file`, or undefined. */
@@ -108,7 +107,7 @@ function apiModel(root: string, entry: string): Extracted {
 }
 
 // The part of rustdoc JSON (format 61) that the rust extractor reads: the crate root and each item by its id.
-type RustdocItem = { name: string | null; visibility: string; inner: Record<string, Record<string, unknown>> };
+type RustdocItem = { name: string | null; visibility: string | Record<string, unknown>; inner: Record<string, Record<string, unknown>> };
 type Rustdoc = { root: number; index: Record<string, RustdocItem> };
 
 /** The public ids of the crate of `doc`: each public item reachable from its root as <crate>::<path>, with its members. */
@@ -177,9 +176,10 @@ function rustdoc(root: string, entry: string, env: Environment): Extracted {
   const written = readdirSync(path.join(target, 'doc')).filter(file => file.endsWith('.json'));
   if (written.length !== 1) return { error: `${shown} wrote ${written.length} JSON files into ${path.relative(root, path.join(target, 'doc'))}, not one` };
   try {
-    return { symbols: rustdocSymbols(JSON.parse(readFileSync(path.join(target, 'doc', written[0]!), 'utf8')) as Rustdoc) };
+    return { symbols: rustdocSymbols(readJsonFile<Rustdoc>(path.join(target, 'doc', written[0]!), 'rustdoc.schema.json')) };
   } catch (error) {
-    return { error: `the rustdoc JSON of ${entry} cannot be read: ${(error as Error).message}` };
+    if (!(error instanceof ConfigError)) throw error;
+    return { error: `the rustdoc JSON of ${entry} cannot be read: ${error.message}` };
   }
 }
 

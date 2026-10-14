@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A release of gh api",
+  "description": "A release as the --jq filter of scripts/kit/github-release.mts lists it (K158): its id, tag, draft state and assets, each with its id, name, download URL and digest, null where GitHub has none.",
+  "type": "object",
+  "required": [
+    "id",
+    "tag_name",
+    "draft",
+    "assets"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "tag_name": {
+      "type": "string"
+    },
+    "draft": {
+      "type": "boolean"
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "url",
+          "digest"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

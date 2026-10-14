@@ -175,7 +175,7 @@ test('the summary of a report is written again from its record, also for a run t
   const printed: string[] = [];
   assert.equal(ciSummary({ root, directory: 'var/report/ci', print: (line: string) => printed.push(line) }), 0);
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /\*\*make ci-targets recorded no run\*\*/);
-  const record = { title: 'make ci-targets a b', tree: 't1', result: 'incomplete', started: 's', ended: null, environment: {}, targets: [{ name: 'a', status: 'passed', elapsedMs: 1000 }, { name: 'b', status: 'running' }] };
+  const record = { title: 'make ci-targets a b', tree: 't1', result: 'incomplete', started: 's', ended: null, environment: {}, targets: [{ name: 'a', status: 'passed', log: 'var/report/ci/a.log', elapsedMs: 1000 }, { name: 'b', status: 'running', log: 'var/report/ci/b.log' }] };
   put(root, { 'var/report/ci/record.json': JSON.stringify(record) });
   ciSummary({ root, directory: 'var/report/ci', env: { CI_STEPS: JSON.stringify({ install: { outcome: 'failure' }, lint: { outcome: 'success' }, cache: { outcome: 'skipped' } }) }, print: line => printed.push(line) });
   const text = readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8');
@@ -185,7 +185,7 @@ test('the summary of a report is written again from its record, also for a run t
   assert.doesNotMatch(text, /the setup step (lint|cache)/);
   put(root, { 'var/report/ci/record.json': '{broken' });
   assert.equal(ciSummary({ root, directory: 'var/report/ci', env: { CI_STEPS: 'nope' }, print: line => printed.push(line) }), 1, 'a CI_STEPS that is not JSON fails the summary');
-  assert.ok(printed.some(line => line.startsWith('[ci-targets] CI_STEPS is not JSON: ')));
+  assert.ok(printed.some(line => line.startsWith('[ci-targets] CI_STEPS is no JSON: ')));
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /recorded no run\*\* \(var\/report\/ci\/record\.json: /);
 });
 

@@ -18,12 +18,13 @@
 //           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
 //           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the method
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the method
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolCommand } from './mise-tools.mts';
 import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
+import { parseJson, readJsonFile } from './schema-validate.mts';
 
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
@@ -170,7 +171,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
       read: ({ stdout }, sink) => eachLine(stdout, (line) => {
         if (!line) return;
-        const { name, outcome } = JSON.parse(line) as { name: string; outcome: 'pass' | 'fail' | 'skip' };
+        const { name, outcome } = parseJson<{ name: string; outcome: 'pass' | 'fail' | 'skip' }>(line, 'parity-node-case.schema.json', 'the parity node reporter');
         sink[outcome]({ id: name, name });
       }),
       detail: stderrTail,
@@ -191,7 +192,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
         read: (output, sink) => {
           if (!existsSync(report)) return;
-          const { testResults } = JSON.parse(readFileSync(report, 'utf8')) as VitestReport;
+          const { testResults } = readJsonFile<VitestReport>(report, 'vitest-report.schema.json');
           rmSync(report);
           for (const result of testResults.flatMap(file => file.assertionResults)) {
             const name = [...result.ancestorTitles, result.title].join(' › ');

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Symbol ids",
+  "description": "The JSON array of public symbol ids that a symbol extractor of parity prints (scripts/kit/parity-symbols.mts, K158).",
+  "type": "array",
+  "items": {
+    "type": "string"
+  }
+}

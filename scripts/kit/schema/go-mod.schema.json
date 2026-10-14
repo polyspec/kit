@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "go mod edit -json",
+  "description": "A go.mod as `go mod edit -json` prints it, in the fields that scripts/kit/toolchain-files.mts reads (K158): the module path, the go and toolchain lines and the require and replace directives.",
+  "type": "object",
+  "required": [
+    "Module"
+  ],
+  "properties": {
+    "Module": {
+      "type": "object",
+      "required": [
+        "Path"
+      ],
+      "properties": {
+        "Path": {
+          "type": "string"
+        }
+      }
+    },
+    "Go": {
+      "type": "string"
+    },
+    "Toolchain": {
+      "type": "string"
+    },
+    "Require": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "Path",
+          "Version"
+        ],
+        "properties": {
+          "Path": {
+            "type": "string"
+          },
+          "Version": {
+            "type": "string"
+          },
+          "Indirect": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "Old",
+          "New"
+        ],
+        "properties": {
+          "Old": {
+            "type": "object",
+            "required": [
+              "Path"
+            ],
+            "properties": {
+              "Path": {
+                "type": "string"
+              },
+              "Version": {
+                "type": "string"
+              }
+            }
+          },
+          "New": {
+            "type": "object",
+            "required": [
+              "Path"
+            ],
+            "properties": {
+              "Path": {
+                "type": "string"
+              },
+              "Version": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

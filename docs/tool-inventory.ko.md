@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 47424f1e6ca21949927c2e74a15923031033b0c5dece74d081b9b8216407e010 -->
+<!-- source-sha256: 1c7adbdd51193ebf0a6df0897cabdd0b660b5b6ac895631378d425d6c4709655 -->
 
 # 도구 목록
 
@@ -637,7 +637,8 @@ finding 하나입니다.
 | `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review, check-dependency-policy |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `|`로 시작하는 모든 줄을 읽던 checklist의 `cells`와 status-table의 `rowCells`(K130: tree의 행과 list item), `changelog.sections`와 release notes의 `## ` 줄(K130: tree의 heading). fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
-| `schema-validate.mts` | `SCHEMAS`, `readConfig` | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드 | checklist, release |
+| `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: kit의 JSON 경계(K158). 도구가 읽는 모든 JSON(파일이나 command의 출력)은 strict Ajv2020이 `scripts/kit/schema`의 schema 파일로 검증하며, ajv의 type guard `ajv.compile<T>(schema)`가 받아들인 뒤에야 호출자가 정한 type `T`를 가집니다. schema를 어기는 data는 `SchemaError`를 던지고, 그 각 줄은 파일이나 command와 ajv error의 JSON Pointer를 밝힙니다. 그 줄을 finding으로 보고하는 check는 `readConfigFindings`로 읽습니다. 예시 호출자는 `scripts/kit/kit-check.mts`입니다: `lockedVersion`과 `installedKit`는 `manifests.mts`로 package-lock.json과 설치된 package.json을 읽고, `checkConfig`는 각 config/<name>.json의 error를 보고합니다. ajv가 설치되기 전에 도는 bootstrap은 `bootstrap/files.mts`의 `readJsonObject`로 JSON object를 읽고 각 field를 스스로 검사합니다 | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드, scripts/kit의 모든 `JSON.parse(...) as T`와 `readJson(...) as T`(K158) | JSON을 읽는 모든 도구 |
+| `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` | dependency-state, check-dependency-policy, toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | release installer와 check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern. K127 이후 그 도구는 mise가 설치하고, probe와 bootstrap만 읽음 | check-toolchain, bootstrap |

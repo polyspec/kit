@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rustdoc JSON",
+  "description": "The JSON of `cargo rustdoc -- --output-format json` in the fields that scripts/kit/parity-symbols.mts reads (K158): the id of the root item and each item of the index with its name, visibility (a string, or an object for a restricted one) and its inner item by kind.",
+  "type": "object",
+  "required": [
+    "root",
+    "index"
+  ],
+  "properties": {
+    "root": {
+      "type": "integer"
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "name",
+          "visibility",
+          "inner"
+        ],
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "inner": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}

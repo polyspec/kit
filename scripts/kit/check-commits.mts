@@ -25,8 +25,8 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
 import { loadConfig, readChecklist } from './checklist.mts';
-import { readJson } from './bootstrap/files.mts';
 import { git, gitResult } from './git.mts';
+import { readConfig } from './schema-validate.mts';
 
 export const CONFIG = 'config/commits.json';
 
@@ -50,7 +50,7 @@ export type Change = { before: (file: string) => string; after: (file: string) =
 /** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
 export function loadCommitRules(root: string): CommitRules {
   if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
-  return readJson(root, CONFIG) as CommitRules;
+  return readConfig<CommitRules>(root, CONFIG, 'commits.schema.json');
 }
 
 /** The findings of a commit `message` as `{ rule, message }`. */

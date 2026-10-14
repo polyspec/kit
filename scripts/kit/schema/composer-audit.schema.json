@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "composer audit --format=json",
+  "description": "The output of `composer audit --locked --format=json`: the advisories of each package, a list or an object of them, and the abandoned packages; an empty map is an empty list, as PHP encodes it (scripts/kit/dependency-review.mts, K158).",
+  "type": "object",
+  "properties": {
+    "advisories": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "advisoryId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "severity": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "advisoryId",
+                    "title",
+                    "link"
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "advisoryId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "severity": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "advisoryId",
+                    "title",
+                    "link"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "description": "PHP encodes an empty map as an empty list.",
+          "type": "array",
+          "maxItems": 0
+        }
+      ]
+    },
+    "abandoned": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        {
+          "description": "PHP encodes an empty map as an empty list.",
+          "type": "array",
+          "maxItems": 0
+        }
+      ]
+    }
+  }
+}

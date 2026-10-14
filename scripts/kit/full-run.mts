@@ -25,7 +25,8 @@ import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } fro
 import type { ProcessStart } from './holder-lock.mts';
 import { FAILURE_LINES, logPath, runLogged, startReport, TARGET_NAME, targetPassed } from './target-report.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { readJson, writeJson } from './bootstrap/files.mts';
+import { writeJson } from './bootstrap/files.mts';
+import { readJsonFile } from './schema-validate.mts';
 import { git } from './git.mts';
 import { now, seconds } from './time.mts';
 
@@ -150,7 +151,7 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
 
 function readRecord(root: string): FullRunRecord | null {
   const file = path.join(root, RECORD);
-  return existsSync(file) ? readJson(file) as FullRunRecord : null;
+  return existsSync(file) ? readJsonFile<FullRunRecord>(file, 'full-run-record.schema.json') : null;
 }
 
 // The record is written to a file of this process and renamed, so a reader never sees a partial record.

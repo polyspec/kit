@@ -299,7 +299,7 @@ test('a file that holds no record is an error and never a free lock', (t) => {
   writeFileSync(lock, 'not json');
   assert.throws(() => acquireHolderLock(lock), /resource\.lock holds no lock record: "not json"/);
   writeFileSync(lock, JSON.stringify({ pid: 1 }));
-  assert.throws(() => acquireHolderLock(lock), /has no checkout of type string/);
+  assert.throws(() => acquireHolderLock(lock), /resource\.lock holds no lock record: "\{\\"pid\\":1\}": .*resource\.lock: \/ must have required property 'checkout'/);
   assert.equal(existsSync(lock), true);
 });
 

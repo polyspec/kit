@@ -7,6 +7,7 @@
 // `name` is the name that the tool reports for the test. `todo` is a test that the tool expects to fail (a unittest expected
 // failure): it is no pass. `toProgress` turns a progress reporter into such a sink.
 import type { Progress } from './test-progress.mts';
+import { ConfigError, parseJson } from './schema-validate.mts';
 
 /** A test as a parser reports it: `id` is the name that the progress shows, `name` the name that the tool reports. */
 export type TestRef = { id: string; name: string };
@@ -40,9 +41,14 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
   // The test cases that each package started; a package that started none passed nothing.
   const started = new Map<string | undefined, number>();
   return line => {
-    // The line is not checked: GoEvent is the format of test2json, the writer of go test -json.
+    // GoEvent is the format of test2json, the writer of go test -json; a line that is no event is output of its own.
     let event: GoEvent;
-    try { event = JSON.parse(line); } catch { return sink.line(line); }
+    try {
+      event = parseJson<GoEvent>(line, 'go-test-event.schema.json', 'go test -json');
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      return sink.line(line);
+    }
     if (event.Action === 'build-output') {
       for (const text of String(event.Output ?? '').split('\n').filter(Boolean)) {
         sink.line(text);

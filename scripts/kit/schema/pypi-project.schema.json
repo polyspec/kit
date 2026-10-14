@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PyPI project JSON",
+  "description": "The JSON of https://pypi.org/pypi/<name>/json in the fields that the review reads (scripts/kit/dependency-review.mts, K158).",
+  "type": "object",
+  "properties": {
+    "releases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": true
+      }
+    }
+  }
+}

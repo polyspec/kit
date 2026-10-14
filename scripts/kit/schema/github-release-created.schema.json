@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A created release of gh api",
+  "description": "The release that `gh api --method POST repos/<repo>/releases --jq '{id, upload_url}'` created (scripts/kit/github-release.mts, K158): its id and the URI pattern of its uploads.",
+  "type": "object",
+  "required": ["id", "upload_url"],
+  "properties": {
+    "id": { "type": "integer" },
+    "upload_url": { "type": "string" }
+  }
+}

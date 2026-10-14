@@ -8,7 +8,7 @@ import path from 'node:path';
 import { installOnce } from './install-tool.mts';
 import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
 import { fileDigest } from './digest.mts';
-import { readJson } from './files.mts';
+import { readJsonObject } from './files.mts';
 
 const MARKER = '.sha512';
 
@@ -16,7 +16,8 @@ const MARKER = '.sha512';
 function installedRelease(prefix: string): string | undefined {
   const directory = path.join(prefix, 'node_modules/npm');
   if (!statSync(path.join(directory, 'package.json'), { throwIfNoEntry: false })) return undefined;
-  const { version } = readJson(directory, 'package.json') as { version: string };
+  const { version } = readJsonObject(directory, 'package.json');
+  if (typeof version !== 'string') throw new Error(`${path.join(directory, 'package.json')} records no version: ${JSON.stringify(version)}`);
   return statSync(path.join(directory, MARKER), { throwIfNoEntry: false }) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
 }
 

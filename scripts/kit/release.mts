@@ -43,11 +43,12 @@ import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type Gi
 import { consumerConfigProblems } from './release-consumer-config.mts';
 import { readCargoPackages, readGoMod } from './toolchain-files.mts';
 import { headings } from './markdown.mts';
-import { readJson, writeJson } from './bootstrap/files.mts';
+import { writeJson } from './bootstrap/files.mts';
+import { readNpmManifest, type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
-import { readConfig } from './schema-validate.mts';
+import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
@@ -67,8 +68,8 @@ const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
 // The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
 const ARCHIVE_FORMAT: Record<Exclude<PackageKind, 'wheel'>, [string, string]> = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
-const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
-const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'];
+const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
+const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'] as const;
 
 /** The kind of a package of config/release.json. */
 export type PackageKind = 'npm' | 'composer' | 'wheel';
@@ -136,8 +137,12 @@ export interface Context {
   repository?: string;
 }
 
-/** A parsed manifest: package.json or composer.json. */
-export type Manifest = Record<string, unknown>;
+/** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
+export type Manifest = { name?: string; version?: string; overrides?: Record<string, unknown>; repositories?: { type?: string; url?: string }[] } & Partial<Record<typeof NPM_DEPENDENCY_FIELDS[number] | typeof COMPOSER_DEPENDENCY_FIELDS[number], Record<string, string>>>;
+
+/** The manifest `text` of a package of `kind` (npm or composer), named `file` in an error, against its schema. */
+const parseManifest = (kind: 'npm' | 'composer', text: string, file: string): Manifest =>
+  (kind === 'npm' ? parseJson<NpmManifest>(text, 'npm-manifest.schema.json', file) : parseJson<ComposerManifest>(text, 'composer-manifest.schema.json', file));
 
 /** Whether a thrown value carries the code ENOENT of a missing file. */
 const missingFile = (value: unknown): value is NodeJS.ErrnoException => typeof value === 'object' && value !== null && 'code' in value && value.code === 'ENOENT';
@@ -161,8 +166,9 @@ export function stepFailure(failure: unknown): string {
 export function loadConfig(root: string): ReleaseConfig {
   const file = path.join(root, CONFIG);
   if (!existsSync(file)) throw new Stop(`${CONFIG}: the file is missing; a repository that releases declares its packages in it`);
-  const { value: config, errors: problems }: { value: SchemaReleaseConfig; errors: string[] } = readConfig(root, CONFIG, 'release.schema.json');
-  if (problems.length) throw new Stop(problems.join('; '));
+  const { value: config, errors } = readConfigFindings<SchemaReleaseConfig>(root, CONFIG, 'release.schema.json');
+  if (errors) throw new Stop(errors.join('; '));
+  const problems: string[] = [];
   const reason = (map: 'manifests' | 'notReleased' | 'goModules', where: string, check: (key: string, value: unknown) => string | null) => {
     for (const [key, value] of Object.entries(config[map])) {
       const found = check(key, value);
@@ -275,7 +281,7 @@ export function verify(ctx: Context, tag: string): { commit: string; checks: str
   ctx.log(`[release] ${tag}: reading the check runs of ${commit} in ${repository}`);
   const listed = run('gh', ['api', '--paginate', `repos/${repository}/commits/${commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json'], at(ctx));
   // Each line is the JSON array [id, name, status, conclusion] that the --jq filter writes.
-  const runs: [number, string, string, string | null][] = listed.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+  const runs = listed.split('\n').filter(line => line.trim()).map(line => parseJson<[number, string, string, string | null]>(line, 'github-check-run.schema.json', 'gh api check-runs'));
   for (const name of ctx.config.checks) {
     const named = runs.filter(entry => entry[1] === name);
     if (named.length === 0) {
@@ -298,7 +304,7 @@ export function verify(ctx: Context, tag: string): { commit: string; checks: str
 export function manifestVersion(file: string): string | null {
   const text = readFileSync(file, 'utf8');
   const name = path.basename(file);
-  if (name === 'package.json' || name === 'composer.json') return JSON.parse(text).version ?? null;
+  if (name === 'package.json' || name === 'composer.json') return parseManifest(name === 'package.json' ? 'npm' : 'composer', text, file).version ?? null;
   if (name === 'VERSION') return text.trim() || null;
   if (name === 'Cargo.toml') return cargoVersion(file, text);
   if (name !== 'pyproject.toml') throw new Stop(`${name}: not a manifest of a release`);
@@ -450,7 +456,7 @@ export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: 
   const fields = kind === 'npm' ? NPM_DEPENDENCY_FIELDS : COMPOSER_DEPENDENCY_FIELDS;
   for (const field of fields) {
     for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
-      const form = specForm(String(spec));
+      const form = specForm(spec);
       const sourced = form !== 'a range' && form !== 'another version';
       const ofScope = [...scopes].some(scope => name.startsWith(scope));
       if (sourced) problems.push(`${field} ${name}: ${spec} is ${form}, not a registry version`);
@@ -459,7 +465,7 @@ export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: 
   }
   if (kind === 'npm' && 'overrides' in manifest) problems.push(`overrides: ${JSON.stringify(manifest.overrides)}; a published package.json resolves only by name and version`);
   if (kind === 'composer') {
-    if (manifest.version !== version) problems.push(`version: ${typeof manifest.version === 'string' ? manifest.version : (JSON.stringify(manifest.version) ?? 'none')}, not ${version}`);
+    if (manifest.version !== version) problems.push(`version: ${manifest.version ?? 'none'}, not ${version}`);
     if ('repositories' in manifest) problems.push(`repositories: ${JSON.stringify(manifest.repositories)}; a release zip declares none`);
   }
   return problems;
@@ -495,7 +501,7 @@ export function assets(ctx: Context, tag: string): string[] {
     // loadConfig requires buildBackend when a package is a wheel; sources and locks hold the manifest and the lock of each package at its index.
     if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
     // sources holds the manifest of each package at its index.
-    const manifest = JSON.parse(sources[index]!);
+    const manifest = parseManifest(kind, sources[index]!, file);
     return [
       ...(manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`]),
       ...manifestProblems(config, kind, manifest, version).map(problem => `${file}: ${problem}`),
@@ -544,7 +550,7 @@ export function assets(ctx: Context, tag: string): string[] {
       const packed = packedManifest(ctx, path.join(next, names[index]!));
       return [
         ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
-        ...manifestProblems(config, kind, JSON.parse(packed), version).map(problem => `${names[index]}: ${problem}`),
+        ...manifestProblems(config, kind, parseManifest(kind, packed, `${names[index]!}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });
     if (failures.length) throw new Stop(`${tag}: the release assets do not install outside the repository: ${failures.join('; ')}`);
@@ -577,8 +583,7 @@ export const releaseRecord = (tag: string) => `var/release/${tag}.json`;
 export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, tag: string): GitHubRelease {
   const file = releaseRecord(tag);
   if (!existsSync(path.join(ctx.root, file))) throw new Stop(`${file} is missing; make release-publish writes it`);
-  const record = readJson(path.join(ctx.root, file)) as { id?: unknown };
-  if (typeof record.id !== 'number' || !Number.isInteger(record.id)) throw new Stop(`${file} records no release id: ${JSON.stringify(record)}; make release-publish writes it`);
+  const record = readConfig<{ id: number }>(ctx.root, file, 'release-record.schema.json');
   return releaseById({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, record.id);
 }
 
@@ -654,7 +659,7 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const NPM_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+const NPM_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
 /**
  * The problems of the file: dependencies of the package.json files `manifests`: the npm consumer project of `config`
@@ -670,12 +675,10 @@ function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: 
   const problems: string[] = [];
   for (const manifest of manifests) {
     const directory = path.posix.dirname(manifest);
-    const declared = readJson(path.join(root, manifest)) as Record<string, unknown>;
+    const declared = readNpmManifest(root, manifest);
     for (const field of NPM_FIELDS) {
-      const entries = declared[field];
-      if (typeof entries !== 'object' || entries === null) continue;
-      for (const [name, spec] of Object.entries(entries)) {
-        if (typeof spec !== 'string' || !spec.startsWith('file:')) continue;
+      for (const [name, spec] of Object.entries(declared[field] ?? {})) {
+        if (!spec.startsWith('file:')) continue;
         const shown = `${manifest}: ${field}.${name} is ${JSON.stringify(spec)}`;
         if (consumer && directory === consumer.directory) {
           if (!archives.get(name)?.test(spec)) problems.push(`${shown}; the npm consumer project of ${CONFIG} names the archive of a package of its smoke, file:<name>-npm-<version>.tgz`);

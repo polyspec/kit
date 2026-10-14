@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cargo metadata --no-deps",
+  "description": "The output of `cargo metadata --no-deps --format-version 1` in the fields that scripts/kit/toolchain-files.mts reads (K158): each package of the workspace with its manifest path, version and rust-version.",
+  "type": "object",
+  "required": [
+    "packages"
+  ],
+  "properties": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "manifest_path",
+          "version",
+          "rust_version"
+        ],
+        "properties": {
+          "manifest_path": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "rust_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

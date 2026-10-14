@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "var/release/<tag>.json",
+  "description": "The record of the draft release that make release-publish created for a tag: the id of the release (scripts/kit/release.mts, K158).",
+  "type": "object",
+  "required": ["id"],
+  "properties": { "id": { "type": "integer" } }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pip install --report",
+  "description": "The installation report of `pip install --dry-run --report -` in the fields that scripts/kit/release-wheel.mts reads (K158): the metadata of each distribution that pip would install.",
+  "type": "object",
+  "properties": {
+    "install": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "metadata"
+        ],
+        "properties": {
+          "metadata": {
+            "type": "object",
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "requires_dist": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
