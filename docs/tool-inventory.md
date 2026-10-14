@@ -34,7 +34,7 @@ repositories (lines).
 ## Toolchains (K8.2)
 
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
-its sha256 for linux-x64 and macos-arm64; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
+its sha256 for linux-x64, linux-arm64, macos-arm64 and macos-x64, the platforms of the bootstrap of mise; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
 not: the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, the Rust channels
 of `exceptions` with rustup (`install-rust.mts`) and the symbol extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
@@ -1442,7 +1442,7 @@ got only the macOS arm64 wheel), while uv's universal resolution writes the file
 ### uv: the install and its state
 
 - **Release archive (K64, K127):** mise installs uv from its release archive `uv-<target>.tar.gz` (the aqua backend), with the
-  sha256 of linux-x64 and macos-arm64 in `mise.lock`. uv installs no Python since K127: the Python is a tool of `mise.toml`.
+  sha256 of linux-x64, linux-arm64, macos-arm64 and macos-x64 in `mise.lock`. uv installs no Python since K127: the Python is a tool of `mise.toml`.
 - **State under `var/tools`, never the home:** the environment of mise of the checkout (kit.mk, `miseEnvironment`) sets
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never` (uv downloads no interpreter) and `UV_NO_CONFIG=1` (no
   `uv.toml` of the home or of the system is read), and `toolsEnvironment` adds `UV_PYTHON`, the python3 of mise.

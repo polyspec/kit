@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
+import { LOCK_PLATFORMS } from '../../scripts/kit/toolchain-mise.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseStub, versionStubs } from './toolchain-stubs.mts';
@@ -24,8 +25,8 @@ const SUM = `sha256:${'a'.repeat(64)}`;
 // The tools of mise.toml of the checkout: kit's key of mise.toml and the release.
 const MISE = { go: GO, python: PYTHON, 'http:composer': '2.10.3', ruff: '0.16.10', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.4', 'github:rustsec/rustsec': '0.22.2' };
 const miseToml = (tools: Record<string, string>) => `[tools]\n${Object.entries(tools).map(([key, version]) => `${JSON.stringify(key)} = ${JSON.stringify(version)}`).join('\n')}\n`;
-// The mise.lock that pins `tools`: each archive by its sha256 for both platforms, a go: tool by its release.
-const miseLock = (tools: Record<string, string>) => Object.entries(tools).map(([key, version]) => `[[tools.${JSON.stringify(key)}]]\nversion = ${JSON.stringify(version)}\n${key.startsWith('go:') ? '' : ['linux-x64', 'macos-arm64'].map(platform => `[tools.${JSON.stringify(key)}."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}`).join('\n');
+// The mise.lock that pins `tools`: each archive by its sha256 for every platform of LOCK_PLATFORMS, a go: tool by its release.
+const miseLock = (tools: Record<string, string>) => Object.entries(tools).map(([key, version]) => `[[tools.${JSON.stringify(key)}]]\nversion = ${JSON.stringify(version)}\n${key.startsWith('go:') ? '' : LOCK_PLATFORMS.map(platform => `[tools.${JSON.stringify(key)}."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}`).join('\n');
 const FILES = {
   '.node-version': `${NODE}\n`,
   'package.json': `{ "packageManager": "npm@12.2.0", "engines": { "node": ">=${NODE}" } }`,

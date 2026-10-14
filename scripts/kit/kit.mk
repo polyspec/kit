@@ -54,7 +54,7 @@ else
 	$(ONLINE) node $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 endif
 
-toolchain-lock: ## Write mise.lock: the digests of the tools of mise.toml for linux-x64 and macos-arm64, with mise lock; ONLINE
+toolchain-lock: ## Write mise.lock: the digests of the tools of mise.toml for linux-x64, linux-arm64, macos-arm64 and macos-x64, with mise lock; ONLINE
 	$(ONLINE) node $(KIT)/toolchain-lock.$(KIT_EXT)
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline

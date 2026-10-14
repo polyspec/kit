@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: b7690f6ba55e547a14dc51abc69f9c5bb9cd1d874fc0e1840c47f60a36075038 -->
+<!-- source-sha256: 326a9e0b5eb531c7a922a977103448c028127f5ea5295cdabb21bbf327334886 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -190,5 +190,6 @@
 | K131 | 모든 저장소를 kit 0.0.39로 옮긴다(K79 다음): release asset을 integrity와 함께 pin하고, 0.0.39의 consumer migration을 따른다 — mise toolchain(`config/toolchain.json` `mise`, `mise.toml`, `mise.lock`, `make toolchain-lock`), sprintf-js advisory 예외, 그리고 명시된 삭제. 0.0.39가 저장소에서 고치는 red(PHP 없는 PHP lint, review의 go.work module, Python wrapper의 uv count)는 그 저장소에서 닫는다 | 각 저장소의 `package.json`, `package-lock.json`, `mise.toml`, `mise.lock`, `config/*` | 각 저장소에서 `make install-tools TOOLS=npm`, `make install-packages`, `make toolchain-lock`, `make install-tools`, 그다음 `make kit-check toolchain-check documents-check owner-validate` | [ ] |
 | K132 | vendor된 release workflow가 `make release-tools` 전에 저장소의 release에 필요한 준비를 하게 한다(hyper H23.7에서 발견): hyper의 release는 `TEMPLATE_TAG`의 template 저장소를 checkout하는데, kit이 vendor하는 workflow에는 그 단계가 없어 저장소는 그 준비를 잃거나 vendor된 파일을 고쳐야 한다. 준비는 workflow가 모든 저장소에 대해 실행하는 make target(`release-prepare`, 기본은 빈 target)이 되고, 저장소가 선언한다 | `workflows/release.yml`, `kit.mk`, `docs/tool-inventory.md` | `tests/kit/kit-mk.test.mts`(선언된 `release-prepare::`가 실행되고, 기본은 없음)와 `tests/source/release-workflow.test.mts`(workflow가 install-packages 다음, release-tools 전에 실행); hyper는 H23.7에서 checkout을 선언한다 | [o] |
 | K133 | kit-sync는 package가 더는 선언하지 않는 `scripts/kit/`의 파일을 지우고, kit-check는 그 파일을 보고한다: kit-sync가 선언된 사본만 썼기 때문에 0.0.39 sync 뒤에도 모든 저장소에 `scripts/kit/bootstrap/bootstrap-npm.mts`가 남았다(K131에서 발견) | `kit-check.mts`, `kit-sync.mts`, AGENTS(+ko) | `tests/kit/kit-sync.test.mts` | [o] |
+| K134 | mise.lock은 bootstrap이 mise를 설치하는 모든 플랫폼(linux-x64, linux-arm64, macos-arm64, macos-x64)의 archive를 고정한다: linux-x64와 macos-arm64만 고정해서 orm과 hyper의 ARM Linux runner에서 `make install-tools`가 실패했다(orm T165에서 발견) | `toolchain-mise.mts`, `mise.lock`, 문서 | `tests/kit/toolchain-mise.test.mts`, `make toolchain-check` | [ ] |
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
