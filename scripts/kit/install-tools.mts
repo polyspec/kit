@@ -13,12 +13,14 @@
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js and PHP are verified by
 // check-toolchain.mts, not installed. The command takes no tool names: mise.lock is one set of tools. It prints a line for each
 // step and has no time limit.
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { MISE_WRAPPER } from './bootstrap/install-mise.mts';
+import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { installPhpLint } from './install-php-lint.mts';
-import { installPhpunit } from './install-phpunit.mts';
+import { installPhpLint, PHP_LINT_WRAPPERS } from './install-php-lint.mts';
+import { installPhpunit, PHPUNIT_WRAPPERS } from './install-phpunit.mts';
 import { installRustChannels, installRustToolchain } from './install-rust.mts';
 import { installExtractor } from './install-symbols.mts';
 import { toolsEnvironment } from './mise-tools.mts';
@@ -35,17 +37,31 @@ export function installTools({ root = repositoryRoot(), print = () => {} }: { ro
   const exceptions = readExceptions(root);
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
   const rustChannels = [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))];
+  const { pythonBackend, phpunit, symbolExtractors } = declaredToolchain(root);
+  const { phpLint } = declaredLintTools(root);
+  // var/tools/bin comes first on PATH, so a wrapper that kit no longer writes would shadow the shims of mise in this run too.
+  removeStaleWrappers(root, [MISE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
   run(mise, ['install', '--locked'], { cwd: root, env: process.env }, print);
   const env = toolsEnvironment(root);
-  const { pythonBackend, phpunit, symbolExtractors } = declaredToolchain(root);
-  const { phpLint } = declaredLintTools(root);
   if (pythonBackend) installBackend({ root, env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print });
   if (phpunit) installPhpunit({ root, declared: phpunit, print });
   if (phpLint) installPhpLint({ root, declared: phpLint, print });
   if (existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, print });
   if (rustChannels.length > 0) installRustChannels({ root, channels: rustChannels, print });
   for (const extractor of symbolExtractors?.extractors ?? []) installExtractor({ root, extractor, print });
+}
+
+/**
+ * Removes each file of var/tools/bin of `root` that is not one of `written`, the wrappers that the bootstrap and install-tools
+ * write for the declarations of the checkout: a wrapper of an older kit, such as the go, gofmt, python3 and alint of kit 0.0.38,
+ * which now come from mise, would shadow the shims of mise on PATH (K149).
+ */
+function removeStaleWrappers(root: string, written: readonly string[], print: (text: string) => void): void {
+  for (const name of readdirSync(toolsPath(root, 'bin')).filter(name => !written.includes(name)).sort()) {
+    rmSync(toolsPath(root, 'bin', name), { recursive: true });
+    print(`removed ${path.relative(root, toolsPath(root, 'bin', name))}`);
+  }
 }
 
 if (isMain(import.meta.url)) {

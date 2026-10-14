@@ -6,7 +6,7 @@
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -68,6 +68,20 @@ test('install-tools takes no tool names, and needs the mise of the bootstrap', (
   const missing = start('install-tools', bare, stubs.env);
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /\[install-tools\] var\/tools\/bin\/mise is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise/);
+});
+
+test('install-tools removes each file of var/tools/bin that no installer of kit writes any more (K149)', (t) => {
+  // kit 0.0.38 wrote wrappers of go, gofmt, python3 and alint, which now come from mise; left in var/tools/bin, which comes
+  // first on PATH, they shadowed the shims of mise. The bootstrap writes mise, npm and npx, which are kept.
+  const { root, stubs } = checkout(t, '[tools]\n');
+  const bin = path.join(root, 'var/tools/bin');
+  for (const name of ['npm', 'npx', 'go', 'gofmt', 'python3', 'alint']) writeFileSync(path.join(bin, name), '#!/bin/sh\n# A wrapper (scripts/kit/install-tools.mts).\n', { mode: 0o755 });
+  const result = start('install-tools', root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'npm', 'npx']);
+  for (const name of ['alint', 'go', 'gofmt', 'python3']) assert.match(result.stdout, new RegExp(`^\\[install-tools\\] removed var/tools/bin/${name}$`, 'm'));
+  const second = start('install-tools', root, stubs.env);
+  assert.doesNotMatch(second.stdout, /removed/, 'a second run removes nothing');
 });
 
 // A checkout whose config/toolchain.json declares the Rust nightly of rust/ as an exception.

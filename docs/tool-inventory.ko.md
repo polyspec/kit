@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7d102a6250ee597d6c6ea65172f2695b44845c78d1c9e07d57b51135cce1f7e1 -->
+<!-- source-sha256: a477b3875d462dd539cd059edd200d6d411d128008f452ed85a7675d1b78601a -->
 
 # 도구 목록
 
@@ -46,7 +46,9 @@ bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)
 번째 실행은 아무것도 바꾸지 않습니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
 `var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
 shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit.mk는 checkout의 mise 환경을 모든 recipe에 export하고 `var/tools/bin`과 shim을
-PATH 맨 앞에 둡니다. `scripts/kit/check-toolchain.mts`는 실행 중인 도구를 선언과 대조합니다. bootstrap과 mise가 설치하지 않는
+PATH 맨 앞에 둡니다. `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
+선언된 Composer project의 phpunit, phpcs, phpstan입니다. `make install-tools`는 설치 전에 그 밖의 file을 모두 지웁니다. 예를
+들어 이제 mise에서 오는 도구에 대해 이전 kit이 쓴 wrapper는 그 shim을 가립니다(K149). `scripts/kit/check-toolchain.mts`는 실행 중인 도구를 선언과 대조합니다. bootstrap과 mise가 설치하지 않는
 도구의 선언은 `scripts/kit/bootstrap/toolchain-declared.mts`가, `mise.toml`의 도구와 `mise.lock`의 digest는
 `scripts/kit/toolchain-mise.mts`가, Rust와 go.mod 파일은 `scripts/kit/toolchain-files.mts`가 각 ecosystem의 도구로 읽습니다. Make
 target은 `install-tools`와 `toolchain-lock`(`ONLINE`을 통한 online), `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
