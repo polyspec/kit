@@ -45,6 +45,9 @@ its target, checks it there and renames it, so a second run changes nothing. mis
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
 kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
+`var/tools/bin` holds only the wrappers that kit writes for the declarations of the checkout: mise, npm and npx of the
+bootstrap, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
+before it installs, such as a wrapper of an older kit for a tool that now comes from mise, which would shadow its shim (K149).
 `scripts/kit/check-toolchain.mts` compares the running tools with the declarations: `scripts/kit/bootstrap/toolchain-declared.mts`
 reads those of the bootstrap and of the tools that mise does not install, `scripts/kit/toolchain-mise.mts` the tools of
 `mise.toml` and the digests of `mise.lock`, and `scripts/kit/toolchain-files.mts` Rust and the go.mod files with the tools of
