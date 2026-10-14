@@ -2,7 +2,7 @@
 // Checks that every tool of the checkout runs at the version that the checkout declares, without a network
 // (`make toolchain-check`):
 //
-//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm mise rust php phpunit phpcs phpstan, and the tools of mise.toml: go python uv ruff alint golangciLint deadcode govulncheck cargoAudit composer vulture
+//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm mise rust php phpunit phpcs phpstan, and the tools of mise.toml: go python uv ruff alint golangciLint deadcode govulncheck cargoAudit cargoNextest cargoDeny composer vulture
 //
 // Without a tool name it checks every declared tool; naming an undeclared tool fails. A tool of mise.toml runs from its shim in
 // var/tools/mise/shims (mise-tools.mts), never from PATH, in the environment of mise of the checkout; var/tools/bin and the
@@ -70,6 +70,9 @@ const probes: Record<string, Probe> = {
   deadcode: { ...shim('go', { args: ['version', '-m'], pattern: /^\s*mod\s+golang\.org\/x\/tools\s+v(\d+\.\d+\.\d+)\s/m }), which: MISE_TOOLS.deadcode.command },
   govulncheck: shim('govulncheck', RELEASE_OUTPUT.govulncheck),
   cargoAudit: shim('cargoAudit', RELEASE_OUTPUT.cargoAudit),
+  // cargo-nextest prints `cargo-nextest 0.9.146 (8af696ddc 2026-09-21)` and its build lines; cargo-deny `cargo-deny 0.20.2`.
+  cargoNextest: shim('cargoNextest', { args: ['--version'], pattern: /^cargo-nextest (\d+\.\d+\.\d+) /m }),
+  cargoDeny: shim('cargoDeny', { args: ['--version'], pattern: /^cargo-deny (\d+\.\d+\.\d+)$/m }),
   composer: shim('composer', { args: ['--version', '--no-ansi'], pattern: /^Composer version (\d+\.\d+\.\d+) /m }),
   vulture: shim('vulture', RELEASE_OUTPUT.vulture),
 };

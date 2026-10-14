@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 30e7105f3139ffe826adfb5a864298f5395b7655f4a512cd3f492104e1e307f8 -->
+<!-- source-sha256: c49a8928cea3fec9b03539e2f7b95c5b8e81dc657f664e58549c7e20645d46bb -->
 # 개발
 
 [English](AGENTS.md)
@@ -41,8 +41,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
   stub은 stub이나 mise shim이 제공하는 명령(go, composer, npm, node, php, python, uv, mise)을 실행하지 않습니다. checkout 밖의
   shim은 PATH의 다음 명령을 실행하기 때문입니다. machine의 archiver는 허용됩니다(`tests/kit/stubs.test.mts`).
-- 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture)를
-  `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
+- 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest,
+  cargo-deny, Composer, vulture)를 `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
   target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. wheel을 배포하는 consumer는 config/toolchain.json에
   `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. vendored dependency test는 go와 Composer를 실제 도구의
   기록으로 답하는 stub으로 읽으며, 실제 도구를 실행하지 않습니다. kit 자신의 실제 도구 test는 `tests/source`에 있습니다.

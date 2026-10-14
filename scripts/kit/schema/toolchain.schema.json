@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/toolchain.json",
-  "description": "The toolchains that no other file of the checkout declares. Node.js is declared in .node-version, npm in packageManager of package.json, Rust in rust-toolchain.toml, and the tools that mise installs (Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, Composer, vulture) in mise.toml with their digests in mise.lock; php may also be declared in .php-version.",
+  "description": "The toolchains that no other file of the checkout declares. Node.js is declared in .node-version, npm in packageManager of package.json, Rust in rust-toolchain.toml, and the tools that mise installs (Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture) in mise.toml with their digests in mise.lock; php may also be declared in .php-version.",
   "type": "object",
   "required": [
     "schema"
