@@ -124,6 +124,19 @@ test('knip reads each nested project of config/knip-entries.json as a workspace 
   }
 });
 
+test('knip ignores the files of config/knip-entries.json after the ignore of knip.json (K162)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**'] }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore: { 'site/samples/*.mjs': 'the site shows the samples and nothing runs them' } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**', 'site/samples/*.mjs'] });
+  for (const ignore of [{}, { '/site/*.mjs': 'an absolute glob' }, { '../site/*.mjs': 'a glob outside the root' }, { '!site/*.mjs': 'a negated glob' }, { 'site/*.mjs': '' }]) {
+    writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore }));
+    assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignore/, JSON.stringify(ignore));
+  }
+});
+
 test('knip ignores the root dependencies of config/knip-entries.json after those of knip.json (K159)', (t) => {
   const { root } = checkout(t);
   writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint'] }));

@@ -8,7 +8,8 @@
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
 //     plugins that read the manifests. knip has no `extends`, so the entries that the repository adds in config/knip-entries.json
 //     (K145) are added to `node.entry` of knip.json, its binaries (K152) to `ignoreBinaries`, the root dependencies that only
-//     make runs (K159) to `ignoreDependencies`, and its nested npm projects (K154) to `workspaces`, each with its entries and
+//     make runs (K159) to `ignoreDependencies`, the files that knip ignores (K162), such as a sample that a site shows and
+//     nothing runs, to `ignore`, and its nested npm projects (K154) to `workspaces`, each with its entries and
 //     ignored dependencies, in var/lint-ts/knip.json, which knip then reads with --config. knip's Svelte plugin compiles the
 //     .svelte files of a workspace that depends on svelte.
 //   - `api-extractor run` for each package with an api-extractor.json, which extends config/api-extractor.kit.json: every export
@@ -27,7 +28,7 @@ import { ConfigError, readConfig } from './schema-validate.mts';
 
 /**
  * The entries that a repository adds to the layout entries of knip.json, the binaries to its ignoreBinaries, the root
- * dependencies to its ignoreDependencies, and its nested npm projects as workspaces
+ * dependencies to its ignoreDependencies, the ignored files to its ignore, and its nested npm projects as workspaces
  * (scripts/kit/schema/knip-entries.schema.json).
  */
 export const KNIP_ENTRIES = 'config/knip-entries.json';
@@ -36,6 +37,7 @@ interface KnipEntries {
   entries?: Record<string, string>;
   binaries?: Record<string, string>;
   ignoreDependencies?: Record<string, string>;
+  ignore?: Record<string, string>;
   workspaces?: Record<string, { reason: string; entries?: Record<string, string>; ignoreDependencies?: Record<string, string> }>;
 }
 
@@ -44,6 +46,7 @@ interface KnipJson {
   node?: { entry?: string[] };
   ignoreBinaries?: string[];
   ignoreDependencies?: string[];
+  ignore?: string[];
   workspaces?: Record<string, unknown>;
 }
 
@@ -54,6 +57,7 @@ export const MERGED_KNIP = 'var/lint-ts/knip.json';
  * The arguments of knip for `root`: knip.json alone, or, when the repository declares config/knip-entries.json, the
  * configuration of MERGED_KNIP, which this function writes: knip.json with the declared entries after its own `node.entry`,
  * the declared binaries after its own `ignoreBinaries`, the declared root dependencies after its own `ignoreDependencies`,
+ * the declared ignored files after its own `ignore`,
  * and each declared workspace with its entries and ignored dependencies.
  */
 export function knipArguments(root: string): string[] {
@@ -66,6 +70,7 @@ export function knipArguments(root: string): string[] {
   if (value.ignoreDependencies) {
     merged.ignoreDependencies = [...(base.ignoreDependencies ?? []), ...Object.keys(value.ignoreDependencies)];
   }
+  if (value.ignore) merged.ignore = [...(base.ignore ?? []), ...Object.keys(value.ignore)];
   if (value.workspaces) {
     const workspaces = Object.entries(value.workspaces).map(([directory, { entries, ignoreDependencies }]) => [directory, {
       ...(entries ? { entry: Object.keys(entries) } : {}),
