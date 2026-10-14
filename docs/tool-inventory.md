@@ -789,7 +789,11 @@ does not declare is neither installed nor checked.
   a released go.mod never holds a replace that its consumers would not see. It also forbids a toolchain line, since `go mod
   tidy` removes one equal to the go directive. forbidigo is left out: no standard names a Go API to forbid, and its default
   bans `fmt.Print` of every CLI.
-- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. API
+- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's.
+  `no-floating-promises` takes the option of typescript-eslint for node:test, `allowForKnownSafeCalls` with `test`,
+  `describe`, `it`, `suite`, `skip`, `only` and `todo` of the package `node:test` (K138): a top-level registration returns a
+  promise that the runner awaits, and the rule failed each one (516 in crudui), while an un-awaited `fetch` in a test file
+  still fails (a fixture). The subtest `t.test` shares the name `test`; the runner of Node 26 waits for it. API
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report
