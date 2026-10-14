@@ -116,9 +116,11 @@ process.exit(exit ? 101 : 0);
 `;
 
 // The stub of PHPUnit (`php <args> vendor/bin/phpunit --teamcity <test>`): each `PASS <name>` and `FAIL <name>` line of the test
-// file is a test method, which PHPUnit reports as TeamCity messages; a `##teamcity[` line of the file is printed as it is. It
-// exits with 1 when a test failed. Run as the php symbol extractor (\`php <kit>/symbols/php/extract.php <autoload> <entry>\`),
-// it prints the lines of symbols.txt of the entry directory as a JSON array.
+// file is a test of the class CodecTest, a method or a data set `<method> with data set "<name>"`, which PHPUnit reports as
+// TeamCity messages; with `--filter <regex>` only the tests whose `CodecTest::<name>` the regex matches run, as PHPUnit
+// filters. A `##teamcity[` line of the file is printed as it is. It exits with 1 when a test failed. Run as the php symbol
+// extractor (\`php <kit>/symbols/php/extract.php <autoload> <entry>\`), it prints the lines of symbols.txt of the entry
+// directory as a JSON array.
 const PHP_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
@@ -127,11 +129,13 @@ if (args[0].endsWith('/symbols/php/extract.php')) {
   process.exit(0);
 }
 const file = args[args.length - 1];
+const filter = args.includes('--filter') ? args[args.indexOf('--filter') + 1] : undefined;
+const selected = filter === undefined ? () => true : name => new RegExp(filter.slice(1, filter.lastIndexOf('/'))).test('CodecTest::' + name);
 let exit = 0;
 const teamcity = (name, attributes) => '##teamcity[' + name + ' ' + Object.entries(attributes).map(([key, value]) => key + "='" + value + "'").join(' ') + ']';
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
-  const test = /^(PASS|FAIL) (\\S+)$/.exec(line);
-  if (test) {
+  const test = /^(PASS|FAIL) (.+)$/.exec(line);
+  if (test && selected(test[2])) {
     const location = 'php_qn://' + file + '::\\\\CodecTest::' + test[2];
     console.log(teamcity('testStarted', { name: test[2], locationHint: location }));
     if (test[1] === 'FAIL') { console.log(teamcity('testFailed', { name: test[2], message: 'Failed asserting', details: 'at ' + file })); exit = 1; }
@@ -1143,6 +1147,26 @@ test('R3 reads each case of a cargo binding whose harness libtest-mimic pads the
   const { findings, ledger } = check(t, { files: { 'rust/src/lib.rs': 'HARNESS libtest-mimic\nPASS width::tests::vectors::narrow\nPASS width::tests::vectors::wide\n' } });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['narrow pass', 'wide pass']);
+});
+
+test('a php suite binding with the symbol <class>::<method> runs that method alone, and each data set is a case (K137)', TIMEOUT, (t) => {
+  const tests = 'PASS testCodec with data set "empty"\nFAIL testCodec with data set "ascii"\nPASS testCodecExtra with data set "empty"\nPASS testOther\nEXIT 1\n';
+  const edit = (config: Declaration) => { binding(config, 'codec', 'php').symbol = 'CodecTest::testCodec'; return config; };
+  const root = repository(t, { files: { 'php/tests/codec.php': tests }, edit });
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(keys(findings), ['R3 codec php']);
+  assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
+  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
+  const run = ledger.runs.find(entry => entry.unit === 'codec' && entry.implementation === 'php')!;
+  assert.deepEqual([run.command, ...run.args], ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', '--filter', '/^CodecTest::testCodec(?: with data set |$)/', 'php/tests/codec.php']);
+  // A namespaced class is escaped for the regular expression; an integer key of a data set is a case that no suite declares.
+  const namespaced = runOf({ name: 'php', runner: 'php' }, root, { test: 'php/tests/codec.php', symbol: 'Example\\Tests\\CodecTest::testCodec' }, 'suite', ENV);
+  if (namespaced.error) throw new Error(namespaced.error);
+  assert.equal(namespaced.args.at(-2), '/^Example\\\\Tests\\\\CodecTest::testCodec(?: with data set |$)/');
+  assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(namespaced.caseOf), ['a/b', '#0', undefined, undefined]);
+  const declared = (symbol: string) => check(t, { edit: (config) => { binding(config, 'codec', 'php').symbol = symbol; return config; } }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(declared('testCodec'), ['declaration: unit codec: the php binding names testCodec, which is no test method <class>::<method> of a fully qualified class']);
+  assert.deepEqual(declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);
 });
 
 test('R3: a case that one run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {

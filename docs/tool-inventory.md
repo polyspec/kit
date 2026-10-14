@@ -1199,7 +1199,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | `cargo` | `cargo test --manifest-path <crate>/Cargo.toml --test <name>` for `<crate>/tests/<name>.rs`, else `--lib`, then `-- --test-threads=1 <symbol>::`; a feature runs without the filter | the tests `<symbol>::<case>`: `test <name> ... ok`, `FAILED` or `ignored` in the output, with any run of whitespace before `...`, as libtest-mimic (a `harness = false` test target) pads each name to the longest one | the libtest path, `module::test` |
 | `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | the top-level tests that the reporter names: node:test's own pass, fail, skip and todo; the test of the file itself is none | the names of the test and its enclosing suites joined by ` › ` |
 | `vitest` | `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` from the checkout root | the top-level tests of the JSON report: `passed`, `failed`, `skipped` or `pending`, and `todo` | the `ancestorTitles` and `title` joined by ` › ` |
-| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration` | the test methods `test_<case>` of the TeamCity messages | the test method |
+| `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>` from the checkout root, where `<package>` is the nearest directory with `composer.json` above the test and `<configuration>` is `--configuration <package>/phpunit.xml`, or `--configuration <package>/phpunit.xml.dist` when only that exists, else `--no-configuration`; a suite binding with the symbol `<class>::<method>` adds `--filter /^<class>::<method>(?: with data set \|$)/`, so its method runs alone | with the symbol, the data sets `<method> with data set "<case>"` of the TeamCity messages; without it, the test methods `test_<case>` | the test method |
 | `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | the test methods `test_<case>` of the verbose output on standard error | the test method |
 
 The go, cargo, php and python runners read their tool's output with the parsers of `test-output.mts`, the same parsers that
@@ -1367,8 +1367,10 @@ profile with what it omits and its reason. At least two units use it; a one-unit
    file, an API unit for each public concept, and an exclusion with its checklist item for each unit that an implementation does not
    hold yet.
 2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
-   `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, and a test method
-   `test_<case>` in PHPUnit and unittest. A binding prints no line for the check.
+   `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, a data set named
+   `<case>` of the method `<class>::<method>` that the binding names as its symbol in PHPUnit (a `#[DataProvider]` with string
+   keys; the class is fully qualified), or else a test method `test_<case>` in PHPUnit and unittest. A binding prints no line
+   for the check.
 3. Declare `symbols` (`extractor`, `entry`) of each implementation, and generate the error codes of each implementation from
    the catalog.
 4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
