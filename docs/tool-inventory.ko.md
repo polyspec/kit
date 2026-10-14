@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7bf1325b4017f6a4b06bd916553091373a5a56a95b73bc951c6be63a4809a913 -->
+<!-- source-sha256: 4e6575fe64acaffcd219fb75bbe3570829014f83b7e58bdd1a940f10a1b58c14 -->
 
 # 도구 목록
 
@@ -424,6 +424,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   남깁니다.
 - `phpunit`은 `<cwd>/vendor/bin/phpunit` 또는 `COMPOSER_VENDOR_DIR`의 vendor directory(crudui)를 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
+  `--php-extension`은 반복할 수 있습니다: 각 extension은 PHP 자체의 방식인 자기 `-d extension=<path>`로 주어진 순서대로
+  load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165).
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
 - `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
   끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는

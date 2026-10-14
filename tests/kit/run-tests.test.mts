@@ -131,7 +131,8 @@ test('a file whose process outlives its last test fails after the deadline and n
 test('the arguments of the runner are read before the arguments of the tool', () => {
   const options = parseArguments(['node', '--timeout', '5', '--cwd', 'sub', '--', 'a.test.mjs', '--x'], '/repo');
   assert.deepEqual([options.tool, options.timeoutSeconds, options.cwd, options.args], ['node', 5, '/repo/sub', ['a.test.mjs', '--x']]);
-  assert.equal(parseArguments(['phpunit', '--php-extension', 'ext.so'], '/repo').phpExtension, '/repo/ext.so');
+  assert.deepEqual(parseArguments(['phpunit', '--php-extension', 'ext.so'], '/repo').phpExtensions, ['/repo/ext.so']);
+  assert.deepEqual(parseArguments(['phpunit', '--php-extension', 'base.so', '--php-extension', 'ext.so', 't'], '/repo').phpExtensions, ['/repo/base.so', '/repo/ext.so']);
   assert.equal(parseArguments(['go', './...'], '/repo').args[0], './...');
   assert.deepEqual(parseArguments(['python', '--cwd', 'pkg', 'tests'], '/repo').args, ['tests']);
   const recorded = parseArguments(['go', '--results', '.results/go.json', '--inputs', 'pkg', '--inputs', 'schema/a.dbs', './...'], '/repo');
@@ -153,7 +154,9 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, '/r'), { command: 'go', args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'] }, '/r'), { command: '/r/p/vendor/bin/phpunit', args: ['--teamcity', 't'] });
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtension: '/r/e.so' }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtensions: ['/r/e.so'] }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
+  // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, '/r'), { command: 'php', args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit', '--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
   try {
@@ -411,6 +414,19 @@ test('a PHP extension that is not built fails before the tool starts', async (t)
   const result = await inProcess(t, ['phpunit', '--php-extension', 'build/ext.so']);
   assert.equal(result.status, 1);
   assert.match(result.text, /the PHP extension build\/ext\.so is not built; build it before the run/);
+});
+
+test('each PHP extension, the second as the first, that is not built fails before the tool starts (K165)', async (t) => {
+  const root = tree(t);
+  mkdirSync(path.join(root, 'build'));
+  writeFileSync(path.join(root, 'build/base.so'), '');
+  const result = await inProcess(t, ['phpunit', '--php-extension', 'build/base.so', '--php-extension', 'build/ext.so'], { root });
+  assert.equal(result.status, 1);
+  assert.match(result.text, /the PHP extension build\/ext\.so is not built; build it before the run/);
+  assert.doesNotMatch(result.text, /base\.so is not built|cannot start/);
+  const first = await inProcess(t, ['phpunit', '--php-extension', 'build/missing.so', '--php-extension', 'build/base.so'], { root });
+  assert.equal(first.status, 1);
+  assert.match(first.text, /the PHP extension build\/missing\.so is not built; build it before the run/);
 });
 
 // The hanging stub keeps a live timer and never ends on its own, so only the runner's timeout stops it. The deadline of this

@@ -2,7 +2,7 @@
 // The test runner. A test target runs its test tool through this script, which prints each test as it starts, keeps running,
 // passes, fails or is skipped, with the elapsed time, and gives every test its own timeout.
 //
-//   node scripts/kit/run-tests.mts <tool> [--timeout <seconds>] [--cwd <directory>] [--php-extension <file>] [--venv <directory>]
+//   node scripts/kit/run-tests.mts <tool> [--timeout <seconds>] [--cwd <directory>] [--php-extension <file>]... [--venv <directory>]
 //       [--results <file> [--inputs <path>]...] [--] [<arguments>]
 //
 // The arguments after the options of the runner go to the tool. --results writes the record of the run, passed or not, to
@@ -45,7 +45,7 @@ import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
-const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>] [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
+const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
@@ -58,13 +58,13 @@ export type RunOptions = {
   cwd: string;
   args: string[];
   inputs: string[];
-  phpExtension?: string;
+  phpExtensions: string[];
   venv?: string;
   results?: string;
 };
 
 /** The options that the command of a tool reads. */
-export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'phpExtension' | 'venv'>;
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv'> & Partial<Pick<RunOptions, 'phpExtensions'>>;
 
 // How a tool ended: it could not start, or it closed with a status or a signal.
 type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
@@ -85,7 +85,7 @@ const INSTALL: Record<string, (options: { cwd: string; root: string }) => string
 export function parseArguments(argv: string[], root = repositoryRoot()) {
   const [tool, ...rest] = argv;
   if (tool === undefined || !TOOLS.includes(tool)) throw new Error(USAGE);
-  const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [] };
+  const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [], phpExtensions: [] };
   let index = 0;
   for (; index < rest.length; index += 2) {
     const [flag, value] = [rest[index], rest[index + 1]];
@@ -94,7 +94,7 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
       options.timeoutSeconds = Number(value);
     } else if (flag === '--php-extension') {
       if (!value || tool !== 'phpunit') throw new Error(USAGE);
-      options.phpExtension = path.resolve(root, value);
+      options.phpExtensions.push(path.resolve(root, value));
     } else if (flag === '--venv') {
       if (!value || tool !== 'python') throw new Error(USAGE);
       options.venv = path.resolve(root, value);
@@ -121,7 +121,7 @@ function splitCargo(args: string[]) {
 }
 
 /** The command of a tool with its progress and timeout arguments. */
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, venv }: ToolOptions, root = repositoryRoot()) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -144,8 +144,9 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
     case 'phpunit': {
       // PHPUnit of the vendor directory of `cwd`; COMPOSER_VENDOR_DIR, the vendor directory setting of Composer, names another.
       const phpunit = path.join(composerVendor(cwd), 'bin/phpunit');
-      // --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit.
-      if (phpExtension) return { command: 'php', args: ['-d', `extension=${phpExtension}`, phpunit, '--teamcity', ...args] };
+      // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
+      // -d extension=, in the given order, so an extension loads after one that it depends on.
+      if (phpExtensions.length) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
@@ -190,8 +191,9 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const { command, args } = toolCommand(options, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
-  if (options.phpExtension && !existsSync(options.phpExtension)) {
-    write(`✖ ${label}: the PHP extension ${path.relative(root, options.phpExtension)} is not built; build it before the run\n`);
+  const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
+  if (unbuilt) {
+    write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
     return 1;
   }
   const venvRefusal = options.venv && venvProblem(options.venv, root);
