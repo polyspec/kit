@@ -96,6 +96,20 @@ test('the mutation check copies go.work, so a module that requires only a worksp
   assert.match(result.stdout + result.stderr, /4 mutations rejected/);
 });
 
+// A committed go.work that uses an ignored clone, such as a sibling repository checked out for local work, names a module
+// that no checkout of the repository holds: the mutation check names go.work and the use, without a stack (K160).
+test('the mutation check fails with one finding when go.work uses a module that Git does not track (K160)', (t) => {
+  const root = fixture(t);
+  const write = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+  write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
+  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
+  appendFileSync(path.join(root, '.gitignore'), 'packages/sibling/\n');
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr, '[dependency-policy] go.work: uses ./packages/sibling, whose go.mod Git does not track; a committed go.work may only use tracked modules. Fix: commit packages/sibling/go.mod or remove the use from go.work\n');
+});
+
 test('a package that the root overrides install from a URL is not reviewed against the registry', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
