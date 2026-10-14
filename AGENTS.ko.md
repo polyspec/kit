@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 5608290bf0bfadde815f5aa9d40e044f0ef3d34e8dbf9f580cc49c56308011e7 -->
+<!-- source-sha256: 4ce326cc767328e0d834eda0d1a72d7ae9f344d72e462b4443c5d530315508b0 -->
 # 개발
 
 [English](AGENTS.md)
@@ -51,8 +51,10 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   kit-sync가 vendor하지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
 - kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
-  Rust는 `rust-toolchain.toml`의 것을 씁니다. kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을
-  PATH 맨 앞에 두고 실행됩니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
+  Rust는 `rust-toolchain.toml`의 것을 쓰고, `mise.toml`의 Node.js는 bootstrap(`make install-tools TOOLS=npm`)이 npm보다 먼저
+  설치합니다(K171). kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고
+  실행되며, checkout의 도구를 이름만으로가 아니라 절대 경로(`$(NODE)`, `$(NPM)`, `$(ALINT)`)로 실행합니다: make 3.81은 shell
+  문법이 없는 recipe 줄을 make가 시작할 때의 PATH에서 찾습니다. 그렇게 하지 않는 recipe는 `make kit-check`가 실패시킵니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
   rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;
   rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
   설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, `make toolchain-check`는 설치되지 않은 toolchain을 이름으로

@@ -31,17 +31,18 @@ The files that stay copies, because they must exist before the package is instal
 
 - `scripts/kit/kit-bootstrap.mk`: stops with an error that names `make install-tools TOOLS=npm` and `make install-packages`
   while `node_modules/@polyspec/kit/dist/kit.mk` is absent; otherwise it includes it. No silent `-include`.
-- The installer of the pinned npm and its imports (`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`, and
-  `toolchain-declared`, the one reader of `packageManager` and `.node-version`) under `scripts/kit/bootstrap/`, run by `make install-tools TOOLS=npm` before `npm ci`. The pinned npm must
+- The installer of the pinned npm and its imports (`install-mise`, which also installs the node of `mise.toml`,
+  `install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`, and `toolchain-declared`, the one reader of
+  `packageManager`) under `scripts/kit/bootstrap/`, run by `make install-tools TOOLS=npm` before `npm ci`. The pinned npm must
   install the lock, because another npm can rewrite or refuse it (S4: tools run at their pins).
 - `.github/workflows/release.yml`, `PRINCIPLES.md(.ko)` and the lint configuration (K77): fixed paths that their tools read.
 
 ## Bootstrap order
 
-1. `make install-tools TOOLS=npm` (the copied bootstrap installer) first checks that the running node is the version of
-   `.node-version` and stops naming both versions otherwise; then it installs the npm of `packageManager` into
-   `var/tools`. Online.
-2. `make install-packages` (in `kit-bootstrap.mk`) runs `var/tools/bin/npm ci`, kit included. Online, marked `$(ONLINE)`
+1. `make install-tools TOOLS=npm` (the copied bootstrap installer, started by any node of the machine) installs the mise of
+   `config/toolchain.json`, with it the node of `mise.toml` at the digest of `mise.lock`, and then the npm of
+   `packageManager` into `var/tools`, whose wrappers run that node (K171). Online.
+2. `make install-packages` (in `kit-bootstrap.mk`) runs `$(NPM) ci`, the npm of `var/tools/bin`, kit included. Online, marked `$(ONLINE)`
    like every downloading target.
 3. Every other target runs from the package and stays offline after step 2: `make install-tools` for the other tools,
    the checks, the release steps.
@@ -49,7 +50,7 @@ The files that stay copies, because they must exist before the package is instal
 **One source per pin (S4).**
 - npm: `packageManager` of `package.json` is the only declaration; `install-npm` and `toolchain-declared` already read it
   there, and `config/toolchain.json` holds no npm key. `check-toolchain` compares the installed npm with it.
-- Node: `.node-version` is the pin. `engines.node` of every `package.json`, kit's included, is `>=` that version (the floor
+- Node: `node` of `mise.toml` is the declaration, equal to the pin. `engines.node` of every `package.json`, kit's included, is `>=` that version (the floor
   equals the pin), and `check-toolchain` fails while they differ.
 
 CI and the release workflow run in that order; the consumer-layout successor test proves the order of `release.yml`.

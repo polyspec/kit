@@ -1,5 +1,6 @@
-// The mise of the bootstrap (scripts/kit/bootstrap/install-mise.mts, K127): after the npm of packageManager, the bootstrap
-// installs the mise release that config/toolchain.json mise declares into var/tools/mise-release. The archive of the platform
+// The mise of the bootstrap (scripts/kit/bootstrap/install-mise.mts, K127): first, the bootstrap installs the mise release
+// that config/toolchain.json mise declares into var/tools/mise-release, and with it the node of mise.toml, which the wrapper
+// var/tools/bin/node runs (K171). The archive of the platform
 // is downloaded with its sha256 checked and unpacked, and the wrapper var/tools/bin/mise keeps every directory of mise, and the
 // Go and uv caches of its installs, under var/tools/mise, trusts the config of the checkout, installs only what mise.lock pins
 // and never on its own, keeps uv from downloading a Python, and has Go check every module against the checksum database. A
@@ -23,24 +24,30 @@ const KEY = `${process.platform}-${process.arch}`;
 const ASSET: Record<string, string> = { 'darwin-arm64': 'macos-arm64', 'darwin-x64': 'macos-x64', 'linux-x64': 'linux-x64', 'linux-arm64': 'linux-arm64' };
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
-/** The release archive of a stub mise that prints its version, and its URL and sha256; removed with `t.after`. */
+// The directory that the stub mise prints for `mise where node`, the install of the node of mise.toml.
+const NODE_INSTALL = '/stub/mise/installs/node/26.11.1';
+
+/**
+ * The release archive of a stub mise, and its URL and sha256; removed with `t.after`. The stub prints its version, prints
+ * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while MISE_STUB_FAIL is set.
+ */
 function miseRelease(t: TestContext) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-mise-release-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(path.join(directory, 'mise/bin'), { recursive: true });
-  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\necho "${VERSION} ${ASSET[KEY]} (2026-10-11)"\n`);
+  const calls = path.join(directory, 'calls.log');
+  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL" ;;\n  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
   chmodSync(path.join(directory, 'mise/bin/mise'), 0o755);
   const archive = path.join(directory, 'mise.tar.gz');
   assert.equal(spawnSync('tar', ['-czf', archive, '-C', directory, 'mise']).status, 0);
   const sha256 = createHash('sha256').update(readFileSync(archive)).digest('hex');
   const url = `https://github.com/jdx/mise/releases/download/v${VERSION}/mise-v${VERSION}-${ASSET[KEY]}.tar.gz`;
-  return { archive, sha256, url };
+  return { archive, sha256, url, installs: () => (existsSync(calls) ? readFileSync(calls, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
 /** A checkout whose npm of packageManager is installed, declaring mise with `sha256` for this platform. */
 function checkout(t: TestContext, sha256: string) {
   const root = toolchainCheckout(t, {
-    '.node-version': `${process.versions.node}\n`,
     'package.json': '{ "packageManager": "npm@12.2.0" }\n',
     'config/toolchain.json': JSON.stringify({ schema: 1, mise: { version: VERSION, sha256: { [KEY]: sha256 } } }),
     'var/tools/npm/node_modules/npm/package.json': '{ "version": "12.2.0" }\n',
@@ -92,6 +99,10 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.match(text, new RegExp(`^export ${Object.keys(expected).join(' ')} PATH$`, 'm'));
   assert.match(text, new RegExp(`^exec ${escape(`'${path.join(tools, 'mise-release/mise/bin/mise')}'`)} "\\$@"$`, 'm'));
   assert.equal(text.includes(homedir()), false, 'the wrapper names no directory of the home');
+  // With mise, the bootstrap installs the node of mise.toml and writes its wrapper, which npm runs (K171).
+  assert.deepEqual(release.installs(), ['install --locked node']);
+  assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
+  assert.match(readFileSync(path.join(root, 'var/tools/bin/npm'), 'utf8'), new RegExp(`^exec ${escape(`'${path.join(tools, 'bin/node')}'`)} `, 'm'));
   const second = bootstrap(root, stubs.env);
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, new RegExp(`mise: ${escape(VERSION)} is installed in var/tools/mise-release`));
@@ -106,6 +117,17 @@ test('a mise archive with another digest is refused, nothing is installed, and t
   assert.match(result.stderr, new RegExp(`${escape(release.url)} has the sha256 ${release.sha256}; config/toolchain\\.json mise declares ${'0'.repeat(64)} for ${KEY}`));
   assert.equal(existsSync(path.join(root, 'var/tools/mise-release')), false);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/mise')), false);
+});
+
+test('a node that mise cannot install, as one that mise.toml or mise.lock does not declare, stops the bootstrap with the declaration to add', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
+  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
+  const result = bootstrap(root, { ...stubs.env, MISE_STUB_FAIL: '1' });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /install --locked node ended with exit status 1; mise\.toml must declare node, the Node\.js release of the checkout, and mise\.lock must pin it \(make toolchain-lock\)/);
+  assert.equal(existsSync(path.join(root, 'var/tools/bin/node')), false);
+  assert.equal(existsSync(path.join(root, 'var/tools/bin/npm')), false, 'npm is installed only with the node of the checkout');
 });
 
 test('the bootstrap requires the declaration of mise', (t) => {

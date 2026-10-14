@@ -1,5 +1,5 @@
 <!-- doc-id: kit-package -->
-<!-- source-sha256: f66a2df8c1ac4a5518fcd141ff463ca5a6bb970d29b0dcedc59e7e47c1eee9b6 -->
+<!-- source-sha256: ac11922c90a9e345a6b5d3d343eed94ea5b2afc64f04c4764b596863a89db09e -->
 # package인 kit (K71-2)
 
 [English](kit-package.md)
@@ -32,24 +32,25 @@ package가 설치되기 전에 있어야 하거나 고정된 경로에 있어야
 
 - `scripts/kit/kit-bootstrap.mk`: `node_modules/@polyspec/kit/dist/kit.mk`가 없으면 `make install-tools TOOLS=npm`과
   `make install-packages`를 이름으로 대는 error로 멈추고, 있으면 include합니다. 조용한 `-include`는 쓰지 않습니다.
-- pin된 npm의 installer와 그 import(`install-npm`, `install-tool`, `tool-wrappers`, `digest`, `files`, 그리고 `packageManager`와
-  `.node-version`의 유일한 reader인 `toolchain-declared`)를
+- pin된 npm의 installer와 그 import(`mise.toml`의 node도 설치하는 `install-mise`, `install-npm`, `install-tool`,
+  `tool-wrappers`, `digest`, `files`, 그리고 `packageManager`의 유일한 reader인 `toolchain-declared`)를
   `scripts/kit/bootstrap/` 아래에 두고, `npm ci` 전에 `make install-tools TOOLS=npm`으로 실행합니다. 다른 npm은 lock을 다시
   쓰거나 거부할 수 있으므로 pin된 npm이 lock을 설치해야 합니다(S4: tool은 pin에서 돕니다).
 - `.github/workflows/release.yml`, `PRINCIPLES.md(.ko)`, lint 설정(K77): 그 tool이 읽는 고정 경로.
 
 ## bootstrap 순서
 
-1. `make install-tools TOOLS=npm`(copy된 bootstrap installer)은 먼저 실행 중인 node가 `.node-version`의 version인지 확인하고,
-   아니면 두 version을 이름으로 대며 멈춥니다; 그다음 `packageManager`의 npm을 `var/tools`에 설치합니다. online.
-2. `make install-packages`(`kit-bootstrap.mk`)가 kit을 포함해 `var/tools/bin/npm ci`를 실행합니다. 내려받는 모든 target처럼
+1. `make install-tools TOOLS=npm`(machine의 어떤 node로든 시작하는 copy된 bootstrap installer)은 `config/toolchain.json`의
+   mise를, 그것으로 `mise.lock`의 digest에 맞춘 `mise.toml`의 node를, 그다음 `packageManager`의 npm을 `var/tools`에
+   설치하며, npm의 wrapper는 그 node를 실행합니다(K171). online.
+2. `make install-packages`(`kit-bootstrap.mk`)가 kit을 포함해 `var/tools/bin`의 npm인 `$(NPM) ci`를 실행합니다. 내려받는 모든 target처럼
    `$(ONLINE)`으로 표시한 online 단계입니다.
 3. 나머지 target은 모두 package에서 돌며 2단계 뒤로는 offline입니다: 다른 tool의 `make install-tools`, 검사, release 단계.
 
 **pin마다 원천 하나(S4).**
 - npm: `package.json`의 `packageManager`가 유일한 선언입니다; `install-npm`과 `toolchain-declared`가 이미 거기서 읽고,
   `config/toolchain.json`에는 npm key가 없습니다. `check-toolchain`이 설치된 npm을 그것과 비교합니다.
-- Node: `.node-version`이 pin입니다. kit을 포함한 모든 `package.json`의 `engines.node`는 그 version 이상(`>=`)이며(하한 =
+- Node: `mise.toml`의 `node`가 선언이며 pin과 같습니다. kit을 포함한 모든 `package.json`의 `engines.node`는 그 version 이상(`>=`)이며(하한 =
   pin), 다르면 `check-toolchain`이 실패합니다.
 
 CI와 release workflow는 이 순서로 돌며, consumer-layout 후속 test가 `release.yml`의 순서를 증명합니다.

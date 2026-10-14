@@ -3,8 +3,9 @@
 // node_modules is the version that package-lock.json resolves, and each copy that the package declares (`kit.copies` of its
 // package.json) is byte for byte its file of the package. Both together tie the copies to the locked version. The
 // configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
-// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need. kit itself, the source of the copies,
-// checks its configuration only.
+// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, and no recipe of
+// the Makefile starts a tool of the checkout by its bare name (recipe-tools.mts, K171). kit itself, the source of the copies,
+// checks its configuration and its recipes only.
 //
 //   node scripts/kit/kit-check.mts
 //
@@ -19,6 +20,8 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmLock, readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
+import { makeDatabase } from './owner-check.mts';
+import { bareToolFindings } from './recipe-tools.mts';
 
 export const PACKAGE = '@polyspec/kit';
 export const INSTALLED = `node_modules/${PACKAGE}`;
@@ -127,9 +130,9 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
     .sort();
 }
 
-/** The findings of `root`: the configuration, and the installed package and its copies; empty when they match. */
+/** The findings of `root`: the configuration, the recipes, and the installed package and its copies; empty when they match. */
 export function check(root: string): string[] {
-  const config = checkConfig(root);
+  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root))];
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];

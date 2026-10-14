@@ -1,6 +1,6 @@
 // The toolchain declarations and the manifest floors of a checkout, each compared with the pin of kit at the pin's precision
-// (S4). The declarations are .node-version, the channel of rust-toolchain.toml, the php minors, and the go and the python of
-// mise.toml (the minor of python); the go line of every go.mod is compared below. The manifests are the files of checkedFiles, so
+// (S4). The declarations are the node, the go and the python of mise.toml (the minor of python), the channel of
+// rust-toolchain.toml and the php minors; the go line of every go.mod is compared below. The manifests are the files of checkedFiles, so
 // the vendored fixture of kit and the installed directories are not read, nor the tool environments of mise in .mise:
 //   package.json   engines.node is ">=<node pin>"
 //   composer.json  require.php is ">=<php pin>"; beside a composer.lock, config.platform.php is "<php pin>"

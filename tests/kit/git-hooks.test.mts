@@ -3,7 +3,7 @@
 // not installed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { HOOKS_PATH, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from '../../scripts/kit/git-hooks.mts';
@@ -100,5 +100,6 @@ test('the pre-push hook calls the make target push-gate-hook and names no tool p
   assert.match(PRE_PUSH_CONTENT, /^exec make --no-print-directory push-gate-hook$/m);
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'push-gate-hook', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'node node_modules/@polyspec/kit/dist/push-gate.mjs hook');
+  // kit.mk starts the tool with the node of the checkout by its absolute path (K171); make names the directory by its real path.
+  assert.equal(dry.stdout.trim(), `${path.join(realpathSync(process.cwd()), 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/push-gate.mjs hook`);
 });

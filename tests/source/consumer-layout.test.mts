@@ -13,10 +13,14 @@ import { builtCopy, commitSandbox, installedLockEntries, kitConsumer, NPM, packe
 import { readFixture } from '../kit/json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import type { ReleaseConfig } from '../../scripts/kit/release.mts';
+import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
+import { parse, stringify } from 'smol-toml';
+import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT = readFixture<NpmManifest>(ROOT, 'package.json');
-const NODE = process.versions.node;
+// The Node.js of mise.toml of kit, which the consumer declares too (K171).
+const NODE = known(declaredMiseTools(ROOT).node, 'the node of mise.toml').version;
 // The packages that kit depends on at run time that this machine installed, which the consumer installs from the primed
 // cache. The lint tools (K77) are among them, since a consumer runs them through make lint-ts.
 const DEPENDENCIES = installedLockEntries(runtimePackage);
@@ -49,18 +53,25 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const { manifest, lock } = kitConsumer(packed, { packageManager: KIT.packageManager, engines: { node: `>=${NODE}` } });
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
-  writeFileSync(path.join(consumer, '.node-version'), `${NODE}\n`);
-  // The bootstrap installs the mise that config/toolchain.json declares, after npm; the consumer declares the mise of kit.
+  // The consumer declares the node of kit in mise.toml, and its mise.lock pins it as the mise.lock of kit does (K171).
+  writeFileSync(path.join(consumer, 'mise.toml'), `[tools]\nnode = "${NODE}"\n`);
+  const kitLock = parse(readFileSync(path.join(ROOT, 'mise.lock'), 'utf8'));
+  const tools = kitLock.tools;
+  assert.ok(typeof tools === 'object' && tools !== null && 'node' in tools, 'the mise.lock of kit pins no node');
+  writeFileSync(path.join(consumer, 'mise.lock'), stringify({ lockfile_version: kitLock.lockfile_version, tools: { node: tools.node } }));
+  // The bootstrap installs the mise that config/toolchain.json declares, then the node of mise.toml with it; the consumer
+  // declares the mise of kit.
   const toolchain = readFixture<{ pythonBackend: { requirement: string; sha256: string }; exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n');
   writeFileSync(path.join(consumer, '.gitignore'), '/node_modules/\n/var/\n');
   commitSandbox(consumer);
-  // The npm of packageManager and the mise of config/toolchain.json are the releases that kit installed: the bootstrap keeps a
-  // release that is installed, so the first step runs offline and writes the wrappers of the consumer.
+  // The npm of packageManager, the mise of config/toolchain.json and the node of mise.toml are the releases that kit installed:
+  // the bootstrap keeps a release that is installed, so the first step runs offline and writes the wrappers of the consumer.
   cpSync(path.join(ROOT, 'var/tools/npm'), path.join(consumer, 'var/tools/npm'), { recursive: true });
   cpSync(path.join(ROOT, 'var/tools/mise-release'), path.join(consumer, 'var/tools/mise-release'), { recursive: true });
+  cpSync(path.join(ROOT, 'var/tools/mise/installs/node'), path.join(consumer, 'var/tools/mise/installs/node'), { recursive: true, verbatimSymlinks: true });
   const env = { ...process.env, npm_config_cache: cache, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' };
   const make = (...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: consumer, env, encoding: 'utf8' });
 

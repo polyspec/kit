@@ -3,7 +3,7 @@
 // steps, install-tools TOOLS=npm and install-packages, and stops every other goal with the commands that install it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -24,6 +24,9 @@ function repository(t: TestContext) {
 }
 
 const make = (root: string, ...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: root, encoding: 'utf8' });
+
+// The absolute path of the tool `file` of var/tools of `root` as make names it, by the real path of the directory (K171).
+const tool = (root: string, file: string) => path.join(realpathSync(root), 'var/tools/bin', file);
 
 test('without the package, a goal other than the bootstrap steps stops with the commands that install it', (t) => {
   const root = repository(t);
@@ -48,10 +51,10 @@ test('install-packages runs npm ci with the pinned npm of var/tools, with or wit
   const root = repository(t);
   const dry = make(root, '-n', 'install-packages', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'online-wrapper var/tools/bin/npm ci --allow-remote=root');
+  assert.equal(dry.stdout.trim(), `online-wrapper ${tool(root, 'npm')} ci --allow-remote=root`);
   mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
   cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), 'var/tools/bin/npm ci --allow-remote=root');
+  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), `${tool(root, 'npm')} ci --allow-remote=root`);
 });
 
 test('with the package, the kit.mk of its dist runs the built tools', (t) => {
@@ -60,6 +63,6 @@ test('with the package, the kit.mk of its dist runs the built tools', (t) => {
   cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
   const dry = make(root, '-n', 'documents-check');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'node node_modules/@polyspec/kit/dist/check-documents.mjs');
-  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), 'node node_modules/@polyspec/kit/dist/install-tools.mjs go', 'install-tools is the target of the package');
+  assert.equal(dry.stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/install-tools.mjs go`, 'install-tools is the target of the package');
 });

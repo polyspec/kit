@@ -1,7 +1,8 @@
 // The bootstrap of a repository (scripts/kit/bootstrap): the installer of the pinned npm and the modules it imports, which a
 // repository holds as copies, because they run before the package @polyspec/kit is installed. kit holds them once, in
 // scripts/kit/bootstrap, and the other tools import them there. They import only Node.js built-ins and each other, so the copy
-// runs alone; the installer first requires the running node to be the release of .node-version.
+// runs alone. Any node that runs the copy starts it: the installer installs mise, then with it the node of mise.toml, then
+// npm, and every later step runs that node (K171).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -41,27 +42,21 @@ function copied(t: TestContext, files: Record<string, string>) {
   return { root, run };
 }
 
-test('the copied installer stops before any install when the running node is not the release of .node-version', (t) => {
-  const { root, run } = copied(t, { '.node-version': '20.0.0\n', 'package.json': '{ "packageManager": "npm@12.2.0" }\n' });
+test('the copied installer compares no running node and stops before any install without the mise of config/toolchain.json', (t) => {
+  const { root, run } = copied(t, { 'package.json': '{ "packageManager": "npm@12.2.0" }\n' });
   assert.equal(run.status, 1, run.stdout);
-  assert.equal(run.stderr, `[bootstrap] node ${process.versions.node} is running, but .node-version pins 20.0.0; install node 20.0.0 and run make install-tools TOOLS=npm again\n`);
+  assert.equal(run.stderr, '[bootstrap] config/toolchain.json declares no mise; declare its version and the sha256 of its archive of each platform\n');
   assert.equal(existsSync(path.join(root, 'var')), false, 'the installer wrote var/');
 });
 
-test('the copied installer stops when .node-version is missing', (t) => {
-  const { run } = copied(t, { 'package.json': '{ "packageManager": "npm@12.2.0" }\n' });
-  assert.equal(run.status, 1, run.stdout);
-  assert.equal(run.stderr, '[bootstrap] .node-version is missing; it pins the Node.js release that installs npm\n');
-});
-
-test('with the node of .node-version the copied installer reads packageManager, and names it when it is missing', (t) => {
-  const { run } = copied(t, { '.node-version': `${process.versions.node}\n`, 'package.json': '{}\n' });
+test('the copied installer reads packageManager, and names it when it is missing', (t) => {
+  const { run } = copied(t, { 'package.json': '{}\n' });
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.stderr, '[bootstrap] package.json packageManager is "", expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>\n');
 });
 
-test('with the node of .node-version and no package.json the copied installer names package.json', (t) => {
-  const { run } = copied(t, { '.node-version': `${process.versions.node}\n` });
+test('without package.json the copied installer names package.json', (t) => {
+  const { run } = copied(t, {});
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.stderr, '[bootstrap] package.json is missing; its packageManager pins the npm to install\n');
 });

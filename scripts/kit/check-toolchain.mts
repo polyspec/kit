@@ -55,7 +55,8 @@ const shim = (tool: keyof typeof MISE_TOOLS, output: { args: string[]; pattern: 
 
 // The command that prints the release of a tool, the pattern that reads it, and the fix of a mismatch.
 const probes: Record<string, Probe> = {
-  node: { command: () => 'node', args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: v => `install Node.js ${v}` },
+  // The node of mise.toml runs from its wrapper var/tools/bin/node, which the bootstrap writes, first on PATH (K171).
+  node: { command: root => toolsPath(root, 'bin', 'node'), args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
   npm: { command: () => 'npm', args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
   mise: { command: root => toolsPath(root, 'bin', 'mise'), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
   // rustup installs the toolchain of rust-toolchain.toml through make install-tools (install-rust.mts); its proxy names a missing one.
@@ -160,7 +161,7 @@ if (isMain(import.meta.url)) {
     const env = toolchainEnvironment(repositoryRoot());
     const declared = declaredTools(repositoryRoot());
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
-    if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in mise.toml, config/toolchain.json, .node-version, .php-version, rust-toolchain.toml or packageManager of package.json');
+    if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in mise.toml, config/toolchain.json, .php-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
     // Every declaration and every floor equals the pin of kit, or the channel of a declared exception, whichever tools run.
     const { exceptions, findings: malformed } = readExceptions(repositoryRoot());

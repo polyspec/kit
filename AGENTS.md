@@ -57,8 +57,11 @@ and states only its own rules. The rules below are kit's own.
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
   them after `make kit-test`.
 - kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
-  var/tools/mise, and the Rust of `rust-toolchain.toml`. Every recipe of kit.mk runs with the environment of mise of the
-  checkout and with var/tools/bin and the shims of mise first on PATH. A machine or CI runner provides the two toolchains
+  var/tools/mise, and the Rust of `rust-toolchain.toml`; the Node.js of `mise.toml` is installed by the bootstrap
+  (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the
+  checkout and with var/tools/bin and the shims of mise first on PATH, and starts a tool of the checkout by its absolute
+  path (`$(NODE)`, `$(NPM)`, `$(ALINT)`), never by its bare name: make 3.81 looks up a recipe line without shell syntax on
+  the PATH that make started with; `make kit-check` fails a recipe that does. A machine or CI runner provides the two toolchains
   that mise does not install. `make install-tools` installs, with rustup, the toolchain of `rust-toolchain.toml` with its
   components (`rustup toolchain install` in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its

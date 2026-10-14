@@ -11,7 +11,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { fetchedAsset, fetchReleaseAssets, main, releaseAssets, UNPACKED_MARK } from '../../scripts/kit/release-assets.mts';
-import { KIT_MAKE } from './kit-tools.mts';
+import { KIT_MAKE, tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 import { known } from './known.mts';
 
@@ -124,5 +124,5 @@ test('version prints the version that the entry declares once, and the command l
 test('make release-assets-fetch runs the fetch online', () => {
   const dry = spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, 'release-assets-fetch', 'ONLINE=online-wrapper'], { encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.match(dry.stdout.trim(), /^online-wrapper node \S+\/release-assets\.mts fetch$/);
+  assert.equal(dry.stdout.trim(), `online-wrapper ${process.execPath} ${tool('release-assets')} fetch`);
 });

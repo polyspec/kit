@@ -31,9 +31,5 @@
       "reason": "parity extracts the Rust symbols with rustdoc JSON, which needs nightly",
       "retry": "rustdoc JSON is stable (rust-lang/rust#76578)"
     }
-  ],
-  "node": {
-    "linux-x64.tar.gz": "b2b76660fa4ded4e0b2a41ee3c0c651cd52ea8170ead91ebac1e147ac3d55643",
-    "darwin-arm64.tar.gz": "0000000000000000000000000000000000000000000000000000000000000000"
-  }
+  ]
 }

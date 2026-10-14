@@ -44,21 +44,21 @@ test('a pin of the wrong precision, a missing pin or an unknown key fails with t
 
 test('every declaration equals its pin at the pin\'s precision; each other names the declaring file, the pin and the fix', () => {
   const declared = {
-    node: { version: '26.8.1', source: '.node-version' },
+    node: { version: '26.8.1', source: 'mise.toml tools.node' },
     rust: { version: '1.98.1', source: 'rust-toolchain.toml channel' },
     php: { minors: ['8.4', '8.5'], source: 'config/toolchain.json php' },
     python: { version: '3.13.2', source: 'mise.toml tools.python' },
     go: { version: '1.27.1', source: 'mise.toml tools.go' },
   };
   assert.deepEqual(pinFindings(declared, new Pinning(PINS)), [
-    '.node-version: node is "26.8.1"; kit pins node 26.11.1, so it must be "26.11.1"',
+    'mise.toml: tools.node is "26.8.1"; kit pins node 26.11.1, so it must be "26.11.1"',
     'rust-toolchain.toml: channel is "1.98.1"; kit pins rust 1.99.0, so it must be "1.99.0"',
     'mise.toml: tools.go is "1.27.1"; kit pins go 1.27.2, so it must be "1.27.2"',
     'config/toolchain.json: php is "8.4"; kit pins php 8.5, so it must be "8.5"',
     'mise.toml: tools.python minor is "3.13"; kit pins python 3.14, so it must be "3.14"',
   ]);
   const pinned = {
-    node: { version: '26.11.1', source: '.node-version' },
+    node: { version: '26.11.1', source: 'mise.toml tools.node' },
     php: { minors: ['8.5'], source: 'config/toolchain.json php' },
     python: { version: '3.14.8', source: 'mise.toml tools.python' },
     go: { version: '1.27.2', source: 'mise.toml tools.go' },
