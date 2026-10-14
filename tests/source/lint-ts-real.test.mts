@@ -62,7 +62,10 @@ function write(root: string, files: Record<string, string>) {
   }
 }
 
-const run = (root: string, command: string, ...args: string[]) => spawnSync(path.join(BIN, command), args, { cwd: root, encoding: 'utf8' });
+// The lint runs as it does outside CI: under GitHub Actions oxlint writes annotations, whose text leaves out the rule, so
+// the environment of the test would decide what the assertions read.
+const { GITHUB_ACTIONS: _ci, ...LOCAL } = process.env;
+const run = (root: string, command: string, ...args: string[]) => spawnSync(path.join(BIN, command), args, { cwd: root, encoding: 'utf8', env: LOCAL });
 
 /**
  * A repository in a temporary folder: GOOD with `files` over it, the .oxlintrc.json, knip.json and config/api-extractor.kit.json of this
