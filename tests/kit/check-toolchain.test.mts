@@ -46,7 +46,7 @@ const OUTPUTS = {
   ruff: 'ruff 0.16.10',
 };
 // The commands of mise.toml, which the check runs from their shims in var/tools/mise/shims.
-const MISE_COMMANDS = ['go', 'python3', 'uv', 'ruff', 'alint', 'golangci-lint', 'govulncheck', 'cargo-audit', 'composer', 'vulture'];
+const MISE_COMMANDS = ['go', 'python3', 'uv', 'ruff', 'alint', 'golangci-lint', 'govulncheck', 'cargo-audit', 'cargo-nextest', 'cargo-deny', 'composer', 'vulture'];
 const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('check-toolchain'), ...tools], { cwd: root, env, encoding: 'utf8' });
 // The checkout and the version stubs of `outputs`; each stubbed command of mise.toml is also its shim, which runs the stub,
 // and cargo-audit and govulncheck are the shims of checkout.mts. A null output makes the stub of the command fail.
@@ -147,6 +147,31 @@ test('the Node.js, cargo-audit and govulncheck releases are compared exactly', (
   assert.match(result.stderr, /govulncheck: 1\.1\.4 runs here and mise\.toml tools\.go:golang\.org\/x\/vuln\/cmd\/govulncheck declares 1\.1\.5; fix: make install-tools/);
 });
 
+// The Cargo tools of K143: cargo-nextest and cargo-deny of mise.toml, run from their shims. The stubs print what
+// cargo-nextest 0.9.146 and cargo-deny 0.20.2 print for --version (measured on macos-arm64).
+const CARGO_MISE = { 'github:nextest-rs/nextest': '0.9.146', 'cargo-deny': '0.20.2' };
+const CARGO_FILES = { 'mise.toml': miseToml(CARGO_MISE), 'mise.lock': miseLock(CARGO_MISE) };
+const cargoOutputs = ({ nextest = '0.9.146', deny = '0.20.2' } = {}) => ({
+  'cargo-nextest': `cargo-nextest ${nextest} (8af696ddc 2026-09-21)\nrelease: ${nextest}\ncommit-hash: 8af696ddcce8fff2962d6a5168b6d138b8616a35\ncommit-date: 2026-09-21\nhost: aarch64-apple-darwin`,
+  'cargo-deny': `cargo-deny ${deny}`,
+});
+
+test('cargo-nextest and cargo-deny of mise.toml pass at their releases and each other release fails with its declaration (K143)', (t) => {
+  const good = setup(t, cargoOutputs(), CARGO_FILES);
+  const passed = check(good.root, good.stubs.env);
+  assert.equal(passed.status, 0, passed.stderr);
+  assert.equal(passed.stdout, '[check-toolchain] cargoNextest 0.9.146, cargoDeny 0.20.2\n[check-toolchain] 2 tools run at the declared versions\n');
+  assert.deepEqual(good.stubs.calls().map(line => line.split(' ').slice(0, 2).join(' ')), ['cargo-nextest --version', 'cargo-deny --version', 'cargo-nextest --version', 'cargo-deny --version']);
+  const { root, stubs } = setup(t, cargoOutputs({ nextest: '0.9.145', deny: '0.20.1' }), CARGO_FILES);
+  const result = check(root, stubs.env);
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.stderr.trim().split('\n'), [
+    '[check-toolchain] cargoNextest: 0.9.145 runs here and mise.toml tools.github:nextest-rs/nextest declares 0.9.146; fix: make install-tools',
+    '[check-toolchain] cargoDeny: 0.20.1 runs here and mise.toml tools.cargo-deny declares 0.20.2; fix: make install-tools',
+    '[check-toolchain] 2 of 2 tools differ from the declared versions',
+  ]);
+});
+
 test('PHP is compared by minor release, and the Python of mise.toml by its exact release', (t) => {
   const { root, stubs } = setup(t, { ...OUTPUTS, php: '8.5.99' });
   assert.deepEqual(toolchainMismatches(['php', 'python'], { root, env: stubs.env }), []);
@@ -206,7 +231,7 @@ test('the tools to check come from the arguments; an undeclared tool, an unknown
   assert.equal(undeclared.status, 1);
   assert.match(undeclared.stderr, /go is not declared; declare it in config\/toolchain\.json or in its file, or leave it out of the tools to check/);
   const unknown = check(bare, stubs.env, 'make');
-  assert.match(unknown.stderr, /unknown tool make; the tools are node, npm, mise, rust, php, phpunit, phpcs, phpstan, go, python, uv, ruff, alint, golangciLint, deadcode, govulncheck, cargoAudit, composer, vulture/);
+  assert.match(unknown.stderr, /unknown tool make; the tools are node, npm, mise, rust, php, phpunit, phpcs, phpstan, go, python, uv, ruff, alint, golangciLint, deadcode, govulncheck, cargoAudit, cargoNextest, cargoDeny, composer, vulture/);
 
   const nothing = check(toolchainCheckout(t), stubs.env);
   assert.equal(nothing.status, 1);

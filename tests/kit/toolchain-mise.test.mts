@@ -14,6 +14,8 @@ python = "3.14.8"
 ruff = "0.17.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.3.0"
 "github:rustsec/rustsec" = { version = "0.22.2", version_prefix = "cargo-audit/v" }
+"github:nextest-rs/nextest" = { version = "0.9.146", version_prefix = "cargo-nextest-" }
+cargo-deny = "0.20.2"
 "pypi:vulture" = "2.16"
 `;
 
@@ -32,6 +34,8 @@ const LOCK = [
   entry('ruff', '0.17.0', BOTH),
   entry('go:golang.org/x/vuln/cmd/govulncheck', '1.3.0', []),
   entry('github:rustsec/rustsec', '0.22.2', BOTH),
+  entry('github:nextest-rs/nextest', '0.9.146', BOTH),
+  entry('cargo-deny', '0.20.2', BOTH),
   entry('pypi:vulture', '2.16', [], `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }`),
 ].join('\n');
 
@@ -43,6 +47,8 @@ test('the tools of mise.toml are read with their releases and the declaring key;
     ruff: { version: '0.17.0', source: 'mise.toml tools.ruff' },
     govulncheck: { version: '1.3.0', source: 'mise.toml tools.go:golang.org/x/vuln/cmd/govulncheck' },
     cargoAudit: { version: '0.22.2', source: 'mise.toml tools.github:rustsec/rustsec' },
+    cargoNextest: { version: '0.9.146', source: 'mise.toml tools.github:nextest-rs/nextest' },
+    cargoDeny: { version: '0.20.2', source: 'mise.toml tools.cargo-deny' },
     vulture: { version: '2.16', source: 'mise.toml tools.pypi:vulture' },
   });
   assert.deepEqual(declaredMiseTools(toolchainCheckout(t)), {});
@@ -67,6 +73,8 @@ test('a missing lock, tool, release, platform digest or uv lock is a finding wit
     entry('python', '3.14.8', ['linux-x64']),
     entry('go:golang.org/x/vuln/cmd/govulncheck', '1.3.0', []),
     entry('github:rustsec/rustsec', '0.22.2', BOTH),
+    entry('github:nextest-rs/nextest', '0.9.146', BOTH),
+    entry('cargo-deny', '0.20.2', ['linux-x64', 'macos-arm64']),
     entry('pypi:vulture', '2.16', []),
   ].join('\n');
   const composer = `${MISE_TOML}"http:composer" = { version = "2.10.3", url = "https://getcomposer.org/download/{{ version }}/composer.phar" }\n`;
@@ -76,6 +84,8 @@ test('a missing lock, tool, release, platform digest or uv lock is a finding wit
     'mise.lock pins python 3.14.8 for macos-arm64 without the sha256 of its archive; run make toolchain-lock',
     'mise.lock pins python 3.14.8 for macos-x64 without the sha256 of its archive; run make toolchain-lock',
     'mise.lock does not pin ruff 0.17.0; run make toolchain-lock',
+    'mise.lock pins cargo-deny 0.20.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock',
+    'mise.lock pins cargo-deny 0.20.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock',
     'mise.lock pins pypi:vulture 2.16 without the digest of its uv lock; install uv with mise and run make toolchain-lock',
     'mise.lock pins http:composer 2.10.3 for linux-x64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
     'mise.lock pins http:composer 2.10.3 for linux-arm64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
