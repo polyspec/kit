@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d79fee5dc17a559602ce743e0e3e66cf5615ddb4b17fcf81d0fbf4f0b3227738 -->
+<!-- source-sha256: dbbd322ce5a0004a1dfe2776a4143e7a3cb56b6e569d626026c02cdbb0d2bd18 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make toolchain-lock은 mise 환경이 mise.toml을 global configuration으로 지정하므로 `mise lock --global`로 그 도구를 잠급니다. 0.0.39는 lock이 없는 저장소에서 lock을 쓰지 못했습니다(K127).
 - release workflow는 `make release-tools` 전에 `make release-prepare`를 실행합니다: 저장소는 release에 필요한 준비를 Makefile의 `release-prepare::` 규칙으로 선언합니다(K132).
 
 ### 소비자 이전

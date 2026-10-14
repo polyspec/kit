@@ -20,7 +20,9 @@ import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOLS } from 
 export function lockTools({ root = ROOT, print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const mise = toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
-  const platforms = ['--platform', LOCK_PLATFORMS.join(',')];
+  // The environment of mise names the checkout's mise.toml as the global configuration (miseEnvironment), and mise then
+  // locks its tools only with --global, which writes mise.lock beside that file.
+  const platforms = ['--global', '--platform', LOCK_PLATFORMS.join(',')];
   const declared = declaredMiseTools(root);
   const pypi = Object.entries(MISE_TOOLS).some(([name, { key }]) => key.startsWith('pypi:') && declared[name as keyof typeof MISE_TOOLS]);
   // The wrapper sets the environment of mise itself; UV_PYTHON of toolsEnvironment would name a Python before mise installs it.
