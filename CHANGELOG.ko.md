@@ -1,10 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b9fb0374a2ebd5796d83fd3ed34040cf4aad187f529610f38587a0de42171a95 -->
+<!-- source-sha256: dc48ee81bafafa67901c283581a65907870a7419eab2b9d028bca0ebf345faa7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- knip.json은 make, go, rustup, shasum에 더해 polyspec이 mise나 setup으로 고정하는 runtime인 php, composer, python3, cargo, node, git의 binary를 무시합니다: php나 composer를 spawn하는 script가 unlisted binary였습니다. 한 레포만의 system 도구(Apple `container` 등)는 `config/knip-entries.json`의 `binaries`(`{ "<name>": "<reason>" }`)에 이유와 함께 선언하고, make lint-ts는 `entries`를 entry에 더하듯 그것을 `ignoreBinaries`에 더합니다. 이제 `entries`는 선택입니다(K152).
+
+### 소비자 이전
+
+실행:
+- knip.json을 쓰는 `make kit-sync`(K152).
+
+추가:
+- script가 spawn하여 knip이 unlisted binary로 보고하는 레포의 system 도구(hyper의 `container`, template의 `gmake` 등)마다 이유와 함께 `config/knip-entries.json`의 `binaries`(K152).
 
 ## 0.0.44
 

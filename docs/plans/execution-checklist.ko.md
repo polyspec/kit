@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: dd4f56ee69b1cd7fbaec255a8cb9607f69f657231dbdb7dddef5fdc68fa1b1d1 -->
+<!-- source-sha256: 65a80a0a3dd8a255816319ad492cb7873425fbf4c89b9bf43374553c1d146598 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -210,3 +210,4 @@
 | K149 | `make install-tools`가 kit이 checkout의 선언에 따라 더는 쓰지 않는 `var/tools/bin`의 file을 모두 지운다(bootstrap의 mise, npm, npx와 선언된 Composer project의 wrapper는 남는다): kit 0.0.38이 쓴 wrapper go, gofmt, python3, alint가 그 도구가 mise로 옮긴 뒤에도 남아 PATH에서 mise의 shim을 가렸다 | `install-tools.mts`, `install-mise.mts`, `install-npm.mts`, `install-phpunit.mts`, `install-php-lint.mts`의 wrapper 이름, 문서 | `tests/kit/install-tools.test.mts` | [o] |
 | K150 | 사본 `scripts/kit/bootstrap/files.mts`와 `digest.mts`가 consumer에서 깨끗하게 lint된다: consumer의 tsconfig는 자기 script를 담고 kit의 사본은 담지 않아 oxlint-tsgolint가 이를 project 밖에서 node의 type 없이 검사했고, `NodeJS.ArrayBufferView`가 error type이 되어 `no-redundant-type-constituents`를 실패시켰다(0.0.43의 ordered-json; kit 자신의 lint는 통과). 사본은 `Uint8Array`를 받고, lint-ts-real의 fixture는 consumer 모양의 tsconfig로 `kit.copies`의 실제 사본을 lint한다 | `bootstrap/files.mts`, `bootstrap/digest.mts`, 문서 | `tests/source/lint-ts-real.test.mts` | [o] |
 | K147 | ruff가 복사된 `ruff.toml`의 `cache-dir`, 곧 repository의 모든 실행에 적용되는 ruff 자신의 설정으로 cache를 `var/ruff`에 둔다: `make lint-python`이 repository root에 `.ruff_cache`를 남겼고, ignore하지 않으면 layout S5에서 실패한다 | `ruff.toml`, 문서 | `tests/source/lint-python-real.test.mts` | [o] |
+| K152 | knip.json이 make, go, rustup, shasum에 더해 polyspec이 mise나 setup으로 고정하는 runtime(php, composer, python3, cargo, node, git)의 binary를 무시하고, 레포는 자기 system 도구(hyper의 `container`)를 `config/knip-entries.json`의 선택적 `binaries` map에 이유와 함께 선언하며, lint-ts는 `entries`처럼 그것을 `var/lint-ts/knip.json`의 `ignoreBinaries`에 더한다: php, composer, container, gmake를 spawn하는 consumer가 "Unlisted binaries"로 knip에서 실패했다(template-benchmark, fsm, hyper, template) | `knip.json`, `lint-ts.mts`, `schema/knip-entries.schema.json`, 문서 | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` | [ ] |

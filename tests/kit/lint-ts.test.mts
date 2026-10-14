@@ -69,3 +69,17 @@ test('knip reads knip.json with the entries of config/knip-entries.json after it
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, entries: { '../outside.mjs': 'leaves the repository' } }));
   assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/entries/);
 });
+
+test('knip ignores the binaries of config/knip-entries.json after those of knip.json, and entries are optional (K152)', (t) => {
+  const { root, calls } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, binaries: { container: 'the virtiofs tests run Apple container' } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.equal(calls()[1], 'knip --no-progress --config var/lint-ts/knip.json [root]');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make', 'container'] });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, binaries: { 'bin/tool': 'a path, not a binary' } }));
+  assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/binaries/);
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1 }));
+  assert.throws(() => lintSteps(root), /config\/knip-entries\.json/);
+});
