@@ -458,7 +458,9 @@ Merged behaviors:
   with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
   signal. Only a SIGKILL of the runner itself leaves the group running.
 - `phpunit` runs `<cwd>/vendor/bin/phpunit`, or the vendor directory of `COMPOSER_VENDOR_DIR` (crudui), with `--php-extension`
-  for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts.
+  for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts. `--php-extension`
+  repeats: each extension is loaded with its own `-d extension=<path>`, PHP's own way, in the given order, so one loads after
+  an extension that it depends on, and each is checked as built before the tool starts (K165).
 - A tool that cannot start fails with its command and the fix.
 - `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
