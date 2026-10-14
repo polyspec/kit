@@ -125,7 +125,7 @@
               "properties": {
                 "implementation": { "type": "string" },
                 "test": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-                "symbol": { "description": "suite, go: the test function whose subtests are the cases; cargo: the module path whose tests <symbol>::<case> are the cases.", "type": "string" },
+                "symbol": { "description": "suite, go: the test function whose subtests are the cases; cargo: the module path whose tests <symbol>::<case> are the cases; php (optional): the test method <class>::<method> of a fully qualified class, which runs alone (--filter) and whose data sets `<method> with data set \"<case>\"` are the cases; without it, the test methods test_<case> of the file are the cases.", "type": "string" },
                 "id": { "description": "feature: the id of the test as its runner reports it in a run of the whole test file, which must pass in both runs: go the test or subtest name (TestX/case), cargo the libtest path (module::test), node and vitest the names of the test and its enclosing suites joined by ' › ', php and python the test method.", "type": "string", "minLength": 1 }
               }
             }

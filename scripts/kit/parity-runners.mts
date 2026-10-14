@@ -14,7 +14,9 @@
 //           suites and its own joined by ' › ', a case is a top-level test, and a feature id is the joined name
 //   php     `php <args> vendor/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
 //           the phpunit.xml of the Composer package of the test (phpunit.xml.dist when only that exists), or
-//           `--no-configuration` when it has none; a case is a test method `test_<case>`, and a feature id is the method
+//           `--no-configuration` when it has none; a suite binding with the symbol `<class>::<method>` (the fully qualified
+//           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
+//           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the method
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the method
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -85,6 +87,25 @@ const after = (prefix: string, name: string): string | undefined => (name.starts
 
 /** The name of a unittest or PHPUnit test method: `test_<case>` names the case `<case>`; another name is the case itself. */
 const methodCase = (name: string): string => (name.startsWith('test_') ? name.slice(5) : name);
+
+/**
+ * The PHPUnit filter of the test method of the symbol `<class>::<method>`: PHPUnit matches it against `<class>::<method>` and
+ * `<class>::<method> with data set …`, so it selects the method and each of its data sets, and no method that only starts so.
+ */
+const methodFilter = (symbol: string): string => `/^${symbol.replaceAll('\\', '\\\\')}(?: with data set |$)/`;
+
+/**
+ * The case of a PHPUnit test of the method of `symbol`: the data set `<method> with data set "<case>"` names `<case>`, and an
+ * integer key `<method> with data set #<n>` names `#<n>`, which no suite declares; the method without a data set is no case.
+ */
+function dataSetCase(symbol: string): (name: string) => string | undefined {
+  // The declaration requires `<class>::<method>`, so the symbol has a method part.
+  const method = symbol.split('::')[1]!;
+  return (name) => {
+    const set = after(`${method} with data set `, name);
+    return set === undefined ? undefined : /^"(.*)"$/s.exec(set)?.[1] ?? set;
+  };
+}
 
 // The JSON report of a vitest run, in the checkout; the report of vitest 5 as its run reads it, and the sink call of each status
 // (a todo test is expected to fail, so it is no pass).
@@ -188,7 +209,14 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       // The configuration of the package: PHPUnit reads none from the checkout root, so the run names it.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.posix.join(composer, file)).find(file => existsSync(path.join(root, file)));
       const flags = configuration === undefined ? ['--no-configuration'] : ['--configuration', configuration];
-      return { args: test => [...test, phpunit, '--teamcity', ...flags, binding.test], cwd: '.', caseOf: kind === 'suite' ? methodCase : itself, read: ({ stdout }, sink) => eachLine(stdout, phpunitEvents(sink)), detail: stderrTail };
+      const method = kind === 'suite' ? binding.symbol : undefined;
+      return {
+        args: test => [...test, phpunit, '--teamcity', ...flags, ...(method === undefined ? [] : ['--filter', methodFilter(method)]), binding.test],
+        cwd: '.',
+        caseOf: kind === 'feature' ? itself : method === undefined ? methodCase : dataSetCase(method),
+        read: ({ stdout }, sink) => eachLine(stdout, phpunitEvents(sink)),
+        detail: stderrTail,
+      };
     },
   },
   python: {
