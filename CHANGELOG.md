@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.42
+
 - The bootstrap writes `var/tools/go.mod`, so the Go of mise and its test sources under `var/tools` are a module of their own that `./...` of a repository whose root is a Go module does not walk (K135).
 ## 0.0.41
 
