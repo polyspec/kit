@@ -103,7 +103,7 @@ test('toolchain-lock runs mise lock for linux-x64 and macos-arm64 and passes a l
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
   const result = start('toolchain-lock', root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise lock --platform linux-x64,macos-arm64']);
+  assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,macos-arm64']);
   assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
 });
 
@@ -126,11 +126,11 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
   assert.equal(result.status, 1);
   assert.deepEqual(stubs.calls(), [
-    'mise lock uv python --platform linux-x64,macos-arm64',
+    'mise lock uv python --global --platform linux-x64,macos-arm64',
     'mise install --locked uv python',
     'mise which uv',
     'mise which python3',
-    'mise lock --platform linux-x64,macos-arm64',
+    'mise lock --global --platform linux-x64,macos-arm64',
   ]);
   const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { args: string[]; PATH: string; UV_PYTHON?: string });
   const last = calls.at(-1)!;
