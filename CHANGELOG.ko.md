@@ -1,10 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7346c7a5df60f73e616248b9c997bf2c78a28b768645a5e02c769a800145ba2d -->
+<!-- source-sha256: 773e86fa355c66b42d2fc961a2231a3169aecae3c97964d9ffc038e707d91830 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 복사되는 `.oxlintrc.json`이 non-null assertion을 error로 실패시킵니다(`typescript/no-non-null-assertion`): `noUncheckedIndexedAccess` 아래의 list 항목이나 정규식 group처럼 type이 undefined나 null을 허용하는 값은 검사로 읽습니다. kit은 그런 값을 기대한 식을 밝히며 던지는 `scripts/kit/present.mts`의 `present`로, test는 assert하는 `tests/kit/known.mts`의 `known`으로 읽습니다(K156).
+
+### 소비자 이전
+
+실행:
+- `.oxlintrc.json`을 쓰는 `make kit-sync`(K156).
+
+수정:
+- `make lint-ts`가 이제 보고하는 `!` 하나하나를 disable 없이: 값을 구조 분해해 검사하거나, 기대하는 것을 밝히는 레포의 throwing accessor로 읽습니다(K156).
 
 ## 0.0.46
 

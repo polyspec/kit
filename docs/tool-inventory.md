@@ -859,7 +859,9 @@ does not declare is neither installed nor checked.
   `no-unsafe-type-assertion` fails a type assertion that narrows; a fixture plants each one. JSON is read through a schema
   (K158) and an unknown value is narrowed by a check. A file outside the TypeScript project has no types, so each call of an
   import there is an unsafe call of an error type: the tsconfig of a repository covers every TypeScript file that lint-ts
-  lints, its scripts too, and leaves out the copies of kit. The non-null assertion waits for K156. API
+  lints, its scripts too, and leaves out the copies of kit. No non-null assertion (K156):
+  `no-non-null-assertion` fails `!`; kit reads a value that it knows to be there with `present` of `scripts/kit/present.mts`,
+  which throws with the expression that it expected, and its tests with `known` of `tests/kit/known.mts`, which asserts it. API
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report

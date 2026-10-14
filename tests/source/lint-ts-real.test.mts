@@ -67,6 +67,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
     ['no-unsafe-return', 'export function size(text: string): number {\n  return JSON.parse(text);\n}\n'],
     ['no-unsafe-type-assertion', 'export function size(value: unknown): number {\n  return (value as string).length;\n}\n'],
   ] as const).map(([rule, code]) => ({ name: `a violation of ${rule}`, files: { [INDEX]: `${DOUBLE}\n/**\n * Measures a value.\n */\n${code}` }, finding: new RegExp(`typescript\\(${rule}\\)`) })),
+  // A value whose type admits undefined is read with a check, not asserted away (K156).
+  { name: 'a non-null assertion', files: { [INDEX]: `${DOUBLE}\n/**\n * Reads the first value.\n */\nexport function first(values: number[]): number {\n  return values[0]!;\n}\n` }, finding: /typescript\(no-non-null-assertion\)/ },
   { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/ },
   { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/ },
   { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/ },

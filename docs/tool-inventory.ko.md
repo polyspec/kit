@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e7ac38a7c4c4a5e1ac0c43c25e8e33cb61ac8ccc3777cdfc53a2e23efb7f69bd -->
+<!-- source-sha256: 53e2f47238a97cd3543d88bb6909d1b5d5eb15010079e88d9462ac7dd37c7a50 -->
 
 # 도구 목록
 
@@ -787,7 +787,9 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   인자, 대입, 호출 대상, member access의 객체, 반환값이 되면 실패시키고, `no-unsafe-type-assertion`은 type을 좁히는 type
   assertion을 실패시킵니다. fixture가 각각을 심습니다. JSON은 schema로 읽고(K158) unknown 값은 검사로 좁힙니다. TypeScript
   project 밖의 파일에는 type이 없어 그 안의 import 호출은 모두 error type의 unsafe call이 됩니다: 레포의 tsconfig는 lint-ts가
-  lint하는 모든 TypeScript 파일을, script까지 담고 kit의 사본은 뺍니다. non-null assertion은 K156을 기다립니다. API
+  lint하는 모든 TypeScript 파일을, script까지 담고 kit의 사본은 뺍니다. non-null assertion은 없습니다(K156):
+  `no-non-null-assertion`은 `!`를 실패시킵니다. kit은 있다고 아는 값을 `scripts/kit/present.mts`의 `present`로 읽으며, 이것은
+  기대한 식을 밝히며 던집니다. test는 `tests/kit/known.mts`의 `known`으로 읽고 assert합니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
   줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다. `ae-missing-release-tag`는 꺼져
