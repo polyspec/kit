@@ -37,7 +37,7 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replace(/ \[kit-lint-ts-[^\]]*\]$/, ' [root]')) };
 }
 
-const ALL = ['oxlint --type-aware --deny-warnings -c .oxlintrc.json [root]', 'knip --no-progress [root]', 'api-extractor run [ts]'];
+const ALL = ['oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json [root]', 'knip --no-progress [root]', 'api-extractor run [ts]'];
 
 test('oxlint and knip run from the root, and API Extractor in each package but not for the base configuration', (t) => {
   const { root, calls } = checkout(t);

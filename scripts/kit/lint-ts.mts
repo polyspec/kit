@@ -20,7 +20,9 @@ export function lintSteps(root: string): LintStep[] {
   requireConfigurations(root, [['.oxlintrc.json', 'oxlint'], ['knip.json', 'knip']]);
   const packages = foldersOf(root, 'api-extractor.json');
   return [
-    { label: 'oxlint', command: tools.oxlint!, args: ['--type-aware', '--deny-warnings', '-c', '.oxlintrc.json'], cwd: '.' },
+    // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
+    // leave the rule out, so the format is fixed and the output is the same everywhere.
+    { label: 'oxlint', command: tools.oxlint!, args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json'], cwd: '.' },
     { label: 'knip', command: tools.knip!, args: ['--no-progress'], cwd: '.' },
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: tools['api-extractor']!, args: ['run'], cwd: folder })),
   ];
