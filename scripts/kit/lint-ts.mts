@@ -12,7 +12,6 @@
 //   node scripts/kit/lint-ts.mts
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
-import { ROOT } from './paths.mts';
 
 /** The steps of the lint of `root`; throws when a tool or a configuration is missing. */
 export function lintSteps(root: string): LintStep[] {
@@ -33,4 +32,4 @@ export function lint(root: string, print: (text: string) => unknown = text => pr
   return runLint('lint-ts', lintSteps(root), root, print);
 }
 
-lintMain(import.meta.url, 'lint-ts', ROOT, lintSteps);
+lintMain(import.meta.url, 'lint-ts', lintSteps);

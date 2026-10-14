@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { acquireHolderLock, holderRunning, processStart, procStart, readLockRecord, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
 import type { CommandOutcome, HolderLockRefused, Host } from '../../scripts/kit/holder-lock.mts';
 import type { RunPlace } from '../../scripts/kit/process.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 /** A lock that a process holds. */
 type Held = ReturnType<typeof acquireHolderLock>;
@@ -37,6 +38,14 @@ function onEnd(t: TestContext, cleanup: () => unknown): void {
 function workspace(t: TestContext): string {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-holder-lock-'));
   onEnd(t, () => rmSync(directory, { recursive: true, force: true }));
+  return directory;
+}
+
+// A workspace that is a Git work tree, for `run`: the tool names the repository root of its working directory as the
+// checkout that holds the lock.
+function checkout(t: TestContext): string {
+  const directory = workspace(t);
+  initRepository(directory);
   return directory;
 }
 
@@ -326,7 +335,7 @@ test('a holder that receives SIGTERM releases the lock and ends with the status 
 });
 
 test('run holds the lock while the command runs and exits with its status', (t) => {
-  const directory = workspace(t);
+  const directory = checkout(t);
   const lock = path.join(directory, 'resource.lock');
   const probe = `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(path.join(directory, 'seen'))}, fs.readFileSync(${JSON.stringify(lock)}, 'utf8')); process.exit(3)`;
   const ran = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', probe);
@@ -340,7 +349,7 @@ test('run holds the lock while the command runs and exits with its status', (t) 
 });
 
 test('run exits with 128 + n for a command that a signal ended and with 127 for a command that does not start, and releases the lock', (t) => {
-  const lock = path.join(workspace(t), 'resource.lock');
+  const lock = path.join(checkout(t), 'resource.lock');
   const signalled = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', "process.kill(process.pid, 'SIGTERM')");
   assert.equal(signalled.status, 143, signalled.stderr);
   assert.equal(existsSync(lock), false);
@@ -351,7 +360,7 @@ test('run exits with 128 + n for a command that a signal ended and with 127 for 
 });
 
 test('run is refused while another holder has the lock and runs nothing', { timeout: 20_000 }, async (t) => {
-  const directory = workspace(t);
+  const directory = checkout(t);
   const lock = path.join(directory, 'resource.lock');
   const { child } = await holdLock(t, lock);
   const refused = tool(path.dirname(lock), 'run', lock, '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, 'ran'))}, '')`);

@@ -22,7 +22,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { isMain, ROOT, siblingTool } from './paths.mts';
+import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { git } from './git.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
@@ -307,7 +307,7 @@ function step(root: string, { name, command, args }: Check) {
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const { values } = parseArgs({ options: { paths: { type: 'string' }, base: { type: 'string' }, 'dry-run': { type: 'boolean' }, validate: { type: 'boolean' } } });
   if (!existsSync(path.join(root, DECLARATION))) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);

@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, older } from './version.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson } from './bootstrap/files.mts';
@@ -270,7 +270,7 @@ function main(): void {
     process.exit(2);
   }
   // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
-  const root = args.length ? path.resolve(args[1]!) : ROOT;
+  const root = args.length ? path.resolve(args[1]!) : repositoryRoot();
   const findings = check(root);
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);

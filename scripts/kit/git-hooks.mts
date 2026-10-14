@@ -9,7 +9,7 @@
 import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PRE_PUSH_HOOK } from './checklist.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 
@@ -76,7 +76,7 @@ export function installHooks(root: string, hooks: string[] = loadConfig(root).ho
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const [mode, ...rest] = process.argv.slice(2);
   if ((mode !== 'install' && mode !== 'check') || rest.length > 0) {
     console.error('Usage: node scripts/kit/git-hooks.mts install | check');

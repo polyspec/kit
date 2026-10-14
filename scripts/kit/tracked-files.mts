@@ -6,7 +6,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { git } from './git.mts';
-import { ROOT } from './paths.mts';
+import { repositoryRoot } from './paths.mts';
 
 const gitPaths = (root: string, ...args: string[]): string[] => git(root, ...args).split('\0').filter(Boolean);
 
@@ -20,7 +20,7 @@ const INSTALLED = /(^|\/)(node_modules|var|\.tools)\//;
  * The files of the checkout under `root`, tracked or new and not ignored, that exist as regular files. An unresolved merge
  * lists a conflicted path once for each stage, so each path is kept once.
  */
-export function trackedFiles(root: string = ROOT): string[] {
+export function trackedFiles(root: string = repositoryRoot()): string[] {
   return [...new Set(gitPaths(root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'))]
     .filter(file => existsSync(path.join(root, file)) && statSync(path.join(root, file)).isFile())
     .sort();
@@ -30,7 +30,7 @@ export function trackedFiles(root: string = ROOT): string[] {
 export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE) && !INSTALLED.test(file));
 
 /** The paths under `root` that Git ignores, a directory with a trailing `/`. */
-export function ignoredPaths(root: string = ROOT): string[] {
+export function ignoredPaths(root: string = repositoryRoot()): string[] {
   return gitPaths(root, 'ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory').sort();
 }
 

@@ -49,7 +49,7 @@ import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName 
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { readConfig } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 
 export const MAIN = 'origin/main';
@@ -693,7 +693,7 @@ function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: 
 const USAGE = 'usage: node scripts/kit/release.mts verify|versions|assets|publish|undraft|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
-export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
+export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
   const tagged = mode !== undefined && ['verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);

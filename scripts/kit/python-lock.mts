@@ -27,7 +27,7 @@ import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 
 const RELEASE = /^\d+(?:\.\d+)*$/;
 const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
@@ -378,18 +378,18 @@ if (isMain(import.meta.url)) {
   try {
     const command = process.argv[2];
     if (command !== 'write' && command !== 'check') throw new Error('the command is write or check, for example node scripts/kit/python-lock.mts check');
-    const entries = pythonLockEntries(ROOT);
+    const entries = pythonLockEntries(repositoryRoot());
     for (const entry of entries) {
       if (command === 'write') {
         try {
-          writePythonLock({ root: ROOT, entry, print: text => console.log(`[python-lock] ${text}`) });
+          writePythonLock({ root: repositoryRoot(), entry, print: text => console.log(`[python-lock] ${text}`) });
           console.log(`[python-lock] wrote ${entry.lock}`);
         } catch (error) {
           console.error(`[python-lock] ${entry.lock} failed: ${(error as Error).message}`);
           failed = true;
         }
       } else {
-        const findings = checkPythonLock({ root: ROOT, entry });
+        const findings = checkPythonLock({ root: repositoryRoot(), entry });
         for (const finding of findings) console.error(`[python-lock] ${finding}`);
         if (findings.length > 0) failed = true;
       }

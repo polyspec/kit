@@ -13,7 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
 
@@ -31,7 +31,7 @@ function inside(file: string, directory: string): boolean {
  * its home a directory of var/tools/mise, where mise installs the Python of mise.toml. Its symbolic links are not
  * checked: they are the behavior of the tool that made it.
  */
-export function venvProblem(venv: string, root: string = ROOT): string | undefined {
+export function venvProblem(venv: string, root: string = repositoryRoot()): string | undefined {
   const config = path.join(venv, 'pyvenv.cfg');
   const relative = path.relative(root, venv);
   const make = MAKE(relative);
@@ -52,7 +52,7 @@ const pythonVersion = (python: string, env: NodeJS.ProcessEnv): string => execFi
  * Why the existing virtual environment `directory` is not a venv of the checkout Python, or undefined: the rule of run-tests
  * (venvProblem), a bin/python, and the version of the checkout Python.
  */
-export function existingVenvProblem(directory: string, root: string = ROOT, env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function existingVenvProblem(directory: string, root: string = repositoryRoot(), env: NodeJS.ProcessEnv = process.env): string | undefined {
   const relative = path.relative(root, directory);
   const problem = venvProblem(directory, root);
   if (problem) return problem;
@@ -69,7 +69,7 @@ export function existingVenvProblem(directory: string, root: string = ROOT, env:
  * it already is one: the run is idempotent. An existing directory that is not such a venv is an error with its reason; it is
  * neither removed nor repaired.
  */
-export function makeVenv({ root = ROOT, directory, env = process.env, print = () => {} }: { root?: string; directory: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void }): void {
+export function makeVenv({ root = repositoryRoot(), directory, env = process.env, print = () => {} }: { root?: string; directory: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void }): void {
   const relative = path.relative(root, directory);
   const python = toolCommand(root, 'python3');
   const uv = toolCommand(root, 'uv');
@@ -98,7 +98,7 @@ if (isMain(import.meta.url)) {
   try {
     if (args.length !== 1) throw new Error('Usage: node scripts/kit/python-venv.mts <directory>');
     // The check above throws unless args holds one argument.
-    makeVenv({ directory: path.resolve(ROOT, args[0]!), print: text => process.stdout.write(`${text}\n`) });
+    makeVenv({ directory: path.resolve(repositoryRoot(), args[0]!), print: text => process.stdout.write(`${text}\n`) });
   } catch (error) {
     process.stderr.write(`${(error as Error).message}\n`);
     process.exitCode = 1;

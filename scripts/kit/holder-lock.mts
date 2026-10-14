@@ -21,7 +21,7 @@ import { constants } from 'node:os';
 import { linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import type { Outcome, RunPlace } from './process.mts';
 
@@ -312,7 +312,7 @@ export async function holdWhileRunning(lock: string, command: string, args: read
 async function main(argv: string[]): Promise<number> {
   const [operation, lock, separator, command, ...args] = argv;
   if (operation === 'run' && lock && separator === '--' && command) {
-    return holdWhileRunning(path.resolve(lock), command, args, { checkout: ROOT });
+    return holdWhileRunning(path.resolve(lock), command, args, { checkout: repositoryRoot() });
   }
   if (operation === 'clear' && lock && argv.length === 2) {
     const record = removeDeadLock(path.resolve(lock));

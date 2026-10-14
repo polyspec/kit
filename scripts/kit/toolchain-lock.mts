@@ -12,12 +12,12 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
 import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOLS } from './toolchain-mise.mts';
 
 /** Writes mise.lock of `root` with the mise of var/tools/bin; throws with the findings of a lock that misses a digest. */
-export function lockTools({ root = ROOT, print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
+export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const mise = toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The environment of mise names the checkout's mise.toml as the global configuration (miseEnvironment), and mise then

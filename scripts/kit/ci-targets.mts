@@ -21,7 +21,7 @@ import { now } from './time.mts';
 import { toolchainVersions } from './check-toolchain.mts';
 import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mts';
 import type { RunRecord, UnreadRecord } from './target-report.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { jsonText, readJson } from './bootstrap/files.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
@@ -117,7 +117,7 @@ export function ciSummary({ root, directory, env = process.env, print = line => 
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const [first, ...rest] = process.argv.slice(2);
   try {
     if (first === '--summary' && rest.length === 1) {

@@ -7,9 +7,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { isMain, ROOT, siblingTool } from '../../scripts/kit/paths.mts';
+import { isMain, repositoryRoot, siblingTool } from '../../scripts/kit/paths.mts';
 import { english, korean, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
+
+const ROOT = path.resolve(import.meta.dirname, '../..');
+
+/** The repository root that the tools of this checkout resolve in `cwd`. */
+function printedRoot(cwd: string): string {
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool('paths'))}); process.stdout.write(repositoryRoot());`], { cwd, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  return run.stdout;
+}
 
 test('isMain is true when the command names the tool through a link of its directory', (t) => {
   const link = mkdtempSync(path.join(tmpdir(), 'paths-link-'));
@@ -28,19 +37,40 @@ test('isMain is true when the command names the tool through a link of its direc
     process.argv[1] = argv!;
   }
   assert.equal(fileURLToPath(module), path.join(ROOT, 'scripts/kit/paths.mts'));
+  assert.equal(repositoryRoot(), ROOT, 'node --test runs in the root of this checkout');
 });
 
-test('ROOT is the working directory: a tool of this checkout run in another repository reads the files of that repository', (t) => {
+test('the repository root is the top level of the Git work tree: a tool of this checkout run in another repository reads the files of that repository', (t) => {
   // The tools of a package run from node_modules/@polyspec/kit/dist, so the location of a module names no repository: the
   // tools of this checkout run with the sandbox as the working directory (kit-tools.mts).
   const en = english('guide', 'Some text.\n');
   const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en) });
-  const root = spawnSync(process.execPath, ['--input-type=module', '-e', `const { ROOT } = await import(${JSON.stringify(tool('paths'))}); process.stdout.write(ROOT);`], { cwd: repository, encoding: 'utf8' });
-  assert.equal(root.status, 0, root.stderr);
-  assert.equal(realpathSync(root.stdout), realpathSync(repository));
+  assert.equal(realpathSync(printedRoot(repository)), realpathSync(repository));
   const checked = spawnSync(process.execPath, [tool('check-documents')], { cwd: repository, encoding: 'utf8' });
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
   assert.match(checked.stdout, /1 document pairs/);
+});
+
+test('a tool started below the root, as npm -w starts it in a package directory, resolves the repository root (K144)', (t) => {
+  const en = english('guide', 'Some text.\n');
+  const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en), 'packages/app/package.json': '{}\n' });
+  const below = path.join(repository, 'packages/app');
+  assert.equal(realpathSync(printedRoot(below)), realpathSync(repository));
+  const checked = spawnSync(process.execPath, [tool('check-documents')], { cwd: below, encoding: 'utf8' });
+  assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+  assert.match(checked.stdout, /1 document pairs/);
+});
+
+test('outside a Git work tree the root is refused with its cause, and importing a tool alone reads no root', (t) => {
+  const outside = mkdtempSync(path.join(tmpdir(), 'paths-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  // GIT_CEILING_DIRECTORIES keeps git from finding a work tree above the temporary directory.
+  const env = { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(realpathSync(outside)) };
+  const imported = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(tool('tracked-files'))});`], { cwd: outside, encoding: 'utf8', env });
+  assert.equal(imported.status, 0, imported.stderr);
+  const asked = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool('paths'))}); repositoryRoot();`], { cwd: outside, encoding: 'utf8', env });
+  assert.notEqual(asked.status, 0);
+  assert.match(asked.stderr, /is not inside a Git work tree; a tool of kit runs in a checkout of a repository/);
 });
 
 // A tool that starts another tool names it through siblingTool: the directory and the extension of the calling module, so

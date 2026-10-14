@@ -91,6 +91,7 @@ test('release-tools reads config/release.json of the repository it runs in, not 
   // tool of this checkout, whose own config/release.json is valid, runs in another repository (kit-tools.mts).
   const repository = mkdtempSync(path.join(tmpdir(), 'release-tools-repository-'));
   t.after(() => rmSync(repository, { recursive: true, force: true }));
+  initRepository(repository);
   mkdirSync(path.join(repository, 'config'));
   writeFileSync(path.join(repository, 'config/release.json'), '{}');
   const ran = spawnSync(process.execPath, [tool('release-tools')], { cwd: repository, encoding: 'utf8' });

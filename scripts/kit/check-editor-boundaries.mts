@@ -15,7 +15,7 @@ import { transformSync } from 'amaro';
 import { analyze } from 'eslint-scope';
 import { readJson } from './bootstrap/files.mts';
 import { matchesAny } from './glob.mts';
-import { ROOT, isMain } from './paths.mts';
+import { repositoryRoot, isMain } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
 
 export const CONFIG = 'config/editor-boundaries.json';
@@ -162,7 +162,7 @@ export function checkBoundaries(root: string): { findings: string[]; packages: n
 }
 
 if (isMain(import.meta.url)) {
-  const { findings, packages, boundaries, files } = checkBoundaries(ROOT);
+  const { findings, packages, boundaries, files } = checkBoundaries(repositoryRoot());
   if (findings.length > 0) {
     process.stderr.write(`${findings.join('\n')}\n`);
     process.exit(1);
