@@ -4,6 +4,7 @@
 // of its `latest-status`.
 import { explain, lt as pep440Older, valid as pep440Valid } from '@renovatebot/pep440';
 import semver from 'semver';
+import { present } from './present.mts';
 
 /** An ecosystem of the registry dependencies. */
 export type Ecosystem = 'npm' | 'go' | 'pypi' | 'composer';
@@ -22,7 +23,7 @@ function pep440Of(version: string): string {
 
 /** Whether `version` is a prerelease: a semver prerelease (a Go pseudo-version too), or a PEP 440 pre-release or dev release. */
 export function isPrerelease(ecosystem: Exclude<Ecosystem, 'composer'>, version: string): boolean {
-  if (ecosystem === 'pypi') return explain(pep440Of(version))!.is_prerelease; // pep440Of checked that the version reads.
+  if (ecosystem === 'pypi') return present(explain(pep440Of(version)), 'explain(pep440Of(version))').is_prerelease; // pep440Of checked that the version reads.
   return semver.prerelease(semverOf(ecosystem, version)) !== null;
 }
 

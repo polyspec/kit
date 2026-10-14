@@ -9,6 +9,7 @@ import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
 import { testRoot } from './paths.mts';
+import { present } from './present.mts';
 
 // The repository root of the run, which run-tests passes; the working directory of this process is the --cwd directory.
 const ROOT = testRoot();
@@ -77,10 +78,10 @@ export default class ProgressReporter extends Transform {
       if (!group && file) this.cases.set(file, (this.cases.get(file) ?? 0) + 1);
       // A group is a file, so file is set wherever group holds below.
       if (data.skip || data.todo) this.progress.skip(id);
-      else if (passed && group && this.failedFiles.has(file!)) {  // group implies file.
-        this.failedFiles.delete(file!);  // group implies file.
+      else if (passed && group && this.failedFiles.has(present(file, 'file'))) {  // group implies file.
+        this.failedFiles.delete(present(file, 'file'));  // group implies file.
         this.progress.fail(id, duration, 'a failure outside its tests failed the file');
-      } else if (passed && group && !this.cases.get(file!)) {  // group implies file.
+      } else if (passed && group && !this.cases.get(present(file, 'file'))) {  // group implies file.
         this.progress.fail(id, duration, 'the file ran no test case');
         // node --test counts no failure for it; this reporter runs in that process and fails it.
         process.exitCode = 1;

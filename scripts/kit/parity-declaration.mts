@@ -7,6 +7,7 @@ import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors } from './markdown.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
 import { isJsonList, isJsonObject, isStringList } from './bootstrap/files.mts';
+import { present } from './present.mts';
 
 export const DECLARATION = 'config/parity.json';
 
@@ -176,7 +177,7 @@ export function difference(expected: readonly string[], found: readonly string[]
 function patternError(source: string): string | undefined {
   try {
     // The empty alternative always matches '', so exec finds a match.
-    return new RegExp(`${source}|`).exec('')!.length < 2 ? `the pattern ${source} has no group` : undefined;
+    return present(new RegExp(`${source}|`).exec(''), 'new RegExp(`${source}|`).exec(\'\')').length < 2 ? `the pattern ${source} has no group` : undefined;
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     return `the pattern ${source} is no regular expression: ${error.message}`;
@@ -457,7 +458,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (!profile.reason) fail(`profile ${profile.name} omits ${profile.omitted.join(', ')} and gives no reason; write the reason in reason`);
     const users = config.units.filter(unit => unit.profile === profile.name);
     // users[0] below exists: it is read only when users holds one unit.
-    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${users[0]!.id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
+    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${present(users[0], 'users[0]').id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
   }
   for (const entry of config.implementations) {
     if (!config.profiles.some(profile => profile.implementations.includes(entry.name))) fail(`the implementation ${entry.name} is in no profile, so no unit applies to it`);
@@ -468,7 +469,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
   // A tools root holds tests that implement no contract, so it shares no directory with an implementation and holds no bound test.
-  const overlap = (left: string, right: string) => [[left, right], [right, left]].some(([outer, inner]) => `${inner!.replace(/\/+$/, '')}/`.startsWith(`${outer!.replace(/\/+$/, '')}/`));
+  const overlap = (left: string, right: string) => [[left, right], [right, left]].some(([outer, inner]) => `${present(inner, 'inner').replace(/\/+$/, '')}/`.startsWith(`${present(outer, 'outer').replace(/\/+$/, '')}/`));
   for (const tool of config.tools ?? []) {
     for (const entry of config.implementations) {
       for (const directory of entry.roots.filter(directory => overlap(tool.root, directory))) fail(`tools: the root ${tool.root} overlaps ${directory}, a root of the implementation ${entry.name}`);
@@ -520,7 +521,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
     // A known profile is in profiles.
-    const members = knownProfile(unit.profile, where) ? profiles.get(unit.profile)! : [];
+    const members = knownProfile(unit.profile, where) ? present(profiles.get(unit.profile), 'profiles.get(unit.profile)') : [];
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
     const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'admit', 'symbols'], api: ['file', 'cases', 'bindings', 'admit'] }[unit.kind];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
@@ -533,7 +534,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (unit.kind === 'api') {
       if (!('symbols' in unit)) fail(`${where}: a unit of kind api needs symbols`);
       // has(name) holds before get(name).
-      for (const name of members) if (implementations.has(name) && !implementations.get(name)!.symbols) fail(`${where}: the implementation ${name} declares no symbols`);
+      for (const name of members) if (implementations.has(name) && !present(implementations.get(name), 'implementations.get(name)').symbols) fail(`${where}: the implementation ${name} declares no symbols`);
       continue;
     }
     for (const key of unit.kind === 'suite' ? ['file', 'cases', 'bindings'] : ['bindings']) if (!(key in unit)) fail(`${where}: a unit of kind ${unit.kind} needs ${key}`);
@@ -549,14 +550,14 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       const runner = implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
       // A go binding without symbol took the branch above.
-      else if (runner === 'go' && !/^Test\w*$/.test(entry.symbol!)) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
+      else if (runner === 'go' && !/^Test\w*$/.test(present(entry.symbol, 'entry.symbol'))) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
       else if (runner === 'php' && entry.symbol !== undefined && !PHP_METHOD.test(entry.symbol)) fail(`${where}: the php binding names ${entry.symbol}, which is no test method <class>::<method> of a fully qualified class`);
     }
     if (unit.kind === 'feature') continue;
     const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
     if (!unit.file || !unit.cases) continue;
     // A suite file that is a directory holds a case directory for each case, which a glob selects; a vector file names its cases.
-    const directory = !files.has(unit.file) && [...files].some(file => within(unit.file!, file));
+    const directory = !files.has(unit.file) && [...files].some(file => within(present(unit.file, 'unit.file'), file));
     const glob = !unit.cases.startsWith('$');
     if (directory && !glob) {
       fail(`${where}: ${unit.file} is a directory, so cases is a glob of its case directories, not ${unit.cases}`);
@@ -613,7 +614,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   }
   for (const entry of config.nativeOnly ?? []) {
     if (!implementations.has(entry.implementation)) fail(`nativeOnly names ${entry.implementation}, which is no implementation`);
-    else if (!implementations.get(entry.implementation)!.symbols) fail(`nativeOnly names ${entry.symbol} of ${entry.implementation}, which declares no symbols`);
+    else if (!present(implementations.get(entry.implementation), 'implementations.get(entry.implementation)').symbols) fail(`nativeOnly names ${entry.symbol} of ${entry.implementation}, which declares no symbols`);
   }
   const exclusions = new Map<string, ParityExclusion>();
   for (const entry of config.exclusions ?? []) {
@@ -635,7 +636,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   }
   // The case names of a suite that `implementation` runs: every case, except those whose admit list omits it.
   // The second operand runs only when the admissions of the unit hold the name.
-  const admitted = (unit: ParityUnit, implementation: string): string[] => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || admissions.get(unit.id)!.get(name)!.includes(implementation));
+  const admitted = (unit: ParityUnit, implementation: string): string[] => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || present(present(admissions.get(unit.id), 'admissions.get(unit.id)').get(name), 'admissions.get(unit.id).get(name)').includes(implementation));
   // An implementation of the profile of an admit suite that admits no case runs nothing: it leaves the profile, or R8 excludes
   // it. An excluded one is already an R8 finding, so it is not repeated here.
   for (const unit of config.units.filter(entry => entry.kind === 'suite' && entry.admit !== undefined && cases.has(entry.id))) {

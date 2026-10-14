@@ -53,6 +53,7 @@ import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
+import { present } from './present.mts';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -226,7 +227,7 @@ export function latestTag(ctx: Context): string {
   const tags = list.trim().split('\n').filter(tag => tag.startsWith('v') && EXACT_VERSION.test(tag.slice(1)));
   if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
   // tags holds at least one tag, checked above, and semver reads each vX.Y.Z.
-  return semver.rsort(tags)[0]!;
+  return present(semver.rsort(tags)[0], 'semver.rsort(tags)[0]');
 }
 
 /** [Go module directory or null, version] of a release tag. */
@@ -234,12 +235,12 @@ export function parseTag(config: Pick<ReleaseConfig, 'goModules'>, tag: string):
   const found = TAG.exec(tag);
   if (!found) throw new Stop(`${tag}: a release tag is vX.Y.Z or <Go module directory>/vX.Y.Z`);
   // TAG has named groups, so a match has groups.
-  const directory = found.groups!.directory ?? null;
+  const directory = present(found.groups, 'found.groups').directory ?? null;
   if (directory !== null && (directory === '.' || !(directory in config.goModules))) {
     throw new Stop(`${tag}: ${directory} is not a Go module directory; the Go modules are [${Object.keys(config.goModules).filter(item => item !== '.').sort().join(', ')}]`);
   }
   // TAG has named groups and the group version takes part in every match.
-  return [directory, found.groups!.version!];
+  return [directory, present(present(found.groups, 'found.groups').version, 'found.groups.version')];
 }
 
 const taggedCommit = (ctx: Context, tag: string) => run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
@@ -343,9 +344,9 @@ export function changelogSection(root: string, file: string, version: string): s
   const next = found.find(item => item.line > heading.line && item.depth <= 2);
   const body = lines.slice(heading.endLine, next ? next.line - 1 : lines.length);
   // The loop reads the last entry of body only while body has one.
-  while (body.length && (!body.at(-1)!.trim() || /^<a id="[^"]*"><\/a>$/.test(body.at(-1)!.trim()))) body.pop();
+  while (body.length && (!present(body.at(-1), 'body.at(-1)').trim() || /^<a id="[^"]*"><\/a>$/.test(present(body.at(-1), 'body.at(-1)').trim()))) body.pop();
   // The loop reads the first entry of body only while body has one.
-  while (body.length && !body[0]!.trim()) body.shift();
+  while (body.length && !present(body[0], 'body[0]').trim()) body.shift();
   if (!body.length) throw new Stop(`${file}: the section ## ${version} has no entry`);
   return `${body.join('\n')}\n`;
 }
@@ -355,7 +356,7 @@ export function changelogAnchor(root: string, file: string, version: string): st
   const { heading } = versionHeading(readFileSync(path.join(root, file), 'utf8'), file, version);
   const explicit = heading.htmlBefore === null ? null : /^<a id="([^"]+)"><\/a>$/.exec(heading.htmlBefore.trim());
   // The group 1 of the pattern takes part in every match.
-  return explicit ? explicit[1]! : version.replaceAll('.', '');
+  return explicit ? present(explicit[1], 'explicit[1]') : version.replaceAll('.', '');
 }
 
 /** The notes of the release of the tag: the section when it has at most NOTES_LIMIT characters, otherwise one linking line. */
@@ -501,9 +502,9 @@ export function assets(ctx: Context, tag: string): string[] {
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
     // sources and locks hold the manifest and the lock of each package at its index.
-    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: buildBackend(root).requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
+    if (kind === 'wheel') return [...sourceProblems({ file, text: present(sources[index], 'sources[index]'), name, requirement: buildBackend(root).requirement }), ...lockProblems(present(locks[index], 'locks[index]').text, present(locks[index], 'locks[index]').file)];
     // sources holds the manifest of each package at its index.
-    const manifest = parseManifest(kind, sources[index]!, file);
+    const manifest = parseManifest(kind, present(sources[index], 'sources[index]'), file);
     return [
       ...(manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`]),
       ...manifestProblems(config, kind, manifest, version).map(problem => `${file}: ${problem}`),
@@ -524,34 +525,34 @@ export function assets(ctx: Context, tag: string): string[] {
         const created = readdirSync(next).filter(item => !before.has(item));
         if (created.length !== 1) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not one archive`);
         // created holds one file, checked above, and names holds the archive name of each package at its index.
-        renameSync(path.join(next, created[0]!), path.join(next, names[index]!));
+        renameSync(path.join(next, present(created[0], 'created[0]')), path.join(next, present(names[index], 'names[index]')));
       } else if (kind === 'wheel') {
         buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: buildBackend(root) });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.
         // names holds the archive name of each package at its index.
-        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, names[index]!)}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
+        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, present(names[index], 'names[index]'))}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
       }
     });
-    const present = readdirSync(next).sort();
-    if (JSON.stringify(present) !== JSON.stringify([...names].sort())) throw new Stop(`${ASSETS} holds [${present.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
+    const built = readdirSync(next).sort();
+    if (JSON.stringify(built) !== JSON.stringify([...names].sort())) throw new Stop(`${ASSETS} holds [${built.join(', ')}], not the archives [${[...names].sort().join(', ')}]`);
     const failures = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
       if (kind === 'wheel') {
         // names holds the archive name of each package at its index.
-        const metadata = wheelMetadata(root, path.join(next, names[index]!), ctx.env);
+        const metadata = wheelMetadata(root, path.join(next, present(names[index], 'names[index]')), ctx.env);
         return [
           ...metadataProblems(metadata, name, version),
           // locks holds the lock of each wheel package at its index.
-          ...wheelDependencyProblems({ requiresDist: metadata.requiresDist, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: locks[index]!.file, lockText: locks[index]!.text }),
+          ...wheelDependencyProblems({ requiresDist: metadata.requiresDist, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: present(locks[index], 'locks[index]').file, lockText: present(locks[index], 'locks[index]').text }),
         ].map(problem => `${names[index]}: ${problem}`);
       }
       const file = MANIFEST_OF[kind];
       // names holds the archive name of each package at its index.
-      const packed = packedManifest(ctx, path.join(next, names[index]!));
+      const packed = packedManifest(ctx, path.join(next, present(names[index], 'names[index]')));
       return [
         ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
-        ...manifestProblems(config, kind, parseManifest(kind, packed, `${names[index]!}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
+        ...manifestProblems(config, kind, parseManifest(kind, packed, `${present(names[index], 'names[index]')}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });
     if (failures.length) throw new Stop(`${tag}: the release assets do not install outside the repository: ${failures.join('; ')}`);

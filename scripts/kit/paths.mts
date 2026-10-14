@@ -4,6 +4,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gitResult } from './git.mts';
+import { present } from './present.mts';
 
 let root: string | undefined;
 
@@ -42,7 +43,7 @@ export const siblingTool = (moduleUrl: string, name: string): string => {
  */
 export const isMain = (moduleUrl: string): boolean =>
   // Boolean() above checked process.argv[1]; TypeScript does not narrow through Boolean().
-  Boolean(process.argv[1]) && realpathSync(process.argv[1]!) === realpathSync(fileURLToPath(moduleUrl));
+  Boolean(process.argv[1]) && realpathSync(present(process.argv[1], 'process.argv[1]')) === realpathSync(fileURLToPath(moduleUrl));
 
 /** The variable in which run-tests names the repository root to the reporters that it loads into a test run. */
 export const TEST_ROOT = 'KIT_TEST_ROOT';

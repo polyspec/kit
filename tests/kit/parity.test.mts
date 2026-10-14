@@ -83,15 +83,15 @@ for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test
     const found = /^(PASS|FAIL) (\\S+)$/.exec(line);
     if (found && (symbol === undefined || found[2].startsWith(symbol + '/'))) {
       if (symbol === undefined && found[1] === 'FAIL') exit = 1;
-      console.log(JSON.stringify({ Action: 'run', Test: found[2] }));
-      console.log(JSON.stringify({ Action: 'output', Test: found[2], Output: '=== RUN ' + found[2] + '\\n' }));
-      console.log(JSON.stringify({ Action: found[1] === 'PASS' ? 'pass' : 'fail', Test: found[2] }));
+      console.log(JSON.stringify({ Action: 'run', Package: 'example', Test: found[2] }));
+      console.log(JSON.stringify({ Action: 'output', Package: 'example', Test: found[2], Output: '=== RUN ' + found[2] + '\\n' }));
+      console.log(JSON.stringify({ Action: found[1] === 'PASS' ? 'pass' : 'fail', Package: 'example', Test: found[2], Elapsed: 0 }));
     }
     const status = /^EXIT (\\S+) (\\d+)$/.exec(line);
     if (status && status[1] === symbol) exit = Number(status[2]);
   }
 }
-if (symbol !== undefined) console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Test: symbol }));
+if (symbol !== undefined) console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Package: 'example', Test: symbol, Elapsed: 0 }));
 process.exit(exit);
 `;
 

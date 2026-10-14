@@ -29,6 +29,7 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
+import { present } from './present.mts';
 
 const RELEASE = /^\d+(?:\.\d+)*$/;
 const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
@@ -73,7 +74,7 @@ function entriesOf(text: string, file: string) {
   return located.map(({ location }) => {
     const line = text.slice(location.startIdx, location.endIdx);
     // The text is an entry that the file parser read, so the line parser reads it to a requirement.
-    return { text: line, line: lineOf(text, location.startIdx), entry: parseLine(line, file)! };
+    return { text: line, line: lineOf(text, location.startIdx), entry: present(parseLine(line, file), 'parseLine(line, file)') };
   });
 }
 // An error that names the fix of its own, so the finding says what to write.
@@ -141,12 +142,12 @@ export function parseConstraints(text: string, file: string) {
     const plain = entry.type !== 'RequirementsFile' && entry.type !== 'ConstraintsFile' && !entry.extras?.length && !entry.environmentMarkerTree;
     if (plain && entry.type === 'ProjectName' && entry.versionSpec?.length === 1) {
       // The length check makes the specifier exist.
-      const { operator, version } = entry.versionSpec[0]!;
+      const { operator, version } = present(entry.versionSpec[0], 'entry.versionSpec[0]');
       if (operator === '==' && !version.includes('*')) return { name: entry.name, version, line: number };
     }
     const archive = plain && entry.type === 'ProjectURL' ? ARCHIVE_URL.exec(entry.url) : null;
     // Both groups of ARCHIVE_URL are required, so a match holds them.
-    if (archive && entry.type === 'ProjectURL') return { name: entry.name, url: archive[1]!, sha256: archive[2]!, line: number };
+    if (archive && entry.type === 'ProjectURL') return { name: entry.name, url: present(archive[1], 'archive[1]'), sha256: present(archive[2], 'archive[2]'), line: number };
     throw new Error(`${file} line ${number}: ${line} is not name==version or a direct reference with #sha256`);
   });
 }

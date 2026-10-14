@@ -43,6 +43,7 @@ import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
+import { present } from './present.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -249,20 +250,20 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     };
     // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
     if (cargo) {
-      const events = cargoEvents(sink!); // A tool that this runner reads has a sink.
-      child.stdout!.setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
-      readline.createInterface({ input: child.stderr! }).on('line', noting(line => events.stderr(line))); // The stream is piped for this tool.
+      const events = cargoEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
+      present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
+      readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', noting(line => events.stderr(line))); // The stream is piped for this tool.
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
-      const events = pythonEvents(sink!); // A tool that this runner reads has a sink.
-      child.stderr!.setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
+      const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
+      present(child.stderr, 'child.stderr').setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
         for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
         events(data);
       });
       // python is a tool that this runner reads, so it has a progress.
-      readline.createInterface({ input: child.stdout! }).on('line', text => progress!.line(`  ${text}`));
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', text => present(progress, 'progress').line(`  ${text}`));
     } else if (reads) {
-      readline.createInterface({ input: child.stdout! }).on('line', noting(options.tool === 'go' ? goEvents(sink!, build) : phpunitEvents(sink!))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(options.tool === 'go' ? goEvents(present(sink, 'sink'), build) : phpunitEvents(present(sink, 'sink')))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
     const ended = await closed;
     await stopping;
@@ -272,7 +273,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     }
     if (ended.error) {
       // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
-      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool]!({ cwd: options.cwd, root })}\n`);
+      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${present(INSTALL[options.tool], 'INSTALL[options.tool]')({ cwd: options.cwd, root })}\n`);
       return 1;
     }
     const { status, signal } = ended;

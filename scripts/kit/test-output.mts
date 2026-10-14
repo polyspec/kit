@@ -70,7 +70,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         return sink.start(test);
       case 'output': {
         // test2json writes Output on every output event.
-        if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(event.Output!)) sink.raw(event.Output!); return; }
+        if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(present(event.Output, 'event.Output'))) sink.raw(present(event.Output, 'event.Output')); return; }
         output.set(id, (output.get(id) ?? '') + event.Output);
         return;
       }
@@ -81,7 +81,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
           return sink.line(`○ ${id}: ran no test case`);
         }
         // test2json writes Elapsed on every pass event.
-        return sink.pass(test, event.Elapsed! * 1000);
+        return sink.pass(test, present(event.Elapsed, 'event.Elapsed') * 1000);
       case 'skip': output.delete(id); return sink.skip(test);
       case 'fail': {
         const text = (output.get(id) ?? '').split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
@@ -118,9 +118,9 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }:
     const match = result.exec(text);
     if (!match) return other(text);
     // Both groups of `result` always take part in a match.
-    start(match[1]!);
+    start(present(match[1], 'match[1]'));
     // As above; start has set current.
-    sink[outcome(match[2]!)](current!);
+    sink[outcome(present(match[2], 'match[2]'))](present(current, 'current'));
     current = undefined;
     return undefined;
   };
@@ -132,7 +132,7 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }:
       buffer = buffer.slice(end + 1);
     }
     const started = pending.exec(buffer);
-    if (started) start(started[1]!); // The group of `pending` always takes part in a match.
+    if (started) start(present(started[1], 'started[1]')); // The group of `pending` always takes part in a match.
   };
 }
 
@@ -148,7 +148,7 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
     result: /^test (\S+)(?: - should panic)?\s+\.\.\. (ok|FAILED|ignored)\b/,
     pending: /^test (\S+)(?: - should panic)?\s+\.\.\. $/,
     // `result` matches only these three words.
-    outcome: word => ({ ok: 'pass', FAILED: 'fail', ignored: 'skip' } as Record<string, Outcome>)[word]!,
+    outcome: word => present(({ ok: 'pass', FAILED: 'fail', ignored: 'skip' } as Record<string, Outcome>)[word], '({ ok: \'pass\', FAILED: \'fail\', ignored: \'skip\' } as Record<string, Outcome>)[word]'),
     idOf: name => ({ id: `${binary} › ${name}`, name }),
     other: (text) => {
       if (text.trim() && !/^(?:running \d+ tests?$|test result:|failures:$|successes:$)/.test(text.trim())) sink.line(`  ${text}`);
@@ -158,7 +158,7 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
     stdout,
     stderr(text: string) {
       const running = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(text);
-      if (running) binary = running[1]!; // The group always takes part in a match.
+      if (running) binary = present(running[1], 'running[1]'); // The group always takes part in a match.
       if (text.trim()) sink.line(text.trim());
     },
   };
@@ -183,7 +183,7 @@ export function pythonEvents(sink: Sink): (data: string) => void {
     idOf: (name) => {
       const id = described ?? name;
       described = undefined;
-      return { id, name: id.split(' ')[0]! }; // split returns at least one part.
+      return { id, name: present(id.split(' ')[0], 'id.split(\' \')[0]') }; // split returns at least one part.
     },
     other: (text) => {
       if (DESCRIPTION.test(text)) { described = text; return; }
@@ -212,13 +212,13 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
   const qualified = (attributes: Record<string, string>): string | undefined => {
     const hint = /::\\?([^:]+)::(.+)$/.exec(attributes.locationHint ?? '');
     // Both groups always take part in a match, and split returns at least one part.
-    return hint ? `${hint[1]!.split('\\').pop()}::${hint[2]}` : attributes.name;
+    return hint ? `${present(hint[1], 'hint[1]').split('\\').pop()}::${hint[2]}` : attributes.name;
   };
   return line => {
     const message = /^##teamcity\[(\w+)((?: \w+='(?:[^'|]|\|.)*')*)\]$/.exec(line.trim());
     if (!message) return line.trim() ? sink.line(line) : undefined;
     // The groups of both patterns always take part in a match.
-    const attributes = Object.fromEntries([...message[2]!.matchAll(/ (\w+)='((?:[^'|]|\|.)*)'/g)].map(([, key, value]) => [key!, unescapeTeamcity(value!)]));
+    const attributes = Object.fromEntries([...present(message[2], 'message[2]').matchAll(/ (\w+)='((?:[^'|]|\|.)*)'/g)].map(([, key, value]) => [present(key, 'key'), unescapeTeamcity(present(value, 'value'))]));
     if (message[1] === 'testStarted') ids.set(attributes.name, qualified(attributes));
     const id = ids.get(attributes.name) ?? attributes.name;
     // PHPUnit names each test and suite; a message without a name, such as testCount, reaches only the default case.
@@ -238,7 +238,7 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
         const duration = Number(attributes.duration);
         if (ignored.delete(id)) return undefined;
         // has() above makes the failure text exist.
-        if (failures.has(id)) { const text = failures.get(id)!; failures.delete(id); return sink.fail(test(), duration, text); }
+        if (failures.has(id)) { const text = present(failures.get(id), 'failures.get(id)'); failures.delete(id); return sink.fail(test(), duration, text); }
         return sink.pass(test(), duration);
       }
       default: return undefined;

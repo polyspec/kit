@@ -25,6 +25,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { errorCode, execute } from './process.mts';
 import type { Outcome, RunPlace } from './process.mts';
 import { ConfigError, parseJson } from './schema-validate.mts';
+import { present } from './present.mts';
 
 const SCRIPT = fileURLToPath(import.meta.url);
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
@@ -94,8 +95,9 @@ const windowsStartScript = (pid: number): string => `$p = Get-Process -Id ${pid}
 function commandStart(host: Host, command: string, args: string[], statuses: Record<number, ProcessStart>, env?: NodeJS.ProcessEnv): ProcessStart {
   const result = host.execute(command, args, { env });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);
-  // `in` read a null status as the key `null`, which no map holds; the value exists for a status that is in the map.
-  if (result.status !== null && result.status in statuses) return statuses[result.status]!;
+  // A status that the map holds has its result; null, the status of a signal, is no key of it.
+  const mapped = result.status === null ? undefined : statuses[result.status];
+  if (mapped !== undefined) return mapped;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}: ${result.stderr.trim()}`);
   // A status of `statuses` names an ended process, so a status 0 without a start time is no answer.
   const start = result.stdout.trim();
@@ -286,7 +288,7 @@ export async function runCommand(command: string, args: readonly string[], { cwd
         resolve(127);
       });
       // Node.js passes a signal whenever the exit code is null.
-      child.on('exit', (code, signal) => resolve(code ?? 128 + constants.signals[signal!]));
+      child.on('exit', (code, signal) => resolve(code ?? 128 + constants.signals[present(signal, 'signal')]));
     });
   } finally {
     for (const signal of SIGNALS) process.off(signal, forward);

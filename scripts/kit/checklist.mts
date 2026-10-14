@@ -121,7 +121,7 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
   const seen = new Map<string, number>();
   const finding = (line: number | undefined, column: number | undefined, rule: string, message: string) => findings.push({ line, column, rule, message });
   // A call without plainMessage runs only in the strict reading, so the lenient reading always has one.
-  const both = (line: number, column: number, rule: string, strictMessage: string, plainMessage?: string) => finding(line, column, rule, strict ? strictMessage : plainMessage!);
+  const both = (line: number, column: number, rule: string, strictMessage: string, plainMessage?: string) => finding(line, column, rule, strict ? strictMessage : present(plainMessage, 'plainMessage'));
   const strictOnly = (...found: Parameters<typeof finding>) => { if (strict) finding(...found); };
   const plainOnly = (line: number, rule: string, message: string) => { if (!strict) finding(line, undefined, rule, message); };
   const expected = states ?? FIVE_STATES;
@@ -149,7 +149,7 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
     const indent = Math.max(line.search(/\S/), 0);
     let place = -1;
     // lineBlocks reads every line of the text, and lines holds no line after the last.
-    const block = blocks[index]!;
+    const block = present(blocks[index], 'blocks[index]');
     let allowed = block.kind === 'blank' || block.kind === 'heading' || (block.kind === 'html' && DOCUMENT_MARKER.test(line));
     if (format === 'table') {
       const row = block.kind === 'tableRow' ? block.cells : [];
@@ -164,7 +164,7 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
           both(number, indent + 1, 'checklist-state', `the row of ${task} has ${row.length} cells; expected a state cell at position ${column + 1}`, `${JSON.stringify(line.trim().slice(0, 60))} is not a row with an ID in its first cell and a state in cell ${column + 1}`);
         } else {
           // The branch above took a row without the cell column.
-          const cell = row[column]!;
+          const cell = present(row[column], 'row[column]');
           const state = cell.text.trim();
           place = cell.start + cell.text.search(/\S/);
           if (strict && (!line.trimEnd().endsWith('|') || !state)) {
@@ -248,9 +248,9 @@ export function twinFindings(english: ChecklistItem[], korean: ChecklistItem[], 
     return [{ rule: 'checklist-pair', message: `${tracker.translation} lists other items than ${tracker.path}: missing ${missing.join(', ') || 'none'}, extra ${extra.join(', ') || 'none'}${missing.length + extra.length === 0 ? ', in another order' : ''}` }];
   }
   // korean[index] exists: both lists hold the same IDs in the same order.
-  return english.flatMap((item, index) => (item.state === korean[index]!.state ? [] : [strict
-    ? { line: korean[index]!.line, column: 1, rule: 'checklist-pair', message: `the state of ${item.id} is ${korean[index]!.state}; ${tracker.path} has ${item.state}` }  // korean[index] exists, as above.
-    : { rule: 'checklist-pair', message: `${item.id} is ${item.state} in ${tracker.path} and ${korean[index]!.state} in ${tracker.translation}` }]));  // korean[index] exists, as above.
+  return english.flatMap((item, index) => (item.state === present(korean[index], 'korean[index]').state ? [] : [strict
+    ? { line: present(korean[index], 'korean[index]').line, column: 1, rule: 'checklist-pair', message: `the state of ${item.id} is ${present(korean[index], 'korean[index]').state}; ${tracker.path} has ${item.state}` }  // korean[index] exists, as above.
+    : { rule: 'checklist-pair', message: `${item.id} is ${item.state} in ${tracker.path} and ${present(korean[index], 'korean[index]').state} in ${tracker.translation}` }]));  // korean[index] exists, as above.
 }
 
 /** The differences between a document and its translation, read leniently; throws when either cannot be read. */

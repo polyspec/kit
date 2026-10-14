@@ -6,12 +6,13 @@ import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mts';
 import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
+import { present } from './present.mts';
 
 /** The pairs of each unit of `kind` with each implementation of its profile that no exclusion removes, in declaration order. */
 export function pairs(model: ParityModel, kind: ParityUnit['kind']) {
   return model.config.units.filter(unit => unit.kind === kind)
     // members keeps only the names of declared implementations, so get finds each one.
-    .flatMap(unit => model.members(unit).filter(name => !model.exclusion(unit, name)).map(name => ({ unit, implementation: model.implementations.get(name)! })));
+    .flatMap(unit => model.members(unit).filter(name => !model.exclusion(unit, name)).map(name => ({ unit, implementation: present(model.implementations.get(name), 'model.implementations.get(name)') })));
 }
 
 /** The public symbols of each implementation, by its name, as its extractor gave them (parity-symbols.mts). */
@@ -25,7 +26,7 @@ export function missingImplementations(model: ParityModel, snapshots: Snapshots)
   return pairs(model, 'api').flatMap(({ unit, implementation }) => {
     const where = { unit: unit.id, implementation: implementation.name, place: implementation.symbols?.entry };
     // readDeclaration requires symbols of an API unit, and the rules do not run on a declaration with findings.
-    const declared = unit.symbols!.find(entry => entry.implementation === implementation.name);
+    const declared = present(unit.symbols, 'unit.symbols').find(entry => entry.implementation === implementation.name);
     if (!declared) return [finding('R1', `the API unit ${unit.id} declares no symbol of ${implementation.name}`, where)];
     const snapshot = snapshots.get(implementation.name);
     if (snapshot === undefined || snapshot.has(declared.symbol)) return [];
@@ -37,7 +38,7 @@ export function missingImplementations(model: ParityModel, snapshots: Snapshots)
 export function missingBindings(model: ParityModel) {
   return [...pairs(model, 'suite'), ...pairs(model, 'feature')]
     // readDeclaration reports a suite or feature unit without bindings, and the rules do not run on a declaration with findings.
-    .filter(({ unit, implementation }) => !unit.bindings!.some(entry => entry.implementation === implementation.name))
+    .filter(({ unit, implementation }) => !present(unit.bindings, 'unit.bindings').some(entry => entry.implementation === implementation.name))
     .map(({ unit, implementation }) => finding('R2', `${unit.file ?? `the feature ${unit.id}`} has no binding of ${implementation.name}`, { unit: unit.id, implementation: implementation.name, place: unit.file }));
 }
 
@@ -64,7 +65,7 @@ export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
     // readDeclaration gives every implementation its test files.
     // A file below the directory of a bound tests/<name>/main.rs is a module of that cargo test target (K148).
     const targetDirectories = implementation.runner === 'cargo' ? [...bound].filter(test => test.endsWith('/main.rs') && path.posix.basename(path.posix.dirname(path.posix.dirname(test))) === 'tests').map(test => path.posix.dirname(test)) : [];
-    const unbound = model.tests.get(implementation.name)!.filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file))
+    const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file))
       .map(file => finding('R5', `the test file of ${implementation.name} is the test of no binding, so no check runs it`, { implementation: implementation.name, place: file }));
     const named = [...files].filter(file => implementation.roots.some(root => within(root, file)) && testNamed(file) && !tests.has(file) && !model.testRunners.has(file) && !bound.has(file) && !support(file))
       .map(file => finding('R5', `the file is named like a test, and the ${implementation.runner} convention of ${implementation.name} is ${CONVENTIONS[implementation.runner].join(', ')}; name it so, bind it, or declare it a support file`, { implementation: implementation.name, place: file }));
@@ -87,7 +88,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
   const bindings = bound.flatMap(({ unit, entry }) => {
     // readDeclaration reports a binding of an implementation outside the profile, and every profile member is declared.
-    const roots = model.implementations.get(entry.implementation)!.roots;
+    const roots = present(model.implementations.get(entry.implementation), 'model.implementations.get(entry.implementation)').roots;
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));

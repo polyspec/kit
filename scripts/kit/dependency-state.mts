@@ -137,7 +137,7 @@ export function pythonRequirements(text: string, manifest: string) {
     for (const item of list) {
       const pin = EXACT_PYTHON_PIN.exec(item);
       if (!pin) throw new Error(`${manifest}: ${JSON.stringify(item)} is not an exact pin name==version; pin it exactly`);
-      requirements.push({ package: pin[1]!, kind, spec: `==${pin[2]}`, version: pin[2]! }); // The groups of the pattern are not optional.
+      requirements.push({ package: present(pin[1], 'pin[1]'), kind, spec: `==${pin[2]}`, version: present(pin[2], 'pin[2]') }); // The groups of the pattern are not optional.
     }
   };
   const table = (value: TomlValue | undefined, where: string) => {
@@ -386,7 +386,7 @@ export function readState(root: string, policy: DependencyPolicy) {
       workspaces.set(file, new Set(used.map(mod => readGoMod(root, mod, process.env).Module.Path)));
     }
     // The line above sets the file.
-    return workspaces.get(file)!;
+    return present(workspaces.get(file), 'workspaces.get(file)');
   };
   for (const manifestPath of goModules(root)) {
     const workspace = members(manifestPath);
@@ -438,20 +438,20 @@ export function npmDuplicates(lock: NpmLock) {
         if (kind === 'peerDependencies' && entry.peerDependenciesMeta?.[name]?.optional) continue;
         const copy = npmResolve(packages, location, name);
         // npmResolve returns only a location of packages.
-        if (!copy || packages[copy]!.link || !semver.valid(packages[copy]!.version ?? null) || !npmRange(range)) continue;
+        if (!copy || present(packages[copy], 'packages[copy]').link || !semver.valid(present(packages[copy], 'packages[copy]').version ?? null) || !npmRange(range)) continue;
         if (!copies.has(name)) copies.set(name, new Map());
         // The line above sets every missing name.
-        const loaders = copies.get(name)!;
+        const loaders = present(copies.get(name), 'copies.get(name)');
         if (!loaders.has(copy)) loaders.set(copy, []);
         // The line above sets every missing copy.
-        loaders.get(copy)!.push({ range, from: location === '' ? 'the root' : location });
+        present(loaders.get(copy), 'loaders.get(copy)').push({ range, from: location === '' ? 'the root' : location });
       }
     }
   }
   const lines: string[] = [];
   for (const name of [...copies.keys()].sort()) {
     // name is a key of copies, and each copy is a location of packages.
-    const located = [...copies.get(name)!].map(([copy, loaders]) => ({ version: packages[copy]!.version, loaders }));
+    const located = [...present(copies.get(name), 'copies.get(name)')].map(([copy, loaders]) => ({ version: present(packages[copy], 'packages[copy]').version, loaders }));
     const found = located.flatMap((left, index) => located.slice(index + 1).map((right): [typeof left, typeof left] => [left, right]))
       .filter(([left, right]) => left.version !== right.version)
       .map(([left, right]) => {

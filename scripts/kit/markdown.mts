@@ -11,6 +11,7 @@ import { toString } from 'mdast-util-to-string';
 import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
 import { visit } from 'unist-util-visit';
+import { present } from './present.mts';
 
 /** A fenced code block: its info string, its content and the line of its opening fence. */
 export type FenceBlock = { info: string; body: string; line: number };
@@ -30,15 +31,15 @@ type Placed = { position?: { start: { line: number; column: number; offset?: num
 /** The start and end offsets and the lines of `node`. */
 function placeOf(node: Placed): { start: number; end: number; startLine: number; endLine: number; column: number } {
   // fromMarkdown writes the position, with its offsets, on every node of the tree it returns.
-  const { start, end } = node.position!;
-  return { start: start.offset!, end: end.offset!, startLine: start.line, endLine: end.line, column: start.column };
+  const { start, end } = present(node.position, 'node.position');
+  return { start: present(start.offset, 'start.offset'), end: present(end.offset, 'end.offset'), startLine: start.line, endLine: end.line, column: start.column };
 }
 
 /** The line and column of the offset `offset` of `text`. */
 function lineColumn(text: string, offset: number): { line: number; column: number } {
   const before = text.slice(0, offset).split('\n');
   // split returns at least one part.
-  return { line: before.length, column: before.at(-1)!.length + 1 };
+  return { line: before.length, column: present(before.at(-1), 'before.at(-1)').length + 1 };
 }
 
 const OPENING = /^(`{3,}|~{3,})/;
@@ -61,9 +62,9 @@ export function scanFences(text: string): { blocks: FenceBlock[]; fenced: boolea
     blocks.push({ info: [node.lang, node.meta].filter(Boolean).join(' '), body: node.value, line: place.startLine });
     // A block that never closes runs to the end of its container; a closed block ends with its closing fence. The group of
     // OPENING always takes part in a match, and the end line exists.
-    const fence = opening[1]!;
+    const fence = present(opening[1], 'opening[1]');
     const closing = new RegExp(`^[\\s>]*${fence[0] === '`' ? '`' : '~'}{${fence.length},}\\s*$`);
-    if (unclosed === null && (place.endLine === place.startLine || !closing.test(lines[place.endLine - 1]!))) unclosed = place.startLine;
+    if (unclosed === null && (place.endLine === place.startLine || !closing.test(present(lines[place.endLine - 1], 'lines[place.endLine - 1]')))) unclosed = place.startLine;
   });
   return { blocks, fenced, unclosed };
 }
@@ -116,14 +117,14 @@ export function links(text: string): { links: LinkTarget[]; problems: LinkProble
   // An href of an HTML element is a link that GitHub and VitePress render.
   visit(tree, 'html', (node) => {
     const place = placeOf(node);
-    for (const match of node.value.matchAll(/\bhref="([^"]+)"/g)) found.push({ target: match[1]!, ...lineColumn(text, place.start + match.index) }); // The group always takes part in a match.
+    for (const match of node.value.matchAll(/\bhref="([^"]+)"/g)) found.push({ target: present(match[1], 'match[1]'), ...lineColumn(text, place.start + match.index) }); // The group always takes part in a match.
   });
   visit(tree, 'text', (node) => {
     const place = placeOf(node);
     const source = text.slice(place.start, place.end);
     for (const match of source.matchAll(UNDEFINED_REFERENCE)) {
       // Both groups always take part in a match.
-      const identifier = (match[2] || match[1]!).toLowerCase();
+      const identifier = (match[2] || present(match[1], 'match[1]')).toLowerCase();
       problems.push({ ...lineColumn(text, place.start + match.index), message: `the reference link [${match[1]}][${match[2]}] has no definition [${identifier}]: <target>` });
     }
     const broken = BROKEN_INLINE.exec(source);
@@ -136,7 +137,7 @@ export function links(text: string): { links: LinkTarget[]; problems: LinkProble
 export function anchors(text: string): string[] {
   const found: string[] = [];
   visit(parse(text), 'html', (node) => {
-    for (const match of node.value.matchAll(/<a\s+(?:id|name)="([A-Za-z0-9][\w.-]*)"\s*>/g)) found.push(match[1]!); // The group always takes part in a match.
+    for (const match of node.value.matchAll(/<a\s+(?:id|name)="([A-Za-z0-9][\w.-]*)"\s*>/g)) found.push(present(match[1], 'match[1]')); // The group always takes part in a match.
   });
   return found;
 }
@@ -154,7 +155,7 @@ export function headingAnchors(text: string, { site = false }: { site?: boolean 
     const custom = site ? /\s*\{#([^}\s]+)\}$/.exec(title) : null;
     const plain = custom ? title.slice(0, custom.index) : title;
     result.push(github.slug(plain));
-    if (custom) result.push(custom[1]!.toLowerCase()); // The group always takes part in a match.
+    if (custom) result.push(present(custom[1], 'custom[1]').toLowerCase()); // The group always takes part in a match.
     else if (site) {
       const base = slugify(plain);
       const count = seenSite.get(base) ?? 0;

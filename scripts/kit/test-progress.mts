@@ -3,6 +3,7 @@
 // suites read the same way.
 import { writeFileSync } from 'node:fs';
 import { compactSeconds } from './time.mts';
+import { present } from './present.mts';
 
 /** The outcome of a test of a run; a test that ran out of time is `timeout`. */
 export type CaseStatus = 'pass' | 'fail' | 'skip' | 'timeout';
@@ -57,7 +58,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   const groups = new Map<string, number>();
   const groupTime = (id: string, durationMs: number | undefined): string => {
     // Each caller checked groups.has(id).
-    const time = durationMs || now() - groups.get(id)!;
+    const time = durationMs || now() - present(groups.get(id), 'groups.get(id)');
     groups.delete(id);
     return compactSeconds(time);
   };

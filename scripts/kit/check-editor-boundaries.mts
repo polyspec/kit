@@ -18,6 +18,7 @@ import { readNpmManifest } from './manifests.mts';
 import { matchesAny } from './glob.mts';
 import { repositoryRoot, isMain } from './paths.mts';
 import { readConfigFindings } from './schema-validate.mts';
+import { present } from './present.mts';
 
 export const CONFIG = 'config/editor-boundaries.json';
 
@@ -84,7 +85,7 @@ function readSource(file: string, text: string): { imports: Import[]; globals: s
   if (!isEstreeProgram(tree)) throw new Error(`${file}: acorn wrote no ESTree program`);
   const scopes = analyze(tree, { ecmaVersion: 2022, sourceType: commonjs ? 'commonjs' : 'module' });
   // The global scope exists for every program that analyze reads.
-  const free = scopes.globalScope!.through.map(reference => reference.identifier.name);
+  const free = present(scopes.globalScope, 'scopes.globalScope').through.map(reference => reference.identifier.name);
   return { imports, globals: [...new Set([...free, ...globalProperties])] };
 }
 
@@ -131,7 +132,7 @@ function packageFindings(root: string, directory: string, boundary: Boundary): {
   }
   for (const file of queue) {
     // Every queued file has its chain.
-    const chain = chains.get(file)!;
+    const chain = present(chains.get(file), 'chains.get(file)');
     const where = chain.join(' -> ');
     if (/\.[jt]sx$/.test(file)) {
       findings.push(`${where}: is a ${path.extname(file)} file, which the check does not read`);

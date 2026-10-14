@@ -16,6 +16,7 @@ import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { present } from './present.mts';
 
 const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
 
@@ -37,7 +38,7 @@ export function venvProblem(venv: string, root: string = repositoryRoot()): stri
   const make = MAKE(relative);
   if (!existsSync(config)) return `${relative} is not a virtual environment (no pyvenv.cfg); ${make}`;
   // The group takes part in every match.
-  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1]!.trim();
+  const home = present(/^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1], '/^home\\s*=\\s*(.+)$/m.exec(readFileSync(config, \'utf8\'))?.[1]').trim();
   const installs = toolsPath(root, 'mise');
   if (!home || !inside(home, installs)) {
     return `${relative} was made from ${home ?? 'no home'}, not from a Python of this checkout (${path.relative(root, installs)}); ${make}`;
@@ -98,7 +99,7 @@ if (isMain(import.meta.url)) {
   try {
     if (args.length !== 1) throw new Error('Usage: node scripts/kit/python-venv.mts <directory>');
     // The check above throws unless args holds one argument.
-    makeVenv({ directory: path.resolve(repositoryRoot(), args[0]!), print: text => process.stdout.write(`${text}\n`) });
+    makeVenv({ directory: path.resolve(repositoryRoot(), present(args[0], 'args[0]')), print: text => process.stdout.write(`${text}\n`) });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     process.stderr.write(`${error.message}\n`);

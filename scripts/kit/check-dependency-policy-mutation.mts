@@ -14,6 +14,7 @@ import { readConfig } from './schema-validate.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { readGoWork } from './toolchain-files.mts';
+import { present } from './present.mts';
 
 
 /** The fields of config/dependency-review.json that the mutations change. */
@@ -102,7 +103,7 @@ const MUTATIONS: Mutation[] = [
     applies: root => reviewRecord(root).dependencies.length > 0,
     apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => {
       // applies holds a record with a dependency.
-      const item = record.dependencies[0]!;
+      const item = present(record.dependencies[0], 'record.dependencies[0]');
       // The record names a release newer than the locked one: the last number of the locked version, plus one.
       item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
     }),
@@ -112,7 +113,7 @@ const MUTATIONS: Mutation[] = [
     name: 'a Composer platform other than the declared minimum PHP',
     applies: hasComposer,
     // applies holds a policy with a Composer platform.
-    apply: root => editJson(root, POLICY, (policy: PolicyJson) => { policy.composerPlatforms![0]!.php = '8.1.0'; }),
+    apply: root => editJson(root, POLICY, (policy: PolicyJson) => { present(present(policy.composerPlatforms, 'policy.composerPlatforms')[0], 'policy.composerPlatforms[0]').php = '8.1.0'; }),
     expect: finding => finding.rule === 'platform',
   },
   {
@@ -123,7 +124,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a lock with an advisory at its review',
     // The record of every repository holds a lock, as firstLock reads it.
-    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => { record.locks[0]!.advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
+    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => { present(record.locks[0], 'record.locks[0]').advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
     expect: finding => finding.rule === 'advisory',
   },
 ];

@@ -13,6 +13,7 @@ import path from 'node:path';
 import util from '@vscode/test-electron/out/util.js';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
+import { present } from './present.mts';
 
 // The file that @vscode/test-electron writes into a copy after its last file.
 const COMPLETE = 'is-complete';
@@ -28,7 +29,7 @@ export function vscodeCopy(extension: string, base: string, platform: string = u
   const match = typeof range === 'string' ? RANGE.exec(range) : null;
   if (!match) throw new Error(`${manifest}: engines.vscode is ${JSON.stringify(range)}; the install reads the minimum of a range ^X.Y.Z`);
   // RANGE has one group, which matched.
-  const version = match[1]!;
+  const version = present(match[1], 'match[1]');
   return { version, platform, directory: path.join(path.resolve(base), `vscode-${platform}-${version}`) };
 }
 

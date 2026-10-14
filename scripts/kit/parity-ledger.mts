@@ -14,6 +14,7 @@ import type { Environment, Finding, ParityBinding, ParityImplementation, ParityM
 import { outcomesOf, runOf } from './parity-runners.mts';
 import type { BindingCommand, Outcome, RunError, RunKind } from './parity-runners.mts';
 import { pairs } from './parity-units.mts';
+import { present } from './present.mts';
 
 /** A run with `shown`, its command line as declared, or a run that cannot start. */
 type ResolvedRun = (BindingCommand & { shown: string }) | RunError;
@@ -126,11 +127,11 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
   const files = new Map<string, { implementation: ParityImplementation; test: string; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
     // readDeclaration requires bindings and the id of each feature binding.
-    const binding = unit.bindings!.find(entry => entry.implementation === implementation.name);
+    const binding = present(unit.bindings, 'unit.bindings').find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
     const key = `${implementation.name}\0${binding.test}`;
     const entry = files.get(key) ?? { implementation, test: binding.test, bound: [] };
-    entry.bound.push({ unit: unit.id, id: binding.id! });
+    entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
     files.set(key, entry);
   }
   return [...files.values()].flatMap(({ implementation, test, bound }) => {

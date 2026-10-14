@@ -30,6 +30,7 @@ import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
+import { present } from './present.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
 type Extracted = { symbols: string[]; error?: never } | { error: string };
@@ -166,7 +167,7 @@ export function rustdocSymbols(doc: Rustdoc): string[] {
 /** The Rust nightly of config/toolchain.json exceptions whose scope holds `entry`, or why there is none. */
 function rustNightly(root: string, entry: string): { channel: string; error?: never } | { error: string } {
   const covering = readExceptions(root).exceptions.filter(exception => exception.tool === 'rust' && exception.channel.startsWith('nightly-') && (exception.scope === '.' || entry.startsWith(`${exception.scope}/`)));
-  if (covering.length === 1) return { channel: covering[0]!.channel };
+  if (covering.length === 1) return { channel: present(covering[0], 'covering[0]').channel };
   if (covering.length > 1) return { error: `config/toolchain.json exceptions holds ${covering.length} Rust nightlies whose scope holds ${entry}: ${covering.map(exception => exception.channel).join(', ')}; keep one` };
   return { error: `rustdoc JSON needs a Rust nightly (rust-lang/rust#76578), and config/toolchain.json exceptions declares none whose scope holds ${entry}; declare { tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry: "rustdoc JSON is stable" }` };
 }
@@ -187,7 +188,7 @@ function rustdoc(root: string, entry: string, env: Environment): Extracted {
   const written = readdirSync(path.join(target, 'doc')).filter(file => file.endsWith('.json'));
   if (written.length !== 1) return { error: `${shown} wrote ${written.length} JSON files into ${path.relative(root, path.join(target, 'doc'))}, not one` };
   try {
-    return { symbols: rustdocSymbols(readJsonFile<Rustdoc>(path.join(target, 'doc', written[0]!), 'rustdoc.schema.json')) };
+    return { symbols: rustdocSymbols(readJsonFile<Rustdoc>(path.join(target, 'doc', present(written[0], 'written[0]')), 'rustdoc.schema.json')) };
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { error: `the rustdoc JSON of ${entry} cannot be read: ${error.message}` };

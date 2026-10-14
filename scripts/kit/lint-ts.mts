@@ -25,6 +25,7 @@ import type { LintStep } from './lint-steps.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { installedKit, isSource } from './kit-check.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
+import { present } from './present.mts';
 
 /**
  * The entries that a repository adds to the layout entries of knip.json, the binaries to its ignoreBinaries, the root
@@ -103,9 +104,9 @@ export function lintSteps(root: string): LintStep[] {
   return [
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
     // leave the rule out, so the format is fixed and the output is the same everywhere.
-    { label: 'oxlint', command: tools.oxlint!, args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root)], cwd: '.' },
-    { label: 'knip', command: tools.knip!, args: knipArguments(root), cwd: '.' },
-    ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: tools['api-extractor']!, args: ['run'], cwd: folder })),
+    { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root)], cwd: '.' },
+    { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root), cwd: '.' },
+    ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: present(tools['api-extractor'], 'tools[\'api-extractor\']'), args: ['run'], cwd: folder })),
   ];
 }
 
