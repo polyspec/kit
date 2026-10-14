@@ -7,6 +7,7 @@
 
 - knip.json ignores the binaries of the runtimes that polyspec pins by mise or by its setup, php, composer, python3, cargo, node and git, besides make, go, rustup and shasum: a script that spawned php or composer was an unlisted binary. A system tool of one repository, such as Apple `container`, is declared with its reason in `binaries` of `config/knip-entries.json` (`{ "<name>": "<reason>" }`), which make lint-ts adds to `ignoreBinaries` as it adds `entries` to the entries; `entries` is now optional (K152).
 - `make dependency-policy-mutation-check` copies `go.work` and `go.work.sum` with the dependency files: without them a module whose only requirement is another member of the workspace was asked for a go.sum that it cannot have, so the check failed on template (`tools/showcase/adapters/go`) while `make dependency-policy-check` passed (K153).
+- `config/knip-entries.json` declares a nested npm project with a package.json of its own as a knip workspace: `workspaces` maps its directory to its reason, its `entries` relative to it and its `ignoreDependencies` (each dependency that no JavaScript of it imports, such as one that only Rust tests load), each with a reason, and make lint-ts adds it to `workspaces` of `var/lint-ts/knip.json`. As root entries its dependencies were unlisted at the root (ssr `packages/build/tests/fixtures`); knip's Svelte plugin compiles its `.svelte` files (K154).
 
 ### Consumer migration
 
@@ -15,6 +16,7 @@ Run:
 
 Add:
 - `binaries` in `config/knip-entries.json` for each system tool of the repository that a script spawns and knip reports as an unlisted binary, such as `container` (hyper) or `gmake` (template), with its reason (K152).
+- `workspaces` in `config/knip-entries.json` for each nested npm project, such as ssr `packages/build/tests/fixtures`, with its reason, entries and ignored dependencies, instead of declaring its files as root entries (K154).
 
 ## 0.0.44
 

@@ -144,6 +144,37 @@ test('a pinned runtime and a declared binary that a script spawns pass, and an u
   assert.match(undeclared.output, /Unlisted binaries \(1\)\ngmake +scripts\/build\.mts/);
 });
 
+// A nested npm project, such as the fixtures that the build tests of ssr compile, holds a package.json with dependencies
+// that the root does not list; knip reads it as a workspace of its own only when config/knip-entries.json declares it, with its
+// entries and the dependencies that only non-JS code uses. knip's Svelte plugin compiles its .svelte files (K154).
+const NESTED = (directory: string) => ({
+  [`${directory}/package.json`]: JSON.stringify({ private: true, type: 'module', dependencies: { react: '19.0.0', svelte: '5.0.0', 'web-streams-polyfill': '4.0.0' } }),
+  [`${directory}/src/react.jsx`]: "import { createElement } from 'react';\n\nexport const app = () => createElement('div');\n",
+  [`${directory}/src/App.svelte`]: "<script>\n  import { onMount } from 'svelte';\n\n  onMount(() => {});\n</script>\n\n<p>fixture</p>\n",
+  [`${directory}/src/svelte.js`]: "import App from './App.svelte';\n\nexport { App };\n",
+});
+const FIXTURES = 'packages/build/tests/fixtures';
+const knipEntries = (value: object) => ({ 'config/knip-entries.json': JSON.stringify({ schema: 1, ...value }) });
+const WORKSPACE = { reason: 'the npm project that the build tests compile', entries: { 'src/*.{jsx,js}': 'the build tests compile each component' }, ignoreDependencies: { 'web-streams-polyfill': 'only the Rust tests load it' } };
+
+test('a nested npm project passes once config/knip-entries.json declares it as a workspace, and an undeclared one still fails (K154)', (t) => {
+  // As root entries, which was all that config/knip-entries.json could declare, its dependencies are unlisted at the root.
+  const root = lintOf(repository(t, { ...NESTED(FIXTURES), ...knipEntries({ entries: { [`${FIXTURES}/src/*.{jsx,js}`]: 'the build tests compile each component' } }) }));
+  assert.deepEqual(root.failed, ['knip'], root.output);
+  assert.match(root.output, /Unlisted dependencies \(1\)\nreact +packages\/build\/tests\/fixtures\/src\/react\.jsx/);
+  const declared = lintOf(repository(t, { ...NESTED(FIXTURES), ...knipEntries({ workspaces: { [FIXTURES]: WORKSPACE } }) }));
+  assert.deepEqual(declared.failed, [], declared.output);
+  // The Svelte plugin compiles the component: a dependency that it imports and the project does not list is unlisted.
+  const vue = lintOf(repository(t, { ...NESTED(FIXTURES), [`${FIXTURES}/src/App.svelte`]: "<script>\n  import { ref } from 'vue';\n\n  ref(1);\n</script>\n", ...knipEntries({ workspaces: { [FIXTURES]: WORKSPACE } }) }));
+  assert.match(vue.output, /Unlisted dependencies \(1\)\nvue +packages\/build\/tests\/fixtures\/src\/App\.svelte/);
+  const { ignoreDependencies: _, ...unignored } = WORKSPACE;
+  const unused = lintOf(repository(t, { ...NESTED(FIXTURES), ...knipEntries({ workspaces: { [FIXTURES]: unignored } }) }));
+  assert.match(unused.output, /Unused dependencies \(1\)\nweb-streams-polyfill +packages\/build\/tests\/fixtures\/package\.json/);
+  const undeclared = lintOf(repository(t, { ...NESTED(FIXTURES), ...NESTED('tests/other'), ...knipEntries({ entries: { 'tests/other/src/*.{jsx,js}': 'compiled' }, workspaces: { [FIXTURES]: WORKSPACE } }) }));
+  assert.deepEqual(undeclared.failed, ['knip'], undeclared.output);
+  assert.match(undeclared.output, /Unlisted dependencies \(1\)\nreact +tests\/other\/src\/react\.jsx/);
+});
+
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
   const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
   assert.deepEqual(failed, [], output);

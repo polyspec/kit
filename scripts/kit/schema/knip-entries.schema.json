@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/knip-entries.json",
-  "description": "What the repository adds to knip.json, the copy of kit: the entry files that make runs outside its layout entries and the system tools of the repository that its scripts spawn, each with its reason. make lint-ts runs knip with knip.json and these additions (scripts/kit/lint-ts.mts).",
+  "description": "What the repository adds to knip.json, the copy of kit: the entry files that make runs outside its layout entries, the system tools of the repository that its scripts spawn, and its nested npm projects as knip workspaces, each with its reason. make lint-ts runs knip with knip.json and these additions (scripts/kit/lint-ts.mts).",
   "type": "object",
   "required": ["schema"],
-  "anyOf": [{ "properties": { "entries": true }, "required": ["entries"] }, { "properties": { "binaries": true }, "required": ["binaries"] }],
+  "anyOf": [{ "properties": { "entries": true }, "required": ["entries"] }, { "properties": { "binaries": true }, "required": ["binaries"] }, { "properties": { "workspaces": true }, "required": ["workspaces"] }],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -22,6 +22,34 @@
       "minProperties": 1,
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$" },
       "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "workspaces": {
+      "description": "Each nested npm project, its directory relative to the root (never the root, which knip.json configures), that knip reads as a workspace of its own with its package.json, instead of reporting its dependencies as unlisted at the root.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "minLength": 1, "pattern": "^[^/!][^\\\\]*$", "not": { "pattern": "(^|/)\\.\\.?(/|$)" } },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["reason"],
+        "additionalProperties": false,
+        "properties": {
+          "reason": { "description": "Why the project exists, such as the tests that load it.", "type": "string", "minLength": 1 },
+          "entries": {
+            "description": "Each entry glob of the project, relative to its directory, with its reason; without it knip takes the entries of its plugins and of package.json.",
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": { "minLength": 1, "pattern": "^[^/!][^\\\\]*$", "not": { "pattern": "(^|/)\\.\\.(/|$)" } },
+            "additionalProperties": { "type": "string", "minLength": 1 }
+          },
+          "ignoreDependencies": {
+            "description": "Each dependency of the project that no JavaScript of it imports, such as one that only Rust tests load, with its reason.",
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": { "pattern": "^(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*$" },
+            "additionalProperties": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     }
   }
 }

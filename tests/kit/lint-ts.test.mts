@@ -83,3 +83,22 @@ test('knip ignores the binaries of config/knip-entries.json after those of knip.
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1 }));
   assert.throws(() => lintSteps(root), /config\/knip-entries\.json/);
 });
+
+test('knip reads each nested project of config/knip-entries.json as a workspace with its entries and ignored dependencies (K154)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  const fixtures = { reason: 'the npm project that the build tests compile', entries: { 'src/*.{jsx,svelte}': 'the build tests compile each component' }, ignoreDependencies: { 'web-streams-polyfill': 'only the Rust tests load it' } };
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, workspaces: { 'packages/build/tests/fixtures': fixtures, 'tests/minimal': { reason: 'a project of the defaults of knip' } } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), {
+    node: { entry: ['scripts/**/*.mts'] },
+    ignoreBinaries: ['make'],
+    workspaces: { 'packages/build/tests/fixtures': { entry: ['src/*.{jsx,svelte}'], ignoreDependencies: ['web-streams-polyfill'] }, 'tests/minimal': {} },
+  });
+  for (const workspaces of [{ '.': { reason: 'the root is knip.json' } }, { '../outside': { reason: 'leaves the repository' } }, { 'tests/minimal': {} }]) {
+    writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, workspaces }));
+    assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/workspaces/, JSON.stringify(workspaces));
+  }
+});
+
