@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+- The copied `.github/workflows/release.yml` pins actions/checkout v7.0.1, actions/setup-node v7.1.0 and shivammathur/setup-php 2.40.0, each by the full SHA of its release; setup-php had been pinned by the SHA of the moving tag v2. The two majors change none of the inputs that the workflow passes (K169).
+
+### Consumer migration
+
+Run:
+- `make kit-sync`, which writes `.github/workflows/release.yml` (K169).
+
 ## 0.0.47
 
 - The copied `.oxlintrc.json` fails a non-null assertion as an error (`typescript/no-non-null-assertion`): a value whose type admits undefined or null, such as an entry of a list or a group of a regular expression under `noUncheckedIndexedAccess`, is read with a check. kit reads it with `present` of `scripts/kit/present.mts`, which throws with the expression that it expected, and its tests with `known` of `tests/kit/known.mts`, which asserts it (K156).
