@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 475a0680ace57f1c19b685c2a0e85f8cb8653913acfa568c5cf311c9c3a6fad8 -->
+<!-- source-sha256: 71f3640f347751594e4d3875542374841a19a74bd00cb920557ebb058ed8ba2b -->
 
 # 도구 목록
 
@@ -678,7 +678,9 @@ finding 하나입니다.
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
 `scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션과
 `--config ruff.toml`로 실행하며, ruff.toml은 kit이 복사하는 설정입니다(Lint 설정, K77). ruff는 mise의 shim이고 버전은
-`mise.toml`의 `ruff`가 선언한 것이므로(K127) 결과가 머신의 ruff 설정에 의존하지 않습니다. 앞 단계가 실패해도 모든 단계를
+`mise.toml`의 `ruff`가 선언한 것이므로(K127) 결과가 머신의 ruff 설정에 의존하지 않습니다. ruff는 ruff 자신의 설정인
+`ruff.toml`의 `cache-dir`로 cache를 `var/ruff`에 두며, 이 설정은 repository의 모든 ruff 실행에 적용됩니다. 전에는 root에
+`.ruff_cache`를 썼고 layout S5가 이를 거부합니다(K147). 앞 단계가 실패해도 모든 단계를
 실행합니다. 설치되지 않은 도구는 고치는 방법과 함께 실패합니다.
 
 ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이브러리는 `Requires-Dist`에 ruff를 두지 않으며, dependency review는
