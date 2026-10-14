@@ -25,7 +25,7 @@ import { POLICY } from './dependency-state.mts';
 import { readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
-import { toolCommand } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
@@ -360,7 +360,8 @@ export function writePythonLock({ root, entry, env = process.env, print = () => 
     if (linksDirectory !== null) args.push('--no-index', '--find-links', linksDirectory);
     const shown = `${path.relative(root, uv)} ${args.join(' ')}`;
     print(shown);
-    const result = spawnSync(uv, args, { cwd: folder, env, encoding: 'utf8' });
+    // The shim of uv runs with the environment of mise of the checkout, as python-venv runs it.
+    const result = spawnSync(uv, args, { cwd: folder, env: toolsEnvironment(root, env), encoding: 'utf8' });
     if (result.error) throw new Error(`${shown} could not start: ${result.error.message}`);
     if (result.status !== 0) throw new Error(`${shown} ended with exit status ${result.status}: ${String(result.stderr).trim()}`);
     const output = path.join(folder, 'pylock.toml');
