@@ -34,6 +34,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
+import { composerVendor } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
@@ -142,7 +143,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, ven
       return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness] };
     case 'phpunit': {
       // PHPUnit of the vendor directory of `cwd`; COMPOSER_VENDOR_DIR, the vendor directory setting of Composer, names another.
-      const phpunit = path.join(path.resolve(cwd, process.env.COMPOSER_VENDOR_DIR || 'vendor'), 'bin/phpunit');
+      const phpunit = path.join(composerVendor(cwd), 'bin/phpunit');
       // --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit.
       if (phpExtension) return { command: 'php', args: ['-d', `extension=${phpExtension}`, phpunit, '--teamcity', ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };

@@ -5,14 +5,16 @@
 //     MultipleClasses holds one class per file (S2).
 //   - PHPStan with the root phpstan.dist.neon, the disallowed calls of S2 (spl_autoload_register and a ClassLoader changed at
 //     run time), on the PHP files of each Composer package, a folder with a composer.json, from the package folder and with
-//     the autoloader of its vendor/, so a call through a variable or an object is resolved. A package with PHP files and no
-//     vendor/autoload.php fails with the install it needs.
+//     the autoloader that Composer gives its files, so a call through a variable or an object is resolved: the
+//     vendor/autoload.php of the package, or of the nearest Composer project above it, such as the development project at
+//     the root of a Composer monorepo, whose path repositories require the libraries (composer-vendor.mts; COMPOSER_VENDOR_DIR
+//     names another vendor directory). A package with PHP files and no such autoloader fails with the install it needs.
 // The stubs of a PHP extension (*.stub.php) are the input of php-src's gen_stub.php and are left out. A missing tool or
 // configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps.
 //
 //   node scripts/kit/lint-php.mts
-import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { composerVendor, packageAutoloader } from './composer-vendor.mts';
 import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -30,8 +32,9 @@ export function lintSteps(root: string): LintStep[] {
   for (const folder of packages) {
     const own = sources.filter(file => owner(file) === folder).map(file => path.posix.relative(folder, file));
     if (own.length === 0) continue;
-    if (!existsSync(path.join(root, folder, 'vendor/autoload.php'))) throw new Error(`${path.posix.join(folder, 'vendor/autoload.php')} is missing; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}`);
-    steps.push({ label: `phpstan ${folder}`, command: tools.phpstan!, args: ['analyse', '--no-progress', '--error-format=raw', `--configuration=${path.join(root, 'phpstan.dist.neon')}`, '--autoload-file=vendor/autoload.php', ...own], cwd: folder });
+    const autoloader = packageAutoloader(root, folder, packages);
+    if (!autoloader) throw new Error(`${path.relative(root, path.join(composerVendor(path.join(root, folder)), 'autoload.php'))} is missing, and no Composer project above ${folder} has one; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}, or in the project that requires it`);
+    steps.push({ label: `phpstan ${folder}`, command: tools.phpstan!, args: ['analyse', '--no-progress', '--error-format=raw', `--configuration=${path.join(root, 'phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
   }
   return steps;
 }

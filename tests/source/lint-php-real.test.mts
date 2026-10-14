@@ -49,16 +49,28 @@ function write(root: string, files: Record<string, string>) {
 
 const composer = (cwd: string, ...args: string[]) => spawnSync(installedBinary('composer'), ['--no-interaction', ...args], { cwd, encoding: 'utf8', env: { ...process.env, COMPOSER_HOME } });
 
-/** A repository in a temporary folder: GOOD with `files` over it, the PHP lint files of this checkout, its tools and the autoloader of its package. */
-function repository(t: TestContext, files: Record<string, string> = {}): string {
+// K163: the development project of a Composer monorepo at the root, which requires the library through a path repository
+// and installs the one vendor/ of the checkout; Packagist is off, so the install reads no network.
+const MONOREPO: Record<string, string> = {
+  'composer.json': JSON.stringify({ name: 'polyspec/development', type: 'project', license: 'MIT', repositories: [{ packagist: false }, { type: 'path', url: 'packages/php' }], require: { 'polyspec/demo': '*@dev' } }, null, 4),
+};
+
+/**
+ * A repository in a temporary folder: GOOD with `files` over it, the PHP lint files of this checkout, its tools and the
+ * autoloader of its package; with `install` the vendor/ that composer update writes for the project of that folder instead,
+ * and with null no vendor/.
+ */
+function repository(t: TestContext, files: Record<string, string> = {}, install: string | null = 'packages/php'): string {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-php-real-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write(root, { ...GOOD, ...files });
   for (const file of ['phpcs.xml.dist', 'phpstan.dist.neon']) copyFileSync(path.join(ROOT, file), path.join(root, file));
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   for (const tool of TOOLS) symlinkSync(tool, path.join(root, 'var/tools/bin', path.basename(tool)));
-  const dump = composer(path.join(root, 'packages/php'), 'dump-autoload', '--quiet');
-  assert.equal(dump.status, 0, dump.stderr);
+  if (install !== null) {
+    const dump = install === 'packages/php' ? composer(path.join(root, install), 'dump-autoload', '--quiet') : composer(path.join(root, install), 'update', '--quiet', '--no-audit');
+    assert.equal(dump.status, 0, dump.stderr);
+  }
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   return root;
@@ -83,6 +95,20 @@ test('the PHP lint fails on each planted violation with the sniff or the rule th
     assert.notDeepEqual(failed, [], `${name}: the violation passed:\n${output}`);
     assert.match(output, finding, `${name} is not named:\n${output}`);
   }
+});
+
+test('the PHP lint resolves a library of a Composer monorepo with the autoloader of the root project', (t) => {
+  const root = repository(t, MONOREPO, '.');
+  assert.ok(!existsSync(path.join(root, 'packages/php/vendor')), 'the library has a vendor/ of its own');
+  const { failed, output } = lintOf(root);
+  assert.deepEqual(failed, [], output);
+  const planted = repository(t, { ...MONOREPO, ...VIOLATIONS[4]!.files }, '.');
+  assert.match(lintOf(planted).output, VIOLATIONS[4]!.finding);
+});
+
+test('a library with no vendor/ in it or in a project above it still fails with the install it needs', (t) => {
+  const root = repository(t, MONOREPO, null);
+  assert.throws(() => lintOf(root), /packages\/php\/vendor\/autoload\.php is missing, and no Composer project above packages\/php has one/);
 });
 
 // The false green of the plan's verification: --strict-psr accepts a file whose first class matches its name and drops the
