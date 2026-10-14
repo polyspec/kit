@@ -11,7 +11,7 @@
 // is missing or differs, and the fix.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { SCHEMAS, validate } from './schema-validate.mts';
+import { SCHEMAS, validate, type Schema } from './schema-validate.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readJson } from './bootstrap/files.mts';
 
@@ -36,7 +36,7 @@ export function copiesOf(manifest: Pick<KitPackage, 'kit'>): { file: string; fro
 
 /** The version of @polyspec/kit that package-lock.json of `root` resolves, or undefined when the lock resolves none. */
 export function lockedVersion(root: string): string | undefined {
-  const lock: { packages?: Record<string, { version?: string }> } = readJson(root, 'package-lock.json');
+  const lock = readJson(root, 'package-lock.json') as { packages?: Record<string, { version?: string }> };
   return lock.packages?.[INSTALLED]?.version;
 }
 
@@ -49,7 +49,7 @@ export function installedKit(root: string): { version: string; copies: { file: s
   const locked = lockedVersion(root);
   if (locked === undefined) return { finding: `package-lock.json resolves no ${PACKAGE}. Fix: add ${PACKAGE} to devDependencies and run make install-packages` };
   if (!existsSync(path.join(root, INSTALLED, 'package.json'))) return { finding: `${INSTALLED} is not installed; package-lock.json resolves ${locked}. Fix: make install-packages` };
-  const installed: KitPackage = readJson(root, INSTALLED, 'package.json');
+  const installed = readJson(root, INSTALLED, 'package.json') as KitPackage;
   if (installed.version !== locked) return { finding: `${INSTALLED} is ${installed.version}, but package-lock.json resolves ${locked}. Fix: make install-packages` };
   return { version: installed.version, copies: copiesOf(installed) };
 }
@@ -68,7 +68,7 @@ export function checkConfig(root: string): string[] {
     const config = `config/${name}.json`;
     // A repository declares a configuration by having its file; the schema checks the declared file only.
     if (!existsSync(path.join(root, config))) continue;
-    const schema = readJson(SCHEMAS, schemaFile);
+    const schema = readJson(SCHEMAS, schemaFile) as Schema;
     const value = readJson(root, config);
     const fix = WRITTEN[config] ? `. Fix: ${WRITTEN[config]}` : '';
     for (const error of validate(value, schema)) found.push(`${config}: ${error}. Rule: the schema ${schemaFile} of ${PACKAGE}${fix}`);
@@ -78,7 +78,7 @@ export function checkConfig(root: string): string[] {
 
 /** Whether `root` is kit itself, the source of the copies: its package.json names the package. */
 export function isSource(root: string): boolean {
-  return existsSync(path.join(root, 'package.json')) && readJson(root, 'package.json').name === PACKAGE;
+  return existsSync(path.join(root, 'package.json')) && (readJson(root, 'package.json') as { name?: string }).name === PACKAGE;
 }
 
 /** The directory of a repository that holds the copies of kit only (K133). */

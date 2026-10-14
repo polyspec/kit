@@ -577,7 +577,7 @@ export const releaseRecord = (tag: string) => `var/release/${tag}.json`;
 export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, tag: string): GitHubRelease {
   const file = releaseRecord(tag);
   if (!existsSync(path.join(ctx.root, file))) throw new Stop(`${file} is missing; make release-publish writes it`);
-  const record: { id?: unknown } = readJson(path.join(ctx.root, file));
+  const record = readJson(path.join(ctx.root, file)) as { id?: unknown };
   if (typeof record.id !== 'number' || !Number.isInteger(record.id)) throw new Stop(`${file} records no release id: ${JSON.stringify(record)}; make release-publish writes it`);
   return releaseById({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, record.id);
 }
@@ -670,7 +670,7 @@ function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: 
   const problems: string[] = [];
   for (const manifest of manifests) {
     const directory = path.posix.dirname(manifest);
-    const declared: Record<string, unknown> = readJson(path.join(root, manifest));
+    const declared = readJson(path.join(root, manifest)) as Record<string, unknown>;
     for (const field of NPM_FIELDS) {
       const entries = declared[field];
       if (typeof entries !== 'object' || entries === null) continue;

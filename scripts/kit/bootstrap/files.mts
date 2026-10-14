@@ -4,8 +4,8 @@ import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'n
 import path from 'node:path';
 
 /** The JSON value of the file at the joined path `parts`. */
-// JSON of any shape; any rather than unknown because 127 call sites in other groups read fields without narrowing yet.
-export const readJson = (...parts: string[]): any => JSON.parse(readFileSync(path.join(...parts), 'utf8'));
+// JSON of any shape: a caller states the shape that it reads.
+export const readJson = (...parts: string[]): unknown => JSON.parse(readFileSync(path.join(...parts), 'utf8'));
 
 /** Writes `content` to `file` through a file of this process beside it and a rename; creates the directory; `mode` sets the file mode. */
 export function writeAtomic(file: string, content: string | Uint8Array, { mode }: { mode?: number | undefined } = {}): void {

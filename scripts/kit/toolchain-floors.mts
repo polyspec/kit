@@ -53,7 +53,7 @@ const named = (root: string, name: string): string[] => checkedFiles(root).filte
 
 /** One line for each package.json whose engines.node is not `>=` the Node.js pin. */
 export const enginesFindings = (root: string, pinning: Pinning): string[] => named(root, 'package.json')
-  .flatMap(file => pinning.check(file, 'engines.node', readJson(root, file).engines?.node, 'node', release => `>=${release}`));
+  .flatMap(file => pinning.check(file, 'engines.node', (readJson(root, file) as { engines?: { node?: unknown } }).engines?.node, 'node', release => `>=${release}`));
 
 /**
  * One line for each composer.json whose require.php is not `>=` the PHP pin, and for each one beside a composer.lock
@@ -63,7 +63,7 @@ export const enginesFindings = (root: string, pinning: Pinning): string[] => nam
 export function composerFindings(root: string, pinning: Pinning): string[] {
   const locks = new Set(named(root, 'composer.lock'));
   return named(root, 'composer.json').flatMap((file) => {
-    const manifest = readJson(root, file);
+    const manifest = readJson(root, file) as { require?: { php?: unknown }; config?: { platform?: { php?: unknown } } };
     const locked = locks.has(path.posix.join(path.posix.dirname(file), 'composer.lock'));
     return [
       ...pinning.check(file, 'require.php', manifest.require?.php, 'php', release => `>=${release}`),
@@ -127,12 +127,14 @@ export function typescriptFindings(root: string, pinning: Pinning): string[] {
   return files.flatMap((file) => {
     const name = path.posix.basename(file);
     if (name === 'package.json') {
-      const manifest = readJson(root, file);
-      return DEPENDENCY_FIELDS.filter(field => manifest[field]?.typescript !== undefined)
-        .flatMap(field => pinning.check(file, `${field}.typescript`, manifest[field].typescript, 'typescript'));
+      const manifest = readJson(root, file) as Partial<Record<string, Record<string, unknown>>>;
+      return DEPENDENCY_FIELDS.flatMap((field) => {
+        const typescript = manifest[field]?.typescript;
+        return typescript === undefined ? [] : pinning.check(file, `${field}.typescript`, typescript, 'typescript');
+      });
     }
     if (name === 'package-lock.json') {
-      const packages: Record<string, Record<string, unknown>> = readJson(root, file).packages ?? {};
+      const packages = (readJson(root, file) as { packages?: Record<string, Record<string, unknown>> }).packages ?? {};
       // An entry belongs to the folder of its workspace (packages/w/node_modules/typescript to packages/w), and an exception
       // scoped to that workspace covers it; a top-level entry belongs to the folder of the lock.
       return Object.entries(packages).filter(([key]) => declaredTypescript(key, packages))

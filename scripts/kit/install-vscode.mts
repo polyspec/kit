@@ -24,7 +24,7 @@ export type Download = (options: { version: string; platform: string; cachePath:
 /** The version, the platform and the directory of the VS Code copy of the extension `extension` in the tools directory `base`. */
 export function vscodeCopy(extension: string, base: string, platform: string = util.systemDefaultPlatform): { version: string; platform: string; directory: string } {
   const manifest = path.join(extension, 'package.json');
-  const range: unknown = readJson(manifest).engines?.vscode;
+  const range = (readJson(manifest) as { engines?: { vscode?: unknown } }).engines?.vscode;
   const match = typeof range === 'string' ? RANGE.exec(range) : null;
   if (!match) throw new Error(`${manifest}: engines.vscode is ${JSON.stringify(range)}; the install reads the minimum of a range ^X.Y.Z`);
   // RANGE has one group, which matched.
@@ -38,8 +38,7 @@ const complete = (directory: string): boolean => existsSync(path.join(directory,
 export function installedExecutable(extension: string, base: string): string {
   const { version, platform, directory } = vscodeCopy(extension, base);
   if (!complete(directory)) throw new Error(`VS Code ${version} is not installed in ${directory}; run make install-vscode`);
-  // The platform is the one of this machine, a DownloadPlatform of @vscode/test-electron.
-  return util.downloadDirToExecutablePath(directory, platform as typeof util.systemDefaultPlatform);
+  return util.downloadDirToExecutablePath(directory, platform);
 }
 
 /** Installs the copy into `base` unless it is complete there, with `download`, and returns its directory. */

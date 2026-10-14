@@ -150,7 +150,7 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
 
 function readRecord(root: string): FullRunRecord | null {
   const file = path.join(root, RECORD);
-  return existsSync(file) ? readJson(file) : null;
+  return existsSync(file) ? readJson(file) as FullRunRecord : null;
 }
 
 // The record is written to a file of this process and renamed, so a reader never sees a partial record.
@@ -280,8 +280,7 @@ export function parseArguments(args: string[]): { mode: string; keys: Keys; targ
     }
   }
   if (!((mode === 'run' && targets.length > 0) || (mode === 'rerun-failed' && targets.length === 0))) throw new Error(USAGE);
-  // The check above admits only the mode run or rerun-failed.
-  return { mode: mode!, keys, targets };
+  return { mode, keys, targets };
 }
 
 if (isMain(import.meta.url)) {

@@ -74,10 +74,9 @@ export function lockProblems(text: string, lockFile: string): string[] {
         ? [] : [`${lockFile}: ${name} ${version} has a file with no sha256; a consumer installs with --require-hashes`];
     }
     if (kind === 'archive') {
-      // The length check before holds one file.
-      if (files.length !== 1 || !SHA256.test(String(files[0]!.sha256 ?? ''))) return [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
+      if (files.length !== 1 || !SHA256.test(String(files[0].sha256 ?? ''))) return [`${lockFile}: ${name} ${version} is an archive with no sha256; a consumer installs with --require-hashes`];
       // A lock may name an archive by its path (PEP 751); a consumer outside the repository has no such file.
-      return typeof files[0]!.url === 'string' ? [] : [`${lockFile}: ${name} ${version} is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset`];
+      return typeof files[0].url === 'string' ? [] : [`${lockFile}: ${name} ${version} is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset`];
     }
     return [`${lockFile}: ${name} ${version} is ${SOURCE_NAMES[kind]}; a consumer installs only registry files and archives`];
   });
@@ -90,9 +89,8 @@ export function lockProblems(text: string, lockFile: string): string[] {
 export function lockRequirements(text: string, lockFile: string) {
   const problems = lockProblems(text, lockFile);
   if (problems.length) throw new Stop(problems.join('; '));
-  // lockProblems accepts an archive with exactly one file.
   return readPylock(text, lockFile).packages.map(({ name, version, kind, files }) => (kind === 'archive'
-    ? `${name} @ ${files[0]!.url} --hash=sha256:${files[0]!.sha256}\n`
+    ? `${name} @ ${files[0].url} --hash=sha256:${files[0].sha256}\n`
     : `${name}==${version} ${files.map(file => `--hash=sha256:${file.sha256}`).join(' ')}\n`)).join('');
 }
 
@@ -133,7 +131,7 @@ export function wheelDependencyProblems({ requiresDist, name, version, polyspec,
       if (!repository) {
         problems.push(`${lockFile}: ${entry.name} is an archive, consumers.wheel.polyspec does not declare it`);
       } else if (!archiveUrl(entry, lockFile).startsWith(`${repository.repo}/releases/download/v${entry.version}/`)) {
-        problems.push(`${lockFile}: ${entry.name} ${entry.version} has the URL ${entry.files[0]!.url}, not a release asset of ${repository.repo} at v${entry.version}`);
+        problems.push(`${lockFile}: ${entry.name} ${entry.version} has the URL ${entry.files[0].url}, not a release asset of ${repository.repo} at v${entry.version}`);
       }
     }
   }
@@ -210,10 +208,8 @@ function directProblems(spec: string, name: string, url: string, context: Contex
   if (!entry) return [`Requires-Dist ${spec} has no entry in ${lockFile}. Fix: add ${name} ${version} with its archive to ${lockFile}`];
   if (entry.kind !== 'archive') return [`${lockFile}: ${name} is ${SOURCE_NAMES[entry.kind] ?? 'a registry version'}, the Requires-Dist ${spec} names a release asset`];
   if (entry.version !== version) return [`${lockFile}: ${name} is ${entry.version}, the Requires-Dist ${spec} names ${version}`];
-  // lockProblems accepts an archive with exactly one file.
-  if (entry.files[0]!.url !== base) return [`${lockFile}: ${name} has the URL ${entry.files[0]!.url}, the Requires-Dist ${spec} names ${base}`];
-  // lockProblems accepts an archive with exactly one file.
-  if (entry.files[0]!.sha256 !== sha256) return [`Requires-Dist ${spec}: the fragment has the sha256 ${sha256}, ${lockFile} holds ${entry.files[0]!.sha256} for ${name}`];
+  if (entry.files[0].url !== base) return [`${lockFile}: ${name} has the URL ${entry.files[0].url}, the Requires-Dist ${spec} names ${base}`];
+  if (entry.files[0].sha256 !== sha256) return [`Requires-Dist ${spec}: the fragment has the sha256 ${sha256}, ${lockFile} holds ${entry.files[0].sha256} for ${name}`];
   return [];
 }
 

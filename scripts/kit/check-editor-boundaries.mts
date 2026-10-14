@@ -100,7 +100,7 @@ function packageFindings(root: string, directory: string, boundary: Boundary): {
   const findings: string[] = [];
   const sources = path.join(root, directory, boundary.sources);
   if (!existsSync(sources)) return { findings: [`${directory}/${boundary.sources}: the sources of the package do not exist`], files: 0 };
-  const manifest = readJson(root, directory, 'package.json');
+  const manifest = readJson(root, directory, 'package.json') as Partial<Record<string, Record<string, string>>>;
   for (const field of DEPENDENCY_FIELDS) {
     for (const name of Object.keys(manifest[field] ?? {})) {
       if (matchesAny(boundary.forbiddenModules, name)) findings.push(`${directory}/package.json: declares ${name} in ${field}`);

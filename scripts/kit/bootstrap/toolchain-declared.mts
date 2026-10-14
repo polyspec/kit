@@ -116,8 +116,10 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     // A packageManager that is not text is no npm declaration, whatever its text would be.
     const match = typeof manager === 'string' ? /^npm@(\d+\.\d+\.\d+)(?:\+sha512\.([0-9a-f]{128}))?$/.exec(manager) : null;
     if (!match) throw new Error(`package.json packageManager is ${JSON.stringify(manager)}, expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>`);
+    const [, version, sha512] = match;
     // The first group always takes part in a match.
-    declared.npm = { version: match[1]!, sha512: match[2], source: 'packageManager of package.json' };
+    if (version === undefined) throw new Error(`package.json packageManager ${JSON.stringify(manager)} matched without its version`);
+    declared.npm = { version, sha512, source: 'packageManager of package.json' };
   }
   const phpFile = existsSync(path.join(root, '.php-version')) ? minor('.php-version', 'the PHP minor release', read(root, '.php-version').trim()) : undefined;
   if (config.php) {

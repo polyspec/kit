@@ -16,7 +16,7 @@ const MARKER = '.sha512';
 function installedRelease(prefix: string): string | undefined {
   const directory = path.join(prefix, 'node_modules/npm');
   if (!statSync(path.join(directory, 'package.json'), { throwIfNoEntry: false })) return undefined;
-  const version = readJson(directory, 'package.json').version;
+  const { version } = readJson(directory, 'package.json') as { version: string };
   return statSync(path.join(directory, MARKER), { throwIfNoEntry: false }) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
 }
 
@@ -31,8 +31,8 @@ function unpackVerified({ root, next, version, sha512, print }: { root: string; 
   if (actual !== sha512) throw new Error(`npm ${version} tarball ${url} has the sha512 ${actual}; packageManager of package.json declares ${sha512}`);
   const listing = spawnSync('tar', ['-tvf', tarball], { encoding: 'utf8' });
   if (listing.status !== 0) throw new Error(`tar -tvf ${tarball} ended with exit status ${listing.status}: ${listing.stderr.trim()}`);
-  // A line that is not empty has a first character.
-  const links = listing.stdout.split('\n').filter(line => line && !'-d'.includes(line[0]!));
+  // tar -tv starts the line of a file with - and the one of a directory with d.
+  const links = listing.stdout.split('\n').filter(line => line && !/^[-d]/.test(line));
   if (links.length > 0) throw new Error(`the npm ${version} tarball holds a link or a special file; expected files and directories only: ${links[0]}`);
   const directory = path.join(next, 'node_modules/npm');
   mkdirSync(directory, { recursive: true });

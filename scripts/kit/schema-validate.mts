@@ -34,11 +34,10 @@ export function validate(value: unknown, schema: Schema): string[] {
 }
 
 /** The JSON value of the file `file` of `root` and its errors, each prefixed with `file`, against the schema `schema` (a file name in SCHEMAS). */
-// Config is the shape that the schema declares; it holds only when errors is empty. Its default is any because the callers in
-// other groups name no shape yet.
-export function readConfig<Config = any>(root: string, file: string, schema: string): { value: Config; errors: string[] } {
+// Config is the shape that the schema declares; it holds only when errors is empty.
+export function readConfig<Config = unknown>(root: string, file: string, schema: string): { value: Config; errors: string[] } {
   if (!existsSync(path.join(root, file))) throw new ConfigError(`${file} is missing; the repository declares it (schema ${schema} of kit)`);
-  const value = readJson(root, file);
+  const value = readJson(root, file) as Config;
   // A schema file of kit is a JSON object; validate throws for a schema that ajv refuses.
   const rules = readJson(SCHEMAS, schema) as Schema;
   return { value, errors: validate(value, rules).map(error => `${file}: ${error}`) };
