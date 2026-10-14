@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 53e2f47238a97cd3543d88bb6909d1b5d5eb15010079e88d9462ac7dd37c7a50 -->
+<!-- source-sha256: 13d091f9958fe769fdde9a51c1755a00ce2700ee5985edc59c9e719641090fea -->
 
 # 도구 목록
 
@@ -766,7 +766,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - **Go.** gomoddirectives는 모든 `replace`를 금지합니다. 저장소의 module은 `go.work`로 서로를 찾으며, 배포한 go.mod는 consumer가
   보지 못하는 replace를 가지지 않습니다. `go mod tidy`가 go directive와 같은 toolchain 줄을 지우므로 toolchain 줄도 금지합니다.
   forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
-- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다.
+- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. 이 규칙은
+  typescript-eslint의 `disableTypeChecked`가 JavaScript에서 끄는 것처럼 `.oxlintrc.json`의 `**/*.{ts,mts,cts,tsx}`에 대한
+  `overrides` 항목으로 TypeScript 파일에만 적용됩니다: 일반 .js나 .mjs 파일에서는 type이 없는 parameter가 모두 `any`이므로
+  그 파일이 JavaScript라는 것만 보고했습니다. override는 category를 켤 수 없으므로 base가 correctness의 type-aware 규칙을 끄고
+  override가 켭니다. type이 필요 없는 규칙은 모든 파일에 적용됩니다. type 없는 member access는 .mjs 파일에서 통과하고 .mts
+  파일에서 실패하며, .mjs 파일의 `debugger`는 여전히 실패합니다(fixture, K170).
   `no-floating-promises`는 typescript-eslint가 node:test를 위해 둔 option, package `node:test`의 `test`, `describe`, `it`,
   `suite`, `skip`, `only`, `todo`를 담은 `allowForKnownSafeCalls`를 받습니다(K138): 최상위 등록은 runner가 기다리는 promise를
   돌려주는데 이 규칙이 그 하나하나를 실패시켰고(crudui에서 516개), test 파일에서 await하지 않은 `fetch`는 여전히 실패합니다
