@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.47
+
 - The copied `.oxlintrc.json` fails a non-null assertion as an error (`typescript/no-non-null-assertion`): a value whose type admits undefined or null, such as an entry of a list or a group of a regular expression under `noUncheckedIndexedAccess`, is read with a check. kit reads it with `present` of `scripts/kit/present.mts`, which throws with the expression that it expected, and its tests with `known` of `tests/kit/known.mts`, which asserts it (K156).
 - The type-aware rules of the copied `.oxlintrc.json` apply to TypeScript files only (`**/*.{ts,mts,cts,tsx}`, an oxlint `overrides` entry), as typescript-eslint's `disableTypeChecked` turns them off for JavaScript: the `no-unsafe-*` rules, `no-unnecessary-type-assertion`, `no-floating-promises` and the type-aware rules of the correctness category. In a plain .js or .mjs file every untyped parameter is `any`, so 0.0.46 reported thousands of findings that only meant that the file is JavaScript. `ban-ts-comment`, `no-explicit-any`, `no-non-null-assertion` and the rest of correctness still apply to every file (K170).
 
