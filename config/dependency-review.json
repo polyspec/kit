@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-13T13:47:38.569Z",
+  "reviewed": "2026-10-14T22:32:17.204Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "5ae4c9373a0aa5f8b8de2fd5f3b38860e90a15eac2996760d760b2e6d8290af8",
+      "sha256": "bfe2662e4adbf3e3ef20c04566f0ca0b72b5c29cd1c03201b584515bb385e88b",
       "advisories": [
         {
           "package": "sprintf-js",
@@ -16,9 +16,28 @@
           "url": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c"
         }
       ]
+    },
+    {
+      "lock": "scripts/kit/symbols/go/go.sum",
+      "sha256": "b2a9b8d4ce2712108876b91bb86be28c92827d4a2c5179b3afa2b3f79cba307b",
+      "advisories": []
     }
   ],
   "dependencies": [
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@decimalturn/toml-patch",
+      "version": "3.3.0",
+      "latest": "3.3.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@mdit-vue/shared",
+      "version": "3.0.2",
+      "latest": "3.0.2"
+    },
     {
       "ecosystem": "npm",
       "manifest": "package.json",
@@ -29,9 +48,107 @@
     {
       "ecosystem": "npm",
       "manifest": "package.json",
+      "package": "@microsoft/api-extractor-model",
+      "version": "7.33.15",
+      "latest": "7.33.15"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@renovatebot/pep440",
+      "version": "5.0.1",
+      "latest": "5.0.1"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "acorn",
+      "version": "8.19.0",
+      "latest": "8.19.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "acorn-walk",
+      "version": "8.3.5",
+      "latest": "8.3.5"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "ajv",
+      "version": "8.20.0",
+      "latest": "8.20.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "amaro",
+      "version": "1.2.1",
+      "latest": "1.2.1"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "eslint-scope",
+      "version": "9.1.2",
+      "latest": "9.1.2"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "github-slugger",
+      "version": "2.0.0",
+      "latest": "2.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
       "package": "knip",
       "version": "6.41.0",
       "latest": "6.41.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "mdast-util-from-markdown",
+      "version": "2.1.0",
+      "latest": "2.1.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "mdast-util-frontmatter",
+      "version": "2.0.1",
+      "latest": "2.0.1"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "mdast-util-gfm",
+      "version": "3.1.0",
+      "latest": "3.1.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "mdast-util-to-string",
+      "version": "4.0.0",
+      "latest": "4.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "micromark-extension-frontmatter",
+      "version": "2.0.0",
+      "latest": "2.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "micromark-extension-gfm",
+      "version": "3.0.0",
+      "latest": "3.0.0"
     },
     {
       "ecosystem": "npm",
@@ -50,9 +167,72 @@
     {
       "ecosystem": "npm",
       "manifest": "package.json",
+      "package": "picomatch",
+      "version": "4.0.7",
+      "latest": "4.0.7"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "pip-requirements-js",
+      "version": "1.0.3",
+      "latest": "1.0.3"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "semver",
+      "version": "7.8.5",
+      "latest": "7.8.5"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "smol-toml",
+      "version": "1.9.1",
+      "latest": "1.9.1"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "unist-util-visit",
+      "version": "5.1.0",
+      "latest": "5.1.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
       "package": "@types/node",
       "version": "26.6.5",
       "latest": "26.6.5"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@types/picomatch",
+      "version": "4.0.3",
+      "latest": "4.0.3"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@types/semver",
+      "version": "7.8.0",
+      "latest": "7.8.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@vscode/test-electron",
+      "version": "3.1.0",
+      "latest": "3.1.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "jscpd",
+      "version": "5.4.1",
+      "latest": "5.4.1"
     },
     {
       "ecosystem": "npm",
@@ -67,6 +247,13 @@
       "package": "ruff",
       "version": "0.17.0",
       "latest": "0.17.0"
+    },
+    {
+      "ecosystem": "go",
+      "manifest": "scripts/kit/symbols/go/go.mod",
+      "package": "golang.org/x/tools",
+      "version": "v0.52.0",
+      "latest": "v0.52.0"
     }
   ],
   "vcs": []
