@@ -19,20 +19,27 @@ const BIN = path.join(ROOT, 'node_modules/.bin');
 const INDEX = 'src/index.ts';
 const DOUBLE = '/**\n * Doubles a value.\n */\nexport function double(value: number): number {\n  return value * 2;\n}\n';
 
+// The test file: top-level registrations of node:test, which return a promise that the runner itself awaits (K138).
+const TESTS = "import assert from 'node:assert/strict';\nimport test, { describe, it, suite } from 'node:test';\nimport { double } from '../src/index.ts';\n\ntest('double', () => {\n  assert.equal(double(2), 4);\n});\n\ndescribe('double', () => {\n  it('doubles zero', () => {\n    assert.equal(double(0), 0);\n  });\n});\n\nsuite('double', () => {\n  test.skip('of a string', () => {});\n});\n";
+
 // A package whose one export is documented, reached from its entry point, and tested. No export carries a release tag (@public),
 // as in every polyspec repository: the base configuration turns ae-missing-release-tag off (K139).
 const GOOD: Record<string, string> = {
   '.gitignore': 'node_modules/\ndist/\nvar/\n',
   'package.json': JSON.stringify({ name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } } }, null, 2),
-  'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', declaration: true, emitDeclarationOnly: true, allowImportingTsExtensions: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),
+  // The project covers the tests too, as in a consumer, so oxlint-tsgolint checks their types; the build emits only src.
+  'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests'] }, null, 2),
+  'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),
   'api-extractor.json': '',
   [INDEX]: DOUBLE,
-  'tests/index.test.ts': "import assert from 'node:assert/strict';\nimport test from 'node:test';\nimport { double } from '../src/index.ts';\n\ntest('double', () => {\n  assert.equal(double(2), 4);\n});\n",
+  'tests/index.test.ts': TESTS,
 };
 
 // One violation for each rule: the files it adds or replaces, and the text that the failing step prints for it.
 const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp }[] = [
   { name: 'a floating promise', files: { [INDEX]: `${DOUBLE}\n/**\n * Waits for nothing.\n */\nexport async function settle(): Promise<void> {\n  Promise.resolve(1);\n}\n` }, finding: /typescript\(no-floating-promises\)/ },
+  // A real floating promise among the node:test registrations, which the rule allows (K138), is still one.
+  { name: 'a floating promise in a test file', files: { 'tests/index.test.ts': `${TESTS}\nfetch('https://example.com/');\n` }, finding: new RegExp(`tests/index\\.test\\.ts:${TESTS.split('\n').length + 1}:1: error typescript\\(no-floating-promises\\)`) },
   { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/ },
   { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/ },
   { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/ },
@@ -64,7 +71,7 @@ function repository(t: TestContext, files: Record<string, string> = {}, { report
   mkdirSync(path.join(root, 'config'));
   for (const file of ['.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) copyFileSync(path.join(ROOT, file), path.join(root, file));
   symlinkSync(path.join(ROOT, 'node_modules'), path.join(root, 'node_modules'));
-  const build = run(root, 'tsc', '-p', 'tsconfig.json');
+  const build = run(root, 'tsc', '-p', 'tsconfig.build.json');
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
   // The API report that a repository commits in etc/: --local writes it, also for a planted violation, whose error still fails.
   mkdirSync(path.join(root, 'etc'));
@@ -96,6 +103,6 @@ test('the TypeScript lint fails on each planted violation with the rule or the m
 });
 
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
-  const { failed, output } = lintOf(repository(t, VIOLATIONS[4]!.files, { report: false }));
+  const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
   assert.deepEqual(failed, [], output);
 });

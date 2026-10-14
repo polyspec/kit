@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4c2ef948317095db615fc694c4992f4cce8caccd0ce972f9c466b6f482a9fff9 -->
+<!-- source-sha256: 308b0e287add20fd4646c8f7cc188cb9ebeaa7827e50f3f2e1706bdbc52439c1 -->
 
 # 도구 목록
 
@@ -724,7 +724,11 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - **Go.** gomoddirectives는 모든 `replace`를 금지합니다. 저장소의 module은 `go.work`로 서로를 찾으며, 배포한 go.mod는 consumer가
   보지 못하는 replace를 가지지 않습니다. `go mod tidy`가 go directive와 같은 toolchain 줄을 지우므로 toolchain 줄도 금지합니다.
   forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
-- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. API
+- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다.
+  `no-floating-promises`는 typescript-eslint가 node:test를 위해 둔 option, package `node:test`의 `test`, `describe`, `it`,
+  `suite`, `skip`, `only`, `todo`를 담은 `allowForKnownSafeCalls`를 받습니다(K138): 최상위 등록은 runner가 기다리는 promise를
+  돌려주는데 이 규칙이 그 하나하나를 실패시켰고(crudui에서 516개), test 파일에서 await하지 않은 `fetch`는 여전히 실패합니다
+  (fixture). subtest `t.test`도 이름이 `test`이며, Node 26의 runner는 그것을 기다립니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
   줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다. `ae-missing-release-tag`는 꺼져
