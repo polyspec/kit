@@ -5,7 +5,7 @@
     "license": "proprietary",
     "require": {
         "php": ">=8.5",
-        "phpunit/phpunit": "11.5.57"
+        "phpunit/phpunit": "13.4.2"
     },
     "config": {
         "sort-packages": true,
