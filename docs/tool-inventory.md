@@ -793,7 +793,9 @@ does not declare is neither installed nor checked.
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report
-  (`etc/<package>.api.md`).
+  (`etc/<package>.api.md`). `ae-missing-release-tag` is off (K139): release tags (`@public`, `@beta`, `@alpha`,
+  `@internal`) choose what the trimmed `.d.ts` rollups keep, and polyspec writes no rollup and tags no export, so the
+  message failed every export of every package (187 in crudui) for a tag that changes nothing.
 - **Root files.** The layout allows `ruff.toml`, `phpcs.xml.dist`, `phpstan.dist.neon`, `.golangci.yml`, `.oxlintrc.json`,
   `knip.json`, `.editorconfig`, the Rust workspace (`Cargo.toml`, `Cargo.lock`) and the Go workspace (`go.work`,
   `go.work.sum`) at the root.
