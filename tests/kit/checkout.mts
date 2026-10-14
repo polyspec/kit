@@ -2,7 +2,7 @@
 // the tools of kit run (kit-tools.mts) and read that checkout, and the commands that run the gate and the review in it.
 import { spawnSync } from 'node:child_process';
 import type { TestContext } from 'node:test';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tool } from './kit-tools.mts';
 import { toolStubs } from './registry.mts';
+import { readStubLines, STUB_CALL } from './stub-json.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
@@ -71,5 +72,5 @@ else {
 /** The scans that the govulncheck stub of `root` ran, in order: { cwd, args }. */
 export function govulncheckCalls(root: string): Array<{ cwd: string; args: string[] }> {
   const log = path.join(root, 'var/tools/govulncheck-calls.log');
-  return existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  return existsSync(log) ? readStubLines(log, STUB_CALL) : [];
 }

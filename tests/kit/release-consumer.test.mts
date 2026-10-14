@@ -15,6 +15,7 @@ import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
+import type { ComposerLock, ComposerManifest, NpmLock } from '../../scripts/kit/manifests.mts';
 
 // The JSON files that the cases edit, in the fields that they read. A case also writes a value that breaks the schema on
 // purpose, so the values that a case replaces are unknown.
@@ -33,7 +34,7 @@ type Box = ReturnType<typeof consumerSandbox>;
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const NPM = 'tests/release-consumer/npm';
 const COMPOSER = 'tests/release-consumer/composer';
-const edit = <Data = ManifestJson,>(root: string, file: string, change: (data: Data) => unknown) => writeJson(root, file, change(readJson(root, file) as Data));
+const edit = <Data = ManifestJson,>(root: string, file: string, change: (data: Data) => unknown) => writeJson(root, file, change(readJson<Data>(root, file)));
 const install = (box: Box, version: string = box.version, directory = path.join(box.root, release.ASSETS)) => consumer.installConsumers(box.ctx(), version, directory);
 
 test('the schema accepts the consumers of the fixture and names each error of another', (t) => {
@@ -48,7 +49,7 @@ test('the schema accepts the consumers of the fixture and names each error of an
 
 test('the configuration rules name each inconsistent consumer and proof entry', (t) => {
   const box = releaseSandbox(t);
-  const original = readJson(box.root, 'config/release.json') as ConfigJson;
+  const original = readJson<ConfigJson>(box.root, 'config/release.json');
   const load = (change: (config: ConfigJson) => unknown) => {
     writeJson(box.root, 'config/release.json', change(structuredClone(original)));
     return () => release.loadConfig(box.root);
@@ -77,14 +78,14 @@ test('lock writes the manifests and locks of the archives of the tag, without th
   const written = box.lock();
   assert.deepEqual(written, [`${NPM}/package.json`, `${NPM}/package-lock.json`, `${COMPOSER}/composer.json`, `${COMPOSER}/composer.lock`]);
   assert.deepEqual(readJson(box.root, `${NPM}/package.json`), { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } });
-  const composer = readJson(box.root, `${COMPOSER}/composer.json`);
+  const composer = readJson<ComposerManifest>(box.root, `${COMPOSER}/composer.json`);
   assert.deepEqual(composer.require, { 'polyspec/kit-fixture': '0.0.1' });
   assert.deepEqual(composer.repositories, [{ type: 'artifact', url: 'artifacts' }, { 'packagist.org': false }]);
-  const lock = readJson(box.root, `${NPM}/package-lock.json`).packages;
-  assert.deepEqual([lock['node_modules/fixture-lib'].integrity, lock['node_modules/fixture-app'].integrity], [undefined, undefined], 'the archives are built in the run that uses them');
-  assert.equal(lock['node_modules/fixture-lib'].resolved, 'file:fixture-lib-npm-0.0.1.tgz');
-  assert.equal(lock['node_modules/semver'].integrity, 'sha512-third-party', 'a registry package keeps its integrity');
-  assert.deepEqual(readJson(box.root, `${COMPOSER}/composer.lock`).packages.map((entry: ComposerEntryJson) => [entry.name, entry.version, entry.dist.url, entry.dist.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
+  const lock = readJson<NpmLock>(box.root, `${NPM}/package-lock.json`).packages;
+  assert.deepEqual([lock?.['node_modules/fixture-lib']?.integrity, lock?.['node_modules/fixture-app']?.integrity], [undefined, undefined], 'the archives are built in the run that uses them');
+  assert.equal(lock?.['node_modules/fixture-lib']?.resolved, 'file:fixture-lib-npm-0.0.1.tgz');
+  assert.equal(lock?.['node_modules/semver']?.integrity, 'sha512-third-party', 'a registry package keeps its integrity');
+  assert.deepEqual(readJson<ComposerLock>(box.root, `${COMPOSER}/composer.lock`).packages?.map(entry => [entry.name, entry.version, entry.dist?.url, entry.dist?.shasum]), [['polyspec/kit-fixture', '0.0.1', 'artifacts/polyspec-kit-fixture-php-0.0.1.zip', '']]);
   const before = written.map(file => readFileSync(path.join(box.root, file), 'utf8'));
   box.lock();
   assert.deepEqual(written.map(file => readFileSync(path.join(box.root, file), 'utf8')), before);
@@ -96,6 +97,7 @@ test('lock runs npm and Composer from clean projects outside the repository with
   box.lock();
   const [npm] = box.calls('npm');
   const [composer] = box.calls('composer');
+  assert.ok(npm && composer);
   assert.deepEqual(npm.args, ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0']);
   assert.deepEqual(composer.args, ['update', '--no-install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts']);
   for (const call of [npm, composer]) {
@@ -104,7 +106,10 @@ test('lock runs npm and Composer from clean projects outside the repository with
     assert.equal(call.env.COMPOSER_DISABLE_NETWORK, null);
   }
   const folder = (call: { cwd: string }) => path.basename(path.dirname(call.cwd));
-  assert.deepEqual([path.basename(path.dirname(npm.env.npm_config_cache)), path.basename(path.dirname(composer.env.COMPOSER_HOME))], [folder(npm), folder(composer)], 'the caches are directories of the run');
+  const { npm_config_cache: cache } = npm.env;
+  const { COMPOSER_HOME: home } = composer.env;
+  assert.ok(typeof cache === 'string' && typeof home === 'string');
+  assert.deepEqual([path.basename(path.dirname(cache)), path.basename(path.dirname(home))], [folder(npm), folder(composer)], 'the caches are directories of the run');
   assert.ok(!existsSync(npm.cwd), 'the project is removed after the run');
 });
 
@@ -135,8 +140,10 @@ test('install runs npm ci and composer install in clean projects outside the rep
     "wheel kit-fixture 0.0.1: python -c import kit_fixture",
   ]);
   const [ci] = box.calls('npm').slice(-1);
+  assert.ok(ci);
   assert.deepEqual(ci.args, ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0']);
   const [composer] = box.calls('composer').slice(-1);
+  assert.ok(composer);
   assert.deepEqual(composer.args, ['install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts']);
   for (const call of [ci, composer]) {
     assert.ok(path.relative(realpathSync(box.root), call.cwd).startsWith('..'), `${call.tool} ran in ${call.cwd}, inside ${box.root}`);
@@ -296,8 +303,8 @@ test('the real npm ci and composer install install the archives of a tag from th
   const ctx = release.context(box.root, { env });
   assert.equal(release.assets(ctx, tag).length, 3);
   consumer.lockConsumers(ctx, tag);
-  assert.equal(readJson(box.root, `${NPM}/package-lock.json`).packages['node_modules/fixture-app'].resolved, 'file:fixture-app-npm-0.0.1.tgz');
-  assert.equal(readJson(box.root, `${COMPOSER}/composer.lock`).packages[0].dist.url, 'artifacts/polyspec-kit-fixture-php-0.0.1.zip');
+  assert.equal(readJson<NpmLock>(box.root, `${NPM}/package-lock.json`).packages?.['node_modules/fixture-app']?.resolved, 'file:fixture-app-npm-0.0.1.tgz');
+  assert.equal(readJson<ComposerLock>(box.root, `${COMPOSER}/composer.lock`).packages?.[0]?.dist?.url, 'artifacts/polyspec-kit-fixture-php-0.0.1.zip');
   const steps: string[] = [];
   assert.equal(consumer.installConsumers(ctx, '0.0.1', path.join(box.root, release.ASSETS), text => steps.push(text)), 3);
   assert.equal(steps.length, 5);
@@ -329,8 +336,8 @@ test('the Composer consumer holds the release zip of each entry of config/releas
   mkdirSync(path.join(box.root, 'var/composer-artifacts'), { recursive: true });
   writeFileSync(path.join(box.root, 'var/composer-artifacts/polyspec-codec-php-0.0.14.zip'), zip);
   box.lock();
-  const lock = readJson(box.root, `${COMPOSER}/composer.lock`);
-  assert.deepEqual(lock.packages.find((entry: { name: string }) => entry.name === 'polyspec/codec')?.dist, { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip', shasum: 'sha1-own' }, 'the lock keeps the shasum of a dependency, which no run builds again');
+  const lock = readJson<ComposerLock>(box.root, `${COMPOSER}/composer.lock`);
+  assert.deepEqual(lock.packages?.find(entry => entry.name === 'polyspec/codec')?.dist, { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip', shasum: 'sha1-own' }, 'the lock keeps the shasum of a dependency, which no run builds again');
   assert.equal(install(box), 4);
   edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: [] } } }));
   assert.match(checkConfig(box.root).join('\n'), /config\/release\.json: \/consumers\/composer\/polyspec must NOT have fewer than 1 items/);

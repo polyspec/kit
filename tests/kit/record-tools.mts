@@ -8,19 +8,36 @@
 //
 //   node tests/kit/record-tools.mts
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TOOL_RECORDS } from './registry.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readStubLines, TEXTS } from './stub-json.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** A request of a stub: the tool, its arguments without the path of a file, and the files that it reads. */
 export type ToolRequest = { tool: 'go' | 'composer'; args: string[]; files: Record<string, string | null> };
+/** A line of the misses log of the stubs: a request without a record. */
+export const TOOL_REQUEST: JSONSchemaType<ToolRequest> = {
+  type: 'object',
+  required: ['tool', 'args', 'files'],
+  properties: { tool: { type: 'string', enum: ['go', 'composer'] }, args: TEXTS, files: { type: 'object', required: [], additionalProperties: { type: 'string', nullable: true } } },
+};
 
 /** A record: a request with what the real tool printed and its exit status. */
 export type ToolRecord = ToolRequest & { status: number; stdout: string; stderr: string };
+/** tests/kit/tool-records.json: the records of each tool. */
+export const TOOL_RECORDS_FILE: JSONSchemaType<Record<string, ToolRecord[]>> = {
+  type: 'object',
+  required: [],
+  additionalProperties: {
+    type: 'array',
+    items: { type: 'object', required: ['tool', 'args', 'files', 'status', 'stdout', 'stderr'], properties: { tool: { type: 'string', enum: ['go', 'composer'] }, args: TEXTS, files: { type: 'object', required: [], additionalProperties: { type: 'string', nullable: true } }, status: { type: 'integer' }, stdout: { type: 'string' }, stderr: { type: 'string' } } },
+  },
+};
 
 // The test files whose stubs answer from the records (the registries of registry.mts, the version stubs of toolchain-stubs.mts).
 const TESTS = ['check-toolchain', 'dependency-advisory', 'dependency-cargo', 'dependency-go', 'dependency-policy', 'dependency-review', 'dependency-state', 'python-lock', 'registry', 'release', 'release-consumer', 'release-go-tags', 'release-proof', 'release-wheel']
@@ -74,7 +91,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     for (let round = 1; ; round += 1) {
       const misses = path.join(work, `misses-${round}.jsonl`);
       const run = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...TESTS], { cwd: ROOT, env: { ...process.env, STUB_TOOL_MISSES: misses }, encoding: 'utf8' });
-      const requests = existsSync(misses) ? readFileSync(misses, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as ToolRequest) : [];
+      const requests = existsSync(misses) ? readStubLines(misses, TOOL_REQUEST) : [];
       const fresh = [...new Map(requests.map(request => [key(request), request])).values()].filter(request => !records.some(record => key(record) === key(request)));
       console.log(`[record-tools] run ${round}: ${requests.length} requests without a record, ${fresh.length} new; the tests ended with ${run.status}`);
       if (fresh.length === 0) {

@@ -2,19 +2,14 @@
 // duplicate detection, the packages of an npm workspace and a tagged package, the Composer platform and the exact pin of a
 // Python requirement. Each runs on a copy of tests/kit/fixture, so no test uses the network.
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 import { npmDuplicates, npmManifests, npmSatisfies, pythonRequirements } from '../../scripts/kit/dependency-state.mts';
 import { tree } from './tree.mts';
 import { fixtureCheckout as fixture, gate } from './checkout.mts';
+import { editFixture } from './json-fixture.mts';
 
-// The data is the parsed JSON of a fixture file; Data names the fields that a test edits.
-const edit = <Data,>(root: string, file: string, change: (data: Data) => void) => {
-  const data = JSON.parse(readFileSync(path.join(root, file), 'utf8')) as Data;
-  change(data);
-  writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
-};
+// Data names the fields of the fixture file that a test edits.
+const edit = editFixture;
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
 test('an npm version satisfies a range by the rules of npm', () => {

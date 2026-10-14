@@ -4,6 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import { lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { errorCode } from '../../scripts/kit/process.mts';
 
 const LISTED_LIMIT = 200;
 
@@ -36,11 +37,12 @@ export function removeSandbox(directory: string, { remove = rmSync }: { remove?:
     remove(directory, { recursive: true, force: true });
   } catch (caught) {
     // rmSync, and the removals that the tests pass, throw an Error with the errno code of the failure.
-    const error = caught as NodeJS.ErrnoException;
+    if (!(caught instanceof Error)) throw caught;
+    const error = caught;
     const still = entriesOf(directory);
     const processes = groupProcesses();
     throw new Error(
-      `cannot remove ${directory} (${error.code}: ${error.message}); still in it: ${still.join('; ') || 'nothing listed'}; live processes of this process group: ${processes.join(' | ') || 'none'}`,
+      `cannot remove ${directory} (${errorCode(error)}: ${error.message}); still in it: ${still.join('; ') || 'nothing listed'}; live processes of this process group: ${processes.join(' | ') || 'none'}`,
       { cause: error },
     );
   }

@@ -4,14 +4,14 @@
 // directory by the test; no test runs uv or reaches a network.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkPythonLock, parseConstraints, parseRequirements, pythonLockEntries } from '../../scripts/kit/python-lock.mts';
-import { validate } from '../../scripts/kit/schema-validate.mts';
+import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tests/kit/fixture');
@@ -221,7 +221,7 @@ test('the parsers read the forms of a requirement and of a constraint and refuse
 });
 
 test('the policy names each lock with its declared source, and a source is a requirements file or a pyproject.toml with an optional findLinks', () => {
-  const schema = JSON.parse(readFileSync(new URL('../../scripts/kit/schema/dependency-policy.schema.json', import.meta.url), 'utf8'));
+  const schema = schemaFile('dependency-policy.schema.json');
   const policy = (locks: unknown[]) => ({ schema: 1, composerPlatforms: [], pythonManifests: [], pythonLocks: locks, npmLocks: [], exceptions: [] });
   assert.deepEqual(validate(policy([ENTRY]), schema), []);
   assert.deepEqual(validate(policy([{ lock: 'packages/x-python/pylock.dev.toml', source: { requirements: 'requirements.in', constraints: 'constraints.txt' } }]), schema), []);

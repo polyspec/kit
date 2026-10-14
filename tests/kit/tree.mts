@@ -38,12 +38,8 @@ export function korean(en: string, body?: string) {
   return `<!-- doc-id: ${id} -->\n<!-- source-sha256: ${hash} -->\n${body ?? en.split('\n').slice(1).join('\n')}`;
 }
 
-/** The path of the Korean twin of the English path `F`. */
-type Twin<F extends string> = F extends `${infer Stem}.md` ? `${Stem}.ko.md` : F;
-
 /** The two files of a document at `file` (an English path): `{ [file]: en, [file.ko.md]: ko }`. */
-export function pair<F extends string>(file: F, id: string, body = '', koBody?: string) {
+export function pair(file: string, id: string, body = '', koBody?: string): Record<string, string> {
   const en = english(id, body);
-  // The computed keys are `file` and its twin, which TypeScript widens to an index signature.
-  return { [file]: en, [file.replace(/\.md$/, '.ko.md')]: korean(en, koBody ?? en.split('\n').slice(1).join('\n')) } as Record<F | Twin<F>, string>;
+  return { [file]: en, [file.replace(/\.md$/, '.ko.md')]: korean(en, koBody ?? en.split('\n').slice(1).join('\n')) };
 }

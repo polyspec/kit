@@ -11,6 +11,55 @@ import { toolStubs } from './registry.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
+import { readFixture } from './json-fixture.mts';
+import { readStub, readStubLines, STUB_CALL, TEXTS } from './stub-json.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import type { ReleaseConfig } from '../../scripts/kit/release.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+
+/** A release of the gh stub by its id, as the API returns it. */
+type StubRelease = { id: number; tag_name: string; draft: boolean; assets: { id: number; name: string; url: string; digest?: string | null }[] };
+/** The state of the gh stub in the fields that the tests read: its calls and what it created, uploaded, patched and deleted. */
+type GhState = {
+  calls: string[][];
+  notes?: string | null;
+  created?: { tag: string; name: string; draft: string };
+  uploads?: { name: string; input: string; type: string }[];
+  byId?: Record<string, StubRelease>;
+  patched?: string[][];
+  deleted?: string[];
+};
+const STRING = { type: 'string' } as const;
+const GH_STATE: JSONSchemaType<GhState> = {
+  type: 'object',
+  required: ['calls'],
+  properties: {
+    calls: { type: 'array', items: TEXTS },
+    notes: { type: 'string', nullable: true },
+    created: { type: 'object', nullable: true, required: ['tag', 'name', 'draft'], properties: { tag: STRING, name: STRING, draft: STRING } },
+    uploads: { type: 'array', nullable: true, items: { type: 'object', required: ['name', 'input', 'type'], properties: { name: STRING, input: STRING, type: STRING } } },
+    byId: {
+      type: 'object',
+      nullable: true,
+      required: [],
+      additionalProperties: {
+        type: 'object',
+        required: ['id', 'tag_name', 'draft', 'assets'],
+        properties: {
+          id: { type: 'integer' },
+          tag_name: STRING,
+          draft: { type: 'boolean' },
+          assets: { type: 'array', items: { type: 'object', required: ['id', 'name', 'url'], properties: { id: { type: 'integer' }, name: STRING, url: STRING, digest: { type: 'string', nullable: true } } } },
+        },
+      },
+    },
+    patched: { type: 'array', nullable: true, items: TEXTS },
+    deleted: { type: 'array', nullable: true, items: STRING },
+  },
+};
+/** A pip call of the Python stub: its arguments, its directory and the requirements of a -r argument. */
+type PipCall = { args: string[]; cwd: string; requirements?: string | null };
+const PIP_CALL: JSONSchemaType<PipCall> = { type: 'object', required: ['args', 'cwd'], properties: { args: TEXTS, cwd: STRING, requirements: { type: 'string', nullable: true } } };
 
 const GH_STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -111,14 +160,14 @@ export const git = (root: string, ...args: string[]) => {
   return result.stdout.trim();
 };
 
-export const readJson = (root: string, file: string) => JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+/** The JSON file `file` of `root` as Data, read through its schema of kit (readFixture). */
+export const readJson = <Data,>(root: string, file: string): Data => readFixture<Data>(root, file);
 export const writeJson = (root: string, file: string, value: unknown) => writeFileSync(path.join(root, file), `${JSON.stringify(value, null, 2)}\n`);
 
 /** Sets the version of a manifest file of the sandbox (package.json, composer.json, Cargo.toml, pyproject.toml). */
 function setVersion(root: string, file: string, version: string) {
   if (file.endsWith('.json')) {
-    const data = readJson(root, file);
-    writeJson(root, file, { ...data, version });
+    writeJson(root, file, { ...readJson<object>(root, file), version });
   } else {
     const text = readFileSync(path.join(root, file), 'utf8');
     writeFileSync(path.join(root, file), text.replace(/^version = ".*"$/m, `version = "${version}"`));
@@ -135,9 +184,9 @@ export type ReleaseSandboxOptions = { version?: string; changelog?: string; muta
  */
 export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1', changelog = CHANGELOG, mutate = () => {} }: ReleaseSandboxOptions = {}) {
   const root = fixtureCheckout(t);
-  const config = readJson(root, 'config/release.json');
+  const config = readJson<ReleaseConfig>(root, 'config/release.json');
   for (const file of Object.keys(config.manifests)) setVersion(root, file, version);
-  const app = readJson(root, 'packages/fixture-app/package.json');
+  const app = readJson<NpmManifest>(root, 'packages/fixture-app/package.json');
   writeJson(root, 'packages/fixture-app/package.json', { ...app, dependencies: { ...app.dependencies, 'fixture-lib': version } });
   mkdirSync(path.join(root, 'packages/fixture-php/src'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), '<?php\n');
@@ -185,8 +234,7 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
     },
     /** The releases the stub lists for the API, drafts included: each { id, tag_name, draft, assets }. */
     releases(list: unknown[]) {
-      const current = JSON.parse(readFileSync(state, 'utf8'));
-      writeFileSync(state, JSON.stringify({ ...current, releases: list }));
+      writeFileSync(state, JSON.stringify({ ...readStub(state, GH_STATE), releases: list }));
     },
     tag(name: string, target = commit): string {
       git(root, 'tag', '-a', name, '-m', name, target);
@@ -197,10 +245,10 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
       for (const directory of ['packages/fixture-go']) box.tag(`${directory}/v${version}`, target);
       return box.tag(`v${version}`, target);
     },
-    state: () => JSON.parse(readFileSync(state, 'utf8')),
-    npmCalls: () => readFileSync(npmLog, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)),
+    state: () => readStub(state, GH_STATE),
+    npmCalls: () => readStubLines(npmLog, STUB_CALL),
     /** The pip calls of the Python stub, each with its arguments, its directory and the requirements of a -r argument. */
-    pipCalls: () => readFileSync(pythonLog, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)),
+    pipCalls: () => readStubLines(pythonLog, PIP_CALL),
     /** Sets the Requires-Dist lines that the pip stub writes into the wheel it builds. */
     wheelRequires: (lines: WheelRequires) => writeFileSync(env.STUB_WHEEL_REQUIRES_FILE, JSON.stringify(lines)),
   };

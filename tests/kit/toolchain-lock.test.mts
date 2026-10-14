@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { lockTools } from '../../scripts/kit/toolchain-lock.mts';
 import { tree } from './tree.mts';
+import { readStubLines, TEXTS } from './stub-json.mts';
 
 const LOCK = `[[tools.golangci-lint]]
 version = "2.14.0"
@@ -50,7 +51,7 @@ test('toolchain-lock locks the tools of mise.toml, which the environment of mise
   writeStub(mise);
   const printed: string[] = [];
   lockTools({ root, print: text => printed.push(text) });
-  assert.deepEqual(readFileSync(path.join(root, 'args.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['lock', '--global', '--platform', 'linux-x64,linux-arm64,macos-arm64,macos-x64']]);
+  assert.deepEqual(readStubLines(path.join(root, 'args.jsonl'), TEXTS), [['lock', '--global', '--platform', 'linux-x64,linux-arm64,macos-arm64,macos-x64']]);
   assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), LOCK);
   assert.deepEqual(printed.at(-1), 'mise.lock pins every tool of mise.toml');
 });

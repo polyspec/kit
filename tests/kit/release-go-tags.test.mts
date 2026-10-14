@@ -9,13 +9,14 @@ import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { KIT_MAKE, tool } from './kit-tools.mts';
+import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 
 const REPOSITORY = 'example/kit-fixture';
 const GO_TAG = 'packages/fixture-go/v0.0.1';
 const context = (box: { root: string; env: NodeJS.ProcessEnv }) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY } });
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
 const withModules = (modules: Record<string, string>) => (root: string) => {
-  const config = readJson(root, 'config/release.json');
+  const config = readJson<ReleaseConfig>(root, 'config/release.json');
   writeJson(root, 'config/release.json', { ...config, goModules: modules });
 };
 

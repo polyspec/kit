@@ -10,7 +10,8 @@ import type { TestContext } from 'node:test';
 import { ciSummary, ciTargets } from '../../scripts/kit/ci-targets.mts';
 import { acquireHolderLock, HolderLockRefused, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
 import { passed } from '../../scripts/kit/ci-passed.mts';
-import { capLog, failureLines, reportWriter, warningLines } from '../../scripts/kit/target-report.mts';
+import { capLog, failureLines, reportWriter, warningLines, type RunRecord } from '../../scripts/kit/target-report.mts';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
 
@@ -37,7 +38,7 @@ async function run(root: string, targets: string[], extra: Partial<Parameters<ty
   const outputs: Array<[string, string]> = [];
   const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH }, print: (line: string) => printed.push(line), output: (text: string, stream: string) => outputs.push([stream, text]), ...extra });
   const read = (file: string) => readFileSync(path.join(root, 'var/report/ci', file), 'utf8');
-  return { status, printed, outputs, read, record: () => JSON.parse(read('record.json')) };
+  return { status, printed, outputs, read, record: () => readJsonFile<RunRecord>(path.join(root, 'var/report/ci/record.json'), 'run-record.schema.json') };
 }
 
 test('every target runs to its end and the report holds a log, a record and a summary', async (t) => {
@@ -64,7 +65,7 @@ test('a failed target does not stop the next one, and the report names its first
   const record = result.record();
   assert.deepEqual(record.targets.map((target: TargetRecord) => target.status), ['failed', 'passed']);
   assert.equal(record.result, 'failed');
-  assert.deepEqual(record.targets[0].failures, ['src/a.js:3:1: rule: expected 1, actual 2', 'make bad exited with status 2']);
+  assert.deepEqual(record.targets[0]?.failures, ['src/a.js:3:1: rule: expected 1, actual 2', 'make bad exited with status 2']);
   const summary = result.read('summary.md');
   assert.match(summary, /1 of 2 targets passed, 1 failed/);
   assert.match(summary, /## bad: failed\n\nLog: targets\/bad\.log\n\n```\nsrc\/a\.js:3:1: rule: expected 1, actual 2\nmake bad exited with status 2\n```/);
@@ -94,7 +95,9 @@ test('a make that cannot start fails the target with the reason', async (t) => {
   const root = setup(t);
   const result = await run(root, ['good'], { make: path.join(root, 'no-such-make') });
   assert.equal(result.status, 1);
-  assert.match(result.record().targets[0].failures.at(-1), /^make good could not start: /);
+  const last = result.record().targets[0]?.failures?.at(-1);
+  assert.ok(last !== undefined);
+  assert.match(last, /^make good could not start: /);
 });
 
 test('a failed write of the report is recorded, every target still runs and the run fails', async (t) => {
@@ -102,7 +105,9 @@ test('a failed write of the report is recorded, every target still runs and the 
   const result = await run(root, ['good', 'flags'], { env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'blocker/summary.md') } });
   assert.equal(result.status, 1);
   assert.deepEqual(result.record().targets.map((target: TargetRecord) => target.status), ['passed', 'passed']);
-  assert.ok(result.record().reportErrors.some((error: string) => error.startsWith('report write failed: ') && error.includes('blocker/summary.md')), JSON.stringify(result.record().reportErrors));
+  const { reportErrors } = result.record();
+  assert.ok(reportErrors);
+  assert.ok(reportErrors.some((error: string) => error.startsWith('report write failed: ') && error.includes('blocker/summary.md')), JSON.stringify(reportErrors));
   assert.ok(result.printed.some(line => line.includes('report writes failed')));
 });
 
@@ -198,7 +203,7 @@ test('the command runs the targets, exits with the result and refuses a bad usag
   const failed = command(root, ['var/report/ci', 'bad', 'good']);
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stdout, /\[ci-targets\] 1 of 2 targets passed; failed: bad/);
-  assert.equal(JSON.parse(readFileSync(path.join(root, 'var/report/ci/record.json'), 'utf8')).result, 'failed');
+  assert.equal(readJsonFile<RunRecord>(path.join(root, 'var/report/ci/record.json'), 'run-record.schema.json').result, 'failed');
   assert.equal(command(root, ['var/report/ci', 'good']).status, 0);
   const summary = command(root, ['--summary', 'var/report/ci']);
   assert.equal(summary.status, 0, summary.stderr);

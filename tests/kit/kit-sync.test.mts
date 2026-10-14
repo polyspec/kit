@@ -11,6 +11,8 @@ import type { TestContext } from 'node:test';
 import { check, checkConfig, isSource } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
 import { tree } from './tree.mts';
+import { readFixture } from './json-fixture.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
 const KIT_SYNC = path.join(import.meta.dirname, '../../scripts/kit/kit-sync.mts');
 const KIT_CHECK = path.join(import.meta.dirname, '../../scripts/kit/kit-check.mts');
@@ -130,15 +132,17 @@ test('the commands run in the repository of their working directory and print th
 
 test('the package.json of kit declares its copies: the bootstrap, the release workflow and the principles, each a file of kit', () => {
   const ROOT = path.join(import.meta.dirname, '../..');
-  const manifest = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const copies: Record<string, string> = manifest.kit?.copies ?? {};
+  const manifest = readFixture<NpmManifest>(ROOT, 'package.json');
+  const copies = manifest.kit?.copies;
+  assert.ok(copies, 'package.json declares no kit.copies');
   const bootstrap = readdirSync(path.join(ROOT, 'scripts/kit/bootstrap')).sort().map(name => `scripts/kit/bootstrap/${name}`);
   assert.ok(bootstrap.length > 0, 'scripts/kit/bootstrap holds no file');
   for (const file of ['scripts/kit/kit-bootstrap.mk', ...bootstrap]) assert.equal(copies[file], file, `${file} is not a copy of itself`);
   assert.equal(copies['.github/workflows/release.yml'], 'workflows/release.yml');
   for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md']) assert.equal(copies[file], file);
   assert.deepEqual(Object.values(copies).filter(from => !existsSync(path.join(ROOT, from))), [], 'these copies have no file in kit');
-  const files: string[] = manifest.files ?? [];
+  const { files } = manifest;
+  assert.ok(files, 'package.json declares no files');
   assert.deepEqual(Object.values(copies).filter(from => !files.some(entry => entry === from || (entry.endsWith('/') && from.startsWith(entry)))), [], 'these copies are not in files of package.json, so the package lacks them');
   assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
 });

@@ -9,7 +9,8 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileMessage, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
-import { KIT, tool } from './kit-tools.mts';
+import { tool } from './kit-tools.mts';
+import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
 const rules = (message: string) => messageFindings(message, CONFIG).map(found => found.rule);
@@ -121,10 +122,8 @@ test('the item rules need config/checklist.json: a range of a checkout without i
   assert.throws(() => rangeFindings(root, 'HEAD', CONFIG), /config\/checklist\.json does not exist in .*; the repository declares its trackers and hooks there/);
 });
 
-test('config/commits.json is validated against its schema', async () => {
-  const { validate } = await import('../../scripts/kit/schema-validate.mts');
-  const { readFileSync } = await import('node:fs');
-  const schema = JSON.parse(readFileSync(path.join(KIT, 'schema/commits.schema.json'), 'utf8'));
+test('config/commits.json is validated against its schema', () => {
+  const schema = schemaFile('commits.schema.json');
   assert.deepEqual(validate(CONFIG, schema), []);
   assert.deepEqual(validate({ schema: 1, types: ['Feat'], subjectMax: 0, bodyMax: 72 }, schema), [
     '/types/0 must match pattern "^[a-z]+$" {"pattern":"^[a-z]+$"}, value "Feat"',

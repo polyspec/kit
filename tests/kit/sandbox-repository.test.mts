@@ -11,6 +11,11 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readStubLines, TEXTS } from './stub-json.mts';
+
+/** An event of GIT_TRACE2_EVENT: its name and, for a child, its arguments. */
+const TRACE_EVENT: JSONSchemaType<{ event: string; argv?: string[] }> = { type: 'object', required: ['event'], properties: { event: { type: 'string' }, argv: { ...TEXTS, nullable: true } } };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,8 +35,10 @@ function git(cwd: string, trace: string, ...args: string[]) {
 
 /** The argument lists of the child processes that the traced git commands started. */
 function children(trace: string): string[] {
-  return readFileSync(trace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
-    .filter(event => event.event === 'child_start').map(event => event.argv.join(' '));
+  return readStubLines(trace, TRACE_EVENT).filter(event => event.event === 'child_start').map((event) => {
+    assert.ok(event.argv, 'a child_start event names the arguments of the child');
+    return event.argv.join(' ');
+  });
 }
 
 /** The children that run maintenance: `git maintenance run --auto --detach` and `git gc --auto` detach from the command. */

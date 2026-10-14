@@ -6,6 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { readFixture } from './json-fixture.mts';
+import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 
 const VULNERABLE = {
   vulnerabilities: { found: true, count: 1, list: [{ package: { name: 'itoa', version: '1.0.15' }, advisory: { id: 'RUSTSEC-2099-0001', title: 'itoa overflows', url: 'https://rustsec.org/advisories/RUSTSEC-2099-0001', cvss: null } }] },
@@ -22,8 +24,8 @@ test('the review records the Cargo lock with its advisories, and the gate then n
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows https:\/\/rustsec\.org\/advisories\/RUSTSEC-2099-0001\. Fix: make dependency-review UPDATE=1\.$/m);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: advisory RUSTSEC-2099-0002 \(unmaintained\) itoa is unmaintained /m);
-  const record = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
-  assert.deepEqual(record.locks.find((item: { lock: string }) => item.lock === 'packages/fixture-rust/Cargo.lock').advisories.map((item: { id: string }) => item.id), ['RUSTSEC-2099-0001', 'RUSTSEC-2099-0002']);
+  const record = readFixture<ReviewRecord>(root, 'config/dependency-review.json');
+  assert.deepEqual(record.locks.find(item => item.lock === 'packages/fixture-rust/Cargo.lock')?.advisories?.map(item => item.id), ['RUSTSEC-2099-0001', 'RUSTSEC-2099-0002']);
   const gated = gate(root);
   assert.equal(gated.status, 1);
   assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review of .+ found advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows /m);
