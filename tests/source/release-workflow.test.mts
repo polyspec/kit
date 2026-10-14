@@ -65,8 +65,8 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
 });
 
-test('the release workflow bootstraps the package before release-tools: the npm of packageManager, then install-packages (K71-2)', () => {
-  assert.deepEqual(runs.slice(0, 3).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tools']);
+test('the release workflow bootstraps the package, then prepares the release of the repository, before release-tools (K71-2, K132)', () => {
+  assert.deepEqual(runs.slice(0, 4).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {

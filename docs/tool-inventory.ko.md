@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 887156bb75511a317f22e8178d0bef6c142ca2e483ca18159302b01e1a452d73 -->
+<!-- source-sha256: 606368d4d78ced43f52edf49eb1a4ec6455d405ee728aa7bf5bd5bf0c052bef8 -->
 
 # 도구 목록
 
@@ -838,6 +838,9 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 ### Release workflow, tool과 draft (K38)
 
 - `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 쓰며, `make kit-check`가 차이를 실패시킵니다.
+- `make release-prepare`는 sibling release의 checkout처럼 저장소의 release가 release-tools 전에 필요로 하는 준비를 실행합니다:
+  kit.mk는 이를 일이 없는 double-colon target으로 선언하고, 저장소는 Makefile에 `release-prepare::` 규칙을 더합니다(K132).
+  vendor된 release workflow는 install-packages 다음에 이를 실행합니다.
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
 - `release-publish`는 release를 draft로 만듭니다. `release-publish`는 그 id를 `var/release/<tag>.json`에 기록합니다. `release-proof`와 `release-undraft`는 release 목록에서 tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초 뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish writes it`로 실패합니다. `release-proof`는 각 자산을 id로 내려받고, `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. wheel lock이 가리키는 다른 저장소의 release는 공개되어 있으므로 여전히 tag로 찾습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,

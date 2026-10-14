@@ -108,7 +108,8 @@ published tag is not moved; the check runs only on the tag being released.
 
 kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`kit.copies` of
 package.json). A repository never edits it, and `make kit-check` fails on a difference. The workflow sets up the PHP of `.php-version` when
-the repository declares one, runs `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
+the repository declares one, runs `make release-prepare` (the preparation that the repository's release declares with a
+`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
 puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`), `make release-proof TAG=<tag>` (the proof of the draft)
 and `make release-undraft TAG=<tag>`, which makes the release public only after the proof passed. The proof and undraft read the
 draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a

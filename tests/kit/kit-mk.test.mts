@@ -79,3 +79,17 @@ test('kit-test passes when its run leaves the checkout as it was', (t) => {
   const run = spawnSync('make', ['--no-print-directory', 'kit-test'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 });
+
+// The vendored release workflow runs make release-prepare before release-tools (K132): kit.mk declares it as a double-colon
+// target with no recipe, and a repository adds its own preparation, such as the checkout of a sibling release, with a
+// release-prepare:: rule of its Makefile.
+test('release-prepare does nothing by default and runs the preparation that a repository declares (K132)', (t) => {
+  const root = tree(t, {});
+  const bare = spawnSync('make', ['--no-print-directory', '-f', KIT_MK, 'release-prepare', 'KIT=scripts/kit', 'KIT_EXT=mts'], { cwd: root, encoding: 'utf8' });
+  assert.equal(bare.status, 0, bare.stderr);
+  assert.equal(bare.stdout, '');
+  put(root, { Makefile: `include ${KIT_MK}\nrelease-prepare::\n\t@echo prepared $(TAG)\n` });
+  const declared = spawnSync('make', ['--no-print-directory', 'release-prepare', 'KIT=scripts/kit', 'KIT_EXT=mts', 'TAG=v0.0.1'], { cwd: root, encoding: 'utf8' });
+  assert.equal(declared.status, 0, declared.stderr);
+  assert.equal(declared.stdout, 'prepared v0.0.1\n');
+});
