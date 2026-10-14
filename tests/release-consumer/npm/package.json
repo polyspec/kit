@@ -5,6 +5,6 @@
     "node": ">=26.11.1"
   },
   "dependencies": {
-    "@polyspec/kit": "file:polyspec-kit-npm-0.0.40.tgz"
+    "@polyspec/kit": "file:polyspec-kit-npm-0.0.41.tgz"
   }
 }
