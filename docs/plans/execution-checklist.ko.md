@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: fd9955b8274b738fa843f5bd2870c8e996a86c83d25ff7ce41433f71b0d26f30 -->
+<!-- source-sha256: c5243519b2a329527fc4416f03af5665b1bb4498b643ba92c86ad088faab7212 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -204,3 +204,4 @@
 | K146 | 없는 설정 파일은 stack trace가 아니라 메시지다: `config/dependency-policy.json`이 없던 ssr에서 `make dependency-review`가 readFileSync의 ENOENT stack을 그대로 내며 실패했다. readConfig가 파일을 이름으로 알리는 ConfigError를 던지고, 도구는 그 메시지를 상태 1로 보고한다 | `schema-validate.mts`, `dependency-review.mts`, `check-dependency-policy.mts` | `tests/kit/dependency-review.test.mts` | [o] |
 | K148 | parity는 module을 가진 test target의 Cargo layout을 따른다: fsm은 생성된 tests/conformance/vectors.rs와 함께 tests/conformance/main.rs를 bind하는데, kit은 이를 `--lib`로 실행하고 vectors.rs를 binding이 없는 test(R5)로 보고했다. tests/<name>/main.rs는 `--test <name>`으로 실행되고 tests/<name>/의 file은 그 binding에 속한다 | `parity-runners.mts`, `parity-units.mts` | `tests/kit/parity.test.mts` | [o] |
 | K144 | kit의 도구가 repository root를 스스로 찾는다. root는 working directory가 속한 Git work tree의 top level(`git rev-parse --show-toplevel`, pre-push hook과 같다)이다: `paths.mts`가 `ROOT = process.cwd()`로 정했으므로, `npm -w`가 package directory에서 시작하듯 root 아래에서 시작한 도구가 package 안의 path를 읽고 썼다(`config/documents.json does not exist`). root는 처음 쓸 때 읽으므로 repository 밖의 project도 package의 module을 import할 수 있다 | `paths.mts`(`repositoryRoot`), root를 읽는 도구, 문서 | `tests/kit/paths.test.mts` | [ ] |
+| K145 | 레포가 kit의 목록을 되풀이하지 않고 `layout-root-files`에 root 파일을 더한다: `config/layout.kit.yml`이 그 rule을 template `root-files`의 instance로 바꾸고, 그 목록은 `!{{vars.root_files}}`로 끝나며, 레포는 `vars: { root_files: "{a,b}" }`만 정한다. rule `layout-root-files-additive`는 그 `paths`의 override를 거부한다. 그 override는 kit의 목록을 바꿨고(hyper는 3개를 더하려고 34개를 복사했다), kit가 나중에 더하는 root 파일을 finding 없이 빠뜨린다. knip entry도 같은 방식으로 더한다: knip.json은 사본이므로, 레포는 layout pattern 밖에서 make가 실행하는 파일(ordered-json `packages/js/test/probe.mjs`)을 `config/knip-entries.json`에 이유와 함께 선언하고, knip에 `extends`가 없으므로 lint-ts가 knip.json과 그 entry를 담은 `var/lint-ts/knip.json`으로 knip을 실행한다 | `config/layout.kit.yml`, `config/layout.yml`, 문서, `knip.json`, `lint-ts.mts`, `schema/knip-entries.schema.json` | `tests/source/layout-real.test.mts`, `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` | [ ] |

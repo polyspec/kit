@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d8c857099b6bf256501908f40e20253f0f31700b3da6de45ed01c155163f8d06 -->
+<!-- source-sha256: a9ab02de3eb0b95bc1f2c33c62054802112dbd8056128b94da250d8b52234f1c -->
 
 # 도구 목록
 
@@ -189,14 +189,18 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
   때문에 이 파일은 `config/`에 있습니다.
 - 레포의 `config/layout.yml`은 이 파일을 extends하고 자기 map을 더합니다. 자기 이름으로 template `no-repository-prefix`와
   `go-module-path`의 instance를 두고, port가 있는 component마다 `component-ports` instance를 하나 두며, rule id로 override합니다
-  (`layout-packages`의 component, `layout-root-tests`의 runner, root 파일과 S9 예외). `paths` override는 목록을 통째로 바꾸므로
-  공통 항목을 되풀이합니다. 예외마다 바로 위 주석에 이유를 적습니다. alint에는 이유를 담을 field가 없으므로, 표준 계획서가
+  (`layout-packages`의 component, `layout-root-tests`의 runner, S9 예외). `paths` override는 목록을 통째로 바꾸므로
+  공통 항목을 되풀이합니다. root 파일은 더하는 방식입니다(K145): `layout-root-files`는 template `root-files`의 instance이고, 그 kit 목록은
+  `!{{vars.root_files}}`로 끝나며, 레포는 glob alternation인 `vars: { root_files: "{a,b}" }`로 자기 파일만 적습니다(`"{}"`는 아무것도
+  적지 않습니다). alint는 변수를 text로 치환하므로 glob 하나의 alternation이 목록을 담습니다. rule `layout-root-files-additive`는
+  `config/layout.yml`이 `layout-root-files`의 `paths`를 override하면 실패합니다. 그 override는 kit가 나중에 더하는 root 파일을 finding
+  없이 빠뜨리기 때문입니다. 예외마다 바로 위 주석에 이유를 적습니다. alint에는 이유를 담을 field가 없으므로, 표준 계획서가
   parity(S6)와 함께 두는 `CODEOWNERS`의 `config/layout.yml` owner 필수 review가 S8을 강제합니다. kit에는 아직 `CODEOWNERS`가
   없습니다.
 - `PYTHONPATH`는 여기서 checkout 전체에 걸쳐 검사하고, parity schema도 `config/parity.json`에서 그것과 repository를 벗어나는
   모든 경로를 거부합니다(K75). test의 기능 소유는 parity R5와 R6에 두고, layout은 root `tests/`의 위치만 정합니다.
-- `tests/source/layout-real.test.mts`는 실제 alint를 돌립니다. layout을 따르는 레포는 통과하고, 심은 위반 17개는 각각 그것을
-  가리키는 rule로 실패하며, 이 checkout은 통과합니다.
+- `tests/source/layout-real.test.mts`는 실제 alint를 돌립니다. layout을 따르는 레포는 통과하고, 심은 위반은 각각 그것을
+  가리키는 rule로 실패하며, `vars.root_files`로 자기 root 파일을 적은 레포는 kit의 root 파일과 함께 통과하고, 이 checkout은 통과합니다.
 
 ### 요구사항과 판정
 
@@ -722,7 +726,13 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   S3의 node:test 파일, kit의 사본을 포함한 `scripts/` 아래 S9의 script, `benchmarks/`의 프로그램입니다. Makefile이 include하는
   `@polyspec/kit`은 무시하는 dependency입니다. Makefile이 실행하는 script는 통과하고, 아무도 import하거나 실행하지 않는 파일은
   여전히 실패합니다(fixture). kit은 같은 설정으로 자신을 lint하며, CI와 `scripts/kit`, `tests`, lint 설정의 owner check에서
-  실행합니다(K142).
+  실행합니다(K142). knip.json의 `ignoreBinaries`는 script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구를
+  적고, knip.json의 나머지는 kit 자신을 위한 것입니다: make가 kit의 fixture recorder를 실행하고, kit의 script가
+  `node_modules/.bin`의 oxlint, oxlint-tsgolint, jscpd를 실행합니다. knip.json은 평범한 JSON이므로 lint-ts가 읽습니다. 그
+  pattern 밖에서 make가 실행하는 파일(`packages/js/test/` 아래의 probe 등)은 레포가 사본이 아닌 자기 파일
+  `config/knip-entries.json`(kit의 schema가 있습니다)에 이유와 함께 선언하는 entry입니다(K145): knip에는 `extends`가 없으므로
+  lint-ts가 knip.json의 `node.entry` 뒤에 그 entry를 더한 설정을 `var/lint-ts/knip.json`에 쓰고 knip을 그 파일의 `--config`로
+  실행합니다. 선언한 파일은 통과하고 선언하지 않은 고아 파일은 여전히 실패합니다(fixture).
 - **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로

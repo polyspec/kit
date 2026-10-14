@@ -214,15 +214,20 @@ no rebuild record for it; this section records the choice.
   target only from the folder of the config that names it.
 - `config/layout.yml` of a repository extends it and adds its map: the instances of the templates `no-repository-prefix` and
   `go-module-path` with its name, one `component-ports` instance for each component with ports, and overrides by rule id (its
-  components in `layout-packages`, its runners in `layout-root-tests`, its root files and S9 exceptions). An override of
-  `paths` replaces the list, so it repeats the common entries. Each exception carries its reason in the comment right above
+  components in `layout-packages`, its runners in `layout-root-tests`, its S9 exceptions). An override of `paths` replaces
+  the list, so it repeats the common entries. The root files are additive (K145): `layout-root-files` is an instance of the
+  template `root-files`, whose list of kit ends in `!{{vars.root_files}}`, and a repository names only its own files with
+  `vars: { root_files: "{a,b}" }`, a glob alternation (`"{}"` names none). alint substitutes a variable as text, so the
+  alternation of one glob carries the list. The rule `layout-root-files-additive` fails on an override of the `paths` of
+  `layout-root-files` in `config/layout.yml`, which would drop each root file that kit adds later without a finding. Each exception carries its reason in the comment right above
   it. alint has no field for a reason, so the owner's required review of `config/layout.yml` through `CODEOWNERS`, which
   the standards plan sets up with parity (S6), is what enforces S8; kit has no `CODEOWNERS` yet.
 - `PYTHONPATH` is checked here across the checkout; the parity schema also rejects it, and every path that leaves the
   repository, in `config/parity.json` (K75). Feature ownership of a test stays in parity R5 and R6, and the layout places
   only the root `tests/`.
-- `tests/source/layout-real.test.mts` runs the real alint: a repository that follows the layout passes, each of 17 planted
-  violations fails with the rule that names it, and this checkout passes.
+- `tests/source/layout-real.test.mts` runs the real alint: a repository that follows the layout passes, each planted
+  violations fails with the rule that names it, a repository whose `vars.root_files` names its own root files passes with the
+  root files of kit, and this checkout passes.
 
 ### Requirement and verdicts
 
@@ -787,6 +792,13 @@ does not declare is neither installed nor checked.
   kit, and the programs of `benchmarks/`; `@polyspec/kit`, which the Makefile includes, is an ignored dependency. A
   Makefile-run script passes and a file that nothing imports or runs still fails (a fixture). kit lints itself with the
   same configuration, in CI and as an owner check of `scripts/kit`, `tests` and the lint configurations (K142).
+  `ignoreBinaries` of knip.json names the system tools that scripts and tests run, which no npm package provides, and the
+  rest of knip.json serves kit itself: make runs its fixture recorders, and its scripts run oxlint, oxlint-tsgolint and
+  jscpd from `node_modules/.bin`. knip.json is plain JSON, so lint-ts reads it. A file that make runs outside those
+  patterns, such as a probe under `packages/js/test/`, is an entry that the repository declares with its reason in
+  `config/knip-entries.json`, its own file with a schema of kit, never in the copy (K145): knip has no `extends`, so
+  lint-ts writes knip.json with those entries after its own `node.entry` to `var/lint-ts/knip.json` and runs knip with
+  `--config` on it. A declared file passes and an undeclared orphan still fails (a fixture).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says

@@ -108,6 +108,9 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'lint-ruff-files', files: { 'packages/python/.ruff.toml': '[lint]\nselect = ["E"]\n' } },
   // A package excludes generated code from vulture and nothing else: no ignored names or decorators, no confidence of its own.
   { rule: 'lint-vulture-config', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.vulture]\nignore_names = ["triple"]\n' } },
+  // An override of the paths of layout-root-files replaces the list of kit and drops every root file that kit adds later, even
+  // while the files of the tree still pass (K145); a repository adds its root files through vars.root_files.
+  { rule: 'layout-root-files-additive', files: { 'config/layout.yml': `${LAYOUT}  - id: layout-root-files\n    paths: ["*", "!README.md", "!Makefile", "!.gitignore", "!go.work", "!Cargo.toml"]\n` } },
 ];
 
 /** Writes `files` below `root`. */
@@ -154,6 +157,17 @@ test('make layout-check fails on each planted violation with the rule that names
     assert.notEqual(result.status, 0, `${rule}: the violation passed:\n${output}`);
     assert.match(output, new RegExp(`: error: ${rule}: `), `${rule} is not named:\n${output}`);
   }
+});
+
+test('a repository declares only its own root files in vars.root_files, and the root files of kit stay declared (K145)', (t) => {
+  assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
+  const layout = `${LAYOUT}  - id: layout-root-files\n    vars: { root_files: "{notes.txt,tsconfig.build.json}" }\n`;
+  const passed = layoutCheck(repository(t, { 'config/layout.yml': layout, 'notes.txt': 'x\n', 'tsconfig.build.json': '{}\n' }));
+  assert.equal(passed.status, 0, `${passed.stdout}${passed.stderr}`);
+  const undeclared = layoutCheck(repository(t, { 'config/layout.yml': layout, 'notes.txt': 'x\n', 'other.txt': 'x\n' }));
+  assert.notEqual(undeclared.status, 0, `${undeclared.stdout}${undeclared.stderr}`);
+  assert.match(undeclared.stdout, /other\.txt: error: layout-root-files: /);
+  assert.doesNotMatch(undeclared.stdout, /(README\.md|Makefile|notes\.txt): error/);
 });
 
 test('make layout-check passes on this checkout', () => {

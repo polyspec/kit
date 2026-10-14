@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/knip-entries.json",
+  "description": "The entry files of knip that the repository adds to the layout entries of knip.json, the copy of kit: the files that make runs outside those patterns, each with its reason. make lint-ts runs knip with knip.json and these entries (scripts/kit/lint-ts.mts).",
+  "type": "object",
+  "required": ["schema", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "comment": { "type": "string" },
+    "entries": {
+      "description": "Each entry glob, relative to the root, with the reason that it is an entry, such as the make target that runs it.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "minLength": 1, "pattern": "^[^/!][^\\\\]*$", "not": { "pattern": "(^|/)\\.\\.(/|$)" } },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  }
+}

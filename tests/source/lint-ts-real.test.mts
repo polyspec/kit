@@ -74,7 +74,7 @@ function repository(t: TestContext, files: Record<string, string> = {}, { report
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const extractor = { extends: path.join(root, 'config/api-extractor.kit.json'), mainEntryPointFilePath: '<projectFolder>/dist/index.d.ts', ...(report ? {} : { apiReport: { enabled: false } }) };
   write(root, { ...GOOD, 'api-extractor.json': JSON.stringify(extractor, null, 2), ...files });
-  mkdirSync(path.join(root, 'config'));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
   for (const file of ['.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) copyFileSync(path.join(ROOT, file), path.join(root, file));
   symlinkSync(path.join(ROOT, 'node_modules'), path.join(root, 'node_modules'));
   const build = run(root, 'tsc', '-p', 'tsconfig.build.json');
@@ -106,6 +106,20 @@ test('the TypeScript lint fails on each planted violation with the rule or the m
     assert.notDeepEqual(failed, [], `${name}: the violation passed:\n${output}`);
     assert.match(output, finding, `${name} is not named:\n${output}`);
   }
+});
+
+// make runs a file that the layout entries of knip.json do not cover; the repository declares it in config/knip-entries.json, its
+// own file, which lint-ts adds to the entries of the copy (K145).
+const PROBE = { 'packages/js/test/probe.mjs': "console.log('probe');\n", 'config/knip-entries.json': JSON.stringify({ schema: 1, entries: { 'packages/js/test/probe.mjs': 'make test-js runs the probe of the built package' } }) };
+
+test('a file that make runs outside the layout entries passes once config/knip-entries.json declares it, and an undeclared orphan still fails (K145)', (t) => {
+  const declared = lintOf(repository(t, PROBE));
+  assert.deepEqual(declared.failed, [], declared.output);
+  const orphan = lintOf(repository(t, { ...PROBE, 'packages/js/test/orphan.mjs': "console.log('orphan');\n" }));
+  assert.deepEqual(orphan.failed, ['knip'], orphan.output);
+  assert.match(orphan.output, /Unused files \(1\)\npackages\/js\/test\/orphan\.mjs/);
+  const undeclared = lintOf(repository(t, { 'packages/js/test/probe.mjs': PROBE['packages/js/test/probe.mjs'] }));
+  assert.match(undeclared.output, /Unused files \(1\)\npackages\/js\/test\/probe\.mjs/);
 });
 
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
