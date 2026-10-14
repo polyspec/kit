@@ -25,6 +25,7 @@ import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, ad
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
+import { ConfigError } from './schema-validate.mts';
 import { isMain, ROOT, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -504,7 +505,7 @@ function print(result: { notes: string[]; lines: string[] }) {
     : 'no newer stable release without an exception and no advisory without an exception');
 }
 
-if (isMain(import.meta.url)) {
+function main(): void {
   const args = process.argv.slice(2);
   let root = ROOT;
   let record = false;
@@ -545,4 +546,15 @@ if (isMain(import.meta.url)) {
     say(`wrote ${RECORD}: ${result.record.dependencies.length} registry dependencies and ${result.record.locks.length} locks reviewed at ${result.record.reviewed}`);
   }
   process.exitCode = result.lines.length ? 1 : 0;
+}
+
+if (isMain(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    // A missing configuration is a message for the developer; every other error keeps its stack (K146).
+    if (!(error instanceof ConfigError)) throw error;
+    console.error(`[dependency-review] ${error.message}`);
+    process.exit(1);
+  }
 }

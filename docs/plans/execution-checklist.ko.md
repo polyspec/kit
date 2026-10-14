@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 2737e2f56563a7b72776d737e9e5ce367614618f9223bf6c08a61322dafabec9 -->
+<!-- source-sha256: 29b5ab85f4b0ef257cd302c79e751f56472588221554d8e7e5b4437a856be77e -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -201,3 +201,4 @@
 | K141 | run-tests가 test가 timeout을 넘었을 때와 실행기 자신이 중단될 때 tool의 process group 전체를 멈추고, 유예 뒤에 SIGKILL을 보낸다: 중단된 실행기는 detached tool을 실행 중으로 남겼고, `tests/kit/run-tests.test.mts`의 stub(`node …/var/tools/mise/shims/python3 -m unittest tests -v`)이 12시간 뒤 launchd 아래 고아로 발견되었으며, timeout에서 SIGTERM을 무시한 tool은 실행을 기다리게 했다 | `run-tests.mts`, `docs/tool-inventory.md` | `tests/kit/run-tests.test.mts`(timeout 뒤와 실행기의 SIGTERM 뒤에 stub과 그 손자 process가 없음) | [o] |
 | K143 | mise.toml이 cargo-nextest(`github:nextest-rs/nextest`, version_prefix `cargo-nextest-`)와 cargo-deny(`cargo-deny`, mise registry의 aqua)를 선언한다: kit가 이를 거부해서("mise.toml tools declares github:nextest-rs/nextest, which kit does not check") ssr가 자체 tool_versions.py와 fetch_tools.py를 유지했다. mise.lock이 네 플랫폼의 native binary를 고정하고 toolchain-check가 그 `--version`을 읽는다 | `toolchain-mise.mts`, `check-toolchain.mts`, schema, 문서 | `tests/kit/toolchain-mise.test.mts`, `tests/kit/check-toolchain.test.mts` | [o] |
 | K142 | kit은 consumer의 TypeScript lint인 `make lint-ts`로 CI와 owner check에서 자신을 lint하고, knip은 make가 실행하는 파일을 layout에 따라 entry로 두며(`scripts/**`, `benchmarks/**`, node:test 파일) `@polyspec/kit`을 무시한다: kit은 자신에게 lint를 돌린 적이 없어 oxlint finding 93개와 knip finding이 보이지 않았고, 그중 하나는 모든 consumer의 lint를 실패시킨 사본 `scripts/kit/bootstrap/install-mise.mts`에 있었으며, knip은 consumer가 make로 실행하는 모든 script를 쓰이지 않는다고 보고했다(template-benchmark) | `knip.json`, `.github/workflows/ci.yml`, `config/owner-checks.json`, `scripts/kit`과 `tests`의 finding, 문서 | `tests/source/lint-ts-real.test.mts`, `tests/source/ci-workflow.test.mts`, `make lint-ts` | [ ] |
+| K146 | 없는 설정 파일은 stack trace가 아니라 메시지다: `config/dependency-policy.json`이 없던 ssr에서 `make dependency-review`가 readFileSync의 ENOENT stack을 그대로 내며 실패했다. readConfig가 파일을 이름으로 알리는 ConfigError를 던지고, 도구는 그 메시지를 상태 1로 보고한다 | `schema-validate.mts`, `dependency-review.mts`, `check-dependency-policy.mts` | `tests/kit/dependency-review.test.mts` | [ ] |
