@@ -1,6 +1,7 @@
 // The tools that mise installs into var/tools/mise (K127): their releases in [tools] of mise.toml, and the digests in mise.lock,
 // which `make toolchain-lock` writes with `mise lock` and `make install-tools` installs with `mise install --locked`. Each tool
 // of kit is the key of mise.toml that names its backend; its value is the release, or a table with the release as version:
+//   node          node (the archive of nodejs.org; the bootstrap installs it first, and var/tools/bin/node runs it, K171)
 //   go            go                                     python  python (the python-build-standalone build of mise.lock)
 //   uv            uv                                     ruff    ruff
 //   alint         github:asamarts/alint                  golangciLint  golangci-lint
@@ -25,6 +26,7 @@ import { readTomlFile } from './toolchain-files.mts';
 
 /** The key of mise.toml of each tool of kit, and the command of the tool among the shims of mise. */
 export const MISE_TOOLS = {
+  node: { key: 'node', command: 'node' },
   go: { key: 'go', command: 'go' },
   python: { key: 'python', command: 'python3' },
   uv: { key: 'uv', command: 'uv' },

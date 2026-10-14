@@ -55,7 +55,8 @@ test('the tools of mise.toml are read with their releases and the declaring key;
 });
 
 test('a tool that kit does not check, or a release that is not exact, is refused with the key and the value', (t) => {
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' })), /mise\.toml tools declares node, which kit does not check; the tools are go, python, /);
+  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n' })), /mise\.toml tools declares deno, which kit does not check; the tools are node, go, python, /);
+  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26"\n' })), /mise\.toml tools\.node must declare an exact release, <major>\.<minor>\.<patch>; it declares "26"/);
   assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ngo = "1.27"\n' })), /mise\.toml tools\.go must declare an exact release, <major>\.<minor>\.<patch>; it declares "1\.27"/);
   assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\n"pypi:vulture" = "latest"\n' })), /mise\.toml tools\.pypi:vulture must declare an exact release as PyPI names it; it declares "latest"/);
   assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nruff = { backend = "aqua" }\n' })), /tools\.ruff must declare an exact release, <major>\.<minor>\.<patch>; it declares undefined/);

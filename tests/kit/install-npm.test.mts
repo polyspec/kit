@@ -15,12 +15,13 @@ import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { known } from './known.mts';
 
-// installNpm of the checkout `root` with the declaration of its package.json, run in a process with the stubs of `env`; each
+// installNpm of the checkout `root` with the declaration of its package.json and the node of this test as the node of the
+// wrappers, run in a process with the stubs of `env`; each
 // line that it prints goes to the standard output, and an error to the standard error with the exit status 1.
 const install = (root: string, env: NodeJS.ProcessEnv) => spawnSync(process.execPath, ['--input-type=module', '-e', `
 import { installNpm } from ${JSON.stringify(path.join(KIT, 'bootstrap/install-npm.mts'))};
 import { declaredToolchain } from ${JSON.stringify(path.join(KIT, 'bootstrap/toolchain-declared.mts'))};
-try { installNpm({ root: process.cwd(), declared: declaredToolchain(process.cwd()).npm, print: text => console.log(text) }); }
+try { installNpm({ root: process.cwd(), declared: declaredToolchain(process.cwd()).npm, node: process.execPath, print: text => console.log(text) }); }
 catch (error) { console.error(error.message); process.exitCode = 1; }`], { cwd: root, env, encoding: 'utf8' });
 const walk = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? walk(path.join(directory, entry.name)) : [path.join(directory, entry.name)]));
 const noSymlinks = (root: string) => {
@@ -40,7 +41,7 @@ test('npm is installed by the npm of the machine, with wrappers, and a second ru
     const wrapper = path.join(root, 'var/tools/bin', name);
     assert.equal(lstatSync(wrapper).isFile(), true);
     assert.notEqual(statSync(wrapper).mode & 0o111, 0, `${name} is not executable`);
-    assert.match(readFileSync(wrapper, 'utf8'), new RegExp(`^#!/bin/sh\\n# ${name} 12\\.2\\.0 of this checkout .*\\nexec node '${path.join(root, 'var/tools/npm/node_modules/npm/bin', `${name}-cli.js`).replaceAll('.', '\\.')}' "\\$@"\\n$`));
+    assert.match(readFileSync(wrapper, 'utf8'), new RegExp(`^#!/bin/sh\\n# ${name} 12\\.2\\.0 of this checkout .*\\nexec '${process.execPath.replaceAll('.', '\\.')}' '${path.join(root, 'var/tools/npm/node_modules/npm/bin', `${name}-cli.js`).replaceAll('.', '\\.')}' "\\$@"\\n$`));
   }
   assert.equal(run(path.join(root, 'var/tools/bin/npm'), stubs.env), '12.2.0');
   noSymlinks(path.join(root, 'var/tools'));

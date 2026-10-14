@@ -16,20 +16,19 @@ import { tool } from './kit-tools.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { known } from './known.mts';
 
-// The tools of this checkout run with the pins of kit, so the declarations are the pins. Node.js is the one that runs the
-// test, which is the pin of the checkout.
+// The tools of this checkout run with the pins of kit, so the declarations are the pins. The node of mise.toml runs from its
+// wrapper var/tools/bin/node (K171), which runs the Node.js of the test, the pin of the checkout.
 const NODE = process.versions.node;
 const GO = PINS.go;
 const RUST = PINS.rust;
 const PYTHON = `${PINS.python}.1`;
 const SUM = `sha256:${'a'.repeat(64)}`;
 // The tools of mise.toml of the checkout: kit's key of mise.toml and the release.
-const MISE = { go: GO, python: PYTHON, 'http:composer': '2.10.3', ruff: '0.16.10', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.4', 'github:rustsec/rustsec': '0.22.2' };
+const MISE = { node: NODE, go: GO, python: PYTHON, 'http:composer': '2.10.3', ruff: '0.16.10', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.4', 'github:rustsec/rustsec': '0.22.2' };
 const miseToml = (tools: Record<string, string>) => `[tools]\n${Object.entries(tools).map(([key, version]) => `${JSON.stringify(key)} = ${JSON.stringify(version)}`).join('\n')}\n`;
 // The mise.lock that pins `tools`: each archive by its sha256 for every platform of LOCK_PLATFORMS, a go: tool by its release.
 const miseLock = (tools: Record<string, string>) => Object.entries(tools).map(([key, version]) => `[[tools.${JSON.stringify(key)}]]\nversion = ${JSON.stringify(version)}\n${key.startsWith('go:') ? '' : LOCK_PLATFORMS.map(platform => `[tools.${JSON.stringify(key)}."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}`).join('\n');
 const FILES = {
-  '.node-version': `${NODE}\n`,
   'package.json': `{ "packageManager": "npm@12.2.0", "engines": { "node": ">=${NODE}" } }`,
   'rust-toolchain.toml': `[toolchain]\nchannel = "${RUST}"\n`,
   'go.mod': `module example.com/fixture\n\ngo ${GO}\n`,
@@ -53,6 +52,8 @@ const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spaw
 // and cargo-audit and govulncheck are the shims of checkout.mts. A null output makes the stub of the command fail.
 const setup = (t: TestContext, outputs: Record<string, string | null> = OUTPUTS, files: Record<string, string> = FILES) => {
   const root = toolchainCheckout(t, files);
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/node'), `#!/bin/sh\nexec '${process.execPath}' "$@"\n`, { mode: 0o755 });
   installCargoAuditStub(root);
   installGovulncheckStub(root);
   const stubs = versionStubs(t, outputs);
@@ -139,11 +140,11 @@ test('the vendored PHP lint is no tool to check in a repository that declares no
 });
 
 test('the Node.js, cargo-audit and govulncheck releases are compared exactly', (t) => {
-  const audit = { 'github:rustsec/rustsec': '0.22.3', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.5' };
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, '.node-version': '1.2.3\n', 'mise.toml': miseToml(audit), 'mise.lock': miseLock(audit) });
+  const audit = { node: '1.2.3', 'github:rustsec/rustsec': '0.22.3', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.5' };
+  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml(audit), 'mise.lock': miseLock(audit) });
   const result = check(root, stubs.env);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, new RegExp(`node: ${NODE.replaceAll('.', '\\.')} runs here and \\.node-version declares 1\\.2\\.3; fix: install Node\\.js 1\\.2\\.3`));
+  assert.match(result.stderr, new RegExp(`node: ${NODE.replaceAll('.', '\\.')} runs here and mise\\.toml tools\\.node declares 1\\.2\\.3; fix: make install-tools TOOLS=npm`));
   assert.match(result.stderr, /cargoAudit: 0\.22\.2 runs here and mise\.toml tools\.github:rustsec\/rustsec declares 0\.22\.3; fix: make install-tools/);
   assert.match(result.stderr, /govulncheck: 1\.1\.4 runs here and mise\.toml tools\.go:golang\.org\/x\/vuln\/cmd\/govulncheck declares 1\.1\.5; fix: make install-tools/);
 });
@@ -257,9 +258,10 @@ test('toolchainVersions reports an unreadable tool as unavailable', (t) => {
 });
 
 test('the make target toolchain-check passes the tools to the check', () => {
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'toolchain-check', 'TOOLS=npm go'], { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), encoding: 'utf8' });
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'toolchain-check', 'TOOLS=npm go'], { cwd: root, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'node scripts/kit/check-toolchain.mts npm go');
+  assert.equal(dry.stdout.trim(), `${path.join(root, 'var/tools/bin/node')} scripts/kit/check-toolchain.mts npm go`);
 });
 
 test('uv is probed by its version line from its shim, and a uv of another release names mise.toml and the fix', (t) => {
@@ -320,9 +322,9 @@ test('a malformed or stale exception fails the check, and a used one passes it',
     `[check-toolchain] config/toolchain.json exceptions[0]: nothing under . uses node ${NODE}, so the exception is stale; remove it (its retry condition: never)`,
     '[check-toolchain] 2 findings of the exceptions of config/toolchain.json',
   ]);
-  // The exception allows a Node.js other than the pin in .node-version and in engines.node.
+  // The exception allows a Node.js other than the pin in mise.toml and in engines.node.
   const other = { ...exception, channel: '99.0.0' };
-  const used = setup(t, OUTPUTS, { ...FILES, '.node-version': '99.0.0\n', 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=99.0.0" } }', 'config/toolchain.json': config([other]) });
+  const used = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml({ ...MISE, node: '99.0.0' }), 'mise.lock': miseLock({ ...MISE, node: '99.0.0' }), 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=99.0.0" } }', 'config/toolchain.json': config([other]) });
   const passed = check(used.root, used.stubs.env, 'npm');
   assert.equal(passed.status, 0, passed.stderr);
 });

@@ -81,7 +81,7 @@ would walk it whatever the working directory.
 
 | Tool | Declared in | Install or verify |
 |---|---|---|
-| Node.js | `.node-version` (exact) | verify |
+| Node.js | `node` of `mise.toml` (exact), at the kit pin; `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
@@ -100,10 +100,9 @@ would walk it whatever the working directory.
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `mise` (`version`, `sha256` of each platform's archive), `pythonBackend`, `phpunit` (`version`),
-`symbolExtractors`, `exceptions` (below) and `node` (the SHA-256 of the Node.js archive of each platform). A tool of
-`mise.toml` has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
-at an exact release, and `toolchain-check` fails while `mise.lock` does not pin one of them as above. Rust and Node.js stay in
-their own files, which `setup-node` and `rustup` read. A tool that is not declared is neither installed nor checked.
+`symbolExtractors` and `exceptions` (below). A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
+at an exact release, and `toolchain-check` fails while `mise.lock` does not pin one of them as above. Rust stays in its own
+file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only to start the bootstrap. A tool that is not declared is neither installed nor checked.
 
 ### Pins, floors and exceptions (K78)
 
@@ -116,7 +115,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 
 | Value | Required |
 |---|---|
-| `.node-version`, `channel` of `rust-toolchain.toml`, `php`, and the `go` and the minor of the `python` of `mise.toml` | the pin |
+| the `node`, the `go` and the minor of the `python` of `mise.toml`, `channel` of `rust-toolchain.toml`, and `php` | the pin |
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
 | `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.5.0`), the form that dependency-policy requires |
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
@@ -203,8 +202,11 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 - crudui's phpDocumentor install, orm's checks of CI workflow files (`node-version-file`, `go-version-file`,
   `php-version-file`, `tools: composer:`), the minimum releases of `engines.node` and `require.php` and the path of a
   `go.mod` module: they check files of one repository, not a tool of the machine.
-- The Node.js archive checksums of `config/toolchain.json` `node` are data that a repository's own download reads; kit
-  accepts them and reads none.
+- A recipe starts a tool of the checkout by its absolute path, never by its bare name (K171): make 3.81, the make of macOS,
+  looks up a recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so a
+  bare `node` ran the node of the machine. kit.mk names them `$(NODE)`, `$(NPM)` and `$(ALINT)`; `BOOTSTRAP_NODE` is the
+  node of the machine, which only starts the bootstrap. `make kit-check` fails a recipe of the Makefile that starts a tool
+  of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
 ## Layout check (K76)
 
 S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by

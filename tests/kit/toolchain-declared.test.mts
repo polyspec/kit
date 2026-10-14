@@ -21,26 +21,24 @@ test('the schema accepts every representative toolchain configuration', () => {
   }
 });
 
-test('the schema names an unknown key, a wrong shape and a malformed version; a tool of mise.toml is an unknown key', () => {
-  const errors = validate({ schema: 1, extra: 1, php: '8.5', phpunit: { version: '11.5' }, python: '3.14', node: { 'windows.zip': 'x' } }, SCHEMA);
+test('the schema names an unknown key, a wrong shape and a malformed version; a tool of mise.toml, Node.js among them, is an unknown key', () => {
+  const errors = validate({ schema: 1, extra: 1, php: '8.5', phpunit: { version: '11.5' }, python: '3.14', node: { 'linux-x64.tar.gz': 'x' } }, SCHEMA);
   assert.deepEqual(errors, [
     '/ must NOT have additional properties {"additionalProperty":"extra"}',
     '/ must NOT have additional properties {"additionalProperty":"python"}',
+    '/ must NOT have additional properties {"additionalProperty":"node"}',
     '/php must be array {"type":"array"}, value "8.5"',
     '/phpunit/version must match pattern "^\\d+\\.\\d+\\.\\d+$" {"pattern":"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"}, value "11.5"',
-    '/node must NOT have additional properties {"additionalProperty":"windows.zip"}',
   ]);
 });
 
 test('declaredToolchain reads each declaring file of the full shape', (t) => {
   const root = toolchainCheckout(t, {
     'config/toolchain.json': fixtureConfig('toolchain-full.json'),
-    '.node-version': '26.8.1\n',
     'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
   });
   const { mise } = parseJson<{ mise: { sha256: Record<string, string> } }>(fixtureConfig('toolchain-full.json'), 'toolchain.schema.json', 'toolchain-full.json');
   assert.deepEqual(declaredToolchain(root), {
-    node: { version: '26.8.1', source: '.node-version' },
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
@@ -60,7 +58,6 @@ test('declaredToolchain reads the version files when the configuration lists not
 
 test('a declaration that is malformed or contradicts another fails with the file and the values', (t) => {
   const cases: [Record<string, string>, RegExp][] = [
-    [{ '.node-version': '26.8\n' }, /\.node-version must record the Node\.js release as <major>\.<minor>\.<patch>; it records "26\.8"/],
     [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
     [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],

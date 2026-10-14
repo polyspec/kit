@@ -10,7 +10,7 @@
     { "paths": ["config/commits.json"], "targets": ["commits-check"] },
     { "paths": ["config/rebuild.json", "docs/rebuild/**"], "targets": ["rebuild-check", "documents-check"] },
     { "paths": ["config/dependency-policy.json", "config/dependency-review.json"], "targets": ["dependency-policy-check"] },
-    { "paths": ["config/toolchain.json", ".node-version", ".php-version", "rust-toolchain.toml", "mise.toml", "mise.lock", ".mise/**"], "targets": ["toolchain-check", "kit-test"] },
+    { "paths": ["config/toolchain.json", ".php-version", "rust-toolchain.toml", "mise.toml", "mise.lock", ".mise/**"], "targets": ["toolchain-check", "kit-test"] },
     { "paths": ["config/phpunit/**"], "targets": ["kit-test"] },
     { "paths": ["config/php-lint/**"], "targets": ["kit-test"], "tests": ["tests/source/lint-php-real.test.mts"] },
     { "paths": ["config/owner-checks.json"], "targets": ["owner-validate"] },

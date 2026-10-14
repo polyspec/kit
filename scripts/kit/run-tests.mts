@@ -75,7 +75,7 @@ type Counts = { ran: number; skipped: number; [key: string]: unknown };
 
 // The fix for a tool that cannot start.
 const INSTALL: Record<string, (options: { cwd: string; root: string }) => string> = {
-  node: () => 'install the Node.js release of .node-version',
+  node: () => 'run make install-tools TOOLS=npm, which installs the Node.js of mise.toml',
   vitest: () => 'run make install',
   go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',

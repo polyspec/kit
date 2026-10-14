@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 13d091f9958fe769fdde9a51c1755a00ce2700ee5985edc59c9e719641090fea -->
+<!-- source-sha256: bad341dc89f13a76c72ca7536b04133c097392f38ec716bf1f4cc5e51b637866 -->
 
 # 도구 목록
 
@@ -78,7 +78,7 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 
 | 도구 | 선언 위치 | 설치 또는 검증 |
 |---|---|---|
-| Node.js | `.node-version`(정확한 version) | 검증 |
+| Node.js | `mise.toml`의 `node`(정확한 version), kit pin; `mise.lock`이 nodejs.org의 platform별 archive sha256을 가집니다. bootstrap이 npm보다 먼저 mise로 설치하고 `var/tools/bin/node`를 쓰며, npm의 wrapper와 kit.mk의 모든 recipe(`$(NODE)`)가 이를 실행합니다(K171) | bootstrap에서 mise로 설치 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
 | Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
 | Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
@@ -97,10 +97,10 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
 목록), `mise`(`version`, platform별 archive의 `sha256`), `pythonBackend`, `phpunit`(`version`), `symbolExtractors`,
-`exceptions`(아래), `node`(platform별 Node.js archive의 SHA-256)입니다. `mise.toml`의 도구는 여기에 key가 없습니다.
+`exceptions`(아래)입니다. Node.js를 포함한 `mise.toml`의 도구는 여기에 key가 없습니다.
 `mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 정확한 release로 선언합니다.
-`mise.lock`이 그중 하나라도 위와 같이 고정하지 않으면 `toolchain-check`가 실패합니다. Rust와 Node.js는 `setup-node`와
-`rustup`이 읽는 자기 파일에 둡니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
+`mise.lock`이 그중 하나라도 위와 같이 고정하지 않으면 `toolchain-check`가 실패합니다. Rust는 `rustup`이 읽는
+자기 파일에 두고, CI의 `setup-node`는 bootstrap을 시작하기 위해서만 `mise.toml`의 node를 읽습니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
 ### Pin, 하한, 예외(K78)
 
@@ -113,7 +113,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 
 | 값 | 요구 |
 |---|---|
-| `.node-version`, `rust-toolchain.toml`의 `channel`, `php`, `mise.toml`의 `go`와 `python`의 minor | pin |
+| `mise.toml`의 `node`, `go`와 `python`의 minor, `rust-toolchain.toml`의 `channel`, `php` | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
 | 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.5.0`), dependency-policy가 요구하는 형식 |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
@@ -178,8 +178,11 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 - crudui의 phpDocumentor 설치, orm의 CI workflow 파일 검사(`node-version-file`, `go-version-file`, `php-version-file`,
   `tools: composer:`), `engines.node`와 `require.php`의 최소 release, `go.mod` module 경로: 한 저장소의 파일을 검사하며
   machine의 도구가 아닙니다.
-- `config/toolchain.json` `node`의 Node.js archive checksum은 저장소 자신의 download가 읽는 data입니다. kit는 받아들이기만 하고
-  읽지 않습니다.
+- recipe는 checkout의 도구를 이름만으로가 아니라 절대 경로로 실행합니다(K171): macOS의 make인 make 3.81은 shell 문법이 없는
+  recipe 줄을 kit.mk가 export한 PATH가 아니라 make가 시작할 때의 PATH에서 찾으므로, 이름만 쓴 `node`는 machine의 node를
+  실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap을 시작하기만 하는
+  machine의 node입니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
+  command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다.
 ## Layout 검사 (K76)
 
 S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 도구가 아니라 release된 도구
