@@ -222,10 +222,12 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
       latest.set(key, stable ? { latest: stable } : { error: `PyPI reported no stable release of ${dependency.package}` });
       continue;
     }
-    const directory = path.posix.dirname(dependency.manifest);
-    // composer outdated reports the latest stable release of each direct requirement; composer audit reports an
-    // abandoned package.
-    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--direct', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
+    // readState gives every Composer dependency the lock of its root.
+    const directory = path.posix.dirname(dependency.lock!);
+    // composer outdated reports the latest stable release of every locked package, once for each root, and the review keeps
+    // the first-party requirements: those of the root and of the packages of its path repositories (K168), which --direct,
+    // the requirements of the root alone, would miss. composer audit reports an abandoned package.
+    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
     // The line above sets the directory.
     const answer = composer.get(directory)!;
     if (answer.error) {
@@ -480,7 +482,17 @@ export function updatePlan({ newer, advisories: found }: { newer: PlannedDepende
     } else if (dependency.ecosystem === 'pypi') {
       plan.push({ command: 'node', args: [siblingTool(import.meta.url, 'pin-python-dependency'), dependency.manifest, dependency.package, version], cwd: '.' });
     } else {
-      plan.push({ command: 'composer', args: ['require', ...(dependency.kind === 'require-dev' ? ['--dev'] : []), '--update-with-dependencies', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: path.posix.dirname(dependency.manifest) });
+      // readState gives every Composer dependency the lock of its root.
+      const base = path.posix.dirname(dependency.lock!);
+      const directory = path.posix.dirname(dependency.manifest);
+      const dev = dependency.kind === 'require-dev' ? ['--dev'] : [];
+      if (directory === base) {
+        plan.push({ command: 'composer', args: ['require', ...dev, '--update-with-dependencies', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
+      } else {
+        // A published package of a path repository has no lock: its manifest is changed alone, and its root updates the lock.
+        plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
+        plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', dependency.package], cwd: base });
+      }
     }
   }
   for (const lock of new Set(found.filter(advisory => lockEcosystem(advisory.lock) === 'npm').map(advisory => advisory.lock))) {

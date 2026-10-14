@@ -73,7 +73,9 @@ if (args[0] === 'outdated') {
   const lock = JSON.parse(readFileSync('composer.lock', 'utf8'));
   const locked = new Map([...lock.packages, ...(lock['packages-dev'] ?? [])].map(item => [item.name, item.version]));
   const list = [];
-  for (const name of Object.keys({ ...manifest.require, ...(manifest['require-dev'] ?? {}) })) {
+  // --direct lists the requirements of the root composer.json; without it composer outdated lists every locked package.
+  const names = args.includes('--direct') ? Object.keys({ ...manifest.require, ...(manifest['require-dev'] ?? {}) }) : [...locked.keys()];
+  for (const name of names) {
     if (!locked.has(name)) continue;
     const latest = registry.composer[directory]?.[name] ?? locked.get(name);
     // composer outdated reports up-to-date when the latest release is the locked one (ShowCommand::getUpdateStatus).

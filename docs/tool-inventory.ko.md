@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 58a634f39234446f75ee57f52dff13d0bd51c4ccd3f9bbd1f911dc065cd35e13 -->
+<!-- source-sha256: e7ac38a7c4c4a5e1ac0c43c25e8e33cb61ac8ccc3777cdfc53a2e23efb7f69bd -->
 
 # 도구 목록
 
@@ -822,6 +822,15 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   sprintf-js를 받아들입니다. 어떤 release도 advisory를 고치지 않고, sprintf-js는 `make lint-ts`가 고정된 인자로만 실행하는
   api-extractor 명령의 도움말과 오류 문구만 형식화합니다. sprintf-js의 release가 advisory를 고치거나 API Extractor가 더 이상
   argparse에 의존하지 않으면 제거하며, 그때 review가 항목을 stale로 보고합니다.
+
+Composer monorepo는 root에 development composer.json 하나(`composerPlatforms`가 지정하며 `path` repository로 published package를
+require함)와 root lock 하나를 두고, published package는 lock도 vendor/도 commit하지 않습니다(K168). root의 first-party requirement는
+그 `require`와 `require-dev`, 그리고 path repository가 제공하는 각 package의 `require`이며, root lock은 그 package를 path dist 항목으로
+기록합니다. version은 root lock의 것입니다. review는 각 root의 directory에서 `composer outdated --locked --all --format=json`을 한 번
+실행하고 그 package만 남깁니다: `--direct`는 root의 requirement만 세었으므로 published package의 requirement(symfony/console 등)가
+review에서 빠졌습니다. third-party package만 require하는 library는 review하지 않습니다. platform과 lock 검사는 root에 적용되고,
+published manifest는 `--no-check-lock`으로 검증합니다. `UPDATE=1`은 published package의 requirement를 그 directory의
+`composer require --no-update`와 root의 `composer update --with-dependencies`로 올립니다.
 
 ## Release archive의 consumer 설치 (K5.4)
 

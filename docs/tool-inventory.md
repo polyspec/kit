@@ -895,6 +895,16 @@ its `removalCondition`; `advisory` is the identifier that the review records (np
   command, which `make lint-ts` runs with fixed arguments. It is removed when a release of sprintf-js fixes the advisory or API
   Extractor no longer depends on argparse; the review then reports the entry as stale.
 
+A Composer monorepo has one development composer.json at the root, which `composerPlatforms` names and which requires its
+published packages through `path` repositories, and one root lock; a published package commits no lock and no vendor/ (K168).
+The first-party requirements of the root are its `require` and `require-dev` and the `require` of each package that a path
+repository provides, which the root lock records as a path dist entry; their versions are those of the root lock. The review
+runs `composer outdated --locked --all --format=json` once in the directory of each root and keeps those packages:
+`--direct` counted the requirements of the root alone, so a requirement of a published package, such as symfony/console,
+dropped out of the review. A library that only a third-party package requires is not reviewed. The platform and lock checks
+apply to the root, and a published manifest is validated with `--no-check-lock`. `UPDATE=1` raises a requirement of a
+published package with `composer require --no-update` in its directory and `composer update --with-dependencies` at the root.
+
 ## Consumer install of the release archives (K5.4)
 
 `scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the
