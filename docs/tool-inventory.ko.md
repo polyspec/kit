@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 29edef1e4995212059b0525ceab4de7dc6ce70aca98946f08594028072167569 -->
+<!-- source-sha256: a226a92b99ac870313a62876c3e5ace8a4d4ffa682d9814babee29400508d80b -->
 
 # 도구 목록
 
@@ -408,6 +408,10 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   `load-check`)은 실패합니다. test case를 시작하지 않은 Go package는 skip으로 보고합니다(crudui).
 - 실패한 실행의 요약은 tool의 error 줄과 build되지 않은 Go package의 build error를 적습니다(template). timeout 줄은 멈추는
   command를 적습니다(crudui).
+- 모든 tool은 자기 process group에서 실행되므로(K141), 멈춤은 mise shim이 실행하는 interpreter처럼 tool이 시작한 process에도
+  닿습니다. 실행기는 test가 timeout을 넘었을 때와 실행기 자신이 SIGINT, SIGTERM, SIGHUP을 받았을 때 group을 SIGTERM으로 멈추고,
+  5 s 뒤에도 tool이 닫히지 않으면 SIGKILL로 멈추며, signal을 받은 경우 그 signal로 끝납니다. 실행기 자신의 SIGKILL만 group을
+  남깁니다.
 - `phpunit`은 `<cwd>/vendor/bin/phpunit` 또는 `COMPOSER_VENDOR_DIR`의 vendor directory(crudui)를 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.

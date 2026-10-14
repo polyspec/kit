@@ -441,6 +441,10 @@ Merged behaviors:
   every test (crudui `load-check`). A Go package that started no test case is reported as skipped (crudui).
 - The summary of a failed run names the error lines of the tool, and the build errors of a Go package that does not build
   (template); the timeout line names the command that it stops (crudui).
+- Every tool runs in its own process group (K141), so a stop reaches the processes that the tool started, such as the
+  interpreter that the mise shim runs. The runner stops the group with SIGTERM and, when the tool has not closed after 5 s,
+  with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
+  signal. Only a SIGKILL of the runner itself leaves the group running.
 - `phpunit` runs `<cwd>/vendor/bin/phpunit`, or the vendor directory of `COMPOSER_VENDOR_DIR` (crudui), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts.
 - A tool that cannot start fails with its command and the fix.

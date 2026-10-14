@@ -19,7 +19,13 @@
 // Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
 // outlives it. No tool has a time
-// limit on a package, a file or a whole run. A run in which no test passed, failed or ran out of time fails, so a selection
+// limit on a package, a file or a whole run.
+//
+// Every tool runs in its own process group (spawn's `detached`), so a stop reaches the processes that the tool started, such
+// as the interpreter that the mise shim runs (K141). The runner stops the group with SIGTERM and, when the tool has not
+// closed after a grace period, with SIGKILL: at a test's timeout, and when the runner itself receives SIGINT, SIGTERM or
+// SIGHUP, after which it ends on that signal. Only a SIGKILL of the runner itself, which no process can handle, leaves the
+// group running. A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -157,7 +163,26 @@ export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGrou
   return signalGroup(pgid, 'SIGTERM', kill);
 }
 
-export async function run(argv: string[], { root = ROOT, write = (text: string): unknown => process.stdout.write(text) }: { root?: string; write?: (text: string) => unknown } = {}): Promise<number> {
+/** How long a stopped tool has to close after SIGTERM before its group receives SIGKILL. */
+const STOP_GRACE_MS = 5000;
+
+/** The signals that interrupt the runner; it stops the tool's group, then ends on the signal. */
+const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+
+/**
+ * Stops the process group `pgid`: SIGTERM, then SIGKILL once the tool has closed (`closed`) or the grace period has passed,
+ * whichever comes first, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not errors
+ * (process-group.mts).
+ */
+export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Parameters<typeof signalGroup>[2]) {
+  if (terminateGroup(pgid, kill) === 'ended') return;
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
+  clearTimeout(timer);
+  signalGroup(pgid, 'SIGKILL', kill);
+}
+
+export async function run(argv: string[], { root = ROOT, write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args } = toolCommand(options, root);
@@ -184,15 +209,28 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
+  // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
+  let interrupted: NodeJS.Signals | undefined;
+  let onInterrupt: ((signal: NodeJS.Signals) => void) | undefined;
   try {
-    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: reads });
+    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: true });
+    // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
+    const closed = new Promise<Ended>((resolve) => {
+      child.once('error', error => resolve({ error }));
+      child.once('close', (status, signal) => resolve({ status, signal }));
+    });
+    let stopping: Promise<void> | undefined;
+    // A tool that could not start has no pid and no group to stop.
+    const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
+    onInterrupt = (signal) => { interrupted ??= signal; stop(); };
+    for (const signal of INTERRUPTS) process.on(signal, onInterrupt);
     let timedOut = false;
     const progress = reads ? createProgress({
       write,
       timeoutMs: options.timeoutSeconds * 1000,
       command: `${command} ${args.slice(0, 2).join(' ')}`,
       // A test runs out of time only after the tool started, so the child has its pid.
-      onTimeout: () => { timedOut = true; terminateGroup(child.pid!); },
+      onTimeout: () => { timedOut = true; stop(); },
       resultFile,
     }) : undefined;
     const sink = progress && toProgress(progress);
@@ -222,11 +260,12 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
     } else if (reads) {
       readline.createInterface({ input: child.stdout! }).on('line', noting(options.tool === 'go' ? goEvents(sink!, build) : phpunitEvents(sink!))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
-    // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
-    const ended = await new Promise<Ended>((resolve) => {
-      child.once('error', error => resolve({ error }));
-      child.once('close', (status, signal) => resolve({ status, signal }));
-    });
+    const ended = await closed;
+    await stopping;
+    if (interrupted) {
+      write(`✖ ${label}: interrupted by ${interrupted}; stopped the process group of the tool\n`);
+      return 1;
+    }
     if (ended.error) {
       // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
       write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${INSTALL[options.tool]!(options)}\n`);
@@ -260,7 +299,10 @@ export async function run(argv: string[], { root = ROOT, write = (text: string):
     }
     return exit;
   } finally {
+    if (onInterrupt) for (const signal of INTERRUPTS) process.off(signal, onInterrupt);
     rmSync(results, { recursive: true, force: true });
+    // With its handler removed, the signal ends the runner as it would have without one, unless the host handles it.
+    if (interrupted) process.kill(process.pid, interrupted);
   }
 }
 
