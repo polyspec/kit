@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 04bb2a3eaa18913ba77f7357e4bb4406ca24db30796c064c67c4e3d8566f8361 -->
+<!-- source-sha256: e30f27ab77a119189b4088698eb03ad34e67c9cc8947be9ce189dd826d5ebef9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- parity는 test가 tests/<name>/main.rs인 cargo binding을 module을 가진 test target의 Cargo layout대로 `--test <name>`으로 실행하고, tests/<name>/의 다른 file을 binding이 없는 test가 아니라 그 binding의 module로 셉니다(K148).
 
 ## 0.0.43
 
