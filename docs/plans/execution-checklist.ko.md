@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: c6565a5a22447790873ccb221ee9f489769925fb902ed8dc5fa1570a9e4c91be -->
+<!-- source-sha256: b1425598990a8e1c7c528162cacf5cd9a95875e43c56a77537fca7a6ae6b25ca -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -185,7 +185,7 @@
 | K127 | toolchain의 release installer(install-go, -uv, -ruff, -python, -cargo-audit, -govulncheck, -composer, install-tool, install-tools, tool-wrappers)를 mise와 mise.lock으로 바꾸고, npm bootstrap, repository가 설치하지 않는 tool의 검증, go.mod 검사만 남깁니다(docs/rebuild/toolchain). K74가 측정한 빈틈은 항목 안에서 결정합니다: version으로만 pin되는 govulncheck와 npm, checksum 없는 Composer, macos-arm64의 x86_64 cargo-audit, python-build-standalone release. | the install modules, `config/toolchain.json`, mise.lock, tests | a red case per gap closed or declared; the unit tests | [o] |
 | K127-1 | `feat/mise-toolchain-K127` 브랜치(worktree `kit-mise-toolchain-K127`, ab149f5: bootstrap이 platform별 sha256으로 mise를 설치)는 K127이 미뤄진 동안 남깁니다. K127이 ab149f5를 받는 브랜치에서 재개되거나 K127이 철회되면 지웁니다. K127의 측정은 그 행의 후속에 기록합니다. | `feat/mise-toolchain-K127` | the branch and worktree are gone once the condition holds | [o] |
 | K128 | kit이 자기 실행 체크리스트를 `config/checklist.json`에 선언하고(table, `K` id, AGENTS.md의 다섯 상태) `pre-push` hook을 추적하므로, check-documents가 그 항목과 상태를 읽고 commit 규칙과 push gate가 kit의 commit에 적용됩니다. 행은 tracker 규칙을 따릅니다: 상태 칸은 상태만 담고(항목을 낸 release는 작업 칸으로 옮김), 철회된 항목은 AGENTS.md가 정한 형식으로 원인을 적으며, 언어 link, 상태 범례(AGENTS.md가 적음), 계획 안내는 체크리스트에서 빠집니다. 원인: 선언이 없어 어떤 체크리스트도 읽히지 않았고(`0 checklists`) 상태를 눈으로 읽었습니다. | `config/checklist.json`, `.githooks/pre-push`, `docs/plans/execution-checklist.md(.ko)`, `tests/source/checklist-real.test.mts` | 선언 없이는 `tests/source/checklist-real.test.mts`가 실패; `make documents-check`가 체크리스트 1개를 읽음 | [o] |
-| K129 | release의 원칙 검토: 없으면 빈 기본값으로 읽던 필수 입력은 이름 붙은 오류가 되고, test가 만든 link는 사라지며, 코드와 어긋난 문서는 바로잡습니다; 지적마다 red test 후 수정입니다. | `scripts/kit/*`, test, 문서 | 지적마다의 red test; unit test | [ ] |
+| K129 | release의 원칙 검토: 없으면 빈 기본값으로 읽던 필수 입력은 이름 붙은 오류가 되고, test가 만든 link는 사라지며, 코드와 어긋난 문서는 바로잡습니다; 지적마다 red test 후 수정입니다. | `scripts/kit/*`, test, 문서 | 지적마다의 red test; unit test | [o] |
 | K130 | kit의 Markdown reader가 줄을 맞춰 보는 대신 `markdown.mts`의 mdast tree를 읽는다: status table, changelog section, release note, checklist, parity 산문(kit K120이 문서용 mdast를 마련했다) | `status-table.mts`, `changelog.mts`, `release.mts`, `checklist.mts`, `parity-text.mts` | `tests/kit/markdown.test.mts`, `tests/kit/documents.test.mts`, `tests/kit/checklist.test.mts`, `tests/kit/release.test.mts`, `tests/kit/parity.test.mts` | [o] |
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
