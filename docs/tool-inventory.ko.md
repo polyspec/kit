@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4e6575fe64acaffcd219fb75bbe3570829014f83b7e58bdd1a940f10a1b58c14 -->
+<!-- source-sha256: bddd33c2e881827863a51d656fc112705f6fa5a43bd868936133f8ac6ac74a09 -->
 
 # 도구 목록
 
@@ -779,8 +779,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   있습니다(K161): 이 rule은 `toFixed`와 `toExponential`의 소수 자릿수 0에서 20, precision 1에서 21만 허용하는데, 이는 ES2018이
   100으로 올리기 전의 한계입니다(ECMA-262 `Number.prototype.toExponential`). 그래서 `toExponential(25)`를 실패시켰습니다.
   최신인 oxlint 1.88.0과 oxc main도 옛 한계를 유지하며, 이를 보고한 oxc issue는 없습니다. `toExponential(25)`를 담은
-  fixture는 통과합니다. non-null assertion과
-  `no-unsafe-*` 계열은 K156과 K157을 기다립니다. API
+  fixture는 통과합니다. any는 type이 있는 자리로 흐르지 않습니다(K157):
+  `no-unsafe-argument`, `no-unsafe-assignment`, `no-unsafe-call`, `no-unsafe-member-access`, `no-unsafe-return`은 any 값이
+  인자, 대입, 호출 대상, member access의 객체, 반환값이 되면 실패시키고, `no-unsafe-type-assertion`은 type을 좁히는 type
+  assertion을 실패시킵니다. fixture가 각각을 심습니다. JSON은 schema로 읽고(K158) unknown 값은 검사로 좁힙니다. TypeScript
+  project 밖의 파일에는 type이 없어 그 안의 import 호출은 모두 error type의 unsafe call이 됩니다: 레포의 tsconfig는 lint-ts가
+  lint하는 모든 TypeScript 파일을, script까지 담고 kit의 사본은 뺍니다. non-null assertion은 K156을 기다립니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
   줄이 아니라 error입니다. package는 report(`etc/<package>.api.md`)를 commit합니다. `ae-missing-release-tag`는 꺼져
