@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 02e138ecf1f96f89309777dd0910f83dcfea7de58412c73c33b70e0274cb7a84 -->
+<!-- source-sha256: a4deed440ed6403c25bbca50105633d51886a20fb3f9efb83a4fc7b9b1141bee -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -194,7 +194,7 @@
 | K135 | bootstrap이 `var/tools/go.mod`를 쓴다: mise가 Go를 배포본의 test 소스와 함께 루트가 Go module인 저장소 안의 var/tools 아래에 설치해서, orm의 `go vet ./...`와 `go test ./...`가 그것을 훑었다("found packages main (235.go) and p (alias2.go)", orm T165에서 발견) | `bootstrap/install-mise.mts` | `tests/kit/install-mise.test.mts`, `tests/source/tools-go-mod-real.test.mts` | [o] |
 | K136 | parity가 Rust의 data-driven test 표준인 libtest-mimic(`harness = false`)이 실행하는 cargo binding의 case를 읽는다: libtest-mimic은 각 이름을 가장 긴 이름에 맞춰 채우는데(`test tokens::a/b          ... ok`), libtest reader는 `...` 앞에 공백 한 칸만 허용해 case를 하나도 읽지 못했다(template T23.2에서 발견) | `test-output.mts` | `tests/kit/run-tests.test.mts`, `tests/kit/parity.test.mts` | [o] |
 | K137 | php suite binding이 symbol `<class>::<method>`의 test method만 실행하고(`--filter`), 각 `<method> with data set "<case>"`가 case `<case>`이다: data set은 어떤 case에도 대응하지 않았고(`test_`만 떼어냈다), 파일 전체를 실행해서 파일의 다른 test가 모두 unit이 선언하지 않은 case였다(template T23.2에서 발견) | `parity-runners.mts`, `parity-declaration.mts`, `schema/parity.schema.json` | `tests/kit/parity.test.mts` | [o] |
-| K138 | `.oxlintrc.json`의 `typescript/no-floating-promises`가 typescript-eslint의 node:test용 option인 `allowForKnownSafeCalls`를 `node:test`의 `test`, `describe`, `it`, `suite`, `skip`, `only`, `todo`에 대해 받는다: tsconfig가 test를 포함하는 consumer에서 모든 최상위 등록이 실패했고(crudui 516개, template 134개), kit의 fixture는 test를 project 밖에 두었다 | `.oxlintrc.json`, docs | `tests/source/lint-ts-real.test.mts` | [ ] |
+| K138 | `.oxlintrc.json`의 `typescript/no-floating-promises`가 typescript-eslint의 node:test용 option인 `allowForKnownSafeCalls`를 `node:test`의 `test`, `describe`, `it`, `suite`, `skip`, `only`, `todo`에 대해 받는다: tsconfig가 test를 포함하는 consumer에서 모든 최상위 등록이 실패했고(crudui 516개, template 134개), kit의 fixture는 test를 project 밖에 두었다 | `.oxlintrc.json`, docs | `tests/source/lint-ts-real.test.mts` | [o] |
 | K139 | API Extractor는 더는 `ae-missing-release-tag`를 보고하지 않는다(base 설정에서 `logLevel` `none`): release tag(`@public`, `@beta`)는 잘라낸 `.d.ts` rollup에 무엇이 남을지 정하는데, polyspec은 rollup을 쓰지 않고 export에 tag를 달지 않으며, non-local mode에서 이 message가 모든 package를 실패시켰다(crudui에서 warning 187개) | `config/api-extractor.kit.json`, docs | `tests/source/lint-ts-real.test.mts` | [ ] |
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
