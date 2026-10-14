@@ -15,7 +15,6 @@ import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { SHIMS } from './mise-tools.mts';
-import { ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 /** The confidence of vulture's findings that the lint reports: vulture's default, which reports unused functions and classes. */
@@ -43,4 +42,4 @@ export function lint(root: string, print: (text: string) => unknown = text => pr
   return runLint('lint-python', lintSteps(root), root, print);
 }
 
-lintMain(import.meta.url, 'lint-python', ROOT, lintSteps);
+lintMain(import.meta.url, 'lint-python', lintSteps);

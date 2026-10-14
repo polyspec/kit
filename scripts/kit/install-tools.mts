@@ -21,13 +21,13 @@ import { installPhpunit } from './install-phpunit.mts';
 import { installRustChannels } from './install-rust.mts';
 import { installExtractor } from './install-symbols.mts';
 import { toolsEnvironment } from './mise-tools.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { installBackend } from './release-backend.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
-export function installTools({ root = ROOT, print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
+export function installTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const mise = toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The Rust channels that the exceptions declare; a malformed exception fails here, as toolchain-check reports it.

@@ -13,7 +13,6 @@ import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { SHIMS } from './mise-tools.mts';
-import { ROOT } from './paths.mts';
 
 /** The steps of the lint of `root`; throws when a tool or .golangci.yml is missing. */
 export function lintSteps(root: string): LintStep[] {
@@ -33,4 +32,4 @@ export function lint(root: string, print: (text: string) => unknown = text => pr
   return runLint('lint-go', lintSteps(root), root, print);
 }
 
-lintMain(import.meta.url, 'lint-go', ROOT, lintSteps);
+lintMain(import.meta.url, 'lint-go', lintSteps);

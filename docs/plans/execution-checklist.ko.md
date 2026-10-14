@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 4699e512502ad69da83445c6b52c76f39bf35f887dd33fbad6b9938d61b2ab49 -->
+<!-- source-sha256: fd9955b8274b738fa843f5bd2870c8e996a86c83d25ff7ce41433f71b0d26f30 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -203,3 +203,4 @@
 | K142 | kit은 consumer의 TypeScript lint인 `make lint-ts`로 CI와 owner check에서 자신을 lint하고, knip은 make가 실행하는 파일을 layout에 따라 entry로 두며(`scripts/**`, `benchmarks/**`, node:test 파일) `@polyspec/kit`을 무시한다: kit은 자신에게 lint를 돌린 적이 없어 oxlint finding 93개와 knip finding이 보이지 않았고, 그중 하나는 모든 consumer의 lint를 실패시킨 사본 `scripts/kit/bootstrap/install-mise.mts`에 있었으며, knip은 consumer가 make로 실행하는 모든 script를 쓰이지 않는다고 보고했다(template-benchmark) | `knip.json`, `.github/workflows/ci.yml`, `config/owner-checks.json`, `scripts/kit`과 `tests`의 finding, 문서 | `tests/source/lint-ts-real.test.mts`, `tests/source/ci-workflow.test.mts`, `make lint-ts` | [o] |
 | K146 | 없는 설정 파일은 stack trace가 아니라 메시지다: `config/dependency-policy.json`이 없던 ssr에서 `make dependency-review`가 readFileSync의 ENOENT stack을 그대로 내며 실패했다. readConfig가 파일을 이름으로 알리는 ConfigError를 던지고, 도구는 그 메시지를 상태 1로 보고한다 | `schema-validate.mts`, `dependency-review.mts`, `check-dependency-policy.mts` | `tests/kit/dependency-review.test.mts` | [o] |
 | K148 | parity는 module을 가진 test target의 Cargo layout을 따른다: fsm은 생성된 tests/conformance/vectors.rs와 함께 tests/conformance/main.rs를 bind하는데, kit은 이를 `--lib`로 실행하고 vectors.rs를 binding이 없는 test(R5)로 보고했다. tests/<name>/main.rs는 `--test <name>`으로 실행되고 tests/<name>/의 file은 그 binding에 속한다 | `parity-runners.mts`, `parity-units.mts` | `tests/kit/parity.test.mts` | [o] |
+| K144 | kit의 도구가 repository root를 스스로 찾는다. root는 working directory가 속한 Git work tree의 top level(`git rev-parse --show-toplevel`, pre-push hook과 같다)이다: `paths.mts`가 `ROOT = process.cwd()`로 정했으므로, `npm -w`가 package directory에서 시작하듯 root 아래에서 시작한 도구가 package 안의 path를 읽고 썼다(`config/documents.json does not exist`). root는 처음 쓸 때 읽으므로 repository 밖의 project도 package의 module을 import할 수 있다 | `paths.mts`(`repositoryRoot`), root를 읽는 도구, 문서 | `tests/kit/paths.test.mts` | [ ] |

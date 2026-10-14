@@ -9,7 +9,7 @@ import { CONFIG, documentsOf } from './check-documents.mts';
 import { sha256 } from './bootstrap/digest.mts';
 import { readJson, writeAtomic } from './bootstrap/files.mts';
 import { proseLines } from './markdown.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 
 const REVISION = /<!-- source-sha256: [^>]*? -->/;
 const DOC_ID = /<!-- doc-id: [^>]*? -->/;
@@ -71,11 +71,11 @@ export function stampAll(root: string, config: DocumentsConfig): { changed: stri
 }
 
 if (isMain(import.meta.url)) {
-  if (!existsSync(path.join(ROOT, CONFIG))) {
+  if (!existsSync(path.join(repositoryRoot(), CONFIG))) {
     console.error(`[documents-stamp] ${CONFIG} does not exist`);
     process.exit(1);
   }
-  const { changed, failed } = stampAll(ROOT, readJson(ROOT, CONFIG));
+  const { changed, failed } = stampAll(repositoryRoot(), readJson(repositoryRoot(), CONFIG));
   for (const file of changed) console.log(`[documents-stamp] stamped ${file}`);
   for (const line of failed) console.error(`[documents-stamp] ${line}`);
   console.log(`[documents-stamp] ${changed.length} stamped, ${failed.length} failed`);

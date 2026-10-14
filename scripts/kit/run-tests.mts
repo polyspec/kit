@@ -39,7 +39,7 @@ import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand } from './mise-tools.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { isMain, ROOT, siblingTool, TEST_ROOT } from './paths.mts';
+import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
@@ -76,11 +76,11 @@ const INSTALL: Record<string, (options: { cwd: string }) => string> = {
   vitest: () => 'run make install',
   go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
-  phpunit: ({ cwd }) => `run composer install in ${path.relative(ROOT, cwd) || '.'}`,
+  phpunit: ({ cwd }) => `run composer install in ${path.relative(repositoryRoot(), cwd) || '.'}`,
   python: () => 'declare python in mise.toml and run make install-tools, which installs it into var/tools/mise',
 };
 
-export function parseArguments(argv: string[], root = ROOT) {
+export function parseArguments(argv: string[], root = repositoryRoot()) {
   const [tool, ...rest] = argv;
   if (tool === undefined || !TOOLS.includes(tool)) throw new Error(USAGE);
   const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [] };
@@ -119,7 +119,7 @@ function splitCargo(args: string[]) {
 }
 
 /** The command of a tool with its progress and timeout arguments. */
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, venv }: ToolOptions, root = ROOT) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtension, venv }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -182,7 +182,7 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
   signalGroup(pgid, 'SIGKILL', kill);
 }
 
-export async function run(argv: string[], { root = ROOT, write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args } = toolCommand(options, root);

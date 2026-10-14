@@ -44,7 +44,7 @@ import type { Ledger } from './parity-ledger.mts';
 import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
 import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
@@ -92,7 +92,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
 if (isMain(import.meta.url)) {
   const { values } = parseArgs({ options: { declarations: { type: 'boolean' } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(ROOT, { execute: !values.declarations, say });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, say });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);

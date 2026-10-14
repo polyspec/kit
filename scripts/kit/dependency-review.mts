@@ -26,7 +26,7 @@ import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
 import { ConfigError } from './schema-validate.mts';
-import { isMain, ROOT, siblingTool } from './paths.mts';
+import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
@@ -507,7 +507,7 @@ function print(result: { notes: string[]; lines: string[] }) {
 
 function main(): void {
   const args = process.argv.slice(2);
-  let root = ROOT;
+  let root = repositoryRoot();
   let record = false;
   let update = false;
   for (let index = 0; index < args.length; index += 1) {

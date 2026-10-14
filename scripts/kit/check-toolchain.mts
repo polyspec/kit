@@ -19,7 +19,7 @@ import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredRust } from './toolchain-files.mts';
 import { declaredMiseTools, miseLockFindings, MISE_TOOLS } from './toolchain-mise.mts';
@@ -112,7 +112,7 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
 }
 
 /** The release of each of `tools` that runs at `root`, as `{ tool: release }`, or `unavailable: <reason>`. */
-export function toolchainVersions(tools: string[] = TOOLS, { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
+export function toolchainVersions(tools: string[] = TOOLS, { root = repositoryRoot(), env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
   return Object.fromEntries(tools.map((tool) => {
     const found = probe(root, tool, run);
     return [tool, found.release ?? `unavailable: ${found.error}`];
@@ -120,7 +120,7 @@ export function toolchainVersions(tools: string[] = TOOLS, { root = ROOT, env = 
 }
 
 /** One line for each of `tools` that does not run at its declared version; `run` starts a command and returns `{ status, stdout, stderr, error }`. */
-export function toolchainMismatches(tools: string[], { root = ROOT, env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
+export function toolchainMismatches(tools: string[], { root = repositoryRoot(), env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
   const declared = declaredTools(root);
   const mismatches: string[] = [];
   for (const tool of tools) {
@@ -150,19 +150,19 @@ const expectation = (entry: DeclaredTool) => (entry.minors ?? [entry.version]).j
 if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
-    const env = toolchainEnvironment(ROOT);
-    const declared = declaredTools(ROOT);
+    const env = toolchainEnvironment(repositoryRoot());
+    const declared = declaredTools(repositoryRoot());
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in mise.toml, config/toolchain.json, .node-version, .php-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
     // Every declaration and every floor equals the pin of kit, or the channel of a declared exception, whichever tools run.
-    const { exceptions, findings: malformed } = readExceptions(ROOT);
+    const { exceptions, findings: malformed } = readExceptions(repositoryRoot());
     const pinning = new Pinning(PINS, exceptions);
     const pins = pinFindings(declared, pinning);
-    const floors = floorFindings(ROOT, pinning, env);
+    const floors = floorFindings(repositoryRoot(), pinning, env);
     const excepted = [...malformed, ...pinning.stale()];
-    const links = npmrcFindings(ROOT, env);
-    const locked = miseLockFindings(ROOT);
+    const links = npmrcFindings(repositoryRoot(), env);
+    const locked = miseLockFindings(repositoryRoot());
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);

@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 
@@ -46,11 +46,11 @@ const COPIED = /(^|\/)(package\.json|package-lock\.json|composer\.json|composer\
  * policy and the review record.
  */
 function copy(directory: string) {
-  const files = new Set([POLICY, RECORD, ...checkedFiles(ROOT).filter(file => COPIED.test(file))]);
+  const files = new Set([POLICY, RECORD, ...checkedFiles(repositoryRoot()).filter(file => COPIED.test(file))]);
   for (const file of files) {
-    if (!existsSync(join(ROOT, file))) continue;
+    if (!existsSync(join(repositoryRoot(), file))) continue;
     mkdirSync(dirname(join(directory, file)), { recursive: true });
-    cpSync(join(ROOT, file), join(directory, file));
+    cpSync(join(repositoryRoot(), file), join(directory, file));
   }
   // The gate lists the files of a checkout through Git, so each copy is a repository.
   spawnSync('git', ['init', '--quiet'], { cwd: directory });
@@ -78,7 +78,7 @@ const MUTATIONS: Mutation[] = [
       // The record names a release newer than the locked one: the last number of the locked version, plus one.
       item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
     }),
-    expect: finding => finding.rule === 'latest' && finding.subject === `${firstDependency(ROOT).manifest} ${firstDependency(ROOT).package}`,
+    expect: finding => finding.rule === 'latest' && finding.subject === `${firstDependency(repositoryRoot()).manifest} ${firstDependency(repositoryRoot()).package}`,
   },
   {
     name: 'a Composer platform other than the declared minimum PHP',
@@ -90,7 +90,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a lock changed without a review',
     apply: root => appendFileSync(join(root, firstLock(root)), '\n'),
-    expect: finding => finding.rule === 'record' && finding.subject === firstLock(ROOT),
+    expect: finding => finding.rule === 'record' && finding.subject === firstLock(repositoryRoot()),
   },
   {
     name: 'a lock with an advisory at its review',
@@ -100,9 +100,9 @@ const MUTATIONS: Mutation[] = [
   },
 ];
 
-/** Applies each mutation that the repository at ROOT has to a copy of its dependency files; the exit status of the command. */
+/** Applies each mutation that the repository root has to a copy of its dependency files; the exit status of the command. */
 function run() {
-  const mutations = MUTATIONS.filter(mutation => !mutation.applies || mutation.applies(ROOT));
+  const mutations = MUTATIONS.filter(mutation => !mutation.applies || mutation.applies(repositoryRoot()));
   const accepted: string[] = [];
   for (const mutation of mutations) {
     const directory = mkdtempSync(join(tmpdir(), 'kit-dependency-policy-'));

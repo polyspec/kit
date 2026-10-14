@@ -19,7 +19,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { blockingSentence, inspectTrackers, loadConfig } from './checklist.mts';
 import { HOOKS_PATH } from './git-hooks.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
 import { findingLines, loadCommitRules, logMessages } from './check-commits.mts';
 
@@ -127,7 +127,7 @@ export function commit(root: string, rev: string): { sha: string; lines: string[
 const annotation = (line: string) => `::error::${line.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`;
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const [mode, ...args] = process.argv.slice(2);
   if (mode === 'hook' && args.length === 0) {
     let lines;

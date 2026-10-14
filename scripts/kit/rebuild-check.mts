@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -56,12 +56,12 @@ export function rebuildFindings(root: string, declaration: RebuildDeclaration, t
 }
 
 if (isMain(import.meta.url)) {
-  if (!existsSync(path.join(ROOT, DECLARATION))) {
+  if (!existsSync(path.join(repositoryRoot(), DECLARATION))) {
     console.error(`[rebuild-check] ${DECLARATION} does not exist; declare the class of each tool there (scripts/kit/schema/rebuild.schema.json)`);
     process.exit(1);
   }
-  const { value, errors } = readConfig<RebuildDeclaration>(ROOT, DECLARATION, 'rebuild.schema.json');
-  const findings = errors.length ? errors : rebuildFindings(ROOT, value, trackedFiles(ROOT));
+  const { value, errors } = readConfig<RebuildDeclaration>(repositoryRoot(), DECLARATION, 'rebuild.schema.json');
+  const findings = errors.length ? errors : rebuildFindings(repositoryRoot(), value, trackedFiles(repositoryRoot()));
   for (const finding of findings) console.error(`[rebuild-check] ${finding}`);
   if (findings.length) process.exitCode = 1;
   else console.log(`[rebuild-check] every tool that ${DECLARATION} selects has its class`);

@@ -26,7 +26,7 @@ import { anchors, headingAnchors, links, proseLines, scanFences } from './markdo
 import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { sha256 } from './bootstrap/digest.mts';
 import { readJson } from './bootstrap/files.mts';
 
@@ -243,7 +243,7 @@ export function check(root: string, config: DocumentsConfig) {
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   if (!existsSync(path.join(root, CONFIG))) {
     console.error(`[check-documents] ${CONFIG} does not exist; declare the documents of the repository there (scripts/kit/schema/documents.schema.json)`);
     process.exit(1);

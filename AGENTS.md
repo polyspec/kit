@@ -36,7 +36,9 @@ and states only its own rules. The rules below are kit's own.
 - This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. A path
   that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
   as PEP 751's lock directory), stays inside the repository, and never depends on the working directory; it is never
-  absolute. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
+  absolute. The repository root is the top level of the Git work tree that holds the working directory (`git rev-parse
+  --show-toplevel`, `repositoryRoot` of `scripts/kit/paths.mts`), so a tool started below it, as `npm -w` starts it in a
+  package directory, reads and writes the paths of the repository; outside a work tree a tool that needs the root fails. A path is resolved declaratively (named in a tracked file) or by discovery (a stated discovery rule).
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.

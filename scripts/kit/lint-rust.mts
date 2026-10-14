@@ -9,7 +9,6 @@
 import path from 'node:path';
 import { lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
-import { ROOT } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { isTable } from './toml.mts';
 import { readTomlFile } from './toolchain-files.mts';
@@ -27,4 +26,4 @@ export function lint(root: string, print: (text: string) => unknown = text => pr
   return runLint('lint-rust', lintSteps(root), root, print);
 }
 
-lintMain(import.meta.url, 'lint-rust', ROOT, lintSteps);
+lintMain(import.meta.url, 'lint-rust', lintSteps);

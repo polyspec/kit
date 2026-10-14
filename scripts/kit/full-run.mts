@@ -24,7 +24,7 @@ import { hooksIssue } from './git-hooks.mts';
 import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } from './holder-lock.mts';
 import type { ProcessStart } from './holder-lock.mts';
 import { FAILURE_LINES, logPath, runLogged, startReport, TARGET_NAME, targetPassed } from './target-report.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { readJson, writeJson } from './bootstrap/files.mts';
 import { git } from './git.mts';
 import { now, seconds } from './time.mts';
@@ -294,7 +294,7 @@ if (isMain(import.meta.url)) {
     process.exit(2);
   }
   try {
-    process.exitCode = await fullRun({ root: ROOT, ...parsed });
+    process.exitCode = await fullRun({ root: repositoryRoot(), ...parsed });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[full-run] failed: ${error.message}`);

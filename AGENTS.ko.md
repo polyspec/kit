@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: c49a8928cea3fec9b03539e2f7b95c5b8e81dc657f664e58549c7e20645d46bb -->
+<!-- source-sha256: 05c9fe61375441498ea05ee178b8b92723ca8e209a26b5d5f8471f56800fcdc8 -->
 # 개발
 
 [English](AGENTS.md)
@@ -31,7 +31,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
 - 이 저장소는 symbolic link를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다. 이 저장소가
   쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
-  머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
+  머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. repository root는 working directory가 속한 Git work tree의
+  top level(`git rev-parse --show-toplevel`, `scripts/kit/paths.mts`의 `repositoryRoot`)이므로, `npm -w`가 package directory에서
+  시작하듯 root 아래에서 시작한 도구도 repository의 path를 읽고 씁니다. work tree 밖에서는 root가 필요한 도구가 실패합니다. path는 추적 파일에 이름이 적힌 declarative 방식으로 정하거나, 명시된 discovery 규칙으로 찾습니다.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
   테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
   sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).

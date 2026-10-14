@@ -19,7 +19,7 @@ import { BACKEND_DIRECTORY } from './release-wheel.mts';
 import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;
 
@@ -84,7 +84,7 @@ export function fetchBackend(ctx: BackendContext, print: (text: string) => void 
 
 if (isMain(import.meta.url)) {
   try {
-    fetchBackend(context(ROOT, { env: process.env }), text => console.log(`[release-backend] ${text}`));
+    fetchBackend(context(repositoryRoot(), { env: process.env }), text => console.log(`[release-backend] ${text}`));
   } catch (failure) {
     if (!(failure instanceof Stop)) throw failure;
     console.error(`[release-backend] failed: ${failure.message}`);

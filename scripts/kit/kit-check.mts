@@ -12,7 +12,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { SCHEMAS, validate } from './schema-validate.mts';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { readJson } from './bootstrap/files.mts';
 
 export const PACKAGE = '@polyspec/kit';
@@ -115,7 +115,7 @@ export function check(root: string): string[] {
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const found = check(root);
   for (const line of found) console.error(`[kit-check] ${line}`);
   if (found.length) {

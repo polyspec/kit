@@ -23,7 +23,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { isMain, ROOT } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { loadConfig, readChecklist } from './checklist.mts';
 import { readJson } from './bootstrap/files.mts';
 import { git, gitResult } from './git.mts';
@@ -176,7 +176,7 @@ export function rangeFindings(root: string, range: string, config: CommitRules) 
 }
 
 if (isMain(import.meta.url)) {
-  const root = ROOT;
+  const root = repositoryRoot();
   const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' } } });
   let findings: string[];
   let label: string;

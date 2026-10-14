@@ -4,7 +4,7 @@
 // `failed with <reason>`. A missing tool or configuration is a failure with its fix, never a skip.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { isMain } from './paths.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -58,10 +58,11 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
   return failed;
 }
 
-/** Runs the lint `name` of `root` with the steps of `lintSteps` when the module `url` is the main module, and sets the exit code. */
-export function lintMain(url: string, name: string, root: string, lintSteps: (root: string) => LintStep[]): void {
+/** Runs the lint `name` of the repository root with the steps of `lintSteps` when the module `url` is the main module, and sets the exit code. */
+export function lintMain(url: string, name: string, lintSteps: (root: string) => LintStep[]): void {
   if (!isMain(url)) return;
   try {
+    const root = repositoryRoot();
     const steps = lintSteps(root);
     const failed = runLint(name, steps, root, text => process.stdout.write(text));
     if (failed.length) {

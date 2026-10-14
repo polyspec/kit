@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { context, stepFailure } from './release.mts';
 import { Stop } from './process.mts';
-import { isMain, ROOT, siblingTool } from './paths.mts';
+import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 
 
 /** The sections of config/release.json (release.mts loadConfig) that decide the tools of the release. */
@@ -58,7 +58,7 @@ export function prepareRust(root: string, { env = process.env, print = console.l
 const USAGE = 'usage: node scripts/kit/release-tools.mts';
 
 /** Runs the command line; the exit status. */
-export function main(argv: string[], { root = ROOT, env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
+export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: { root?: string; env?: NodeJS.ProcessEnv } & Partial<Output> = {}) {
   if (argv.length) {
     error(USAGE);
     return 2;
