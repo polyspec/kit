@@ -242,6 +242,22 @@ test('a root dependency that only the Makefile runs passes once config/knip-entr
   assert.deepEqual(declared.failed, [], declared.output);
 });
 
+// A sample source file that a site shows and nothing runs or imports is an unused file to knip; the repository declares it
+// in the ignore of config/knip-entries.json with its reason, knip's documented option for such files (K162).
+const SAMPLE = { 'site/samples/counter.mjs': "export const counter = () => 1;\n" };
+
+test('an unused sample file passes once config/knip-entries.json ignores it, and an undeclared unused file still fails (K162)', (t) => {
+  const undeclared = lintOf(repository(t, SAMPLE));
+  assert.deepEqual(undeclared.failed, ['knip'], undeclared.output);
+  assert.match(undeclared.output, /Unused files \(1\)\nsite\/samples\/counter\.mjs/);
+  const ignore = knipEntries({ ignore: { 'site/samples/*.mjs': 'the site shows the samples and nothing runs them' } });
+  const declared = lintOf(repository(t, { ...SAMPLE, ...ignore }));
+  assert.deepEqual(declared.failed, [], declared.output);
+  const orphan = lintOf(repository(t, { ...SAMPLE, ...ignore, 'site/orphan.mjs': "export const orphan = () => 1;\n" }));
+  assert.deepEqual(orphan.failed, ['knip'], orphan.output);
+  assert.match(orphan.output, /Unused files \(1\)\nsite\/orphan\.mjs/);
+});
+
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
   const { failed, output } = lintOf(repository(t, VIOLATIONS.find(({ name }) => name === 'an undocumented export')!.files, { report: false }));
   assert.deepEqual(failed, [], output);

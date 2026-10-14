@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: df55c4905048ab0d03dda3d6f7978cb8da2e3193c48ea10c51a5d57f746dca66 -->
+<!-- source-sha256: c1ade1f367dbf00255a744f5b62b0acf90ad620d0771ff50d31c3518ce71aab1 -->
 
 # 도구 목록
 
@@ -750,7 +750,10 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   선언하지 않으면 root의 unlisted dependency입니다(fixture). 어떤 JavaScript도 import하지 않고 Makefile의 recipe만 실행하는
   root의 dependency(hyper가 URL로 설치하는 template compiler 등)는 같은 파일의 `ignoreDependencies`에 이유와 함께 선언하고,
   knip은 Makefile을 읽지 않으므로 lint-ts가 knip.json의 `ignoreDependencies` 뒤에 그것을 더합니다(K159). 선언하면 통과하고,
-  선언하지 않으면 여전히 unused dependency입니다(fixture).
+  선언하지 않으면 여전히 unused dependency입니다(fixture). 의도적으로 쓰이지 않는 파일(site가 보여 주고 아무것도 실행하거나
+  import하지 않는 sample source 파일 등)은 같은 파일의 `ignore`에 root 기준 glob과 이유로 선언하고, lint-ts는 그것을 그런
+  파일을 위한 knip의 문서화된 option인 knip.json의 `ignore` 뒤에 더합니다(K162). 선언하면 통과하고, 선언하지 않은 unused
+  파일은 여전히 실패합니다(fixture).
 - **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로
