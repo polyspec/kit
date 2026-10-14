@@ -39,11 +39,12 @@ interface Mutation {
   expect: (finding: Finding) => boolean;
 }
 
-const COPIED = /(^|\/)(package\.json|package-lock\.json|composer\.json|composer\.lock|pyproject\.toml|pylock(\.[A-Za-z0-9_-]+)?\.toml|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum)$/;
+const COPIED = /(^|\/)(package\.json|package-lock\.json|composer\.json|composer\.lock|pyproject\.toml|pylock(\.[A-Za-z0-9_-]+)?\.toml|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|go\.work|go\.work\.sum)$/;
 
 /**
- * A copy of the files that the gate reads: every tracked manifest and lock (npm workspaces and local packages included), the
- * policy and the review record.
+ * A copy of the files that the gate reads: every tracked manifest and lock (npm workspaces and local packages included), each
+ * go.work with its go.work.sum, which makes a requirement of another member a package of the repository that needs no go.sum
+ * (K153), the policy and the review record.
  */
 function copy(directory: string) {
   const files = new Set([POLICY, RECORD, ...checkedFiles(repositoryRoot()).filter(file => COPIED.test(file))]);

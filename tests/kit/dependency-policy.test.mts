@@ -83,6 +83,19 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
 
+// The copy of the mutation check holds go.work with the dependency files: without it a module that requires only another
+// module of the workspace was asked for a go.sum that it cannot have (template tools/showcase/adapters/go) (K153).
+test('the mutation check copies go.work, so a module that requires only a workspace member needs no go.sum (K153)', (t) => {
+  const root = fixture(t);
+  const write = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+  write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
+  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
+  write('packages/sibling/sibling.go', 'package sibling\n');
+  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /4 mutations rejected/);
+});
+
 test('a package that the root overrides install from a URL is not reviewed against the registry', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
