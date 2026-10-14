@@ -136,6 +136,14 @@ test('the TypeScript lint fails on each planted violation with the rule or the m
   }
 });
 
+// ES2018 raised the limit of the fraction digits of toExponential and toFixed, and of the precision of toPrecision, to 100
+// (ECMA-262 Number.prototype.toExponential); oxlint's oxc/number-arg-out-of-range still allows only 20, so it is off (K161).
+test('the TypeScript lint passes on toExponential(25), which ES2018 allows', (t) => {
+  const exponent = `${DOUBLE}\n/**\n * Writes a value with 25 fraction digits.\n */\nexport function exponent(value: number): string {\n  return value.toExponential(25);\n}\n`;
+  const { failed, output } = lintOf(repository(t, { [INDEX]: exponent, 'tests/index.test.ts': `${TESTS.replace('{ double }', '{ double, exponent }')}\ntest('exponent', () => {\n  assert.equal(exponent(1), '1.0000000000000000000000000e+0');\n});\n` }));
+  assert.deepEqual(failed, [], output);
+});
+
 // The copies of kit are kit's to lint, with its tsconfig and the types of node; kit-check proves that they are its bytes. A
 // violation in a copy passes the lint of the consumer, and the same violation in a file of the consumer fails (K157).
 test('the TypeScript lint of a consumer leaves out the copies of kit and lints its own files (K157)', (t) => {

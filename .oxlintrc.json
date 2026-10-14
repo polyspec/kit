@@ -7,11 +7,16 @@
 // No escape hatch from the types of TypeScript (K155): no explicit any and no type assertion that changes nothing.
 // @ts-ignore and @ts-nocheck are forbidden; @ts-expect-error needs a description of the error it expects, and tsc fails it
 // when nothing errs.
+// oxc/number-arg-out-of-range is off: it allows toFixed and toExponential 0 to 20 and toPrecision 1 to 21, the limits before
+// ES2018, which raised them to 100 (ECMA-262 Number.prototype.toExponential, toFixed and toPrecision: fractionDigits 0 to
+// 100, precision 1 to 100), so it fails valid code such as toExponential(25); oxlint 1.88.0 and oxc main keep the old
+// limits, and no oxc issue reports it (K161).
 {
   "categories": {
     "correctness": "error"
   },
   "rules": {
+    "oxc/number-arg-out-of-range": "off",
     "typescript/ban-ts-comment": [
       "error",
       { "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true, "ts-check": false, "minimumDescriptionLength": 3 }

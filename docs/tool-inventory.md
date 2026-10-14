@@ -841,7 +841,10 @@ does not declare is neither installed nor checked.
   is not the locked version fails as kit-check does (K157). The escape
   hatches from the types fail (K155): `ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description of
   `@ts-expect-error`, which tsc itself fails once nothing errs, and `no-explicit-any` and `no-unnecessary-type-assertion`
-  are on; a fixture plants each one. The non-null assertion and the `no-unsafe-*` family wait for K156 and K157. API
+  are on; a fixture plants each one. `oxc/number-arg-out-of-range` is off (K161): it allows 0 to 20 fraction digits
+  for `toFixed` and `toExponential` and a precision of 1 to 21, the limits before ES2018, which raised them to 100
+  (ECMA-262 `Number.prototype.toExponential`), so it failed `toExponential(25)`; oxlint 1.88.0, the latest, and oxc main
+  keep the old limits, and no oxc issue reports it. A fixture with `toExponential(25)` passes. The non-null assertion and the `no-unsafe-*` family wait for K156 and K157. API
   Extractor reads the `.d.ts` that tsc 7 writes with its bundled TypeScript 5.9.3. `ae-undocumented` fires only through the
   API report, so the base configuration enables it, and an undocumented export with the report off passes (a fixture);
   `ae-undocumented` and `ae-forgotten-export` are errors, not lines of the report. A package commits its report

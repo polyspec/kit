@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0ed4d35649d88f4e2390b668aca8d40c97e0620431b9c8af13fe6d0b902e084b -->
+<!-- source-sha256: 47424f1e6ca21949927c2e74a15923031033b0c5dece74d081b9b8216407e010 -->
 
 # 도구 목록
 
@@ -769,7 +769,11 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   consumer에서 사본에 심은 위반은 통과하고 자기 script의 같은 위반은 실패하며, 설치된 kit이 lock된 version이 아니면
   kit-check처럼 실패합니다(K157). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
   `@ts-nocheck`를 금지하고 `@ts-expect-error`에 설명을 요구하며(아무 error도 없으면 tsc 자신이 실패시킵니다),
-  `no-explicit-any`와 `no-unnecessary-type-assertion`이 켜져 있습니다. fixture가 각각을 심습니다. non-null assertion과
+  `no-explicit-any`와 `no-unnecessary-type-assertion`이 켜져 있습니다. fixture가 각각을 심습니다. `oxc/number-arg-out-of-range`는 꺼져
+  있습니다(K161): 이 rule은 `toFixed`와 `toExponential`의 소수 자릿수 0에서 20, precision 1에서 21만 허용하는데, 이는 ES2018이
+  100으로 올리기 전의 한계입니다(ECMA-262 `Number.prototype.toExponential`). 그래서 `toExponential(25)`를 실패시켰습니다.
+  최신인 oxlint 1.88.0과 oxc main도 옛 한계를 유지하며, 이를 보고한 oxc issue는 없습니다. `toExponential(25)`를 담은
+  fixture는 통과합니다. non-null assertion과
   `no-unsafe-*` 계열은 K156과 K157을 기다립니다. API
   Extractor는 tsc 7이 쓴 `.d.ts`를 내장 TypeScript 5.9.3으로 읽습니다. `ae-undocumented`는 API report를 거쳐서만 나오므로 base
   설정이 report를 켜며, report를 끄면 문서 없는 export가 통과합니다(fixture). `ae-undocumented`와 `ae-forgotten-export`는 report의
