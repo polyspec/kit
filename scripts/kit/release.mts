@@ -32,7 +32,7 @@
 // NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with the build
-// backend of buildBackend (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
+// backend of pythonBackend of config/toolchain.json (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
 // its lock of consumers.wheel.lock holds (wheel-dependencies.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -46,7 +46,7 @@ import { headings } from './markdown.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { readNpmManifest, type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { isTable, readToml } from './toml.mts';
-import { buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
+import { backendFinding, buildBackend, buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -114,7 +114,6 @@ export interface ReleaseConfig {
   manifests: Record<string, string>;
   notReleased: Record<string, string>;
   goModules: Record<string, string>;
-  buildBackend?: { requirement: string; sha256: string };
   consumers?: { npm?: ConsumerProject; composer?: ConsumerProject; wheel?: WheelConsumer };
   proof?: { gitTag: Record<string, GitTagProof> };
 }
@@ -198,9 +197,8 @@ export function loadConfig(root: string): ReleaseConfig {
     const manifest = path.posix.join(directory, MANIFEST_OF[kind]);
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
   }
-  const wheels = config.packages.filter(item => item.kind === 'wheel').map(({ name }) => name);
-  if (wheels.length && !config.buildBackend) problems.push(`${CONFIG}: buildBackend is missing; the wheel packages [${wheels.join(', ')}] need a pinned build backend`);
-  if (!wheels.length && config.buildBackend) problems.push(`${CONFIG}: buildBackend is declared but no package is a wheel`);
+  const backend = backendFinding(root, config);
+  if (backend) problems.push(backend);
   const archived = new Set(config.packages.map(({ directory, kind }) => path.posix.join(directory, MANIFEST_OF[kind])));
   for (const [key, value] of Object.entries(config.manifests)) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
@@ -501,8 +499,8 @@ export function assets(ctx: Context, tag: string): string[] {
   const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelLock(config, name), text: run('git', ['show', `${commit}:${wheelLock(config, name)}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
-    // loadConfig requires buildBackend when a package is a wheel; sources and locks hold the manifest and the lock of each package at its index.
-    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: config.buildBackend!.requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
+    // sources and locks hold the manifest and the lock of each package at its index.
+    if (kind === 'wheel') return [...sourceProblems({ file, text: sources[index]!, name, requirement: buildBackend(root).requirement }), ...lockProblems(locks[index]!.text, locks[index]!.file)];
     // sources holds the manifest of each package at its index.
     const manifest = parseManifest(kind, sources[index]!, file);
     return [
@@ -527,8 +525,7 @@ export function assets(ctx: Context, tag: string): string[] {
         // created holds one file, checked above, and names holds the archive name of each package at its index.
         renameSync(path.join(next, created[0]!), path.join(next, names[index]!));
       } else if (kind === 'wheel') {
-        // loadConfig requires buildBackend when a package is a wheel.
-        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: config.buildBackend! });
+        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: buildBackend(root) });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.

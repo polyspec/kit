@@ -105,6 +105,15 @@ function pythonBackend(value: unknown): { requirement: string; sha256: string; s
   return { requirement, sha256, source: file };
 }
 
+/**
+ * pythonBackend of config/toolchain.json of `root`, the one declaration of the build backend of the Python wheels, which
+ * install-tools installs and release-backend and release-assets read; undefined when the file does not declare it.
+ */
+export function declaredPythonBackend(root: string): DeclaredToolchain['pythonBackend'] {
+  const config = toolchainConfig(root);
+  return config.pythonBackend ? pythonBackend(config.pythonBackend) : undefined;
+}
+
 /** The declared toolchains of the checkout at `root`. */
 export function declaredToolchain(root: string): DeclaredToolchain {
   const config = toolchainConfig(root);

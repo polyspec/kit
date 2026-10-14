@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-// Fetches the wheels that the checkout declares into var/tools/wheels. Three declarations name a wheel: buildBackend of
-// config/release.json, which a repository that releases wheels declares (`make release-backend`), pythonBackend of
-// config/toolchain.json, which the kit declares for its own wheel tests, and ruff of config/toolchain.json, which install-ruff
-// installs (`make install-tools`). The three call installBackend:
+// Fetches the wheels that the checkout declares into var/tools/wheels. pythonBackend of config/toolchain.json, the one
+// declaration of the build backend of the Python wheels (K166), names a wheel: install-tools installs it (`make
+// install-tools`), and so does this command for a release (`make release-backend`). Both call installBackend:
 //
-//   node scripts/kit/release-backend.mts     the buildBackend of config/release.json
+//   node scripts/kit/release-backend.mts     the pythonBackend of config/toolchain.json
 //
 // The download is `pip download --no-deps --only-binary :all: --require-hashes` by the python3 of mise.toml, from a requirement
 // file that names the requirement with each declared sha256, so pip refuses a file of another digest. The file's sha256 is
@@ -14,8 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
-import { context } from './release.mts';
-import { BACKEND_DIRECTORY } from './release-wheel.mts';
+import { BACKEND_DIRECTORY, BACKEND_SOURCE, buildBackend } from './release-wheel.mts';
 import { run, Stop } from './process.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -24,8 +22,8 @@ import { present } from './present.mts';
 
 const REQUIREMENT = /^([A-Za-z0-9._-]+)==(\d+(?:\.\d+)*)$/;
 
-/** The part of the release context of release.mts context() that fetchBackend reads: buildBackend of config/release.json. */
-type BackendContext = { root: string; env: NodeJS.ProcessEnv; config: { buildBackend?: { requirement: string; sha256: string } } };
+/** What fetchBackend reads: the checkout, whose config/toolchain.json declares pythonBackend, and the environment of pip. */
+type BackendContext = { root: string; env: NodeJS.ProcessEnv };
 
 // The wheels of `name==version` in `directory`: every file of that distribution and release whose name ends in .whl.
 const wheelsOf = (directory: string, name: string, version: string) => (existsSync(directory) ? readdirSync(directory) : [])
@@ -77,16 +75,15 @@ export function installBackend({ root, env, requirement, digests, source, print 
   return { installed: true, file };
 }
 
-/** Downloads the buildBackend of `ctx.config` (config/release.json) and returns the file; a digest that differs fails. */
+/** Downloads the pythonBackend of config/toolchain.json of `ctx.root` and returns the file; a digest that differs fails. */
 export function fetchBackend(ctx: BackendContext, print: (text: string) => void = () => {}) {
-  if (!ctx.config.buildBackend) throw new Stop('config/release.json declares no buildBackend; no wheel package needs a build backend');
-  const { requirement, sha256 } = ctx.config.buildBackend;
-  return installBackend({ root: ctx.root, env: ctx.env, requirement, digests: [sha256], source: 'config/release.json buildBackend', print }).file;
+  const { requirement, sha256 } = buildBackend(ctx.root);
+  return installBackend({ root: ctx.root, env: ctx.env, requirement, digests: [sha256], source: BACKEND_SOURCE, print }).file;
 }
 
 if (isMain(import.meta.url)) {
   try {
-    fetchBackend(context(repositoryRoot(), { env: process.env }), text => console.log(`[release-backend] ${text}`));
+    fetchBackend({ root: repositoryRoot(), env: process.env }, text => console.log(`[release-backend] ${text}`));
   } catch (failure) {
     if (!(failure instanceof Stop)) throw failure;
     console.error(`[release-backend] failed: ${failure.message}`);

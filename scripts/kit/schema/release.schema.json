@@ -89,25 +89,6 @@
       "description": "Each Go module by its directory (`.` for the repository root) with its module path.",
       "type": "object"
     },
-    "buildBackend": {
-      "description": "The build backend of the wheel packages: the exact requirement of the wheel that a build uses, and the sha256 of that wheel from its PyPI release. release-backend.mts downloads it into var/tools/wheels with the digest checked.",
-      "type": "object",
-      "required": [
-        "requirement",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "requirement": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9._-]+==\\d+(\\.\\d+)*$"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
     "consumers": {
       "description": "The consumer projects that install the archives of a tag outside the repository (release-consumer.mts); one per package kind that has packages. A wheel has no committed project; its lock is named per package.",
       "type": "object",

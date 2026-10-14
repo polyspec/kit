@@ -135,7 +135,7 @@ test('assets refuses a polyspec fragment that differs from the sha256 of the loc
 test('assets refuses a pyproject whose build backend is not the pinned requirement, before it builds', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace('setuptools==84.0.0', 'setuptools==83.0.0')) });
   const tag = box.release('0.0.1');
-  stop(() => release.assets(context(box), tag), /build-system\.requires is \["setuptools==83\.0\.0"\], the buildBackend pins setuptools==84\.0\.0/);
+  stop(() => release.assets(context(box), tag), /build-system\.requires is \["setuptools==83\.0\.0"\], config\/toolchain\.json pythonBackend pins setuptools==84\.0\.0/);
   assert.deepEqual(box.pipCalls(), []);
 });
 
@@ -143,7 +143,7 @@ test('assets refuses a build backend file whose sha256 differs from the declarat
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
   writeFileSync(backendPath(box), 'tampered');
-  stop(() => release.assets(context(box), tag), new RegExp(`${escaped(path.join('var/tools/wheels', BACKEND_FILE))} has the sha256 [0-9a-f]{64}, config/release\\.json buildBackend declares ${BACKEND_SHA}`));
+  stop(() => release.assets(context(box), tag), new RegExp(`${escaped(path.join('var/tools/wheels', BACKEND_FILE))} has the sha256 [0-9a-f]{64}, config/toolchain\\.json pythonBackend declares ${BACKEND_SHA}`));
   assert.deepEqual(box.pipCalls(), []);
 });
 
@@ -176,10 +176,9 @@ test('release-backend downloads the pinned build backend with its hash and keeps
 
 test('release-backend removes a download whose sha256 differs from the declaration and names both', (t) => {
   const box = releaseSandbox(t);
-  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
-  writeJson(box.root, 'config/release.json', { ...config, buildBackend: { ...config.buildBackend, sha256: '0'.repeat(64) } });
+  writeJson(box.root, 'config/toolchain.json', { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: '0'.repeat(64) } });
   rmSync(backendPath(box));
-  stop(() => backend.fetchBackend(context(box)), new RegExp(`has the sha256 ${BACKEND_SHA}, config/release\\.json buildBackend declares ${'0'.repeat(64)}`));
+  stop(() => backend.fetchBackend(context(box)), new RegExp(`has the sha256 ${BACKEND_SHA}, config/toolchain\\.json pythonBackend declares ${'0'.repeat(64)}`));
   assert.equal(existsSync(backendPath(box)), false);
 });
 
@@ -219,7 +218,7 @@ test('release-consumer stops when the smoke import of the wheel fails and names 
 
 test('config: a wheel package needs its consumer smoke and a pinned build backend; a Python git-tag is refused', (t) => {
   // The test edits the raw JSON into shapes that the schema refuses; the type names the fields that it edits.
-  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; buildBackend?: unknown; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
+  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; buildBackend?: unknown; packages: { kind: string }[]; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
   const edit = (change: (config: ConfigJson) => unknown) => {
     const box = releaseSandbox(t);
     const config = readJson<ConfigJson>(box.root, 'config/release.json');
@@ -229,7 +228,15 @@ test('config: a wheel package needs its consumer smoke and a pinned build backen
   stop(() => release.loadConfig(edit(c => { delete c.consumers?.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
   // K109: a configuration without consumers is refused with the section that each package kind needs.
   stop(() => release.loadConfig(edit(c => { delete c.consumers; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
-  stop(() => release.loadConfig(edit(c => { delete c.buildBackend; return c; }).root), /buildBackend is missing; the wheel packages \[kit-fixture\] need a pinned build backend/);
+  // K166: the build backend is pythonBackend of config/toolchain.json, its one declaration; a wheel package or the wheel
+  // consumer without it is refused with the fix, and buildBackend of config/release.json is gone.
+  const unpinned = (change: (config: ConfigJson) => unknown) => {
+    const box = edit(change);
+    writeJson(box.root, 'config/toolchain.json', { schema: 1 });
+    return box.root;
+  };
+  stop(() => release.loadConfig(unpinned(c => c)), /the wheel packages \[kit-fixture\] and the wheel consumer need the build backend of the wheels, pythonBackend of config\/toolchain\.json, which it does not declare\. Fix: declare pythonBackend .* in config\/toolchain\.json and run make install-tools/);
+  stop(() => release.loadConfig(edit(c => { c.buildBackend = { requirement: 'setuptools==84.0.0', sha256: BACKEND_SHA }; return c; }).root), /must NOT have additional properties .*buildBackend/);
   stop(() => release.loadConfig(edit(c => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'python'; return c; }).root), /proof\.gitTag\.packages\/fixture-rust\/Cargo\.toml\.kind is "python", the allowed values are rust/);
 });
 

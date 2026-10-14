@@ -1088,9 +1088,11 @@ distribution escapes each run of characters other than word characters and dots 
 - `release-assets` builds the wheel from a copy of the directory at the tagged commit (`git archive`) with
   `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`,
   with `SOURCE_DATE_EPOCH` set to the time of the commit. `--no-index` makes the directory the only source, so no build reads the network.
-- The build backend is pinned in `buildBackend` of `config/release.json`: `requirement` is the exact requirement of the backend
+- The build backend is pinned in `pythonBackend` of `config/toolchain.json`, its one declaration, since it is a tool pin
+  (K166; `buildBackend` of `config/release.json` is gone): `requirement` is the exact requirement of the backend
   (`setuptools==84.0.0`, which the `[build-system] requires` of the pyproject must equal) and `sha256` is the digest of its wheel
-  from the PyPI release. `make release-backend` (ONLINE) downloads it with
+  from the PyPI release. A config/release.json with a wheel package or the wheel consumer and no `pythonBackend` fails
+  `make kit-check` and the release with the fix. `make install-tools` and `make release-backend` (ONLINE) download it with
   `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
   `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
   wheel package, and it runs before a release.
@@ -1103,8 +1105,13 @@ distribution escapes each run of characters other than word characters and dots 
   prints is checked and the smoke command of `consumers.wheel` runs.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } },
-"buildBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } }
+```
+
+config/toolchain.json:
+
+```json
+"pythonBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
 
 ## Wheel dependencies (K49)

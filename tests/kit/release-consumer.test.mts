@@ -290,7 +290,7 @@ test('the real npm ci and composer install install the archives of a tag from th
       edit(root, 'packages/fixture-lib/package.json', ({ dependencies: _dependencies, ...manifest }) => manifest);
       edit(root, 'packages/fixture-php/composer.json', ({ require: _require, config: _config, ...manifest }) => manifest);
       // The wheel needs the Python of the machine, which this case does not run: the case covers npm and Composer only.
-      edit<ConfigJson>(root, 'config/release.json', ({ buildBackend: _buildBackend, consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
+      edit<ConfigJson>(root, 'config/release.json', ({ consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
         ...config,
         consumers,
         packages: packages.filter(item => item.kind !== 'wheel'),

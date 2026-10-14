@@ -191,8 +191,9 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   mkdirSync(path.join(root, 'packages/fixture-php/src'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), '<?php\n');
   writeFileSync(path.join(root, 'CHANGELOG.md'), changelog);
-  // The build backend of the sandbox is the stand-in of the wheel tests, so the declared sha256 is the digest of the stand-in.
-  writeJson(root, 'config/release.json', { ...config, buildBackend: { ...config.buildBackend, sha256: sha256(BACKEND_BYTES) } });
+  // The build backend of the wheels is pythonBackend of config/toolchain.json (K166); the one of the sandbox is the stand-in of
+  // the wheel tests, so the declared sha256 is the digest of the stand-in.
+  writeJson(root, 'config/toolchain.json', { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: sha256(BACKEND_BYTES) } });
   mutate(root);
   const bin = path.join(root, '.stubs/bin');
   mkdirSync(bin, { recursive: true });
