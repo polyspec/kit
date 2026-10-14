@@ -8,10 +8,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { runRequest } from '../kit/record-tools.mts';
-import type { ToolRecord } from '../kit/record-tools.mts';
 import { TOOL_RECORDS } from '../kit/registry.mts';
+import { TOOL_RECORDS_FILE } from '../kit/record-tools.mts';
+import { readStub } from '../kit/stub-json.mts';
 
-const records = Object.values(JSON.parse(readFileSync(TOOL_RECORDS, 'utf8')) as Record<string, ToolRecord[]>).flat();
+const records = Object.values(readStub(TOOL_RECORDS, TOOL_RECORDS_FILE)).flat();
 
 test('the records hold a request of each tool that the stubs answer', () => {
   assert.deepEqual([...new Set(records.map(record => record.tool))].sort(), ['composer', 'go']);

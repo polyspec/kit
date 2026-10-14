@@ -12,6 +12,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
+import { readFixture } from '../kit/json-fixture.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const BIN = path.join(ROOT, 'node_modules/.bin');
@@ -22,19 +23,24 @@ const DOUBLE = '/**\n * Doubles a value.\n */\nexport function double(value: num
 // The test file: top-level registrations of node:test, which return a promise that the runner itself awaits (K138).
 const TESTS = "import assert from 'node:assert/strict';\nimport test, { describe, it, suite } from 'node:test';\nimport { double } from '../src/index.ts';\n\ntest('double', () => {\n  assert.equal(double(2), 4);\n});\n\ndescribe('double', () => {\n  it('doubles zero', () => {\n    assert.equal(double(0), 0);\n  });\n});\n\nsuite('double', () => {\n  test.skip('of a string', () => {});\n});\n";
 
+// The package.json of the package.
+const MANIFEST = { name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } }, devDependencies: { '@polyspec/kit': '0.0.42' } };
+
 // A package whose one export is documented, reached from its entry point, and tested. No export carries a release tag (@public),
 // as in every polyspec repository: the base configuration turns ae-missing-release-tag off (K139).
 const GOOD: Record<string, string> = {
   '.gitignore': 'node_modules/\ndist/\nvar/\n',
   // kit comes in through the include of its Makefile and its copies, which knip does not read (K142).
-  'package.json': JSON.stringify({ name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } }, devDependencies: { '@polyspec/kit': '0.0.42' } }, null, 2),
+  'package.json': JSON.stringify(MANIFEST, null, 2),
   // make runs a script of S9, a copy of kit and a benchmark program, which nothing imports (K142).
   'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n\nbuild:\n\tnode scripts/build.mts\n\tnode scripts/kit/bootstrap/bootstrap.mts\n\tnode benchmarks/run.mts\n',
   'scripts/build.mts': "console.log('build');\n",
   'benchmarks/run.mts': "console.log('run');\n",
-  // The project covers the tests too, as in a consumer, so oxlint-tsgolint checks their types; the build emits only src. As in a
-  // consumer, it leaves out the copies of kit in scripts/kit (KIT_COPIES), which lint-ts leaves out of oxlint (K157).
-  'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests'] }, null, 2),
+  // The project covers every TypeScript file that lint-ts lints, the tests and the scripts too, so oxlint-tsgolint checks
+  // their types: a file outside it has no types, and each call of an import is an unsafe call of an error type (K157). The
+  // build emits only src. The project leaves out the copies of kit in scripts/kit (KIT_COPIES), which lint-ts leaves out of
+  // oxlint (K157).
+  'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests', 'scripts', 'benchmarks'], exclude: ['scripts/kit'] }, null, 2),
   'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),
   'api-extractor.json': '',
   [INDEX]: DOUBLE,
@@ -61,7 +67,7 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
 
 // The package.json of this checkout: the version of kit that the lock of the repository resolves, and the copies of kit in
 // TypeScript that a consumer holds (kit.copies, which kit-sync writes): the path in the consumer and the file of kit.
-const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { version: string; kit: { copies: Record<string, string> } };
+const KIT = readFixture<{ version: string; kit: { copies: Record<string, string> } }>(ROOT, 'package.json');
 const KIT_COPIES = Object.entries(KIT.kit.copies).filter(([file]) => file.endsWith('.mts'));
 const COPY = 'scripts/kit/bootstrap/digest.mts';
 
@@ -192,7 +198,9 @@ test('a pinned runtime and a declared binary that a script spawns pass, and an u
 // entries and the dependencies that only non-JS code uses. knip's Svelte plugin compiles its .svelte files (K154).
 const NESTED = (directory: string) => ({
   [`${directory}/package.json`]: JSON.stringify({ private: true, type: 'module', dependencies: { react: '19.0.0', svelte: '5.0.0', 'web-streams-polyfill': '4.0.0' } }),
-  [`${directory}/src/react.jsx`]: "import { createElement } from 'react';\n\nexport const app = () => createElement('div');\n",
+  // The project installs no react, so the component re-exports what it imports: a call of an unresolved import is an
+  // unsafe call of an error type (K157).
+  [`${directory}/src/react.jsx`]: "export { createElement } from 'react';\n",
   [`${directory}/src/App.svelte`]: "<script>\n  import { onMount } from 'svelte';\n\n  onMount(() => {});\n</script>\n\n<p>fixture</p>\n",
   [`${directory}/src/svelte.js`]: "import App from './App.svelte';\n\nexport { App };\n",
 });
@@ -222,7 +230,7 @@ test('a nested npm project passes once config/knip-entries.json declares it as a
 // by its URL; knip does not read the Makefile, so the repository declares it in config/knip-entries.json (K159).
 const COMPILER = '@example/recipe-tool';
 const RECIPE = {
-  'package.json': JSON.stringify({ ...JSON.parse(GOOD['package.json']!) as object, dependencies: { [COMPILER]: 'https://example.com/recipe-tool-0.1.0.tgz' } }, null, 2),
+  'package.json': JSON.stringify({ ...MANIFEST, dependencies: { [COMPILER]: 'https://example.com/recipe-tool-0.1.0.tgz' } }, null, 2),
   'Makefile': `${GOOD['Makefile']!}\ntemplates:\n\tnode node_modules/${COMPILER}/bin/compile.mjs templates\n`,
 };
 

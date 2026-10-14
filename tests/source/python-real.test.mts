@@ -5,17 +5,18 @@
 // --require-hashes --no-deps, and its smoke import runs. Nothing here is stubbed; a missing install fails the case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { declaredMiseTools, miseLockFindings } from '../../scripts/kit/toolchain-mise.mts';
 import { buildWheel, wheelName } from '../../scripts/kit/release-wheel.mts';
+import { readFixture } from '../kit/json-fixture.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = 'tests/kit/fixture/packages/fixture-python';
-const declaration = () => JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8'));
+const declaration = () => readFixture<{ pythonBackend: { requirement: string; sha256: string }; exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
 
 test('mise.toml declares the Python of the kit, mise.lock pins its build, and config/toolchain.json the build backend of its wheels', () => {
   assert.deepEqual(declaredMiseTools(ROOT).python, { version: '3.14.8', source: 'mise.toml tools.python' });

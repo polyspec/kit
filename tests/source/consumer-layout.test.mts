@@ -10,9 +10,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { builtCopy, commitSandbox, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage } from './checkout.mts';
+import { readFixture } from '../kit/json-fixture.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const KIT = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const KIT = readFixture<NpmManifest>(ROOT, 'package.json');
 const NODE = process.versions.node;
 // The packages that kit depends on at run time that this machine installed, which the consumer installs from the primed
 // cache. The lint tools (K77) are among them, since a consumer runs them through make lint-ts.
@@ -37,7 +40,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // the release asset of kit by its integrity.
   const consumer = path.join(work, 'consumer');
   mkdirSync(consumer);
-  for (const [file, from] of Object.entries(KIT.kit.copies as Record<string, string>)) {
+  const copies = KIT.kit?.copies;
+  assert.ok(copies, 'package.json of kit declares no kit.copies');
+  for (const [file, from] of Object.entries(copies)) {
     mkdirSync(path.dirname(path.join(consumer, file)), { recursive: true });
     cpSync(path.join(unpacked, from), path.join(consumer, file));
   }
@@ -46,7 +51,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
   writeFileSync(path.join(consumer, '.node-version'), `${NODE}\n`);
   // The bootstrap installs the mise that config/toolchain.json declares, after npm; the consumer declares the mise of kit.
-  const toolchain = JSON.parse(readFileSync(path.join(ROOT, 'config/toolchain.json'), 'utf8'));
+  const toolchain = readFixture<{ pythonBackend: { requirement: string; sha256: string }; exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n');
@@ -83,8 +88,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     assert.doesNotMatch(result.stdout, /scripts\/kit\/[a-z-]+\.mts/, `make ${target.join(' ')} ran a source of kit`);
   }
   // The smoke command of the release of kit (consumers.npm of config/release.json) runs in the consumer.
-  const release = JSON.parse(readFileSync(path.join(ROOT, 'config/release.json'), 'utf8'));
-  const [command, ...args]: string[] = release.consumers.npm.smoke['@polyspec/kit'];
+  const release = readFixture<ReleaseConfig>(ROOT, 'config/release.json');
+  const [command, ...args] = release.consumers?.npm?.smoke['@polyspec/kit'] ?? [];
   assert.ok(command, 'config/release.json names no smoke command of @polyspec/kit');
   const smoked = spawnSync(command, args, { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(smoked.status, 0, `the smoke command of @polyspec/kit: ${smoked.stdout}${smoked.stderr}`);

@@ -10,6 +10,13 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { builtCopy, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage, walk } from './checkout.mts';
+import type { JSONSchemaType } from 'ajv/dist/2020.js';
+import { readFixture } from '../kit/json-fixture.mts';
+import { parseStub, TEXTS } from '../kit/stub-json.mts';
+import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+
+/** The URL that a module resolves to and the names that it exports. */
+const EXPORTS: JSONSchemaType<{ resolved: string; names: string[] }> = { type: 'object', required: ['resolved', 'names'], properties: { resolved: { type: 'string' }, names: TEXTS } };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -34,9 +41,9 @@ test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imp
 
 test('npm pack packs exactly the files of package.json files and the files npm always packs', (t) => {
   const copy = builtCopy(t);
-  const manifest = JSON.parse(readFileSync(path.join(copy, 'package.json'), 'utf8'));
-  assert.ok(Array.isArray(manifest.files), 'package.json declares files');
-  const declared = (manifest.files as string[]).flatMap(entry => {
+  const { files } = readFixture<NpmManifest>(copy, 'package.json');
+  assert.ok(files, 'package.json declares files');
+  const declared = files.flatMap(entry => {
     const target = path.join(copy, entry);
     return readdirSync(path.dirname(target)).includes(path.basename(target)) && !entry.endsWith('/') ? [entry] : walk(target).map(file => path.posix.join(entry, file));
   });
@@ -74,8 +81,8 @@ test('a repository that installs the tarball imports the tool APIs of @polyspec/
   for (const [entry] of installedLockEntries(runtimePackage)) assert.ok(!lstatSync(path.join(consumer, entry)).isSymbolicLink(), `${entry} of the consumer is a link`);
   // The modules that repositories import from kit (K79): each resolves to its dist file and exports what the source does.
   for (const module of EXPORTED) {
-    const exported = run(process.execPath, ['--input-type=module', '-e', `const m = await import('@polyspec/kit/${module}'); process.stdout.write(JSON.stringify([import.meta.resolve('@polyspec/kit/${module}'), Object.keys(m).sort()]));`], consumer);
-    const [resolved, names] = JSON.parse(exported);
+    const exported = run(process.execPath, ['--input-type=module', '-e', `const m = await import('@polyspec/kit/${module}'); process.stdout.write(JSON.stringify({ resolved: import.meta.resolve('@polyspec/kit/${module}'), names: Object.keys(m).sort() }));`], consumer);
+    const { resolved, names }: { resolved: string; names: string[] } = parseStub(exported, EXPORTS, 'the exports of the module');
     assert.equal(realpathSync(fileURLToPath(resolved)), realpathSync(path.join(installed, `dist/${module}.mjs`)), module);
     const source = run(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(path.join(ROOT, `scripts/kit/${module}.mts`))}); process.stdout.write(JSON.stringify(Object.keys(m).sort()));`], ROOT);
     assert.deepEqual(names, JSON.parse(source), module);
