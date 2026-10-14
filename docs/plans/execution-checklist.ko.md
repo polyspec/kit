@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: a8cfc7225ff6a965af55852872048879c56198047974fce3c057df7274edf2ec -->
+<!-- source-sha256: 1d1064ab9ad4993c9b0483b9a71a6ea89e0950804bf3f936792d635853c71077 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -199,4 +199,4 @@
 | K85 | PRINCIPLES가 끝이 정해지지 않은 loop로 주기적으로 살피는 script를 금지합니다(owner 규칙, 2026-10-13). 원인: kit 관리 세션의 CI 대기 loop 여섯 개가 몇 시간 동안 돌았고, 그중 하나는 끝내 참이 되지 않는 조건을 기다렸습니다. | PRINCIPLES.md(+ko), 설계 | `make documents-check` | [o] |
 | K86 | PRINCIPLES가 owner의 test 규칙을 그대로 적습니다: 항목은 자기 단위 test의 red, 구현, green으로 완료하며 전체 모음은 전혀 돌리지 않습니다. 원인: K106은 마지막에 전체 실행 한 번을 남겼으나, owner가 2026-10-13에 전체 test를 돌리지 않는다고 정했습니다. | PRINCIPLES.md(+ko), 검증 | `make documents-check` | [o] |
 | K141 | run-tests가 test가 timeout을 넘었을 때와 실행기 자신이 중단될 때 tool의 process group 전체를 멈추고, 유예 뒤에 SIGKILL을 보낸다: 중단된 실행기는 detached tool을 실행 중으로 남겼고, `tests/kit/run-tests.test.mts`의 stub(`node …/var/tools/mise/shims/python3 -m unittest tests -v`)이 12시간 뒤 launchd 아래 고아로 발견되었으며, timeout에서 SIGTERM을 무시한 tool은 실행을 기다리게 했다 | `run-tests.mts`, `docs/tool-inventory.md` | `tests/kit/run-tests.test.mts`(timeout 뒤와 실행기의 SIGTERM 뒤에 stub과 그 손자 process가 없음) | [o] |
-| K143 | mise.toml이 cargo-nextest(`github:nextest-rs/nextest`, version_prefix `cargo-nextest-`)와 cargo-deny(`cargo-deny`, mise registry의 aqua)를 선언한다: kit가 이를 거부해서("mise.toml tools declares github:nextest-rs/nextest, which kit does not check") ssr가 자체 tool_versions.py와 fetch_tools.py를 유지했다. mise.lock이 네 플랫폼의 native binary를 고정하고 toolchain-check가 그 `--version`을 읽는다 | `toolchain-mise.mts`, `check-toolchain.mts`, schema, 문서 | `tests/kit/toolchain-mise.test.mts`, `tests/kit/check-toolchain.test.mts` | [ ] |
+| K143 | mise.toml이 cargo-nextest(`github:nextest-rs/nextest`, version_prefix `cargo-nextest-`)와 cargo-deny(`cargo-deny`, mise registry의 aqua)를 선언한다: kit가 이를 거부해서("mise.toml tools declares github:nextest-rs/nextest, which kit does not check") ssr가 자체 tool_versions.py와 fetch_tools.py를 유지했다. mise.lock이 네 플랫폼의 native binary를 고정하고 toolchain-check가 그 `--version`을 읽는다 | `toolchain-mise.mts`, `check-toolchain.mts`, schema, 문서 | `tests/kit/toolchain-mise.test.mts`, `tests/kit/check-toolchain.test.mts` | [o] |
