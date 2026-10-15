@@ -1074,6 +1074,34 @@ test('R10: a count or a list is judged with the implementations of its sentence,
   ]);
 });
 
+// The sentences of template's Korean documents that R10 misread (K197): a number after each or 각각 counts per item, and a run
+// of names with another item of its enumeration on both sides lists those items, such as toolchains.
+test('R10: a distributive count and a run of names inside a list of other items are no count and no list of implementations (K197)', TIMEOUT, (t) => {
+  const { findings } = check(t, {
+    files: {
+      'docs/index.md': [
+        '# Codec', '',
+        'The Go module, the Rust crate and the PHP package are each one implementation.', '',
+        'The recipes pin Node.js, npm, Go, Rust, PHP and Composer.', '',
+        'Go and Rust are one implementation.', '',
+        'For example, Go, Rust and PHP implementations, which share it.', '',
+        'Go, Rust, PHP, Composer and npm share it.', '',
+      ].join('\n'),
+      'docs/index.ko.md': [
+        '# Codec', '',
+        'Go module, Rust crate, PHP package, Python package도 각각 한 구현이다.', '',
+        'recipe의 Node.js, npm, Go, Rust, PHP minor version, Composer가 이 파일과 다르면 실패한다.', '',
+        'Go, Rust와 PHP 구현이 codec을 공유한다.', '',
+      ].join('\n'),
+    },
+    edit: (config) => { config.documents.nouns.push('implementation', '구현'); return config; },
+  }, { execute: false });
+  const kind = (finding: ParityFinding) => (finding.message.startsWith('the list') ? 'list' : 'count');
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.place} ${kind(finding)}`), [
+    'R10 docs/index.ko.md:7 list', 'R10 docs/index.md:7 count', 'R10 docs/index.md:9 list', 'R10 docs/index.md:11 list',
+  ]);
+});
+
 test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, (t) => {
   const prose = (config: Declaration) => { itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
   const { findings } = check(t, {
