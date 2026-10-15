@@ -18,11 +18,16 @@
 // uv lock. The one exception is a tool that the go: backend builds (deadcode, govulncheck): mise.lock records its release
 // only, and its integrity is that of Go, which checks every module against the checksum database (GOSUMDB) while it builds
 // it, with GOFLAGS=-mod=readonly (miseInstallEnvironment of bootstrap/install-mise.mts).
+//
+// The uv lock of a pypi: tool is a sidecar folder that mise.lock names by its path, `.mise/locks/<tool>/<version>`: lock data,
+// which mise's documentation says to commit with mise.lock, and which `mise install --locked` of a fresh checkout replays. Each
+// sidecar that mise.lock names is a tracked folder of the checkout, its tracked files present (miseLockSidecarFindings, K192).
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { isTable } from './toml.mts';
 import { readTomlFile } from './toolchain-files.mts';
+import { git } from './git.mts';
 
 /** The key of mise.toml of each tool of kit, and the command of the tool among the shims of mise. */
 export const MISE_TOOLS = {
@@ -117,4 +122,22 @@ export function miseLockFindings(root: string): string[] {
     }
   }
   return findings;
+}
+
+/**
+ * One line for each uv lock sidecar that mise.lock of `root` names (`uv = { path }` of a pypi: tool) and the Git index of `root`
+ * does not track: a folder without tracked files, or a tracked file that is missing from the working tree. A fresh checkout runs
+ * `mise install --locked` from what is tracked, so an untracked or deleted sidecar fails there (K192).
+ */
+export function miseLockSidecarFindings(root: string): string[] {
+  if (!existsSync(path.join(root, 'mise.lock'))) return [];
+  const locked = readTomlFile(root, 'mise.lock').tools ?? {};
+  const sidecars = Object.entries(isTable(locked) ? locked : {}).flatMap(([key, listed]) => (Array.isArray(listed) ? listed : [])
+    .filter(isTable)
+    .flatMap(entry => (isTable(entry.uv) && typeof entry.uv.path === 'string' ? [{ key, version: typeof entry.version === 'string' ? entry.version : JSON.stringify(entry.version), folder: entry.uv.path }] : [])));
+  return sidecars.flatMap(({ key, version, folder }) => {
+    const tracked = git(root, 'ls-files', '-z', '--cached', '--', folder).split('\0').filter(Boolean);
+    if (tracked.length === 0) return [`mise.lock pins ${key} ${version} by the uv lock in ${folder}, which Git does not track; mise install --locked of a checkout needs it, so commit ${folder} with mise.lock (make toolchain-lock writes it)`];
+    return tracked.filter(file => !existsSync(path.join(root, file))).map(file => `mise.lock pins ${key} ${version} by the uv lock in ${folder}, whose tracked file ${file} is missing; restore it with git checkout -- ${folder}, or run make toolchain-lock`);
+  });
 }

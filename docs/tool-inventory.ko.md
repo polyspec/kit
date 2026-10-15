@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: da8e014ece9c871491d08c7184a1ba241fef94085158d708545b9d97cffd19ee -->
+<!-- source-sha256: 5b4f44df89bfdbf523e48b1065de2be65637e9fc875bcc2ddce93aa6d3adb50c -->
 
 # 도구 목록
 
@@ -92,7 +92,7 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 | cargo-nextest | `mise.toml`의 `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }`: platform별 native binary(macOS는 universal binary), 그 sha256은 `mise.lock`에. check-toolchain이 `cargo-nextest --version`을 읽음(K143) | mise로 설치 |
 | cargo-deny | `mise.toml`의 `cargo-deny`(mise registry의 aqua backend, `aqua:EmbarkStudios/cargo-deny`): platform별 native binary, 그 sha256은 `mise.lock`에. check-toolchain이 `cargo-deny --version`을 읽음(K143) | mise로 설치 |
 | govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 `GOFLAGS=-mod=readonly`로 모든 module을 `GOSUMDB`에 비추어 확인함(선언된 예외) | mise로 설치 |
-| vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐 | mise로 설치 |
+| vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track하며, Git이 track하지 않거나 track한 파일이 없으면 `make toolchain-check`가 실패합니다. checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하기 때문입니다 (K192) | mise로 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
