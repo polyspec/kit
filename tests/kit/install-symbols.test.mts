@@ -10,7 +10,7 @@ import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 // A go that logs its arguments and writes the file after -o, as go build writes the binary.
-const GO = (log: string) => `#!/bin/sh\necho "go $*" >> ${JSON.stringify(log)}\nwhile [ $# -gt 0 ]; do if [ "$1" = "-o" ]; then mkdir -p "$(dirname "$2")"; : > "$2"; fi; shift; done\n`;
+const GO = (log: string) => `#!/bin/sh\necho "go $*" >> ${JSON.stringify(log)}\necho "env GOWORK=$GOWORK GOFLAGS=$GOFLAGS GOPATH=$GOPATH" >> ${JSON.stringify(log)}\nwhile [ $# -gt 0 ]; do if [ "$1" = "-o" ]; then mkdir -p "$(dirname "$2")"; : > "$2"; fi; shift; done\n`;
 
 /** A checkout whose shim var/tools/mise/shims/go is the stub (unless `pinned` is false), and a PATH whose go fails. */
 function checkout(t: TestContext, { pinned = true } = {}) {
@@ -32,11 +32,13 @@ function checkout(t: TestContext, { pinned = true } = {}) {
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
 
-test('the go extractor is built with the go of mise.toml, not with the go of PATH', (t) => {
+// The extractor is a module of its own under node_modules of the consumer, so it builds outside the go.work of the consumer
+// and in the Go environment of mise, which changes no go.mod and keeps its caches in var/tools (K196).
+test('the go extractor is built with the go of mise.toml, not with the go of PATH, outside the workspace of the consumer', (t) => {
   const { root, calls } = checkout(t);
   const result = installExtractor({ root, extractor: 'go' });
   assert.ok(result.installed, 'the extractor was installed');
-  assert.deepEqual(calls().map(line => line.split(' -o ')[0]), ['go build -trimpath']);
+  assert.deepEqual(calls().map(line => line.split(' -o ')[0]), ['go build -trimpath', `env GOWORK=off GOFLAGS=-mod=readonly -modcacherw GOPATH=${path.join(root, 'var/tools/mise/go')}`]);
   assert.ok(existsSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go')));
 });
 

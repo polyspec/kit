@@ -1,7 +1,10 @@
 // Installs the symbol extractors of the language-parity check (parity-symbols.mts) that config/toolchain.json
 // symbolExtractors declares, into var/tools/symbols-<extractor>:
 //   go   the Go program of scripts/kit/symbols/go, which reads the types of a module with golang.org/x/tools/go/packages at
-//        the release that its go.mod and go.sum pin, built with `go build` of the Go of mise.toml into bin/kit-symbols-go
+//        the release that its go.mod and go.sum pin, built with `go build` of the Go of mise.toml into bin/kit-symbols-go, in
+//        the Go environment of mise (miseInstallEnvironment: -mod=readonly, GOPATH and GOCACHE under var/tools) and with
+//        GOWORK=off: the extractor is a module of its own, which lies under node_modules of the consumer, so a go.work of the
+//        consumer does not list it (`go help environment`)
 //   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
 //        with the Composer of mise.toml as install-phpunit.mts installs PHPUnit
 // The release of an extractor is the sha256 of its source files, written to RELEASE beside the build, so a kit release that
@@ -14,6 +17,7 @@ import { sha256 } from './bootstrap/digest.mts';
 import { installOnce } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
+import { miseInstallEnvironment } from './bootstrap/install-mise.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import type { InstalledExtractor } from './bootstrap/toolchain-declared.mts';
 
@@ -53,7 +57,7 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   go: (root, next, print) => {
     const go = toolCommand(root, 'go');
     if (!existsSync(go)) throw new Error(`the go symbol extractor needs ${path.relative(root, go)}, the Go of mise.toml; declare go in mise.toml and run make install-tools`);
-    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...toolsEnvironment(root), GOFLAGS: '-modcacherw' } }, print);
+    run(go, ['build', '-trimpath', '-o', path.join(next, 'bin', 'kit-symbols-go'), '.'], { cwd: path.join(SYMBOLS, 'go'), env: { ...toolsEnvironment(root), ...miseInstallEnvironment(root), GOWORK: 'off' } }, print);
   },
 };
 

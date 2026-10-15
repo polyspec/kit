@@ -5,7 +5,7 @@
 // PHPUnit 13.4.2.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, symlinkSync } from 'node:fs';
+import { existsSync, realpathSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -240,6 +240,8 @@ test('the ts extractor reads the API model that API Extractor builds from the .d
 test('install-tools builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
+    // The workspace of the consumer, which does not use the module of the extractor (K196).
+    'go.work': 'go 1.21\n\nuse ./go\n',
     'go/go.mod': 'module example.com/codec\n\ngo 1.21\n',
     'go/codec.go': 'package codec\n\nconst Limit = 3\n\ntype Codec struct {\n\tStrict bool\n\thidden int\n}\n\nfunc (c *Codec) Encode(v string) string { return v }\n\nfunc (c Codec) decode() {}\n\nfunc encodeHost() {}\n',
     'go/codec_test.go': 'package codec\n\nfunc Helper() {}\n',
@@ -252,8 +254,15 @@ test('install-tools builds the go extractor, which reads the exported API of a m
       units: [{ id: 'codec', kind: 'api', profile: 'all', symbols: [{ implementation: 'go', symbol: 'example.com/codec.Codec' }] }],
     }, null, 2)}\n`,
   });
-  // The extractor builds with the go of mise.toml, through the shim that giveTools writes.
+  // The extractor builds with the go of mise.toml, through the shim that giveTools writes. kit lies under node_modules of a
+  // consumer, so go finds the go.work of the consumer above the extractor; GOWORK names it here, as `go help environment`
+  // gives for a go.work that go finds, and the build of the extractor, a module of its own, ignores it (K196). The path is the
+  // real one, as go reads its working directory, so the workspace holds the module of go/ on a temporary directory behind a
+  // symbolic link (/var of macOS).
   giveTools(root);
+  const saved = process.env.GOWORK;
+  process.env.GOWORK = path.join(realpathSync(root), 'go.work');
+  t.after(() => { if (saved === undefined) delete process.env.GOWORK; else process.env.GOWORK = saved; });
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, true);
   assert.equal(installExtractor({ root, extractor: 'go' }).installed, false, 'a second install of the same release builds nothing');
   assert.deepEqual(lines(root), [
