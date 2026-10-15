@@ -124,6 +124,15 @@ export function installMise({ root, declared, platform = `${process.platform}-${
   return result;
 }
 
+/**
+ * The directory of the install of the tool `key` of mise.toml of the checkout `root`, which `mise where` prints when the mise of
+ * the checkout runs in `root`: mise reads the mise.toml of the checkout, whichever mise.toml governs the directory where the tool
+ * later runs, so a tool started by a path under it runs outside the shims (K199).
+ */
+export function miseWhere(root: string, key: string): string {
+  return execFileSync(toolsPath(root, 'bin', MISE_WRAPPER), ['where', key], { cwd: root, env: bootstrapEnvironment(root), encoding: 'utf8' }).trim();
+}
+
 /** The wrapper of var/tools/bin that runs the Node.js of mise.toml, which mise installs into var/tools/mise. */
 export const NODE_WRAPPER = 'node';
 
@@ -142,7 +151,7 @@ export function installNode({ root, print = () => {} }: { root: string; print?: 
     if (!(error instanceof Error)) throw error;
     throw new Error(`${error.message}; mise.toml must declare node, the Node.js release of the checkout, and mise.lock must pin it (make toolchain-lock)`);
   }
-  const directory = execFileSync(mise, ['where', 'node'], { cwd: root, env: bootstrapEnvironment(root), encoding: 'utf8' }).trim();
+  const directory = miseWhere(root, 'node');
   writeWrapper(root, NODE_WRAPPER, wrapperText('the Node.js of mise.toml of this checkout', `exec ${quote(path.join(directory, 'bin', 'node'))} "$@"`), print);
   return toolsPath(root, 'bin', NODE_WRAPPER);
 }
