@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: aee5f47052498812815af982bae25ca54de994e8406fe24a0bb3b842824f9b7f -->
+<!-- source-sha256: 93c4cbe2734be3d5e5737b34c65128912efeab87d483cc4fc8826931c752e786 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -256,3 +256,4 @@
 | K195 | `make release-proof`는 wheel이 요구하는 sibling asset을 release가 나열하는지만 확인하고 draft URL은 비교하지 않는다: GitHub은 draft의 asset을 `untagged-` URL로 나열하므로 crudui v0.0.6이 proof에서 실패했다. Red: sibling을 `untagged-…`로 나열한 draft가 proof를 멈췄다; green: 통과하고, sibling 없는 release는 여전히 실패한다 | `release-proof.mts`, `wheel-dependencies.mts`, `CHANGELOG.md(.ko)` | `tests/kit/release-proof.test.mts` || [o] |
 | K196 | go symbol extractor는 root `go.work`가 있는 consumer에서 build에 실패한다: install-symbols는 consumer의 workspace 안인 node_modules/@polyspec/kit/dist/symbols/go에서 `go build`를 실행하고, Go는 "current directory is contained in a module that is not one of the workspace modules listed in go.work"로 멈춘다(template). build는 `miseInstallEnvironment`의 Go 환경(`-mod=readonly`, var/tools 아래의 GOPATH와 GOCACHE)도 없이 실행된다. Red: `go.work`가 kit의 module을 쓰지 않는 checkout에서 build가 실패했다; green: `GOWORK=off`와 그 환경으로 build된다 | `install-symbols.mts`, `CHANGELOG.md(.ko)` | `tests/source/parity-real.test.mts`, `tests/kit/install-symbols.test.mts` || [ ] |
 | K197 | R10은 template의 참인 한국어 문장 두 개를 잘못 센다(T22.6-12-1): `docs/spec/data-model.ko.md`의 "Go module, Rust crate, PHP package, PHP extension, Python package도 각각 한 구현이다"를 1의 count로, `docs/operations/development.ko.md`의 "Node.js, npm, Go, Rust, PHP minor version, Composer"를 implementation의 list로 읽는다. each나 각각 뒤의 수는 항목마다 세고, 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열한다. Red: 두 문장이 R10 finding을 냈다; green: 아무것도 내지 않고, implementation의 count나 list는 여전히 실패한다 | `parity-text.mts`, `tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/parity.test.mts` || [ ] |
+| K198 | 소유자의 2026-10-15 결정을 0.0.x 개발 규칙으로 기록한다: 설치된 모든 polyspec 패키지를 제공자 소스에 링크하고, 개발이 끝날 때까지 릴리스하지 않으며, 릴리스는 한 번에 이어서 한다(`docs/plans/local-links.md`) | `docs/plans/local-links.md(.ko)` | `make documents-check` || [ ] |
