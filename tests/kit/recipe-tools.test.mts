@@ -16,8 +16,15 @@ test('every command of a recipe line counts, after its prefixes, $(ONLINE) and i
   assert.deepEqual(commandWords('-$(NODE) a.mts'), ['$(NODE)']);
 });
 
+test('an operator or a blank inside quotes is text of a word, and the quotes are removed (K179)', () => {
+  assert.deepEqual(commandWords('@echo "build-ts|go|node" && echo \'a; npm\' | node x'), ['echo', 'echo', 'node']);
+  assert.deepEqual(commandWords('foo | node x'), ['foo', 'node']);
+  assert.deepEqual(commandWords('FOO="a b" "node" a\\|b; echo "\\"|go"'), ['node', 'echo']);
+  assert.deepEqual(commandWords('$(NODE) "$(NPM) | x"'), ['$(NODE)']);
+});
+
 test('a recipe that starts a tool of the checkout by its bare name is a finding; an absolute path and a machine tool are not', (t) => {
-  const root = tree(t, { Makefile: 'NODE := $(CURDIR)/var/tools/bin/node\nbare:\n\tnode a.mts\n\t@$(ONLINE) npm ci && uv sync\nfine:\n\t$(NODE) a.mts\n\tgit status\n' });
+  const root = tree(t, { Makefile: 'NODE := $(CURDIR)/var/tools/bin/node\nbare:\n\tnode a.mts\n\t@$(ONLINE) npm ci && uv sync\nfine:\n\t$(NODE) a.mts\n\tgit status\n\t@echo "build-ts|go|node"\n' });
   const findings = bareToolFindings(makeDatabase(root));
   assert.equal(findings.length, 3, findings.join('\n'));
   assert.match(findings[0] ?? '', /^make target bare starts node by its bare name: `node a\.mts`; .* Fix: start it by its absolute path, such as \$\(NODE\) of kit\.mk for node$/);
