@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 53dfeee2379c53420c27ef3c646c6628ee03d080db232d2bf3ce4aa4d9fd5425 -->
+<!-- source-sha256: 644bbfbe8147bba1e8bc7862e4a73f2afc2221592d8b1e7dc3fb4392b9079efa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.51
 
 - make toolchain-check는 mise.lock이 가리키는 uv lock sidecar(`pypi:` 도구의 `uv = { path = ".mise/locks/<tool>/<version>" }`)를 Git이 track하지 않거나 그 track한 파일이 없을 때 실패한다. mise의 문서는 sidecar folder를 mise.lock과 함께 commit하라고 하며, 그것이 없는 checkout의 `mise install --locked`는 "dependency sidecar … No such file or directory"로 실패한다; 그것을 지웠거나 commit하지 않은 저장소는 이제 해결 방법과 함께 finding을 받는다 (K192).
 
