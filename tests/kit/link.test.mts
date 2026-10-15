@@ -356,6 +356,40 @@ test('a worktree of the consumer never links a package of its own repository, an
   assert.equal(realpathSync(path.join(tree, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'), 'the main checkout provides, not prov-wt');
 });
 
+test('a Git hook exports the variables of its repository; the link tool still finds the providers of the other repositories (K201-4)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const keys = ['GIT_DIR', 'GIT_INDEX_FILE'] as const;
+  const saved = keys.map(key => [key, process.env[key]] as const);
+  t.after(() => {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  process.env.GIT_DIR = path.join(consumer, '.git');
+  process.env.GIT_INDEX_FILE = path.join(consumer, '.git', 'index');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.doesNotMatch(text, /NOT linked/);
+  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+});
+
+test('a project with only package.json links with no Composer: each tool resolves only for a project whose manifest needs it (K201-4)', (t) => {
+  const { root, provider, env } = workspace(t);
+  const { COMPOSER_BIN: _composer, ...withoutComposer } = env;
+  const app = repository(root, 'app', {
+    'package.json': JSON.stringify({ name: 'app', private: true, dependencies: { '@polyspec/x': '0.0.1' } }),
+    'package-lock.json': '{}',
+    'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }]),
+    'node_modules/@polyspec/x/package.json': '{"name":"@polyspec/x","version":"0.0.1"}',
+    '.gitignore': 'node_modules/\nvar/\n',
+  });
+  const lines: string[] = [];
+  const ok = link({ directories: [app], check: false, print: text => lines.push(text), env: withoutComposer, project: true });
+  assert.equal(ok, true, lines.join('\n'));
+  assert.equal(realpathSync(path.join(app, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+});
+
 test('rebuild runs the build of a provider with POLYSPEC_CHECKOUTS unset in the child environment', (t) => {
   const { provider, env } = workspace(t);
   put(provider, { Makefile: 'release-assets: build-ts\nbuild-ts:\n\tmkdir -p var && echo "$${POLYSPEC_CHECKOUTS-unset}" > var/declared.txt\n' });

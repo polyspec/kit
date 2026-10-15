@@ -7,11 +7,30 @@
 import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
-import { gitResult } from './git.mts';
 import { readComposerManifestFile, readNpmManifestFile } from './manifests.mts';
-import { run } from './process.mts';
+import { execute, run } from './process.mts';
 import { normalizeName } from './pyproject-dependencies.mts';
 import { isTable, readToml } from './toml.mts';
+
+/** The repository-local variables of Git, from `git rev-parse --local-env-vars` once per run: a Git hook exports them for its repository. */
+let repositoryVariables: string[] | undefined;
+const localVariables = (): string[] => {
+  repositoryVariables ??= run('git', ['rev-parse', '--local-env-vars']).split('\n').filter(Boolean);
+  return repositoryVariables;
+};
+
+/**
+ * The environment `env` without the repository-local variables: a git command or a make that runs in another repository
+ * must not read the repository of the hook that started it (K201-4). This is what git itself does when it enters a submodule.
+ */
+export function foreignEnvironment(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const foreign = { ...env };
+  for (const name of localVariables()) delete foreign[name];
+  return foreign;
+}
+
+/** `git <args>` in `directory`, a repository other than the one of the process: the outcome, with the repository variables removed. */
+export const linkGit = (directory: string, ...args: string[]) => execute('git', args, { cwd: directory, env: foreignEnvironment() });
 
 /** The environment variable that declares the polyspec root; without it, linking does nothing. */
 export const ROOT_VARIABLE = 'POLYSPEC_CHECKOUTS';
@@ -58,7 +77,7 @@ function entryExists(file: string): boolean {
 /** The absolute paths of git rev-parse `args` in `directory`, or undefined outside a repository; git's failure throws with its stderr. */
 function revParse(directory: string, ...args: string[]): string[] | undefined {
   if (!insideRepository(directory)) return undefined;
-  const outcome = gitResult(directory, 'rev-parse', '--path-format=absolute', ...args);
+  const outcome = linkGit(directory, 'rev-parse', '--path-format=absolute', ...args);
   if (outcome.error) throw new Error(`git rev-parse could not start in ${directory}: ${outcome.error.message}`);
   if (outcome.status !== 0) throw new Error(`git rev-parse failed in ${directory}: ${outcome.stderr.trim()}`);
   return outcome.stdout.trim().split('\n');
@@ -80,7 +99,7 @@ function isMainCheckout(directory: string): boolean {
 
 /** The tracked files of the work tree `root` whose base name is one of `names`, relative to `root`. */
 export function trackedManifests(root: string, names: readonly string[]): string[] {
-  const outcome = gitResult(root, 'ls-files', '-z', '--', ...names.flatMap(name => [name, `*/${name}`]));
+  const outcome = linkGit(root, 'ls-files', '-z', '--', ...names.flatMap(name => [name, `*/${name}`]));
   if (outcome.error || outcome.status !== 0) throw new Error(`git ls-files failed in ${root}: ${outcome.error?.message ?? outcome.stderr.trim()}`);
   return outcome.stdout.split('\0').filter(file => file && names.includes(path.basename(file)));
 }
@@ -174,7 +193,7 @@ export function isIgnored(file: string): boolean {
   while (!statExists(existing)) existing = path.dirname(existing);
   // Outside a repository no file is ignored; inside one git decides, and any failure of git throws with its message.
   if (!insideRepository(existing)) return false;
-  const outcome = gitResult(existing, 'check-ignore', '-q', '--', file);
+  const outcome = linkGit(existing, 'check-ignore', '-q', '--', file);
   if (outcome.error) throw new Error(`git check-ignore could not start in ${existing}: ${outcome.error.message}`);
   if (outcome.status === 0) return true;
   if (outcome.status === 1) return false;

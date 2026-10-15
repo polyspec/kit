@@ -9,13 +9,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { gitResult } from './git.mts';
-import { assertIgnored, EXCLUDED, MANIFESTS, ROOT_VARIABLE, trackedManifests } from './link-providers.mts';
+import { assertIgnored, EXCLUDED, foreignEnvironment, linkGit, MANIFESTS, ROOT_VARIABLE, trackedManifests } from './link-providers.mts';
 import { execute } from './process.mts';
 
 /** The prerequisites of `target` in the Makefile of `repository`, or undefined when make reports no rule for it (make -pq). */
 function prerequisites(repository: string, target: string): string[] | undefined {
-  const outcome = execute('make', ['-C', repository, '-pq', target]);
+  const outcome = execute('make', ['-C', repository, '-pq', target], { env: foreignEnvironment() });
   if (outcome.error) throw new Error(`make could not start in ${repository}: ${outcome.error.message}`);
   if (outcome.status === 2) {
     // Only the target itself is missing (`x'.), not a prerequisite of it (`x', needed by `y').
@@ -35,7 +34,7 @@ export function buildTargets(repository: string): string[] {
 
 /** The tracked files of `folder`, absolute. */
 function trackedFiles(folder: string): string[] {
-  const outcome = gitResult(folder, 'ls-files', '-z', '--', '.');
+  const outcome = linkGit(folder, 'ls-files', '-z', '--', '.');
   if (outcome.error || outcome.status !== 0) throw new Error(`git ls-files failed in ${folder}: ${outcome.error?.message ?? outcome.stderr.trim()}`);
   return outcome.stdout.split('\0').filter(Boolean).map(file => path.join(folder, file));
 }
@@ -63,7 +62,7 @@ export function rebuild(repository: string, print: (text: string) => void, env: 
   const targets = buildTargets(repository);
   if (!targets.length) { print(`  rebuild    ${repository}: no build target; its packages ship their sources`); return; }
   print(`  rebuild    ${repository}: make ${targets.join(' ')}`);
-  const { [ROOT_VARIABLE]: _declared, ...unlinked } = env;
+  const { [ROOT_VARIABLE]: _declared, ...unlinked } = foreignEnvironment(env);
   const outcome = execute('make', ['-C', repository, '--no-print-directory', ...targets], { env: unlinked });
   if (outcome.error || outcome.status !== 0) throw new Error(`the build of the provider ${repository} (make ${targets.join(' ')}) failed: ${outcome.error?.message ?? `${outcome.stdout}${outcome.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
   for (const file of trackedManifests(repository, [MANIFESTS.npm])) {
