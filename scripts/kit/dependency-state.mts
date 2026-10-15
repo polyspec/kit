@@ -6,7 +6,8 @@
 // workspace package.json, of `require` or `require-dev` of a Composer manifest that config/dependency-policy.json
 // names (`composerPlatforms`) and of `require` of each package that a path repository of such a manifest provides (a
 // published package of a Composer monorepo, at the version of the root lock; K168), or a requirement of a Python manifest of the policy (`pythonManifests`: `build-system.requires`
-// and each extra of `project.optional-dependencies`, each pinned exactly as `name==version`), that a registry resolves. Peer dependencies are not read. A URL dependency names its source itself, a package
+// each extra of `project.optional-dependencies` and each group of `dependency-groups` with its included groups (PEP 735,
+// K177), each pinned exactly as `name==version`), that a registry resolves. Peer dependencies are not read. A URL dependency names its source itself, a package
 // of this repository (an npm workspace or a Composer path repository) is built from the checkout, a polyspec package
 // taken from a GitHub tag (`taggedNpmPackages` of the policy, linked with `file:`) is the release of that tag,
 // and a Composer platform requirement (`php`, `ext-*`, ...) names the runtime: "latest stable release" has no meaning
@@ -28,7 +29,8 @@ import { readConfig } from './schema-validate.mts';
 import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
-import { isStringArray, isTable, readToml, type TomlValue } from './toml.mts';
+import { isStringArray, isTable, readToml } from './toml.mts';
+import { dependencyArrays, dependencyGroups } from './pyproject-dependencies.mts';
 import type { Ecosystem } from './version.mts';
 import { present } from './present.mts';
 
@@ -62,8 +64,8 @@ export function readPolicy<Policy extends DependencyPolicy = DependencyPolicy>(r
   return readConfig<Policy>(root, POLICY, 'dependency-policy.schema.json');
 }
 
-/** The kind of a requirement of a pyproject.toml: build-system.requires or an extra. */
-export type PythonRequirementKind = 'build-system' | `optional:${string}`;
+/** The kind of a requirement of a pyproject.toml: build-system.requires, an extra or a dependency group. */
+export type PythonRequirementKind = 'build-system' | `optional:${string}` | `group:${string}`;
 
 /** The fields of every registry dependency: its manifest, specification and locked version. */
 type DependencyFields = { ecosystem: Ecosystem; manifest: string; package: string; spec: string; version: string | null };
@@ -127,26 +129,31 @@ const URL_SPEC = /^(?!npm:)[A-Za-z][A-Za-z0-9+.-]*:|^[^@/][^/]*\/[^/]/;
 const PLATFORM_REQUIREMENT = /^(php(-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.+|composer(-plugin-api|-runtime-api)?)$/;
 
 
-/** The exact requirements of a pyproject.toml: build-system.requires and every extra, each `name==version`. */
+/**
+ * The exact requirements of a pyproject.toml: build-system.requires, every extra and every dependency group with the
+ * groups that it includes (pyproject-dependencies.mts, K177), each `name==version`. A requirement that two groups reach,
+ * such as one of an included group, is read once, with the first group that reaches it.
+ */
 export function pythonRequirements(text: string, manifest: string) {
   const data = readToml(text, manifest);
   const requirements: PythonRequirement[] = [];
-  const add = (kind: PythonRequirementKind, where: string, list: TomlValue | undefined) => {
+  const seen = new Set<string>();
+  const add = (kind: PythonRequirementKind, where: string, list: unknown) => {
     if (list === undefined) return;
     if (!isStringArray(list)) throw new Error(`${manifest}: ${where} is not an array of strings`);
     for (const item of list) {
       const pin = EXACT_PYTHON_PIN.exec(item);
       if (!pin) throw new Error(`${manifest}: ${JSON.stringify(item)} is not an exact pin name==version; pin it exactly`);
+      if (kind.startsWith('group:') && seen.has(item)) continue;
+      seen.add(item);
       requirements.push({ package: present(pin[1], 'pin[1]'), kind, spec: `==${pin[2]}`, version: present(pin[2], 'pin[2]') }); // The groups of the pattern are not optional.
     }
   };
-  const table = (value: TomlValue | undefined, where: string) => {
-    if (value !== undefined && !isTable(value)) throw new Error(`${manifest}: ${where} is not a table`);
-    return value;
-  };
-  add('build-system', 'build-system.requires', table(data['build-system'], 'build-system')?.requires);
-  const extras = table(table(data.project, 'project')?.['optional-dependencies'], 'project.optional-dependencies');
-  for (const [extra, list] of Object.entries(extras ?? {})) add(`optional:${extra}`, `project.optional-dependencies.${extra}`, list);
+  const buildSystem = data['build-system'];
+  if (buildSystem !== undefined && !isTable(buildSystem)) throw new Error(`${manifest}: build-system is not a table`);
+  add('build-system', 'build-system.requires', buildSystem?.['requires']);
+  for (const { kind, where, list } of dependencyArrays(data, manifest)) if (kind !== 'dependencies' && kind.startsWith('optional:')) add(kind, where, list);
+  for (const [group, list] of dependencyGroups(data, manifest)) add(`group:${group}`, `dependency-groups.${group}`, list);
   return requirements;
 }
 

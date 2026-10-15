@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 23419c0bbce4ed6fc70d7ca02660dea098244ece9cbeb90307c8d7e1f8892b93 -->
+<!-- source-sha256: ff58bfaef336c15fddbd7d9915c28c0593f2c6bde0cc083e29f234dfc9119ac4 -->
 
 # 도구 목록
 
@@ -653,6 +653,7 @@ finding 하나입니다.
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | release installer와 check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern. K127 이후 그 도구는 mise가 설치하고, probe와 bootstrap만 읽음 | check-toolchain, bootstrap |
 | `dependency-state.mts` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
+| `pyproject-dependencies.mts` | `dependencyArrays`: `[project]`의 `dependencies`, 각 extra, `[dependency-groups]`의 각 group; `dependencyGroups`: PEP 735의 reference implementation처럼 `{ include-group }` table을 푼 각 group(K177) | pin-python-dependency의 dependency array 순회와, dependency group을 빠뜨린 dependency-state의 extra만의 읽기 | dependency-state, pin-python-dependency |
 
 그 밖에 없앤 중복:
 

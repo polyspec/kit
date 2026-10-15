@@ -1,7 +1,7 @@
 // Tests of the review path of scripts/kit/dependency-review.mts: the fix that a finding names is the fix of the newer release
 // that the review found. The checkout is the fixture copy of tests/kit/checkout.mts; the registries are stubs.
 import assert from 'node:assert/strict';
-import { rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { highestStableRelease, updatePlan } from '../../scripts/kit/dependency-review.mts';
@@ -77,4 +77,20 @@ test('a requirement of a published package of a Composer monorepo is reviewed fr
     { command: 'composer', args: ['require', '--no-update', '--no-interaction', 'psr/log:^3.0.3'], cwd: 'packages/fixture-php' },
     { command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', 'psr/log'], cwd: '.' },
   ]);
+});
+
+// A requirement that only a dependency group of a pyproject.toml declares, here through the include of another group
+// (PEP 735), is reviewed like an extra: a newer release is a finding with the fix that pins it (K177).
+test('a newer release of a requirement of a dependency group is a finding (K177)', (t) => {
+  const root = fixture(t);
+  const manifest = path.join(root, 'packages/fixture-python/pyproject.toml');
+  writeFileSync(manifest, `${readFileSync(manifest, 'utf8')}\n[dependency-groups]\ntest = ["pytest==8.0.0"]\ndev = [{ include-group = "test" }]\n`);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, pytest: { '8.0.0': [{}], '8.1.0': [{}] } } });
+  const result = review(root, [], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-python\/pyproject\.toml pytest 8\.0\.0 < 8\.1\.0: a newer stable release exists\./m);
+  assert.equal(result.stdout.match(/pytest 8\.0\.0 < 8\.1\.0/g)?.length, 1, result.stdout);
 });

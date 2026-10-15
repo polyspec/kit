@@ -1,7 +1,7 @@
 // Tests of scripts/kit/pin-python-dependency.mts: the exact pin of a Python requirement in the dependency arrays of a
 // pyproject.toml is set to a version, through a TOML editor that keeps the rest of the file as it was. The requirement is
 // found by its normalized name (PEP 503) with its extras and marker kept; text outside the arrays, a comment included, is
-// never changed.
+// never changed. An { include-group } table of a dependency group (PEP 735) pins nothing and is kept (K177).
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pinPythonRequirement } from '../../scripts/kit/pin-python-dependency.mts';
@@ -20,6 +20,7 @@ socks = ["requests[socks]==2.34.2"]
 
 [dependency-groups]
 dev = ["Foo_Bar==1.0"]
+all = [{ include-group = "dev" }]
 `;
 
 test('every exact pin of the package in the dependency arrays is set, and the rest of the file is kept', () => {
