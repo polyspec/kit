@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 77523df37ec8219c14f6585c4f597910073682755381a3b396b8fcd45446ac2f -->
+<!-- source-sha256: 6b1f236d893c40010d502512444bb3b28ae5948266974bbc46ad89a7f4a53911 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make dependency-review UPDATE=1은 npm 명령(npm install, npm audit fix, npm dedupe)을 make install-packages의 npm ci와 같은 설정인 allow-remote=root로 실행한다: `kit-bootstrap.mk`는 그 설정의 하나의 source로 `npm_config_allow_remote=root`를 두 recipe에 export한다. npm audit fix는 그것 없이 실행되어 URL로 고정된 `@polyspec/kit`을 EALLOWREMOTE로 거부했다; install-packages의 recipe는 이제 같은 설정을 읽는 `npm ci`이다 (K189).
 
 - config/release.json의 wheel package의 `pyproject.toml`을 source로 하는 make python-lock은 sibling(configuration의 다른 wheel package)을 release asset의 URL로 가리키는 requirement를 resolution에서 뺀다. 이는 wheel-dependencies가 sibling link로 분류하는 requirement와 정확히 같다: uv는 그 이름의 `--excludes`와 함께 실행되고, make python-lock-check는 그것을 비교에서 뺀다. 그런 URL은 release가 publish한 뒤에야 존재하므로 lock은 404로 실패했고, sibling에 의존하는 wheel은 lock할 수 없었다; sibling을 가리키지 않는 URL requirement는 전처럼 해석되고 검사된다 (K190).
 

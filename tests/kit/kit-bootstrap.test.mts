@@ -51,10 +51,10 @@ test('install-packages runs npm ci with the pinned npm of var/tools, with or wit
   const root = repository(t);
   const dry = make(root, '-n', 'install-packages', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `online-wrapper ${tool(root, 'npm')} ci --allow-remote=root`);
+  assert.equal(dry.stdout.trim(), `online-wrapper ${tool(root, 'npm')} ci`);
   mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
   cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), `${tool(root, 'npm')} ci --allow-remote=root`);
+  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), `${tool(root, 'npm')} ci`);
 });
 
 test('with the package, the kit.mk of its dist runs the built tools', (t) => {
@@ -76,5 +76,18 @@ test('without the package, a recipe of the repository that runs before install-p
   for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} of the checkout: $*"\n`, { mode: 0o755 });
   const run = make(root, 'install-packages');
   assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.equal(run.stdout, `${tool(root, 'node')} ordered.mjs\nnode of the checkout: ordered.mjs\n${tool(root, 'npm')} ci --allow-remote=root\nnpm of the checkout: ci --allow-remote=root\n`);
+  assert.equal(run.stdout, `${tool(root, 'node')} ordered.mjs\nnode of the checkout: ordered.mjs\n${tool(root, 'npm')} ci\nnpm of the checkout: ci\n`);
+});
+
+test('npm of install-packages and of dependency-review gets allow-remote=root from one setting, so a lock that pins a URL installs and updates (K189)', (t) => {
+  // dependency-review UPDATE=1 ran npm audit fix without allow-remote, and npm refused the URL-pinned @polyspec/kit (EALLOWREMOTE).
+  const root = repository(t);
+  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
+  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} allow-remote=$npm_config_allow_remote: $*"\n`, { mode: 0o755 });
+  const lines = (...goal: string[]) => make(root, '-s', ...goal).stdout.split('\n').filter(line => line.includes(' allow-remote='));
+  assert.deepEqual(lines('install-packages'), ['npm allow-remote=root: ci']);
+  assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: node_modules/@polyspec/kit/dist/dependency-review.mjs --update']);
+  assert.deepEqual(lines('documents-check'), ['node allow-remote=: node_modules/@polyspec/kit/dist/check-documents.mjs'], 'another recipe does not get it');
 });
