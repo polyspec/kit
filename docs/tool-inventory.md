@@ -933,6 +933,15 @@ dropped out of the review. A library that only a third-party package requires is
 apply to the root, and a published manifest is validated with `--no-check-lock`. `UPDATE=1` raises a requirement of a
 published package with `composer require --no-update` in its directory and `composer update --with-dependencies` at the root.
 
+`make dependency-policy-check` checks every Composer manifest of the checkout (K181): each tracked or new composer.json is
+named by `composerPlatforms`, which runs `composer validate --strict` on it and its lock, or is a published package that a
+path repository of such a manifest provides, which runs `composer validate --no-check-lock`. Any other composer.json fails
+with the rule `composerCoverage` and the entry to add, so a lock that its manifest outdated, such as after a version bump
+without `composer update --lock`, cannot escape the check by not being listed. Not checked: a manifest that kit writes (the
+copies of `make kit-sync` and `config/phpunit/composer.json`), the Composer project of the symbol extractor that kit ships,
+and the Composer consumer project of `config/release.json` (`consumers.composer.directory`), which
+`make release-consumer-lock` resolves from the release archives.
+
 ## Consumer install of the release archives (K5.4)
 
 `scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the

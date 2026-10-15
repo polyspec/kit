@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: b6af9146bed1049bab793f4df9e032ae13e75b8c44ba4992b2b3794eb33e7bfb -->
+<!-- source-sha256: 2a9dd900696d8b76d86a50e9313fec8d35c6ffc980874980c13f04d231ed3d94 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -238,3 +238,4 @@
 | K177 | kit의 dependency review는 `pythonManifests`의 각 pyproject.toml에서 `[dependency-groups]`(PEP 735)의 group을 읽으며, 각 requirement는 정확히 고정되고 `{ include-group }` table은 PEP 735의 reference implementation처럼 푼다(정규화한 이름, 없거나 순환하는 include는 실패); 두 group이 닿는 requirement는 한 번 읽는다. dependency-state와 pin-python-dependency는 한 module `pyproject-dependencies.mts`로 dependency array를 읽는다. Red: include를 거쳐 dependency group만 요구하는 package의 더 새 release가 make dependency-review의 finding이 아니었다; green: 한 번 finding이다 | `pyproject-dependencies.mts`, `dependency-state.mts`, `pin-python-dependency.mts`, `config/rebuild.json`, 문서 | `tests/kit/dependency-review.test.mts`, `tests/kit/dependency-state.test.mts`, `tests/kit/pin-python-dependency.test.mts` | [ ] |
 | K178 | parity runner는 lint-php처럼 `composer-vendor.mts`를 통해 php binding의 package에 Composer가 주는 vendor directory의 PHPUnit을 실행한다: package 자신의 것, 또는 그 위의 가장 가까운 Composer project의 것(path repository로 package를 require하는 Composer monorepo의 root 등, K163); 위로 vendor directory가 없는 package는 해결 방법과 함께 실패한다 | `composer-vendor.mts`, `parity-runners.mts`, `CHANGELOG.md(.ko)` | `tests/kit/parity.test.mts`, `tests/kit/lint-php.test.mts` | [ ] |
 | K179 | kit-check의 recipe-tools 검사는 POSIX shell의 quoting 규칙으로 recipe line을 word로 나누므로, quote된 문자열은 한 word이고 quote 안의 `\|`, `;`, `&&`는 operator가 아니다: `@echo "build-ts\|go\|…"`는 go를 시작하지 않고, `foo \| node x`는 여전히 node를 bare name으로 시작한다 | `recipe-tools.mts`, `CHANGELOG.md(.ko)` | `tests/kit/recipe-tools.test.mts` | [ ] |
+| K181 | dependency-policy-check는 `composerPlatforms`가 지정하지도, 그것이 지정한 manifest의 path repository가 제공하지도(K168) 않는 추적된 모든 composer.json에서 더할 항목과 함께 실패하므로(`composerCoverage`) 어떤 manifest도 `composer validate --strict`를 벗어나지 않는다; kit이 쓰는 manifest, kit이 배포하는 symbol extractor project, `config/release.json`의 Composer consumer project는 검사하지 않는다 | `check-dependency-policy.mts`, `docs/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/dependency-policy.test.mts` | [ ] |

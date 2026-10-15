@@ -7,6 +7,11 @@
 
 - The php bindings of parity run the PHPUnit of the vendor directory that Composer gives their package, as run-tests and lint-php do (composer-vendor.mts): the package's own, or that of the nearest Composer project above it. A Composer monorepo, whose root composer.json requires its libraries through path repositories and installs one root `vendor/` (K163), reported every php binding as R3 not-executed with "`<package>/vendor/bin/phpunit` does not exist"; it now runs them, and a package with no vendor directory up the tree still fails with the fix (K178).
 - kit-check's recipe-tools check (K171) splits a recipe line by the quoting rules of the POSIX shell: a quoted string is one word, and a `|`, `;` or `&&` inside quotes is no operator. A help line such as `@echo "build-ts|go|…"` was reported as starting go by its bare name, and had to be reworded; it passes now, and `foo | node x` still fails (K179).
+- make dependency-policy-check checks every Composer manifest of the checkout: a tracked composer.json that `composerPlatforms` does not name, and that no path repository of a manifest it names provides (K168), fails with the rule `composerCoverage`. Before, a repository that listed no Composer platform ran `composer validate --strict` on none of its manifests, so a lock that a version bump outdated stayed stale through a release. A manifest that kit writes, the symbol extractor project that kit ships and the Composer consumer project of `config/release.json` are not checked (K181).
+
+### Consumer migration
+
+Each composer.json that make dependency-policy-check reports under `composerCoverage` gets an entry `{ "manifest": "<path>", "php": "<minimum PHP>" }` in `composerPlatforms` of `config/dependency-policy.json`, with `config.platform.php` of the manifest set to that PHP, a lock that `composer update --lock` writes for it, and `make dependency-review RECORD=1` (ONLINE); a published package of a Composer monorepo is instead required through a path repository of the root (K181).
 
 ## 0.0.49
 

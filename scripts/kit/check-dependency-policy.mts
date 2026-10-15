@@ -17,12 +17,18 @@ import { ConfigError, readConfig, readConfigFindings } from './schema-validate.m
 import { readComposerLock, readComposerManifest, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
+import { checkedFiles } from './tracked-files.mts';
+import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
+import { SYMBOLS } from './install-symbols.mts';
+import { CONFIG as RELEASE_CONFIG } from './release.mts';
+import type { ConsumerConfig } from './release-consumer-config.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
   platform: 'each Composer manifest resolves its lock for the declared minimum PHP of the policy',
   composerLock: 'each Composer lock is current for its manifest, as composer validate --strict reads it without a network',
   composerPackage: 'each published Composer manifest of packages/ is valid, as composer validate reads it without a lock and without a network',
+  composerCoverage: `each Composer manifest of the checkout is checked: composerPlatforms of ${POLICY} names it, or a manifest that it names requires it through a path repository; a manifest that kit writes and the Composer consumer project of the release are not`,
   local: 'a package of this repository is required at its own version and locked at it',
   tagged: 'a polyspec package taken from a GitHub tag is linked to the checkout of its tag, has the version of that tag and is locked at it',
   pythonLock: 'each Python lock that the policy names is a PEP 751 pylock.toml with lock-version 1.0 and created-by, every registry file has a sha256, every git package is pinned by a full commit and no package is a local directory',
@@ -125,9 +131,25 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   }
 
   // The published Composer manifests have no lock: the development root composer.json resolves them.
-  for (const manifestPath of state.local.filter(item => item.ecosystem === 'composer').map(item => path.posix.join(path.posix.dirname(item.manifest), item.directory, 'composer.json'))) {
+  const published = state.local.filter(item => item.ecosystem === 'composer').map(item => path.posix.join(path.posix.dirname(item.manifest), item.directory, 'composer.json'));
+  for (const manifestPath of published) {
     const failure = composerValidation(composer, ['--no-check-lock', '--no-check-publish', '--no-interaction'], path.join(root, path.posix.dirname(manifestPath)));
     if (failure) add('composerPackage', manifestPath, `composer validate failed: ${failure}`, `fix ${manifestPath}`);
+  }
+
+  // Every Composer manifest of the checkout is one of the above (K181): a manifest that no entry of composerPlatforms covers
+  // escapes composer validate --strict, so its lock goes stale unnoticed, such as after a version bump without composer
+  // update --lock. Not checked here: a manifest that kit writes (the copies of kit-sync and the PHPUnit project), the Composer
+  // project of the symbol extractor that kit ships, and the Composer consumer project of config/release.json, which
+  // make release-consumer resolves from the release archives.
+  const covered = new Set([...policy.composerPlatforms.map(platform => platform.manifest), ...published]);
+  const kitFile = writtenByKit(copiesOf(runningKit()));
+  const shipped = path.relative(root, SYMBOLS).split(path.sep).join('/');
+  // A release configuration that breaks its schema names no consumer project here; make release-coverage reports it.
+  const consumer = existsSync(path.join(root, RELEASE_CONFIG)) ? readConfigFindings<ConsumerConfig>(root, RELEASE_CONFIG, 'release.schema.json').value?.consumers?.composer?.directory : undefined;
+  for (const file of checkedFiles(root).filter(item => path.posix.basename(item) === 'composer.json')) {
+    if (covered.has(file) || kitFile(file) || file.startsWith(`${shipped}/`) || (consumer !== undefined && file === path.posix.join(consumer, 'composer.json'))) continue;
+    add('composerCoverage', file, `no entry of composerPlatforms of ${POLICY} names the manifest and no manifest that it names requires it through a path repository, so composer validate --strict never reads it or its lock`, `add { "manifest": "${file}", "php": "<the minimum PHP>" } to composerPlatforms of ${POLICY}, or require the package through a path repository of a manifest that composerPlatforms names`);
   }
 
   for (const item of state.local) {
