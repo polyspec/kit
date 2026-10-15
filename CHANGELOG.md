@@ -7,6 +7,8 @@
 
 - `make install-tools` builds the go symbol extractor with `GOWORK=off` and in the Go environment of mise (`-mod=readonly`, GOPATH and GOCACHE under var/tools). The extractor is a module of its own under node_modules of the consumer, so the root `go.work` of a consumer, which does not list it, stopped its build with "current directory is contained in a module that is not one of the workspace modules listed in go.work" (template), and its module and build caches went to those of the machine (K196).
 
+- R10 of `make parity-check` no longer reads a number after each or 각각 as a count of the implementations of its sentence ("Go module, Rust crate, PHP package, PHP extension, Python package도 각각 한 구현이다"), nor a run of implementation names with another item of its enumeration on both sides as a list of implementations ("Node.js, npm, Go, Rust, PHP minor version, Composer"); both true sentences of template failed the check (K197).
+
 ## 0.0.53
 
 - `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).

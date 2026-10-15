@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c2f5592b43dd97a086620a952c33ed8a10666fc6e542143badd3cdaf98778c81 -->
+<!-- source-sha256: 036054994b825223d3cc2da29291c8692b4a5719129dae877cf72d79fc138f23 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 - `make install-tools`는 go symbol extractor를 `GOWORK=off`로, mise의 Go 환경(`-mod=readonly`, var/tools 아래의 GOPATH와 GOCACHE)에서 build한다. extractor는 consumer의 node_modules 아래에 있는 별도 module이므로, 그것을 나열하지 않는 consumer의 root `go.work`가 "current directory is contained in a module that is not one of the workspace modules listed in go.work"로 build를 멈췄고(template), module cache와 build cache는 machine의 것을 썼다 (K196).
+
+- `make parity-check`의 R10은 each나 각각 뒤의 수를 그 문장의 implementation count로 읽지 않고("Go module, Rust crate, PHP package, PHP extension, Python package도 각각 한 구현이다"), 열거의 다른 항목이 양쪽에 있는 implementation 이름의 run을 implementation의 list로 읽지 않는다("Node.js, npm, Go, Rust, PHP minor version, Composer"). template의 참인 두 문장이 check에서 실패했다 (K197).
 
 ## 0.0.53
 

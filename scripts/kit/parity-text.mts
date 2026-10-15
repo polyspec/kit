@@ -31,15 +31,23 @@ export function languageLists(model: ParityModel, root: string) {
 // numerals.
 const NUMBERS: Record<string, number> = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// The text between two names of one list: a comma, and, or, /, 및, or a Korean particle 와 or 과 after the name.
-const SEPARATOR = /^(?:\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과)\s+|\s*\/\s*)$/i;
+// The text between two items of one list: a comma, and, or, /, 및, or a Korean particle 와 or 과 after the item.
+const JOIN = String.raw`\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과)\s+|\s*\/\s*`;
+const SEPARATOR = new RegExp(`^(?:${JOIN})$`, 'iu');
+// Another item before a run of names: an item, then a separator, up to the first name.
+const ITEM_BEFORE = new RegExp(`\\S(?:${JOIN})$`, 'iu');
+// Another item after a run of names: the words of the item of its last name, then a separator and an item.
+const ITEM_AFTER = new RegExp(`^([^,/]*?)(?:${JOIN})\\S`, 'iu');
+// A word that distributes the number after it over the items of its sentence: each, 각각.
+const DISTRIBUTIVE = ['each', '각각'];
 
 /**
  * The counts of `text`: each number followed by one of `nouns` after a space, a hyphen (four-client) or a Korean counter
- * (6개 언어, 여섯 개 언어, 세 가지 언어), as `{ text, count, index }`.
+ * (6개 언어, 여섯 개 언어, 세 가지 언어), as `{ text, count, index }`. A number after a distributive word counts per item
+ * ("are each one implementation", "각각 한 구현"), so it is no count of the implementations of its sentence.
  */
 function countsOf(text: string, nouns: string[]) {
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?<!(?<![\\p{L}\\p{N}])(?:${DISTRIBUTIVE.join('|')})\\s+)(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
   // The first group of the pattern is not optional, so every match holds it.
   return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(present(match[1], 'match[1]')) ? Number(match[1]) : NUMBERS[present(match[1], 'match[1]').toLowerCase()], index: match.index }));
 }
@@ -53,15 +61,26 @@ function namesOf(text: string, written: Map<string, string>) {
   return [...text.matchAll(pattern)].map(match => ({ name: present(written.get(match[0].toLowerCase()), 'written.get(match[0].toLowerCase())'), index: match.index, end: match.index + match[0].length }));
 }
 
-/** The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. */
-function listsOf(text: string, found: { name: string; index: number; end: number }[]) {
+/**
+ * The lists of `text`: each run of three or more of the names `found` joined by separators, as `{ names, index }`. A run with
+ * another item of its enumeration on both sides, before its first name and after the item of its last name, lists those
+ * items, such as toolchains ("Node.js, npm, Go, Rust, PHP minor version, Composer"), and is no list of implementations; the
+ * words after the last name that are one of `nouns` name the implementations of the run ("Go, Rust and PHP implementations,
+ * which"), so they are no item.
+ */
+function listsOf(text: string, found: { name: string; index: number; end: number }[], nouns: string[]) {
   const lists: { names: string[]; index: number; end: number }[] = [];
   for (const match of found) {
     const last = lists.at(-1);
     if (last && SEPARATOR.test(text.slice(last.end, match.index))) Object.assign(last, { names: [...last.names, match.name], end: match.end });
     else lists.push({ names: [match.name], index: match.index, end: match.end });
   }
-  return lists.map(list => ({ names: [...new Set(list.names)], index: list.index })).filter(list => list.names.length >= 3);
+  const nounWords = new Set(nouns.map(noun => noun.toLowerCase()));
+  const amongItems = (list: { index: number; end: number }) => {
+    const after = ITEM_AFTER.exec(text.slice(list.end));
+    return ITEM_BEFORE.test(text.slice(0, list.index)) && after !== null && !nounWords.has(present(after[1], 'after[1]').trim().toLowerCase());
+  };
+  return lists.filter(list => !amongItems(list)).map(list => ({ names: [...new Set(list.names)], index: list.index })).filter(list => list.names.length >= 3);
 }
 
 /** The sentences of `text`, each `{ text, index }`: they end at ., ! or ? before a space or the end, and a table cell ends one. */
@@ -118,7 +137,7 @@ export function documentCounts(model: ParityModel, root: string, files: Iterable
           found.push(finding('R10', `"${count.text}" counts ${count.count}, and ${holds} (${known})`, { place: place(sentence.index + count.index) }));
         }
         if (profiles.some(profile => sameSet(sentenceNames, profile.members))) continue;
-        for (const list of listsOf(sentence.text, names)) {
+        for (const list of listsOf(sentence.text, names, documents.nouns)) {
           found.push(finding('R10', `the list ${list.names.join(', ')} is in a sentence that names ${sentenceNames.join(', ')}, which is no profile (${listed})`, { place: place(sentence.index + list.index) }));
         }
       }

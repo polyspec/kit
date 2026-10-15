@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6e82e82e4c1e325f7a8b4fedbdf5f847843dfe18cd779625beaed40dcb49e15a -->
+<!-- source-sha256: 0b98933267d0303f684f2d8a202b2a65bdf0226edc48f7f0a4a069e7c15ce344 -->
 
 # 도구 목록
 
@@ -1260,7 +1260,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
-| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, implementation N개의 어떤 profile도 그 문장이 적은 implementation을 모두 담지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 profile이면 예외입니다. 또는 implementation 이름을 모두 모아도 어떤 profile도 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. |
+| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, implementation N개의 어떤 profile도 그 문장이 적은 implementation을 모두 담지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 profile이면 예외입니다. 또는 implementation 이름을 모두 모아도 어떤 profile도 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
 | R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 그 implementation의 `nativeOnly` 항목도 선언하지 않습니다. 또는 `nativeOnly` 항목이 public symbol이 아닌 것을 적습니다. |
 
 ### Runner
