@@ -23,6 +23,10 @@ test('an operator or a blank inside quotes is text of a word, and the quotes are
   assert.deepEqual(commandWords('$(NODE) "$(NPM) | x"'), ['$(NODE)']);
 });
 
+test('a recipe line that already names the placeholder of a make reference fails instead of losing the word (K187)', () => {
+  assert.throws(() => commandWords('${KIT_MAKE_REFERENCE_7} a.mts'), /recipe line `\$\{KIT_MAKE_REFERENCE_7\} a\.mts` already contains KIT_MAKE_REFERENCE_, the placeholder that recipe-tools puts in place of a make reference/);
+});
+
 test('a recipe that starts a tool of the checkout by its bare name is a finding; an absolute path and a machine tool are not', (t) => {
   const root = tree(t, { Makefile: 'NODE := $(CURDIR)/var/tools/bin/node\nbare:\n\tnode a.mts\n\t@$(ONLINE) npm ci && uv sync\nfine:\n\t$(NODE) a.mts\n\tgit status\n\t@echo "build-ts|go|node"\n' });
   const findings = bareToolFindings(makeDatabase(root));

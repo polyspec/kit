@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- kit-check's recipe-tools check fails on a recipe line that already contains `KIT_MAKE_REFERENCE_`, the placeholder it puts in place of a make reference while shell-quote splits the line. Such a word was read as a reference: one beyond the references of the line became an empty word and was dropped, one within them took the word of another; the line now fails with its text and the fix, rename that variable (K187).
+
 ## 0.0.50
 
 - The php bindings of parity run the PHPUnit of the vendor directory that Composer gives their package, as run-tests and lint-php do (composer-vendor.mts): the package's own, or that of the nearest Composer project above it. A Composer monorepo, whose root composer.json requires its libraries through path repositories and installs one root `vendor/` (K163), reported every php binding as R3 not-executed with "`<package>/vendor/bin/phpunit` does not exist"; it now runs them, and a package with no vendor directory up the tree still fails with the fix (K178).
