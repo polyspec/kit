@@ -826,10 +826,12 @@ does not declare is neither installed nor checked.
   JavaScript imports and only a recipe of the Makefile runs, such as the template compiler that hyper installs by its URL,
   is declared with its reason in `ignoreDependencies` of the same file, which lint-ts adds after the `ignoreDependencies`
   of knip.json, since knip does not read a Makefile (K159). Declared, it passes; undeclared, it is still an unused
-  dependency (a fixture). A file that is unused by design, such as a sample source file that a site shows and nothing runs
-  or imports, is declared by its glob, relative to the root, with its reason in `ignore` of the same file, which lint-ts
-  adds after the `ignore` of knip.json, knip's documented option for such files (K162). Declared, it passes; an undeclared
-  unused file still fails (a fixture).
+  dependency (a fixture). A file that is not code of this repository, such as a sample source file that a site shows and
+  nothing runs or imports, or an input of the tests of a build tool that is broken on purpose, is declared by its glob,
+  relative to the root, with its reason in `ignore` of the same file: neither knip nor oxlint reads it. lint-ts adds the
+  glob after the `ignore` of knip.json, knip's documented option for such files (K162), and gives oxlint an
+  `--ignore-pattern` for it, on the command line as for the copies of kit below (K172). Declared, it passes; an undeclared
+  unused file still fails knip, and the same oxlint violation outside the declared glob still fails oxlint (fixtures).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says

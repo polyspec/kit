@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `ignore` of `config/knip-entries.json` declares the files that are not code of the repository, and neither knip nor oxlint reads them: make lint-ts gives oxlint an `--ignore-pattern` for each glob, as it does for the copies of kit, besides adding it to the `ignore` of knip. Such a file, such as an input of the tests of a build tool that is broken on purpose, no longer fails the type-aware rules of oxlint on its unresolvable imports; the same violation outside a declared glob still fails (K172).
+
+### Consumer migration
+
+Nothing to run. A file that oxlint reported and that is not code of the repository goes into `ignore` of `config/knip-entries.json` with its reason, instead of a disable comment or an ignore of oxlint (K172).
+
 ## 0.0.48
 
 - The copied `.github/workflows/release.yml` pins actions/checkout v7.0.1, actions/setup-node v7.1.0 and shivammathur/setup-php 2.40.0, each by the full SHA of its release; setup-php had been pinned by the SHA of the moving tag v2. The two majors change none of the inputs that the workflow passes (K169).

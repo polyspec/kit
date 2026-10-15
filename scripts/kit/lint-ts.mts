@@ -4,12 +4,14 @@
 //     reads the files that Git does not ignore, and oxlint-tsgolint checks the rules that need the types of TypeScript 7. In a
 //     consumer it leaves out the copies of kit (`kit.copies` of the installed package, which kit-sync writes and kit-check
 //     compares byte for byte): kit lints them with its own tsconfig and the types of node, and outside the consumer's project
-//     oxlint-tsgolint would check them without those types (K157).
+//     oxlint-tsgolint would check them without those types (K157). It leaves out the files that `ignore` of
+//     config/knip-entries.json declares, which are not code of the repository, such as inputs of tests that are broken on
+//     purpose (K172).
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
 //     plugins that read the manifests. knip has no `extends`, so the entries that the repository adds in config/knip-entries.json
 //     (K145) are added to `node.entry` of knip.json, its binaries (K152) to `ignoreBinaries`, the root dependencies that only
-//     make runs (K159) to `ignoreDependencies`, the files that knip ignores (K162), such as a sample that a site shows and
-//     nothing runs, to `ignore`, and its nested npm projects (K154) to `workspaces`, each with its entries and
+//     make runs (K159) to `ignoreDependencies`, the files that are not code of the repository (K162, K172), such as a sample
+//     that a site shows and nothing runs, to `ignore`, and its nested npm projects (K154) to `workspaces`, each with its entries and
 //     ignored dependencies, in var/lint-ts/knip.json, which knip then reads with --config. knip's Svelte plugin compiles the
 //     .svelte files of a workspace that depends on svelte.
 //   - `api-extractor run` for each package with an api-extractor.json, which extends config/api-extractor.kit.json: every export
@@ -42,6 +44,11 @@ interface KnipEntries {
   workspaces?: Record<string, { reason: string; entries?: Record<string, string>; ignoreDependencies?: Record<string, string> }>;
 }
 
+/** config/knip-entries.json of `root`, validated by its schema, or undefined when the repository has none. */
+function knipEntries(root: string): KnipEntries | undefined {
+  return existsSync(path.join(root, KNIP_ENTRIES)) ? readConfig<KnipEntries>(root, KNIP_ENTRIES, 'knip-entries.schema.json') : undefined;
+}
+
 /** The fields of knip.json that knipArguments extends; it keeps the others as they are. */
 interface KnipJson {
   node?: { entry?: string[] };
@@ -62,8 +69,8 @@ export const MERGED_KNIP = 'var/lint-ts/knip.json';
  * and each declared workspace with its entries and ignored dependencies.
  */
 export function knipArguments(root: string): string[] {
-  if (!existsSync(path.join(root, KNIP_ENTRIES))) return ['--no-progress'];
-  const value = readConfig<KnipEntries>(root, KNIP_ENTRIES, 'knip-entries.schema.json');
+  const value = knipEntries(root);
+  if (!value) return ['--no-progress'];
   const base = readConfig<KnipJson>(root, 'knip.json', 'knip.schema.json');
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
@@ -96,6 +103,15 @@ export function kitCopyIgnores(root: string): string[] {
   return kit.copies.map(({ file }) => `--ignore-pattern=/${file}`);
 }
 
+/**
+ * The arguments of oxlint that leave out the files that `ignore` of config/knip-entries.json declares, which are not code of
+ * the repository: one `--ignore-pattern` for each glob, rooted at the root, on the command line for the reason of
+ * kitCopyIgnores, so that one declaration keeps them out of oxlint and knip.
+ */
+function declaredIgnores(root: string): string[] {
+  return Object.keys(knipEntries(root)?.ignore ?? {}).map(glob => `--ignore-pattern=/${glob}`);
+}
+
 /** The steps of the lint of `root`; throws when a tool or a configuration is missing. */
 export function lintSteps(root: string): LintStep[] {
   const tools = lintCommands(root, 'node_modules/.bin', ['oxlint', 'knip', 'api-extractor'], 'run npm ci');
@@ -104,7 +120,7 @@ export function lintSteps(root: string): LintStep[] {
   return [
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
     // leave the rule out, so the format is fixed and the output is the same everywhere.
-    { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root)], cwd: '.' },
+    { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root), ...declaredIgnores(root)], cwd: '.' },
     { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root), cwd: '.' },
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: present(tools['api-extractor'], 'tools[\'api-extractor\']'), args: ['run'], cwd: folder })),
   ];
