@@ -1,6 +1,9 @@
 {
   "schema": 1,
   "comment": "The owner checks of kit. A change under scripts/kit, tests/kit or the package files runs kit-test and typecheck, the whole tool suite of kit, and lint-ts, the TypeScript lint that kit gives its consumers (K142); the real tool tests of tests/source do not run for it and wait for the full run, since choosing them per module would need an import graph tool, which K111 withdrew. A changed tests/source test runs itself. consumer-layout and fresh-checkout run make kit-test again inside a sandbox, so they run only for themselves and their helper tests/source/checkout.mts. LICENSE and .editorconfig, which an editor reads, are read by no check.",
+  "ciExempt": [
+    { "target": "hooks-check", "reason": "needs the local core.hooksPath that make install-hooks writes; a CI checkout has no hooks to check" }
+  ],
   "owners": [
     { "paths": ["scripts/kit/**", "tests/kit/**", "package.json", "package-lock.json", "tsconfig.json", "Makefile"], "targets": ["kit-test", "typecheck", "duplication-check", "lint-ts"] },
     { "paths": ["tests/source/*.test.mts"], "targets": ["lint-ts"], "tests": ["$path"] },
