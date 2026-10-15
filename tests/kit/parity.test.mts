@@ -1074,7 +1074,7 @@ test('R10: a count or a list is judged with the implementations of its sentence,
   ]);
 });
 
-// The sentences of template's Korean documents that R10 misread (K197): a number after each or 각각 counts per item, and a run
+// The sentences of Korean documents of a consumer that R10 misread (K197): a number after each or 각각 counts per item, and a run
 // of names with another item of its enumeration on both sides lists those items, such as toolchains.
 test('R10: a distributive count and a run of names inside a list of other items are no count and no list of implementations (K197)', TIMEOUT, (t) => {
   const { findings } = check(t, {
