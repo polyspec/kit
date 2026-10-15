@@ -84,7 +84,7 @@
     },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",
-      "tool": "the vendor directory that composer install writes beside the composer.json of a project, or where COMPOSER_VENDOR_DIR names it, found with node:fs and node:path (K163)"
+      "tool": "composer config vendor-dir, run with the Composer of the checkout in the folder of the composer.json, gives the vendor directory by Composer's own rule (K163, K184)"
     },
     "scripts/kit/dependency-review.mts": {
       "kind": "ecosystem",

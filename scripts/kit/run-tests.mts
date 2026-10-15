@@ -143,7 +143,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // One test at a time, so each test prints its start before its result.
       return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness] };
     case 'phpunit': {
-      // PHPUnit of the vendor directory of `cwd`; COMPOSER_VENDOR_DIR, the vendor directory setting of Composer, names another.
+      // PHPUnit of the vendor directory that Composer gives the project of `cwd` (composer-vendor.mts).
       const phpunit = path.join(composerVendor(cwd), 'bin/phpunit');
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
       // -d extension=, in the given order, so an extension loads after one that it depends on.

@@ -154,17 +154,21 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
   assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, '/r'), { command: 'go', args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'] }, '/r'), { command: '/r/p/vendor/bin/phpunit', args: ['--teamcity', 't'] });
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [], phpExtensions: ['/r/e.so'] }, '/r').args.slice(0, 3), ['-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit']);
-  // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, '/r'), { command: 'php', args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', '/r/p/vendor/bin/phpunit', '--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+});
+
+// Composer gives the vendor directory of the PHPUnit (K184): its folder `vendor`, COMPOSER_VENDOR_DIR, or config.vendor-dir.
+test('phpunit runs the PHPUnit of the vendor directory that Composer gives the project of --cwd', (t) => {
+  const root = tree(t, { 'p/composer.json': '{}\n', 'q/composer.json': '{"config":{"vendor-dir":"lib/vendor"}}\n' });
+  const p = path.join(root, 'p');
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'] }, root), { command: path.join(p, 'vendor/bin/phpunit'), args: ['--teamcity', 't'] });
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 3), ['-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit')]);
+  // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: 'php', args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(root, 'q'), args: [] }, root).command, path.join(root, 'q/lib/vendor/bin/phpunit'));
+  t.after(() => { delete process.env.COMPOSER_VENDOR_DIR; });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
-  try {
-    assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: '/r/p', args: [] }, '/r').command, '/elsewhere/bin/phpunit');
-  } finally {
-    delete process.env.COMPOSER_VENDOR_DIR;
-  }
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [] }, root).command, '/elsewhere/bin/phpunit');
 });
 
 function recorder() {
@@ -402,23 +406,27 @@ test('a go test that outlives the timeout stops the tool and fails the run', asy
   assert.match(result.text, /⏱ p › TestHang ran \d\.\ds and exceeded its 1\.0s timeout; stopping `go test -json`/);
 });
 
+// A Composer project, whose vendor directory Composer gives run-tests for PHPUnit.
+const COMPOSER_PROJECT = { 'composer.json': '{}\n' };
+
 test('a tool that cannot start fails with its command and the fix', async (t) => {
   const missing = path.join(tmpdir(), 'kit-no-such-directory');
   const result = await inProcess(t, ['go', './...'], { path: missing });
   assert.equal(result.status, 1);
   assert.match(result.text, /✖ go \. \.\/\.\.\.: cannot start go: .*; declare go in mise\.toml and run make install-tools, which installs it into var\/tools\/mise/);
-  const phpunit = await inProcess(t, ['phpunit'], { path: missing });
+  // PHPUnit starts by its path in the vendor directory, so PATH does not matter for it.
+  const phpunit = await inProcess(t, ['phpunit'], { root: tree(t, COMPOSER_PROJECT) });
   assert.match(phpunit.text, /cannot start .*vendor\/bin\/phpunit: .*; run composer install in \./);
 });
 
 test('a PHP extension that is not built fails before the tool starts', async (t) => {
-  const result = await inProcess(t, ['phpunit', '--php-extension', 'build/ext.so']);
+  const result = await inProcess(t, ['phpunit', '--php-extension', 'build/ext.so'], { root: tree(t, COMPOSER_PROJECT) });
   assert.equal(result.status, 1);
   assert.match(result.text, /the PHP extension build\/ext\.so is not built; build it before the run/);
 });
 
 test('each PHP extension, the second as the first, that is not built fails before the tool starts (K165)', async (t) => {
-  const root = tree(t);
+  const root = tree(t, COMPOSER_PROJECT);
   mkdirSync(path.join(root, 'build'));
   writeFileSync(path.join(root, 'build/base.so'), '');
   const result = await inProcess(t, ['phpunit', '--php-extension', 'build/base.so', '--php-extension', 'build/ext.so'], { root });

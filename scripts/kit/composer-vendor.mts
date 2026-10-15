@@ -1,11 +1,27 @@
 // The vendor directory of a Composer project, shared by run-tests (PHPUnit of the vendor directory), lint-php (the
-// autoloader of PHPStan) and the php runner of parity (PHPUnit of the package). Composer installs into the folder `vendor` beside the composer.json of the project, or into the
-// folder that COMPOSER_VENDOR_DIR, the vendor directory setting of Composer, names relative to it.
+// autoloader of PHPStan) and the php runner of parity (PHPUnit of the package). Composer decides it, not kit (K184):
+// `composer config vendor-dir`, run in the folder of the composer.json with the Composer of mise.toml of the checkout, applies
+// Composer's own rule (the folder `vendor`, COMPOSER_VENDOR_DIR, config.vendor-dir of the composer.json or of the global
+// configuration, with ~ and the environment expanded), offline. Without --absolute it answers relative to that folder, which
+// kit resolves against the folder as kit names it; --absolute would join it to the real path of the folder, which differs
+// under a symbolic link, such as /var on macOS.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { composerCommand } from './install-composer-project.mts';
+import { toolsEnvironment } from './mise-tools.mts';
+import { repositoryRoot } from './paths.mts';
+import { run } from './process.mts';
 
-/** The vendor directory of the Composer project in the folder `project`, absolute when `project` is. */
-export const composerVendor = (project: string): string => path.resolve(project, process.env.COMPOSER_VENDOR_DIR || 'vendor');
+/**
+ * The vendor directory that Composer gives the Composer project in the folder `project` (which has a composer.json), absolute
+ * when `project` is; the Composer of the checkout that kit runs in answers.
+ */
+export function composerVendor(project: string): string {
+  const checkout = repositoryRoot();
+  const composer = composerCommand(checkout, 'the vendor directory of a Composer project');
+  const answer = run(composer, ['config', '--no-interaction', '--no-plugins', 'vendor-dir'], { cwd: project, env: toolsEnvironment(checkout) });
+  return path.resolve(project, answer.trim());
+}
 
 /**
  * The file `file` of the vendor directory that Composer gives the package `folder` (relative to `root`): that of the nearest

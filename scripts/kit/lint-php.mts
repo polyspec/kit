@@ -7,8 +7,8 @@
 //     run time), on the PHP files of each Composer package, a folder with a composer.json, from the package folder and with
 //     the autoloader that Composer gives its files, so a call through a variable or an object is resolved: the
 //     vendor/autoload.php of the package, or of the nearest Composer project above it, such as the development project at
-//     the root of a Composer monorepo, whose path repositories require the libraries (composer-vendor.mts; COMPOSER_VENDOR_DIR
-//     names another vendor directory). A package with PHP files and no such autoloader fails with the install it needs.
+//     the root of a Composer monorepo, whose path repositories require the libraries (composer-vendor.mts, which asks
+//     Composer for the vendor directory). A package with PHP files and no such autoloader fails with the install it needs.
 // The stubs of a PHP extension (*.stub.php) are the input of php-src's gen_stub.php and are left out. A missing tool or
 // configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps.
 //
