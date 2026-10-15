@@ -107,6 +107,21 @@ test('every valid pyproject form of a requirement is read, and a pin in a commen
   assert.throws(() => read('[build-system\n'), /^Error: pyproject\.toml line 1 column \d+: Invalid TOML document/);
 });
 
+// The groups of [dependency-groups] are read with their includes resolved as PEP 735 specifies; a requirement that two
+// groups reach is read once, and a group that includes an unknown group, includes itself, or holds another item fails (K177).
+test('a Python requirement of a dependency group is read with the groups that include it resolved by PEP 735 (K177)', () => {
+  const read = (text: string) => pythonRequirements(text, 'pyproject.toml').map(item => [item.package, item.kind, item.version]);
+  assert.deepEqual(read('[dependency-groups]\ntest = ["pytest==8.0.0"]\nDev_Tools = ["ruff==0.16.10", { include-group = "Test" }]\nall = [{ include-group = "dev-tools" }, "mkdocs==1.6.1"]\n'), [
+    ['pytest', 'group:test', '8.0.0'], ['ruff', 'group:Dev_Tools', '0.16.10'], ['mkdocs', 'group:all', '1.6.1'],
+  ]);
+  assert.throws(() => read('[dependency-groups]\ntest = ["pytest>=8"]\n'), /"pytest>=8" is not an exact pin name==version; pin it exactly/);
+  assert.throws(() => read('[dependency-groups]\ndev = [{ include-group = "lint" }]\n'), /pyproject\.toml: dependency-groups\.dev includes lint, which is no dependency group/);
+  assert.throws(() => read('[dependency-groups]\na = [{ include-group = "b" }]\nb = [{ include-group = "a" }]\n'), /pyproject\.toml: dependency-groups\.a includes itself through a -> b -> a/);
+  assert.throws(() => read('[dependency-groups]\ndev = [{ include-group = "x", extra = 1 }]\nx = []\n'), /pyproject\.toml: dependency-groups\.dev\[0\] is neither a requirement nor an \{ include-group \} table/);
+  assert.throws(() => read('[dependency-groups]\ntest = []\nTEST = []\n'), /pyproject\.toml: dependency-groups holds two groups whose names normalize to test/);
+  assert.throws(() => read('[dependency-groups]\ntest = "pytest==8.0.0"\n'), /pyproject\.toml: dependency-groups\.test is not an array/);
+});
+
 test('npm workspaces are every pattern that npm reads: an explicit path, a glob and a negation, against the directories with a package.json', (t) => {
   const pkg = (name: string) => JSON.stringify({ name, version: '0.0.0' });
   const root = tree(t, {

@@ -711,6 +711,7 @@ functions only) did not (K126). The base had no pair that long; the shortest pai
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the probes and the bootstrap read them | check-toolchain, the bootstrap |
 | `dependency-state.mts` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
+| `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the walk of the dependency arrays of pin-python-dependency, and the read of the extras alone in dependency-state, which missed the dependency groups | dependency-state, pin-python-dependency |
 
 Other duplicates removed:
 

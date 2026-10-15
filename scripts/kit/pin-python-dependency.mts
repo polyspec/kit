@@ -5,7 +5,7 @@
 //   node scripts/kit/pin-python-dependency.mts <manifest> <package> <version>
 //
 // It sets the version of each requirement of the package in the dependency arrays of the file ([project] dependencies,
-// [project.optional-dependencies] and [dependency-groups]) that pins it exactly (`==<version>`), and writes the file through a
+// [project.optional-dependencies] and [dependency-groups], which pyproject-dependencies.mts lists) that pins it exactly (`==<version>`), and writes the file through a
 // temporary file and a rename. A requirement is found by the normalized name of the package (PEP 503), and its written name,
 // extras and marker are kept. The requirement is read with pip-requirements-js and the file is edited with a TOML editor
 // (@decimalturn/toml-patch), so its comments, its layout
@@ -15,10 +15,8 @@ import path from 'node:path';
 import { parse, patch } from '@decimalturn/toml-patch';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isMain } from './paths.mts';
-import { isJsonList, isJsonObject, writeAtomic } from './bootstrap/files.mts';
-
-/** The normalized name of a Python distribution (PEP 503). */
-const normalize = (name: string) => name.toLowerCase().replace(/[-_.]+/g, '-');
+import { isJsonObject, writeAtomic } from './bootstrap/files.mts';
+import { dependencyArrays, normalizeName } from './pyproject-dependencies.mts';
 
 /** The text of the file with the pin of `name` set to `version`; the number of changed requirements is returned with it. */
 export function pinPythonRequirement(text: string, name: string, version: string): { text: string; count: number } {
@@ -26,14 +24,13 @@ export function pinPythonRequirement(text: string, name: string, version: string
   const document: unknown = parse(text);
   if (!isJsonObject(document)) throw new Error('the pyproject holds no TOML table');
   let count = 0;
-  const pin = (requirements: unknown) => {
-    if (!isJsonList(requirements)) return;
+  const pin = (requirements: unknown[]) => {
     requirements.forEach((requirement: unknown, index) => {
       // A dependency group may hold an { include-group } table (PEP 735), which pins nothing.
       if (typeof requirement !== 'string') return;
       // pip-requirements-js reads the requirement (PEP 508); one exact `==` pin of the package is set in its written form.
       const parsed = parsePipRequirementsLine(requirement);
-      if (parsed?.type !== 'ProjectName' || normalize(parsed.name) !== normalize(name)) return;
+      if (parsed?.type !== 'ProjectName' || normalizeName(parsed.name) !== normalizeName(name)) return;
       const [spec, ...more] = parsed.versionSpec ?? [];
       if (!spec || more.length > 0 || spec.operator !== '==') return;
       const pinned = new RegExp(`==\\s*${spec.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.])`);
@@ -41,12 +38,7 @@ export function pinPythonRequirement(text: string, name: string, version: string
       count += 1;
     });
   };
-  // A table that the pyproject lacks holds no requirement.
-  const table = (value: unknown): Record<string, unknown> => (isJsonObject(value) ? value : {});
-  const project = table(document.project);
-  pin(project.dependencies);
-  for (const requirements of Object.values(table(project['optional-dependencies']))) pin(requirements);
-  for (const requirements of Object.values(table(document['dependency-groups']))) pin(requirements);
+  for (const { list } of dependencyArrays(document, 'the pyproject')) pin(list);
   if (count === 0) throw new Error(`no exact pin of ${name} in the dependency arrays`);
   return { text: patch(text, document), count };
 }
