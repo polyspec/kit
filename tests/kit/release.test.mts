@@ -470,7 +470,7 @@ test('coverage skips node_modules, var, .tools and the vendored fixture, and rea
   assert.deepEqual(release.coverage(context(box)), ['fresh/package.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
 });
 
-const cli = (box: Box, args: string[]) => spawnSync(process.execPath, [tool('release'), ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
+const cli = (box: Box, args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/release.mts')), ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
 
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
   const box = releaseSandbox(t);
@@ -522,7 +522,7 @@ test('make runs each release step with the tag of the environment and fails with
   }
   let result = make('release-versions', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
-  assert.ok(result.stdout.includes(`node ${tool('release')} versions "$TAG"\n[release] v0.0.1: `), result.stdout);
+  assert.ok(result.stdout.includes(`node ${tool(import.meta.resolve('../../scripts/kit/release.mts'))} versions "$TAG"\n[release] v0.0.1: `), result.stdout);
   result = make('release-verify', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');

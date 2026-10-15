@@ -103,7 +103,7 @@ test('a repository without a Go module needs no Go module tag', (t) => {
 test('the go-tags step prints each finding and exits with 1, or prints one line and exits with 0', (t) => {
   const box = releaseSandbox(t);
   box.tag('v0.0.1');
-  const cli = (...args: string[]) => spawnSync(process.execPath, [tool('release'), ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const cli = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/release.mts')), ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
   let result = cli('go-tags', 'v0.0.1');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /\[release\] go-tags v0\.0\.1: the Go module tag packages\/fixture-go\/v0\.0\.1 is missing/);

@@ -13,7 +13,9 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
-const BOOTSTRAP = path.join(KIT, 'bootstrap');
+// The directory of the installer that the copy starts; named through import.meta.resolve, so the import graph of
+// owner-check selects this test when the installer changes (K191).
+const BOOTSTRAP = path.dirname(fileURLToPath(import.meta.resolve('../../scripts/kit/bootstrap/bootstrap.mts')));
 const MODULES = ['bootstrap', 'digest', 'files', 'install-mise', 'install-npm', 'install-tool', 'tool-wrappers', 'toolchain-declared'];
 
 test('the bootstrap modules are in scripts/kit/bootstrap, once', () => {

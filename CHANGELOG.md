@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `config/owner-checks.json` takes `importers` and `modules` in an owner rule: a changed path runs the node tests of the `importers` globs that import it, directly or through other modules, as the import graph of owner-check reads them (`module-imports.mts`: amaro, acorn, acorn-walk; relative imports, re-exports, `import()`, `require()`, `import.meta.resolve('<specifier>')` and `siblingTool(import.meta.url, '<name>')`); `modules` names the modules that stand for a path that is no module, such as a schema or a fixture. `make owner-validate` fails on a path of such a rule that no test imports. kit's own rules use it: a change of a module of scripts/kit ran `make kit-test`, the whole tool suite, and now runs the tests that import it; the package files run the checks that read them (K191).
+
+### Consumer migration
+
+Nothing is required. A repository whose owner rule runs its whole test suite for a source change can declare `importers` with the globs of its node tests instead, and name a tool that a test only starts through `import.meta.resolve` (K191).
+
 ## 0.0.51
 
 - make toolchain-check fails when mise.lock names a uv lock sidecar (`uv = { path = ".mise/locks/<tool>/<version>" }` of a `pypi:` tool) that Git does not track, or a tracked file of it is missing. mise's documentation says to commit the sidecar folder with mise.lock, and `mise install --locked` of a checkout without it fails with "dependency sidecar … No such file or directory"; a repository that deleted or never committed it now gets the finding with the fix (K192).

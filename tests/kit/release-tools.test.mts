@@ -97,7 +97,7 @@ test('release-tools reads config/release.json of the repository it runs in, not 
   initRepository(repository);
   mkdirSync(path.join(repository, 'config'));
   writeFileSync(path.join(repository, 'config/release.json'), '{}');
-  const ran = spawnSync(process.execPath, [tool('release-tools')], { cwd: repository, encoding: 'utf8' });
+  const ran = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/release-tools.mts'))], { cwd: repository, encoding: 'utf8' });
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
   assert.match(ran.stderr, /config\/release\.json: \/ must have required property 'repositoryUrl'/);
 });

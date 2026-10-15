@@ -83,7 +83,7 @@ test('the review records the fixture, and a second run writes the same record', 
 
 test('the mutation check rejects every mutation of the fixture', (t) => {
   const root = fixture(t);
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
@@ -97,7 +97,7 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   };
   edit('config/dependency-policy.json', (policy: { composerPlatforms: string[] }) => { policy.composerPlatforms = []; });
   edit('config/dependency-review.json', (record: { dependencies: Array<{ ecosystem: string }> }) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
@@ -110,7 +110,7 @@ test('the mutation check copies go.work, so a module that requires only a worksp
   write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
   write('packages/sibling/sibling.go', 'package sibling\n');
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
@@ -123,7 +123,7 @@ test('the mutation check fails with one finding when go.work uses a module that 
   write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
   appendFileSync(path.join(root, '.gitignore'), 'packages/sibling/\n');
-  const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(result.stdout, '');
   assert.equal(result.stderr, '[dependency-policy] go.work: uses ./packages/sibling, whose go.mod Git does not track; a committed go.work may only use tracked modules. Fix: commit packages/sibling/go.mod or remove the use from go.work\n');
@@ -244,7 +244,7 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
 test('importing the mutation check runs nothing and prints nothing', (t) => {
   const root = fixture(t);
-  const url = pathToFileURL(tool('check-dependency-policy-mutation')).href;
+  const url = pathToFileURL(tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))).href;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(url)}); console.log('imported');`], { cwd: root, encoding: 'utf8', env: process.env });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, 'imported\n', 'the import ran the mutation check');

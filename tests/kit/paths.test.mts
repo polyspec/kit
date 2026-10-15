@@ -16,7 +16,7 @@ const ROOT = path.resolve(import.meta.dirname, '../..');
 
 /** The repository root that the tools of this checkout resolve in `cwd`. */
 function printedRoot(cwd: string): string {
-  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool('paths'))}); process.stdout.write(repositoryRoot());`], { cwd, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/paths.mts')))}); process.stdout.write(repositoryRoot());`], { cwd, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   return run.stdout;
 }
@@ -47,7 +47,7 @@ test('the repository root is the top level of the Git work tree: a tool of this 
   const en = english('guide', 'Some text.\n');
   const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en) });
   assert.equal(realpathSync(printedRoot(repository)), realpathSync(repository));
-  const checked = spawnSync(process.execPath, [tool('check-documents')], { cwd: repository, encoding: 'utf8' });
+  const checked = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: repository, encoding: 'utf8' });
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
   assert.match(checked.stdout, /1 document pairs/);
 });
@@ -57,7 +57,7 @@ test('a tool started below the root, as npm -w starts it in a package directory,
   const repository = tree(t, { 'config/documents.json': JSON.stringify({ schema: 1, include: ['**/*.md'] }), 'guide.md': en, 'guide.ko.md': korean(en), 'packages/app/package.json': '{}\n' });
   const below = path.join(repository, 'packages/app');
   assert.equal(realpathSync(printedRoot(below)), realpathSync(repository));
-  const checked = spawnSync(process.execPath, [tool('check-documents')], { cwd: below, encoding: 'utf8' });
+  const checked = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: below, encoding: 'utf8' });
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
   assert.match(checked.stdout, /1 document pairs/);
 });
@@ -67,9 +67,9 @@ test('outside a Git work tree the root is refused with its cause, and importing 
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   // GIT_CEILING_DIRECTORIES keeps git from finding a work tree above the temporary directory.
   const env = { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(realpathSync(outside)) };
-  const imported = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(tool('tracked-files'))});`], { cwd: outside, encoding: 'utf8', env });
+  const imported = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/tracked-files.mts')))});`], { cwd: outside, encoding: 'utf8', env });
   assert.equal(imported.status, 0, imported.stderr);
-  const asked = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool('paths'))}); repositoryRoot();`], { cwd: outside, encoding: 'utf8', env });
+  const asked = spawnSync(process.execPath, ['--input-type=module', '-e', `const { repositoryRoot } = await import(${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/paths.mts')))}); repositoryRoot();`], { cwd: outside, encoding: 'utf8', env });
   assert.notEqual(asked.status, 0);
   assert.match(asked.stderr, /is not inside a Git work tree; a tool of kit runs in a checkout of a repository/);
 });

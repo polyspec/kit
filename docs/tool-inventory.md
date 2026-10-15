@@ -436,6 +436,15 @@ Merged behaviors:
 - A node test file runs through `scripts/kit/run-tests.mts`, or through the make target `testTarget` with `TESTS=<files>`
   (hyper).
 - Every selected check runs to its end and the failures are listed together (all implementations); no check has a time limit.
+- `importers` (new, K191) names globs of node test files: a changed path of the rule runs the tests among them that import
+  it, directly or through other modules, or that are the path itself. The import graph reads each module with
+  `module-imports.mts`, the parser of the editor boundaries (amaro, acorn, acorn-walk), and follows relative imports,
+  re-exports, `import()` and `require()`, and the modules that a module starts: `import.meta.resolve('<specifier>')`, the
+  module resolution of Node.js, and `siblingTool(import.meta.url, '<name>')` of paths.mts. A computed import or a relative
+  import of no file fails. `modules` stands for a path that is no module, such as a schema or a fixture: the importers of
+  those modules run. `--validate` fails on a path of an importers rule that no test imports, unless another rule of the
+  path names its tests, so a tool that a test only starts names it through `import.meta.resolve`. kit's own rules use it
+  for scripts/kit and tests/kit; `kit-test`, the whole tool suite, is CI's full run and no owner.
 
 Dropped behaviors:
 
@@ -1784,7 +1793,8 @@ The template tool had no configuration and followed no import. It found imports 
 of `src`, and found DOM globals with a second one that listed the properties of `document`. kit parses instead:
 - amaro, the TypeScript remover of Node.js, turns TypeScript into JavaScript in transform mode. The remover built into
   Node.js 26 only strips, and fails on parameter properties.
-- acorn parses the JavaScript, and acorn-walk finds the `import`, `export … from`, `import()` and `require()` nodes.
+- acorn parses the JavaScript, and acorn-walk finds the `import`, `export … from`, `import()` and `require()` nodes. The
+  reading is `scripts/kit/module-imports.mts`, which the import graph of owner-check shares (K191).
 - eslint-scope finds the references that no scope declares, so a local variable named `document` is not a use of the global.
 
 These replaced the alternatives:

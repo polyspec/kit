@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Runs the owner checks of the changed paths (`make owner-check`). config/owner-checks.json declares, for globs of
 // repository paths, the checks that own them: make targets, scripts of the root package.json, the test script of
-// workspaces and of package directories, and node test files. The command runs exactly the owners of the paths that a
+// workspaces and of package directories, node test files, and the node test files that import a changed module
+// (`importers`), read from the import graph of the checkout. The command runs exactly the owners of the paths that a
 // change touches, never the full suite.
 //
 // The declaration is checked on every run, before any owner runs (`--validate` checks only that):
 //   - every tracked path matches a rule, and every glob matches a tracked path (new files that Git does not ignore count);
 //   - every target exists in the Makefile or a file it includes and does not run the full suite, no rule selects every
 //     target of CHECK_TARGETS, every script, workspace and package directory exists, every test file exists;
-//   - for `inputs`, each path that a check reads has a rule that selects the check or a target that runs it.
+//   - for `inputs`, each path that a check reads has a rule that selects the check or a target that runs it;
+//   - for `importers`, each path of the rule, or each of its `modules`, is imported by a test of the globs.
 // Every selected check runs to its end, also after an earlier one failed, and the failures are listed together.
 //
 //   node scripts/kit/owner-check.mts [--paths "<path> ..."] [--base <revision>] [--dry-run] [--validate]
@@ -17,7 +19,7 @@
 //     --dry-run   print the selection without running it
 //     --validate  check the declaration only
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
@@ -27,6 +29,7 @@ import { git } from './git.mts';
 import { readConfig } from './schema-validate.mts';
 import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
+import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -38,6 +41,8 @@ export type OwnerRule = {
   workspaces?: string[];
   prefixes?: string[];
   tests?: string[];
+  importers?: string[];
+  modules?: string[];
   variable?: string;
 };
 
@@ -64,6 +69,57 @@ export type Check = { name: string; target?: string; command: string; args: stri
 
 /** Whether the path of the checkout exists. */
 type Exists = (file: string) => boolean;
+
+/** The tracked test files of `globs` that are one of `modules` or import one of them, directly or through other modules. */
+export type Importers = (modules: string[], globs: string[]) => string[];
+
+// The files that the import graph reads as modules: JavaScript and TypeScript, without declaration files.
+const MODULE = /(?<!\.d)\.[cm]?[jt]s$/;
+
+/**
+ * The importers of the checkout at `root` (module-imports.mts): the graph follows each relative specifier of a static
+ * import, a re-export, a dynamic import or a require, and of a module that a module starts (`import.meta.resolve`,
+ * `siblingTool`); a bare specifier is a package, which no owner rule names. A relative specifier that names no file, or a
+ * computed import, fails, since the graph cannot follow it.
+ */
+export function importGraph(root: string, tracked: string[]): Importers {
+  const relative = (file: string) => path.relative(root, file).split(path.sep).join('/');
+  const edges = new Map<string, string[]>();
+  const importsOf = (file: string): string[] => {
+    const known = edges.get(file);
+    if (known) return known;
+    const absolute = path.join(root, file);
+    const result: string[] = [];
+    edges.set(file, result);
+    const program = parseModule(file, readFileSync(absolute, 'utf8'));
+    for (const specifier of [...moduleImports(file, program), ...moduleReferences(file, program)]) {
+      if (specifier === null) throw new Error(`${file}: imports a computed specifier, which the import graph of ${DECLARATION} cannot follow`);
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
+      const target = resolveRelative(absolute, specifier);
+      if (target === null) throw new Error(`${file}: imports ${specifier}, which is no file`);
+      result.push(relative(target));
+    }
+    return result;
+  };
+  const reached = new Map<string, Set<string>>();
+  const reach = (test: string) => {
+    const known = reached.get(test);
+    if (known) return known;
+    const result = new Set([test]);
+    for (const file of result) if (MODULE.test(file)) for (const target of importsOf(file)) result.add(target);
+    reached.set(test, result);
+    return result;
+  };
+  return (modules, globs) => {
+    const expressions = globs.map(globExpression);
+    return tracked.filter(file => expressions.some(expression => expression.test(file)) && modules.some(module => reach(file).has(module)));
+  };
+}
+
+/** The importers of a declaration without an importers rule: none is ever asked. */
+const noImporters: Importers = () => {
+  throw new Error(`${DECLARATION}: a rule names importers, but no import graph was read`);
+};
 
 /**
  * The targets and variables of the Makefile of `root` from the database that GNU make prints (`make -pRrq`), so that an
@@ -155,7 +211,7 @@ const compile = (declaration: OwnerDeclaration) => declaration.owners.map(rule =
  * `make` (makeDatabase), `scripts` (the scripts of the root package.json), `workspaces` and `prefixes` (the names and
  * directories with a test script).
  */
-export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists) {
+export function validate(declaration: OwnerDeclaration, tracked: string[], project: Project, exists: Exists, importers: Importers = noImporters) {
   const errors: string[] = [];
   const targets = new Set(project.make.targets.keys());
   const fullSuite = fullSuiteTargets(project.make, declaration.fullSuite);
@@ -167,6 +223,8 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
       // expressions holds the expression of each glob of paths at its index.
       if (!tracked.some(file => present(rule.expressions[index], 'rule.expressions[index]').test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
+    if (rule.modules && !rule.importers) errors.push(`${DECLARATION}: the rule of ${label} names modules but no importers`);
+    if (rule.importers) errors.push(...importerErrors(rule, rules, label, tracked, exists, importers));
     for (const target of rule.targets ?? []) {
       if (!targets.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} is not a target of the Makefile or of a file it includes`);
       if (fullSuite.has(target)) errors.push(`${DECLARATION}: the target ${target} of ${label} runs the full suite, which an owner check never runs`);
@@ -216,12 +274,32 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   return [...new Set(errors)];
 }
 
+type CompiledRule = OwnerRule & { expressions: RegExp[] };
+
+/**
+ * The errors of the importers of `rule`: each glob of importers matches a tracked path, each module exists, and each module
+ * (the modules of the rule, or else each tracked path of the rule) has a test among the importers. A tracked path that no
+ * test imports passes when another rule of the path names its tests (`tests`, or `importers` with `modules`).
+ */
+function importerErrors(rule: CompiledRule, rules: CompiledRule[], label: string, tracked: string[], exists: Exists, importers: Importers) {
+  const errors: string[] = [];
+  const globs = rule.importers ?? [];
+  for (const glob of globs) if (!tracked.some(file => globExpression(glob).test(file))) errors.push(`${DECLARATION}: the importers glob ${glob} of ${label} matches no tracked path`);
+  for (const module of rule.modules ?? []) if (!exists(module)) errors.push(`${DECLARATION}: the module ${module} of ${label} does not exist`);
+  const owned = (file: string) => rules.some(other => other !== rule && (other.tests?.length || other.modules) && other.expressions.some(expression => expression.test(file)));
+  const modules = rule.modules ?? tracked.filter(file => rule.expressions.some(expression => expression.test(file)) && !owned(file));
+  for (const module of modules) {
+    if (!importers([module], globs).length) errors.push(`${module}: no test of ${globs.join(' ')} imports it; import it from the test that covers it${rule.modules ? '' : ', or give the rule of its path the modules that read it'}`);
+  }
+  return errors;
+}
+
 /**
  * The owners of the changed paths: the checks in order (make targets in the order of CHECK_TARGETS, then the others in the
  * order of the declaration), the test files, and the reasons. A removed path that no rule owns selects nothing; an existing
  * path that no rule owns is unowned.
  */
-export function select(declaration: OwnerDeclaration, changed: string[], order: string[] = [], exists: Exists = () => true) {
+export function select(declaration: OwnerDeclaration, changed: string[], order: string[] = [], exists: Exists = () => true, importers: Importers = noImporters) {
   const rules = compile(declaration);
   const checks = new Map<string, Check>();
   const selected = new Set(declaration.always ?? []);
@@ -235,6 +313,8 @@ export function select(declaration: OwnerDeclaration, changed: string[], order: 
     for (const rule of matched) {
       // A test that is the changed path itself runs only while the path exists.
       const tests = (rule.tests ?? []).flatMap(test => (test !== '$path' ? [test] : exists(file) ? [file] : []));
+      // The tests that import the changed module, or the modules that stand for the changed path.
+      if (rule.importers) tests.push(...importers(rule.modules ?? [file], rule.importers));
       const owned = ruleChecks(rule);
       reasons.push(`${file} -> ${[...owned.map(check => check.name), ...tests].join(', ') || 'nothing'}`);
       for (const check of owned) {
@@ -319,7 +399,9 @@ if (isMain(import.meta.url)) {
   const tracked = trackedFiles(root);
   const project = { make: makeDatabase(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);
-  const errors = validate(declaration, tracked, project, file => existsSync(path.join(root, file)));
+  const exists = (file: string) => existsSync(path.join(root, file));
+  const importers = importGraph(root, tracked);
+  const errors = validate(declaration, tracked, project, exists, importers);
   if (errors.length) {
     for (const error of errors) complain(error);
     complain(`${errors.length} errors in ${DECLARATION}`);
@@ -330,7 +412,7 @@ if (isMain(import.meta.url)) {
     process.exit(0);
   }
   const changed = changedPaths(root, values);
-  const selection = select(declaration, changed, suiteTargets(project.make), file => existsSync(path.join(root, file)));
+  const selection = select(declaration, changed, suiteTargets(project.make), exists, importers);
   if (selection.unowned.length) {
     for (const file of selection.unowned) complain(`${file}: the path matches no owner in ${DECLARATION}; add a rule whose paths match it`);
     process.exit(1);

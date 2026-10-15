@@ -6,9 +6,10 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commandsOf, makeDatabase, npmProject, parseMakeDatabase, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
+import { commandsOf, importGraph, makeDatabase, npmProject, parseMakeDatabase, select, suiteTargets, validate } from '../../scripts/kit/owner-check.mts';
 import type { OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
+import { readConfig } from '../../scripts/kit/schema-validate.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 import { known } from './known.mts';
@@ -196,6 +197,68 @@ test('select: a removed path that no rule owns selects nothing, an existing one 
   assert.ok(result.reasons.includes('gone.txt -> nothing: the path was removed and no rule owns it'));
 });
 
+// A checkout whose tests reach their modules by import, re-export, import.meta.resolve and siblingTool (K191).
+const GRAPH = {
+  'src/leaf.mts': 'export const leaf = 1;\n',
+  'src/middle.mts': "export { leaf } from './leaf.mts';\n",
+  'src/started.mts': '1;\n',
+  'src/starter.mts': "import { siblingTool } from './paths.mts';\nexport const started = siblingTool(import.meta.url, 'started');\n",
+  'src/paths.mts': 'export const siblingTool = (url: string, name: string) => `${url}/${name}`;\n',
+  'src/alone.mts': '1;\n',
+  'src/data.json': '{}\n',
+  'tests/leaf.test.mts': "import { leaf } from '../src/middle.mts';\nleaf;\n",
+  'tests/spawn.test.mts': "import.meta.resolve('../src/starter.mts');\n",
+  'tests/other.test.mts': "import '../src/started.mts';\n",
+};
+const IMPORTERS = ['tests/*.test.mts'];
+
+function graph(t: TestContext, files: Record<string, string> = GRAPH) {
+  const root = tree(t, files);
+  const tracked = trackedFiles(root);
+  return { tracked, importers: importGraph(root, tracked) };
+}
+
+test('importers: a changed module selects the tests that import it, directly or through other modules or started modules (K191)', (t) => {
+  const { importers } = graph(t);
+  const declaration = { owners: [{ paths: ['src/*.mts', 'tests/*.mts'], targets: ['lint'], importers: IMPORTERS }, { paths: ['src/data.json'], importers: IMPORTERS, modules: ['src/leaf.mts'] }] };
+  const run = (...changed: string[]) => select(declaration, changed, [], () => true, importers).tests;
+  assert.deepEqual(run('src/leaf.mts'), ['tests/leaf.test.mts'], 'a re-export carries the import');
+  assert.deepEqual(run('src/started.mts'), ['tests/other.test.mts', 'tests/spawn.test.mts'], 'import.meta.resolve and siblingTool name the started module');
+  assert.deepEqual(run('tests/leaf.test.mts'), ['tests/leaf.test.mts'], 'a changed test runs itself');
+  assert.deepEqual(run('src/data.json'), ['tests/leaf.test.mts'], 'a path that is no module runs the importers of its modules');
+  assert.deepEqual(select(declaration, ['src/leaf.mts'], [], () => true, importers).checks.map(check => check.name), ['make lint']);
+});
+
+test('importers: a module that no test imports fails, unless another rule of the path names its tests; modules must exist (K191)', (t) => {
+  const { tracked, importers } = graph(t, { ...GRAPH, ...FILES });
+  const { project: found } = project(t);
+  const base = [{ paths: ['Makefile', 'extra.mk', 'package.json', 'README.md', 'src/a.js', 'tests/a.test.mjs', 'packages/**', 'tools/**', 'src/data.json'], targets: ['lint'] }];
+  const errors = validate({ owners: [...base, { paths: ['src/*.mts', 'tests/*.mts'], importers: IMPORTERS }] }, tracked, found, () => true, importers);
+  has(errors, 'src/alone.mts: no test of tests/*.test.mts imports it');
+  assert.deepEqual(errors.filter(line => line.includes('imports it')).length, 1, errors.join('\n'));
+  const owned = [...base, { paths: ['src/*.mts', 'tests/*.mts'], importers: IMPORTERS }, { paths: ['src/alone.mts'], tests: ['tests/leaf.test.mts'] }];
+  assert.deepEqual(validate({ owners: owned }, tracked, found, () => true, importers), []);
+  const missing = validate({ owners: [...owned, { paths: ['src/data.json'], importers: ['nothing/*.mts'], modules: ['src/gone.mts'] }] }, tracked, found, file => tracked.includes(file), importers);
+  has(missing, 'the importers glob nothing/*.mts of src/data.json matches no tracked path');
+  has(missing, 'the module src/gone.mts of src/data.json does not exist');
+  has(validate({ owners: [...owned, { paths: ['src/data.json'], modules: ['src/leaf.mts'] }] }, tracked, found, () => true, importers), 'names modules but no importers');
+});
+
+test('importers: a computed import or a relative import of no file fails the graph (K191)', (t) => {
+  assert.throws(() => graph(t, { 'src/a.mts': 'await import(name);\n', 'tests/a.test.mts': "import '../src/a.mts';\n" }).importers(['src/a.mts'], IMPORTERS), /src\/a\.mts: imports a computed specifier/);
+  assert.throws(() => graph(t, { 'tests/a.test.mts': "import '../src/gone.mts';\n" }).importers(['src/a.mts'], IMPORTERS), /tests\/a\.test\.mts: imports \.\.\/src\/gone\.mts, which is no file/);
+});
+
+test("kit's owner rules: a change of scripts/kit/present.mts runs the tests that import it, not kit-test (K191)", () => {
+  const root = path.resolve(import.meta.dirname, '../..');
+  const tracked = trackedFiles(root);
+  const declaration = readConfig<OwnerDeclaration>(root, 'config/owner-checks.json', 'owner-checks.schema.json');
+  const result = select(declaration, ['scripts/kit/present.mts'], [], () => true, importGraph(root, tracked));
+  assert.ok(!result.checks.some(check => check.target === 'kit-test'), result.checks.map(check => check.name).join(', '));
+  assert.ok(result.tests.includes('tests/kit/owner-check.test.mts'), 'owner-check imports present.mts');
+  assert.ok(!result.tests.includes('tests/kit/glob.test.mts'), 'glob.mts imports no present.mts');
+});
+
 test('the tests run through run-tests.mts or through the declared test target', () => {
   const selection = { checks: [], tests: ['tests/a.test.mjs', 'tests/b.test.mjs'] };
   const direct = commandsOf(selection, {});
@@ -207,7 +270,7 @@ test('the tests run through run-tests.mts or through the declared test target', 
 });
 
 function command(root: string, args: string[]) {
-  return spawnSync(process.execPath, [tool('owner-check'), ...args], { cwd: root, encoding: 'utf8' });
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/owner-check.mts')), ...args], { cwd: root, encoding: 'utf8' });
 }
 
 function checkout(t: TestContext, declaration: OwnerDeclaration = DECLARATION, files: Record<string, string> = {}) {

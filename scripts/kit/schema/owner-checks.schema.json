@@ -49,6 +49,8 @@
           "workspaces": { "description": "Workspaces with a test script, run as npm test -w <name>.", "type": "array", "items": { "type": "string" } },
           "prefixes": { "description": "Package directories outside the workspaces with a test script, run as npm test --prefix <directory>.", "type": "array", "items": { "type": "string" } },
           "tests": { "description": "Node test files; $path is the changed test file itself.", "type": "array", "items": { "type": "string" } },
+          "importers": { "description": "Globs of node test files: those that import a changed path of the rule, directly or through other modules (relative imports), or are the changed path, run.", "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "modules": { "description": "Modules that stand for a changed path of the rule that is no module, such as a file that they read: the importers of these modules run. Requires importers.", "type": "array", "minItems": 1, "items": { "type": "string" } },
           "variable": { "description": "The make variable that receives the matched changed paths for the targets of the rule.", "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
         }
       }

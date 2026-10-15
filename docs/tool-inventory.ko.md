@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5b4f44df89bfdbf523e48b1065de2be65637e9fc875bcc2ddce93aa6d3adb50c -->
+<!-- source-sha256: 13c8d7f96873df3330b65a9d8e754d83a6fa6fc4fdd768c5bc0ed51a9ef820be -->
 
 # 도구 목록
 
@@ -401,6 +401,14 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 - Makefile이 include하는 파일(`include scripts/kit/kit.mk`)의 target도 알려진 target입니다(새 동작).
 - node test 파일은 `scripts/kit/run-tests.mts`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
 - 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.
+- `importers`(새 동작, K191)는 node test 파일의 glob을 적습니다: rule의 변경된 경로는 그중에서 그 경로를 직접 또는 다른 module을
+  거쳐 import하거나 그 경로 자체인 test를 실행합니다. import graph는 editor boundaries의 parser인 `module-imports.mts`(amaro, acorn,
+  acorn-walk)로 각 module을 읽고, relative import, re-export, `import()`, `require()`, 그리고 module이 시작하는 module을 따라갑니다:
+  Node.js의 module resolution인 `import.meta.resolve('<specifier>')`와 paths.mts의 `siblingTool(import.meta.url, '<name>')`입니다.
+  계산된 import나 파일이 없는 relative import는 실패합니다. `modules`는 schema나 fixture처럼 module이 아닌 경로를 대신합니다: 그
+  module들의 importer가 실행됩니다. `--validate`는 어떤 test도 import하지 않는 importers rule의 경로에서 실패하며, 그 경로의 다른
+  rule이 test를 적으면 통과합니다. 그래서 test가 시작만 하는 도구는 `import.meta.resolve`로 이름을 적습니다. kit의 rule은
+  scripts/kit와 tests/kit에 이것을 쓰며, 도구 suite 전체인 `kit-test`는 CI의 full run이고 owner가 아닙니다.
 
 버린 동작:
 
@@ -1651,7 +1659,8 @@ template tool은 설정이 없었고 import를 따라가지 않았습니다. `sr
 나열한 두 번째 정규식으로 DOM global을 찾았습니다. kit은 대신 parse합니다:
 - Node.js의 TypeScript 제거기인 amaro가 transform mode로 TypeScript를 JavaScript로 바꿉니다. Node.js 26에 내장된 제거기는 strip만
   하며, parameter property에서 실패합니다.
-- acorn이 JavaScript를 parse하고, acorn-walk가 `import`, `export … from`, `import()`, `require()` node를 찾습니다.
+- acorn이 JavaScript를 parse하고, acorn-walk가 `import`, `export … from`, `import()`, `require()` node를 찾습니다. 이 읽기는
+  owner-check의 import graph와 함께 쓰는 `scripts/kit/module-imports.mts`입니다(K191).
 - eslint-scope가 어떤 scope도 선언하지 않은 reference를 찾으므로, `document`라는 지역 변수는 global의 사용이 아닙니다.
 
 이것들이 다음 대안을 대신했습니다:

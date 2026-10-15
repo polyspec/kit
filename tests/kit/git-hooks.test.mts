@@ -10,8 +10,8 @@ import { HOOKS_PATH, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from
 import { checkout, git, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 
-const hooks = (work: string) => run(work, process.execPath, [tool('git-hooks'), 'install']);
-const check = (work: string) => run(work, process.execPath, [tool('git-hooks'), 'check']);
+const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
+const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
 
 test('install sets core.hooksPath and writes the executable pre-push hook; check passes', (t) => {
   const { work } = checkout(t);
@@ -88,7 +88,7 @@ test('the listed hooks of the repository are checked and made executable, and a 
 
 test('git-hooks takes only install or check', (t) => {
   const { work } = checkout(t);
-  const refused = run(work, process.execPath, [tool('git-hooks'), 'remove']);
+  const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'remove']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/git-hooks\.mts install \| check/);
 });

@@ -349,7 +349,7 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   const { work } = prepared(t);
   const bin = stubMake(work);
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, FAIL: 'bad' };
-  const failed = run(work, process.execPath, [tool('full-run'), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
+  const failed = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '--no-print-directory -k good\n--no-print-directory -k bad\n');
   assert.match(failed.stdout, /\[full-run\] start good \(1\/2\)\nbuilding good\n/);
@@ -362,11 +362,11 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
   // The test fails when the record lacks the target.
   assert.deepEqual(known(written.targets[1], 'written.targets[1]').lastLines, ['building bad', 'error: bad broke']);
 
-  const repeated = run(work, process.execPath, [tool('full-run'), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
+  const repeated = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
   assert.equal(repeated.status, 1);
   assert.match(repeated.stdout, /refuse: the full run of tree/);
 
-  const rerun = run(work, process.execPath, [tool('full-run'), 'rerun-failed', '--key', 'dep=c1'], { env: { ...env, FAIL: '' } });
+  const rerun = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'rerun-failed', '--key', 'dep=c1'], { env: { ...env, FAIL: '' } });
   assert.equal(rerun.status, 0, rerun.stdout + rerun.stderr);
   assert.equal(readFileSync(path.join(work, '..', 'make.log'), 'utf8'), '--no-print-directory -k good\n--no-print-directory -k bad\n--no-print-directory -k bad\n');
   assert.equal(record(work).result, 'passed');
@@ -375,10 +375,10 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
 
 test('the command prints its usage for arguments that do not fit', (t) => {
   const { work } = prepared(t);
-  const refused = run(work, process.execPath, [tool('full-run'), 'run']);
+  const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/full-run\.mts run/);
-  const bad = run(work, process.execPath, [tool('full-run'), 'run', '../x']);
+  const bad = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run', '../x']);
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /"\.\.\/x" is not a target name/);
 });
