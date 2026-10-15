@@ -15,6 +15,8 @@
 
 - `make parity-check` runs vitest with `--dir` set to the root of the implementation that holds the test. From the checkout root, vitest's discovery followed var/tools/mise/state/trusted-configs, a trust record of mise that links to the home folder, into old copies of the same test, so a case was reported twice (template, K202).
 
+- The links of `make link` (scripts/kit/link.mts) link only packages pinned at 0.0.x, read from each tool's own record (npm query, Composer's installed.json, uv pip list, go mod edit -json), link the vendor that `composer config vendor-dir` gives each Composer project and dump its autoloader, report a plain copy of a polyspec package as NOT linked with its path, never build (`link.mjs rebuild` builds; `link-check` reports STALE), write only paths that Git ignores, and run the release targets and `dependency-review` with `GOWORK=off`. `make build` of kit renames a complete dist.next into dist, and `make install-packages` builds the kit checkout under POLYSPEC_CHECKOUTS before it links (K201-1).
+
 ## 0.0.53
 
 - `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).

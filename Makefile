@@ -30,12 +30,13 @@ kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Co
 	$(NODE) tests/kit/record-tools.mts
 
 .PHONY: build typecheck
-build: ## Build the package @polyspec/kit into dist/: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors; offline after npm ci
-	rm -rf dist
-	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json
-	cp scripts/kit/kit.mk dist/kit.mk
-	cp -R scripts/kit/schema dist/schema
-	cp -R scripts/kit/symbols dist/symbols
+build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors; offline after npm ci
+	rm -rf dist.next dist.old
+	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
+	cp scripts/kit/kit.mk dist.next/kit.mk
+	cp -R scripts/kit/schema dist.next/schema
+	cp -R scripts/kit/symbols dist.next/symbols
+	if [ -d dist ]; then mv dist dist.old; fi && mv dist.next dist && rm -rf dist.old
 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json

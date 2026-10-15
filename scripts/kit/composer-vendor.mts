@@ -14,12 +14,11 @@ import { run } from './process.mts';
 
 /**
  * The vendor directory that Composer gives the Composer project in the folder `project` (which has a composer.json), absolute
- * when `project` is; the Composer of the checkout that kit runs in answers.
+ * when `project` is; `composer` answers, by default the Composer of the checkout that kit runs in.
  */
-export function composerVendor(project: string): string {
-  const checkout = repositoryRoot();
-  const composer = composerCommand(checkout, 'the vendor directory of a Composer project');
-  const answer = run(composer, ['config', '--no-interaction', '--no-plugins', 'vendor-dir'], { cwd: project, env: toolsEnvironment(checkout) });
+export function composerVendor(project: string, composer?: { command: string; env: NodeJS.ProcessEnv }): string {
+  const tool = composer ?? { command: composerCommand(repositoryRoot(), 'the vendor directory of a Composer project'), env: toolsEnvironment(repositoryRoot()) };
+  const answer = run(tool.command, ['config', '--no-interaction', '--no-plugins', 'vendor-dir'], { cwd: project, env: tool.env });
   return path.resolve(project, answer.trim());
 }
 

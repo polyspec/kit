@@ -209,12 +209,12 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 	$(NODE) $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
 # --- link: the local links of 0.0.x development (docs/plans/local-links.md, K201). With the polyspec root declared in
-# POLYSPEC_CHECKOUTS, link builds each provider and points every installed polyspec package of the checkout (or of DIRS) at
-# its provider's source (scripts/kit/link.mts), link-check lists each one as linked, NOT linked or STALE, and unlink restores
-# the locked installs. Without POLYSPEC_CHECKOUTS each target does nothing and the installs stay the locked releases. The
-# go.work that link writes is the GOWORK of every recipe while the root is declared.
+# POLYSPEC_CHECKOUTS, link points every installed polyspec package of the checkout (or of DIRS) pinned at 0.0.x at its
+# provider's source (scripts/kit/link.mts) and never builds, link-check lists each one as linked, NOT linked, STALE or own,
+# and unlink restores the locked installs. Without POLYSPEC_CHECKOUTS each target does nothing and the installs stay the
+# locked releases. The go.work that link writes is the GOWORK of every recipe while the root is declared.
 .PHONY: link link-check unlink
-link: ## With POLYSPEC_CHECKOUTS, build the providers and link every installed polyspec package of the checkout (DIRS) to its source; offline
+link: ## With POLYSPEC_CHECKOUTS, link every installed polyspec package of the checkout (DIRS) pinned at 0.0.x to its source; never builds; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(or $(DIRS),$(CURDIR))
 
 link-check: ## With POLYSPEC_CHECKOUTS, list every polyspec package of the checkout (DIRS) as linked, NOT linked or STALE; offline
@@ -223,9 +223,12 @@ link-check: ## With POLYSPEC_CHECKOUTS, list every polyspec package of the check
 unlink: ## With POLYSPEC_CHECKOUTS, restore the locked installs of the checkout (DIRS) with npm ci, composer install and uv sync; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(or $(DIRS),$(CURDIR))
 
+# The release and the dependency review use the released versions, so their Go runs without the go.work of the links. make
+# reads var/link/go.work when it starts: a `make link` and a Go target in one invocation run that target without it.
 ifneq ($(POLYSPEC_CHECKOUTS),)
 ifneq ($(wildcard $(CURDIR)/var/link/go.work),)
 export GOWORK := $(CURDIR)/var/link/go.work
+release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review: export GOWORK := off
 endif
 endif
 

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9f031483e98448007dad5f1b13ba1710f250aec60dde9af8b148edcec00b0068 -->
+<!-- source-sha256: 3fbb93460baedf62fa4412cbbfc1c80817321e0d786b3abb14beb0efe573f4eb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -15,6 +15,8 @@
 - `make link`, `make link-check`, `make unlink`(scripts/kit/link.mts)는 `POLYSPEC_CHECKOUTS`가 polyspec root를 선언한 동안 0.0.x 개발의 local link를 만든다(docs/plans/local-links.md): 각 제공자를 release-assets의 prerequisite로 build하고, npm의 hidden lockfile과 Composer의 installed.json이 기록한 사본을 main checkout의 제공자 폴더를 가리키는 링크로 바꾸며, Python 패키지는 의존과 --overrides 파일을 준 uv install 한 번으로 editable 설치하고, var/link/go.work를 모든 recipe의 GOWORK로 한다. `make install-packages`는 npm ci 뒤 다시 링크한다. kit이 없는 checkout은 `node $(POLYSPEC_CHECKOUTS)/kit/dist/link.mjs`를 실행한다. root가 없으면 모든 target은 아무것도 하지 않는다 (K201).
 
 - `make parity-check`는 vitest를 test를 가진 implementation의 root를 `--dir`로 주어 실행한다. checkout root에서는 vitest의 discovery가 home 폴더로 링크하는 mise의 trust 기록 var/tools/mise/state/trusted-configs를 따라가 같은 test의 옛 사본까지 찾았으므로 case가 두 번 보고되었다 (template, K202).
+
+- `make link`(scripts/kit/link.mts)의 링크는 각 도구 자신의 기록(npm query, Composer의 installed.json, uv pip list, go mod edit -json)에서 읽은 0.0.x 고정 패키지만 링크하고, `composer config vendor-dir`이 각 Composer 프로젝트에 주는 vendor를 링크한 뒤 autoloader를 다시 쓰며, polyspec 패키지의 plain copy를 경로와 함께 NOT linked로 보고하고, 빌드하지 않으며(`link.mjs rebuild`가 빌드하고 `link-check`는 STALE을 보고한다), Git이 무시하는 경로에만 쓰고, release target과 `dependency-review`를 `GOWORK=off`로 실행한다. kit의 `make build`는 완성된 dist.next를 dist로 rename하고, `make install-packages`는 링크 전에 POLYSPEC_CHECKOUTS 아래 kit checkout을 빌드한다 (K201-1).
 
 ## 0.0.53
 

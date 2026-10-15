@@ -6,7 +6,7 @@
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
+import { isJsonObject } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 import { readComposerManifestFile, readNpmManifestFile } from './manifests.mts';
 import { run } from './process.mts';
@@ -21,8 +21,14 @@ export type Ecosystem = 'npm' | 'composer' | 'python' | 'go';
 /** The manifest file of each ecosystem. */
 export const MANIFESTS: Readonly<Record<Ecosystem, string>> = { npm: 'package.json', composer: 'composer.json', python: 'pyproject.toml', go: 'go.mod' };
 
-// A manifest in one of these folders is a test, example, benchmark or fixture project, not a published package.
-const NOT_PACKAGE = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^/]*fixtures?)\//;
+/**
+ * The folders whose manifests are neither a provided package nor a linked consumer project: tests (the release-consumer
+ * projects among them), examples, benchmarks, documents, the tool projects of config/ and .mise, and fixtures.
+ */
+export const EXCLUDED = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^/]*fixtures?|release-consumer)\//;
+
+/** A command of a tool and the environment that it runs in. */
+export type Tool = { command: string; env: NodeJS.ProcessEnv };
 
 /** The declared polyspec root, or undefined when POLYSPEC_CHECKOUTS is unset or empty. */
 export function declaredRoot(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -33,14 +39,12 @@ export function declaredRoot(env: NodeJS.ProcessEnv = process.env): string | und
 /** The absolute paths of git rev-parse `args` in `directory`, or undefined outside a work tree. */
 function revParse(directory: string, ...args: string[]): string[] | undefined {
   const outcome = gitResult(directory, 'rev-parse', '--path-format=absolute', ...args);
+  if (outcome.error) throw new Error(`git rev-parse could not start in ${directory}: ${outcome.error.message}`);
   return outcome.status === 0 ? outcome.stdout.trim().split('\n') : undefined;
 }
 
 /** The repository of `directory`: the real path of its common Git directory, shared by every worktree; the folder outside Git. */
-export function repositoryOf(directory: string): string {
-  const found = revParse(directory, '--git-common-dir')?.[0];
-  return realpathSync(found ?? directory);
-}
+export const repositoryOf = (directory: string): string => realpathSync(revParse(directory, '--git-common-dir')?.[0] ?? directory);
 
 /** The top level of the work tree of `directory`, or `directory` itself outside Git. */
 export const workTreeOf = (directory: string): string => realpathSync(revParse(directory, '--show-toplevel')?.[0] ?? directory);
@@ -56,60 +60,73 @@ function isMainCheckout(directory: string): boolean {
 /** The tracked files of the work tree `root` whose base name is one of `names`, relative to `root`. */
 export function trackedManifests(root: string, names: readonly string[]): string[] {
   const outcome = gitResult(root, 'ls-files', '-z', '--', ...names.flatMap(name => [name, `*/${name}`]));
-  return outcome.status === 0 ? outcome.stdout.split('\0').filter(file => file && names.includes(path.basename(file))) : [];
+  if (outcome.error || outcome.status !== 0) throw new Error(`git ls-files failed in ${root}: ${outcome.error?.message ?? outcome.stderr.trim()}`);
+  return outcome.stdout.split('\0').filter(file => file && names.includes(path.basename(file)));
 }
+
+/** A requirement of a go.mod: the module path and its version. */
+export type GoRequirement = { path: string; version: string };
 
 /**
  * The module path and requirements of the go.mod `file`, as go mod edit -json reads it. The go runs in `cwd`, the consumer
  * whose go it is: a shim of mise reads the mise.toml of the directory it runs in, which only the consumer trusts (K199).
  */
-export function goModule(go: string, file: string, cwd: string, env: NodeJS.ProcessEnv): { module: string; requires: string[] } {
-  const parsed = JSON.parse(run(go, ['mod', 'edit', '-json', file], { cwd, env })) as unknown;
+export function goModule(go: Tool, file: string, cwd: string): { module: string; requires: GoRequirement[] } {
+  const parsed = JSON.parse(run(go.command, ['mod', 'edit', '-json', file], { cwd, env: go.env })) as unknown;
   if (!isJsonObject(parsed) || !isJsonObject(parsed.Module) || typeof parsed.Module.Path !== 'string') throw new Error(`${file}: go mod edit -json printed no module`);
-  const requires = Array.isArray(parsed.Require) ? parsed.Require.flatMap(item => (isJsonObject(item) && typeof item.Path === 'string' ? [item.Path] : [])) : [];
+  const requires = Array.isArray(parsed.Require)
+    ? parsed.Require.flatMap(item => (isJsonObject(item) && typeof item.Path === 'string' && typeof item.Version === 'string' ? [{ path: item.Path, version: item.Version }] : []))
+    : [];
   return { module: parsed.Module.Path, requires };
 }
 
-/** The pyproject.toml `file` as a table. */
-export const readPyproject = (file: string): Record<string, unknown> => readToml(readFileSync(file, 'utf8'), file);
+/** The TOML file `file` (a pyproject.toml or a Cargo.toml) as a table. */
+export const readTomlFile = (file: string): Record<string, unknown> => readToml(readFileSync(file, 'utf8'), file);
 
 /** The normalized project.name of the pyproject `file`, or undefined. */
 function pyprojectName(file: string): string | undefined {
-  const project = readPyproject(file).project;
+  const project = readTomlFile(file).project;
   return isTable(project) && typeof project.name === 'string' ? normalizeName(project.name) : undefined;
 }
 
 /** A provider: the package folder of a main checkout under the root that provides `name` of `ecosystem`. */
-export type Provider = { ecosystem: Ecosystem; name: string; folder: string; repository: string };
+export type Provider = { ecosystem: Ecosystem; name: string; folder: string; repository: string; checkout: string };
 
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
 
+/** The main checkouts among the folders of `root`. */
+export const mainCheckouts = (root: string): string[] =>
+  readdirSync(root).sort().map(entry => path.join(root, entry)).filter(folder => statSync(folder).isDirectory() && isMainCheckout(folder));
+
 /**
  * Every provider under `root`: each main checkout among its folders and each tracked manifest of a package there. A name
- * that a package folder and the repository root both provide is provided by the package folder; the root is the development
- * project. `go` runs go mod edit -json in `cwd`; without it, the Go modules provide nothing.
+ * that a package folder and the repository root both provide is provided by the package folder, since the root is the
+ * development project; two package folders that provide one name fail with both. `go` reads go.mod in `cwd`; without it
+ * the Go modules provide nothing.
  */
-export function providers(root: string, go: string | undefined, cwd: string, env: NodeJS.ProcessEnv): Map<string, Provider> {
+export function providers(root: string, go: Tool | undefined, cwd: string): Map<string, Provider> {
   const found = new Map<string, Provider>();
-  for (const entry of readdirSync(root).sort()) {
-    const checkout = path.join(root, entry);
-    if (!statSync(checkout).isDirectory() || !isMainCheckout(checkout)) continue;
+  for (const checkout of mainCheckouts(root)) {
     const repository = repositoryOf(checkout);
     for (const file of trackedManifests(checkout, Object.values(MANIFESTS)).sort()) {
-      if (NOT_PACKAGE.test(file)) continue;
+      if (EXCLUDED.test(file)) continue;
       const absolute = path.join(checkout, file);
-      const provided = providedName(absolute, go, cwd, env);
+      const provided = providedName(absolute, go, cwd);
       if (!provided) continue;
       const key = providerKey(provided.ecosystem, provided.name);
-      if (!found.has(key) || file.includes('/')) found.set(key, { ...provided, folder: path.dirname(absolute), repository });
+      const provider = { ...provided, folder: path.dirname(absolute), repository, checkout };
+      const earlier = found.get(key);
+      const atRoot = (item: Provider) => item.folder === item.checkout;
+      if (earlier && !atRoot(earlier) && !atRoot(provider)) throw new Error(`${provided.ecosystem} package ${provided.name} has two providers: ${earlier.folder} and ${provider.folder}`);
+      if (!earlier || atRoot(earlier)) found.set(key, provider);
     }
   }
   return found;
 }
 
 /** The ecosystem and name that the manifest `file` publishes, or undefined. */
-function providedName(file: string, go: string | undefined, cwd: string, env: NodeJS.ProcessEnv): { ecosystem: Ecosystem; name: string } | undefined {
+function providedName(file: string, go: Tool | undefined, cwd: string): { ecosystem: Ecosystem; name: string } | undefined {
   switch (path.basename(file)) {
     case MANIFESTS.npm: {
       const manifest = readNpmManifestFile(file);
@@ -124,9 +141,29 @@ function providedName(file: string, go: string | undefined, cwd: string, env: No
       return name ? { ecosystem: 'python', name } : undefined;
     }
     default:
-      return go ? { ecosystem: 'go', name: goModule(go, file, cwd, env).module } : undefined;
+      return go ? { ecosystem: 'go', name: goModule(go, file, cwd).module } : undefined;
   }
 }
 
-/** The raw JSON object of the manifest `file`, for the fields that the manifest types leave out (exports, main, types). */
-export const rawManifest = (file: string): Record<string, unknown> => readJsonObject(file);
+/**
+ * Fails unless Git ignores `file` in its repository (git check-ignore), so the links never leave an untracked file that Git
+ * would show: var/link of a consumer, var/link/built of a provider and the go.work.sum that go writes beside a go.work.
+ */
+export function assertIgnored(file: string): void {
+  const directory = path.dirname(file);
+  let existing = directory;
+  while (!statExists(existing)) existing = path.dirname(existing);
+  const outcome = gitResult(existing, 'check-ignore', '-q', '--', file);
+  if (outcome.error) throw new Error(`git check-ignore could not start in ${existing}: ${outcome.error.message}`);
+  if (outcome.status === 0) return;
+  if (outcome.status === 1) throw new Error(`${file} is not ignored by Git in its repository; the links write only ignored files`);
+  throw new Error(`git check-ignore ${file} failed: ${outcome.stderr.trim()}`);
+}
+
+/** Whether `file` exists. */
+function statExists(file: string): boolean {
+  try { statSync(file); return true; } catch (error) {
+    if (isJsonObject(error) && error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
