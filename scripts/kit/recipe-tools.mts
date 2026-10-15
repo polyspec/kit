@@ -27,7 +27,8 @@ export const CHECKOUT_TOOLS: ReadonlySet<string> = new Set([
 const CONTROL = new Set(['&&', '||', ';', ';;', ';&', ';;&', '&', '|', '|&', '(', ')', '<(', '>(']);
 // A reference of make, $(NAME), possibly nested, which make expands before the shell reads the line.
 const REFERENCE = /\$\(([^()]*)\)/g;
-const PLACEHOLDER = /\$\{KIT_MAKE_REFERENCE_(\d+)\}/g;
+const PLACEHOLDER_NAME = 'KIT_MAKE_REFERENCE_';
+const PLACEHOLDER = new RegExp(String.raw`\$\{${PLACEHOLDER_NAME}(\d+)\}`, 'g');
 
 /**
  * The words of each command of the recipe line `line`, split by the quoting rules of the POSIX shell with the parse of
@@ -35,13 +36,23 @@ const PLACEHOLDER = /\$\{KIT_MAKE_REFERENCE_(\d+)\}/g;
  * word, so `echo "a|node"` is one command. Each reference of make, which the shell never sees, stays one word as written.
  */
 function commandParts(line: string): string[][] {
+  // A placeholder of the line itself would be read as a reference of make: one beyond the references lost its word, one
+  // within them took the word of another (K187).
+  if (line.includes(PLACEHOLDER_NAME)) {
+    throw new Error(`recipe line \`${line}\` already contains ${PLACEHOLDER_NAME}, the placeholder that recipe-tools puts in place of a make reference; rename that variable`);
+  }
   const references: string[] = [];
   let text = line;
   for (let previous = ''; previous !== text;) {
     previous = text;
-    text = text.replace(REFERENCE, reference => `\${KIT_MAKE_REFERENCE_${references.push(reference) - 1}}`);
+    text = text.replace(REFERENCE, reference => `\${${PLACEHOLDER_NAME}${references.push(reference) - 1}}`);
   }
-  const restore = (word: string): string => word.replace(PLACEHOLDER, (_, index: string) => restore(references[Number(index)] ?? ''));
+  const restore = (word: string): string => word.replace(PLACEHOLDER, (placeholder, index: string) => {
+    const reference = references[Number(index)];
+    // Each placeholder left is one that the loop above wrote, since the line had none of its own.
+    if (reference === undefined) throw new Error(`recipe-tools wrote ${placeholder} for no reference of make in \`${line}\``);
+    return restore(reference);
+  });
   const parts: string[][] = [[]];
   let redirection = false;
   for (const entry of parse(text, key => `\${${key}}`)) {

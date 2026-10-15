@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cb45dc4e355c796e9aa4a824d0049303ffc28329b9265a3077547aa4fe89353f -->
+<!-- source-sha256: 718666755e2568f314548791b14bb760ad6214de70a44e09155fd71113cf51d6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- kit-check의 recipe-tools check는 shell-quote가 line을 나누는 동안 make reference 자리에 두는 placeholder인 `KIT_MAKE_REFERENCE_`를 이미 담은 recipe line에서 실패한다. 그런 word는 reference로 읽혔다: line의 reference 범위를 넘는 것은 빈 word가 되어 버려졌고, 범위 안의 것은 다른 reference의 word를 가졌다; 이제 그 line은 자기 text와 해결 방법(그 변수의 이름을 바꾼다)과 함께 실패한다 (K187).
 
 ## 0.0.50
 
