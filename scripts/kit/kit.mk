@@ -208,6 +208,27 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	$(NODE) $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
+# --- link: the local links of 0.0.x development (docs/plans/local-links.md, K201). With the polyspec root declared in
+# POLYSPEC_CHECKOUTS, link builds each provider and points every installed polyspec package of the checkout (or of DIRS) at
+# its provider's source (scripts/kit/link.mts), link-check lists each one as linked, NOT linked or STALE, and unlink restores
+# the locked installs. Without POLYSPEC_CHECKOUTS each target does nothing and the installs stay the locked releases. The
+# go.work that link writes is the GOWORK of every recipe while the root is declared.
+.PHONY: link link-check unlink
+link: ## With POLYSPEC_CHECKOUTS, build the providers and link every installed polyspec package of the checkout (DIRS) to its source; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(or $(DIRS),$(CURDIR))
+
+link-check: ## With POLYSPEC_CHECKOUTS, list every polyspec package of the checkout (DIRS) as linked, NOT linked or STALE; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) check $(or $(DIRS),$(CURDIR))
+
+unlink: ## With POLYSPEC_CHECKOUTS, restore the locked installs of the checkout (DIRS) with npm ci, composer install and uv sync; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(or $(DIRS),$(CURDIR))
+
+ifneq ($(POLYSPEC_CHECKOUTS),)
+ifneq ($(wildcard $(CURDIR)/var/link/go.work),)
+export GOWORK := $(CURDIR)/var/link/go.work
+endif
+endif
+
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------
 # Each target runs the lint of one language with the configuration that kit copies (ruff.toml, phpcs.xml.dist,
 # phpstan.dist.neon, .golangci.yml, .oxlintrc.json, knip.json, config/api-extractor.kit.json) and the tools of var/tools

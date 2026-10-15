@@ -11,6 +11,8 @@
 
 - `make install-tools` builds the go symbol extractor with the go of the consumer by its absolute path, the bin/go of the install that `mise where go` prints in the consumer root, instead of the shim of mise. In a consumer that links kit, the extractor sources resolve into the kit checkout, where the shim read kit's own mise.toml and stopped with "Config files in …/kit/mise.toml are not trusted" (template, K199).
 
+- `make link`, `make link-check` and `make unlink` (scripts/kit/link.mts) make the local links of 0.0.x development (docs/plans/local-links.md) while `POLYSPEC_CHECKOUTS` declares the polyspec root: each provider is built with the prerequisites of its release-assets, the copies that npm's hidden lockfile and Composer's installed.json record become links to the provider folders of the main checkouts, the Python packages are installed editable with one uv install with dependencies and an --overrides file, and var/link/go.work is the GOWORK of every recipe. `make install-packages` relinks after npm ci. A checkout without kit runs `node $(POLYSPEC_CHECKOUTS)/kit/dist/link.mjs`. Without the root every target does nothing (K201).
+
 ## 0.0.53
 
 - `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).
