@@ -142,7 +142,7 @@ export function wheelDependencyProblems({ requiresDist, name, version, polyspec,
 
 /**
  * The direct references of the Requires-Dist lines of a wheel to its siblings, as { name, url } for each `name @ url` line of a
- * sibling. The proof compares each URL with the URL of the published asset of the sibling (release-proof.mts).
+ * sibling. The proof checks that the release lists the asset of each sibling (release-proof.mts).
  */
 export function siblingLinks(requiresDist: string[], siblings: string[]) {
   const names = new Set(siblings.map(canonicalName));

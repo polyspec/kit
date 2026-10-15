@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a48a3b907d0cbf33a8e0b6b0f497a5b089ed42862eebeff16ce64a43ccee3986 -->
+<!-- source-sha256: c4d8f46f22424b08fdbd5dfab5da95188a9a14f2c10a5fd886a018e6256d74a7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make release-proof`는 wheel이 요구하는 각 sibling의 asset을 release가 나열하는지 확인하고 URL은 비교하지 않는다. sibling의 URL을 draft가 나열하는 URL과 비교했으나, GitHub은 draft가 publish되기 전까지 그 asset을 `untagged-` URL로 나열하므로 sibling wheel이 있는 첫 release가 proof에서 실패했다(crudui v0.0.6). sibling의 URL, 곧 tag의 asset URL은 release가 build되기 전에 확인된다 (K195).
 
 ## 0.0.52
 

@@ -281,10 +281,16 @@ test('the proof names an archive of a wheel lock that has no url, such as one na
   assert.equal(box.calls('gh').some((call: Call) => call.args.at(-1)?.startsWith('repos/polyspec/kit-lib/') ?? false), false, 'no asset is read for a lock that the proof refuses');
 });
 
-test('the proof checks each sibling URL in a wheel against the published asset, and installs the wheels together from their files', (t) => {
+test('the proof checks that the release lists each sibling of a wheel, and installs the wheels together from their files', (t) => {
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
+  // The proof reads the draft, and GitHub lists the assets of a draft under an untagged- URL until the draft is published,
+  // so the proof compares no URL; the URL of a sibling is the asset URL of the tag, checked before the release builds.
+  const state = box.state();
+  const { published } = state.release;
+  assert.ok(published);
+  box.stub({ release: { ...state.release, published: { ...published, [SIBLING_WHEEL]: { ...published[SIBLING_WHEEL], url: `${REPOSITORY}/releases/download/untagged-37c2cd0bbcec69adfcd2/${SIBLING_WHEEL}` } } } });
   const steps = prove(box);
-  assert.ok(steps.includes(`${GENERATOR_WHEEL}: its Requires-Dist of ${SIBLING} is the published asset of ${SIBLING_WHEEL}, ${SIBLING_URL}`), steps.join('\n'));
+  assert.ok(steps.includes(`${GENERATOR_WHEEL}: its Requires-Dist of ${SIBLING} is the asset ${SIBLING_WHEEL} of the release, ${SIBLING_URL}`), steps.join('\n'));
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: the sha256 of the downloaded file is the one the release lists`), steps.join('\n'));
   // The install of the wheels reads their requirements file (-r); the dry runs that read the metadata of each wheel do not.
   const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index') && call.args.includes('-r'));
@@ -298,13 +304,14 @@ test('the proof checks each sibling URL in a wheel against the published asset, 
   assert.deepEqual(files, [GENERATOR_WHEEL, SIBLING_WHEEL]);
 });
 
-test('the proof refuses a sibling URL in a wheel that differs from the URL of the published asset', (t) => {
+test('the proof refuses a release that does not list the sibling of a wheel: the sibling is a wheel of the release', (t) => {
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
   const state = box.state();
   const { published } = state.release;
   assert.ok(published);
-  box.stub({ release: { ...state.release, published: { ...published, [SIBLING_WHEEL]: { ...published[SIBLING_WHEEL], url: `${REPOSITORY}/releases/download/v0.0.1/elsewhere/${SIBLING_WHEEL}` } } } });
-  stop(() => prove(box), new RegExp(escaped(`${GENERATOR_WHEEL} requires ${SIBLING} at ${SIBLING_URL}, the release v0.0.1 publishes ${SIBLING_WHEEL} at ${REPOSITORY}/releases/download/v0.0.1/elsewhere/${SIBLING_WHEEL}`)));
+  const { [SIBLING_WHEEL]: _sibling, ...rest } = published;
+  box.stub({ release: { ...state.release, published: rest } });
+  stop(() => prove(box), new RegExp(escaped(`the release v0.0.1 lists ${SIBLING_WHEEL} with the sha256 none, the downloaded file has`)));
 });
 
 test('the proof refuses a wheel whose downloaded sha256 differs from the digest that the release lists', (t) => {
