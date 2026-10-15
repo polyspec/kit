@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 13c8d7f96873df3330b65a9d8e754d83a6fa6fc4fdd768c5bc0ed51a9ef820be -->
+<!-- source-sha256: 6e82e82e4c1e325f7a8b4fedbdf5f847843dfe18cd779625beaed40dcb49e15a -->
 
 # 도구 목록
 
@@ -145,7 +145,10 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   mise가 `mise.toml`의 `http:composer` 항목과 선언된 checksum으로 설치합니다(K127).
 - Python과 PHP: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. Python은 이제
   `mise.toml`의 도구로 정확한 release로 선언합니다(K127). PHP는 설정을 먼저 읽고 없으면 `.php-version`(ordered-json, orm)과
-  crudui, template의 목록을 읽으며, 둘 다 있고 다르면 실패합니다.
+  crudui, template의 목록을 읽으며, 둘 다 있고 다르면 실패합니다. PHP가 필요한 저장소(`config/release.json`의 Composer package나
+  Composer consumer, 또는 `config/toolchain.json`의 `php`)는 CI와 release workflow가 설치하는 PHP(`php-version-file`)인
+  `.php-version`을 선언합니다. release workflow가 어떤 release 단계보다 먼저 실행하는 `make kit-check`는 그것이 없으면 실패합니다.
+  그렇지 않으면 release가 runner의 PHP로 실행되었기 때문입니다(K193).
 - Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. uv는 Python을 설치하지 않으며(`UV_PYTHON_DOWNLOADS=never`), kit의 uv는 mise의 Python(`UV_PYTHON`)으로 실행됩니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
 - Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
 - Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.

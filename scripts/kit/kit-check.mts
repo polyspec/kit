@@ -3,9 +3,10 @@
 // node_modules is the version that package-lock.json resolves, and each copy that the package declares (`kit.copies` of its
 // package.json) is byte for byte its file of the package. Both together tie the copies to the locked version. The
 // configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
-// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, and no recipe of
-// the Makefile starts a tool of the checkout by its bare name (recipe-tools.mts, K171). kit itself, the source of the copies,
-// checks its configuration and its recipes only.
+// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, a repository
+// that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no recipe of the Makefile
+// starts a tool of the checkout by its bare name (recipe-tools.mts, K171). kit itself, the source of the copies, checks its
+// configuration and its recipes only.
 //
 //   node scripts/kit/kit-check.mts
 //
@@ -18,7 +19,7 @@ import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
 import { backendFinding, type WheelUsers } from './release-wheel.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmLock, readNpmManifest } from './manifests.mts';
-import { PHPUNIT_MANIFEST } from './bootstrap/toolchain-declared.mts';
+import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
 import { makeDatabase } from './owner-check.mts';
 import { bareToolFindings } from './recipe-tools.mts';
@@ -83,6 +84,31 @@ export function installedKit(root: string): { version: string; copies: { file: s
 // The release configuration, whose wheels need pythonBackend of config/toolchain.json.
 const RELEASE = 'config/release.json';
 
+// The file of the PHP minor release that CI and the release workflow set up (shivammathur/setup-php php-version-file).
+export const PHP_VERSION = '.php-version';
+
+/** The part of config/release.json that needs PHP: the Composer packages and the Composer consumer. */
+export type PhpUsers = { packages: { kind: string; name: string }[]; consumers?: { composer?: unknown } };
+
+/**
+ * The finding of `root` when it needs PHP and has no .php-version: a Composer package or the Composer consumer of
+ * config/release.json, or php of config/toolchain.json. The release workflow sets up the PHP of .php-version only; without
+ * it, the release proof ran the PHP of the runner (K193).
+ */
+export function phpVersionFinding(root: string, release: PhpUsers | undefined): string | null {
+  if (existsSync(path.join(root, PHP_VERSION))) return null;
+  const composer = (release?.packages ?? []).filter(({ kind }) => kind === 'composer').map(({ name }) => name);
+  const php = toolchainConfig(root).php;
+  const users = [
+    ...(composer.length ? [`the Composer packages [${composer.join(', ')}] of ${RELEASE}`] : []),
+    ...(release?.consumers?.composer ? [`the Composer consumer of ${RELEASE}`] : []),
+    ...(php === undefined ? [] : [`php ${JSON.stringify(php)} of config/toolchain.json`]),
+  ];
+  if (!users.length) return null;
+  const minor = Array.isArray(php) && typeof php[0] === 'string' ? php[0] : '<major>.<minor>';
+  return `${PHP_VERSION} is missing, but ${users.join(' and ')} need PHP; CI and the release workflow set up the PHP of ${PHP_VERSION}, and without it the release runs the PHP of the runner. Fix: declare ${PHP_VERSION} with the PHP minor release, such as ${minor}`;
+}
+
 // The configurations that a command writes, and the command, which is the fix of a file that breaks its schema.
 const WRITTEN: Record<string, string> = { 'config/dependency-review.json': 'make dependency-review RECORD=1' };
 
@@ -102,11 +128,14 @@ export function checkConfig(root: string): string[] {
     const fix = WRITTEN[config] ? `. Fix: ${WRITTEN[config]}` : '';
     for (const error of errors ?? []) found.push(`${error}. Rule: the schema ${schemaFile} of ${PACKAGE}${fix}`);
   }
+  if (found.length) return found;
   // A release whose configuration holds its schema needs the build backend that config/toolchain.json declares (K166).
-  if (!found.length && existsSync(path.join(root, RELEASE))) {
-    const backend = backendFinding(root, readConfig<WheelUsers>(root, RELEASE, 'release.schema.json'));
-    if (backend) found.push(backend);
-  }
+  const release = existsSync(path.join(root, RELEASE)) ? readConfig<WheelUsers & PhpUsers>(root, RELEASE, 'release.schema.json') : undefined;
+  const backend = release && backendFinding(root, release);
+  if (backend) found.push(backend);
+  // A repository that needs PHP declares the PHP that CI and the release set up (K193).
+  const php = phpVersionFinding(root, release);
+  if (php) found.push(php);
   return found;
 }
 

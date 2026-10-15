@@ -150,7 +150,11 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   Composer. mise installs it from the `http:composer` entry of `mise.toml` with its declared checksum (K127).
 - Python and PHP: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`.
   Python is a tool of `mise.toml` now, declared at its exact release (K127). PHP takes the configuration, else
-  `.php-version` (ordered-json, orm) and the list of crudui and template, and fails when both exist and differ.
+  `.php-version` (ordered-json, orm) and the list of crudui and template, and fails when both exist and differ. A
+  repository that needs PHP (a Composer package or the Composer consumer of `config/release.json`, or `php` of
+  `config/toolchain.json`) declares `.php-version`, the PHP that CI and the release workflow set up
+  (`php-version-file`); `make kit-check`, which the release workflow runs before any release step, fails without it,
+  since the release otherwise ran the PHP of the runner (K193).
 - Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
   `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
   (`UV_PYTHON_DOWNLOADS=never`), and the uv of kit runs on the Python of mise (`UV_PYTHON`). The Python of mise is externally

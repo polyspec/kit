@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: adf942a9d070724207a0241b73777022764c89ebe30c7530cc3d707026876e4a -->
+<!-- source-sha256: 33b722f9567e8557b9214fbeaf29434a70f0a94aa7870aa1ceadfc631c6e5aa3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,9 +8,13 @@
 
 - `config/owner-checks.json`의 owner rule은 `importers`와 `modules`를 받는다: 변경된 경로는 `importers` glob의 node test 중에서 그 경로를 직접 또는 다른 module을 거쳐 import하는 test를 실행하며, import는 owner-check의 import graph가 읽는다(`module-imports.mts`: amaro, acorn, acorn-walk; relative import, re-export, `import()`, `require()`, `import.meta.resolve('<specifier>')`, `siblingTool(import.meta.url, '<name>')`). `modules`는 schema나 fixture처럼 module이 아닌 경로를 대신하는 module을 적는다. `make owner-validate`는 그런 rule의 경로 중 어떤 test도 import하지 않는 경로에서 실패한다. kit의 rule이 이것을 쓴다: scripts/kit의 module 변경은 도구 suite 전체인 `make kit-test`를 실행했고, 이제 그것을 import하는 test를 실행한다; package 파일은 그것을 읽는 check를 실행한다 (K191).
 
+- make kit-check는 PHP가 필요한데 `.php-version`이 없는 저장소에서 실패한다: `config/release.json`의 Composer package나 Composer consumer, 또는 `config/toolchain.json`의 `php`가 있는 저장소이다. release workflow는 `.php-version`의 PHP만 설치하고 그 밖에는 runner의 PHP를 유지했으므로, PHP를 다른 곳에 고정한 저장소는 Ubuntu의 PHP로 release하여 release proof에 실패했다. release workflow는 이제 make install-packages 뒤, 어떤 release 단계보다 먼저 make kit-check를 실행한다 (K193).
+
 ### Consumer migration
 
-할 일은 없다. source 변경에 test suite 전체를 실행하는 owner rule을 가진 저장소는 대신 node test의 glob으로 `importers`를 선언하고, test가 시작만 하는 도구는 `import.meta.resolve`로 이름을 적을 수 있다 (K191).
+PHP가 필요하고 `.php-version`이 없는 저장소는 `8.5` 같은 PHP minor release로, `config/toolchain.json`의 `php`가 있으면 그 minor로 그것을 선언하고, 새 release workflow를 위해 make kit-sync를 실행한다 (K193).
+
+K191에는 할 일이 없다: source 변경에 test suite 전체를 실행하는 owner rule을 가진 저장소는 대신 node test의 glob으로 `importers`를 선언하고, test가 시작만 하는 도구는 `import.meta.resolve`로 이름을 적을 수 있다 (K191).
 
 ## 0.0.51
 
