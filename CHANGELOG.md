@@ -6,6 +6,7 @@
 ## Unreleased
 
 - The php bindings of parity run the PHPUnit of the vendor directory that Composer gives their package, as run-tests and lint-php do (composer-vendor.mts): the package's own, or that of the nearest Composer project above it. A Composer monorepo, whose root composer.json requires its libraries through path repositories and installs one root `vendor/` (K163), reported every php binding as R3 not-executed with "`<package>/vendor/bin/phpunit` does not exist"; it now runs them, and a package with no vendor directory up the tree still fails with the fix (K178).
+- kit-check's recipe-tools check (K171) splits a recipe line by the quoting rules of the POSIX shell: a quoted string is one word, and a `|`, `;` or `&&` inside quotes is no operator. A help line such as `@echo "build-ts|go|…"` was reported as starting go by its bare name, and had to be reworded; it passes now, and `foo | node x` still fails (K179).
 
 ## 0.0.49
 

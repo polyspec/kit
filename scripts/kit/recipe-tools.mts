@@ -5,8 +5,9 @@
 // the bootstrap and install-tools write into var/tools/bin and the commands of the tools of mise.toml.
 //
 // The recipes are read from the database that GNU make prints (makeDatabase of owner-check.mts), as written, before make
-// expands them. Each command of a line counts: the first word of the line and of each part after &&, ||, ;, |, ( and {,
-// after the prefixes @, - and +, $(ONLINE) and the variable assignments before the command.
+// expands them, and split into words by the quoting rules of the POSIX shell, so an operator inside quotes is text (K179).
+// Each command of a line counts: the first word of the line and of each part after &&, ||, ;, |, ( and {, after the prefixes
+// @, - and +, $(ONLINE) and the variable assignments before the command.
 import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { PHP_LINT_WRAPPERS } from './install-php-lint.mts';
@@ -20,17 +21,71 @@ export const CHECKOUT_TOOLS: ReadonlySet<string> = new Set([
   ...Object.values(MISE_TOOLS).map(tool => tool.command),
 ]);
 
+// The control operators that end a command, outside quotes; the longest one at a position is the operator (POSIX shell,
+// 2.3 Token Recognition and 2.9 Shell Commands).
+const OPERATORS = ['&&', '||', ';', '|', '(', ')', '{', '}'];
+// A reference of make, $(NAME), is one word: its parentheses are no subshell.
+const REFERENCE = /\$\([^()]*\)/y;
+
+/**
+ * The words of each command of the recipe line `line`, split by the quoting rules of the POSIX shell (2.2 Quoting): a
+ * single-quoted string is literal; in a double-quoted one a backslash escapes $, `, ", a backslash and a newline; outside
+ * quotes a backslash escapes the next character; and the quotes are removed from the word. An operator or a blank inside
+ * quotes is text of the word, so `echo "a|node"` is one command.
+ */
+function commandParts(line: string): string[][] {
+  const parts: string[][] = [[]];
+  let word: string | undefined;
+  const add = (text: string): void => { word = (word ?? '') + text; };
+  const end = (): void => {
+    if (word !== undefined) parts[parts.length - 1]?.push(word);
+    word = undefined;
+  };
+  for (let index = 0; index < line.length;) {
+    const character = line.charAt(index);
+    REFERENCE.lastIndex = index;
+    const reference = REFERENCE.exec(line)?.[0];
+    const operator = OPERATORS.find(candidate => line.startsWith(candidate, index));
+    if (reference !== undefined) {
+      add(reference);
+      index += reference.length;
+    } else if (character === "'") {
+      const close = line.indexOf("'", index + 1);
+      const stop = close < 0 ? line.length : close;
+      add(line.slice(index + 1, stop));
+      index = stop + 1;
+    } else if (character === '"') {
+      let text = '';
+      for (index += 1; index < line.length && line.charAt(index) !== '"'; index += 1) {
+        if (line.charAt(index) === '\\' && index + 1 < line.length && '$`"\\\n'.includes(line.charAt(index + 1))) index += 1;
+        text += line.charAt(index);
+      }
+      add(text);
+      index += 1;
+    } else if (character === '\\') {
+      add(line.charAt(index + 1));
+      index += 2;
+    } else if (/\s/.test(character)) {
+      end();
+      index += 1;
+    } else if (operator !== undefined) {
+      end();
+      parts.push([]);
+      index += operator.length;
+    } else {
+      add(character);
+      index += 1;
+    }
+  }
+  end();
+  return parts;
+}
+
 /** The command words of the recipe line `line`. */
 export function commandWords(line: string): string[] {
-  // A reference of make, $(NAME), is one word: its parentheses are no subshell. $(ONLINE) only prefixes the command.
-  const references: string[] = [];
-  const masked = line.replace(/\$\([^()]*\)/g, (reference) => {
-    references.push(reference);
-    return `\0${references.length - 1}\0`;
-  });
-  const unmask = (word: string): string => word.replace(/\0(\d+)\0/g, (_, index: string) => references[Number(index)] ?? '');
-  return masked.split(/&&|\|\||[;|(){}]/).flatMap((part) => {
-    const words = part.trim().replace(/^[@+-]+/, '').trim().split(/\s+/).filter(Boolean).map(unmask);
+  return commandParts(line).flatMap((part) => {
+    // The prefixes @, - and + of make precede the command; $(ONLINE) and the variable assignments only prefix it.
+    const words = part.map((word, index) => (index === 0 ? word.replace(/^[@+-]+/, '') : word)).filter(Boolean);
     const command = words.find(word => word !== '$(ONLINE)' && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
     return command === undefined ? [] : [command];
   });
