@@ -8,12 +8,15 @@
 //     config/knip-entries.json declares, which are not code of the repository, such as inputs of tests that are broken on
 //     purpose (K172).
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
-//     plugins that read the manifests. knip has no `extends`, so the entries that the repository adds in config/knip-entries.json
-//     (K145) are added to `node.entry` of knip.json, its binaries (K152) to `ignoreBinaries`, the root dependencies that only
-//     make runs (K159) to `ignoreDependencies`, the files that are not code of the repository (K162, K172), such as a sample
-//     that a site shows and nothing runs, to `ignore`, and its nested npm projects (K154) to `workspaces`, each with its entries and
-//     ignored dependencies, in var/lint-ts/knip.json, which knip then reads with --config. knip's Svelte plugin compiles the
-//     .svelte files of a workspace that depends on svelte.
+//     plugins that read the manifests, through var/lint-ts/knip.json, which knip reads with --config. Of the
+//     `ignoreDependencies` of knip.json, the packages that only make runs, it keeps those that a package.json of the
+//     repository declares: knip reports an unused dependency only when one declares it, and names an ignore that matched
+//     no issue in a configuration hint, which a consumer cannot fix in the copy (K176). knip has no `extends`, so the
+//     entries that the repository adds in config/knip-entries.json (K145) are added to `node.entry` of knip.json, its
+//     binaries (K152) to `ignoreBinaries`, the root dependencies that only make runs (K159) to `ignoreDependencies`, the
+//     files that are not code of the repository (K162, K172), such as a sample that a site shows and nothing runs, to
+//     `ignore`, and its nested npm projects (K154) to `workspaces`, each with its entries and ignored dependencies. knip's
+//     Svelte plugin compiles the .svelte files of a workspace that depends on svelte.
 //   - `api-extractor run` for each package with an api-extractor.json, which extends config/api-extractor.kit.json: every export
 //     is documented and reachable, and the public API equals the committed API report. It reads the .d.ts that the build of
 //     the package wrote.
@@ -26,6 +29,7 @@ import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } fro
 import type { LintStep } from './lint-steps.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { installedKit, isSource } from './kit-check.mts';
+import { readNpmManifest } from './manifests.mts';
 import { ConfigError, readConfig } from './schema-validate.mts';
 import { present } from './present.mts';
 
@@ -58,25 +62,37 @@ interface KnipJson {
   workspaces?: Record<string, unknown>;
 }
 
-/** The knip configuration of a repository with entries of its own: knip.json with those entries, written by lintSteps. */
+/** The knip configuration of the repository: knip.json with its declarations, written by knipArguments. */
 export const MERGED_KNIP = 'var/lint-ts/knip.json';
 
 /**
- * The arguments of knip for `root`: knip.json alone, or, when the repository declares config/knip-entries.json, the
- * configuration of MERGED_KNIP, which this function writes: knip.json with the declared entries after its own `node.entry`,
- * the declared binaries after its own `ignoreBinaries`, the declared root dependencies after its own `ignoreDependencies`,
- * the declared ignored files after its own `ignore`,
- * and each declared workspace with its entries and ignored dependencies.
+ * The packages that the package.json of the root and of each workspace of `workspaces` (directories of `root`) declare, as
+ * dependencies of any kind: the packages that knip can report as unused.
+ */
+function declaredPackages(root: string, workspaces: string[]): Set<string> {
+  const manifests = ['package.json', ...workspaces.map(directory => path.posix.join(directory, 'package.json'))];
+  return new Set(manifests.flatMap(file => {
+    const manifest = readNpmManifest(root, file);
+    return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies].flatMap(names => Object.keys(names ?? {}));
+  }));
+}
+
+/**
+ * The arguments of knip for `root`, with the configuration of MERGED_KNIP, which this function writes: knip.json with
+ * only those of its `ignoreDependencies` that a package.json of the repository declares (K176), and, when the repository
+ * declares config/knip-entries.json, the declared entries after its own `node.entry`, the declared binaries after its own
+ * `ignoreBinaries`, the declared root dependencies after its own `ignoreDependencies`, the declared ignored files after its
+ * own `ignore`, and each declared workspace with its entries and ignored dependencies.
  */
 export function knipArguments(root: string): string[] {
-  const value = knipEntries(root);
-  if (!value) return ['--no-progress'];
+  const value = knipEntries(root) ?? {};
   const base = readConfig<KnipJson>(root, 'knip.json', 'knip.schema.json');
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
   if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];
-  if (value.ignoreDependencies) {
-    merged.ignoreDependencies = [...(base.ignoreDependencies ?? []), ...Object.keys(value.ignoreDependencies)];
+  if (base.ignoreDependencies || value.ignoreDependencies) {
+    const declared = declaredPackages(root, [...Object.keys(base.workspaces ?? {}), ...Object.keys(value.workspaces ?? {})]);
+    merged.ignoreDependencies = [...(base.ignoreDependencies ?? []).filter(name => declared.has(name)), ...Object.keys(value.ignoreDependencies ?? {})];
   }
   if (value.ignore) merged.ignore = [...(base.ignore ?? []), ...Object.keys(value.ignore)];
   if (value.workspaces) {
