@@ -14,6 +14,12 @@
 // the lock holds no machine path. The lock is checked against the sources and renamed into place only when the check passes, so
 // a refused run leaves the lock it had. The check never resolves: every package is pinned, so a lock that differs from its pins is
 // a change of the lock, never of the registry. A local wheel is verified by its file (it exists and holds the sha256 of the lock).
+//
+// A source that is the pyproject.toml of a wheel package of config/release.json may require a sibling, another wheel package of
+// that configuration, by the URL of its asset of the release (wheel-dependencies.mts). That asset exists only once the release
+// publishes it and the lock of a wheel never holds a sibling, so the writer leaves the requirements that siblingLinks classifies
+// as sibling links out of the resolution (`--excludes` of uv with a file of their names) and the check leaves them out of the
+// comparison; every other requirement, a URL that names no sibling too, is resolved and checked.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -30,15 +36,19 @@ import { declaredMiseTools } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
 import { present } from './present.mts';
+import { CONFIG as RELEASE_CONFIG, type ReleaseConfig } from './release.mts';
+import { siblingLinks, siblingsOf } from './wheel-dependencies.mts';
 
 const RELEASE = /^\d+(?:\.\d+)*$/;
 const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
 const FILE_URL = /url = "(file:[^"]*)"/g;
+// The file of the temporary directory that names the siblings that uv leaves out of the resolution.
+const EXCLUDES = 'siblings.txt';
 
 /** A specifier of a requirement, such as >=2.30. */
 type Specifier = { op: string; version: string };
-/** A direct requirement: a name with its specifiers, or name @ url; `where` is its place and `line` its number. */
-export type Requirement = { name: string; url: string | null; specifiers: Specifier[]; line: number; where: string };
+/** A direct requirement: a name with its specifiers, or name @ url; `text` is as written, `where` its place and `line` its number. */
+export type Requirement = { name: string; url: string | null; specifiers: Specifier[]; text: string; line: number; where: string };
 /** A pin of a constraints file: name==version, or name @ url#sha256=<digest> for an archive. */
 export type Pin = { name: string; version: string; line: number; url?: undefined; sha256?: undefined } | { name: string; url: string; sha256: string; line: number; version?: undefined };
 /** An entry of pythonLocks in config/dependency-policy.json: the lock and its sources. */
@@ -87,13 +97,13 @@ const failWith = (message: string, fix: string) => Object.assign(new Error(messa
  */
 function requirementOf(entry: PipRequirement, line: string, where: string, number: number): Requirement {
   if (entry.type === 'RequirementsFile' || entry.type === 'ConstraintsFile') throw new Error(`${where}: ${line} is not read; write name, name==version, a range such as name>=2.30,<3, or name @ url`);
-  if (entry.type === 'ProjectURL') return { name: entry.name, url: entry.url, specifiers: [], line: number, where };
+  if (entry.type === 'ProjectURL') return { name: entry.name, url: entry.url, specifiers: [], text: line, line: number, where };
   const specifiers = (entry.versionSpec ?? []).map(({ operator, version }) => {
     if (!RELEASE.test(version)) throw new Error(`${where}: ${line} is not read; a specifier is ==, !=, >=, <=, >, < or ~= with a release such as 2.30, and no wildcard or pre-release`);
     if (operator === '~=' && version.split('.').length < 2) throw new Error(`${where}: ${line} is not read; ~= needs two release segments, such as ~=2.30`);
     return { op: operator, version };
   });
-  return { name: entry.name, url: null, specifiers, line: number, where };
+  return { name: entry.name, url: null, specifiers, text: line, line: number, where };
 }
 
 /** The direct requirements of a requirements file, one per line; the errors name the line. */
@@ -177,6 +187,20 @@ function parseSources({ requirements, constraints, text }: { requirements: strin
     findings.push(`${error.message}. Fix: ${(error as Error & { fix?: string }).fix ?? `write the requirement in a form that ${requirements} reads`}`);
   }
   return { pins, requirements: reqs, findings };
+}
+
+/**
+ * The requirements of the source `requirements` at `root` that name a sibling: when the source is the pyproject.toml of a wheel
+ * package of config/release.json, each requirement that siblingLinks classifies as a link to another wheel package of the
+ * configuration (siblingsOf). A repository without config/release.json releases no wheel, so no requirement names a sibling.
+ */
+function siblingRequirements(root: string, requirements: string, reqs: Requirement[]) {
+  if (!existsSync(path.join(root, RELEASE_CONFIG))) return [];
+  const config = readConfig<Pick<ReleaseConfig, 'packages'>>(root, RELEASE_CONFIG, 'release.schema.json');
+  const wheel = config.packages.find(item => item.kind === 'wheel' && path.posix.join(item.directory, 'pyproject.toml') === requirements);
+  if (wheel === undefined) return [];
+  const links = new Set(siblingLinks(reqs.map(item => item.text), siblingsOf(config, wheel.name)).map(link => link.name));
+  return reqs.filter(item => links.has(item.name));
 }
 
 // The findings of a lock text against its parsed sources: each sentence names the file, the package and the fix. The local
@@ -297,7 +321,9 @@ export function checkPythonLock({ root, entry }: { root: string; entry: LockEntr
   const parsed = parseSources({ requirements: source.requirements, constraints: source.constraints, text });
   if (parsed.findings.length > 0) return parsed.findings;
   if (parsed.pins === null || parsed.requirements === null) throw new Error(`${lock}: the sources ${source.requirements} and ${source.constraints} gave no finding and no parsed pins or requirements`);
-  return compare({ root, lock, lockText, requirements: source.requirements, constraints: source.constraints, pins: parsed.pins, reqs: parsed.requirements });
+  const siblings = siblingRequirements(root, source.requirements, parsed.requirements);
+  const reqs = parsed.requirements.filter(item => !siblings.includes(item));
+  return compare({ root, lock, lockText, requirements: source.requirements, constraints: source.constraints, pins: parsed.pins, reqs });
 }
 
 /** The entries of pythonLocks of config/dependency-policy.json at `root`; a policy with none fails, so no lock is skipped silently. */
@@ -339,7 +365,7 @@ export function writePythonLock({ root, entry, env = process.env, print = () => 
   if (!existsSync(uv)) throw new Error(`${path.relative(root, uv)} is missing; declare uv in mise.toml and run make install-tools`);
   const { lock, source } = entry;
   const names: [string, string] = [path.basename(source.requirements), path.basename(source.constraints)];
-  if (names[0] === names[1] || names.includes('pylock.toml')) throw new Error(`${lock}: the requirements and the constraints need two different names, neither pylock.toml; name them differently`);
+  if (names[0] === names[1] || names.includes('pylock.toml') || names.includes(EXCLUDES)) throw new Error(`${lock}: the requirements and the constraints need two different names, neither pylock.toml nor ${EXCLUDES}; name them differently`);
   const linksDirectory = source.findLinks === undefined ? null : findLinksOf(root, lock, source.findLinks);
   // The lower bound of the universal resolution is the declared Python minor: without --python-version, uv takes it from an
   // interpreter that it finds on the machine, so the lock would depend on the machine.
@@ -352,12 +378,20 @@ export function writePythonLock({ root, entry, env = process.env, print = () => 
   const sources = { requirements: source.requirements, constraints: source.constraints, text };
   const early = parseSources(sources);
   if (early.findings.length > 0) throw new Error(early.findings.join('\n'));
+  if (early.pins === null || early.requirements === null) throw new Error(`${lock}: the sources ${source.requirements} and ${source.constraints} gave no finding and no parsed pins or requirements`);
+  const siblings = siblingRequirements(root, source.requirements, early.requirements);
+  const reqs = early.requirements.filter(item => !siblings.includes(item));
   mkdirSync(toolsPath(root), { recursive: true });
   const folder = mkdtempSync(toolsPath(root, 'python-lock-'));
   try {
     copyFileSync(path.join(root, source.requirements), path.join(folder, names[0]));
     copyFileSync(path.join(root, source.constraints), path.join(folder, names[1]));
     const args = ['pip', 'compile', names[0], '-c', names[1], '--universal', '--python-version', python, '--generate-hashes', '--format', 'pylock.toml', '-o', 'pylock.toml'];
+    if (siblings.length > 0) {
+      for (const sibling of siblings) print(`${sibling.where}: ${sibling.text} names a sibling of this release, whose asset exists only once the release publishes it; it is left out of the lock`);
+      writeFileSync(path.join(folder, EXCLUDES), siblings.map(item => `${item.name}\n`).join(''));
+      args.push('--excludes', EXCLUDES);
+    }
     if (linksDirectory !== null) args.push('--no-index', '--find-links', linksDirectory);
     const shown = `${path.relative(root, uv)} ${args.join(' ')}`;
     print(shown);
@@ -369,8 +403,7 @@ export function writePythonLock({ root, entry, env = process.env, print = () => 
     if (!existsSync(output)) throw new Error(`${shown} wrote no pylock.toml`);
     const written = relativeLocalPaths(readFileSync(output, 'utf8'), root, lock);
     writeFileSync(output, written);
-    if (early.pins === null || early.requirements === null) throw new Error(`${lock}: the sources ${source.requirements} and ${source.constraints} gave no finding and no parsed pins or requirements`);
-    const findings = compare({ root, lock, lockText: written, requirements: source.requirements, constraints: source.constraints, pins: early.pins, reqs: early.requirements });
+    const findings = compare({ root, lock, lockText: written, requirements: source.requirements, constraints: source.constraints, pins: early.pins, reqs });
     if (findings.length > 0) throw new Error(findings.join('\n'));
     mkdirSync(path.dirname(path.join(root, lock)), { recursive: true });
     renameSync(output, path.join(root, lock));

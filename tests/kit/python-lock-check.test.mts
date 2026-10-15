@@ -208,7 +208,7 @@ test('the fixture policy declares sources that exist and agree with its lock, an
 });
 
 test('the parsers read the forms of a requirement and of a constraint and refuse the rest', () => {
-  assert.deepEqual(parseRequirements('requests[socks]>=2.30,<3 ; python_version >= "3.8"\n', 'r.txt'), [{ name: 'requests', url: null, specifiers: [{ op: '>=', version: '2.30' }, { op: '<', version: '3' }], line: 1, where: 'r.txt line 1' }]);
+  assert.deepEqual(parseRequirements('requests[socks]>=2.30,<3 ; python_version >= "3.8"\n', 'r.txt'), [{ name: 'requests', url: null, specifiers: [{ op: '>=', version: '2.30' }, { op: '<', version: '3' }], text: 'requests[socks]>=2.30,<3 ; python_version >= "3.8"', line: 1, where: 'r.txt line 1' }]);
   assert.deepEqual(parseRequirements('# comment\n\nidna\n', 'r.txt').map((item: { name: string }) => item.name), ['idna']);
   assert.throws(() => parseRequirements('idna===3.20\n', 'r.txt'), /^Error: r\.txt: Failed to parse requirements file\. Line 1, col 7: /);
   assert.throws(() => parseRequirements('-r base.txt\n', 'r.txt'), /^Error: r\.txt line 1: -r base\.txt is not read/);
@@ -243,4 +243,24 @@ test('a pin satisfies a requirement by the order of PEP 440, a post-release incl
 
 test('a constraint is read by PEP 508, so spaces around == still make an exact pin', () => {
   assert.deepEqual(parseConstraints('idna == 3.20\n', 'c.txt'), [{ name: 'idna', version: '3.20', line: 1 }]);
+});
+
+// A wheel package app of config/release.json whose pyproject.toml requires its sibling sib by the URL of its asset of the release.
+const SIBLING_URL = 'https://example.com/polyspec/kit-fixture/releases/download/v0.0.0/sib-0.0.0-py3-none-any.whl';
+const RELEASE_CONFIG = JSON.stringify({
+  schema: 1, repositoryUrl: 'https://example.com/polyspec/kit-fixture', changelog: 'CHANGELOG.md',
+  packages: [{ kind: 'wheel', directory: 'app', name: 'app' }, { kind: 'wheel', directory: 'sib', name: 'sib' }],
+  manifests: { 'app/pyproject.toml': 'archive', 'sib/pyproject.toml': 'archive' }, notReleased: {}, goModules: {},
+});
+const withDependency = (dependency: string) => ({ 'app/pyproject.toml': PYPROJECT.replace('  "requests==2.34.2",\n', `  "requests==2.34.2",\n  "${dependency}",\n`), 'app/requirements.txt': null, 'config/release.json': RELEASE_CONFIG });
+
+test('a requirement of a wheel that names its sibling of config/release.json by its release URL is not compared, since the lock holds no sibling', (t) => {
+  assert.deepEqual(findings(t, withDependency(`sib @ ${SIBLING_URL}`), PYPROJECT_ENTRY), []);
+});
+
+test('a URL requirement that names no sibling, or a sibling of a source that is no wheel package, is checked as before', (t) => {
+  const other = 'https://example.com/other/releases/download/v1.0.0/other-1.0.0-py3-none-any.whl';
+  assert.deepEqual(findings(t, withDependency(`other @ ${other}`), PYPROJECT_ENTRY), ['app/pyproject.toml [project].dependencies item 2: other has no pin in app/constraints.txt. Fix: pin other==<version> in app/constraints.txt']);
+  const { 'config/release.json': _config, ...noRelease } = withDependency(`sib @ ${SIBLING_URL}`);
+  assert.deepEqual(findings(t, noRelease, PYPROJECT_ENTRY), ['app/pyproject.toml [project].dependencies item 2: sib has no pin in app/constraints.txt. Fix: pin sib==<version> in app/constraints.txt']);
 });

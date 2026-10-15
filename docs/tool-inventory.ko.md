@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 31071a86a9573af4334a1dc422b5284bc197e99e9961372215cc1f3013dfc239 -->
+<!-- source-sha256: 16b6485316f3c126bd958a94a9ac5959ba6dd9776a5823e0023028355da8888d -->
 
 # 도구 목록
 
@@ -1577,6 +1577,12 @@ uv는 local wheel을 `url = "file:///<checkout 경로>/<wheel>"`로 적습니다
 sources와 대조한 뒤(`python-lock-check`와 같은 검사) 제자리로 이름이 바뀝니다. 거부된 실행은 이전 lock을 그대로 두고 directory를
 지웁니다. 전이 의존성이 고정되지 않았으면 writer는 그 package 이름과 함께 거부합니다. uv가 registry release로 해석했지만 constraints에는
 없고, 검사가 그것을 lock에서 찾기 때문입니다.
+
+`config/release.json`의 wheel package의 `pyproject.toml`인 source는 sibling을 release asset의 URL로 요구할 수 있습니다(Sibling
+wheels). 그 asset은 release가 publish한 뒤에야 존재합니다. writer는 wheel-dependencies.mts의 `siblingLinks`가 sibling link로
+분류하는 requirement를 resolution에서 뺍니다: 그 이름을 directory의 `siblings.txt`에 쓰고, `--excludes siblings.txt`를 덧붙이고,
+각각을 출력합니다. 검사도 비교에서 그것을 뺍니다. wheel의 lock은 sibling을 담지 않기 때문입니다. 그 밖의 requirement는,
+sibling을 가리키지 않는 URL도, 전처럼 해석되고 검사됩니다 (K190).
 
 ### 검사 (`make python-lock-check`, offline)
 
