@@ -1,7 +1,8 @@
 // Tests of the TypeScript lint: oxlint type-aware with the root .oxlintrc.json and knip run from the root, API Extractor in
 // each package with an api-extractor.json, but not for the base configuration of kit; every step runs after an earlier one
 // failed, and a missing tool or configuration fails with the fix. In a consumer oxlint leaves out the copies of kit, the files
-// of kit.copies of the installed package (K157); kit itself lints them. The tools are stubs.
+// of kit.copies of the installed package (K157); kit itself lints them. oxlint also leaves out the files that the ignore of
+// config/knip-entries.json declares (K172). The tools are stubs.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -124,13 +125,14 @@ test('knip reads each nested project of config/knip-entries.json as a workspace 
   }
 });
 
-test('knip ignores the files of config/knip-entries.json after the ignore of knip.json (K162)', (t) => {
-  const { root } = checkout(t);
+test('knip ignores the files of config/knip-entries.json after the ignore of knip.json (K162), and oxlint leaves them out (K172)', (t) => {
+  const { root, calls } = checkout(t);
   writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore: { 'site/samples/*.mjs': 'the site shows the samples and nothing runs them' } }));
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**', 'site/samples/*.mjs'] });
+  assert.equal(calls()[0], `${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json --ignore-pattern=/site/samples/*.mjs [root]`);
   for (const ignore of [{}, { '/site/*.mjs': 'an absolute glob' }, { '../site/*.mjs': 'a glob outside the root' }, { '!site/*.mjs': 'a negated glob' }, { 'site/*.mjs': '' }]) {
     writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore }));
     assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignore/, JSON.stringify(ignore));

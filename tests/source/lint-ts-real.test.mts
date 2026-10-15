@@ -270,6 +270,20 @@ test('an unused sample file passes once config/knip-entries.json ignores it, and
   assert.match(orphan.output, /Unused files \(1\)\nsite\/orphan\.mjs/);
 });
 
+// A file that the ignore of config/knip-entries.json declares is not code of the repository, such as an input of the tests
+// of a build tool that is broken on purpose: neither knip nor oxlint reads it, while the same file outside the declared
+// glob still fails oxlint (K172).
+const BROKEN = "import { compile } from 'missing-compiler';\n\ncompile();\ndebugger;\n";
+
+test('oxlint leaves out a file that config/knip-entries.json ignores, and the same violation in an undeclared file still fails (K172)', (t) => {
+  const ignore = knipEntries({ ignore: { 'tests/inputs/broken/**': 'inputs of the build tests, broken on purpose' } });
+  const declared = lintOf(repository(t, { 'tests/inputs/broken/input.mts': BROKEN, ...ignore }));
+  assert.deepEqual(declared.failed, [], declared.output);
+  const undeclared = lintOf(repository(t, { 'tests/inputs/other/input.mts': BROKEN, ...ignore }));
+  assert.ok(undeclared.failed.includes('oxlint'), undeclared.output);
+  assert.match(undeclared.output, /tests\/inputs\/other\/input\.mts:.*eslint\(no-debugger\)/);
+});
+
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
   const { failed, output } = lintOf(repository(t, known(VIOLATIONS.find(({ name }) => name === 'an undocumented export'), 'VIOLATIONS.find(({ name }) => name === …)').files, { report: false }));
   assert.deepEqual(failed, [], output);
