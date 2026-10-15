@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "knip-ignore-hints",
+  "description": "The output of the knip reporter scripts/kit/knip-ignore-hints.mts: the ignoreDependencies that matched no issue, each with the workspace of knip (K188).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["workspace", "name"],
+    "additionalProperties": false,
+    "properties": { "workspace": { "type": "string" }, "name": { "type": "string" } }
+  }
+}

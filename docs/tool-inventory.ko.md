@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 44044992a7c1dae1b3f7f166fb4aef073fd26a816982d5c3a4052b78c065bb4a -->
+<!-- source-sha256: da8e014ece9c871491d08c7184a1ba241fef94085158d708545b9d97cffd19ee -->
 
 # 도구 목록
 
@@ -759,9 +759,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구(make, go, php, Apple `container` 등)는 kit이
   make, go, rustup, shasum, openssl을 선언하듯 `config/knip-entries.json`의 `binaries`에 이유와 함께 선언합니다. 선언한
   binary는 통과하고 선언하지 않은 binary는 여전히 unlisted binary입니다(fixture, K152). knip.json의 `ignoreDependencies`는
-  make만 실행하는 package(`@polyspec/kit`, oxlint, oxlint-tsgolint, jscpd)를 적습니다. lint-ts는 root나 선언한
-  workspace의 package.json이 선언할 때, 즉 knip이 그것을 unused로 보고할 때만 각각을 남기므로, 그것이 없는 레포는 hint를
-  받지 않고 선언한 레포에서는 여전히 무시됩니다(fixture). make가 kit의 fixture recorder를 실행합니다. knip.json은 평범한
+  make만 실행하는 package(`@polyspec/kit`, oxlint, oxlint-tsgolint, jscpd)를 적습니다. lint-ts는 knip이 필요로
+  하는 곳에서만 각각을 남기며, 그 판단은 knip 자신이 합니다: reporter `knip-ignore-hints.mts`로 knip을 먼저 실행하면
+  `ignoreDependencies` 종류의 configuration hint가 출력되고, 그것이 root에 대해 이름 붙인 knip.json의 ignore(레포가 선언하지
+  않은 package, 또는 script가 import하는 `@polyspec/kit`)는 lint의 설정에서 빠집니다(K188). 그것이 없거나 script가
+  `@polyspec/kit`을 import하는 레포는 hint를 받지 않고, 선언하고 import하지 않는 레포에서는 여전히 무시됩니다(fixture).
+  `config/knip-entries.json`의 ignore는 남으므로, 아무 issue에도 맞지 않으면 knip이 알립니다. make가 kit의 fixture recorder를 실행합니다. knip.json은 평범한
   JSON이므로 lint-ts가 읽고, knip은 언제나 lint-ts가 `var/lint-ts/knip.json`에 쓰는 설정을 읽습니다. 그
   pattern 밖에서 make가 실행하는 파일(`packages/js/test/` 아래의 probe 등)은 레포가 사본이 아닌 자기 파일
   `config/knip-entries.json`(kit의 schema가 있습니다)에 이유와 함께 선언하는 entry입니다(K145): knip에는 `extends`가 없으므로
