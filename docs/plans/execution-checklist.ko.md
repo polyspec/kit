@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 1671005bcdee045d2d494ee2bf99e3ced80cba8a1c16cd07bbba430f286ebe78 -->
+<!-- source-sha256: b9bc88d54d64d856fc4954b60041b2f19752e8b5106f021752581cb1669aee85 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -240,3 +240,4 @@
 | K179 | kit-check의 recipe-tools 검사는 POSIX shell의 quoting 규칙으로 recipe line을 word로 나누므로, quote된 문자열은 한 word이고 quote 안의 `\|`, `;`, `&&`는 operator가 아니다: `@echo "build-ts\|go\|…"`는 go를 시작하지 않고, `foo \| node x`는 여전히 node를 bare name으로 시작한다 | `recipe-tools.mts`, `CHANGELOG.md(.ko)` | `tests/kit/recipe-tools.test.mts` | [ ] |
 | K181 | dependency-policy-check는 `composerPlatforms`가 지정하지도, 그것이 지정한 manifest의 path repository가 제공하지도(K168) 않는 추적된 모든 composer.json에서 더할 항목과 함께 실패하므로(`composerCoverage`) 어떤 manifest도 `composer validate --strict`를 벗어나지 않는다; kit이 쓰는 manifest, kit이 배포하는 symbol extractor project, `config/release.json`의 Composer consumer project는 검사하지 않는다 | `check-dependency-policy.mts`, `docs/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/dependency-policy.test.mts` | [ ] |
 | K182 | kit의 CI가 `make rebuild-check`와 `make owner-validate`를 실행하고, kit 자신의 검사가 통과한다: `config/rebuild.json`이 `composer-vendor.mts`, `manifests.mts`, `present.mts`, `recipe-tools.mts`를 분류하고, `config/owner-checks.json`의 lint-ts owner rule이 `config/knip-entries.json`을 소유한다. 원인: CI가 두 검사를 모두 실행하지 않아서, K156, K158, K163, K171의 도구는 class 없이, K173의 파일은 owner 없이 모든 실행이 통과했다. Red: 두 검사가 main에서 실패했고 workflow test가 실패했다; green: 둘 다 통과하며, workflow test가 두 step을 요구한다 | `.github/workflows/ci.yml`, `config/rebuild.json`, `config/owner-checks.json` | `tests/source/ci-workflow.test.mts`, `make rebuild-check`, `make owner-validate` | [ ] |
+| K183 | kit의 CI는 `config/owner-checks.json`의 모든 make target을 실행하거나, 그 파일의 `ciExempt`가 target을 이유와 함께 적는다: CI가 이제 `make toolchain-check`, `make kit-check`, `make release-coverage`를 실행하고, `hooks-check`는 make install-hooks가 쓰는 local core.hooksPath가 필요하므로 면제된다. workflow test가 owner rule에서 target을 이끌어내므로, 새 owner target은 step이나 이유 있는 면제가 필요하다. Red: test가 toolchain-check, kit-check, release-coverage를 지목했다; green: 통과한다 | `.github/workflows/ci.yml`, `config/owner-checks.json`, `schema/owner-checks.schema.json`, `CHANGELOG.md(.ko)` | `tests/source/ci-workflow.test.mts`, `make owner-validate`, `make kit-check` | [ ] |

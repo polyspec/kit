@@ -48,6 +48,20 @@ test('the CI workflow checks the classes of config/rebuild.json and the owner ru
   assert.ok(runs.includes('make owner-validate'), 'a step runs make owner-validate');
 });
 
+test('the CI workflow runs every make target of config/owner-checks.json but the exempt ones, each with its reason (K183)', () => {
+  // K182 found rebuild-check and owner-validate missing from CI; toolchain-check, kit-check and release-coverage were missing
+  // too, so a failure of an owner check stayed hidden until a local run. The test derives the list, so a new owner target
+  // needs a step or a reasoned exemption.
+  const { owners, ciExempt = [] } = readFixture<{ owners: { targets?: string[] }[]; ciExempt?: { target: string; reason: string }[] }>(ROOT, 'config/owner-checks.json');
+  const exempt = new Set(ciExempt.map(entry => entry.target));
+  for (const entry of ciExempt) assert.ok(entry.reason.trim().length > 0, `the exemption of ${entry.target} gives its reason`);
+  const targets = new Set(owners.flatMap(owner => owner.targets ?? []));
+  assert.deepEqual([...exempt].filter(target => !targets.has(target)), [], 'every exemption names a target of an owner rule');
+  const ran = new Set(runs.flatMap(run => /^make ([a-z][a-z0-9-]*)/.exec(run)?.[1] ?? []));
+  assert.deepEqual([...targets].filter(target => !exempt.has(target) && !ran.has(target)), [], 'no CI step runs these owner targets');
+  assert.deepEqual([...exempt].filter(target => ran.has(target)), [], 'an exempt target that a step runs needs no exemption');
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });
