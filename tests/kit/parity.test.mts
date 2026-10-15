@@ -659,6 +659,14 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
   return tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
 }
 
+test('a vitest test that lies under none of the declared roots is a run error that names the test and the roots (K202)', TIMEOUT, (t) => {
+  const root = vitestRepository(t);
+  const run = runOf({ name: 'web', runner: 'vitest', roots: ['other'] }, root, { test: 'web/src/codec.spec.ts', symbol: 'codec' }, 'suite', ENV);
+  assert.ok('error' in run, 'the run is an error, not a guessed root');
+  assert.match(run.error, /web\/src\/codec\.spec\.ts/);
+  assert.match(run.error, /\bother\b/);
+});
+
 test('the vitest runner reads the JSON report of vitest: a suite case is a top-level test, a feature id the joined titles (K75)', TIMEOUT, (t) => {
   const root = vitestRepository(t);
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });

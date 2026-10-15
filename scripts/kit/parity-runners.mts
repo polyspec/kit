@@ -118,9 +118,9 @@ const VITEST_REPORT = 'var/parity/vitest.json';
 type VitestReport = { testResults: { assertionResults: { ancestorTitles: string[]; title: string; status: keyof typeof VITEST_OUTCOMES }[] }[] };
 const VITEST_OUTCOMES = { passed: 'pass', failed: 'fail', skipped: 'skip', pending: 'skip', todo: 'todo' } as const;
 
-/** The root among `roots` that holds the test file `test`, else the folder of the test. */
-const implementationRoot = (roots: readonly string[], test: string): string =>
-  roots.find(item => test === item || test.startsWith(`${item.replace(/\/$/, '')}/`)) ?? path.dirname(test);
+/** The root among `roots` that holds the test file `test`, or undefined when none does. */
+const implementationRoot = (roots: readonly string[], test: string): string | undefined =>
+  roots.find(item => test === item || test.startsWith(`${item.replace(/\/$/, '')}/`));
 
 /** The native name itself, the id of a feature test. */
 const itself = (name: string): string => name;
@@ -190,6 +190,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
     run(root, binding, kind, roots) {
       const vitest = 'node_modules/vitest/vitest.mjs';
       if (!existsSync(path.join(root, vitest))) return { error: `${vitest} does not exist; run npm ci` };
+      const discovery = implementationRoot(roots, binding.test);
+      if (discovery === undefined) return { error: `${binding.test} lies under none of the declared roots (${roots.join(', ') || 'none declared'})` };
       // vitest 5 writes its JSON report to a file; each run writes it anew, and the run reads and removes it. A report that an
       // interrupted check left is removed first, so a run that writes none reads none.
       const report = path.join(root, VITEST_REPORT);
@@ -198,7 +200,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         // vitest discovers the files that match the filter below --dir, following symbolic links; from the checkout root it
         // also walked var/, where a trust record of mise links to the home folder, and ran an old copy of the test there
         // too (K202). --dir bounds discovery to the root of the implementation that holds the test.
-        args: test => [path.join(root, vitest), 'run', ...test, '--dir', implementationRoot(roots, binding.test), '--reporter=json', `--outputFile.json=${report}`, binding.test],
+        args: test => [path.join(root, vitest), 'run', ...test, '--dir', discovery, '--reporter=json', `--outputFile.json=${report}`, binding.test],
         cwd: '.',
         caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
         read: (output, sink) => {

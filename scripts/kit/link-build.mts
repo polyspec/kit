@@ -18,7 +18,8 @@ function prerequisites(repository: string, target: string): string[] | undefined
   const outcome = execute('make', ['-C', repository, '-pq', target]);
   if (outcome.error) throw new Error(`make could not start in ${repository}: ${outcome.error.message}`);
   if (outcome.status === 2) {
-    if (/No rule to make target/.test(outcome.stderr)) return undefined;
+    // Only the target itself is missing (`x'.), not a prerequisite of it (`x', needed by `y').
+    if (new RegExp(`No rule to make target \`${RegExp.escape(target)}'\\.`).test(outcome.stderr)) return undefined;
     throw new Error(`make -pq ${target} failed in ${repository}: ${outcome.stderr.trim()}`);
   }
   const line = outcome.stdout.split('\n').find(text => text.startsWith(`${target}:`) && !text.startsWith(`${target}::`));

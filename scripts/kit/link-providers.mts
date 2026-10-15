@@ -118,8 +118,10 @@ export function providers(root: string, go: Tool | undefined, cwd: string): Map<
       const provider = { ...provided, folder: path.dirname(absolute), repository, checkout };
       const earlier = found.get(key);
       const atRoot = (item: Provider) => item.folder === item.checkout;
-      if (earlier && !atRoot(earlier) && !atRoot(provider)) throw new Error(`${provided.ecosystem} package ${provided.name} has two providers: ${earlier.folder} and ${provider.folder}`);
-      if (!earlier || atRoot(earlier)) found.set(key, provider);
+      if (!earlier) { found.set(key, provider); continue; }
+      // A root yields to a package folder; two of one kind (both roots, or both package folders) are a conflict.
+      if (atRoot(earlier) === atRoot(provider)) throw new Error(`${provided.ecosystem} package ${provided.name} has two providers: ${earlier.folder} and ${provider.folder}`);
+      if (!atRoot(provider)) found.set(key, provider);
     }
   }
   return found;
@@ -145,14 +147,16 @@ function providedName(file: string, go: Tool | undefined, cwd: string): { ecosys
   }
 }
 
-/** Whether Git ignores `file` in the repository that holds it (git check-ignore); false outside a repository. */
+/** Whether Git ignores `file` in the repository that holds it (git check-ignore); false outside a work tree. */
 export function isIgnored(file: string): boolean {
   let existing = path.dirname(file);
   while (!statExists(existing)) existing = path.dirname(existing);
+  // Outside a work tree git answers check-ignore with a fatal error too, so the work tree decides, not the text of that error.
+  if (revParse(existing, '--show-toplevel') === undefined) return false;
   const outcome = gitResult(existing, 'check-ignore', '-q', '--', file);
   if (outcome.error) throw new Error(`git check-ignore could not start in ${existing}: ${outcome.error.message}`);
   if (outcome.status === 0) return true;
-  if (outcome.status === 1 || /not a git repository/.test(outcome.stderr)) return false;
+  if (outcome.status === 1) return false;
   throw new Error(`git check-ignore ${file} failed: ${outcome.stderr.trim()}`);
 }
 

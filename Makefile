@@ -36,7 +36,8 @@ build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a re
 	cp scripts/kit/kit.mk dist.next/kit.mk
 	cp -R scripts/kit/schema dist.next/schema
 	cp -R scripts/kit/symbols dist.next/symbols
-	if [ -d dist ]; then mv dist dist.old; fi && mv dist.next dist && rm -rf dist.old
+	if [ -d dist ]; then mv dist dist.old; fi
+	if mv dist.next dist; then rm -rf dist.old; else if [ -d dist.old ]; then mv dist.old dist; fi; exit 1; fi
 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json

@@ -13,12 +13,13 @@
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it. Each file that link writes into a repository is one that Git ignores there: var/link of the consumer, else
 // var/link/consumers/<consumer> of the kit checkout under the root, and link prints the GOWORK to export (K203).
-//   node link.mjs link|check|unlink <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...
+//   node link.mjs link|check|unlink [--project] <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...
+// --project limits link, check and unlink to the manifests directly in each <dir>, never a nested project (S-426).
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { quote, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
@@ -26,6 +27,7 @@ import {
   assertIgnored, declaredRoot, isIgnored, type Ecosystem, EXCLUDED, goModule, type GoRequirement, mainCheckouts, MANIFESTS, type Provider,
   providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf,
 } from './link-providers.mts';
+import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
@@ -76,14 +78,18 @@ function parseOutput(text: string, what: string): unknown {
 /** The consumer of a directory: its work tree, its repository, the folder that bounds it and its tracked manifests. */
 type Consumer = { top: string; repository: string; scope: string; manifests: (ecosystem: Ecosystem, all?: boolean) => string[] };
 
-function consumerOf(directory: string): Consumer {
+/**
+ * The consumer of `directory`. With `project`, only the manifests directly in it are its (a nested project is left out, K201);
+ * without it, every manifest below it is.
+ */
+function consumerOf(directory: string, project = false): Consumer {
   const scope = realpathSync(directory);
   const top = workTreeOf(scope);
   const inside = (file: string) => scope === top || `${file}/`.startsWith(`${scope}/`);
   return {
     top, scope, repository: repositoryOf(scope),
     // Go lists every module, so the go.work covers each module that a go command can run in; the others leave out EXCLUDED.
-    manifests: (ecosystem, all = false) => trackedManifests(top, [MANIFESTS[ecosystem]]).filter(file => all || !EXCLUDED.test(file)).map(file => path.join(top, file)).filter(inside),
+    manifests: (ecosystem, all = false) => trackedManifests(top, [MANIFESTS[ecosystem]]).filter(file => all || !EXCLUDED.test(file)).map(file => path.join(top, file)).filter(inside).filter(file => !project || path.dirname(file) === scope),
   };
 }
 
@@ -136,13 +142,13 @@ function linkCopy(work: Run, ecosystem: Ecosystem, name: string, installed: stri
 
 /**
  * The file `relative` of the links of the consumer `top`: in var/link of the consumer when Git ignores it there, else, as for
- * a consumer that ignores no var/ (one without kit), in var/link/consumers/<consumer> of the kit checkout under the root,
+ * a consumer that ignores no var/ (one without kit), in var/link/consumers/<the path segments of consumer> of the kit checkout under the root,
  * which kit ignores; a path that neither ignores fails with it (K203).
  */
 export function linkFile(root: string, top: string, relative: string): string {
   const local = path.join(top, 'var/link', relative);
   if (isIgnored(local)) return local;
-  const shared = path.join(root, 'kit/var/link/consumers', top.replaceAll(path.sep, '_').replace(/^_/, ''), relative);
+  const shared = path.join(root, 'kit/var/link/consumers', ...top.split(path.sep).filter(Boolean), relative);
   assertIgnored(shared);
   return shared;
 }
@@ -193,8 +199,13 @@ function linkNpm(work: Run, consumer: Consumer) {
         const provider = providerFor(work, consumer, 'npm', name);
         if (typeof provider === 'string') { unlinkable(work, 'npm', name, provider); continue; }
         const version = versions.get(folder);
-        if (version === undefined && !lstatSync(folder).isSymbolicLink()) { unlinkable(work, 'npm', name, `a plain copy that npm does not record: ${folder}`); continue; }
-        linkCopy(work, 'npm', name, folder, version ?? '0.0.0', provider);
+        // Without a version from npm query there is no pin to judge, so only the copy that is the provider already passes.
+        if (version === undefined) {
+          if (real(folder) === realpathSync(provider.folder)) reportLink(work, 'npm', name, provider);
+          else unlinkable(work, 'npm', name, `not recorded by npm query: ${folder}`);
+          continue;
+        }
+        linkCopy(work, 'npm', name, folder, version, provider);
       }
     }
   }
@@ -215,40 +226,65 @@ function installedPackages(record: string): Record<string, unknown>[] {
   return list.filter(isJsonObject);
 }
 
-/** The Composer project of each composer.json of the consumer: the nearest project at or above it whose vendor holds installed.json. */
-function composerProjects(consumer: Consumer, composer: Tool): { project: string; vendor: string }[] {
-  const found = new Map<string, string>();
+/** The polyspec names that the composer.json `file` requires, in require and require-dev. */
+function declaredComposer(file: string): string[] {
+  const manifest = readComposerManifestFile(file);
+  return [...Object.keys(manifest.require ?? {}), ...Object.keys(manifest['require-dev'] ?? {})].filter(name => name.startsWith('polyspec/'));
+}
+
+/**
+ * The Composer projects of the consumer, by vendor: the project of each composer.json (the nearest at or above it whose vendor
+ * holds installed.json, else its own folder), the polyspec names that its composer.json files declare, and whether the vendor
+ * holds installed.json. A vendor without installed.json is reported by linkComposer, never skipped.
+ */
+function composerProjects(consumer: Consumer, composer: Tool): { project: string; vendor: string; installed: boolean; declared: string[] }[] {
+  const found = new Map<string, { project: string; installed: boolean; declared: Set<string> }>();
   for (const file of consumer.manifests('composer')) {
-    for (let project = path.dirname(file); `${project}/`.startsWith(`${consumer.top}/`); project = path.dirname(project)) {
+    let chosen: { project: string; vendor: string; installed: boolean } | undefined;
+    for (let project = path.dirname(file); `${project}/`.startsWith(`${consumer.top}/`) && !chosen?.installed; project = path.dirname(project)) {
       if (!existsSync(path.join(project, MANIFESTS.composer))) continue;
       const vendor = composerVendor(project, composer);
-      if (existsSync(path.join(vendor, 'composer/installed.json'))) { found.set(vendor, project); break; }
+      const installed = existsSync(path.join(vendor, 'composer/installed.json'));
+      if (!chosen || installed) chosen = { project, vendor, installed };
     }
+    if (!chosen) continue;
+    const entry = found.get(chosen.vendor) ?? { project: chosen.project, installed: chosen.installed, declared: new Set<string>() };
+    for (const name of declaredComposer(file)) entry.declared.add(name);
+    found.set(chosen.vendor, entry);
   }
-  return [...found].map(([vendor, project]) => ({ project, vendor }));
+  return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
 }
 
 function linkComposer(work: Run, consumer: Consumer) {
   if (!consumer.manifests('composer').length) return;
   const composer = consumerTool(consumer.top, 'composer', work.env);
-  for (const { project, vendor } of composerProjects(consumer, composer)) {
+  for (const { project, vendor, installed, declared } of composerProjects(consumer, composer)) {
+    // A declared name that is not installed, as the npm copies of a consumer that does not record it.
+    const notInstalled = (name: string) => {
+      const provider = providerFor(work, consumer, 'composer', name);
+      unlinkable(work, 'composer', name, typeof provider === 'string' ? provider : `not installed in ${vendor}`);
+    };
+    if (!installed) { declared.forEach(notInstalled); continue; }
     const record = path.join(vendor, 'composer/installed.json');
+    const names = new Set<string>();
     const recorded = new Set<string>();
-    let linked = false;
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) continue;
-      const installed = typeof entry['install-path'] === 'string' ? path.resolve(path.dirname(record), entry['install-path']) : path.join(vendor, entry.name);
-      recorded.add(installed);
+      names.add(entry.name);
+      if (typeof entry['install-path'] !== 'string') { unlinkable(work, 'composer', entry.name, `no install-path in ${record}`); continue; }
+      const copy = path.resolve(path.dirname(record), entry['install-path']);
+      recorded.add(copy);
       const provider = providerFor(work, consumer, 'composer', entry.name);
       if (typeof provider === 'string') { unlinkable(work, 'composer', entry.name, provider); continue; }
-      if (linkCopy(work, 'composer', entry.name, installed, typeof entry.version === 'string' ? entry.version : '', provider)) linked = true;
+      linkCopy(work, 'composer', entry.name, copy, typeof entry.version === 'string' ? entry.version : '', provider);
     }
+    for (const name of declared) if (!names.has(name)) notInstalled(name);
     const folder = path.join(vendor, 'polyspec');
     for (const item of existsSync(folder) ? readdirSync(folder) : []) {
       if (!recorded.has(path.join(folder, item))) unlinkable(work, 'composer', `polyspec/${item}`, `a plain copy that Composer does not record: ${path.join(folder, item)}`);
     }
-    // Composer's own answer to autoload rules that a linked package changed.
-    if (linked) run(composer.command, ['dump-autoload', '--working-dir', project], { env: composer.env });
+    // Composer's own answer to autoload rules that a linked package changed; check only reports, so it dumps nothing.
+    if (!work.check) run(composer.command, ['dump-autoload', '--working-dir', project], { env: composer.env });
   }
 }
 
@@ -314,7 +350,9 @@ function linkPython(work: Run, consumer: Consumer) {
   for (const [venv, names] of byVenv) {
     const installed = installedPython(uv, venv);
     const linked = closure(work, consumer, names).filter((provider) => {
-      const problem = pinProblem(installed.get(provider.name)?.version ?? '0.0.0');
+      const found = installed.get(provider.name);
+      if (!found) { unlinkable(work, 'python', provider.name, `not installed in ${venv}`); return false; }
+      const problem = pinProblem(found.version);
       if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
       return !problem;
     });
@@ -370,16 +408,16 @@ function linkGo(work: Run, consumer: Consumer) {
   const folders = [...files.map(item => path.dirname(item)), ...new Set([...requires.values()].map(item => item.provider.folder))];
   run(go.command, ['work', 'init', ...folders.map(folder => path.relative(path.dirname(file), folder))], { cwd: path.dirname(file), env: { ...go.env, GOWORK: file } });
   for (const [name, { provider }] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (GOWORK=${file})`);
-  work.print(`  export GOWORK=${file}`);
+  work.print(`  export GOWORK=${quote(file)}`);
 }
 
 // --- the commands.
 
 /** Links (or with `check`, reports) every polyspec package of each directory of `directories`; false when one is not linked. */
-export function link({ directories, check, print, env = process.env }: { directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv }): boolean {
+export function link({ directories, check, print, env = process.env, project = false }: { directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
   const root = declaredRoot(env);
   if (!root) { print(`${check ? 'check' : 'link'}: POLYSPEC_CHECKOUTS is not set; the installs stay the locked releases`); return true; }
-  const consumers = directories.map(consumerOf);
+  const consumers = directories.map(directory => consumerOf(directory, project));
   const first = consumers[0];
   const go = first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
   const work: Run = { root, found: providers(root, go, first?.top ?? root), check, print, failed: false, env };
@@ -402,12 +440,12 @@ export function packages(directory: string, ecosystem: 'python' | 'npm', env: No
 }
 
 /** Restores the locked installs of each directory with each tool's own install and removes var/link; false when one is skipped. */
-export function unlink({ directories, print, env = process.env }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv }): boolean {
+export function unlink({ directories, print, env = process.env, project = false }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
   const root = declaredRoot(env);
   if (!root) { print('unlink: POLYSPEC_CHECKOUTS is not set; nothing is linked'); return true; }
   let restored = true;
   const skip = (text: string) => { print(`  skipped    ${text}`); restored = false; };
-  for (const consumer of directories.map(consumerOf)) {
+  for (const consumer of directories.map(directory => consumerOf(directory, project))) {
     print(`== ${consumer.scope}`);
     for (const folder of consumer.manifests('npm').map(file => path.dirname(file)).filter(item => existsSync(path.join(item, 'node_modules')))) {
       if (!existsSync(path.join(folder, 'package-lock.json'))) { skip(`npm ${folder}: no package-lock.json; its workspace root restores it`); continue; }
@@ -417,7 +455,7 @@ export function unlink({ directories, print, env = process.env }: { directories:
     }
     if (consumer.manifests('composer').length) {
       const composer = consumerTool(consumer.top, 'composer', env);
-      for (const { project, vendor } of composerProjects(consumer, composer)) {
+      for (const { project, vendor } of composerProjects(consumer, composer).filter(item => item.installed)) {
         const folder = path.join(vendor, 'polyspec');
         for (const item of existsSync(folder) ? readdirSync(folder) : []) if (lstatSync(path.join(folder, item)).isSymbolicLink()) rmSync(path.join(folder, item));
         if (!existsSync(path.join(project, 'composer.lock'))) { skip(`composer ${project}: no composer.lock`); continue; }
@@ -482,14 +520,17 @@ export function cargo({ directory, args, env = process.env }: { directory: strin
 if (isMain(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   const print: Print = text => process.stdout.write(`${text}\n`);
-  const directories = rest.length ? rest : ['.'];
+  // --project limits link, check and unlink to the manifests directly in each directory (K201, S-426).
+  const project = rest.includes('--project');
+  const directories = rest.filter(item => item !== '--project');
+  const targets = directories.length ? directories : ['.'];
   try {
     switch (command) {
       case 'link': case 'check':
-        if (!link({ directories, check: command === 'check', print })) process.exitCode = 1;
+        if (!link({ directories: targets, check: command === 'check', print, project })) process.exitCode = 1;
         break;
       case 'unlink':
-        if (!unlink({ directories, print })) process.exitCode = 1;
+        if (!unlink({ directories: targets, print, project })) process.exitCode = 1;
         break;
       case 'rebuild':
         for (const repository of rest) rebuild(workTreeOf(repository), print);
@@ -506,7 +547,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check|unlink <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link|check|unlink [--project] <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;
