@@ -205,7 +205,10 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 - A recipe starts a tool of the checkout by its absolute path, never by its bare name (K171): make 3.81, the make of macOS,
   looks up a recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so a
   bare `node` ran the node of the machine. kit.mk names them `$(NODE)`, `$(NPM)` and `$(ALINT)`; `BOOTSTRAP_NODE` is the
-  node of the machine, which only starts the bootstrap. `make kit-check` fails a recipe of the Makefile that starts a tool
+  node of the machine, which only starts the bootstrap and `make toolchain-lock` (K174): the bootstrap installs the node of
+  the checkout from the `mise.lock` that toolchain-lock writes, so toolchain-lock runs before that node exists, and it
+  installs the mise of `config/toolchain.json` itself, as the bootstrap does. A checkout whose `mise.lock` pins no node runs
+  `make toolchain-lock`, then `make install-tools TOOLS=npm`. `make kit-check` fails a recipe of the Makefile that starts a tool
   of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
 ## Layout check (K76)
 

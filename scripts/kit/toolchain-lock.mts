@@ -3,6 +3,10 @@
 //
 //   node scripts/kit/toolchain-lock.mts
 //
+// It runs before the node of the checkout exists: the bootstrap installs that node from the lock that this writes, so the node
+// of the machine starts it ($(BOOTSTRAP_NODE) of kit.mk), and it installs the mise of config/toolchain.json itself, as the
+// bootstrap does (K174). A checkout whose mise.lock pins no node, as a repository that takes kit 0.0.48 (K171), runs make
+// toolchain-lock and then make install-tools TOOLS=npm.
 // `mise lock` pins each archive by its sha256. A pypi: tool is pinned by the uv lock that mise writes under .mise/locks with a
 // uv and a Python, which must be the pinned ones, never a uv or a Python of the machine: mise 2026.10.8 resolved with the uv
 // that came first on PATH, and that uv with a python3 that it found on PATH (measured). So a mise.toml with a pypi: tool locks
@@ -10,8 +14,9 @@
 // directories first on PATH and that Python as UV_PYTHON. The lock is then
 // checked by miseLockFindings, the check of make toolchain-check, so a lock that misses a digest fails here with the finding.
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { installMise } from './bootstrap/install-mise.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
 import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS } from './toolchain-mise.mts';
@@ -19,10 +24,15 @@ import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, M
 /** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
 export const MISE_LOCKS = '.mise/locks/';
 
-/** Writes mise.lock of `root` with the mise of var/tools/bin; throws with the findings of a lock that misses a digest. */
+/**
+ * Installs the mise of config/toolchain.json of `root` (installMise of the bootstrap, which keeps an installed one) and writes
+ * mise.lock with it; throws with the findings of a lock that misses a digest.
+ */
 export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
+  const declaredMise = declaredToolchain(root).mise;
+  if (!declaredMise) throw new Error('config/toolchain.json declares no mise; declare its version and the sha256 of its archive of each platform');
+  installMise({ root, declared: declaredMise, print });
   const mise = toolsPath(root, 'bin', 'mise');
-  if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The environment of mise names the checkout's mise.toml as the global configuration (miseEnvironment), and mise then
   // locks its tools only with --global, which writes mise.lock beside that file.
   const platforms = ['--global', '--platform', LOCK_PLATFORMS.join(',')];

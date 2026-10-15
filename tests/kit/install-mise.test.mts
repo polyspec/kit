@@ -29,14 +29,17 @@ const NODE_INSTALL = '/stub/mise/installs/node/26.11.1';
 
 /**
  * The release archive of a stub mise, and its URL and sha256; removed with `t.after`. The stub prints its version, prints
- * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while MISE_STUB_FAIL is set.
+ * NODE_INSTALL for `where node`, and appends each `install` to `calls`, failing it while MISE_STUB_FAIL is set. With `lock`,
+ * `mise lock` writes that text into mise.lock, and `mise install --locked node` fails, as mise does, while mise.lock pins no node.
  */
-function miseRelease(t: TestContext) {
+function miseRelease(t: TestContext, lock?: string) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-mise-release-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(path.join(directory, 'mise/bin'), { recursive: true });
   const calls = path.join(directory, 'calls.log');
-  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL" ;;\n  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
+  const locked = lock === undefined ? '' : ` && grep -q '^\\[\\[tools.node\\]\\]$' mise.lock`;
+  const locks = lock === undefined ? '' : `  lock) echo "$*" >> '${calls}'; cat > mise.lock <<'LOCK'\n${lock}LOCK\n ;;\n`;
+  writeFileSync(path.join(directory, 'mise/bin/mise'), `#!/bin/sh\ncase "$1" in\n  where) echo '${NODE_INSTALL}' ;;\n  install) echo "$*" >> '${calls}'; test -z "$MISE_STUB_FAIL"${locked} ;;\n${locks}  *) echo "${VERSION} ${ASSET[KEY]} (2026-10-11)" ;;\nesac\n`);
   chmodSync(path.join(directory, 'mise/bin/mise'), 0o755);
   const archive = path.join(directory, 'mise.tar.gz');
   assert.equal(spawnSync('tar', ['-czf', archive, '-C', directory, 'mise']).status, 0);
@@ -136,4 +139,27 @@ test('the bootstrap requires the declaration of mise', (t) => {
   const result = bootstrap(root, process.env);
   assert.equal(result.status, 1, result.stdout);
   assert.match(result.stderr, /config\/toolchain\.json declares no mise; declare its version and the sha256 of its archive of each platform/);
+});
+
+// A mise.lock that pins node for every platform of LOCK_PLATFORMS, as mise lock writes it.
+const NODE_LOCK = `[[tools.node]]\nversion = "26.11.1"\nbackend = "core:node"\n\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.node."platforms.${platform}"]\nchecksum = "sha256:${'1'.repeat(64)}"\n`).join('\n')}`;
+
+test('a checkout whose mise.lock pins no node bootstraps in the documented order: make toolchain-lock, then make install-tools TOOLS=npm (K174)', (t) => {
+  const release = miseRelease(t, NODE_LOCK);
+  const root = checkout(t, release.sha256);
+  // A repository that takes kit 0.0.48 declares node in mise.toml; its mise.lock does not pin it yet, and var/tools holds no
+  // node of the checkout. Its Makefile includes the kit.mk of the installed package.
+  writeFileSync(path.join(root, 'mise.toml'), '[tools]\nnode = "26.11.1"\n');
+  writeFileSync(path.join(root, 'mise.lock'), '');
+  writeFileSync(path.join(root, 'Makefile'), `KIT := ${KIT}\nKIT_EXT := mts\ninclude $(KIT)/kit.mk\n`);
+  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
+  const make = (...goals: string[]) => spawnSync('make', ['--no-print-directory', ...goals], { cwd: root, env: stubs.env, encoding: 'utf8' });
+  const lock = make('toolchain-lock');
+  assert.equal(lock.status, 0, `${lock.stdout}${lock.stderr}`);
+  assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), NODE_LOCK);
+  const install = make('install-tools', 'TOOLS=npm');
+  assert.equal(install.status, 0, `${install.stdout}${install.stderr}`);
+  assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'install --locked node']);
+  assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
+  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the bootstrap downloaded mise again');
 });
