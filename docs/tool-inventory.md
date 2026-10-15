@@ -212,6 +212,10 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
   Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
   repository that install-packages needs runs the node of the checkout (K185).
+- A consumer's package-lock pins `@polyspec/kit` by the URL of its release asset, which npm 12 installs only with
+  `allow-remote=root`. `kit-bootstrap.mk` exports `npm_config_allow_remote=root`, which npm reads as that setting, to the
+  recipes of `install-packages` and `dependency-review` only, so the npm ci of the install and the npm install, npm audit fix
+  and npm dedupe of `dependency-review UPDATE=1` read one setting (K189).
 ## Layout check (K76)
 
 S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by

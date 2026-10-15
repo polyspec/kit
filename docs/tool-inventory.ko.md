@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 16b6485316f3c126bd958a94a9ac5959ba6dd9776a5823e0023028355da8888d -->
+<!-- source-sha256: 44044992a7c1dae1b3f7f166fb4aef073fd26a816982d5c3a4052b78c065bb4a -->
 
 # 도구 목록
 
@@ -186,6 +186,10 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   `mise.lock`이 node를 고정하지 않은 checkout은 `make toolchain-lock`, 그다음 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
   command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
   `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
+- consumer의 package-lock은 `@polyspec/kit`을 release asset의 URL로 고정하며, npm 12는 그것을 `allow-remote=root`일 때만
+  설치합니다. `kit-bootstrap.mk`는 npm이 그 설정으로 읽는 `npm_config_allow_remote=root`를 `install-packages`와
+  `dependency-review`의 recipe에만 export하므로, 설치의 npm ci와 `dependency-review UPDATE=1`의 npm install, npm audit fix,
+  npm dedupe가 하나의 설정을 읽습니다(K189).
 ## Layout 검사 (K76)
 
 S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 도구가 아니라 release된 도구
