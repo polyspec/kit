@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 8a0bce33f8066c6f76eb30680638e9103d2e6a94d62907f7cb47b67257f47ab2 -->
+<!-- source-sha256: b44f19fb72c212746dd9bdf24d1282f37522a898284492a4e495f4cda7fb14dd -->
 # 개발
 
 [English](AGENTS.md)
@@ -29,7 +29,9 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
 - [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 kit의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
-- 이 저장소는 symbolic link를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다. 이 저장소가
+- 이 저장소는 symbolic link를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다. 단 하나의
+  예외는 0.0.x 개발의 local link(`docs/plans/local-links.md`)입니다: polyspec root가 선언되면, 개발 checkout에 설치된 0.0.x
+  polyspec package 폴더를 그 제공자 source로의 link로 바꿉니다. 이 link는 추적되지 않고 release output에 들어가지 않습니다. 이 저장소가
   쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
   머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. repository root는 working directory가 속한 Git work tree의
   top level(`git rev-parse --show-toplevel`, `scripts/kit/paths.mts`의 `repositoryRoot`)이므로, `npm -w`가 package directory에서

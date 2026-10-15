@@ -33,7 +33,10 @@ and states only its own rules. The rules below are kit's own.
 - The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,
   environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
   creates, is accepted; our rules govern what we create.
-- This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. A path
+- This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. The one
+  exception is the local link of 0.0.x development (`docs/plans/local-links.md`): when a polyspec root is declared, a
+  development checkout's installed polyspec package folder pinned at 0.0.x is replaced by a link to its provider's source;
+  such a link is never tracked and never part of released output. A path
   that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
   as PEP 751's lock directory), stays inside the repository, and never depends on the working directory; it is never
   absolute. The repository root is the top level of the Git work tree that holds the working directory (`git rev-parse
