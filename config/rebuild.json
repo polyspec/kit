@@ -296,7 +296,7 @@
     },
     "scripts/kit/recipe-tools.mts": {
       "kind": "policy",
-      "reason": "polyspec's rule that a make recipe starts a tool of the checkout by its absolute path (K171); the recipes come from GNU make's database through owner-check.mts, split into words by the quoting rules of the POSIX shell (K179)"
+      "reason": "polyspec's rule that a make recipe starts a tool of the checkout by its absolute path (K171); the recipes come from GNU make's database through owner-check.mts, split into words by the quoting rules of the POSIX shell with the parse of shell-quote (K179, K184)"
     },
     "scripts/kit/release-assets.mts": {
       "kind": "policy",
