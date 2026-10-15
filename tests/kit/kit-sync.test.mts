@@ -151,7 +151,7 @@ test('the package.json of kit declares its copies: the bootstrap, the release wo
 // wheel package or the wheel consumer and without it fails kit-check with the fix, not later in the release.
 test('kit-check names a wheel release without pythonBackend of config/toolchain.json, with the fix', (t) => {
   const fixture = readFileSync(path.join(import.meta.dirname, 'fixture/config/release.json'), 'utf8');
-  const root = tree(t, { 'config/release.json': fixture, 'config/toolchain.json': `${JSON.stringify({ schema: 1 })}\n` });
+  const root = tree(t, { 'config/release.json': fixture, 'config/toolchain.json': `${JSON.stringify({ schema: 1 })}\n`, '.php-version': '8.5\n' });
   const [finding, ...rest] = checkConfig(root);
   assert.deepEqual(rest, []);
   assert.match(finding ?? '', /^config\/release\.json: the wheel packages \[kit-fixture\] and the wheel consumer need the build backend of the wheels, pythonBackend of config\/toolchain\.json, which it does not declare\. Fix: declare pythonBackend \{ "requirement": "<name>==<version>", "sha256": "<sha256 of its wheel>" \} in config\/toolchain\.json and run make install-tools$/);
@@ -162,6 +162,24 @@ test('kit-check names a wheel release without pythonBackend of config/toolchain.
   assert.deepEqual(checkConfig(root).map(line => line.split('. Fix:')[0]), ['config/release.json: the wheel consumer needs the build backend of the wheels, pythonBackend of config/toolchain.json, which it does not declare']);
   write(root, 'config/toolchain.json', `${JSON.stringify({ schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'a'.repeat(64) } })}\n`);
   assert.deepEqual(checkConfig(root), []);
+});
+
+// K193: the release workflow sets up the PHP of .php-version only, so a repository that needs PHP without it released with the
+// PHP of the runner; kit-check names it with the fix, and the release workflow runs kit-check before any release step.
+test('kit-check names a repository that needs PHP without .php-version: Composer packages, the Composer consumer, php of the toolchain', (t) => {
+  const fixture = readFileSync(path.join(import.meta.dirname, 'fixture/config/release.json'), 'utf8');
+  const backend = { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'a'.repeat(64) } };
+  const root = tree(t, { 'config/release.json': fixture, 'config/toolchain.json': `${JSON.stringify(backend)}\n` });
+  assert.deepEqual(checkConfig(root), ['.php-version is missing, but the Composer packages [polyspec/kit-fixture] of config/release.json and the Composer consumer of config/release.json need PHP; CI and the release workflow set up the PHP of .php-version, and without it the release runs the PHP of the runner. Fix: declare .php-version with the PHP minor release, such as <major>.<minor>']);
+  write(root, 'config/toolchain.json', `${JSON.stringify({ ...backend, php: ['8.5'] })}\n`);
+  assert.match(checkConfig(root).join(), /and php \["8\.5"\] of config\/toolchain\.json need PHP; .* Fix: declare \.php-version with the PHP minor release, such as 8\.5$/);
+  write(root, '.php-version', '8.5\n');
+  assert.deepEqual(checkConfig(root), []);
+  rmSync(path.join(root, 'config/release.json'));
+  rmSync(path.join(root, '.php-version'));
+  assert.deepEqual(checkConfig(root).map(line => line.split(' need PHP')[0]), ['.php-version is missing, but php ["8.5"] of config/toolchain.json'], 'php of the toolchain needs .php-version without a release');
+  write(root, 'config/toolchain.json', `${JSON.stringify({ schema: 1 })}\n`);
+  assert.deepEqual(checkConfig(root), [], 'a repository without PHP needs no .php-version');
 });
 
 test('a generated configuration that breaks its schema names the command that writes it as the fix', (t) => {

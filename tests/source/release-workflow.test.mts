@@ -1,7 +1,8 @@
 // The release workflow source of kit (workflows/release.yml), which kit-sync vendors to every consumer as
 // .github/workflows/release.yml. The order is fixed: the tools of the repository are installed first; the release is created
 // as a draft; the draft is proved; the release is made public only after the proof passed. The steps after release-tools
-// run on the tools it installed, and the Composer proof runs on the PHP of .php-version. kit does not vendor workflows/, so
+// run on the tools it installed, and the Composer proof runs on the PHP of .php-version, which make kit-check requires of a
+// repository that needs PHP (K193). kit does not vendor workflows/, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -65,8 +66,9 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
   assert.ok(uses + 1 < step('make release-tools', /^make release-tools$/).line, 'PHP is set up before release-tools');
 });
 
-test('the release workflow bootstraps the package, then prepares the release of the repository, before release-tools (K71-2, K132)', () => {
-  assert.deepEqual(runs.slice(0, 4).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
+test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
+  // make kit-check fails a repository that needs PHP without .php-version, so no release runs the PHP of the runner (K193).
+  assert.deepEqual(runs.slice(0, 5).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
