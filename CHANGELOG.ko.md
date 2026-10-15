@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bd4fcbf0b15c9e98626632effd1d9414f2c66fb9be68a445c5a6e6b997c444a6 -->
+<!-- source-sha256: cf06338a69f83d83691bfed4556a365b7a853112be5397ef50bc831971b39c82 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- parity의 php binding은 run-tests와 lint-php처럼 그 package에 Composer가 주는 vendor directory의 PHPUnit을 실행합니다(composer-vendor.mts): package 자신의 것, 또는 그 위의 가장 가까운 Composer project의 것입니다. root composer.json이 path repository로 library를 require하고 root에 `vendor/` 하나를 설치하는 Composer monorepo(K163)는 모든 php binding을 "`<package>/vendor/bin/phpunit` does not exist"와 함께 R3 not-executed로 보고했습니다; 이제 그것을 실행하며, 위로 vendor directory가 없는 package는 여전히 해결 방법과 함께 실패합니다(K178).
 
 ## 0.0.49
 

@@ -1248,6 +1248,19 @@ test('the PHPUnit run names the configuration of its package, phpunit.xml or php
   assert.deepEqual(args({ 'php/phpunit.xml.dist': '<phpunit/>\n' }), ['php/vendor/bin/phpunit', '--teamcity', '--configuration', 'php/phpunit.xml.dist', 'php/tests/codec.php']);
 });
 
+
+// K178: a Composer monorepo has one development composer.json at the root, which requires its libraries through path
+// repositories, and one vendor directory beside it; a library has none of its own.
+test('a php binding of a Composer monorepo runs the PHPUnit of the root project, and one with no vendor directory above it fails with the fix (K178)', TIMEOUT, (t) => {
+  const monorepo = { 'php/vendor/bin/phpunit': null, 'composer.json': '{}\n', 'vendor/bin/phpunit': '' };
+  const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files: monorepo }), { test: 'php/tests/codec.php' }, 'suite', ENV);
+  if (run.error) throw new Error(`the php binding cannot start: ${run.error}`);
+  assert.deepEqual(run.args, ['vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
+  assert.deepEqual(check(t, { files: monorepo }).findings, []);
+  const { findings } = check(t, { files: { 'php/vendor/bin/phpunit': null } });
+  assert.deepEqual(keys(findings), ['R3 codec php']);
+  assert.match(findingAt(findings, 0).message, /php\/vendor\/bin\/phpunit does not exist; run composer install in php, or in the project that requires it/);
+});
 test('admit: an implementation that admits no case, a key on no case, an empty list and a repeated name are declaration findings (K47)', TIMEOUT, (t) => {
   const edit = (config: Declaration) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
   const all = ['go', 'rust', 'ts', 'php', 'python'];
