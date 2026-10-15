@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d5fd03765f2cd6213876f50779b2bcebc416160e09d4ee3bf0f0598add7bceaf -->
+<!-- source-sha256: 8737b120073427d62e2a6d63113877fd69ed2d29a76a15a61ceea32d89257224 -->
 
 # 도구 목록
 
@@ -764,6 +764,13 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   knip.json의 `ignore` 뒤에 더하고(K162), 아래 kit 사본처럼 명령줄에서 oxlint에 `--ignore-pattern`으로 줍니다(K172).
   선언하면 통과하고, 선언하지 않은 unused 파일은 여전히 knip에서 실패하며, 선언한 glob 밖의 같은 oxlint 위반은 여전히
   oxlint에서 실패합니다(fixture).
+  자기 package의 build 출력(`../dist/values.js` 등)을 import하는 test는 tsc가 그곳에 내보내는 source를 씁니다. knip은
+  workspace의 `tsconfig.json`이나 그것이 참조하는 project를 통해서만 `outDir`을 그 `rootDir`로 옮기고, knip의 `paths`는
+  풀리지 않는 import에만 적용되므로 build된 dist에는 닿지 않습니다. package는 build를 자기 tsconfig(`outDir: dist`,
+  `rootDir: src`, TypeScript project reference가 요구하는 `composite: true`)에 두고, 여전히 test를 포함하는
+  `tsconfig.json`의 `references`에 그것을 적습니다. `tsconfig.json` 자체에 `rootDir: src`를 두면 tsc가 test에서
+  실패합니다(TS6059). 참조하면 그 export는 통과하고 tsc는 test를 검사하며, 참조하지 않으면 unused export입니다(fixture,
+  K175).
 - **Rust.** lint는 각 Cargo.toml에 있습니다. workspace는 `unsafe_code`를 deny하여 `transmute_copy`를 잡고(fixture),
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로
