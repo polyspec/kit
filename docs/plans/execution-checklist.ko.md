@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 532acc9f41bfe2afe65184ed1818d13269fc1ee454625192c16c0b9884becd46 -->
+<!-- source-sha256: 1aa8b38cffb8426498408ee4563e54dbf8196e717c84937debb98312b3dff1ce -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -246,3 +246,4 @@
 | K185 | `kit-bootstrap.mk`는 kit.mk가 설치되기 전에 도는 branch에서 `NPM`처럼 bootstrap이 설치하는 checkout의 node(`var/tools/bin/node`)인 `NODE`를 정의한다; kit.mk의 다른 도구 변수는 install-tools와 함께 온다. install-packages가 필요로 하는 recipe(crudui의 install-ordered-json)처럼 kit.mk가 생기기 전에 도는 저장소의 recipe는 빈 `$(NODE)`를 받아 var/tools/bin/node를 직접 적어야 했다. Red: kit.mk가 설치되기 전에 `$(NODE)`를 쓰는 fixture recipe가 실패했다; green: checkout의 node를 실행한다 | `kit-bootstrap.mk`, `docs/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/kit-bootstrap.test.mts` | [o] |
 | K186 | run-tests phpunit은 parity와 lint-php처럼(K178) PHPUnit을 찾는다: 세 호출자의 한 function인 composer-vendor.mts의 `packageVendorFile`이 `--cwd` 또는 그 위에서 `bin/phpunit`이 있는 가장 가까운 Composer project의 vendor directory를 취하므로, Composer monorepo의 package는 자기 folder에서 실행된다; 없으면 package 자신의 경로의 시작이 install 해결 방법과 함께 실패한다. Red: root vendor 아래 package의 `--cwd`로 run-tests가 `<package>/vendor/bin/phpunit`을 찾았다; green: root의 PHPUnit을 실행한다 | `run-tests.mts`, `composer-vendor.mts`, `parity-runners.mts`, `docs/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/run-tests.test.mts`, `tests/kit/parity.test.mts`, `tests/kit/lint-php.test.mts` | [o] |
 | K187 | recipe-tools는 make reference의 placeholder인 `KIT_MAKE_REFERENCE_`를 이미 담은 recipe line에서, 없는 reference를 빈 word로 되돌리는(`references[index] ?? ''`) 대신 실패하고, reference 없는 placeholder는 ''이 아니라 throw된 error이다. Red: `${KIT_MAKE_REFERENCE_7} a.mts`가 `a.mts`의 word를 주었다; green: line과 해결 방법과 함께 실패한다 | `recipe-tools.mts`, `CHANGELOG.md(.ko)` | `tests/kit/recipe-tools.test.mts` || [o] |
+| K188 | lint-ts가 knip.json 사본에서 knip 자신이 root에 쓰이지 않는다고 보고한 base ignore만 제거하므로(`scripts/kit/knip-ignore-hints.mts`, knip reporter), `@polyspec/kit`을 import하는 script가 더 이상 "Remove from ignoreDependencies"를 받지 않는다; 저장소 자신의 ignore는 남는다. Red: real-knip case가 hint를 출력했다; green: 없다 | `lint-ts.mts`, `knip-ignore-hints.mts`, `knip-ignore-hints.schema.json`, `CHANGELOG.md(.ko)` | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` || [o] |
