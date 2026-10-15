@@ -12,7 +12,8 @@
 //   vitest  `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>`
 //           from the checkout root, read from the JSON report that vitest writes; a test is named by the titles of its
 //           suites and its own joined by ' › ', a case is a top-level test, and a feature id is the joined name
-//   php     `php <args> vendor/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
+//   php     `php <args> <vendor>/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
+//           the PHPUnit of the vendor directory that Composer gives the package of the test (composer-vendor.mts), and
 //           the phpunit.xml of the Composer package of the test (phpunit.xml.dist when only that exists), or
 //           `--no-configuration` when it has none; a suite binding with the symbol `<class>::<method>` (the fully qualified
 //           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
@@ -26,6 +27,7 @@ import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
 import { parseJson, readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
+import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
@@ -209,8 +211,10 @@ const RUNNERS: Record<Runner, RunnerOf> = {
     run(root, binding, kind) {
       const composer = nearest(root, binding.test, 'composer.json');
       if (composer === undefined) return { error: `no composer.json lies above ${binding.test}` };
-      const phpunit = path.posix.join(composer, 'vendor/bin/phpunit');
-      if (!existsSync(path.join(root, phpunit))) return { error: `${phpunit} does not exist; run composer install in ${composer}` };
+      // PHPUnit of the vendor directory that Composer gives the package: its own, or that of the Composer root of a monorepo
+      // that requires it through a path repository (K178).
+      const phpunit = packageVendorFile(root, composer, 'bin/phpunit', project => existsSync(path.join(root, project, 'composer.json')));
+      if (phpunit === undefined) return { error: `${path.relative(root, path.join(composerVendor(path.join(root, composer)), 'bin/phpunit'))} does not exist; run composer install in ${composer}, or in the project that requires it` };
       // The configuration of the package: PHPUnit reads none from the checkout root, so the run names it.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.posix.join(composer, file)).find(file => existsSync(path.join(root, file)));
       const flags = configuration === undefined ? ['--no-configuration'] : ['--configuration', configuration];
