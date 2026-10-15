@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.52
+
 - `config/owner-checks.json` takes `importers` and `modules` in an owner rule: a changed path runs the node tests of the `importers` globs that import it, directly or through other modules, as the import graph of owner-check reads them (`module-imports.mts`: amaro, acorn, acorn-walk; relative imports, re-exports, `import()`, `require()`, `import.meta.resolve('<specifier>')` and `siblingTool(import.meta.url, '<name>')`); `modules` names the modules that stand for a path that is no module, such as a schema or a fixture. `make owner-validate` fails on a path of such a rule that no test imports. kit's own rules use it: a change of a module of scripts/kit ran `make kit-test`, the whole tool suite, and now runs the tests that import it; the package files run the checks that read them (K191).
 
 - make kit-check fails a repository that needs PHP and has no `.php-version`: a Composer package or the Composer consumer of `config/release.json`, or `php` of `config/toolchain.json`. The release workflow set up the PHP of `.php-version` only and otherwise kept the PHP of the runner, so a repository that pinned PHP elsewhere released with the PHP of Ubuntu and failed its release proof. The release workflow now runs make kit-check after make install-packages, before any release step (K193).
