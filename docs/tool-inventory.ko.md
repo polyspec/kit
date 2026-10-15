@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 20e5a275223742afbb4c3db2c6c64494a49c566c8c31b37a174e70c4c3babf41 -->
+<!-- source-sha256: d5fd03765f2cd6213876f50779b2bcebc416160e09d4ee3bf0f0598add7bceaf -->
 
 # 도구 목록
 
@@ -1628,6 +1628,12 @@ template tool의 runtime self-test는 `tests/kit/editor-boundaries.test.mts`가 
 - `installedExecutable`: integration 실행의 offline 읽기입니다. 사본이 없으면 `run make install-vscode`와 함께 실패합니다.
 - `<tools>/.next-<pid>`에 내려받아 제자리로 rename합니다. library는 최종 directory에 압축을 풀므로 두 install이 동시에 돌면 서로를
   망가뜨립니다. rename을 쓰면 먼저 끝난 install의 사본이 남습니다.
+- 내려받기를 자기 process에서 돌립니다(K173). `@vscode/test-electron` 3.1.0은 `.tar.gz` 내려받기를 `tar -xzf -` child에 pipe하고,
+  응답이 실패하면("aborted") 그 child를 끝내지도 죽이지도 않습니다. 그 child가 event loop를 붙잡아 재시도가 성공한 뒤에도
+  install이 끝나지 않았습니다. 명령은 `--download`로 자기 자신을 자기 process group에 fork하고, 내려받기가 끝나면 그 group을
+  죽입니다. 실패한 내려받기는 그 오류로 install을 실패시킵니다. install이 먼저 사라지면 내려받기 process도 끝납니다.
 
 `@vscode/test-electron`은 kit의 optional peer dependency입니다: VS Code를 설치하는 repository가 이것을 선언합니다.
-`tests/kit/install-vscode.test.mts`는 내려받기를 함수로 바꾸므로 어떤 test도 network에 닿지 않습니다.
+`tests/kit/install-vscode.test.mts`는 내려받기를 함수로 바꾸므로 어떤 test도 network에 닿지 않습니다. 명령의 test는
+local proxy 뒤의 update.code.visualstudio.com stub(openssl이 만든 인증서, `NODE_EXTRA_CA_CERTS`)에 대해 `@vscode/test-electron`을
+돌리며, stub은 고른 시도의 archive 응답을 중간에 끊습니다.
