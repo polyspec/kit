@@ -35,7 +35,7 @@ const RESULTS: JSONSchemaType<Results> = {
 const SPEC = "import test from 'node:test';\n";
 
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
-const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool('run-tests'), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
 // The Python of a checkout is var/tools/mise/shims/python3, the shim of mise: a test writes its stub there.
 function pythonStub(root: string, script: string) {
@@ -516,7 +516,7 @@ test('a timeout stops the whole process group of the tool, with SIGKILL after th
 
 test('an interrupted runner stops the whole process group of the tool and ends on its signal (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t);
-  const child = spawn(process.execPath, [tool('run-tests'), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
   t.after(() => child.kill('SIGKILL'));
   // The runner prints the start of the test after the stub recorded its pids.
   child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });

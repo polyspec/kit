@@ -1168,7 +1168,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
   assert.notEqual(make('parity-check').status, 0);
-  const failed = spawnSync(process.execPath, [tool('parity')], { cwd: root, env: ENV, encoding: 'utf8' });
+  const failed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts'))], { cwd: root, env: ENV, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /\[parity\] R3 not-executed codec python python\/tests\/test_codec\.py: .*not executed: ascii/);
   assert.match(failed.stderr, /\[parity\] 1 findings/);

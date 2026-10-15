@@ -23,7 +23,10 @@ const MISE_CALL: JSONSchemaType<{ args: string[]; PATH: string; UV_PYTHON?: stri
 const ROOT = path.resolve(KIT, '../..');
 const SUM = `sha256:${'a'.repeat(64)}`;
 
-const start = (name: string, root: string, env: NodeJS.ProcessEnv, ...args: string[]) => spawnSync(process.execPath, [tool(name), ...args], { cwd: root, env, encoding: 'utf8' });
+const INSTALL_TOOLS = import.meta.resolve('../../scripts/kit/install-tools.mts');
+const TOOLCHAIN_LOCK = import.meta.resolve('../../scripts/kit/toolchain-lock.mts');
+/** The run of the tool of the module URL `module` in `root`. */
+const start = (module: string, root: string, env: NodeJS.ProcessEnv, ...args: string[]) => spawnSync(process.execPath, [tool(module), ...args], { cwd: root, env, encoding: 'utf8' });
 
 // A checkout with mise.toml `toml` and the stub wrapper of mise, and the stubs of the test; removed with `t.after`.
 function checkout(t: TestContext, toml: string, files: Record<string, string> = {}) {
@@ -34,7 +37,7 @@ function checkout(t: TestContext, toml: string, files: Record<string, string> = 
 
 test('install-tools has mise install every tool of mise.lock in the checkout, and installs nothing else that is undeclared', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n');
-  const result = start('install-tools', root, stubs.env);
+  const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(stubs.calls(), ['mise install --locked']);
   assert.match(result.stdout, new RegExp(`^\\[install-tools\\] ${path.join(root, 'var/tools/bin/mise').replaceAll('.', '\\.')} install --locked$`, 'm'));
@@ -47,8 +50,8 @@ test('a second install-tools with var/tools/bin and the shims first on PATH is a
   mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/mise/shims/python3'), '#!/bin/sh\necho "the python3 of the shims ran" >&2\nexit 1\n', { mode: 0o755 });
   const env = { ...stubs.env, PATH: [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims'), stubs.env.PATH].join(path.delimiter) };
-  const first = start('install-tools', root, env);
-  const second = start('install-tools', root, env);
+  const first = start(INSTALL_TOOLS, root, env);
+  const second = start(INSTALL_TOOLS, root, env);
   assert.equal(first.status, 0, first.stderr);
   assert.equal(second.status, 0, second.stderr);
   assert.equal(second.stdout, first.stdout, 'the second run does what the first did: mise install --locked, which mise keeps');
@@ -57,7 +60,7 @@ test('a second install-tools with var/tools/bin and the shims first on PATH is a
 
 test('a mise install that fails stops install-tools with the error of mise, before any install of kit', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'b'.repeat(64) } }) });
-  const result = start('install-tools', root, { ...stubs.env, STUB_MISE_FAILS: 'ruff@0.17.0 is not in the lockfile' });
+  const result = start(INSTALL_TOOLS, root, { ...stubs.env, STUB_MISE_FAILS: 'ruff@0.17.0 is not in the lockfile' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /mise ERROR ruff@0\.17\.0 is not in the lockfile/);
   assert.match(result.stderr, /\[install-tools\] .*var\/tools\/bin\/mise install --locked ended with exit status 1/);
@@ -66,12 +69,12 @@ test('a mise install that fails stops install-tools with the error of mise, befo
 
 test('install-tools takes no tool names, and needs the mise of the bootstrap', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n');
-  const named = start('install-tools', root, stubs.env, 'ruff');
+  const named = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
   assert.equal(named.status, 1);
   assert.match(named.stderr, /\[install-tools\] install-tools takes no tool names; it installs every tool of mise\.lock and the declared tools that mise does not install, and it was given ruff/);
   assert.deepEqual(stubs.calls(), []);
   const bare = toolchainCheckout(t, { 'mise.toml': '[tools]\n' });
-  const missing = start('install-tools', bare, stubs.env);
+  const missing = start(INSTALL_TOOLS, bare, stubs.env);
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /\[install-tools\] var\/tools\/bin\/mise is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise/);
 });
@@ -82,11 +85,11 @@ test('install-tools removes each file of var/tools/bin that no installer of kit 
   const { root, stubs } = checkout(t, '[tools]\n');
   const bin = path.join(root, 'var/tools/bin');
   for (const name of ['npm', 'npx', 'go', 'gofmt', 'python3', 'alint']) writeFileSync(path.join(bin, name), '#!/bin/sh\n# A wrapper (scripts/kit/install-tools.mts).\n', { mode: 0o755 });
-  const result = start('install-tools', root, stubs.env);
+  const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(readdirSync(bin).sort(), ['mise', 'npm', 'npx']);
   for (const name of ['alint', 'go', 'gofmt', 'python3']) assert.match(result.stdout, new RegExp(`^\\[install-tools\\] removed var/tools/bin/${name}$`, 'm'));
-  const second = start('install-tools', root, stubs.env);
+  const second = start(INSTALL_TOOLS, root, stubs.env);
   assert.doesNotMatch(second.stdout, /removed/, 'a second run removes nothing');
 });
 
@@ -99,10 +102,10 @@ const RUSTUP = '#!/bin/sh\necho "rustup $*" >> "$STUB_LOG"\nif [ "$1 $2" = "tool
 test('install-tools installs each Rust channel that an exception declares with rustup, and keeps an installed one', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n', NIGHTLY_FILES);
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
-  const first = start('install-tools', root, { ...stubs.env, RUSTUP_INSTALLED: 'stable-aarch64-apple-darwin' });
+  const first = start(INSTALL_TOOLS, root, { ...stubs.env, RUSTUP_INSTALLED: 'stable-aarch64-apple-darwin' });
   assert.equal(first.status, 0, first.stderr);
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain list', 'rustup toolchain install nightly-2026-10-01 --profile minimal']);
-  const kept = start('install-tools', root, { ...stubs.env, RUSTUP_INSTALLED: 'nightly-2026-10-01-aarch64-apple-darwin' });
+  const kept = start(INSTALL_TOOLS, root, { ...stubs.env, RUSTUP_INSTALLED: 'nightly-2026-10-01-aarch64-apple-darwin' });
   assert.equal(kept.status, 0, kept.stderr);
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(2), ['rustup toolchain list'], 'an installed channel is kept');
 });
@@ -110,7 +113,7 @@ test('install-tools installs each Rust channel that an exception declares with r
 test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n', NIGHTLY_FILES);
   // PATH holds the stubs, the node of the stub of mise and the system commands, and no rustup.
-  const result = start('install-tools', root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
+  const result = start(INSTALL_TOOLS, root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /config\/toolchain\.json exceptions declare the Rust channel nightly-2026-10-01, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
@@ -123,7 +126,7 @@ test('install-tools installs the toolchain of rust-toolchain.toml with rustup, w
   // active toolchain, which the file names, with its profile and components.
   const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
-  const result = start('install-tools', root, stubs.env);
+  const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(stubs.calls(), ['mise install --locked', 'rustup toolchain install --no-self-update']);
   assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update$/m);
@@ -131,7 +134,7 @@ test('install-tools installs the toolchain of rust-toolchain.toml with rustup, w
 
 test('a rust-toolchain.toml without rustup fails with the one prerequisite of the machine (K151)', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
-  const result = start('install-tools', root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
+  const result = start(INSTALL_TOOLS, root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml pins the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
@@ -143,7 +146,7 @@ const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['li
 test('toolchain-lock runs mise lock for the four platforms of the bootstrap and passes a lock that pins every tool', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
   miseReleaseStub(root);
-  const result = start('toolchain-lock', root, stubs.env);
+  const result = start(TOOLCHAIN_LOCK, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
   assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
@@ -164,7 +167,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   mkdirSync(machine);
   writeFileSync(path.join(machine, 'uv'), '#!/bin/sh\necho "the uv of the machine ran" >&2\nexit 1\n', { mode: 0o755 });
   const log = path.join(stubs.directory, 'env.log');
-  const result = start('toolchain-lock', root, { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}`, STUB_MISE_ENV_LOG: log });
+  const result = start(TOOLCHAIN_LOCK, root, { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}`, STUB_MISE_ENV_LOG: log });
   // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
   assert.equal(result.status, 1);
   assert.deepEqual(stubs.calls(), [
@@ -185,7 +188,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
 test('a pypi: tool without the uv or the Python of mise.toml is refused before any lock', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n"pypi:vulture" = "2.16"\n');
   miseReleaseStub(root);
-  const alone = start('toolchain-lock', root, stubs.env);
+  const alone = start(TOOLCHAIN_LOCK, root, stubs.env);
   assert.equal(alone.status, 1);
   assert.match(alone.stderr, /a pypi: tool of mise\.toml needs the uv and the Python of mise\.toml, which lock it; declare uv and python/);
   assert.deepEqual(stubs.calls(), []);

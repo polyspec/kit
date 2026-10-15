@@ -195,7 +195,7 @@ test('the summary of a report is written again from its record, also for a run t
 });
 
 function command(root: string, args: string[], env: Record<string, string> = {}) {
-  return spawnSync(process.execPath, [tool('ci-targets'), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
 }
 
 test('the command runs the targets, exits with the result and refuses a bad usage', (t) => {

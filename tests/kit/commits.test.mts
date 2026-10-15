@@ -95,7 +95,7 @@ test('a merge commit in the range is not checked', (t) => {
 
 test('the command checks a range or a message file and exits with the findings', (t) => {
   const { root } = repository(t, ['feat(docs): Start (#K1)', 'bad subject']);
-  const command = (...args: string[]) => spawnSync(process.execPath, [tool('check-commits'), ...args], { cwd: root, encoding: 'utf8' });
+  const command = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8' });
   const range = command('--range', 'HEAD~1..HEAD');
   assert.equal(range.status, 1, range.stdout + range.stderr);
   assert.match(range.stderr, /\[check-commits\] \w+: commit-subject: the subject is "bad subject"/);

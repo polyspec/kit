@@ -293,11 +293,11 @@ test('changelog: the sections are the level-2 headings of the Markdown tree, not
 test('the command reads config/documents.json and exits with the findings', (t) => {
   const root = tree(t, { ...pair('a.md', 'alpha'), 'b.md': '# lone\n', 'config/documents.json': JSON.stringify(CONFIG) });
   mkdirSync(path.join(root, 'scripts'), { recursive: true });
-  const failed = spawnSync(process.execPath, [tool('check-documents')], { cwd: root, encoding: 'utf8' });
+  const failed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
   assert.match(failed.stderr, /\[check-documents\] b\.md: pair-missing: /);
   put(root, { 'b.md': null });
-  const passed = spawnSync(process.execPath, [tool('check-documents')], { cwd: root, encoding: 'utf8' });
+  const passed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /1 document pairs/);
 });

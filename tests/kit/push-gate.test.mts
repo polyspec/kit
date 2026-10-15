@@ -12,7 +12,7 @@ import { tool } from './kit-tools.mts';
 
 const push = (work: string, ...refspecs: string[]) => run(work, 'git', ['push', '--quiet', 'origin', ...(refspecs.length ? refspecs : ['HEAD:refs/heads/main'])]);
 const remoteHead = (remote: string) => run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/main']).stdout.trim();
-const gate = (work: string, args: string[], env: NodeJS.ProcessEnv = {}, input?: string) => run(work, process.execPath, [tool('push-gate'), ...args], { env: { ...process.env, ...env }, input });
+const gate = (work: string, args: string[], env: NodeJS.ProcessEnv = {}, input?: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/push-gate.mts')), ...args], { env: { ...process.env, ...env }, input });
 const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
 const start = (work: string, id = 'T1-1') => {
   for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => text.replace(new RegExp(`(\\| ${id} \\|[^\\n]*)\\| \\[ \\] \\|`), '$1| [~] |'));

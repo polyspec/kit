@@ -2,12 +2,16 @@
 // directory, as a repository runs them from node_modules/@polyspec/kit/dist. A sandbox holds no copy of the tools, so a
 // tool resolves the packages of kit's dependencies from this checkout.
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** The directory of the tools of kit in this checkout. */
 export const KIT = path.resolve(import.meta.dirname, '../../scripts/kit');
 
-/** The path of the tool `name` (scripts/kit/<name>.mts) of this checkout. */
-export const tool = (name: string) => path.join(KIT, `${name}.mts`);
+/**
+ * The path of the tool of the module URL `module`, which the test names as `import.meta.resolve('../../scripts/kit/<name>.mts')`:
+ * the import graph of owner-check reads the specifier, so a change of the tool selects the test that starts it (K191).
+ */
+export const tool = (module: string) => fileURLToPath(module);
 
 /**
  * The arguments of make that run a target of kit.mk with the tools of this checkout. A sandbox has no var/tools, so its

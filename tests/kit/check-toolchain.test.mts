@@ -47,7 +47,7 @@ const OUTPUTS = {
 };
 // The commands of mise.toml, which the check runs from their shims in var/tools/mise/shims.
 const MISE_COMMANDS = ['go', 'python3', 'uv', 'ruff', 'alint', 'golangci-lint', 'govulncheck', 'cargo-audit', 'cargo-nextest', 'cargo-deny', 'composer', 'vulture'];
-const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool('check-toolchain'), ...tools], { cwd: root, env, encoding: 'utf8' });
+const check = (root: string, env: NodeJS.ProcessEnv, ...tools: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-toolchain.mts')), ...tools], { cwd: root, env, encoding: 'utf8' });
 // The checkout and the version stubs of `outputs`; each stubbed command of mise.toml is also its shim, which runs the stub,
 // and cargo-audit and govulncheck are the shims of checkout.mts. A null output makes the stub of the command fail.
 const setup = (t: TestContext, outputs: Record<string, string | null> = OUTPUTS, files: Record<string, string> = FILES) => {

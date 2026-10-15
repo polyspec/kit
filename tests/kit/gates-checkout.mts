@@ -85,7 +85,7 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
 /** A checkout with the hooks installed through `git-hooks install` and everything committed. */
 export function prepared(t: Pick<TestContext, 'after'>, options?: CheckoutOptions) {
   const made = checkout(t, options);
-  const installed = run(made.work, process.execPath, [tool('git-hooks'), 'install']);
+  const installed = run(made.work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
   if (installed.status !== 0) throw new Error(`git-hooks install failed: ${installed.stderr}`);
   commitAll(made.work, 'docs(checklist): Add the checklist (#T1)');
   return made;
