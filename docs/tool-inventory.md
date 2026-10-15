@@ -1758,6 +1758,13 @@ things that the library lacks:
   missing.
 - A download into `<tools>/.next-<pid>` that is renamed into place. The library unzips into the final directory, so two
   installs at once would destroy each other; with the rename, the copy of the first install stays.
+- The download in a process of its own (K173). `@vscode/test-electron` 3.1.0 pipes a `.tar.gz` download into a
+  `tar -xzf -` child and neither ends nor kills that child when the response fails ("aborted"); the child kept the event
+  loop alive after a retry succeeded, so the install never exited. The command forks itself with `--download`, in a
+  process group of its own, and kills that group once the download has settled; a failed download fails the install with
+  its error. The download process ends when the install goes away first.
 
 `@vscode/test-electron` is an optional peer dependency of kit: a repository that installs VS Code declares it.
-`tests/kit/install-vscode.test.mts` replaces the download with a function, so no test reaches the network.
+`tests/kit/install-vscode.test.mts` replaces the download with a function, so no test reaches the network; its tests of
+the command run `@vscode/test-electron` against a stub of update.code.visualstudio.com behind a local proxy (a
+certificate that openssl makes, `NODE_EXTRA_CA_CERTS`), which aborts the archive response of chosen attempts.

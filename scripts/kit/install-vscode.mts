@@ -8,8 +8,11 @@
 // integration run reads the copy with installedExecutable and never downloads. An install of a complete copy does nothing.
 // @vscode/test-electron downloads into the copy's own directory, so a new copy is downloaded into <tools>/.next-<pid> and
 // renamed into place: a reader finds no copy or a complete one, and two installs at once keep the copy of the first.
+// The command runs the download in a process of its own (K173), whose process group it kills once the download settles.
+import { fork } from 'node:child_process';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import util from '@vscode/test-electron/out/util.js';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
@@ -18,6 +21,8 @@ import { present } from './present.mts';
 // The file that @vscode/test-electron writes into a copy after its last file.
 const COMPLETE = 'is-complete';
 const RANGE = /^\^(\d+\.\d+\.\d+)$/;
+// The argument by which the command runs one downloadAndUnzipVSCode in its own process: --download <version> <platform> <cachePath>.
+const DOWNLOAD = '--download';
 
 /** downloadAndUnzipVSCode of @vscode/test-electron, with the options that the install passes; it returns the executable. */
 export type Download = (options: { version: string; platform: string; cachePath: string }) => Promise<string>;
@@ -72,12 +77,62 @@ export async function installVSCode(extension: string, base: string, download: D
   }
 }
 
+/** The result that the download process sends to the install: the executable, or the message of the failure. */
+type Settled = { executable: string } | { error: string };
+
+const isSettled = (message: unknown): message is Settled =>
+  typeof message === 'object' && message !== null && (typeof (message as { executable?: unknown }).executable === 'string' || typeof (message as { error?: unknown }).error === 'string');
+
+/**
+ * downloadAndUnzipVSCode in a process of its own. @vscode/test-electron 3.1.0 pipes a .tar.gz download into a
+ * `tar -xzf -` child and neither ends nor kills that child when the response fails ("aborted"): the child waits on its
+ * input and keeps the event loop alive after a retry succeeds, so the install never exited (K173). The download process
+ * leads its own process group, which is killed once the download has settled, so a tar that it left ends with it; it
+ * ends itself when the install goes away first. A failed download fails with its error.
+ */
+export const downloadInOwnProcess: Download = (options) =>
+  new Promise((resolve, reject) => {
+    const child = fork(fileURLToPath(import.meta.url), [DOWNLOAD, options.version, options.platform, options.cachePath], { detached: true, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    let settled: Settled | undefined;
+    child.on('message', (message: unknown) => {
+      if (!isSettled(message)) return;
+      settled = message;
+      // The group is the download process and every child that it started; a negative pid names the group.
+      process.kill(-present(child.pid, 'child.pid'), 'SIGKILL');
+    });
+    child.on('error', reject);
+    child.on('exit', (code, signal) => {
+      if (settled === undefined) reject(new Error(`the download process of VS Code ${options.version} ended with ${code ?? signal} before its result`));
+      else if ('executable' in settled) resolve(settled.executable);
+      else reject(new Error(settled.error));
+    });
+  });
+
+/** The download process: runs downloadAndUnzipVSCode with `options` and sends its result to the install. */
+async function downloadProcess(options: Parameters<Download>[0]): Promise<void> {
+  // The install went away (an interrupt reaches the group of the install, not this one): the download ends too.
+  process.on('disconnect', () => process.exit(1));
+  const { downloadAndUnzipVSCode } = await import('@vscode/test-electron');
+  let settled: Settled;
+  try {
+    settled = { executable: await downloadAndUnzipVSCode(options) };
+  } catch (error) {
+    settled = { error: error instanceof Error ? error.message : String(error) };
+  }
+  // fork gave this process its channel to the install.
+  if (process.send === undefined) throw new Error(`${DOWNLOAD} runs in a process that the install forked`);
+  process.send(settled);
+}
+
 if (isMain(import.meta.url)) {
-  const [extension, base, ...rest] = process.argv.slice(2);
-  if (extension === undefined || base === undefined || rest.length > 0) {
+  const [first, ...rest] = process.argv.slice(2);
+  const [version, platform, cachePath, ...extra] = rest;
+  if (first === DOWNLOAD && version !== undefined && platform !== undefined && cachePath !== undefined && extra.length === 0) {
+    await downloadProcess({ version, platform, cachePath });
+  } else if (first === undefined || first === DOWNLOAD || rest.length !== 1) {
     console.error('usage: node scripts/kit/install-vscode.mts <extension package directory> <tools directory>');
     process.exit(2);
+  } else {
+    await installVSCode(first, present(rest[0], 'rest[0]'), downloadInOwnProcess);
   }
-  const { downloadAndUnzipVSCode } = await import('@vscode/test-electron');
-  await installVSCode(extension, base, downloadAndUnzipVSCode);
 }
