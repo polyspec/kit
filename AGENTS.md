@@ -50,7 +50,9 @@ and states only its own rules. The rules below are kit's own.
   shim outside its checkout runs the next command of PATH; the archivers of the machine are allowed (`tests/kit/stubs.test.mts`).
 - A repository declares the tools that it installs in `mise.toml` (Go, Python, uv, ruff, alint, golangci-lint, deadcode,
   govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture), writes their digests into `mise.lock` with
-  `make toolchain-lock` and installs them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap; a consumer that publishes a
+  `make toolchain-lock` and installs them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap. The uv lock of a `pypi:` tool is the sidecar folder
+  `.mise/locks/<tool>/<version>` that mise.lock names: kit-written lock data, tracked with mise.lock as mise's documentation
+  says, which `make toolchain-check` fails when Git does not track it (K192). A consumer that publishes a
   wheel also declares `pythonBackend` in config/toolchain.json. A vendored test checks a consumer's declaration only against
   this rule. The vendored dependency tests read go and Composer through stubs that answer from records of the real tools,
   never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor

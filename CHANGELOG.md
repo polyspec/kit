@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make toolchain-check fails when mise.lock names a uv lock sidecar (`uv = { path = ".mise/locks/<tool>/<version>" }` of a `pypi:` tool) that Git does not track, or a tracked file of it is missing. mise's documentation says to commit the sidecar folder with mise.lock, and `mise install --locked` of a checkout without it fails with "dependency sidecar … No such file or directory"; a repository that deleted or never committed it now gets the finding with the fix (K192).
+
 - make lint-ts keeps an ignore of the copy of knip.json only where knip needs it, as knip itself decides: a first run of knip with the reporter `knip-ignore-hints.mts` gives knip's configuration hints of the ignores that matched no issue, and those are left out of the configuration of the lint. A repository whose scripts import `@polyspec/kit` got the hint "Remove from ignoreDependencies" for the copy, which it cannot fix; it now gets none. This replaces the filter by the declared packages of K176, which the same run covers (K188).
 
 - make dependency-review UPDATE=1 runs its npm commands (npm install, npm audit fix, npm dedupe) with allow-remote=root, the setting of npm ci in make install-packages: `kit-bootstrap.mk` exports `npm_config_allow_remote=root` to both recipes as the one source of the setting. npm audit fix ran without it and refused the URL-pinned `@polyspec/kit` with EALLOWREMOTE; the recipe of install-packages is now `npm ci`, which reads the same setting (K189).
@@ -12,6 +14,10 @@
 - make python-lock with the `pyproject.toml` of a wheel package of config/release.json as its source leaves out of the resolution each requirement that names a sibling (another wheel package of the configuration) by the URL of its release asset, exactly the requirements that wheel-dependencies classifies as sibling links: uv runs with `--excludes` of their names, and make python-lock-check leaves them out of its comparison. Such a URL exists only once the release publishes it, so the lock failed on a 404 and a wheel that depends on a sibling could not be locked; a URL requirement that names no sibling is resolved and checked as before (K190).
 
 - kit-check's recipe-tools check fails on a recipe line that already contains `KIT_MAKE_REFERENCE_`, the placeholder it puts in place of a make reference while shell-quote splits the line. Such a word was read as a reference: one beyond the references of the line became an empty word and was dropped, one within them took the word of another; the line now fails with its text and the fix, rename that variable (K187).
+
+### Consumer migration
+
+A repository whose mise.toml declares a `pypi:` tool commits the `.mise/locks/` folder that `make toolchain-lock` writes, with mise.lock; one that deleted it runs `make toolchain-lock` again (K192).
 
 ## 0.0.50
 

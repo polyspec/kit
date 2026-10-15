@@ -9,7 +9,8 @@
 // shims come first on PATH, GOTOOLCHAIN=local keeps go from selecting another toolchain and RUSTUP_AUTO_INSTALL=0 keeps rustup
 // from installing one. PHP is declared by minor release, so a patch release of the minor passes and the running patch is the
 // evidence of the run; every other tool is compared by its exact release. mise.lock must pin every tool of mise.toml
-// (miseLockFindings of toolchain-mise.mts), and each tool that it does not is a finding. Every named tool is checked, also after a mismatch, and each mismatch names the file that
+// (miseLockFindings of toolchain-mise.mts), and each tool that it does not is a finding, as is a uv lock sidecar that mise.lock
+// names and Git does not track (miseLockSidecarFindings, K192). Every named tool is checked, also after a mismatch, and each mismatch names the file that
 // declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
 // every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor
 // (toolchain-floors.mts), or the channel of an exception of config/toolchain.json whose scope holds the file
@@ -22,7 +23,7 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredRust } from './toolchain-files.mts';
-import { declaredMiseTools, miseLockFindings, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, miseLockFindings, miseLockSidecarFindings, MISE_TOOLS } from './toolchain-mise.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import { PINS } from './toolchain-pins.mts';
 import { Pinning, readExceptions } from './toolchain-exceptions.mts';
@@ -170,7 +171,7 @@ if (isMain(import.meta.url)) {
     const floors = floorFindings(repositoryRoot(), pinning, env);
     const excepted = [...malformed, ...pinning.stale()];
     const links = npmrcFindings(repositoryRoot(), env);
-    const locked = miseLockFindings(repositoryRoot());
+    const locked = [...miseLockFindings(repositoryRoot()), ...miseLockSidecarFindings(repositoryRoot())];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
@@ -178,7 +179,7 @@ if (isMain(import.meta.url)) {
     if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
     if (excepted.length > 0) console.error(`[check-toolchain] ${excepted.length} findings of the exceptions of config/toolchain.json`);
     if (links.length > 0) console.error(`[check-toolchain] ${links.length} keys of .npmrc keep npm from linking`);
-    if (locked.length > 0) console.error(`[check-toolchain] ${locked.length} tools of mise.toml are not pinned by mise.lock`);
+    if (locked.length > 0) console.error(`[check-toolchain] ${locked.length} findings of the pins of mise.lock`);
     if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0 || locked.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {

@@ -98,10 +98,15 @@ const LINT_LOCK = JSON.stringify({ packages: [{ name: 'phpstan/phpstan', version
 const LINT_MISE = { 'pypi:vulture': '2.16', 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' };
 const LINT_LOCKED = miseLock({ 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' }) + `\n[[tools."pypi:vulture"]]\nversion = "2.16"\nuv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n`;
 // The PHP lint is a tool of a checkout that declares PHP.
-const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.5'] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK };
-// The lint setup: the version stubs, and the stub of mise that names the deadcode binary.
+// The uv lock of vulture that mise.lock names, a sidecar folder that the checkout tracks (K192).
+const SIDECAR = '.mise/locks/pypi-vulture/2.16';
+const SIDECAR_FILES = { [`${SIDECAR}/pyproject.toml`]: '[project]\nname = "mise-pypi-tool-environment"\n', [`${SIDECAR}/uv.lock`]: 'version = 1\n' };
+const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.5'] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK, ...SIDECAR_FILES };
+const track = (root: string, ...paths: string[]) => spawnSync('git', ['-C', root, 'add', '--', ...paths], { encoding: 'utf8' });
+// The lint setup: the version stubs, the tracked sidecar, and the stub of mise that names the deadcode binary.
 const lintSetup = (t: TestContext, outputs: Record<string, string | null>) => {
   const made = setup(t, outputs, LINT_FILES);
+  track(made.root, SIDECAR);
   miseStub(made.root, { 'which deadcode': '/checkout/var/tools/mise/installs/deadcode/bin/deadcode' });
   return made;
 };
@@ -279,10 +284,27 @@ test('mise.lock must pin every tool of mise.toml, whichever tools run (K127)', (
   assert.equal(result.status, 1, result.stdout);
   assert.deepEqual(result.stderr.trim().split('\n'), [
     '[check-toolchain] mise.lock does not pin ruff 0.16.10; run make toolchain-lock',
-    '[check-toolchain] 1 tools of mise.toml are not pinned by mise.lock',
+    '[check-toolchain] 1 findings of the pins of mise.lock',
   ]);
   rmSync(path.join(root, 'mise.lock'));
   assert.match(check(root, stubs.env, 'npm').stderr, /mise\.lock is missing; run make toolchain-lock/);
+});
+
+// mise's documentation says to commit the sidecar folder of mise.lock: mise install --locked of a fresh checkout replays the uv
+// lock in it, so an untracked or deleted sidecar fails there; a repository that deleted it to pass its layout check lost it (K192).
+test('the uv lock sidecar that mise.lock names is a tracked folder of the checkout, its tracked files present (K192)', (t) => {
+  const { root, stubs } = lintSetup(t, lintOutputs());
+  assert.equal(check(root, stubs.env, 'vulture').status, 0);
+  spawnSync('git', ['-C', root, 'rm', '-r', '--cached', '--quiet', '--', SIDECAR]);
+  const untracked = check(root, stubs.env, 'vulture');
+  assert.equal(untracked.status, 1, untracked.stdout);
+  assert.deepEqual(untracked.stderr.trim().split('\n'), [
+    `[check-toolchain] mise.lock pins pypi:vulture 2.16 by the uv lock in ${SIDECAR}, which Git does not track; mise install --locked of a checkout needs it, so commit ${SIDECAR} with mise.lock (make toolchain-lock writes it)`,
+    '[check-toolchain] 1 findings of the pins of mise.lock',
+  ]);
+  track(root, SIDECAR);
+  rmSync(path.join(root, SIDECAR, 'uv.lock'));
+  assert.match(check(root, stubs.env, 'vulture').stderr, new RegExp(`whose tracked file ${SIDECAR.replaceAll('.', '\\.')}/uv\\.lock is missing; restore it with git checkout -- `));
 });
 
 test('the go and the python of mise.toml are checked against the pins of kit (S4)', (t) => {
