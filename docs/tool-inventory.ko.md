@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8737b120073427d62e2a6d63113877fd69ed2d29a76a15a61ceea32d89257224 -->
+<!-- source-sha256: 55363ca4136751a5af0a8287cf94b9e56d86df8d1a4c7d0fe56b632ecadc9e68 -->
 
 # 도구 목록
 
@@ -180,8 +180,10 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   machine의 도구가 아닙니다.
 - recipe는 checkout의 도구를 이름만으로가 아니라 절대 경로로 실행합니다(K171): macOS의 make인 make 3.81은 shell 문법이 없는
   recipe 줄을 kit.mk가 export한 PATH가 아니라 make가 시작할 때의 PATH에서 찾으므로, 이름만 쓴 `node`는 machine의 node를
-  실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap을 시작하기만 하는
-  machine의 node입니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
+  실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap과
+  `make toolchain-lock`만 시작하는 machine의 node입니다(K174): bootstrap은 toolchain-lock이 쓰는 `mise.lock`에서 checkout의 node를
+  설치하므로 toolchain-lock은 그 node가 생기기 전에 돌며, bootstrap처럼 `config/toolchain.json`의 mise를 스스로 설치합니다.
+  `mise.lock`이 node를 고정하지 않은 checkout은 `make toolchain-lock`, 그다음 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
   command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다.
 ## Layout 검사 (K76)
 

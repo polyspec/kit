@@ -26,7 +26,8 @@ export PATH := $(CURDIR)/var/tools/bin:$(CURDIR)/var/tools/mise/shims:$(PATH)
 # A recipe starts a tool of the checkout by its absolute path, never by its bare name: make 3.81 looks up a recipe line
 # without shell syntax on the PATH that make started with, not on the PATH above, so `node` there was the node of the
 # machine (K171). NODE is the Node.js of mise.toml, whose wrapper the bootstrap writes; BOOTSTRAP_NODE is the node of the
-# machine, which only starts the bootstrap that installs NODE. A repository's own recipes use these variables too.
+# machine, which only starts the bootstrap that installs NODE and toolchain-lock, which writes the mise.lock that the bootstrap
+# installs NODE from (K174). A repository's own recipes use these variables too.
 NODE := $(CURDIR)/var/tools/bin/node
 NPM := $(CURDIR)/var/tools/bin/npm
 ALINT := $(CURDIR)/var/tools/mise/shims/alint
@@ -63,8 +64,10 @@ else
 	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 endif
 
+# toolchain-lock runs before the node of the checkout exists, which the bootstrap installs from mise.lock, so the node of the
+# machine starts it, and it installs the mise of config/toolchain.json itself (K174).
 toolchain-lock: ## Write mise.lock: the digests of the tools of mise.toml for linux-x64, linux-arm64, macos-arm64 and macos-x64, with mise lock; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/toolchain-lock.$(KIT_EXT)
+	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/toolchain-lock.$(KIT_EXT)
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
 	$(NODE) $(KIT)/check-toolchain.$(KIT_EXT) $(TOOLS)
