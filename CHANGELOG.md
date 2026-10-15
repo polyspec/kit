@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make python-lock with the `pyproject.toml` of a wheel package of config/release.json as its source leaves out of the resolution each requirement that names a sibling (another wheel package of the configuration) by the URL of its release asset, exactly the requirements that wheel-dependencies classifies as sibling links: uv runs with `--excludes` of their names, and make python-lock-check leaves them out of its comparison. Such a URL exists only once the release publishes it, so the lock failed on a 404 and a wheel that depends on a sibling could not be locked; a URL requirement that names no sibling is resolved and checked as before (K190).
+
 - kit-check's recipe-tools check fails on a recipe line that already contains `KIT_MAKE_REFERENCE_`, the placeholder it puts in place of a make reference while shell-quote splits the line. Such a word was read as a reference: one beyond the references of the line became an empty word and was dropped, one within them took the word of another; the line now fails with its text and the fix, rename that variable (K187).
 
 ## 0.0.50

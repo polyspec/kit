@@ -181,3 +181,35 @@ test('findLinks outside the checkout is refused before uv runs', (t) => {
   assert.throws(() => writePythonLock({ root, entry, env: process.env }), /app\/pylock\.toml: findLinks \.\.\/elsewhere is outside the checkout/);
   assert.deepEqual(log(), []);
 });
+
+// A wheel package app of config/release.json whose pyproject.toml requires its sibling sib by the URL of its asset of the release
+// (wheel-dependencies.mts), which exists only once the release publishes it, and a registry package.
+const SIBLING_URL = 'https://example.com/polyspec/kit-fixture/releases/download/v0.0.0/sib-0.0.0-py3-none-any.whl';
+const RELEASE_CONFIG = JSON.stringify({
+  schema: 1, repositoryUrl: 'https://example.com/polyspec/kit-fixture', changelog: 'CHANGELOG.md',
+  packages: [{ kind: 'wheel', directory: 'app', name: 'app' }, { kind: 'wheel', directory: 'sib', name: 'sib' }],
+  manifests: { 'app/pyproject.toml': 'archive', 'sib/pyproject.toml': 'archive' }, notReleased: {}, goModules: {},
+});
+const siblingProject = (dependency: string) => `[project]\nname = "app"\nversion = "0.0.0"\ndependencies = [\n  "requests==2.34.2",\n  "${dependency}",\n]\n`;
+const SIBLING_SOURCES = { ...PYPROJECT_SOURCES, 'app/pyproject.toml': siblingProject(`sib @ ${SIBLING_URL}`), 'config/release.json': RELEASE_CONFIG };
+
+test('a requirement that names a sibling wheel of config/release.json by its release URL is left out of the resolution, and the lock holds the registry packages', (t) => {
+  const { root, log } = checkout(t, { sources: SIBLING_SOURCES });
+  const printed: string[] = [];
+  assert.deepEqual(writePythonLock({ root, entry: PYPROJECT_ENTRY, env: process.env, print: text => printed.push(text) }), { file: ENTRY.lock });
+  const [call] = log();
+  assert.ok(call);
+  assert.deepEqual(call.args, ['pip', 'compile', 'pyproject.toml', '-c', 'constraints.txt', '--universal', '--python-version', '3.14', '--generate-hashes', '--format', 'pylock.toml', '-o', 'pylock.toml', '--excludes', 'siblings.txt']);
+  assert.deepEqual(call.listing, ['constraints.txt', 'pyproject.toml', 'siblings.txt']);
+  assert.ok(printed.includes(`app/pyproject.toml [project].dependencies item 2: sib @ ${SIBLING_URL} names a sibling of this release, whose asset exists only once the release publishes it; it is left out of the lock`), printed.join('\n'));
+  assert.equal(readFileSync(path.join(root, ENTRY.lock), 'utf8'), GOOD);
+});
+
+test('a URL requirement that names no sibling is resolved as before, and the writer refuses it with no pin', (t) => {
+  const other = 'https://example.com/other/releases/download/v1.0.0/other-1.0.0-py3-none-any.whl';
+  const { root, log } = checkout(t, { sources: { ...SIBLING_SOURCES, 'app/pyproject.toml': siblingProject(`other @ ${other}`) } });
+  assert.throws(() => writePythonLock({ root, entry: PYPROJECT_ENTRY, env: process.env }), /app\/pyproject\.toml \[project\]\.dependencies item 2: other has no pin in app\/constraints\.txt/);
+  const [call] = log();
+  assert.ok(call);
+  assert.ok(!call.args.includes('--excludes'), call.args.join(' '));
+});

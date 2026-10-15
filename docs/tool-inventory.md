@@ -1709,6 +1709,12 @@ written lock is checked against the sources (the same check as `python-lock-chec
 the lock it had and removes its directory. An unpinned transitive package is refused with its name: uv resolves it to a registry
 release, the check finds it in the lock and not in the constraints.
 
+A source that is the `pyproject.toml` of a wheel package of `config/release.json` may require a sibling by the URL of its asset of
+the release (Sibling wheels), which exists only once the release publishes it. The writer leaves each requirement that
+`siblingLinks` of wheel-dependencies.mts classifies as a sibling link out of the resolution: it writes their names to `siblings.txt`
+in its directory, appends `--excludes siblings.txt` and prints each one; the check leaves them out of the comparison, since the
+lock of a wheel never holds a sibling. Any other requirement, a URL that names no sibling too, is resolved and checked (K190).
+
 ### Check (`make python-lock-check`, offline)
 
 It never resolves. It fails, naming the file and the package with its fix, when:
