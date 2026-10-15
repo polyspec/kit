@@ -25,12 +25,12 @@ export function composerVendor(project: string): string {
 
 /**
  * The file `file` of the vendor directory that Composer gives the package `folder` (relative to `root`): that of the nearest
- * project that is `folder` or a folder above it, is a Composer project (`isProject`, given a folder relative to `root`) and
- * has the file. A library of a Composer monorepo commits no lock and has no vendor directory; the development project at the
+ * project that is `folder` or a folder above it, is a Composer project (`isProject`, given a folder relative to `root`; by
+ * default a folder with a composer.json) and has the file. run-tests, lint-php and parity resolve through it (K186). A library of a Composer monorepo commits no lock and has no vendor directory; the development project at the
  * root requires it through a path repository and installs one vendor directory for both. Returns the path relative to
  * `root`, or undefined when no such project has the file.
  */
-export function packageVendorFile(root: string, folder: string, file: string, isProject: (project: string) => boolean): string | undefined {
+export function packageVendorFile(root: string, folder: string, file: string, isProject = (project: string) => existsSync(path.join(root, project, 'composer.json'))): string | undefined {
   for (let project = folder; ; project = path.posix.dirname(project)) {
     if (isProject(project)) {
       const found = path.join(composerVendor(path.join(root, project)), file);

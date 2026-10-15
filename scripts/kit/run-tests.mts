@@ -34,7 +34,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
-import { composerVendor } from './composer-vendor.mts';
+import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
@@ -143,8 +143,11 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // One test at a time, so each test prints its start before its result.
       return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness] };
     case 'phpunit': {
-      // PHPUnit of the vendor directory that Composer gives the project of `cwd` (composer-vendor.mts).
-      const phpunit = path.join(composerVendor(cwd), 'bin/phpunit');
+      // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
+      // project above it, such as the root of a monorepo (composer-vendor.mts, K186); with none, the path of its own, whose
+      // start fails with the install fix.
+      const found = packageVendorFile(root, path.relative(root, cwd) || '.', 'bin/phpunit');
+      const phpunit = found === undefined ? path.join(composerVendor(cwd), 'bin/phpunit') : path.join(root, found);
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
       // -d extension=, in the given order, so an extension loads after one that it depends on.
       if (phpExtensions.length) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
