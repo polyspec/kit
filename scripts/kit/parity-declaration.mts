@@ -323,6 +323,66 @@ const PHP_METHOD = /^(?:[A-Za-z_]\w*\\)*[A-Za-z_]\w*::[A-Za-z_]\w*$/;
 const GO_TEST = /^func\s+((?:Test|Benchmark|Fuzz)(?![a-z])\w*|Example\w*)\s*\(/gm;
 const CARGO_TEST = /#\[\s*((?:\w+::)*(?:test|bench|test_case|rstest))\b[^\]]*\]/g;
 
+// The text of a Rust file as the compiler reads it: every comment (line, doc and nested block) and the contents of every string
+// and char literal are blanked, newlines kept, so an attribute is read from code only and a doc comment that quotes one is no
+// test (K204). A lifetime is no char literal; a raw string closes at its quote and the same number of hashes.
+function rustCode(text: string): string {
+  const blank = (span: string) => span.replace(/[^\n]/g, ' ');
+  const rawString = /b?r(#*)"/y;
+  const charLiteral = /'(?:\\u\{[0-9a-fA-F_]*\}|\\x[0-9a-fA-F]{2}|\\.|[^'\\\n])'/y;
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text.startsWith('//', i)) {
+      const end = text.indexOf('\n', i);
+      const stop = end === -1 ? text.length : end;
+      out += blank(text.slice(i, stop));
+      i = stop;
+    } else if (text.startsWith('/*', i)) {
+      let depth = 0;
+      let j = i;
+      do {
+        if (text.startsWith('/*', j)) { depth++; j += 2; } else if (text.startsWith('*/', j)) { depth--; j += 2; } else j++;
+      } while (depth > 0 && j < text.length);
+      out += blank(text.slice(i, j));
+      i = j;
+    } else if (text[i] === 'b' || text[i] === 'r') {
+      rawString.lastIndex = i;
+      const raw = /\w/.test(text[i - 1] ?? '') ? null : rawString.exec(text);
+      if (raw === null) {
+        out += text[i];
+        i++;
+      } else {
+        const close = `"${raw[1]}`;
+        const end = text.indexOf(close, i + raw[0].length);
+        const stop = end === -1 ? text.length : end + close.length;
+        out += blank(text.slice(i, stop));
+        i = stop;
+      }
+    } else if (text[i] === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      const stop = Math.min(j + 1, text.length);
+      out += blank(text.slice(i, stop));
+      i = stop;
+    } else if (text[i] === "'") {
+      charLiteral.lastIndex = i;
+      const char = charLiteral.exec(text);
+      if (char === null) {
+        out += text[i];
+        i++;
+      } else {
+        out += blank(char[0]);
+        i += char[0].length;
+      }
+    } else {
+      out += text[i];
+      i++;
+    }
+  }
+  return out;
+}
+
 /**
  * The test files of each runner by kit's convention (S3). A declaration adds files with the tests of an implementation and the
  * testPatterns of a runner, and never removes one; cargo also runs every .rs file that holds a test attribute.
@@ -346,7 +406,7 @@ export const testNamed = (file: string): boolean => TEST_NAME.test(file);
 /** The tests that the native runner of a go or cargo support file would run in `text`, as the names to print. */
 function supportTests(runner: Runner, text: string): string[] {
   if (runner === 'go') return [...text.matchAll(GO_TEST)].map(match => `declares func ${match[1]}, which go test runs`);
-  if (runner === 'cargo') return [...text.matchAll(CARGO_TEST)].map(match => `holds ${match[0]}, which cargo test runs`);
+  if (runner === 'cargo') return [...rustCode(text).matchAll(CARGO_TEST)].map(match => `holds ${match[0]}, which cargo test runs`);
   return [];
 }
 
@@ -489,7 +549,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   const testRunners = new Map<string, Runner[]>();
   for (const file of files) {
     const runners = RUNNERS.filter(runner => matchesAny([...CONVENTIONS[runner], ...(config.testPatterns ?? []).filter(pattern => pattern.runner === runner).flatMap(pattern => pattern.globs)], file)
-      || (runner === 'cargo' && file.endsWith('.rs') && readFileSync(path.join(root, file), 'utf8').search(CARGO_TEST) !== -1));
+      || (runner === 'cargo' && file.endsWith('.rs') && rustCode(readFileSync(path.join(root, file), 'utf8')).search(CARGO_TEST) !== -1));
     if (runners.length) testRunners.set(file, runners);
   }
   const tests = new Map(config.implementations.map(entry => [entry.name, [...files].filter(file => matchesAny(entry.tests ?? [], file) || (entry.roots.some(directory => within(directory, file)) && Boolean(testRunners.get(file)?.includes(entry.runner))))]));

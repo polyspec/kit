@@ -918,6 +918,17 @@ test('R5: a file named like a test that its runner does not run, and that no bin
   }, { execute: false }).findings, []);
 });
 
+test('R5: a Rust file whose only test attribute lies in a comment or a string holds no test; one in code does (K204)', TIMEOUT, (t) => {
+  // The doc comment quotes #[tokio::test], the block comment #[test] and the string literal #[test]; only real.rs has one in code.
+  const { findings } = check(t, {
+    files: {
+      'rust/src/doc.rs': '/// ```\n/// #[tokio::test]\n/// async fn quoted() {}\n/// ```\n/* #[test] */\npub const SAMPLE: &str = "#[test]";\npub fn doc() {}\n',
+      'rust/src/real.rs': '#[tokio::test]\nasync fn real() {}\n',
+    },
+  }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'} ${finding.place}`), ['R5 rust rust/src/real.rs']);
+});
+
 test('R6: a binding whose test lies outside the roots of its implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'php/tests/codec.php': null, 'tests/php/codec.php': FILES['php/tests/codec.php'], 'tests/composer.json': '{}\n', 'tests/vendor/bin/phpunit': '' },
