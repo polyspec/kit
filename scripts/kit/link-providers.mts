@@ -145,19 +145,23 @@ function providedName(file: string, go: Tool | undefined, cwd: string): { ecosys
   }
 }
 
-/**
- * Fails unless Git ignores `file` in its repository (git check-ignore), so the links never leave an untracked file that Git
- * would show: var/link of a consumer, var/link/built of a provider and the go.work.sum that go writes beside a go.work.
- */
-export function assertIgnored(file: string): void {
-  const directory = path.dirname(file);
-  let existing = directory;
+/** Whether Git ignores `file` in the repository that holds it (git check-ignore); false outside a repository. */
+export function isIgnored(file: string): boolean {
+  let existing = path.dirname(file);
   while (!statExists(existing)) existing = path.dirname(existing);
   const outcome = gitResult(existing, 'check-ignore', '-q', '--', file);
   if (outcome.error) throw new Error(`git check-ignore could not start in ${existing}: ${outcome.error.message}`);
-  if (outcome.status === 0) return;
-  if (outcome.status === 1) throw new Error(`${file} is not ignored by Git in its repository; the links write only ignored files`);
+  if (outcome.status === 0) return true;
+  if (outcome.status === 1 || /not a git repository/.test(outcome.stderr)) return false;
   throw new Error(`git check-ignore ${file} failed: ${outcome.stderr.trim()}`);
+}
+
+/**
+ * Fails unless Git ignores `file` in its repository, so the links never leave an untracked file that Git would show: a link
+ * that replaces an installed folder, var/link/built of a provider, and the files of linkFile.
+ */
+export function assertIgnored(file: string): void {
+  if (!isIgnored(file)) throw new Error(`${file} is not ignored by Git in its repository; the links write only ignored files`);
 }
 
 /** Whether `file` exists. */

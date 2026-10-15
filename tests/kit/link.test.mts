@@ -279,3 +279,17 @@ test('unlink restores with each tool and reports each restore that it skips', (t
   assert.match(lines.join('\n'), /skipped {4}composer .*: no composer\.lock/);
   assert.match(lines.join('\n'), /skipped {4}python .*: no environment or no uv\.lock/);
 });
+
+test('a consumer that ignores no var/, as one without kit, gets its go.work under the kit checkout of the root, and link prints the GOWORK to export (K203)', (t) => {
+  const { root, provider, env, log } = workspace(t);
+  const flow = repository(root, 'flow', { 'go.mod': 'module flow\n' });
+  put(flow, { 'go.mod.json': JSON.stringify({ Module: { Path: 'flow' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.18' }] }) });
+  const { ok, text } = linkLines([flow], env);
+  assert.equal(ok, true, text);
+  const file = path.join(root, 'kit/var/link/consumers', flow.replaceAll(path.sep, '_').replace(/^_/, ''), 'go.work');
+  assert.match(text, new RegExp(`export GOWORK=${file.replaceAll('.', '\\.')}`));
+  assert.ok(existsSync(file), 'go work init wrote the go.work there');
+  assert.equal(existsSync(path.join(flow, 'var')), false, 'nothing is written into the consumer');
+  assert.match(log(), /go work init \.\.\/\.\.\/\.\.\/\.\.\/\.\.\/flow .*prov\/go/);
+  assert.ok(provider);
+});

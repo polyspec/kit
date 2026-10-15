@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: e9be22bfcb61d69fc5e3f5425e31a41e37b96306a36df01d36dc649fdb6d913d -->
+<!-- source-sha256: a6f874f28573252cf3240b5cbaaeb7c61c5ece7cf63f1b9741e78d7a8627efc9 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -34,7 +34,7 @@
 - 제공자: root 아래 main checkout에 있는 패키지의 각 추적 manifest가 제공하는 것을 밝힌다(private가 아닌 패키지의 `package.json` `name`, `composer.json` `name`, `pyproject.toml` `project.name`, `go.mod` `module`). 연결된 worktree는 제공자가 아니고, 공통 Git 디렉터리로 식별한 소비자 자신의 저장소의 패키지는 그 worktree에서도 링크하지 않는다. 한 이름을 제공하는 패키지 폴더가 둘이면 둘 다 밝히며 실패한다. 패키지 폴더 옆의 저장소 root는 개발 프로젝트이므로 양보한다. tests, examples, benchmarks, 문서, config/, .mise, fixture는 아무것도 제공하지 않고 링크하지 않는다. release-consumer 프로젝트는 test다.
 - 사본 없음: 제공자를 복사하지 않는다. `node_modules`나 vendor에서 도구의 기록이 나열하지 않는 polyspec 폴더는 plain copy이며 그 경로와 함께 `NOT linked`로 보고한다. `file:` tarball로 설치한 패키지도 다른 설치처럼 링크한다.
 - 빌드 없음: `link`는 링크만 한다. 제공자는 `link.mjs rebuild <repository>...`나 그 자신의 target으로, 그 Makefile에서 릴리스가 빌드하는 target(`release-assets`의 prerequisite), 없으면 `build`로, `POLYSPEC_CHECKOUTS`를 지운 채 빌드한다. 링크된 npm 제공자는 그 `package.json`이 가리키는 출력이 없거나, 입력이 가장 오래된 출력보다 새롭고 입력이 마지막 rebuild 뒤 기록한 digest(제공자의 `var/link/built/`)와 다르면 STALE이고, `check`는 실패한다.
-- 쓰기: 도구가 저장소에 쓰는 각 파일(소비자의 `var/link`, 제공자의 `var/link/built`, go가 쓰는 `go.work.sum`, Cargo lock 사본)과 설치 폴더를 대신하는 각 링크는 그곳에서 Git이 무시하는 것이다(`git check-ignore`). 다른 경로는 그 이름과 함께 실패한다.
+- 쓰기: 도구가 저장소에 쓰는 각 파일(소비자의 `var/link`, 제공자의 `var/link/built`, go가 쓰는 `go.work.sum`, Cargo lock 사본)과 설치 폴더를 대신하는 각 링크는 그곳에서 Git이 무시하는 것이다(`git check-ignore`). `var/link`를 무시하지 않는 소비자(kit이 없는 소비자 등)는 그 파일을 root 아래 kit checkout의 `var/link/consumers/<consumer>`에 받고(kit이 무시한다), `link`는 export할 `GOWORK`를 출력한다(K203). 다른 경로는 그 이름과 함께 실패한다.
 - kit checkout의 명령: `make link`, `make link-check`, `make unlink`(`DIRS`로 다른 소비자 폴더를 지정한다). 이 릴리스의 vendored `kit-bootstrap.mk`는 root가 선언된 동안 `make install-packages`가 root 아래 kit checkout을 빌드하고(그곳의 `make build`, 완성된 `dist.next`를 `dist`로 rename한다) 그 `link.mjs link`를 실행하게 하므로 다시 설치하면 스스로 다시 링크된다. 저장소는 이 릴리스의 `make kit-sync`로 그것을 받는다.
 - kit이 없는 곳(consumer 등)의 명령: `node $(POLYSPEC_CHECKOUTS)/kit/dist/link.mjs link|check|unlink <dir>...`, `rebuild <repository>...`, `packages <dir> python|npm`(선언된 polyspec 패키지를 한 줄에 하나씩, root가 없으면 출력 없음), `cargo <dir> <cargo args>`. 도구는 recipe가 주면 `NPM`, `COMPOSER_BIN`, `UV`, `GO`, `CARGO`이고, 없으면 소비자의 도구(`var/tools/bin/npm`, mise shim, `mise.toml`의 Composer, rustup의 cargo)다. 없는 도구는 그 원인과 함께 실패한다. root 아래 kit checkout은 한 번 빌드한다(그곳의 `make build`).
 - lock에서 설치하는 recipe는 설치 직후 같은 recipe 안에서 링크를 실행한다. 예: make할 때마다 `uv sync --frozen`이 도는 `$(PYTHON)` 규칙. 환경을 lock과 비교하는 검사(`uv sync --frozen --check` 등)는 root가 선언된 동안 polyspec 패키지를 빼고 외부 패키지만 정확히 검사한다: `uv sync --frozen --check --inexact`에 `link.mjs packages <dir> python`이 출력한 이름마다 `--no-install-package <name>`을 준다. 링크는 `link.mjs check`가 검사한다.
