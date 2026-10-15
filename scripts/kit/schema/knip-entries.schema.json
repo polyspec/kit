@@ -17,7 +17,7 @@
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
     "binaries": {
-      "description": "Each system tool of the repository that its scripts or tests spawn and no npm package provides, such as Apple container, with the reason; knip ignores it after the ignoreBinaries of knip.json, which name the runtimes that polyspec pins.",
+      "description": "Each system tool that the scripts, tests or package.json scripts of the repository run and no npm package provides, such as make, go, php or Apple container, with the reason; knip.json names none, since no copy of kit runs one, and knip itself ignores its global binaries, such as node, git, python3 and cargo (K176).",
       "type": "object",
       "minProperties": 1,
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$" },

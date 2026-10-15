@@ -1,6 +1,10 @@
 {
   "schema": 1,
   "binaries": {
+    "make": "the scripts of package.json, owner-check.mts and the tests run the targets of the Makefile",
+    "go": "tests/source/govulncheck-packages-real.test.mts runs the go of mise.toml",
+    "rustup": "install-rust.mts installs the pinned Rust toolchain with rustup",
+    "shasum": "tests/kit/release.test.mts checks the sha256 of the release assets with shasum",
     "openssl": "tests/kit/install-vscode.test.mts makes the certificate of its stub of update.code.visualstudio.com (K173)"
   }
 }

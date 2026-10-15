@@ -196,17 +196,31 @@ test('a file that make runs outside the layout entries passes once config/knip-e
   assert.match(undeclared.output, /Unused files \(1\)\npackages\/js\/test\/probe\.mjs/);
 });
 
-// A script spawns system tools that no npm package provides: php, a runtime that polyspec pins, is in ignoreBinaries of
-// knip.json, and container, a tool of one repository, is declared in config/knip-entries.json, its own file (K152).
+// A script spawns system tools that no npm package provides: python3, cargo and git are global binaries of knip, and php
+// and container are declared in binaries of config/knip-entries.json, the file of the repository (K152); knip.json names
+// none, since no copy of kit spawns one (K176).
 const SPAWNS = (...tools: string[]) => ({ 'scripts/build.mts': `import { spawnSync } from 'node:child_process';\n\n${tools.map(tool => `spawnSync('${tool}', ['--version']);\n`).join('')}` });
-const CONTAINER = { 'config/knip-entries.json': JSON.stringify({ schema: 1, binaries: { container: 'the virtiofs tests run Apple container' } }) };
+const CONTAINER = { 'config/knip-entries.json': JSON.stringify({ schema: 1, binaries: { php: 'the build runs the pinned php', container: 'the virtiofs tests run Apple container' } }) };
 
-test('a pinned runtime and a declared binary that a script spawns pass, and an undeclared binary still fails (K152)', (t) => {
-  const declared = lintOf(repository(t, { ...SPAWNS('php', 'composer', 'python3', 'cargo', 'git', 'container'), ...CONTAINER }));
+test('a global or declared binary that a script spawns passes, and an undeclared binary still fails (K152)', (t) => {
+  const declared = lintOf(repository(t, { ...SPAWNS('php', 'python3', 'cargo', 'git', 'container'), ...CONTAINER }));
   assert.deepEqual(declared.failed, [], declared.output);
-  const undeclared = lintOf(repository(t, { ...SPAWNS('php', 'container', 'gmake'), ...CONTAINER }));
+  const undeclared = lintOf(repository(t, { ...SPAWNS('php', 'container', 'composer'), ...CONTAINER }));
   assert.deepEqual(undeclared.failed, ['knip'], undeclared.output);
-  assert.match(undeclared.output, /Unlisted binaries \(1\)\ngmake +scripts\/build\.mts/);
+  assert.match(undeclared.output, /Unlisted binaries \(1\)\ncomposer +scripts\/build\.mts/);
+});
+
+// knip names each ignore of its configuration that matched no issue in a configuration hint, and a consumer cannot edit
+// the copy of knip.json: the lint of a repository that does not declare the tools that make runs, such as jscpd and oxlint,
+// prints no hint about them, and a repository that declares them still has them ignored (K176).
+test('the lint prints no configuration hint about the ignores of knip.json, and ignores the tools that a repository declares (K176)', (t) => {
+  const consumer = lintOf(repository(t));
+  assert.deepEqual(consumer.failed, [], consumer.output);
+  assert.doesNotMatch(consumer.output, /Configuration hints/);
+  const tools = { ...MANIFEST, devDependencies: { ...MANIFEST.devDependencies, jscpd: '4.0.0', oxlint: '1.0.0', 'oxlint-tsgolint': '7.0.0' } };
+  const declared = lintOf(repository(t, { 'package.json': JSON.stringify(tools, null, 2) }));
+  assert.deepEqual(declared.failed, [], declared.output);
+  assert.doesNotMatch(declared.output, /Configuration hints|Unused devDependencies/);
 });
 
 // A nested npm project, such as the fixtures that the build tests of ssr compile, holds a package.json with dependencies

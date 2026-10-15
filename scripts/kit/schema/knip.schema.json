@@ -6,6 +6,7 @@
   "properties": {
     "node": { "type": "object", "properties": { "entry": { "type": "array", "items": { "type": "string" } } } },
     "ignoreBinaries": { "type": "array", "items": { "type": "string" } },
+    "ignoreDependencies": { "type": "array", "items": { "type": "string" } },
     "ignore": { "type": "array", "items": { "type": "string" } },
     "workspaces": { "type": "object" }
   }

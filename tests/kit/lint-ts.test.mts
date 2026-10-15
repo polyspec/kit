@@ -2,7 +2,8 @@
 // each package with an api-extractor.json, but not for the base configuration of kit; every step runs after an earlier one
 // failed, and a missing tool or configuration fails with the fix. In a consumer oxlint leaves out the copies of kit, the files
 // of kit.copies of the installed package (K157); kit itself lints them. oxlint also leaves out the files that the ignore of
-// config/knip-entries.json declares (K172). The tools are stubs.
+// config/knip-entries.json declares (K172). knip reads var/lint-ts/knip.json, which holds only those ignored dependencies of
+// knip.json that a package.json of the repository declares (K176). The tools are stubs.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,13 +23,14 @@ const FILES: Record<string, string> = {
 
 // The installed @polyspec/kit of a consumer: the version that package-lock.json resolves and the copies that it declares.
 const KIT = { name: '@polyspec/kit', version: '1.2.3', kit: { copies: { 'scripts/kit/bootstrap/files.mts': 'scripts/kit/bootstrap/files.mts', '.oxlintrc.json': '.oxlintrc.json' } } };
+const MANIFEST = { name: 'consumer', devDependencies: { '@polyspec/kit': KIT.version } };
 const LOCK = { lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: KIT.version } } };
 
 /** A consumer checkout with stub tools, the lock of KIT and KIT installed; `omit` leaves out one file, the lock among them. */
 function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extractor'], failing = '', omit = '' }: { installed?: string[]; failing?: string; omit?: string } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-ts-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const files = { ...FILES, 'package-lock.json': JSON.stringify(LOCK), 'node_modules/@polyspec/kit/package.json': JSON.stringify(KIT) };
+  const files = { ...FILES, 'package.json': JSON.stringify(MANIFEST), 'package-lock.json': JSON.stringify(LOCK), 'node_modules/@polyspec/kit/package.json': JSON.stringify(KIT) };
   for (const [file, text] of Object.entries(files)) {
     if (file === omit) continue;
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
@@ -46,7 +48,7 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
 }
 
 const OXLINT = 'oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json';
-const ALL = [`${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress [root]', 'api-extractor run [ts]'];
+const ALL = [`${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress --config var/lint-ts/knip.json [root]', 'api-extractor run [ts]'];
 
 test('oxlint and knip run from the root, and API Extractor in each package but not for the base configuration', (t) => {
   const { root, calls } = checkout(t);
@@ -141,13 +143,31 @@ test('knip ignores the files of config/knip-entries.json after the ignore of kni
 
 test('knip ignores the root dependencies of config/knip-entries.json after those of knip.json (K159)', (t) => {
   const { root } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint'] }));
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['@polyspec/kit'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@example/recipe-tool': 'only the recipes of the Makefile run it' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['oxlint', '@example/recipe-tool'] });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['@polyspec/kit', '@example/recipe-tool'] });
   for (const ignoreDependencies of [{}, { 'Not A Package': 'not an npm name' }, { 'left-pad': '' }]) {
     writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies }));
     assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignoreDependencies/, JSON.stringify(ignoreDependencies));
   }
+});
+
+// knip names an ignored dependency that matched no issue in a configuration hint, and reports an unused dependency only
+// when a package.json declares it; a consumer cannot edit the copy of knip.json, so lint-ts keeps only the ignored
+// dependencies of knip.json that the root or a declared workspace declares (K176).
+test('knip ignores only the dependencies of knip.json that a package.json of the repository declares (K176)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd'] }));
+  assert.deepEqual(lint(root, () => {}), []);
+  const merged = (): unknown => JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8'));
+  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit'] });
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ ...MANIFEST, devDependencies: { ...MANIFEST.devDependencies, jscpd: '4.0.0' } }));
+  mkdirSync(path.join(root, 'packages/lint'), { recursive: true });
+  writeFileSync(path.join(root, 'packages/lint/package.json'), JSON.stringify({ dependencies: { oxlint: '1.0.0' } }));
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, workspaces: { 'packages/lint': { reason: 'a project that runs oxlint' } } }));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit', 'oxlint', 'jscpd'], workspaces: { 'packages/lint': {} } });
 });

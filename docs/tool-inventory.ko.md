@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 55363ca4136751a5af0a8287cf94b9e56d86df8d1a4c7d0fe56b632ecadc9e68 -->
+<!-- source-sha256: 23419c0bbce4ed6fc70d7ca02660dea098244ece9cbeb90307c8d7e1f8892b93 -->
 
 # 도구 목록
 
@@ -743,12 +743,16 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   S3의 node:test 파일, kit의 사본을 포함한 `scripts/` 아래 S9의 script, `benchmarks/`의 프로그램입니다. Makefile이 include하는
   `@polyspec/kit`은 무시하는 dependency입니다. Makefile이 실행하는 script는 통과하고, 아무도 import하거나 실행하지 않는 파일은
   여전히 실패합니다(fixture). kit은 같은 설정으로 자신을 lint하며, CI와 `scripts/kit`, `tests`, lint 설정의 owner check에서
-  실행합니다(K142). knip.json의 `ignoreBinaries`는 script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구를
-  적습니다: make, shasum, 그리고 polyspec이 mise나 setup으로 고정하는 runtime(go, rustup, php, composer, python3, cargo,
-  node, git; K152)입니다. 한 레포만의 도구(Apple `container` 등)는 `config/knip-entries.json`의 `binaries`에 이유와 함께
-  선언하고, lint-ts가 그 목록 뒤에 더합니다. 선언한 binary는 통과하고 선언하지 않은 binary는 여전히 unlisted binary입니다
-  (fixture). knip.json의 나머지는 kit 자신을 위한 것입니다: make가 kit의 fixture recorder를 실행하고, kit의 script가
-  `node_modules/.bin`의 oxlint, oxlint-tsgolint, jscpd를 실행합니다. knip.json은 평범한 JSON이므로 lint-ts가 읽습니다. 그
+  실행합니다(K142). knip은 아무 issue에도 맞지 않은 설정의 ignore를 configuration hint로 알리고 소비자는 knip.json 사본을 고칠 수
+  없으므로, 사본은 레포가 쓰지 않을 수 있는 ignore를 담지 않습니다(K176). `ignoreBinaries`는 없습니다: kit의 어떤 사본도
+  knip이 보고하는 binary를 실행하지 않고, node, git, python3, cargo는 knip 자신이 무시하는 global binary입니다. 레포의
+  script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구(make, go, php, Apple `container` 등)는 kit이
+  make, go, rustup, shasum, openssl을 선언하듯 `config/knip-entries.json`의 `binaries`에 이유와 함께 선언합니다. 선언한
+  binary는 통과하고 선언하지 않은 binary는 여전히 unlisted binary입니다(fixture, K152). knip.json의 `ignoreDependencies`는
+  make만 실행하는 package(`@polyspec/kit`, oxlint, oxlint-tsgolint, jscpd)를 적습니다. lint-ts는 root나 선언한
+  workspace의 package.json이 선언할 때, 즉 knip이 그것을 unused로 보고할 때만 각각을 남기므로, 그것이 없는 레포는 hint를
+  받지 않고 선언한 레포에서는 여전히 무시됩니다(fixture). make가 kit의 fixture recorder를 실행합니다. knip.json은 평범한
+  JSON이므로 lint-ts가 읽고, knip은 언제나 lint-ts가 `var/lint-ts/knip.json`에 쓰는 설정을 읽습니다. 그
   pattern 밖에서 make가 실행하는 파일(`packages/js/test/` 아래의 probe 등)은 레포가 사본이 아닌 자기 파일
   `config/knip-entries.json`(kit의 schema가 있습니다)에 이유와 함께 선언하는 entry입니다(K145): knip에는 `extends`가 없으므로
   lint-ts가 knip.json의 `node.entry` 뒤에 그 entry를 더한 설정을 `var/lint-ts/knip.json`에 쓰고 knip을 그 파일의 `--config`로
