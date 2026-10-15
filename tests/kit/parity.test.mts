@@ -247,6 +247,9 @@ const FILES = {
   'python/codes.py': 'CONFIG = "CONFIG"\nCODEC_DECODE = "CODEC_DECODE"\n',
   'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n',
   'var/tools/mise/shims/python3': PY_STUB,
+  // The Composer of the checkout, which make parity-check asks for the vendor directory of a php binding (K184); the tests
+  // that call checkParity ask the Composer of kit.
+  'var/tools/mise/shims/composer': '#!/bin/sh\necho vendor\n',
   // The public symbols that the stubs of the go and python extractors print, and the .d.ts that API Extractor reads for ts.
   'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
   'var/tools/symbols-php/vendor/autoload.php': '<?php\n',
@@ -336,6 +339,7 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
   const all = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(edit(structuredClone(CONFIG)), null, 2)}\n` };
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
   chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
+  chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
   if (all['var/tools/symbols-go/bin/kit-symbols-go'] !== null) chmodSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go'), 0o755);
   return root;
 }

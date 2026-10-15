@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4917947b66d155c221c96875e31be0cf5143a9c46b4d8b5132116cfb0f9422f9 -->
+<!-- source-sha256: c099d8a580ff37a32e94143c65fa93f46697c3d2c6dabd368aeb2915862ee107 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -12,6 +12,7 @@
 - make dependency-policy-check가 checkout의 모든 Composer manifest를 검사합니다: `composerPlatforms`가 지정하지 않고, 그것이 지정한 manifest의 path repository가 제공하지도(K168) 않는 추적된 composer.json은 rule `composerCoverage`로 실패합니다. 이전에는 Composer platform을 하나도 적지 않은 저장소가 어떤 manifest에도 `composer validate --strict`를 실행하지 않았으므로, version 변경이 낡게 만든 lock이 release를 지나도록 낡은 채 남았습니다. kit이 쓰는 manifest, kit이 배포하는 symbol extractor project, `config/release.json`의 Composer consumer project는 검사하지 않습니다(K181).
 - `config/owner-checks.json`이 `ciExempt`를 받습니다: 저장소의 CI workflow가 실행하지 않는 owner rule의 make target과 각각의 이유입니다. kit의 CI workflow test는 다른 모든 owner target에 step을 요구합니다; kit의 CI는 이제 실패가 local 실행까지 숨어 있던 make toolchain-check, kit-check, release-coverage를 실행하고, make install-hooks가 쓰는 local core.hooksPath가 필요한 hooks-check를 면제합니다(K183).
 - kit-check의 recipe-tools 검사는 자체 splitter(K179) 대신 kit의 새 dependency인 shell-quote 1.12.0의 `parse`로 recipe line을 shell word로 나눕니다; kit의 모든 recipe와 기존 case의 word는 같고, `$(if $(RANGE),--range $(RANGE))` 같은 중첩된 make function은 더 이상 엉뚱한 command `if`를 내지 않습니다(K184).
+- run-tests, lint-php, parity의 php runner는 Composer project의 vendor directory를 Composer에게 묻습니다: kit이 복사한 규칙(K163, K178) 대신, checkout의 mise.toml의 Composer로 composer.json의 folder에서 offline으로 실행하는 `composer config vendor-dir`입니다. kit이 무시하던 composer.json의 `config.vendor-dir`도 이제 `vendor`, `COMPOSER_VENDOR_DIR`와 함께 반영됩니다; package 위의 가장 가까운 Composer project를 찾는 것은 그대로입니다. 이 도구들은 이제 make install-tools가 설치하는 mise.toml의 Composer(`http:composer`)가 필요합니다(K184).
 
 ### 소비자 이전
 

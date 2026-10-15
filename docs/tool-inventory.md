@@ -462,7 +462,8 @@ Merged behaviors:
   interpreter that the mise shim runs. The runner stops the group with SIGTERM and, when the tool has not closed after 5 s,
   with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
   signal. Only a SIGKILL of the runner itself leaves the group running.
-- `phpunit` runs `<cwd>/vendor/bin/phpunit`, or the vendor directory of `COMPOSER_VENDOR_DIR` (crudui), with `--php-extension`
+- `phpunit` runs `bin/phpunit` of the vendor directory that `composer config vendor-dir` gives `<cwd>` (`vendor`,
+  `COMPOSER_VENDOR_DIR` as in crudui, or `config.vendor-dir`; K184), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts. `--php-extension`
   repeats: each extension is loaded with its own `-d extension=<path>`, PHP's own way, in the given order, so one loads after
   an extension that it depends on, and each is checked as built before the tool starts (K165).

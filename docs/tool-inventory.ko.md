@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 43c1af2105155bca99940808917bebc917baebd734a496ec7ee68d2554b7f905 -->
+<!-- source-sha256: d235fa0abe96fcdc038d46ad2f0fc56e0964fcb398b7cff2285d66068609b9c0 -->
 
 # 도구 목록
 
@@ -427,7 +427,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   닿습니다. 실행기는 test가 timeout을 넘었을 때와 실행기 자신이 SIGINT, SIGTERM, SIGHUP을 받았을 때 group을 SIGTERM으로 멈추고,
   5 s 뒤에도 tool이 닫히지 않으면 SIGKILL로 멈추며, signal을 받은 경우 그 signal로 끝납니다. 실행기 자신의 SIGKILL만 group을
   남깁니다.
-- `phpunit`은 `<cwd>/vendor/bin/phpunit` 또는 `COMPOSER_VENDOR_DIR`의 vendor directory(crudui)를 실행하고, extension은
+- `phpunit`은 `composer config vendor-dir`가 `<cwd>`에 주는 vendor directory(`vendor`, crudui처럼 `COMPOSER_VENDOR_DIR`, 또는
+  `config.vendor-dir`; K184)의 `bin/phpunit`을 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
   `--php-extension`은 반복할 수 있습니다: 각 extension은 PHP 자체의 방식인 자기 `-d extension=<path>`로 주어진 순서대로
   load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165).
