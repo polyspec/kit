@@ -210,6 +210,8 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   installs the mise of `config/toolchain.json` itself, as the bootstrap does. A checkout whose `mise.lock` pins no node runs
   `make toolchain-lock`, then `make install-tools TOOLS=npm`. `make kit-check` fails a recipe of the Makefile that starts a tool
   of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
+  Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
+  repository that install-packages needs runs the node of the checkout (K185).
 ## Layout check (K76)
 
 S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by

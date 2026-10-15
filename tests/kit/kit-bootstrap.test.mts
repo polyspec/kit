@@ -66,3 +66,15 @@ test('with the package, the kit.mk of its dist runs the built tools', (t) => {
   assert.equal(dry.stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
   assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/install-tools.mjs go`, 'install-tools is the target of the package');
 });
+
+test('without the package, a recipe of the repository that runs before install-packages starts the node of the checkout as $(NODE) (K185)', (t) => {
+  // A repository step that install-packages needs, such as one that orders a JSON file before npm ci, runs before kit.mk
+  // exists; an empty $(NODE) made it hard-code var/tools/bin/node.
+  const root = repository(t);
+  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\ninstall-packages: ordered\n.PHONY: ordered\nordered:\n\t$(NODE) ordered.mjs\n');
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} of the checkout: $*"\n`, { mode: 0o755 });
+  const run = make(root, 'install-packages');
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(run.stdout, `${tool(root, 'node')} ordered.mjs\nnode of the checkout: ordered.mjs\n${tool(root, 'npm')} ci --allow-remote=root\nnpm of the checkout: ci --allow-remote=root\n`);
+});

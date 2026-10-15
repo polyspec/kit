@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d235fa0abe96fcdc038d46ad2f0fc56e0964fcb398b7cff2285d66068609b9c0 -->
+<!-- source-sha256: cddac4b6accfbad5fe53f65e6157d36e56b2c5b0b3ecd5176f1d40cd9edccb62 -->
 
 # 도구 목록
 
@@ -184,7 +184,8 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   `make toolchain-lock`만 시작하는 machine의 node입니다(K174): bootstrap은 toolchain-lock이 쓰는 `mise.lock`에서 checkout의 node를
   설치하므로 toolchain-lock은 그 node가 생기기 전에 돌며, bootstrap처럼 `config/toolchain.json`의 mise를 스스로 설치합니다.
   `mise.lock`이 node를 고정하지 않은 checkout은 `make toolchain-lock`, 그다음 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
-  command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다.
+  command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
+  `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
 ## Layout 검사 (K76)
 
 S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 도구가 아니라 release된 도구
