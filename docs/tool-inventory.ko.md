@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ff58bfaef336c15fddbd7d9915c28c0593f2c6bde0cc083e29f234dfc9119ac4 -->
+<!-- source-sha256: 600aa0515a60e775a6395ebcbddee9b1bc66f4d5ce5d4104e7a8765afadc9aee -->
 
 # 도구 목록
 
@@ -857,6 +857,14 @@ require함)와 root lock 하나를 두고, published package는 lock도 vendor/�
 review에서 빠졌습니다. third-party package만 require하는 library는 review하지 않습니다. platform과 lock 검사는 root에 적용되고,
 published manifest는 `--no-check-lock`으로 검증합니다. `UPDATE=1`은 published package의 requirement를 그 directory의
 `composer require --no-update`와 root의 `composer update --with-dependencies`로 올립니다.
+
+`make dependency-policy-check`는 checkout의 모든 Composer manifest를 검사합니다(K181): 추적되거나 새로 생긴 각 composer.json은
+`composerPlatforms`가 지정하여 그것과 그 lock에 `composer validate --strict`를 실행하거나, 그런 manifest의 path repository가
+제공하는 published package여서 `composer validate --no-check-lock`을 실행합니다. 그 밖의 composer.json은 rule
+`composerCoverage`와 더할 항목과 함께 실패하므로, manifest가 낡게 만든 lock(`composer update --lock` 없는 version 변경 뒤 등)이
+목록에 없다는 이유로 검사를 벗어날 수 없습니다. 검사하지 않는 것: kit이 쓰는 manifest(`make kit-sync`의 사본과
+`config/phpunit/composer.json`), kit이 배포하는 symbol extractor의 Composer project, `config/release.json`의 Composer consumer
+project(`consumers.composer.directory`)이며, 마지막은 `make release-consumer-lock`이 release archive로 resolve합니다.
 
 ## Release archive의 consumer 설치 (K5.4)
 

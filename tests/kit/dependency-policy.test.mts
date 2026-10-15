@@ -36,6 +36,20 @@ test('the gate fails on a lock changed without a review and names the file, the 
   assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: the lock changed after the review of .+: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
 });
 
+// K181: a Composer manifest that composerPlatforms does not name escaped composer validate --strict, so its lock went stale
+// unnoticed; the fixture holds the Composer consumer project of its release, which is not checked here.
+test('the gate fails on a Composer manifest that no Composer platform covers; a manifest that kit writes passes', (t) => {
+  const root = fixture(t);
+  const write = (file: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), '{ "name": "example/extra" }\n'); };
+  write('tools/extra/composer.json');
+  write('config/php-lint/composer.json');
+  const result = gate(root);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  const [line, ...rest] = findings(result);
+  assert.deepEqual(rest, [], findings(result).join('\n'));
+  assert.match(known(line, 'the finding'), /^\[dependency-policy\] tools\/extra\/composer\.json: no entry of composerPlatforms .* never reads it or its lock\. Rule: each Composer manifest of the checkout is checked.*Fix: add \{ "manifest": "tools\/extra\/composer\.json", "php": "<the minimum PHP>" \} to composerPlatforms/);
+});
+
 test('the review reports a newer stable release with the fix command and writes no record without RECORD', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
