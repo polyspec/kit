@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 600aa0515a60e775a6395ebcbddee9b1bc66f4d5ce5d4104e7a8765afadc9aee -->
+<!-- source-sha256: 43c1af2105155bca99940808917bebc917baebd734a496ec7ee68d2554b7f905 -->
 
 # 도구 목록
 
@@ -548,6 +548,9 @@ go.mod의 module path에 연결합니다.
   선언된 모든 go.mod의 module path(orm, template보다 넓음); 저장소 root의 Go module(orm); section이 있어야 하는 추가 changelog(orm,
   `changelogTranslations`). composer.json은 `archive` manifest가 아니면 `version`을 생략할 수 있습니다(hyper는 어디서나 생략을 허용하고
   template과 ordered-json은 어디서나 version을 요구합니다. artifact repository가 version을 읽으므로 archive는 선언해야 합니다).
+  composer.json의 version을 정하는 릴리스 commit은 그 directory에서 `composer update --lock`으로 다시 lock합니다: `composer.lock`의
+  content-hash가 `version`을 포함하고, `make dependency-policy-check`는 버전 변경이 낡게 만든 lock을 실패시킵니다(`composerLock`,
+  K180); 모든 composer.json이 그 검사에 듭니다(K181).
 - changelog section: heading, entry 필수, 다음 section의 anchor 줄 제거(template, hyper, ordered-json); 긴 section의 link는 heading 위의
   `<a id>` 줄을 쓰고 없으면 점을 뺀 version을 씁니다(hyper, ordered-json); notes 한도는 125000자입니다(모두).
 - manifest 규칙(`manifestProblems`)은 규칙의 합집합입니다: npm의 모든 dependency field(`dependencies`, `devDependencies`,
