@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 522c3ef01a83ae69421fd7ba5068beb397c1397d42a77912e7040e9363e6a97a -->
+<!-- source-sha256: 356874f82f3e362c2571a08042eec4c5831f20986ce086850b766ac619f54fb6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -14,6 +14,7 @@
 - kit-check의 recipe-tools 검사는 자체 splitter(K179) 대신 kit의 새 dependency인 shell-quote 1.12.0의 `parse`로 recipe line을 shell word로 나눕니다; kit의 모든 recipe와 기존 case의 word는 같고, `$(if $(RANGE),--range $(RANGE))` 같은 중첩된 make function은 더 이상 엉뚱한 command `if`를 내지 않습니다(K184).
 - run-tests, lint-php, parity의 php runner는 Composer project의 vendor directory를 Composer에게 묻습니다: kit이 복사한 규칙(K163, K178) 대신, checkout의 mise.toml의 Composer로 composer.json의 folder에서 offline으로 실행하는 `composer config vendor-dir`입니다. kit이 무시하던 composer.json의 `config.vendor-dir`도 이제 `vendor`, `COMPOSER_VENDOR_DIR`와 함께 반영됩니다; package 위의 가장 가까운 Composer project를 찾는 것은 그대로입니다. 이 도구들은 이제 make install-tools가 설치하는 mise.toml의 Composer(`http:composer`)가 필요합니다(K184).
 - `kit-bootstrap.mk`는 package가 설치되기 전에도 `$(NPM)`처럼 bootstrap이 설치하는 checkout의 node인 `$(NODE)`를 정의합니다. install-packages가 필요로 하는 step처럼 kit.mk가 생기기 전에 도는 저장소의 recipe는 빈 `$(NODE)`를 받아 var/tools/bin/node를 직접 적어야 했습니다(K185).
+- run-tests phpunit은 parity와 lint-php처럼(K178) composer-vendor.mts의 같은 function으로 `--cwd` 또는 그 위에서 PHPUnit이 있는 가장 가까운 Composer project의 PHPUnit을 실행합니다. 자기 vendor directory가 없는 Composer monorepo의 package는 root를 `--cwd`로 넘겨야 했습니다; 이제 자기 folder에서 실행합니다(K186).
 
 ### 소비자 이전
 

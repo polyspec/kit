@@ -465,7 +465,8 @@ Merged behaviors:
   with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
   signal. Only a SIGKILL of the runner itself leaves the group running.
 - `phpunit` runs `bin/phpunit` of the vendor directory that `composer config vendor-dir` gives `<cwd>` (`vendor`,
-  `COMPOSER_VENDOR_DIR` as in crudui, or `config.vendor-dir`; K184), with `--php-extension`
+  `COMPOSER_VENDOR_DIR` as in crudui, or `config.vendor-dir`; K184), or the nearest Composer project above it, such as the
+  root of a monorepo (K186), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts. `--php-extension`
   repeats: each extension is loaded with its own `-d extension=<path>`, PHP's own way, in the given order, so one loads after
   an extension that it depends on, and each is checked as built before the tool starts (K165).

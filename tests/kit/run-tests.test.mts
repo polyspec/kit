@@ -409,6 +409,18 @@ test('a go test that outlives the timeout stops the tool and fails the run', asy
 // A Composer project, whose vendor directory Composer gives run-tests for PHPUnit.
 const COMPOSER_PROJECT = { 'composer.json': '{}\n' };
 
+// A package of a Composer monorepo has no vendor directory of its own; the root project requires it through a path
+// repository and installs one vendor directory, as for parity and lint-php (K178, K186).
+test('phpunit with --cwd of a package of a Composer monorepo runs the PHPUnit of the root project (K186)', async (t) => {
+  const pass = "console.log(\"##teamcity[testStarted name='test_a' flowId='1']\"); console.log(\"##teamcity[testFinished name='test_a' duration='1' flowId='1']\");";
+  const root = tree(t, { 'composer.json': '{}\n', 'vendor/bin/phpunit': `#!/usr/bin/env node\n${pass}\n`, 'packages/a/composer.json': '{}\n' });
+  chmodSync(path.join(root, 'vendor/bin/phpunit'), 0o755);
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(root, 'packages/a'), args: [] }, root).command, path.join(root, 'vendor/bin/phpunit'));
+  const result = await inProcess(t, ['phpunit', '--cwd', 'packages/a'], { root });
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.text, /✔ phpunit packages\/a: 1 passed/);
+});
+
 test('a tool that cannot start fails with its command and the fix', async (t) => {
   const missing = path.join(tmpdir(), 'kit-no-such-directory');
   const result = await inProcess(t, ['go', './...'], { path: missing });

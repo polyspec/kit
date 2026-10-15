@@ -213,7 +213,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       if (composer === undefined) return { error: `no composer.json lies above ${binding.test}` };
       // PHPUnit of the vendor directory that Composer gives the package: its own, or that of the Composer root of a monorepo
       // that requires it through a path repository (K178).
-      const phpunit = packageVendorFile(root, composer, 'bin/phpunit', project => existsSync(path.join(root, project, 'composer.json')));
+      const phpunit = packageVendorFile(root, composer, 'bin/phpunit');
       if (phpunit === undefined) return { error: `${path.relative(root, path.join(composerVendor(path.join(root, composer)), 'bin/phpunit'))} does not exist; run composer install in ${composer}, or in the project that requires it` };
       // The configuration of the package: PHPUnit reads none from the checkout root, so the run names it.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.posix.join(composer, file)).find(file => existsSync(path.join(root, file)));
