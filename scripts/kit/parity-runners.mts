@@ -9,8 +9,9 @@
 //           a feature runs the target of the test without a filter
 //   node    `node --test --test-reporter=<parity-node-reporter.mts> <test>`, whose lines name each test with its enclosing
 //           suites, joined by ' › '; a case is a top-level test, and a feature id is the joined name
-//   vitest  `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>`
-//           from the checkout root, read from the JSON report that vitest writes; a test is named by the titles of its
+//   vitest  `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=var/parity/vitest.json
+//           <test>` from the checkout root, with --dir the root of the implementation that holds the test, read from the JSON
+//           report that vitest writes; a test is named by the titles of its
 //           suites and its own joined by ' › ', a case is a top-level test, and a feature id is the joined name
 //   php     `php <args> <vendor>/bin/phpunit --teamcity --configuration <package>/phpunit.xml <test>` from the checkout root, with
 //           the PHPUnit of the vendor directory that Composer gives the package of the test (composer-vendor.mts), and
@@ -63,7 +64,7 @@ export interface RunError {
 interface RunnerOf {
   program: (root: string) => string;
   env?: Record<string, string>;
-  run: (root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind) => BindingRun | RunError;
+  run: (root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, roots: readonly string[]) => BindingRun | RunError;
 }
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
@@ -116,6 +117,10 @@ function dataSetCase(symbol: string): (name: string) => string | undefined {
 const VITEST_REPORT = 'var/parity/vitest.json';
 type VitestReport = { testResults: { assertionResults: { ancestorTitles: string[]; title: string; status: keyof typeof VITEST_OUTCOMES }[] }[] };
 const VITEST_OUTCOMES = { passed: 'pass', failed: 'fail', skipped: 'skip', pending: 'skip', todo: 'todo' } as const;
+
+/** The root among `roots` that holds the test file `test`, else the folder of the test. */
+const implementationRoot = (roots: readonly string[], test: string): string =>
+  roots.find(item => test === item || test.startsWith(`${item.replace(/\/$/, '')}/`)) ?? path.dirname(test);
 
 /** The native name itself, the id of a feature test. */
 const itself = (name: string): string => name;
@@ -182,7 +187,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
   },
   vitest: {
     program: () => process.execPath,
-    run(root, binding, kind) {
+    run(root, binding, kind, roots) {
       const vitest = 'node_modules/vitest/vitest.mjs';
       if (!existsSync(path.join(root, vitest))) return { error: `${vitest} does not exist; run npm ci` };
       // vitest 5 writes its JSON report to a file; each run writes it anew, and the run reads and removes it. A report that an
@@ -190,7 +195,10 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       const report = path.join(root, VITEST_REPORT);
       rmSync(report, { force: true });
       return {
-        args: test => [path.join(root, vitest), 'run', ...test, '--reporter=json', `--outputFile.json=${report}`, binding.test],
+        // vitest discovers the files that match the filter below --dir, following symbolic links; from the checkout root it
+        // also walked var/, where a trust record of mise links to the home folder, and ran an old copy of the test there
+        // too (K202). --dir bounds discovery to the root of the implementation that holds the test.
+        args: test => [path.join(root, vitest), 'run', ...test, '--dir', implementationRoot(roots, binding.test), '--reporter=json', `--outputFile.json=${report}`, binding.test],
         cwd: '.',
         caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
         read: (output, sink) => {
@@ -259,7 +267,7 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: Run
  */
 export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, base: Environment): BindingCommand | RunError {
   const runner = RUNNERS[implementation.runner];
-  const run = runner.run(root, binding, kind);
+  const run = runner.run(root, binding, kind, implementation.roots ?? []);
   if (run.error) return run;
   const declared = implementation.command;
   const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;

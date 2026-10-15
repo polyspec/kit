@@ -13,6 +13,8 @@
 
 - `make link`, `make link-check` and `make unlink` (scripts/kit/link.mts) make the local links of 0.0.x development (docs/plans/local-links.md) while `POLYSPEC_CHECKOUTS` declares the polyspec root: each provider is built with the prerequisites of its release-assets, the copies that npm's hidden lockfile and Composer's installed.json record become links to the provider folders of the main checkouts, the Python packages are installed editable with one uv install with dependencies and an --overrides file, and var/link/go.work is the GOWORK of every recipe. `make install-packages` relinks after npm ci. A checkout without kit runs `node $(POLYSPEC_CHECKOUTS)/kit/dist/link.mjs`. Without the root every target does nothing (K201).
 
+- `make parity-check` runs vitest with `--dir` set to the root of the implementation that holds the test. From the checkout root, vitest's discovery followed var/tools/mise/state/trusted-configs, a trust record of mise that links to the home folder, into old copies of the same test, so a case was reported twice (template, K202).
+
 ## 0.0.53
 
 - `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ed1515f2dbdb3b5af720eadaef34b828f6bcb05ddfa0a0787c68bd0fd5eb3f27 -->
+<!-- source-sha256: 9f031483e98448007dad5f1b13ba1710f250aec60dde9af8b148edcec00b0068 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -13,6 +13,8 @@
 - `make install-tools`는 go symbol extractor를 mise의 shim 대신 consumer의 go로, 곧 consumer root에서 `mise where go`가 출력하는 install의 bin/go를 절대 경로로 실행하여 build한다. kit을 링크한 consumer에서는 extractor 소스가 kit checkout으로 resolve되고, shim은 그곳에서 kit 자신의 mise.toml을 읽어 "Config files in …/kit/mise.toml are not trusted"로 멈췄다 (template, K199).
 
 - `make link`, `make link-check`, `make unlink`(scripts/kit/link.mts)는 `POLYSPEC_CHECKOUTS`가 polyspec root를 선언한 동안 0.0.x 개발의 local link를 만든다(docs/plans/local-links.md): 각 제공자를 release-assets의 prerequisite로 build하고, npm의 hidden lockfile과 Composer의 installed.json이 기록한 사본을 main checkout의 제공자 폴더를 가리키는 링크로 바꾸며, Python 패키지는 의존과 --overrides 파일을 준 uv install 한 번으로 editable 설치하고, var/link/go.work를 모든 recipe의 GOWORK로 한다. `make install-packages`는 npm ci 뒤 다시 링크한다. kit이 없는 checkout은 `node $(POLYSPEC_CHECKOUTS)/kit/dist/link.mjs`를 실행한다. root가 없으면 모든 target은 아무것도 하지 않는다 (K201).
+
+- `make parity-check`는 vitest를 test를 가진 implementation의 root를 `--dir`로 주어 실행한다. checkout root에서는 vitest의 discovery가 home 폴더로 링크하는 mise의 trust 기록 var/tools/mise/state/trusted-configs를 따라가 같은 test의 옛 사본까지 찾았으므로 case가 두 번 보고되었다 (template, K202).
 
 ## 0.0.53
 

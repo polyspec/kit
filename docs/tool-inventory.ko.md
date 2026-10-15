@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0b98933267d0303f684f2d8a202b2a65bdf0226edc48f7f0a4a069e7c15ce344 -->
+<!-- source-sha256: 7e03b4dcfb26c769c43c4b5c56424db02fd5a2d77cefd86444abda0cfb0b0217 -->
 
 # 도구 목록
 
@@ -1270,7 +1270,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>`. feature는 `-run` 없이 실행합니다 | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event | test 또는 subtest 이름 `TestX/case` |
 | `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`, 이어서 `-- --test-threads=1 <symbol>::`. feature는 filter 없이 실행합니다 | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored`. libtest-mimic(`harness = false` test target)은 각 이름을 가장 긴 이름에 맞춰 채우므로 `...` 앞의 공백은 몇 칸이든 됩니다 | libtest 경로 `module::test` |
 | `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다 | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
-| `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --reporter=json --outputFile.json=var/parity/vitest.json <test>` | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
+| `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=var/parity/vitest.json <test>`. `--dir`은 test를 가진 implementation의 root이므로 discovery가 var/ 아래 링크를 따라가지 않는다 (K202) | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다. symbol `<class>::<method>`가 있는 suite binding은 `--filter /^<class>::<method>(?: with data set \|$)/`를 더해 그 method만 실행합니다 | symbol이 있으면 TeamCity 메시지의 data set `<method> with data set "<case>"`, 없으면 test method `test_<case>` | test method |
 | `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` | test method |
 

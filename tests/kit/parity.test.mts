@@ -7,7 +7,7 @@
 // its `EXIT <n>` line (go: `EXIT <symbol> <n>`).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -610,24 +610,29 @@ test('a feature binding names its id and no symbol, and a feature unit has no ve
   ]);
 });
 
-// The stub of vitest (`node node_modules/vitest/vitest.mjs run --reporter=json --outputFile.json=<file> <test>`): each
-// `PASS <name>`, `FAIL <name>`, `SKIP <name>` and `TODO <name>` line of the test file is a test, its name the titles of its
-// suites and its own joined by ' › ', which it writes to <file> as the JSON reporter of vitest 5 does. It exits with 1 when a
-// test failed.
+// The stub of vitest (`node node_modules/vitest/vitest.mjs run [--dir <dir>] --reporter=json --outputFile.json=<file> <test>`):
+// it discovers test files as vitest does, every file below --dir (else the working directory), following symbolic links and
+// skipping node_modules, whose path ends with the filter <test>; each `PASS <name>`, `FAIL <name>`, `SKIP <name>` and
+// `TODO <name>` line of each such file is a test, its name the titles of its suites and its own joined by ' › ', which it
+// writes to <file> as the JSON reporter of vitest 5 does. It exits with 1 when a test failed.
 const VITEST_STUB = `const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
 const output = args.find(arg => arg.startsWith('--outputFile.json=')).slice(18);
-const file = args[args.length - 1];
+const filter = args[args.length - 1];
+const dir = args.includes('--dir') ? path.resolve(args[args.indexOf('--dir') + 1]) : process.cwd();
 const status = { PASS: 'passed', FAIL: 'failed', SKIP: 'skipped', TODO: 'todo' };
-const assertionResults = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL|SKIP|TODO) (.+)$/.exec(line)).filter(Boolean).map(([, outcome, name]) => {
+const found = [];
+const walk = (folder) => { for (const entry of fs.readdirSync(folder)) { if (entry === 'node_modules') continue; const next = path.join(folder, entry); if (fs.statSync(next).isDirectory()) walk(next); else if (next.endsWith(path.sep + filter)) found.push(next); } };
+walk(dir);
+const testResults = found.map(file => ({ name: file, assertionResults: fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL|SKIP|TODO) (.+)$/.exec(line)).filter(Boolean).map(([, outcome, name]) => {
   const titles = name.split(' › ');
   return { ancestorTitles: titles.slice(0, -1), title: titles[titles.length - 1], fullName: titles.join(' '), status: status[outcome] };
-});
+}) }));
 fs.mkdirSync(path.dirname(output), { recursive: true });
-fs.writeFileSync(output, JSON.stringify({ testResults: [{ name: path.resolve(file), assertionResults }] }));
+fs.writeFileSync(output, JSON.stringify({ testResults }));
 process.stdout.write('JSON report written to ' + output + '\\n');
-process.exit(assertionResults.some(result => result.status === 'failed') ? 1 : 0);
+process.exit(testResults.some(file => file.assertionResults.some(result => result.status === 'failed')) ? 1 : 0);
 `;
 
 /** A repository of a node and a vitest implementation with a suite and a feature unit. */
@@ -662,7 +667,7 @@ test('the vitest runner reads the JSON report of vitest: a suite case is a top-l
     'codec empty pass', 'codec ascii pass', 'roundtrip roundtrip › nested › bytes pass',
   ]);
   const run = known(ledger.runs.find(entry => entry.implementation === 'web'), 'ledger.runs.find(entry => entry.implementation === …)');
-  assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
+  assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--dir', 'web', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
   const failing = checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} }).findings;
   assert.deepEqual(keys(failing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(failing, 0).message, /failed: ascii/);
@@ -670,6 +675,21 @@ test('the vitest runner reads the JSON report of vitest: a suite case is a top-l
   const missing = checkParity(vitestRepository(t, { 'node_modules/vitest/vitest.mjs': null }), { execute: true, env: ENV, say: () => {} }).findings;
   assert.deepEqual(keys(missing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(missing, 0).message, /node_modules\/vitest\/vitest\.mjs does not exist/);
+});
+
+test('vitest discovers the tests of a binding only in the root of its implementation, not through a link under var/ (K202)', TIMEOUT, (t) => {
+  const root = vitestRepository(t);
+  // A link under var/ to a folder that holds a test of the same path, as the trust records of mise link to the home folder,
+  // where an old checkout of the repository may hold one.
+  const elsewhere = mkdtempSync(path.join(tmpdir(), 'kit-parity-elsewhere-'));
+  t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
+  mkdirSync(path.join(elsewhere, 'old/web/src'), { recursive: true });
+  writeFileSync(path.join(elsewhere, 'old/web/src/codec.spec.ts'), 'PASS empty\nPASS ascii\n');
+  mkdirSync(path.join(root, 'var/tools/mise/state/trusted-configs'), { recursive: true });
+  symlinkSync(elsewhere, path.join(root, 'var/tools/mise/state/trusted-configs/home'));
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web' && entry.unit === 'codec').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
 });
 
 test('R6: a test that two conventions select lies in a root of one of their runners (K75)', TIMEOUT, (t) => {
