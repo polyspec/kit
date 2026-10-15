@@ -85,7 +85,7 @@ test('the mutation check rejects every mutation of the fixture', (t) => {
   const root = fixture(t);
   const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout + result.stderr, /4 mutations rejected/);
+  assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
 
 test('the mutation check applies to the ecosystems of the repository: no Composer platform, and a record that starts with a Python dependency', (t) => {
@@ -112,7 +112,7 @@ test('the mutation check copies go.work, so a module that requires only a worksp
   write('packages/sibling/sibling.go', 'package sibling\n');
   const result = spawnSync(process.execPath, [tool('check-dependency-policy-mutation')], { cwd: root, encoding: 'utf8', env: toolStubs() });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout + result.stderr, /4 mutations rejected/);
+  assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
 
 // A committed go.work that uses an ignored clone, such as a sibling repository checked out for local work, names a module

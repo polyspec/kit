@@ -590,7 +590,10 @@ Dropped behaviors:
   module path of every declared go.mod on a root tag, not only on a Go tag (orm, wider than template); a Go module at the
   repository root (orm); further change logs that must hold the section (orm, `changelogTranslations`). A composer.json may omit
   `version` unless it is an `archive` manifest (hyper accepts the omission everywhere, template and ordered-json require the
-  version everywhere; an archive must declare it because an artifact repository reads it).
+  version everywhere; an archive must declare it because an artifact repository reads it). The release commit that sets the
+  version of a composer.json re-locks it with `composer update --lock` in its directory: the content-hash of `composer.lock`
+  covers `version`, and `make dependency-policy-check` fails the lock that the version change outdated (`composerLock`,
+  K180); every composer.json is in that check (K181).
 - Change log section: heading, entry required, the anchor lines of the next section removed (template, hyper, ordered-json);
   the link of a long section uses the `<a id>` line above the heading, else the version without its dots (hyper,
   ordered-json); the notes limit is 125000 characters (all).

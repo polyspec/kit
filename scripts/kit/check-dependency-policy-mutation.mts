@@ -11,6 +11,7 @@ import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { readConfig } from './schema-validate.mts';
+import { readComposerManifest } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { readGoWork } from './toolchain-files.mts';
@@ -95,6 +96,8 @@ const firstLock = (root: string) => {
   return first.lock;
 };
 const hasComposer = (root: string) => readPolicy(root).composerPlatforms.length > 0;
+// The first Composer manifest of the policy, which applies (hasComposer) holds.
+const firstComposerManifest = (root: string) => present(readPolicy(root).composerPlatforms[0], 'composerPlatforms[0]').manifest;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
 const MUTATIONS: Mutation[] = [
@@ -115,6 +118,19 @@ const MUTATIONS: Mutation[] = [
     // applies holds a policy with a Composer platform.
     apply: root => editJson(root, POLICY, (policy: PolicyJson) => { present(present(policy.composerPlatforms, 'policy.composerPlatforms')[0], 'policy.composerPlatforms[0]').php = '8.1.0'; }),
     expect: finding => finding.rule === 'platform',
+  },
+  {
+    // Composer's content-hash of the lock covers the version of the manifest, so a version bump re-locks the manifest with
+    // composer update --lock (K180); composer validate --strict fails the lock that it outdated.
+    name: 'a Composer manifest whose version changed without composer update --lock',
+    applies: hasComposer,
+    apply: (root) => {
+      const file = firstComposerManifest(root);
+      const manifest = readComposerManifest(root, file);
+      manifest.version = (manifest.version ?? '0.0.0').replace(/(\d+)$/, number => String(Number(number) + 1));
+      writeJson(join(root, file), manifest);
+    },
+    expect: finding => finding.rule === 'composerLock' && finding.subject === firstComposerManifest(repositoryRoot()),
   },
   {
     name: 'a lock changed without a review',
