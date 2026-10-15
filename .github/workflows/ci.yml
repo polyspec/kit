@@ -73,6 +73,12 @@ jobs:
         run: make source-test
       - name: documents check
         run: make documents-check
+      # Every tool of scripts/kit has its class in config/rebuild.json (S1), and every tracked path an owner rule in
+      # config/owner-checks.json (K182).
+      - name: rebuild check
+        run: make rebuild-check
+      - name: owner validate
+        run: make owner-validate
       # The commits the run was triggered by: those of the pull request over its base, or those of the push. A manual run and
       # the first push of a branch have no earlier commit, so the run checks HEAD.
       - name: commit range
