@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.49
+
 - `ignore` of `config/knip-entries.json` declares the files that are not code of the repository, and neither knip nor oxlint reads them: make lint-ts gives oxlint an `--ignore-pattern` for each glob, as it does for the copies of kit, besides adding it to the `ignore` of knip. Such a file, such as an input of the tests of a build tool that is broken on purpose, no longer fails the type-aware rules of oxlint on its unresolvable imports; the same violation outside a declared glob still fails (K172).
 - make install-vscode exits after its download. `@vscode/test-electron` 3.1.0 left a `tar -xzf -` child of a failed download attempt ("aborted") running, so the install hung after a retry succeeded, until the CI job's timeout. The install runs the download in a process of its own and kills its process group when the download settles; a download whose every attempt fails fails the install with the error of `@vscode/test-electron` (K173).
 - A test that imports the build output of its package (`../dist/…`) counts for knip as a use of the source once `tsconfig.json` references the build project; kit adds no option for it, since knip honours TypeScript project references and its `paths` miss a dist that exists (K175).
