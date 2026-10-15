@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6b1f236d893c40010d502512444bb3b28ae5948266974bbc46ad89a7f4a53911 -->
+<!-- source-sha256: eb92e029a357b9479fb0af9362c6b88ccbbf733f9291261837ed731245ab7eb5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make lint-ts는 knip.json 사본의 ignore를 knip이 필요로 하는 곳에서만 남기며, 그 판단은 knip 자신이 한다: reporter `knip-ignore-hints.mts`로 knip을 먼저 실행해 아무 issue에도 맞지 않은 ignore에 대한 knip의 configuration hint를 얻고, 그것을 lint의 설정에서 뺀다. script가 `@polyspec/kit`을 import하는 레포는 고칠 수 없는 사본에 대해 "Remove from ignoreDependencies" hint를 받았다; 이제 받지 않는다. 이는 같은 실행이 다루는 K176의 선언된 package 기준 filter를 대체한다 (K188).
 
 - make dependency-review UPDATE=1은 npm 명령(npm install, npm audit fix, npm dedupe)을 make install-packages의 npm ci와 같은 설정인 allow-remote=root로 실행한다: `kit-bootstrap.mk`는 그 설정의 하나의 source로 `npm_config_allow_remote=root`를 두 recipe에 export한다. npm audit fix는 그것 없이 실행되어 URL로 고정된 `@polyspec/kit`을 EALLOWREMOTE로 거부했다; install-packages의 recipe는 이제 같은 설정을 읽는 `npm ci`이다 (K189).
 

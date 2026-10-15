@@ -3,7 +3,8 @@
 // failed, and a missing tool or configuration fails with the fix. In a consumer oxlint leaves out the copies of kit, the files
 // of kit.copies of the installed package (K157); kit itself lints them. oxlint also leaves out the files that the ignore of
 // config/knip-entries.json declares (K172). knip reads var/lint-ts/knip.json, which holds only those ignored dependencies of
-// knip.json that a package.json of the repository declares (K176). The tools are stubs.
+// knip.json that knip needs: the ignores that the first run of knip, with the reporter knip-ignore-hints, does not name as
+// matching no issue (K176, K188). The tools are stubs; the knip stub prints knip-hints.json of the checkout for that reporter.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -40,7 +41,9 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
   const log = path.join(root, 'calls.log');
   mkdirSync(path.join(root, 'node_modules/.bin'), { recursive: true });
   for (const tool of installed) {
-    writeFileSync(path.join(root, 'node_modules/.bin', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$PWD")]" >> "${log}"\n${tool === failing ? 'exit 1' : ''}\n`);
+    // The knip stub answers the reporter of the first run with knip-hints.json of the checkout, or no hint.
+    const hints = tool === 'knip' ? `case "$*" in *--reporter*) cat "${root}/knip-hints.json" 2>/dev/null || echo '[]';; esac\n` : '';
+    writeFileSync(path.join(root, 'node_modules/.bin', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$PWD")]" >> "${log}"\n${hints}${tool === failing ? 'exit 1' : ''}\n`);
     chmodSync(path.join(root, 'node_modules/.bin', tool), 0o755);
   }
   initRepository(root);
@@ -154,20 +157,37 @@ test('knip ignores the root dependencies of config/knip-entries.json after those
   }
 });
 
-// knip names an ignored dependency that matched no issue in a configuration hint, and reports an unused dependency only
-// when a package.json declares it; a consumer cannot edit the copy of knip.json, so lint-ts keeps only the ignored
-// dependencies of knip.json that the root or a declared workspace declares (K176).
-test('knip ignores only the dependencies of knip.json that a package.json of the repository declares (K176)', (t) => {
-  const { root } = checkout(t);
+// knip names an ignored dependency that matched no issue in a configuration hint, which a consumer cannot fix in the copy of
+// knip.json: a package that the repository does not declare (K176), or @polyspec/kit where a script imports it (K188). The
+// first run of knip, with the reporter knip-ignore-hints, names them, and lint-ts leaves them out of var/lint-ts/knip.json.
+test('knip ignores only the dependencies of knip.json that knip needs: those its first run does not name as unused (K176, K188)', (t) => {
+  const { root, calls } = checkout(t);
   writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd'] }));
-  assert.deepEqual(lint(root, () => {}), []);
+  const hints = (names: string[], workspace = '.') => writeFileSync(path.join(root, 'knip-hints.json'), JSON.stringify(names.map(name => ({ workspace, name }))));
   const merged = (): unknown => JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8'));
-  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit'] });
-  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ ...MANIFEST, devDependencies: { ...MANIFEST.devDependencies, jscpd: '4.0.0' } }));
-  mkdirSync(path.join(root, 'packages/lint'), { recursive: true });
-  writeFileSync(path.join(root, 'packages/lint/package.json'), JSON.stringify({ dependencies: { oxlint: '1.0.0' } }));
-  mkdirSync(path.join(root, 'config'), { recursive: true });
-  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, workspaces: { 'packages/lint': { reason: 'a project that runs oxlint' } } }));
+  hints(['oxlint', 'oxlint-tsgolint', 'jscpd']);
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit', 'oxlint', 'jscpd'], workspaces: { 'packages/lint': {} } });
+  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit'] });
+  assert.ok(calls().some(call => /^knip --no-progress --config var\/lint-ts\/knip\.json --reporter \S+knip-ignore-hints\.mts \[root\]$/.test(call)), calls().join('\n'));
+  // A script of the repository imports @polyspec/kit, so knip names its ignore as unused (K188).
+  hints(['@polyspec/kit', 'oxlint-tsgolint']);
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(merged(), { ignoreDependencies: ['oxlint', 'jscpd'] });
+  // An ignore of the repository itself stays, so knip names it when it matched no issue; a hint of another workspace is not one
+  // of the root.
+  mkdirSync(path.join(root, 'config'), { recursive: true });
+  writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@example/recipe-tool': 'only the recipes of the Makefile run it' } }));
+  hints(['@example/recipe-tool', '@polyspec/kit']);
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(merged(), { ignoreDependencies: ['oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
+  hints(['jscpd'], 'packages/lint');
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
+});
+
+test('a first run of knip that fails or prints no list of hints fails the lint with the command (K188)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit'] }));
+  writeFileSync(path.join(root, 'knip-hints.json'), '[{ "name": "@polyspec/kit" }]');
+  assert.throws(() => lintSteps(root), /knip --no-progress --config var\/lint-ts\/knip\.json --reporter \S+knip-ignore-hints\.mts/);
 });

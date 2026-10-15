@@ -829,9 +829,12 @@ does not declare is neither installed nor checked.
   as make, go, php or Apple `container`, is declared with its reason in `binaries` of `config/knip-entries.json`, as kit
   declares make, go, rustup, shasum and openssl; a declared binary passes and an undeclared one is still an unlisted
   binary (a fixture, K152). `ignoreDependencies` of knip.json names the packages that only make runs, `@polyspec/kit`,
-  oxlint, oxlint-tsgolint and jscpd; lint-ts keeps each only when the package.json of the root or of a declared workspace
-  declares it, which is when knip would report it unused, so a repository without them gets no hint and one that
-  declares them still has them ignored (a fixture). make runs the fixture recorders of kit. knip.json is plain JSON, so
+  oxlint, oxlint-tsgolint and jscpd; lint-ts keeps each only where knip needs it, which knip itself decides: a first run of
+  knip with the reporter `knip-ignore-hints.mts` prints knip's configuration hints of type `ignoreDependencies`, and the
+  ignores of knip.json that it names for the root, such as a package that the repository does not declare or `@polyspec/kit`
+  where a script imports it, are left out of the configuration of the lint (K188). A repository without them, or whose
+  script imports `@polyspec/kit`, gets no hint, and one that declares them and does not import them still has them ignored
+  (fixtures). The ignores of `config/knip-entries.json` stay, so knip names one of them that matched no issue. make runs the fixture recorders of kit. knip.json is plain JSON, so
   lint-ts reads it, and knip always reads the configuration that lint-ts writes to `var/lint-ts/knip.json`. A file that make runs outside those
   patterns, such as a probe under `packages/js/test/`, is an entry that the repository declares with its reason in
   `config/knip-entries.json`, its own file with a schema of kit, never in the copy (K145): knip has no `extends`, so

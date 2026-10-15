@@ -9,9 +9,11 @@
 //     purpose (K172).
 //   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
 //     plugins that read the manifests, through var/lint-ts/knip.json, which knip reads with --config. Of the
-//     `ignoreDependencies` of knip.json, the packages that only make runs, it keeps those that a package.json of the
-//     repository declares: knip reports an unused dependency only when one declares it, and names an ignore that matched
-//     no issue in a configuration hint, which a consumer cannot fix in the copy (K176). knip has no `extends`, so the
+//     `ignoreDependencies` of knip.json, the packages that only make runs, it keeps those that knip needs: knip names an
+//     ignore that matched no issue in a configuration hint, which a consumer cannot fix in the copy (K176), so a first run
+//     of knip with the reporter knip-ignore-hints.mts gives the ignores of knip.json that matched no issue, such as a
+//     package that a repository does not declare, or @polyspec/kit where a script imports it, and they are left out (K188).
+//     knip has no `extends`, so the
 //     entries that the repository adds in config/knip-entries.json (K145) are added to `node.entry` of knip.json, its
 //     binaries (K152) to `ignoreBinaries`, the root dependencies that only make runs (K159) to `ignoreDependencies`, the
 //     files that are not code of the repository (K162, K172), such as a sample that a site shows and nothing runs, to
@@ -29,9 +31,11 @@ import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } fro
 import type { LintStep } from './lint-steps.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { installedKit, isSource } from './kit-check.mts';
-import { readNpmManifest } from './manifests.mts';
-import { ConfigError, readConfig } from './schema-validate.mts';
+import { ConfigError, parseJson, readConfig } from './schema-validate.mts';
 import { present } from './present.mts';
+import { siblingTool } from './paths.mts';
+import { toolsEnvironment } from './mise-tools.mts';
+import { execute } from './process.mts';
 
 /**
  * The entries that a repository adds to the layout entries of knip.json, the binaries to its ignoreBinaries, the root
@@ -66,34 +70,35 @@ interface KnipJson {
 export const MERGED_KNIP = 'var/lint-ts/knip.json';
 
 /**
- * The packages that the package.json of the root and of each workspace of `workspaces` (directories of `root`) declare, as
- * dependencies of any kind: the packages that knip can report as unused.
+ * The ignoreDependencies of the root workspace of knip that matched no issue when `knip` runs on `root` with the configuration
+ * of MERGED_KNIP: knip's own configuration hints, which the reporter knip-ignore-hints.mts prints. knip exits with 1 when it
+ * finds an issue, which the run of the lint reports; any other failure throws.
  */
-function declaredPackages(root: string, workspaces: string[]): Set<string> {
-  const manifests = ['package.json', ...workspaces.map(directory => path.posix.join(directory, 'package.json'))];
-  return new Set(manifests.flatMap(file => {
-    const manifest = readNpmManifest(root, file);
-    return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies].flatMap(names => Object.keys(names ?? {}));
-  }));
+function unusedIgnores(root: string, knip: string): Set<string> {
+  const args = ['--no-progress', '--config', MERGED_KNIP, '--reporter', siblingTool(import.meta.url, 'knip-ignore-hints')];
+  const result = execute(knip, args, { cwd: root, env: toolsEnvironment(root) });
+  const shown = `knip ${args.join(' ')}`;
+  if (result.error) throw new Error(`${shown} could not start: ${result.error.message}`);
+  if (result.status !== 0 && result.status !== 1) throw new Error(`${shown} ended with exit status ${result.status}: ${result.stderr.trim()}`);
+  const hints = parseJson<{ workspace: string; name: string }[]>(result.stdout, 'knip-ignore-hints.schema.json', shown);
+  return new Set(hints.filter(hint => hint.workspace === '.').map(hint => hint.name));
 }
 
 /**
  * The arguments of knip for `root`, with the configuration of MERGED_KNIP, which this function writes: knip.json with
- * only those of its `ignoreDependencies` that a package.json of the repository declares (K176), and, when the repository
+ * only those of its `ignoreDependencies` that knip needs, the ignores that matched an issue in a run of `knip` (K176, K188),
+ * and, when the repository
  * declares config/knip-entries.json, the declared entries after its own `node.entry`, the declared binaries after its own
  * `ignoreBinaries`, the declared root dependencies after its own `ignoreDependencies`, the declared ignored files after its
  * own `ignore`, and each declared workspace with its entries and ignored dependencies.
  */
-export function knipArguments(root: string): string[] {
+export function knipArguments(root: string, knip: string): string[] {
   const value = knipEntries(root) ?? {};
   const base = readConfig<KnipJson>(root, 'knip.json', 'knip.schema.json');
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
   if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];
-  if (base.ignoreDependencies || value.ignoreDependencies) {
-    const declared = declaredPackages(root, [...Object.keys(base.workspaces ?? {}), ...Object.keys(value.workspaces ?? {})]);
-    merged.ignoreDependencies = [...(base.ignoreDependencies ?? []).filter(name => declared.has(name)), ...Object.keys(value.ignoreDependencies ?? {})];
-  }
+  if (base.ignoreDependencies || value.ignoreDependencies) merged.ignoreDependencies = [...(base.ignoreDependencies ?? []), ...Object.keys(value.ignoreDependencies ?? {})];
   if (value.ignore) merged.ignore = [...(base.ignore ?? []), ...Object.keys(value.ignore)];
   if (value.workspaces) {
     const workspaces = Object.entries(value.workspaces).map(([directory, { entries, ignoreDependencies }]) => [directory, {
@@ -103,6 +108,13 @@ export function knipArguments(root: string): string[] {
     merged.workspaces = { ...base.workspaces, ...Object.fromEntries(workspaces) };
   }
   writeJson(path.join(root, MERGED_KNIP), merged);
+  if (base.ignoreDependencies?.length) {
+    // The ignores of the repository stay, so knip names one that matched no issue; only the copy of knip.json is filtered.
+    const unused = unusedIgnores(root, knip);
+    const own = Object.keys(value.ignoreDependencies ?? {});
+    merged.ignoreDependencies = [...base.ignoreDependencies.filter(name => !unused.has(name)), ...own];
+    writeJson(path.join(root, MERGED_KNIP), merged);
+  }
   return ['--no-progress', '--config', MERGED_KNIP];
 }
 
@@ -137,7 +149,7 @@ export function lintSteps(root: string): LintStep[] {
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
     // leave the rule out, so the format is fixed and the output is the same everywhere.
     { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root), ...declaredIgnores(root)], cwd: '.' },
-    { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root), cwd: '.' },
+    { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root, present(tools.knip, 'tools.knip')), cwd: '.' },
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: present(tools['api-extractor'], 'tools[\'api-extractor\']'), args: ['run'], cwd: folder })),
   ];
 }

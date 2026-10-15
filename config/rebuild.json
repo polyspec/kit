@@ -190,6 +190,10 @@
       "kind": "policy",
       "reason": "runs the steps of each lint tool of kit and reports each as polyspec's checks do (K77); every step is a linter of its ecosystem"
     },
+    "scripts/kit/knip-ignore-hints.mts": {
+      "kind": "ecosystem",
+      "tool": "knip reporter API: the configuration hints of knip (K188)"
+    },
     "scripts/kit/lint-ts.mts": {
       "kind": "ecosystem",
       "tool": "oxlint with oxlint-tsgolint, knip and API Extractor (K77)"

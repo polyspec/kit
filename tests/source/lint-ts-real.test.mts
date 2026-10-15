@@ -223,6 +223,15 @@ test('the lint prints no configuration hint about the ignores of knip.json, and 
   assert.doesNotMatch(declared.output, /Configuration hints|Unused devDependencies/);
 });
 
+// A repository whose script imports @polyspec/kit uses it, so knip needs no ignore of it: knip names an ignore that matched no
+// issue in a configuration hint, which a consumer cannot fix in the copy of knip.json. The lint keeps an ignore of knip.json only
+// where knip's own result needs it (K188).
+test('the lint prints no configuration hint about @polyspec/kit when a script of the repository imports it (K188)', (t) => {
+  const imports = lintOf(repository(t, { 'scripts/build.mts': "import '@polyspec/kit/tracked-files';\n" }));
+  assert.deepEqual(imports.failed, [], imports.output);
+  assert.doesNotMatch(imports.output, /Configuration hints|Remove from ignoreDependencies/);
+});
+
 // A nested npm project, such as the fixtures that the build tests of ssr compile, holds a package.json with dependencies
 // that the root does not list; knip reads it as a workspace of its own only when config/knip-entries.json declares it, with its
 // entries and the dependencies that only non-JS code uses. knip's Svelte plugin compiles its .svelte files (K154).
