@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).
+
 ## 0.0.52
 
 - `config/owner-checks.json` takes `importers` and `modules` in an owner rule: a changed path runs the node tests of the `importers` globs that import it, directly or through other modules, as the import graph of owner-check reads them (`module-imports.mts`: amaro, acorn, acorn-walk; relative imports, re-exports, `import()`, `require()`, `import.meta.resolve('<specifier>')` and `siblingTool(import.meta.url, '<name>')`); `modules` names the modules that stand for a path that is no module, such as a schema or a fixture. `make owner-validate` fails on a path of such a rule that no test imports. kit's own rules use it: a change of a module of scripts/kit ran `make kit-test`, the whole tool suite, and now runs the tests that import it; the package files run the checks that read them (K191).

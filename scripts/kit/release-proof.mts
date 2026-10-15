@@ -10,8 +10,8 @@
 //   2. Each polyspec archive that a wheel lock names (consumers.wheel.lock) is the release asset of its version in its repository
 //      (consumers.wheel.polyspec): the release lists the file, and the sha256 of the downloaded file is the one the lock holds.
 //   3. The release assets, downloaded into a temporary directory, are checked and install together: each wheel's file has the
-//      sha256 that the release lists, and each sibling that a wheel requires is the published asset of that sibling (its URL is
-//      exactly the URL of the release asset). Then they install in clean npm, Composer and Python projects
+//      sha256 that the release lists, and each sibling that a wheel requires is an asset of the release (its URL, the asset URL
+//      of the tag, is checked before the release builds). Then they install in clean npm, Composer and Python projects
 //      (release-consumer.mts installConsumers, with the committed manifests and locks of the checkout) and the smoke command of
 //      each package passes. Run it in a checkout of the tag, whose consumer projects name the archives of the version.
 //   4. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
@@ -87,7 +87,9 @@ function proveDependencies(ctx: ReleaseContext, folder: string, step: Step) {
 
 /**
  * Step 3, the wheels of the release, each downloaded file checked before it is installed: its sha256 is the one that the release
- * lists, and each sibling in its METADATA is named by the URL of the published asset of that sibling (wheel-dependencies.mts).
+ * lists, and each sibling in its METADATA is an asset that the release lists. The URL of a sibling is checked before the release
+ * builds (wheel-dependencies.mts: `<repositoryUrl>/releases/download/v<version>/<file>`, the asset URL of the tag); the proof
+ * reads the draft, whose assets GitHub lists under an untagged- URL until the draft is published, so it compares no URL.
  */
 function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: string, release: GitHubRelease, step: Step) {
   const { config, root, env } = ctx;
@@ -102,8 +104,7 @@ function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: 
       const sibling = wheelName(link.name, version);
       const published = release.assets.find(item => item.name === sibling);
       if (!published) throw new Stop(`${file} requires ${link.name} at ${link.url}, the release ${tag} lists no ${sibling}`);
-      if (published.url !== link.url) throw new Stop(`${file} requires ${link.name} at ${link.url}, the release ${tag} publishes ${sibling} at ${published.url ?? 'no URL'}`);
-      step(`${file}: its Requires-Dist of ${link.name} is the published asset of ${sibling}, ${link.url}`);
+      step(`${file}: its Requires-Dist of ${link.name} is the asset ${sibling} of the release, ${link.url}`);
     }
   }
 }
