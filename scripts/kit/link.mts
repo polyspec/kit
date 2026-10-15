@@ -15,7 +15,7 @@
 // var/link/consumers/<consumer> of the kit checkout under the root, and link prints the GOWORK to export (K203).
 //   node link.mjs link|check|unlink [--project] <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in each <dir>, never a nested project (S-426).
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
@@ -75,8 +75,8 @@ function parseOutput(text: string, what: string): unknown {
   }
 }
 
-/** The consumer of a directory: its work tree, its repository, the folder that bounds it and its tracked manifests. */
-type Consumer = { top: string; repository: string; scope: string; manifests: (ecosystem: Ecosystem, all?: boolean) => string[] };
+/** The consumer of a directory: its work tree, its repository, the folder that bounds it, whether it is a named project, and its tracked manifests. */
+type Consumer = { top: string; repository: string; scope: string; project: boolean; manifests: (ecosystem: Ecosystem, all?: boolean) => string[] };
 
 /**
  * The consumer of `directory`. With `project`, only the manifests directly in it are its (a nested project is left out, K201);
@@ -87,7 +87,7 @@ function consumerOf(directory: string, project = false): Consumer {
   const top = workTreeOf(scope);
   const inside = (file: string) => scope === top || `${file}/`.startsWith(`${scope}/`);
   return {
-    top, scope, repository: repositoryOf(scope),
+    top, scope, repository: repositoryOf(scope), project,
     // Go lists every module, so the go.work covers each module that a go command can run in; the others leave out EXCLUDED.
     manifests: (ecosystem, all = false) => trackedManifests(top, [MANIFESTS[ecosystem]]).filter(file => all || !EXCLUDED.test(file)).map(file => path.join(top, file)).filter(inside).filter(file => !project || path.dirname(file) === scope),
   };
@@ -235,13 +235,15 @@ function declaredComposer(file: string): string[] {
 /**
  * The Composer projects of the consumer, by vendor: the project of each composer.json (the nearest at or above it whose vendor
  * holds installed.json, else its own folder), the polyspec names that its composer.json files declare, and whether the vendor
- * holds installed.json. A vendor without installed.json is reported by linkComposer, never skipped.
+ * holds installed.json. A vendor without installed.json is reported by linkComposer, never skipped. With --project the project
+ * is the named folder itself, never a folder above it (K201-3).
  */
 function composerProjects(consumer: Consumer, composer: Tool): { project: string; vendor: string; installed: boolean; declared: string[] }[] {
   const found = new Map<string, { project: string; installed: boolean; declared: Set<string> }>();
+  const highest = consumer.project ? consumer.scope : consumer.top;
   for (const file of consumer.manifests('composer')) {
     let chosen: { project: string; vendor: string; installed: boolean } | undefined;
-    for (let project = path.dirname(file); `${project}/`.startsWith(`${consumer.top}/`) && !chosen?.installed; project = path.dirname(project)) {
+    for (let project = path.dirname(file); `${project}/`.startsWith(`${highest}/`) && !chosen?.installed; project = path.dirname(project)) {
       if (!existsSync(path.join(project, MANIFESTS.composer))) continue;
       const vendor = composerVendor(project, composer);
       const installed = existsSync(path.join(vendor, 'composer/installed.json'));
@@ -474,9 +476,38 @@ export function unlink({ directories, print, env = process.env, project = false 
         print(`  restored   python   ${venv}`);
       }
     }
-    rmSync(path.dirname(linkFile(root, consumer.top, 'go.work')), { recursive: true, force: true });
+    removeWritten(root, consumer);
   }
   return restored;
+}
+
+/**
+ * Removes the files that link wrote for the consumer: go.work and go.work.sum, the overrides file of each environment and the
+ * Cargo lock copy of each workspace, each by its exact name in the folder of the consumer's go.work, then each folder that the
+ * removal leaves empty, up to the folder that holds them. Never a folder recursively: a nested consumer's folder lies inside (K201-3).
+ */
+function removeWritten(root: string, consumer: Consumer) {
+  const base = path.dirname(linkFile(root, consumer.top, 'go.work'));
+  const stop = base === path.join(consumer.top, 'var/link') ? consumer.top : path.join(root, 'kit/var/link/consumers');
+  const written = ['go.work', 'go.work.sum'].map(name => path.join(base, name));
+  for (const entry of existsSync(base) ? readdirSync(base, { withFileTypes: true }) : []) {
+    if (entry.isFile() && entry.name.endsWith('.overrides.txt')) written.push(path.join(base, entry.name));
+  }
+  const cargo = path.join(base, 'cargo');
+  for (const entry of existsSync(cargo) ? readdirSync(cargo, { withFileTypes: true }) : []) {
+    if (entry.isDirectory()) written.push(path.join(cargo, entry.name, 'Cargo.lock'));
+  }
+  for (const file of written) {
+    rmSync(file, { force: true });
+    removeEmptyFolders(path.dirname(file), stop);
+  }
+}
+
+/** Removes `folder` and each folder above it that is empty, down to but not including `stop`, which is never removed. */
+function removeEmptyFolders(folder: string, stop: string) {
+  for (let current = folder; current.startsWith(`${stop}${path.sep}`) && existsSync(current) && readdirSync(current).length === 0; current = path.dirname(current)) {
+    rmdirSync(current);
+  }
 }
 
 /** The repository URL that the checkout `checkout` declares in config/release.json. */

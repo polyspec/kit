@@ -290,14 +290,19 @@ test('a root-level provider of another checkout yields to a package folder of on
   assert.equal(providers(root, undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
 });
 
-test('isIgnored is false outside a work tree, decided by the work tree and not by git stderr; a broken repository refuses the write', (t) => {
+test('isIgnored is false outside a repository, decided by the absence of a .git entry; a folder inside one is checked by git', (t) => {
   const { root, consumer } = workspace(t);
   assert.equal(isIgnored(path.join(root, 'outside/var/link/go.work')), false);
+  assert.equal(isIgnored(path.join(consumer, 'node_modules/x')), true);
+});
+
+test('a broken gitfile fails with git\'s own message, in the write check and in the consumer, and is never taken as outside a repository', (t) => {
+  const { root, env } = workspace(t);
   const broken = path.join(root, 'broken');
   mkdirSync(broken);
   writeFileSync(path.join(broken, '.git'), 'gitdir: /nonexistent/git-dir\n');
-  assert.throws(() => assertIgnored(path.join(broken, 'var/x')), /is not ignored by Git/, 'a broken repository refuses the write');
-  assert.equal(isIgnored(path.join(consumer, 'node_modules/x')), true);
+  assert.throws(() => assertIgnored(path.join(broken, 'var/x')), /not a git repository/);
+  assert.throws(() => linkLines([broken], env), /not a git repository/);
 });
 
 test('link writes nothing that Git does not ignore, and names the path', (t) => {
@@ -491,4 +496,51 @@ test('the GOWORK that link prints is shell-quoted, so a path with a space export
   assert.equal(printed, `'${file}'`);
   const shell = spawnSync('sh', ['-c', `printf %s ${printed}`], { encoding: 'utf8' });
   assert.equal(shell.stdout, file);
+});
+
+test('unlink of a nested shared consumer removes only the files that link wrote for it, and leaves the inner consumer and other files intact', (t) => {
+  const { root, env } = workspace(t);
+  const go = (name: string) => JSON.stringify({ Module: { Path: name }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.18' }] });
+  const outer = repository(root, 'work/outer', { 'go.mod': 'module outer\n' });
+  put(outer, { 'go.mod.json': go('outer') });
+  const inner = repository(root, 'work/outer/inner', { 'go.mod': 'module inner\n' });
+  put(inner, { 'go.mod.json': go('inner') });
+  const { ok, text } = linkLines([outer, inner], env);
+  assert.equal(ok, true, text);
+  const outerWork = linkFile(root, outer, 'go.work');
+  const innerWork = linkFile(root, inner, 'go.work');
+  assert.ok(innerWork.startsWith(`${path.dirname(outerWork)}${path.sep}`), 'the inner shared folder lies inside the outer one');
+  put(path.dirname(outerWork), { 'go.work.sum': 'sum\n', 'notes.txt': 'not written by link\n' });
+  assert.equal(unlink({ directories: [outer], print: () => {}, env }), true);
+  assert.equal(existsSync(outerWork), false);
+  assert.equal(existsSync(`${outerWork}.sum`), false);
+  assert.equal(readFileSync(path.join(path.dirname(outerWork), 'notes.txt'), 'utf8'), 'not written by link\n', 'a file that link did not write stays');
+  assert.equal(existsSync(innerWork), true, 'the inner consumer keeps its go.work');
+  assert.equal(unlink({ directories: [inner], print: () => {}, env }), true);
+  assert.equal(existsSync(path.dirname(innerWork)), false, 'the folder that is left empty is removed');
+});
+
+test('Composer under --project: a named project with its own composer.json and no installed vendor never takes the vendor of an ancestor project', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'sub/composer.json': JSON.stringify({ name: 'cons/sub', require: { 'polyspec/y': '0.0.1' } }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  const lines: string[] = [];
+  const ok = link({ directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, false, text);
+  assert.match(text, new RegExp(`NOT linked composer polyspec/y \\(not installed in ${path.join(consumer, 'sub/vendor').replaceAll('/', '\\/')}\\)`));
+  assert.equal(lstatSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')).isSymbolicLink(), false, 'the ancestor vendor is not linked');
+  assert.doesNotMatch(log(), /composer dump-autoload --working-dir .*cons\n/, 'the ancestor project is not dumped');
+});
+
+test('Composer under --project: a named folder with no composer.json of its own, nested in a Composer project, touches no vendor of the ancestor', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'sub/go.mod': 'module sub\n', 'sub/go.mod.json': JSON.stringify({ Module: { Path: 'sub' }, Require: [] }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  const lines: string[] = [];
+  assert.equal(link({ directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.equal(lstatSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')).isSymbolicLink(), false);
+  assert.doesNotMatch(log(), /composer/, 'Composer is not involved for a folder without a composer.json');
 });

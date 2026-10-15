@@ -4,7 +4,7 @@
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
@@ -36,11 +36,32 @@ export function declaredRoot(env: NodeJS.ProcessEnv = process.env): string | und
   return value ? realpathSync(value) : undefined;
 }
 
-/** The absolute paths of git rev-parse `args` in `directory`, or undefined outside a work tree. */
+/**
+ * Whether `directory` or a folder above it holds a `.git` entry, a directory or a gitfile, even a broken one. Without one the
+ * folder is outside Git; with one, every git failure is an error, never a sign of a folder outside Git (K201-3).
+ */
+function insideRepository(directory: string): boolean {
+  for (let folder = path.resolve(directory); ; folder = path.dirname(folder)) {
+    if (entryExists(path.join(folder, '.git'))) return true;
+    if (folder === path.dirname(folder)) return false;
+  }
+}
+
+/** Whether the entry `file` exists, without following a symbolic link; any other error is thrown. */
+function entryExists(file: string): boolean {
+  try { lstatSync(file); return true; } catch (error) {
+    if (isJsonObject(error) && error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** The absolute paths of git rev-parse `args` in `directory`, or undefined outside a repository; git's failure throws with its stderr. */
 function revParse(directory: string, ...args: string[]): string[] | undefined {
+  if (!insideRepository(directory)) return undefined;
   const outcome = gitResult(directory, 'rev-parse', '--path-format=absolute', ...args);
   if (outcome.error) throw new Error(`git rev-parse could not start in ${directory}: ${outcome.error.message}`);
-  return outcome.status === 0 ? outcome.stdout.trim().split('\n') : undefined;
+  if (outcome.status !== 0) throw new Error(`git rev-parse failed in ${directory}: ${outcome.stderr.trim()}`);
+  return outcome.stdout.trim().split('\n');
 }
 
 /** The repository of `directory`: the real path of its common Git directory, shared by every worktree; the folder outside Git. */
@@ -151,8 +172,8 @@ function providedName(file: string, go: Tool | undefined, cwd: string): { ecosys
 export function isIgnored(file: string): boolean {
   let existing = path.dirname(file);
   while (!statExists(existing)) existing = path.dirname(existing);
-  // Outside a work tree git answers check-ignore with a fatal error too, so the work tree decides, not the text of that error.
-  if (revParse(existing, '--show-toplevel') === undefined) return false;
+  // Outside a repository no file is ignored; inside one git decides, and any failure of git throws with its message.
+  if (!insideRepository(existing)) return false;
   const outcome = gitResult(existing, 'check-ignore', '-q', '--', file);
   if (outcome.error) throw new Error(`git check-ignore could not start in ${existing}: ${outcome.error.message}`);
   if (outcome.status === 0) return true;
