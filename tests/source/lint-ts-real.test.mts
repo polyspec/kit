@@ -27,6 +27,10 @@ const TESTS = "import assert from 'node:assert/strict';\nimport test, { describe
 // The package.json of the package.
 const MANIFEST = { name: 'demo', version: '0.0.1', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './src/index.ts' } }, devDependencies: { '@polyspec/kit': '0.0.42' } };
 
+// The tsconfig of the checks of the package and the tsconfig of its build, which emits the declarations of src to dist.
+const TSCONFIG = { compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests', 'scripts', 'benchmarks'], exclude: ['scripts/kit'] };
+const TSCONFIG_BUILD = { extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] };
+
 // A package whose one export is documented, reached from its entry point, and tested. No export carries a release tag (@public),
 // as in every polyspec repository: the base configuration turns ae-missing-release-tag off (K139).
 const GOOD: Record<string, string> = {
@@ -41,8 +45,8 @@ const GOOD: Record<string, string> = {
   // their types: a file outside it has no types, and each call of an import is an unsafe call of an error type (K157). The
   // build emits only src. The project leaves out the copies of kit in scripts/kit (KIT_COPIES), which lint-ts leaves out of
   // oxlint (K157).
-  'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', module: 'nodenext', noEmit: true, allowImportingTsExtensions: true, types: ['node'] }, include: ['src', 'tests', 'scripts', 'benchmarks'], exclude: ['scripts/kit'] }, null, 2),
-  'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.json', compilerOptions: { noEmit: false, declaration: true, emitDeclarationOnly: true, outDir: 'dist', rootDir: 'src' }, include: ['src'] }, null, 2),
+  'tsconfig.json': JSON.stringify(TSCONFIG, null, 2),
+  'tsconfig.build.json': JSON.stringify(TSCONFIG_BUILD, null, 2),
   'api-extractor.json': '',
   [INDEX]: DOUBLE,
   'tests/index.test.ts': TESTS,
@@ -303,4 +307,31 @@ test('the type-aware rules leave a plain JavaScript file alone and still fail th
   const debug = lintOf(repository(t, { 'scripts/size.mjs': `${UNTYPED}debugger;\n` }));
   assert.deepEqual(debug.failed, ['oxlint'], debug.output);
   assert.match(debug.output, /scripts\/size\.mjs:.*eslint\(no-debugger\)/);
+});
+
+// A test that imports the build output of its package (`../dist/values.js`) uses the exports of the source that tsc
+// emits there; knip maps the outDir of a tsconfig to its rootDir only for the tsconfig.json of the workspace or a project
+// that it references (TypeScript project references). With the build in a tsconfig of its own that tsconfig.json does not
+// reference, the export is unused; once tsconfig.json references the build project, which project references require to
+// be composite, knip reads the test's import as one of src and tsc still checks the tests (K175).
+const VALUES = '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n';
+const DIST = {
+  'src/values.ts': VALUES,
+  [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n`,
+  'tests/values.test.ts': "import assert from 'node:assert/strict';\nimport test from 'node:test';\nimport { two } from '../dist/values.js';\n\ntest('two', () => {\n  assert.equal(two, 2);\n});\n",
+};
+
+test('a test that imports the build output passes once tsconfig.json references the build project, and fails without (K175)', (t) => {
+  const plain = lintOf(repository(t, DIST));
+  assert.deepEqual(plain.failed, ['knip'], plain.output);
+  assert.match(plain.output, /Unused exports \(1\)\ntwo +src\/values\.ts/);
+  const root = repository(t, {
+    ...DIST,
+    'tsconfig.json': JSON.stringify({ ...TSCONFIG, references: [{ path: './tsconfig.build.json' }] }),
+    'tsconfig.build.json': JSON.stringify({ ...TSCONFIG_BUILD, compilerOptions: { ...TSCONFIG_BUILD.compilerOptions, composite: true } }),
+  });
+  const check = run(root, 'tsc', '-p', 'tsconfig.json');
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`);
+  const referenced = lintOf(root);
+  assert.deepEqual(referenced.failed, [], referenced.output);
 });

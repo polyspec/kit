@@ -832,6 +832,13 @@ does not declare is neither installed nor checked.
   glob after the `ignore` of knip.json, knip's documented option for such files (K162), and gives oxlint an
   `--ignore-pattern` for it, on the command line as for the copies of kit below (K172). Declared, it passes; an undeclared
   unused file still fails knip, and the same oxlint violation outside the declared glob still fails oxlint (fixtures).
+  A test that imports the build output of its package, such as `../dist/values.js`, uses the source that tsc emits
+  there: knip maps an `outDir` to its `rootDir` only through the `tsconfig.json` of the workspace or a project that it
+  references, and its `paths` apply only to an import that does not resolve, so they miss a built dist. The package
+  keeps the build in a tsconfig of its own (`outDir: dist`, `rootDir: src`, `composite: true`, which TypeScript project
+  references require) and lists it in `references` of `tsconfig.json`, which still includes the tests; `rootDir: src`
+  in `tsconfig.json` itself would fail tsc on the tests (TS6059). Referenced, the export passes and tsc checks the
+  tests; without the reference it is an unused export (a fixture, K175).
 - **Rust.** Lints live in each Cargo.toml. A workspace denies `unsafe_code`, which catches `transmute_copy` (a fixture), and
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says
