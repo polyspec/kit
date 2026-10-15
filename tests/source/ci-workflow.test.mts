@@ -41,6 +41,13 @@ test('the CI workflow checks the dependencies of kit as each consumer does: the 
   assert.ok(runs.indexOf('make dependency-policy-mutation-check') > tools, 'a step runs make dependency-policy-mutation-check after install-tools');
 });
 
+test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {
+  // Without them in CI, four tools of scripts/kit went without a class from K156 and config/knip-entries.json without an
+  // owner from K173 while every run passed.
+  assert.ok(runs.includes('make rebuild-check'), 'a step runs make rebuild-check');
+  assert.ok(runs.includes('make owner-validate'), 'a step runs make owner-validate');
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });
