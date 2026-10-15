@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: b3a7651ba7604f2d488968693b293ab748ea1c1d60376458b8f84c50416729a0 -->
+<!-- source-sha256: a4bbe1957782a21321b4514247a10d23620871fc60e8937b5e7a6958362c8871 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -248,3 +248,4 @@
 | K187 | recipe-tools는 make reference의 placeholder인 `KIT_MAKE_REFERENCE_`를 이미 담은 recipe line에서, 없는 reference를 빈 word로 되돌리는(`references[index] ?? ''`) 대신 실패하고, reference 없는 placeholder는 ''이 아니라 throw된 error이다. Red: `${KIT_MAKE_REFERENCE_7} a.mts`가 `a.mts`의 word를 주었다; green: line과 해결 방법과 함께 실패한다 | `recipe-tools.mts`, `CHANGELOG.md(.ko)` | `tests/kit/recipe-tools.test.mts` || [o] |
 | K188 | lint-ts가 knip.json 사본에서 knip 자신이 root에 쓰이지 않는다고 보고한 base ignore만 제거하므로(`scripts/kit/knip-ignore-hints.mts`, knip reporter), `@polyspec/kit`을 import하는 script가 더 이상 "Remove from ignoreDependencies"를 받지 않는다; 저장소 자신의 ignore는 남는다. Red: real-knip case가 hint를 출력했다; green: 없다 | `lint-ts.mts`, `knip-ignore-hints.mts`, `knip-ignore-hints.schema.json`, `CHANGELOG.md(.ko)` | `tests/kit/lint-ts.test.mts`, `tests/source/lint-ts-real.test.mts` || [o] |
 | K189 | `install-packages`와 `dependency-review`가 npm 자신의 `npm_config_allow_remote=root`로 실행되므로, `npm ci`와 UPDATE=1의 `npm install`/`npm audit fix`/`npm dedupe`가 remote root dependency를 받는다(EALLOWREMOTE). Red: stub npm이 설정 없는 UPDATE=1을 보았다; green: 두 recipe가 설정을 넘기고 다른 recipe는 넘기지 않는다 | `kit-bootstrap.mk`, `CHANGELOG.md(.ko)` | `tests/kit/kit-bootstrap.test.mts` || [o] |
+| K190 | python-lock은 `siblingLinks`가 sibling release URL로 분류한 requirement를 uv 자신의 `--excludes`로 wheel package의 lock에서 빼고, python-lock-check는 비교에서 뺀다. Red: "no pin of sib"; green: sibling이 빠지고 출력되며, sibling을 가리키지 않는 URL은 여전히 실패한다 | `python-lock.mts`, `CHANGELOG.md(.ko)` | `tests/kit/python-lock-write.test.mts`, `tests/kit/python-lock-check.test.mts` || [o] |
