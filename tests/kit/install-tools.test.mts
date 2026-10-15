@@ -11,7 +11,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { miseStub, toolchainStubs } from './toolchain-stubs.mts';
+import { miseReleaseStub, miseStub, toolchainStubs } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readStubLines, TEXTS } from './stub-json.mts';
@@ -142,6 +142,7 @@ const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['li
 
 test('toolchain-lock runs mise lock for the four platforms of the bootstrap and passes a lock that pins every tool', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
+  miseReleaseStub(root);
   const result = start('toolchain-lock', root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
@@ -156,7 +157,7 @@ const WHICH = { 'which uv': MISE_UV, 'which python3': MISE_PYTHON };
 test('a pypi: tool is locked with the uv and the Python of mise first on PATH, never with a uv of the machine', (t) => {
   const toml = '[tools]\nuv = "0.12.24"\npython = "3.14.8"\n"pypi:vulture" = "2.16"\n';
   const root = toolchainCheckout(t, { 'mise.toml': toml, 'mise.lock': lockText(false) });
-  miseStub(root, WHICH);
+  miseReleaseStub(root, WHICH);
   const stubs = toolchainStubs(t);
   // A uv of the machine comes first on the PATH of the caller.
   const machine = path.join(stubs.directory, 'machine');
@@ -175,13 +176,15 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   ]);
   const calls = readStubLines(log, MISE_CALL);
   const last = known(calls.at(-1), 'calls.at(-1)');
-  assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 2), [path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
+  // The wrapper of the installed mise puts the directory of its binary first (miseWrapper), then the uv and the Python of mise.
+  assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 3), [path.join(root, 'var/tools/mise-release/mise/bin'), path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
   assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');
   assert.match(result.stderr, /mise\.lock pins pypi:vulture 2\.16 without the digest of its uv lock/);
 });
 
 test('a pypi: tool without the uv or the Python of mise.toml is refused before any lock', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n"pypi:vulture" = "2.16"\n');
+  miseReleaseStub(root);
   const alone = start('toolchain-lock', root, stubs.env);
   assert.equal(alone.status, 1);
   assert.match(alone.stderr, /a pypi: tool of mise\.toml needs the uv and the Python of mise\.toml, which lock it; declare uv and python/);
@@ -190,10 +193,11 @@ test('a pypi: tool without the uv or the Python of mise.toml is refused before a
 
 test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', () => {
   const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', ...args], { cwd: ROOT, encoding: 'utf8' });
-  // The tools run with the node of the checkout by its absolute path; the bootstrap, which installs it, with the node of the machine (K171).
+  // The tools run with the node of the checkout by its absolute path; the bootstrap, which installs it, with the node of the
+  // machine (K171), and toolchain-lock too, which writes the mise.lock that the bootstrap installs that node from (K174).
   const node = path.join(ROOT, 'var/tools/bin/node');
   assert.equal(dry('install-tools').stdout.trim(), `online-wrapper ${node} scripts/kit/install-tools.mts`);
-  assert.equal(dry('toolchain-lock').stdout.trim(), `online-wrapper ${node} scripts/kit/toolchain-lock.mts`);
+  assert.equal(dry('toolchain-lock').stdout.trim(), 'online-wrapper node scripts/kit/toolchain-lock.mts');
   // In kit, `make install-tools TOOLS=npm` is the first step of a checkout: install-tools.mts imports modules that import the
   // packages of package-lock.json, which npm ci installs only after it.
   assert.equal(dry('install-tools', 'TOOLS=npm').stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
