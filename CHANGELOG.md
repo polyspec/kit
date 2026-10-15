@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.51
+
 - make toolchain-check fails when mise.lock names a uv lock sidecar (`uv = { path = ".mise/locks/<tool>/<version>" }` of a `pypi:` tool) that Git does not track, or a tracked file of it is missing. mise's documentation says to commit the sidecar folder with mise.lock, and `mise install --locked` of a checkout without it fails with "dependency sidecar … No such file or directory"; a repository that deleted or never committed it now gets the finding with the fix (K192).
 
 - make lint-ts keeps an ignore of the copy of knip.json only where knip needs it, as knip itself decides: a first run of knip with the reporter `knip-ignore-hints.mts` gives knip's configuration hints of the ignores that matched no issue, and those are left out of the configuration of the lint. A repository whose scripts import `@polyspec/kit` got the hint "Remove from ignoreDependencies" for the copy, which it cannot fix; it now gets none. This replaces the filter by the declared packages of K176, which the same run covers (K188).
