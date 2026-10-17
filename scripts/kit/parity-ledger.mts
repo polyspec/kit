@@ -140,7 +140,10 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
     if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
     const units = bound.map(entry => entry.unit).join(', ');
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);
-    say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed`);
+    // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
+    const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
+    const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : 'no test name readable from the output'}`;
+    say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
     const failedRun = [
       first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
       !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,

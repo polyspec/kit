@@ -565,6 +565,26 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
   assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
+test('a feature run that exits 1 names the failing tests outside its ids, read from its output (K213)', TIMEOUT, (t) => {
+  const reported = (change: Change) => {
+    const lines: string[] = [];
+    checkParity(repository(t, change), { execute: true, env: ENV, say: line => lines.push(line) });
+    return lines.filter(line => line.startsWith('roundtrip '));
+  };
+  // go test -json passes the declared id and fails TestCaseHarnessReportsOnlyFailure, which no binding declares.
+  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'PASS TestRoundtrip/bytes\nFAIL TestCaseHarnessReportsOnlyFailure\n' })).includes(
+    'roundtrip go: exit 1, 1 of 1 ids passed; failed outside the ids: TestCaseHarnessReportsOnlyFailure',
+  ));
+  // A package that does not build reports no test name, and the line says so.
+  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'BUILD ./roundtrip_test.go:1:1: undefined: boom\n' })).includes(
+    'roundtrip go: exit 1, 0 of 1 ids passed; failed outside the ids: no test name readable from the output',
+  ));
+  // node:test names a failing test with its enclosing suites, and the failing suite is named too, as the parser reads it.
+  assert.ok(reported(feature({ 'ts/tests/roundtrip.test.mjs': "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  test('bytes', () => {});\n  test('text', () => { throw new Error('no'); });\n});\n" })).includes(
+    'roundtrip ts: exit 1, 1 of 1 ids passed; failed outside the ids: roundtrip › text, roundtrip',
+  ));
+});
+
 // Cargo builds tests/<name>/main.rs as the test target <name>, and the other files of tests/<name>/ are its modules (K148).
 test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its module files belong to its binding (K148)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature({

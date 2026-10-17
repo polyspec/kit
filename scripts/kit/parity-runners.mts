@@ -81,6 +81,12 @@ function nearest(root: string, file: string, marker: string): string | undefined
 /** A sink that keeps nothing, for the parsers that are read only for what they collect. */
 const SILENT: Sink = { start() {}, pass() {}, fail() {}, skip() {}, todo() {}, line() {}, raw() {} };
 
+/**
+ * The sink of go test -json for a failure that names a test: a package event (a build failure, a package that fails with no
+ * test) has no Test, so its name is the package and no test name, and it is no failure of a test (K213).
+ */
+const testFailures = (sink: Sink): Sink => ({ ...sink, fail: (test, ms, text) => (test.id === test.name ? undefined : sink.fail(test, ms, text)) });
+
 /** Calls `handler` with each line of `text`. */
 const eachLine = (text: string, handler: (line: string) => void): void => text.split('\n').forEach(handler);
 
@@ -141,7 +147,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         cwd: module,
         // A subtest nested below a case keeps its `/`, so R3 names it as a case that the suite does not declare.
         caseOf: kind === 'suite' ? name => after(`${binding.symbol}/`, name) : itself,
-        read: ({ stdout }, sink) => eachLine(stdout, goEvents(sink)),
+        read: ({ stdout }, sink) => eachLine(stdout, goEvents(testFailures(sink))),
         // The compiler output of a package that does not build, then the standard error.
         detail: ({ stdout, stderr }) => {
           const build: string[] = [];
