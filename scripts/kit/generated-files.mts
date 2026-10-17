@@ -17,14 +17,15 @@ export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '_
 /** config/generated.json as generated.schema.json describes it. */
 export interface GeneratedConfig {
   schema: 1;
+  paths: string[];
   exceptions: string[];
 }
 
 const isGeneratedSegment = (segment: string) => GENERATED_SEGMENTS.includes(segment) || segment.endsWith('.egg-info');
 
-/** The paths with a generated segment that no exception glob of `exceptions` allows, in the order given. */
-export function generatedOffenders(paths: string[], exceptions: string[]) {
-  return paths.filter(file => file.split('/').some(isGeneratedSegment) && !matchesAny(exceptions, file));
+/** The paths that are generated (a segment of GENERATED_SEGMENTS, or a glob of `config.paths`) and that no glob of `config.exceptions` allows, in the order given. */
+export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig, 'paths' | 'exceptions'>) {
+  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(config.exceptions, file));
 }
 
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema, and when it is missing. */
@@ -50,7 +51,7 @@ if (isMain(import.meta.url)) {
     process.exitCode = 2;
   } else {
     const root = repositoryRoot();
-    const offenders = generatedOffenders(stagedPaths(root), loadGeneratedConfig(root).exceptions);
+    const offenders = generatedOffenders(stagedPaths(root), loadGeneratedConfig(root));
     for (const file of offenders) console.error(`[generated-files] ${file} is a generated file (AGENTS.md "Generated files"); unstage it, or declare it in ${CONFIG}`);
     if (offenders.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');

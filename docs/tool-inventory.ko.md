@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c32ecf04b3c4ff5ccd6f018904a1c416b6a77cd87258fc84e1f39663ccdb5dc4 -->
+<!-- source-sha256: f2a800b03de319468b8c11d539307786af7b322e0348315760e0b7910f2fd7d1 -->
 
 # 도구 목록
 
@@ -269,7 +269,7 @@ lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합
 ### 정책
 
 tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. 대기 `[ ]`, 완료
-`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가진 staged 경로를 `config/generated.json`의 `exceptions` glob이 허용하지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
+`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
 규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
 0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
 각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
@@ -293,7 +293,7 @@ request, merge queue, ruleset이 없습니다.
 }
 ```
 
-`hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. `pre-commit`과 `pre-push`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `exceptions`는 generated segment가 머물 수 있는 경로의 glob 목록(예: test fixture)이며 schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+`hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. `pre-commit`과 `pre-push`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.

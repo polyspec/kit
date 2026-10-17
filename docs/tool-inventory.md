@@ -301,8 +301,8 @@ Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lo
 A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
 tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
 gate. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
-`.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info` unless a glob of `exceptions` in `config/generated.json` matches it,
-and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
+`.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
+unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
 because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
 the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
 refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
@@ -326,8 +326,9 @@ record of a full run of the current tree exists. There is no pull request, merge
 ```
 
 `hooks` lists the tracked hooks of `.githooks` and must include `pre-push`; `pre-commit` and `pre-push` are kit's own hooks, written by
-`make hooks` without an entry. `config/generated.json` holds `exceptions`, the globs of paths that a generated segment may stay in
-(test fixtures, for example), and its schema is `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
+`make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
+folder, for example), and `exceptions`, the globs of paths that stay tracked (test fixtures, for example); its schema is
+`schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
 `idPattern` (the source of the regular expression that a task ID matches as a whole; a letter followed by letters, digits, `.` and `-` when absent), `states` (a state outside the list is an error) and `column` (the zero-based cell of a table row that holds the state; the last
 cell when absent). A state is the leading `[x]` of its cell or item, or the whole cell when the cell does not start with `[`.

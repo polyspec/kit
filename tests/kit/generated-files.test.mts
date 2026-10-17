@@ -9,7 +9,7 @@ import test from 'node:test';
 import { git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 
-const GENERATED_CONFIG = JSON.stringify({ schema: 1, exceptions: ['tests/*/fixtures/**'] });
+const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
 const stage = (work: string, file: string, text = 'x\n') => {
   mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
@@ -45,6 +45,17 @@ test('every generated segment is refused, and a name that only contains one is a
   assert.equal(refused.status, 1);
   for (const file of generated) assert.match(refused.stderr, new RegExp(`${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is a generated file`), file);
   for (const file of accepted) assert.doesNotMatch(refused.stderr, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), file);
+});
+
+test('a path that config/generated.json declares generated is refused, and an exception of the config still allows it', (t) => {
+  const config = JSON.stringify({ schema: 1, paths: ['build/**', '**/*.vsix', '.vitepress/cache/**'], exceptions: ['build/keep/**'] });
+  const { work } = prepared(t, { files: { 'config/generated.json': config } });
+  const generated = ['build/tools/x', 'ext/a.vsix', '.vitepress/cache/x.json'];
+  for (const file of [...generated, 'build/keep/y.txt']) stage(work, file);
+  const refused = check(work);
+  assert.equal(refused.status, 1, refused.stderr);
+  for (const file of generated) assert.ok(refused.stderr.includes(`${file} is a generated file`), refused.stderr);
+  assert.ok(!refused.stderr.includes('build/keep/y.txt'), 'the exception of the config is accepted');
 });
 
 test('the pre-commit hook that git-hooks install writes calls the make target staged-generated-hook and names no tool path', (t) => {
