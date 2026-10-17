@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make install-tools` records the trust of the mise.toml of the checkout with `mise trust` in its state dir, and no environment variable trusts it; the python extractor of parity runs in a new worktree without the variable (K208).
+
 - The rustdoc schema of the Rust symbol extractor reads format 61 (`format_version` 61, `macro` as a string), the format of the Rust nightlies of config/toolchain.json; R1 extraction failed on it (K207).
 
 - `make install-tools` builds the go symbol extractor with `GOWORK=off` and in the Go environment of mise (`-mod=readonly`, GOPATH and GOCACHE under var/tools). The extractor is a module of its own under node_modules of the consumer, so the root `go.work` of a consumer, which does not list it, stopped its build with "current directory is contained in a module that is not one of the workspace modules listed in go.work" (template), and its module and build caches went to those of the machine (K196).

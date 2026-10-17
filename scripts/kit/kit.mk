@@ -14,13 +14,12 @@ export MISE_CACHE_DIR := $(CURDIR)/var/tools/mise/cache
 export MISE_STATE_DIR := $(CURDIR)/var/tools/mise/state
 export MISE_CONFIG_DIR := $(CURDIR)/var/tools/mise/config
 export MISE_GLOBAL_CONFIG_FILE := $(CURDIR)/mise.toml
-export MISE_TRUSTED_CONFIG_PATHS := $(CURDIR)
 export MISE_LOCKED := 1
 export MISE_AUTO_INSTALL := 0
 export UV_PYTHON_DOWNLOADS := never
 export UV_NO_CONFIG := 1
 export UV_CACHE_DIR := $(CURDIR)/var/tools/mise/cache/uv
-MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_TRUSTED_CONFIG_PATHS MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
+MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
 export PATH := $(CURDIR)/var/tools/bin:$(CURDIR)/var/tools/mise/shims:$(PATH)
 
 # A recipe starts a tool of the checkout by its absolute path, never by its bare name: make 3.81 looks up a recipe line

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1737f2a2efab2a2ee657ae79a777dee617c71cf0d4844558b041ec1bf15b27b2 -->
+<!-- source-sha256: 60472f2ff25ae3dfc641b58cd74173b7f2194132fc60f8eebe3e43b9854ac492 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make install-tools`는 checkout의 mise.toml 신뢰를 state dir에 `mise trust`로 기록하며, 어떤 환경 변수도 그것을 신뢰시키지 않는다. parity의 python extractor는 새 worktree에서 그 변수 없이 실행된다(K208).
 
 - Rust symbol extractor의 rustdoc 스키마가 format 61(`format_version` 61, 문자열 `macro`)을 읽는다. config/toolchain.json의 Rust nightly가 내는 형식이며, 이 형식에서 R1 추출이 실패했다(K207).
 

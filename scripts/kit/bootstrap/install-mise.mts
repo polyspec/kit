@@ -3,7 +3,7 @@
 // mise installs every other tool of the checkout from mise.toml and mise.lock, so it is installed first by the bootstrap, which
 // then installs the node of mise.toml with it (installNode), before npm and before any package (K171). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
 // this platform; the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
-// wrapper keeps every directory that mise reads or writes under var/tools, trusts the config of the checkout and installs only
+// wrapper keeps every directory that mise reads or writes under var/tools, records the trust of the config of the checkout (trustConfig) and installs only
 // what mise.lock pins (MISE_LOCKED), so nothing of the machine changes and no config of the home is read.
 import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
@@ -20,6 +20,18 @@ export const MISE_ASSETS: Readonly<Record<string, string>> = {
   'linux-x64': 'linux-x64',
   'linux-arm64': 'linux-arm64',
 };
+
+/**
+ * Records the trust of the mise.toml of the checkout `root` with `mise trust` in the state dir of the checkout (MISE_STATE_DIR),
+ * run by the mise `binary` with the environment of mise of the checkout. Each shim of the checkout reads that config only once it
+ * is trusted there, so a new worktree is trusted by its own install of mise and no environment variable trusts a path (K208).
+ */
+export function trustConfig({ root, binary, print = () => {} }: { root: string; binary: string; print?: (text: string) => void }): void {
+  const environment: NodeJS.ProcessEnv = { ...process.env, ...miseEnvironment(root) };
+  // With MISE_GLOBAL_CONFIG_FILE set, `mise trust` trusts the global configuration instead of the file it names, so it is unset here (K208).
+  delete environment.MISE_GLOBAL_CONFIG_FILE;
+  run(binary, ['trust', path.join(root, 'mise.toml')], { cwd: root, env: environment }, print);
+}
 
 /** The download URL of the mise archive of `version` for the asset `asset`. */
 export const miseArchiveUrl = (version: string, asset: string): string => `https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${asset}.tar.gz`;
@@ -40,7 +52,6 @@ export function miseEnvironment(root: string): Record<string, string> {
     MISE_STATE_DIR: toolsPath(root, 'mise', 'state'),
     MISE_CONFIG_DIR: toolsPath(root, 'mise', 'config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
-    MISE_TRUSTED_CONFIG_PATHS: root,
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
@@ -119,6 +130,7 @@ export function installMise({ root, declared, platform = `${process.platform}-${
       rmSync(archive, { force: true });
     },
   });
+  trustConfig({ root, binary: binary(prefix), print });
   writeWrapper(root, MISE_WRAPPER, miseWrapper(root, binary(prefix), declared.version), print);
   writeAtomic(toolsPath(root, 'go.mod'), TOOLS_GO_MOD);
   return result;

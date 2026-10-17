@@ -82,7 +82,6 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_STATE_DIR: path.join(tools, 'mise/state'),
     MISE_CONFIG_DIR: path.join(tools, 'mise/config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
-    MISE_TRUSTED_CONFIG_PATHS: root,
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
