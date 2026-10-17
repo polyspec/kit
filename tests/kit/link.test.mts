@@ -11,7 +11,7 @@ import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
-import { cargo, link, linkFile, packages, unlink } from '../../scripts/kit/link.mts';
+import { cargo, link, packages, unlink } from '../../scripts/kit/link.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -452,7 +452,7 @@ test('unlink restores with each tool and reports each restore that it skips', (t
   const { consumer, env, log } = workspace(t);
   rmSync(path.join(consumer, 'composer.lock'));
   const lines: string[] = [];
-  assert.equal(unlink({ checkouts: current, directories: [consumer], print: text => lines.push(text), env }), false);
+  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), false);
   assert.match(log(), /npm ci\n/);
   assert.match(lines.join('\n'), /skipped {4}composer .*: no composer\.lock/);
   assert.match(lines.join('\n'), /skipped {4}python .*: no environment or no uv\.lock/);
