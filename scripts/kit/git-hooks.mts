@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hook `pre-push` runs the push gate through `make push-gate-hook` and has the
-// content of PRE_PUSH_CONTENT, so every checkout holds the same file; the other hooks belong to the repository.
+// holds the hooks that config/checklist.json lists. The hooks `pre-commit` and `pre-push` belong to kit: `pre-commit` refuses a
+// staged generated path through `make staged-generated-hook`, and `pre-push` runs the push gate through `make push-gate-hook`;
+// each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
 //                                            executable, then check; a second run changes nothing
@@ -15,6 +16,14 @@ import { gitResult } from './git.mts';
 
 export const HOOKS_PATH = '.githooks';
 export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
+export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
+export const PRE_COMMIT_CONTENT = `#!/bin/sh
+# The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
+# (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. Written by
+# \`make hooks\`; do not edit it. It calls the make target of the check, which stays across the versions of kit.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec make --no-print-directory staged-generated-hook
+`;
 export const PRE_PUSH_CONTENT = `#!/bin/sh
 # The pre-push hook. Git starts it with the pushed refs on standard input. The push gate refuses the push while an item of
 # a tracker of config/checklist.json is in its active state, in a pushed commit or in the working tree. Written by
@@ -22,6 +31,12 @@ export const PRE_PUSH_CONTENT = `#!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
 exec make --no-print-directory push-gate-hook
 `;
+
+/** The hooks that kit writes into every checkout, with their content. */
+const KIT_HOOKS = [
+  { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
+  { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
+];
 
 function configuredHooksPath(root: string) {
   const run = gitResult(root, 'config', 'core.hooksPath');
@@ -36,20 +51,22 @@ export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hook
   if (configured !== HOOKS_PATH) {
     return `core.hooksPath is ${configured ? `"${configured}"` : 'not set'}, not ${HOOKS_PATH}, so Git does not run the hooks; run make hooks`;
   }
-  for (const name of hooks) {
-    const file = `${HOOKS_PATH}/${name}`;
+  const files = [...KIT_HOOKS.map(hook => hook.file), ...hooks.map(name => `${HOOKS_PATH}/${name}`)];
+  for (const file of files) {
     const absolute = path.join(root, file);
     if (!existsSync(absolute) || !statSync(absolute).isFile()) return `${file} does not exist; restore it from Git and run make hooks`;
     if ((statSync(absolute).mode & 0o100) === 0) return `${file} is not executable, so Git does not run it; run make hooks`;
   }
-  if (readFileSync(path.join(root, PRE_PUSH), 'utf8') !== PRE_PUSH_CONTENT) {
-    return `${PRE_PUSH} differs from the hook of scripts/kit/git-hooks.mts; run make hooks and commit the file`;
+  for (const { file, content } of KIT_HOOKS) {
+    if (readFileSync(path.join(root, file), 'utf8') !== content) {
+      return `${file} differs from the hook of scripts/kit/git-hooks.mts; run make hooks and commit the file`;
+    }
   }
   return null;
 }
 
 /**
- * Installs the hooks of the checkout `root`: sets core.hooksPath, writes pre-push when it differs, and makes each listed
+ * Installs the hooks of the checkout `root`: sets core.hooksPath, writes each kit hook that differs, and makes each listed
  * hook that exists executable. Returns the lines of what it changed, empty when nothing changed.
  */
 export function installHooks(root: string, hooks: string[] = loadConfig(root).hooks) {
@@ -60,10 +77,12 @@ export function installHooks(root: string, hooks: string[] = loadConfig(root).ho
     if (run.status !== 0) throw new Error(`git config core.hooksPath ${HOOKS_PATH} failed in ${root}: ${run.stderr.trim()}`);
     changes.push(`core.hooksPath set to ${HOOKS_PATH} (was ${configured || 'not set'})`);
   }
-  const prePush = path.join(root, PRE_PUSH);
-  if (!existsSync(prePush) || readFileSync(prePush, 'utf8') !== PRE_PUSH_CONTENT) {
-    writeAtomic(prePush, PRE_PUSH_CONTENT, { mode: 0o755 });
-    changes.push(`${PRE_PUSH} written`);
+  for (const { file, content } of KIT_HOOKS) {
+    const absolute = path.join(root, file);
+    if (!existsSync(absolute) || readFileSync(absolute, 'utf8') !== content) {
+      writeAtomic(absolute, content, { mode: 0o755 });
+      changes.push(`${file} written`);
+    }
   }
   for (const name of hooks) {
     const file = path.join(root, HOOKS_PATH, name);

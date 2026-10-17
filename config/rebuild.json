@@ -110,6 +110,10 @@
       "kind": "policy",
       "reason": "the guard of polyspec's full suite: a holder lock and the record of the run"
     },
+    "scripts/kit/generated-files.mts": {
+      "kind": "policy",
+      "reason": "the generated-file rule of AGENTS.md: the segments it refuses and the exceptions that config/generated.json declares"
+    },
     "scripts/kit/git-hooks.mts": {
       "kind": "record",
       "record": "docs/rebuild/git-hooks.md"

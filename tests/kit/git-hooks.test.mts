@@ -18,7 +18,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);

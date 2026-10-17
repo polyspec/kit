@@ -293,14 +293,16 @@ another archive. To raise the version:
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
-`schema/checklist.schema.json`, and the make targets `hooks`, `hooks-check`, `push-gate-commit` and `rerun-failed` at the end of
-`kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
+`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`,
+`staged-generated-hook`, `push-gate-commit` and `rerun-failed` at the end of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
 
 ### Policy
 
 A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
 tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
-gate. It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
+gate. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
+`.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info` unless a glob of `exceptions` in `config/generated.json` matches it,
+and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
 because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
 the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
 refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
@@ -323,7 +325,9 @@ record of a full run of the current tree exists. There is no pull request, merge
 }
 ```
 
-`hooks` lists the tracked hooks of `.githooks` and must include `pre-push`. A tracker has `path`, `format` (`table`: a row
+`hooks` lists the tracked hooks of `.githooks` and must include `pre-push`; `pre-commit` and `pre-push` are kit's own hooks, written by
+`make hooks` without an entry. `config/generated.json` holds `exceptions`, the globs of paths that a generated segment may stay in
+(test fixtures, for example), and its schema is `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
 `idPattern` (the source of the regular expression that a task ID matches as a whole; a letter followed by letters, digits, `.` and `-` when absent), `states` (a state outside the list is an error) and `column` (the zero-based cell of a table row that holds the state; the last
 cell when absent). A state is the leading `[x]` of its cell or item, or the whole cell when the cell does not start with `[`.
@@ -341,11 +345,12 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | The Korean twin must hold the same IDs in the same order and the same states | orm, ordered-json (document checks) | the gate and the guard also refuse a pair that differs, because the pair is read with the same parser; the document checks of K7 keep the other rules (markers, bypass text) |
 | The refusal names the file, the ID, the title and the place (pushed ref and commit, or working tree) | all | kept; it also states which states block and which do not; the commit is shown with 12 characters (ordered-json, orm; template and hyper used 7) |
 | `commit <rev>` prints a GitHub annotation per line, escapes `%` and line breaks, appends to `$GITHUB_STEP_SUMMARY`, requires mode 100755 of the hook, and names a revision that is not a commit | template, crudui, hyper, ordered-json, orm | kept; it requires the mode of every hook in `hooks` (ordered-json required `pre-commit` too; the others only `pre-push`) |
-| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mts check`; it also fails when `pre-push` has other content than the hook of the tool |
-| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mts install` also writes `pre-push` and makes the listed hooks executable; a second run changes nothing |
+| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mts check`; it also fails when `pre-commit` or `pre-push` has other content than the hook of the tool |
+| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mts install` also writes `pre-commit` and `pre-push` and makes the listed hooks executable; a second run changes nothing |
 | Every make invocation sets `core.hooksPath` | template, orm | `kit.mk` sets it only in a checkout that tracks `.githooks/pre-push`, so a checkout without hooks is not changed |
 | The content of `pre-push` | all differ in the `cd` to the top level and the comment | one content, written by `git-hooks install` and compared by `check` |
-| Hooks other than `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
+| A generated path in a commit (orm `pre-commit` with `make staged-check`, its own exceptions) | orm | kit's `pre-commit` runs `make staged-generated-hook`; the exceptions are the globs of `config/generated.json` (K210) |
+| Hooks other than kit's `pre-commit` and `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
 | Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mts`; template and hyper recorded no start time |
 | A lock of an ended holder stays until `clear`; `clear` renames the lock aside and restores it when a new holder took it meanwhile | crudui (`remove-dead`), template and hyper (`clear`) | under the name `clear`, with the claim of flowmark's spec 40 (K28): `clear` links the lock to `<lock>.<first 32 hex digits of the SHA-256 of the record>.clearing` (an existing claim refuses), removes only a lock that still holds the record it checked, and never moves the lock of a running holder; the rename aside left two holders when two clears ran at once |
 | The start time of a process: `/proc/<pid>/stat` field 22 with `btime` on Linux, `ps -o lstart=` elsewhere | crudui | K28: on Linux field 22 with the boot ID of `/proc/sys/kernel/random/boot_id`, because `btime` follows the wall clock; an unreadable `/proc/<pid>/stat` (`hidepid`) asks kill(pid, 0) again and counts as running unless ESRCH. On Windows `powershell.exe -NoProfile -NonInteractive -Command` with `(Get-Process -Id <pid>).StartTime.ToFileTimeUtc()`: Node reads no creation time without a native addon, .NET reads it with `GetProcessTimes`, Windows PowerShell 5.1 ships with every supported Windows, and `wmic` is deprecated. On macOS `ps` stays: sysctl `kern.proc.pid` and `proc_pidinfo` need a native addon, and macOS has no `/proc` |

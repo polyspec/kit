@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/generated.json",
+  "description": "The deliberate exceptions to the generated-file rule of AGENTS.md, read by the pre-commit hook (generated-files.mts): a staged path with a generated segment is accepted only when one of these globs matches it.",
+  "type": "object",
+  "required": ["schema", "exceptions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "exceptions": {
+      "description": "Globs of repository paths, read by picomatch with dot: true, that a generated segment may stay in, such as test fixtures. A glob names one deliberate file set, never a whole generated folder.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

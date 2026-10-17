@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 71c0ccc27bbf0ee65de06859117f34b336d4e6308d404ba77e727032b594339f -->
+<!-- source-sha256: c32ecf04b3c4ff5ccd6f018904a1c416b6a77cd87258fc84e1f39663ccdb5dc4 -->
 
 # 도구 목록
 
@@ -262,13 +262,14 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
-`schema/checklist.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`, `push-gate-commit`, `rerun-failed`입니다.
+`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,
+`staged-generated-hook`, `push-gate-commit`, `rerun-failed`입니다.
 lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합을 기반으로 삼았습니다.
 
 ### 정책
 
 tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. 대기 `[ ]`, 완료
-`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
+`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가진 staged 경로를 `config/generated.json`의 `exceptions` glob이 허용하지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
 규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
 0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
 각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
@@ -292,7 +293,7 @@ request, merge queue, ruleset이 없습니다.
 }
 ```
 
-`hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+`hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. `pre-commit`과 `pre-push`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `exceptions`는 generated segment가 머물 수 있는 경로의 glob 목록(예: test fixture)이며 schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.
@@ -310,11 +311,12 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | 한국어 짝은 같은 ID를 같은 순서로, 같은 state로 가져야 함 | orm, ordered-json(문서 검사) | 짝을 같은 parser로 읽으므로 gate와 guard도 다른 짝을 거부, 나머지 규칙(marker, 우회 문구)은 K7의 문서 검사가 유지 |
 | 거부 메시지가 파일, ID, 제목, 위치(push하는 ref와 commit 또는 working tree)를 적음 | 전체 | 유지, 어떤 state가 막고 어떤 state가 막지 않는지도 적음, commit은 12자로 표시(ordered-json, orm, template과 hyper는 7자) |
 | `commit <rev>`는 줄마다 GitHub annotation을 출력하고 `%`와 줄바꿈을 escape하며 `$GITHUB_STEP_SUMMARY`에 덧붙이고 hook의 mode 100755를 요구하고 commit이 아닌 revision을 알림 | template, crudui, hyper, ordered-json, orm | 유지, `hooks`의 모든 hook의 mode를 요구(ordered-json은 `pre-commit`도 요구, 나머지는 `pre-push`만) |
-| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mts check`, `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
-| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mts install`이 `pre-push`도 쓰고 나열한 hook을 실행 가능하게 함, 두 번째 실행은 아무것도 바꾸지 않음 |
+| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mts check`, `pre-commit` 또는 `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
+| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mts install`이 `pre-commit`과 `pre-push`도 쓰고 나열한 hook을 실행 가능하게 함, 두 번째 실행은 아무것도 바꾸지 않음 |
 | make를 호출할 때마다 `core.hooksPath`를 설정 | template, orm | `kit.mk`는 `.githooks/pre-push`를 추적하는 checkout에서만 설정, hook이 없는 checkout은 바꾸지 않음 |
-| `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
-| `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
+| `pre-commit`과 `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
+| commit에 든 generated 경로(orm의 `pre-commit`과 `make staged-check`, 자체 exceptions) | orm | kit의 `pre-commit`이 `make staged-generated-hook`을 실행, exceptions는 `config/generated.json`의 glob (K210) |
+| kit의 `pre-commit`, `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
 | lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mts`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
 | 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
 | process 종료와 SIGINT, SIGTERM, SIGHUP(종료 상태 128 + n)에서 release | template | 유지, process 안의 holder의 기본값, `run`은 신호를 command에 전달 |

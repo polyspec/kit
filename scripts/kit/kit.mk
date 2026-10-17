@@ -84,7 +84,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 COMMIT ?= HEAD
 FULL_RUN_KEYS ?=
 
-.PHONY: hooks hooks-check push-gate-hook push-gate-commit rerun-failed
+.PHONY: hooks hooks-check staged-generated-hook push-gate-hook push-gate-commit rerun-failed
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-push),)
@@ -93,11 +93,14 @@ $(shell git config core.hooksPath .githooks)
 endif
 endif
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-push hook of the push gate and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit and pre-push hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check
+
+staged-generated-hook: ## The generated-file check of the pre-commit hook: fail while a staged path has a generated segment that config/generated.json does not declare; the hook that make hooks writes runs it
+	$(NODE) $(KIT)/generated-files.$(KIT_EXT) staged
 
 push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) hook

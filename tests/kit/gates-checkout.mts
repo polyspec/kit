@@ -65,6 +65,7 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   writeFileSync(path.join(work, 'Makefile'), KIT_MAKEFILE);
   mkdirSync(path.join(work, 'config'));
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(work, 'config/checklist.json'));
+  cpSync(path.join(FIXTURE, 'config/generated.json'), path.join(work, 'config/generated.json'));
   writeFileSync(path.join(work, 'config/commits.json'), JSON.stringify(COMMITS));
   if (config) writeFileSync(path.join(work, 'config/checklist.json'), JSON.stringify(config));
   mkdirSync(path.join(work, 'docs/plans'), { recursive: true });

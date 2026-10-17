@@ -184,13 +184,13 @@ test('the commit command fails for a commit whose hook is missing or not executa
 });
 
 test('the commit command checks every hook that the configuration lists', (t) => {
-  const config = { schema: 1, hooks: ['pre-push', 'pre-commit'], trackers: [{ path: 'docs/plans/execution-checklist.md', format: 'table', active: '[~]' }] };
+  const config = { schema: 1, hooks: ['pre-push', 'commit-msg'], trackers: [{ path: 'docs/plans/execution-checklist.md', format: 'table', active: '[~]' }] };
   const { work } = prepared(t);
   writeFileSync(path.join(work, 'config/checklist.json'), JSON.stringify(config));
-  commitAll(work, 'list pre-commit');
+  commitAll(work, 'list commit-msg');
   const missing = gate(work, ['commit', 'HEAD']);
   assert.equal(missing.status, 1);
-  assert.match(missing.stdout, /^::error::push refused: \.githooks\/pre-commit is not tracked in commit /m);
+  assert.match(missing.stdout, /^::error::push refused: \.githooks\/commit-msg is not tracked in commit /m);
   assert.doesNotMatch(missing.stdout, /pre-push is not tracked/);
 });
 
