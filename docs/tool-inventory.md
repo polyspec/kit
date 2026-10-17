@@ -1371,6 +1371,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
 | R10 docs-count | A document of `documents` counts N implementations, and no profile of N implementations holds the implementations that its sentence names, unless its sentence names exactly N and the names of its passage together are a profile. Or it lists three or more implementation names in a sentence whose implementation names together are no profile. A number after each or 각각 counts per item and is no count ("are each one implementation"), and a run of names with another item of its enumeration on both sides lists those items and is no list ("Node.js, npm, Go, Rust, PHP minor version, Composer"); words of a noun of `documents` after the last name are no item (K197). |
 | R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. Or a `nativeOnly` entry names no public symbol. |
+| R12 duplicate-binding | A unit names one implementation twice in its `bindings` (or its `symbols`), whether with the same test or another one. Each implementation has one binding per unit. |
 
 ### Runners
 

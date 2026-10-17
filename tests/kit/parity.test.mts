@@ -596,6 +596,13 @@ test('a feature unit fails R2 without a binding and R3 when its id is missing, f
   assert.match(findingAt(findings, 2).message, /not executed: bytes/);
 });
 
+// One binding per implementation per unit (K209): a second binding of an implementation, with its own test or the same one, is R12.
+test('R12: a unit with two bindings of one implementation fails, and the finding names the unit and the implementation (K209)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({}, (unit) => { unit.bindings?.push({ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'roundtrip › text' }); return unit; }));
+  assert.deepEqual(keys(findings), ['R12 roundtrip ts']);
+  assert.equal(findingAt(findings, 0).message, 'unit roundtrip names ts twice; a unit binds each implementation once, so keep one binding and remove the other');
+});
+
 test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, feature({}, (unit) => {
     delete itemAt(unit.bindings ?? [], 0).id;

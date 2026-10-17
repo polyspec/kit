@@ -134,6 +134,7 @@ export const RULES = {
   R9: 'language-set-drift',
   R10: 'docs-count',
   R11: 'undeclared-public',
+  R12: 'duplicate-binding',
 };
 
 /** A rule of the check, a key of RULES. */
@@ -588,7 +589,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     const seen = new Set();
     for (const entry of owned) {
       if (!members.includes(entry.implementation)) fail(`${where} names ${entry.implementation}, which is not an implementation of the profile ${unit.profile}`);
-      if (seen.has(entry.implementation)) fail(`${where} names ${entry.implementation} twice`);
+      if (seen.has(entry.implementation)) errors.push(finding('R12', `${where} names ${entry.implementation} twice; a unit binds each implementation once, so keep one binding and remove the other`, { unit: unit.id, implementation: entry.implementation, place: DECLARATION }));
       seen.add(entry.implementation);
     }
     if (unit.kind === 'api') {

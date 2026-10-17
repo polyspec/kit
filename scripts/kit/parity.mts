@@ -32,6 +32,7 @@
 //                              implementations in a sentence whose names are no profile
 //   R11 undeclared-public      a public symbol that no API unit and no native-only entry declares, or a native-only entry
 //                              that names no public symbol
+//   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 // A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
 // the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.

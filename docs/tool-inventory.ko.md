@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7e03b4dcfb26c769c43c4b5c56424db02fd5a2d77cefd86444abda0cfb0b0217 -->
+<!-- source-sha256: 71c0ccc27bbf0ee65de06859117f34b336d4e6308d404ba77e727032b594339f -->
 
 # 도구 목록
 
@@ -1262,6 +1262,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
 | R10 docs-count | `documents`의 문서가 implementation N개를 세는데, implementation N개의 어떤 profile도 그 문장이 적은 implementation을 모두 담지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 profile이면 예외입니다. 또는 implementation 이름을 모두 모아도 어떤 profile도 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
 | R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 그 implementation의 `nativeOnly` 항목도 선언하지 않습니다. 또는 `nativeOnly` 항목이 public symbol이 아닌 것을 적습니다. |
+| R12 duplicate-binding | unit이 `bindings`(또는 `symbols`)에 한 implementation을 두 번 적습니다. 같은 test이든 다른 test이든 마찬가지입니다. unit마다 implementation당 binding은 하나입니다. |
 
 ### Runner
 
