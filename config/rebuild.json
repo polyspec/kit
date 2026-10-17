@@ -190,6 +190,18 @@
       "kind": "ecosystem",
       "tool": "ruff"
     },
+    "scripts/kit/link-build.mts": {
+      "kind": "policy",
+      "reason": "the build state of a provider of the local links of 0.0.x development: the build targets it names and the digest of each npm package's inputs"
+    },
+    "scripts/kit/link-providers.mts": {
+      "kind": "policy",
+      "reason": "the providers of the local links of 0.0.x development: the manifests of the main checkouts that name the packages they provide"
+    },
+    "scripts/kit/link.mts": {
+      "kind": "policy",
+      "reason": "the local links of 0.0.x development, which point installed polyspec packages at their providers' sources through npm, Composer, uv, go and cargo, and no single ecosystem tool applies"
+    },
     "scripts/kit/lint-rust.mts": {
       "kind": "ecosystem",
       "tool": "cargo clippy (K77)"
