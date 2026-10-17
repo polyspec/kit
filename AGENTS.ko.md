@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b44f19fb72c212746dd9bdf24d1282f37522a898284492a4e495f4cda7fb14dd -->
+<!-- source-sha256: 59496820249aaf9b66d16a76e1edbcaa2e75c2566a152e7288db94bde30a9630 -->
 # 개발
 
 [English](AGENTS.md)
@@ -78,6 +78,10 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 - 각 관심사를 자기 module에 분명히 분리한 modular component로 만듭니다.
 - architecture는 장기적으로 정합니다: 지금은 동작하지만 나중에 교체해야 하는 임시방편은 받아들이지 않습니다.
 - 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인 표현으로 씁니다.
+
+## 생성 파일
+
+생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`), 캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구 다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`, `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture. 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서 ignore 항목을 추가합니다.
 
 ## 체크리스트
 

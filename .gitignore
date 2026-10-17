@@ -3,3 +3,21 @@ var/
 /dist/
 /dist.next/
 /dist.old/
+
+# Generated files of the install, build, cache and test runs (AGENTS.md, Generated files)
+vendor/
+target/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.phpunit.cache/
+.phpunit.result.cache
+test-results/
+playwright-report/
+coverage/

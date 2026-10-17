@@ -90,6 +90,10 @@ and states only its own rules. The rules below are kit's own.
 - Decide the architecture for the long term: a stopgap that works now and must be replaced later is not accepted.
 - Write comments, documents and commit messages in direct language: name the action and its object.
 
+## Generated files
+
+Generated files are never tracked in Git. This covers dependency installs (`node_modules/`, `vendor/`, virtual environments), build output (`dist/`, `target/`, `*.tsbuildinfo`), caches (`.cache/`, `__pycache__/`, `.pytest_cache/`), test run artifacts (`test-results/`, `playwright-report/`, PHPUnit caches) and tool downloads (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this file names, and test fixtures. Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same commit.
+
 ## Checklist
 
 `docs/plans/execution-checklist.md` is the only checklist. A task is `[ ]` waiting, `[~]` in progress, `[o]` done,
