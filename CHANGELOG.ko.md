@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8ad4cfb989f4b77586f8868145c15e6b48c2f5fba11d5bf82c66f682b8d336de -->
+<!-- source-sha256: 1737f2a2efab2a2ee657ae79a777dee617c71cf0d4844558b041ec1bf15b27b2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Rust symbol extractor의 rustdoc 스키마가 format 61(`format_version` 61, 문자열 `macro`)을 읽는다. config/toolchain.json의 Rust nightly가 내는 형식이며, 이 형식에서 R1 추출이 실패했다(K207).
 
 - `make install-tools`는 go symbol extractor를 `GOWORK=off`로, mise의 Go 환경(`-mod=readonly`, var/tools 아래의 GOPATH와 GOCACHE)에서 build한다. extractor는 consumer의 node_modules 아래에 있는 별도 module이므로, 그것을 나열하지 않는 consumer의 root `go.work`가 "current directory is contained in a module that is not one of the workspace modules listed in go.work"로 build를 멈췄고(template), module cache와 build cache는 machine의 것을 썼다 (K196).
 

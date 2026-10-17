@@ -123,7 +123,7 @@ if (args[1] === 'rustdoc') {
   names.forEach((name, i) => { index[i + 1] = { name, visibility: 'public', inner: { function: {} } }; });
   const doc = path.join(args[args.indexOf('--target-dir') + 1], 'doc');
   fs.mkdirSync(doc, { recursive: true });
-  fs.writeFileSync(path.join(doc, 'codec.json'), JSON.stringify({ root: 0, index }));
+  fs.writeFileSync(path.join(doc, 'codec.json'), JSON.stringify({ format_version: 61, root: 0, index }));
   process.exit(0);
 }
 const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);

@@ -1,13 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "rustdoc JSON",
-  "description": "The JSON of `cargo rustdoc -- --output-format json` in the fields that scripts/kit/parity-symbols.mts reads (K158): the id of the root item and each item of the index with its name, visibility (a string, or an object for a restricted one) and its inner item by kind: a use names its target, and a module and an impl list their items.",
+  "description": "The JSON of format 61 (rustdoc-types FORMAT_VERSION) of `cargo rustdoc -- --output-format json` in the fields that scripts/kit/parity-symbols.mts reads (K158): the id of the root item and each item of the index with its name, visibility (a string, or an object for a restricted one) and its inner item by kind: a use names its target, and a module and an impl list their items.",
   "type": "object",
   "required": [
+    "format_version",
     "root",
     "index"
   ],
   "properties": {
+    "format_version": {
+      "const": 61,
+      "description": "The format of rustdoc-types that the extractor reads; the Rust nightlies of config/toolchain.json emit it (K207)."
+    },
     "root": {
       "type": "integer"
     },
@@ -47,6 +52,9 @@
               "type": "object"
             },
             "properties": {
+              "macro": {
+                "type": "string"
+              },
               "use": {
                 "type": "object",
                 "required": [
