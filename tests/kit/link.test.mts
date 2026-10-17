@@ -18,6 +18,9 @@ import { put } from './tree.mts';
 /** The checkout of kit. */
 const KIT = fileURLToPath(new URL('../../', import.meta.url));
 
+/** The main checkouts that the test's workspace provides; link takes them as arguments (K205). */
+let current: string[] = [];
+
 /** Runs git in `directory` and fails with its stderr. */
 function git(directory: string, ...args: string[]) {
   const result = spawnSync('git', ['-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', ...args], { cwd: directory, encoding: 'utf8' });
@@ -77,7 +80,7 @@ function workspace(t: TestContext) {
     'go.mod': 'module cons\n',
     'Cargo.toml': '[package]\nname = "cons"\nversion = "0.0.0"\n',
     'Cargo.lock': 'version = 4\n',
-    '.gitignore': 'node_modules/\nvar/\n.venv/\n',
+    '.gitignore': 'node_modules/\nvar/\n.venv/\ngo.work\ngo.work.sum\n',
   });
   put(consumer, {
     'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }, { name: '@polyspec/kit', version: '0.0.53', location: 'node_modules/@polyspec/kit' }, { name: '@polyspec/own', version: '0.0.1', location: 'packages/own' }]),
@@ -97,28 +100,30 @@ function workspace(t: TestContext) {
   stub(bin, log, 'uv', `case "$1 $2" in "workspace dir") pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
-  const env = { PATH: process.env.PATH, POLYSPEC_CHECKOUTS: root, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
+  const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
+  current = [provider, kit, consumer];
   return { root, provider, kit, consumer, env, log: () => readFileSync(log, 'utf8') };
 }
 
 /** The lines that link prints, and its result. */
 function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false) {
   const lines: string[] = [];
-  const ok = link({ directories, check, print: text => lines.push(text), env });
+  const ok = link({ checkouts: current, directories, check, print: text => lines.push(text), env });
   return { ok, text: lines.join('\n') };
 }
 
-test('without POLYSPEC_CHECKOUTS, link, check, unlink, packages and cargo change nothing and call no tool but cargo as given', (t) => {
-  const { consumer, env, log } = workspace(t);
-  const { POLYSPEC_CHECKOUTS: _root, ...undeclared } = env;
-  assert.match(linkLines([consumer], undeclared).text, /POLYSPEC_CHECKOUTS is not set; the installs stay the locked releases/);
-  assert.equal(linkLines([consumer], undeclared, true).ok, true);
-  assert.equal(unlink({ directories: [consumer], print: () => {}, env: undeclared }), true);
-  assert.deepEqual(packages(consumer, 'python', undeclared), []);
-  assert.equal(cargo({ directory: consumer, args: ['build'], env: undeclared }), 0);
-  assert.equal(log(), 'cargo build\n', 'only the cargo command as given ran');
-  assert.equal(existsSync(path.join(consumer, 'var/link')), false);
-  assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), false);
+test('K205: link links the checkouts that it is given with no environment variable, and install-packages neither builds kit nor links', (t) => {
+  const { provider, kit, consumer, env } = workspace(t);
+  const lines: string[] = [];
+  const ok = link({ checkouts: [provider, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
+  assert.equal(ok, true, lines.join('\n'));
+  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  const bootstrap = readFileSync(path.join(KIT, 'scripts/kit/kit-bootstrap.mk'), 'utf8').split('\n');
+  const start = bootstrap.findIndex(line => line.startsWith('install-packages:'));
+  assert.ok(start >= 0, 'install-packages has a rule');
+  const recipe: string[] = [];
+  for (let index = start + 1; index < bootstrap.length && bootstrap[index]?.startsWith('\t'); index += 1) recipe.push(bootstrap[index] ?? '');
+  assert.doesNotMatch(recipe.join('\n'), /link|build/);
 });
 
 test('the npm copies that npm query lists, kit installed as its released package among them, become links to the providers', (t) => {
@@ -199,7 +204,7 @@ test('an npm copy that npm query does not record is linked only when it already 
 
 test('Python reads PEP 508 requirements and PEP 735 groups, and installs the providers editable with their dependencies and overrides', (t) => {
   const { provider, consumer, env, log } = workspace(t);
-  assert.deepEqual(packages(consumer, 'python', env), ['polyspec-z']);
+  assert.deepEqual(packages(consumer, 'python'), ['polyspec-z']);
   linkLines([consumer], env);
   const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
   assert.ok(!install.includes('--no-deps'), install);
@@ -274,20 +279,20 @@ test('two package folders that provide one name fail with both; a repository roo
   put(provider, { 'other/package.json': JSON.stringify({ name: '@polyspec/x' }), 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
   git(provider, 'add', '-A');
   git(provider, 'commit', '--quiet', '-m', 'twice');
-  assert.throws(() => providers(root, undefined, root), /npm package @polyspec\/x has two providers: .*other and .*packages\/ts|npm package @polyspec\/x has two providers: .*packages\/ts and .*other/);
+  assert.throws(() => providers(current, undefined, root), /npm package @polyspec\/x has two providers: .*other and .*packages\/ts|npm package @polyspec\/x has two providers: .*packages\/ts and .*other/);
 });
 
 test('two root-level providers of one name from different checkouts throw with both', (t) => {
   const { root } = workspace(t);
   const first = repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/r' }) });
   const second = repository(root, 'third', { 'package.json': JSON.stringify({ name: '@polyspec/r' }) });
-  assert.throws(() => providers(root, undefined, root), (error: unknown) => error instanceof Error && error.message.includes(first) && error.message.includes(second));
+  assert.throws(() => providers([...current, first, second], undefined, root), (error: unknown) => error instanceof Error && error.message.includes(first) && error.message.includes(second));
 });
 
 test('a root-level provider of another checkout yields to a package folder of one name', (t) => {
   const { root, provider } = workspace(t);
-  repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
-  assert.equal(providers(root, undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
+  const other = repository(root, 'other', { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
+  assert.equal(providers([...current, other], undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
 });
 
 test('isIgnored is false outside a repository, decided by the absence of a .git entry; a folder inside one is checked by git', (t) => {
@@ -311,16 +316,6 @@ test('link writes nothing that Git does not ignore, and names the path', (t) => 
   assert.throws(() => linkLines([consumer], env), /cons\/var\/.* is not ignored by Git in its repository; the links write only ignored files/);
 });
 
-test('two consumers whose paths differ only by an underscore and a separator get different shared folders', (t) => {
-  const { root } = workspace(t);
-  const first = path.join(root, 'a_b', 'c');
-  const second = path.join(root, 'a', 'b_c');
-  const shared = (top: string) => path.join(root, 'kit/var/link/consumers', ...top.split(path.sep).filter(Boolean), 'go.work');
-  assert.equal(linkFile(root, first, 'go.work'), shared(first));
-  assert.equal(linkFile(root, second, 'go.work'), shared(second));
-  assert.notEqual(linkFile(root, first, 'go.work'), linkFile(root, second, 'go.work'));
-});
-
 test('link --project handles only the manifests directly in the folder; without it a nested uninstalled project is NOT linked (not installed)', (t) => {
   const { provider, consumer, env } = workspace(t);
   put(provider, { 'packages/extra/package.json': JSON.stringify({ name: '@polyspec/extra' }) });
@@ -333,7 +328,7 @@ test('link --project handles only the manifests directly in the folder; without 
   assert.equal(whole.ok, false);
   assert.match(whole.text, /NOT linked npm {6}@polyspec\/extra \(not installed\)/);
   const lines: string[] = [];
-  const ok = link({ directories: [consumer], project: true, check: false, print: text => lines.push(text), env });
+  const ok = link({ checkouts: current, directories: [consumer], project: true, check: false, print: text => lines.push(text), env });
   const text = lines.join('\n');
   assert.equal(ok, true, text);
   assert.doesNotMatch(text, /extra/, 'the nested project is not handled');
@@ -385,16 +380,9 @@ test('a project with only package.json links with no Composer: each tool resolve
     '.gitignore': 'node_modules/\nvar/\n',
   });
   const lines: string[] = [];
-  const ok = link({ directories: [app], check: false, print: text => lines.push(text), env: withoutComposer, project: true });
+  const ok = link({ checkouts: current, directories: [app], check: false, print: text => lines.push(text), env: withoutComposer, project: true });
   assert.equal(ok, true, lines.join('\n'));
   assert.equal(realpathSync(path.join(app, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
-});
-
-test('rebuild runs the build of a provider with POLYSPEC_CHECKOUTS unset in the child environment', (t) => {
-  const { provider, env } = workspace(t);
-  put(provider, { Makefile: 'release-assets: build-ts\nbuild-ts:\n\tmkdir -p var && echo "$${POLYSPEC_CHECKOUTS-unset}" > var/declared.txt\n' });
-  rebuild(provider, () => {}, env);
-  assert.equal(readFileSync(path.join(provider, 'var/declared.txt'), 'utf8'), 'unset\n');
 });
 
 test('a failing git ls-files throws with its cause, in the manifests and in the build inputs', (t) => {
@@ -450,37 +438,24 @@ test('a missing prerequisite of release-assets fails with make\'s error, not as 
 
 test('cargo copies the tracked lock afresh on every run and patches the URL that the provider declares', (t) => {
   const { provider, consumer, env, log } = workspace(t);
-  assert.equal(cargo({ directory: consumer, args: ['check'], env }), 0);
+  assert.equal(cargo({ directory: consumer, args: ['check'], checkouts: current, env }), 0);
   const copy = path.join(consumer, 'var/link/cargo/root/Cargo.lock');
   writeFileSync(copy, 'changed\n');
-  cargo({ directory: consumer, args: ['check'], env });
+  cargo({ directory: consumer, args: ['check'], checkouts: current, env });
   assert.equal(readFileSync(copy, 'utf8'), 'version = 4\n');
   assert.match(log(), new RegExp(`patch\\."https://github\\.com/polyspec/prov"\\.polyspec-prov\\.path=${JSON.stringify(path.join(provider, 'rust')).replaceAll('.', '\\.')}`));
   rmSync(path.join(provider, 'config/release.json'));
-  assert.throws(() => cargo({ directory: consumer, args: ['check'], env }), /config\/release\.json declares no repositoryUrl/);
+  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /config\/release\.json declares no repositoryUrl/);
 });
 
 test('unlink restores with each tool and reports each restore that it skips', (t) => {
   const { consumer, env, log } = workspace(t);
   rmSync(path.join(consumer, 'composer.lock'));
   const lines: string[] = [];
-  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), false);
+  assert.equal(unlink({ checkouts: current, directories: [consumer], print: text => lines.push(text), env }), false);
   assert.match(log(), /npm ci\n/);
   assert.match(lines.join('\n'), /skipped {4}composer .*: no composer\.lock/);
   assert.match(lines.join('\n'), /skipped {4}python .*: no environment or no uv\.lock/);
-});
-
-test('a consumer that ignores no var/, as one without kit, gets its go.work under the kit checkout of the root, and link prints the GOWORK to export (K203)', (t) => {
-  const { root, provider, env, log } = workspace(t);
-  const flow = repository(root, 'flow', { 'go.mod': 'module flow\n' });
-  put(flow, { 'go.mod.json': JSON.stringify({ Module: { Path: 'flow' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.18' }] }) });
-  const { ok, text } = linkLines([flow], env);
-  assert.equal(ok, true, text);
-  const file = path.join(root, 'kit/var/link/consumers', ...flow.split(path.sep).filter(Boolean), 'go.work');
-  assert.ok(text.includes(`export GOWORK='${file}'`), text);
-  assert.ok(existsSync(file), 'go work init wrote the go.work there');
-  assert.equal(existsSync(path.join(flow, 'var')), false, 'nothing is written into the consumer');
-  assert.ok(log().includes(`go work init ${path.relative(path.dirname(file), flow)} ${path.relative(path.dirname(file), path.join(provider, 'go'))}\n`), log());
 });
 
 /** A copy of the Makefile of kit and of its kit.mk, with the empty folders that the build of the Makefile copies. */
@@ -506,61 +481,46 @@ test('make build restores dist when the rename of dist.next fails, and exits 1',
   assert.equal(existsSync(path.join(dir, 'dist.old')), false);
 });
 
-test('a release target runs with GOWORK off while the links are declared, and a Go target keeps the go.work of the links', (t) => {
+test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of its environment (K205)', (t) => {
   const dir = kitSandbox(t);
   const log = path.join(dir, 'node.log');
-  put(dir, { 'var/link/go.work': 'go 1.22\n', 'bin/node': `#!/bin/sh\necho "$* GOWORK=$GOWORK" >> ${JSON.stringify(log)}\n` });
+  put(dir, { 'bin/node': `#!/bin/sh\necho "$* GOWORK=$GOWORK" >> ${JSON.stringify(log)}\n` });
   chmodSync(path.join(dir, 'bin/node'), 0o755);
-  const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...process.env, POLYSPEC_CHECKOUTS: dir, TAG: 'v0.0.1' } });
+  const { GOWORK: _inherited, ...base } = process.env;
+  const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...base, TAG: 'v0.0.1' } });
   assert.equal(make('release-assets').status, 0);
   assert.equal(make('kit-fixture-record').status, 0);
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   assert.match(lines[0] ?? '', /assets v0\.0\.1 GOWORK=off$/);
-  assert.match(lines[1] ?? '', new RegExp(`record-fixture\\.mts GOWORK=${RegExp.escape(path.join(dir, 'var/link/go.work'))}$`));
+  assert.match(lines[1] ?? '', /record-fixture\.mts GOWORK=$/);
+  assert.equal(existsSync(path.join(dir, 'var/link')), false, 'make writes no link file of its own');
 });
-
-test('the GOWORK that link prints is shell-quoted, so a path with a space exports as one value', (t) => {
-  const { root, env } = workspace(t);
-  const flow = repository(root, 'my flow', { 'go.mod': 'module flow\n' });
-  put(flow, { 'go.mod.json': JSON.stringify({ Module: { Path: 'flow' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.18' }] }) });
-  const { ok, text } = linkLines([flow], env);
+test('K205: each Go module gets a git-ignored go.work at its root that uses the module and the providers; unlink --project removes only its own', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const requires = JSON.stringify({ Module: { Path: 'sub' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });
+  put(consumer, { 'sub/go.mod': 'module sub\n', 'sub/go.mod.json': requires });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
-  const file = path.join(root, 'kit/var/link/consumers', ...flow.split(path.sep).filter(Boolean), 'go.work');
-  const printed = /^ {2}export GOWORK=(.*)$/m.exec(text)?.[1] ?? '';
-  assert.equal(printed, `'${file}'`);
-  const shell = spawnSync('sh', ['-c', `printf %s ${printed}`], { encoding: 'utf8' });
-  assert.equal(shell.stdout, file);
+  const outer = path.join(consumer, 'go.work');
+  const inner = path.join(consumer, 'sub/go.work');
+  assert.ok(existsSync(outer), 'go work init wrote the go.work at the module root');
+  assert.ok(isIgnored(outer) && isIgnored(inner), 'both are git-ignored');
+  assert.match(log(), /go work init \. \.\.\/prov\/go\n/);
+  assert.match(log(), /go work init \. \.\.\/\.\.\/prov\/go\n/);
+  const lines: string[] = [];
+  assert.equal(unlink({ directories: [consumer], project: true, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.equal(existsSync(outer), false, 'the go.work of the named module is removed');
+  assert.equal(existsSync(inner), true, 'the go.work of the nested module stays');
 });
-
-test('unlink of a nested shared consumer removes only the files that link wrote for it, and leaves the inner consumer and other files intact', (t) => {
-  const { root, env } = workspace(t);
-  const go = (name: string) => JSON.stringify({ Module: { Path: name }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.18' }] });
-  const outer = repository(root, 'work/outer', { 'go.mod': 'module outer\n' });
-  put(outer, { 'go.mod.json': go('outer') });
-  const inner = repository(root, 'work/outer/inner', { 'go.mod': 'module inner\n' });
-  put(inner, { 'go.mod.json': go('inner') });
-  const { ok, text } = linkLines([outer, inner], env);
-  assert.equal(ok, true, text);
-  const outerWork = linkFile(root, outer, 'go.work');
-  const innerWork = linkFile(root, inner, 'go.work');
-  assert.ok(innerWork.startsWith(`${path.dirname(outerWork)}${path.sep}`), 'the inner shared folder lies inside the outer one');
-  put(path.dirname(outerWork), { 'go.work.sum': 'sum\n', 'notes.txt': 'not written by link\n' });
-  assert.equal(unlink({ directories: [outer], print: () => {}, env }), true);
-  assert.equal(existsSync(outerWork), false);
-  assert.equal(existsSync(`${outerWork}.sum`), false);
-  assert.equal(readFileSync(path.join(path.dirname(outerWork), 'notes.txt'), 'utf8'), 'not written by link\n', 'a file that link did not write stays');
-  assert.equal(existsSync(innerWork), true, 'the inner consumer keeps its go.work');
-  assert.equal(unlink({ directories: [inner], print: () => {}, env }), true);
-  assert.equal(existsSync(path.dirname(innerWork)), false, 'the folder that is left empty is removed');
-});
-
 test('Composer under --project: a named project with its own composer.json and no installed vendor never takes the vendor of an ancestor project', (t) => {
   const { consumer, env, log } = workspace(t);
   put(consumer, { 'sub/composer.json': JSON.stringify({ name: 'cons/sub', require: { 'polyspec/y': '0.0.1' } }) });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'sub');
   const lines: string[] = [];
-  const ok = link({ directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env });
+  const ok = link({ checkouts: current, directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env });
   const text = lines.join('\n');
   assert.equal(ok, false, text);
   assert.match(text, new RegExp(`NOT linked composer polyspec/y \\(not installed in ${path.join(consumer, 'sub/vendor').replaceAll('/', '\\/')}\\)`));
@@ -574,7 +534,7 @@ test('Composer under --project: a named folder with no composer.json of its own,
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'sub');
   const lines: string[] = [];
-  assert.equal(link({ directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.equal(link({ checkouts: current, directories: [path.join(consumer, 'sub')], project: true, check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
   assert.equal(lstatSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')).isSymbolicLink(), false);
   assert.doesNotMatch(log(), /composer/, 'Composer is not involved for a folder without a composer.json');
 });

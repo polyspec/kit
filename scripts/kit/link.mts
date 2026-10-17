@@ -1,20 +1,22 @@
-// The local links of 0.0.x development (docs/plans/local-links.md, K201). With the polyspec root declared in
-// POLYSPEC_CHECKOUTS, each installed polyspec package of a consumer that is pinned at 0.0.x is pointed at the source of the
-// main checkout that provides it (link-providers.mts). link only links; it never builds (link-build.mts rebuilds):
+// The local links of 0.0.x development (docs/plans/local-links.md, K201, K205). The checkouts that the arguments name are the
+// providers (link-providers.mts): each installed polyspec package of a consumer that is pinned at 0.0.x is pointed at the
+// source of the checkout that provides it. link only links; it never builds (link-build.mts rebuilds):
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
 //   Composer  each copy that installed.json of the vendor of the consumer's Composer project (composer config vendor-dir)
 //             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
 //   Python    one uv pip install per environment, with dependencies: -e for each declared polyspec package and each
 //             polyspec package below it, and an --overrides file of -e lines, so a sibling that a provider requires by
 //             its release URL resolves to the editable provider too;
-//   Go        var/link/go.work uses the consumer's modules and the provider modules; kit.mk exports it as GOWORK;
+//   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
+//             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
-// Without POLYSPEC_CHECKOUTS every command does nothing (cargo runs as given), and the installs stay the locked releases.
+// No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
-// below it. Each file that link writes into a repository is one that Git ignores there: var/link of the consumer, else
-// var/link/consumers/<consumer> of the kit checkout under the root, and link prints the GOWORK to export (K203).
-//   node link.mjs link|check|unlink [--project] <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...
-// --project limits link, check and unlink to the manifests directly in each <dir>, never a nested project (S-426).
+// below it. Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
+//   node link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
+//                 packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...
+// --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426); without it
+// the whole tree of the working directory is the consumer.
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
@@ -24,7 +26,7 @@ import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
 import {
-  assertIgnored, declaredRoot, isIgnored, type Ecosystem, EXCLUDED, goModule, type GoRequirement, mainCheckouts, MANIFESTS, type Provider,
+  assertIgnored, isIgnored, type Ecosystem, EXCLUDED, goModule, type GoRequirement, mainCheckouts, MANIFESTS, type Provider,
   providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf,
 } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
@@ -94,7 +96,7 @@ function consumerOf(directory: string, project = false): Consumer {
 }
 
 /** The work of one run. */
-type Run = { root: string; found: Map<string, Provider>; check: boolean; print: Print; failed: boolean; env: NodeJS.ProcessEnv };
+type Run = { found: Map<string, Provider>; check: boolean; print: Print; failed: boolean; env: NodeJS.ProcessEnv };
 
 /** Prints a state line: `state` (linked, NOT linked, STALE, own) of `ecosystem` and the text. */
 const line = (work: Run, state: string, ecosystem: string, text: string) => work.print(`  ${state.padEnd(10)} ${ecosystem.padEnd(8)} ${text}`);
@@ -140,17 +142,11 @@ function linkCopy(work: Run, ecosystem: Ecosystem, name: string, installed: stri
   return true;
 }
 
-/**
- * The file `relative` of the links of the consumer `top`: in var/link of the consumer when Git ignores it there, else, as for
- * a consumer that ignores no var/ (one without kit), in var/link/consumers/<the path segments of consumer> of the kit checkout under the root,
- * which kit ignores; a path that neither ignores fails with it (K203).
- */
-export function linkFile(root: string, top: string, relative: string): string {
-  const local = path.join(top, 'var/link', relative);
-  if (isIgnored(local)) return local;
-  const shared = path.join(root, 'kit/var/link/consumers', ...top.split(path.sep).filter(Boolean), relative);
-  assertIgnored(shared);
-  return shared;
+/** The file `relative` of the links of the consumer `top`, in its var/link; Git must ignore it there, or the link fails. */
+export function linkFile(top: string, relative: string): string {
+  const file = path.join(top, 'var/link', relative);
+  assertIgnored(file);
+  return file;
 }
 
 // --- npm: npm query lists the installed copies; every @polyspec folder of a node_modules is either such a copy or a link.
@@ -368,61 +364,62 @@ function linkPython(work: Run, consumer: Consumer) {
     }
     // uv reads the paths of a requirements file relative to its working directory, the consumer's top.
     const relative = (folder: string) => path.relative(consumer.top, folder) || '.';
-    const overrides = linkFile(work.root, consumer.top, `${path.relative(consumer.top, venv).replaceAll('/', '_') || 'venv'}.overrides.txt`);
+    const overrides = linkFile(consumer.top,`${path.relative(consumer.top, venv).replaceAll('/', '_') || 'venv'}.overrides.txt`);
     writeAtomic(overrides, [...work.found.values()].filter(item => item.ecosystem === 'python' && item.repository !== consumer.repository).map(item => `-e ${relative(item.folder)}\n`).sort().join(''));
     run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--overrides', relative(overrides), ...linked.flatMap(item => ['--reinstall-package', item.name]), ...linked.flatMap(item => ['-e', relative(item.folder)])], { cwd: consumer.top, env: uv.env });
     for (const provider of linked) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}, now)`);
   }
 }
 
-// --- Go: one go.work of the consumer.
+// --- Go: a go.work at the root of each module of the consumer, which go reads by itself (K205).
 
-/** The go.work that link writes for the consumer `top`; kit.mk exports var/link/go.work of a kit checkout as GOWORK. */
-export const goWork = (root: string, top: string): string => linkFile(root, top, 'go.work');
+/** The go.work of the module in `directory`: the file that link writes there, git-ignored, which go reads without a variable. */
+const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
 
 function linkGo(work: Run, consumer: Consumer) {
-  const files = consumer.manifests('go', true);
-  if (!files.length) return;
+  const modules = consumer.manifests('go', true);
+  if (!modules.length) return;
   const go = consumerTool(consumer.top, 'go', work.env);
-  const requires = new Map<string, { provider: Provider; requirement: GoRequirement }>();
-  for (const file of files) {
-    for (const requirement of goModule(go, file, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
+  for (const module of modules) {
+    const directory = path.dirname(module);
+    const file = goWorkOf(directory);
+    const requires = new Map<string, Provider>();
+    for (const requirement of goModule(go, module, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
       const provider = providerFor(work, consumer, 'go', requirement.path);
       const problem = typeof provider === 'string' ? provider : pinProblem(requirement.version);
       if (problem) unlinkable(work, 'go', requirement.path, problem);
-      else if (typeof provider !== 'string') requires.set(requirement.path, { provider, requirement });
+      else if (typeof provider !== 'string') requires.set(requirement.path, provider);
     }
-  }
-  const file = goWork(work.root, consumer.top);
-  if (work.check) {
-    for (const [name, { provider }] of requires) {
-      const dir = existsSync(file) ? run(go.command, ['list', '-m', '-f', '{{.Dir}}', name], { cwd: path.dirname(files[0] ?? consumer.top), env: { ...go.env, GOWORK: file } }).trim() : '';
-      if (real(dir) === realpathSync(provider.folder)) line(work, 'linked', 'go', `${name} -> ${provider.folder} (GOWORK=${file})`);
-      else unlinkable(work, 'go', name, `GOWORK=${file}`);
+    if (work.check) {
+      for (const [name, provider] of requires) {
+        const found = existsSync(file) ? run(go.command, ['list', '-m', '-f', '{{.Dir}}', name], { cwd: directory, env: { ...go.env, GOWORK: file } }).trim() : '';
+        if (real(found) === realpathSync(provider.folder)) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
+        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${provider.folder}`);
+      }
+      continue;
     }
-    return;
+    assertIgnored(file);
+    assertIgnored(`${file}.sum`);
+    rmSync(file, { force: true });
+    rmSync(`${file}.sum`, { force: true });
+    if (!requires.size) continue;
+    const folders = [directory, ...new Set([...requires.values()].map(provider => provider.folder))];
+    run(go.command, ['work', 'init', ...folders.map(folder => path.relative(directory, folder) || '.')], { cwd: directory, env: { ...go.env, GOWORK: file } });
+    for (const [name, provider] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
   }
-  assertIgnored(`${file}.sum`);
-  rmSync(file, { force: true });
-  rmSync(`${file}.sum`, { force: true });
-  if (!requires.size) return;
-  mkdirSync(path.dirname(file), { recursive: true });
-  const folders = [...files.map(item => path.dirname(item)), ...new Set([...requires.values()].map(item => item.provider.folder))];
-  run(go.command, ['work', 'init', ...folders.map(folder => path.relative(path.dirname(file), folder))], { cwd: path.dirname(file), env: { ...go.env, GOWORK: file } });
-  for (const [name, { provider }] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (GOWORK=${file})`);
-  work.print(`  export GOWORK=${quote(file)}`);
 }
 
 // --- the commands.
 
-/** Links (or with `check`, reports) every polyspec package of each directory of `directories`; false when one is not linked. */
-export function link({ directories, check, print, env = process.env, project = false }: { directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
-  const root = declaredRoot(env);
-  if (!root) { print(`${check ? 'check' : 'link'}: POLYSPEC_CHECKOUTS is not set; the installs stay the locked releases`); return true; }
+/**
+ * Links (or with `check`, reports) every polyspec package of each directory of `directories` that the main checkouts
+ * `checkouts` provide; false when one is not linked.
+ */
+export function link({ checkouts, directories, check, print, env = process.env, project = false }: { checkouts: readonly string[]; directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
   const consumers = directories.map(directory => consumerOf(directory, project));
   const first = consumers[0];
   const go = first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
-  const work: Run = { root, found: providers(root, go, first?.top ?? root), check, print, failed: false, env };
+  const work: Run = { found: providers(checkouts, go, first?.top ?? process.cwd()), check, print, failed: false, env };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
     linkNpm(work, consumer);
@@ -434,8 +431,7 @@ export function link({ directories, check, print, env = process.env, project = f
 }
 
 /** The polyspec packages of `ecosystem` that the consumer `directory` declares, for a recipe (uv sync --no-install-package). */
-export function packages(directory: string, ecosystem: 'python' | 'npm', env: NodeJS.ProcessEnv = process.env): string[] {
-  if (!declaredRoot(env)) return [];
+export function packages(directory: string, ecosystem: 'python' | 'npm'): string[] {
   const consumer = consumerOf(directory);
   const names = ecosystem === 'python' ? consumer.manifests('python').flatMap(declaredPython) : consumer.manifests('npm').flatMap(declaredNpm);
   return [...new Set(names)].sort();
@@ -443,8 +439,6 @@ export function packages(directory: string, ecosystem: 'python' | 'npm', env: No
 
 /** Restores the locked installs of each directory with each tool's own install and removes var/link; false when one is skipped. */
 export function unlink({ directories, print, env = process.env, project = false }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
-  const root = declaredRoot(env);
-  if (!root) { print('unlink: POLYSPEC_CHECKOUTS is not set; nothing is linked'); return true; }
   let restored = true;
   const skip = (text: string) => { print(`  skipped    ${text}`); restored = false; };
   for (const consumer of directories.map(directory => consumerOf(directory, project))) {
@@ -476,20 +470,23 @@ export function unlink({ directories, print, env = process.env, project = false 
         print(`  restored   python   ${venv}`);
       }
     }
-    removeWritten(root, consumer);
+    removeWritten(consumer);
   }
   return restored;
 }
 
 /**
- * Removes the files that link wrote for the consumer: go.work and go.work.sum, the overrides file of each environment and the
- * Cargo lock copy of each workspace, each by its exact name in the folder of the consumer's go.work, then each folder that the
- * removal leaves empty, up to the folder that holds them. Never a folder recursively: a nested consumer's folder lies inside (K201-3).
+ * Removes the files that link wrote for the consumer: the go.work and go.work.sum of each of its Go modules, the overrides
+ * file of each environment and the Cargo lock copy of each workspace, each by its exact name, then each folder of var/link
+ * that the removal leaves empty. Never a folder recursively: a nested project's files and folders stay (K201-3).
  */
-function removeWritten(root: string, consumer: Consumer) {
-  const base = path.dirname(linkFile(root, consumer.top, 'go.work'));
-  const stop = base === path.join(consumer.top, 'var/link') ? consumer.top : path.join(root, 'kit/var/link/consumers');
-  const written = ['go.work', 'go.work.sum'].map(name => path.join(base, name));
+function removeWritten(consumer: Consumer) {
+  const base = path.join(consumer.top, 'var/link');
+  const written: string[] = [];
+  for (const module of consumer.manifests('go', true)) {
+    const file = goWorkOf(path.dirname(module));
+    written.push(file, `${file}.sum`);
+  }
   for (const entry of existsSync(base) ? readdirSync(base, { withFileTypes: true }) : []) {
     if (entry.isFile() && entry.name.endsWith('.overrides.txt')) written.push(path.join(base, entry.name));
   }
@@ -499,7 +496,7 @@ function removeWritten(root: string, consumer: Consumer) {
   }
   for (const file of written) {
     rmSync(file, { force: true });
-    removeEmptyFolders(path.dirname(file), stop);
+    removeEmptyFolders(path.dirname(file), consumer.top);
   }
 }
 
@@ -518,20 +515,22 @@ function declaredUrl(checkout: string): string {
   return url;
 }
 
-/** Runs one cargo command in `directory`; with the root declared, the polyspec git sources are patched to their providers. */
-export function cargo({ directory, args, env = process.env }: { directory: string; args: readonly string[]; env?: NodeJS.ProcessEnv }): number {
-  const root = declaredRoot(env);
+/**
+ * Runs one cargo command in `directory`; with checkouts given, the polyspec git sources of those checkouts are patched to
+ * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Without checkouts, cargo runs as given.
+ */
+export function cargo({ directory, args, checkouts = [], env = process.env }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv }): number {
   const consumer = consumerOf(directory);
   const tool = consumerTool(consumer.top, 'cargo', env);
   const config: string[] = [];
-  if (root) {
+  if (checkouts.length) {
     const workspace = path.dirname(run(tool.command, ['locate-project', '--workspace', '--message-format', 'plain'], { cwd: consumer.scope, env: tool.env }).trim());
     // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
-    const copy = linkFile(root, consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
+    const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
     mkdirSync(path.dirname(copy), { recursive: true });
     copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
     config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
-    for (const checkout of mainCheckouts(root).filter(item => repositoryOf(item) !== consumer.repository)) {
+    for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
       const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
         const pkg = readTomlFile(path.join(checkout, file)).package;
         return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
@@ -551,17 +550,19 @@ export function cargo({ directory, args, env = process.env }: { directory: strin
 if (isMain(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   const print: Print = text => process.stdout.write(`${text}\n`);
-  // --project limits link, check and unlink to the manifests directly in each directory (K201, S-426).
-  const project = rest.includes('--project');
-  const directories = rest.filter(item => item !== '--project');
-  const targets = directories.length ? directories : ['.'];
   try {
+    // `--project <dir>` names the consumer (K201, S-426); the other arguments are the checkouts that provide the packages.
+    const project = rest.indexOf('--project');
+    const projectDirectory = project === -1 ? undefined : rest[project + 1];
+    if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
+    const positional = rest.filter((_, index) => project === -1 || (index !== project && index !== project + 1));
+    const directories = [projectDirectory ?? '.'];
     switch (command) {
       case 'link': case 'check':
-        if (!link({ directories: targets, check: command === 'check', print, project })) process.exitCode = 1;
+        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
         break;
       case 'unlink':
-        if (!unlink({ directories: targets, print, project })) process.exitCode = 1;
+        if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
         break;
       case 'rebuild':
         for (const repository of rest) rebuild(workTreeOf(repository), print);
@@ -573,12 +574,14 @@ if (isMain(import.meta.url)) {
         break;
       }
       case 'cargo': {
+        const checkouts: string[] = [];
+        while (rest[0] === '--checkout') checkouts.push(rest.splice(0, 2)[1] ?? '');
         const [directory, ...args] = rest;
-        if (!directory) throw new Error('Usage: link.mjs cargo <dir> <cargo args>...');
-        process.exitCode = cargo({ directory, args });
+        if (!directory) throw new Error('Usage: link.mjs cargo [--checkout <checkout>]... <dir> <cargo args>...');
+        process.exitCode = cargo({ directory, args, checkouts });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check|unlink [--project] <dir>... | rebuild <repository>... | packages <dir> python|npm | cargo <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

@@ -1,7 +1,7 @@
 // The build state of a provider of the local links (docs/plans/local-links.md). link never builds: a provider repository
 // is built by `link.mjs rebuild <repository>` or its own target, with the targets of its own Makefile that its release
 // builds before packing (the prerequisites of release-assets), else its build target, else none (its packages ship their
-// sources), and with POLYSPEC_CHECKOUTS unset, so the build never links. After a rebuild, the content digest of each npm
+// sources), and a build never links. After a rebuild, the content digest of each npm
 // package's build inputs is recorded in var/link/built/ of the provider. A linked npm package is STALE while an output that
 // its package.json names is missing, or an input is newer than the oldest output and the inputs differ from that record (a
 // touch, or a build cache that keeps unchanged output, is no staleness).
@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { assertIgnored, EXCLUDED, foreignEnvironment, linkGit, MANIFESTS, ROOT_VARIABLE, trackedManifests } from './link-providers.mts';
+import { assertIgnored, EXCLUDED, foreignEnvironment, linkGit, MANIFESTS, trackedManifests } from './link-providers.mts';
 import { execute } from './process.mts';
 
 /** The prerequisites of `target` in the Makefile of `repository`, or undefined when make reports no rule for it (make -pq). */
@@ -57,13 +57,12 @@ function digest(folder: string): string {
 const recordFile = (repository: string, folder: string): string =>
   path.join(repository, 'var/link/built', `${path.relative(repository, folder).replaceAll('/', '_') || 'root'}.sha256`);
 
-/** Builds `repository` with its build targets, POLYSPEC_CHECKOUTS unset, and records the input digest of each npm package. */
+/** Builds `repository` with its build targets and records the input digest of each npm package. */
 export function rebuild(repository: string, print: (text: string) => void, env: NodeJS.ProcessEnv = process.env): void {
   const targets = buildTargets(repository);
   if (!targets.length) { print(`  rebuild    ${repository}: no build target; its packages ship their sources`); return; }
   print(`  rebuild    ${repository}: make ${targets.join(' ')}`);
-  const { [ROOT_VARIABLE]: _declared, ...unlinked } = foreignEnvironment(env);
-  const outcome = execute('make', ['-C', repository, '--no-print-directory', ...targets], { env: unlinked });
+  const outcome = execute('make', ['-C', repository, '--no-print-directory', ...targets], { env: foreignEnvironment(env) });
   if (outcome.error || outcome.status !== 0) throw new Error(`the build of the provider ${repository} (make ${targets.join(' ')}) failed: ${outcome.error?.message ?? `${outcome.stdout}${outcome.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
   for (const file of trackedManifests(repository, [MANIFESTS.npm])) {
     if (EXCLUDED.test(file)) continue;

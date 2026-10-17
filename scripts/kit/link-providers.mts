@@ -1,10 +1,9 @@
-// The providers of the local links of 0.0.x development (docs/plans/local-links.md): the polyspec root that
-// POLYSPEC_CHECKOUTS declares holds the main checkout of each polyspec repository, and each tracked manifest of a package
-// there names what it provides: package.json `name` (npm, a private package provides nothing), composer.json `name`,
+// The providers of the local links of 0.0.x development (docs/plans/local-links.md): the main checkouts that `link` is given
+// as arguments, one per polyspec repository, and each tracked manifest of a package there names what it provides: package.json `name` (npm, a private package provides nothing), composer.json `name`,
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
-import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { readComposerManifestFile, readNpmManifestFile } from './manifests.mts';
@@ -32,9 +31,6 @@ export function foreignEnvironment(env: NodeJS.ProcessEnv = process.env): NodeJS
 /** `git <args>` in `directory`, a repository other than the one of the process: the outcome, with the repository variables removed. */
 export const linkGit = (directory: string, ...args: string[]) => execute('git', args, { cwd: directory, env: foreignEnvironment() });
 
-/** The environment variable that declares the polyspec root; without it, linking does nothing. */
-export const ROOT_VARIABLE = 'POLYSPEC_CHECKOUTS';
-
 export type Ecosystem = 'npm' | 'composer' | 'python' | 'go';
 
 /** The manifest file of each ecosystem. */
@@ -48,12 +44,6 @@ export const EXCLUDED = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^
 
 /** A command of a tool and the environment that it runs in. */
 export type Tool = { command: string; env: NodeJS.ProcessEnv };
-
-/** The declared polyspec root, or undefined when POLYSPEC_CHECKOUTS is unset or empty. */
-export function declaredRoot(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const value = env[ROOT_VARIABLE];
-  return value ? realpathSync(value) : undefined;
-}
 
 /**
  * Whether `directory` or a folder above it holds a `.git` entry, a directory or a gitfile, even a broken one. Without one the
@@ -135,19 +125,21 @@ export type Provider = { ecosystem: Ecosystem; name: string; folder: string; rep
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
 
-/** The main checkouts among the folders of `root`. */
-export const mainCheckouts = (root: string): string[] =>
-  readdirSync(root).sort().map(entry => path.join(root, entry)).filter(folder => statSync(folder).isDirectory() && isMainCheckout(folder));
+/** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */
+export const mainCheckouts = (directories: readonly string[]): string[] => directories.map((directory) => {
+  const checkout = realpathSync(directory);
+  if (!isMainCheckout(checkout)) throw new Error(`${directory} is not a main checkout: link takes the top level of a main checkout, not a worktree or a folder inside one`);
+  return checkout;
+});
 
 /**
- * Every provider under `root`: each main checkout among its folders and each tracked manifest of a package there. A name
- * that a package folder and the repository root both provide is provided by the package folder, since the root is the
- * development project; two package folders that provide one name fail with both. `go` reads go.mod in `cwd`; without it
- * the Go modules provide nothing.
+ * Every provider of the main checkouts `checkouts`: each tracked manifest of a package there. A name that a package folder
+ * and the repository root both provide is provided by the package folder, since the root is the development project; two
+ * package folders that provide one name fail with both. `go` reads go.mod in `cwd`; without it the Go modules provide nothing.
  */
-export function providers(root: string, go: Tool | undefined, cwd: string): Map<string, Provider> {
+export function providers(checkouts: readonly string[], go: Tool | undefined, cwd: string): Map<string, Provider> {
   const found = new Map<string, Provider>();
-  for (const checkout of mainCheckouts(root)) {
+  for (const checkout of mainCheckouts(checkouts)) {
     const repository = repositoryOf(checkout);
     for (const file of trackedManifests(checkout, Object.values(MANIFESTS)).sort()) {
       if (EXCLUDED.test(file)) continue;
