@@ -55,7 +55,11 @@ test('toolchain-lock locks the tools of mise.toml, which the environment of mise
   writeStub(mise);
   const printed: string[] = [];
   lockTools({ root, print: text => printed.push(text) });
-  assert.deepEqual(readStubLines(path.join(root, 'args.jsonl'), TEXTS), [['lock', '--global', '--platform', 'linux-x64,linux-arm64,macos-arm64,macos-x64']]);
+  // The install of mise records the trust of the checkout's mise.toml before the lock (K208).
+  assert.deepEqual(readStubLines(path.join(root, 'args.jsonl'), TEXTS), [
+    ['trust', path.join(root, 'mise.toml')],
+    ['lock', '--global', '--platform', 'linux-x64,linux-arm64,macos-arm64,macos-x64'],
+  ]);
   assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), LOCK);
   assert.equal(printed[0], `mise: ${VERSION} is installed in var/tools/mise-release`);
   assert.deepEqual(printed.at(-1), 'mise.lock pins every tool of mise.toml');

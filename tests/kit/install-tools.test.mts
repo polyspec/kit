@@ -148,7 +148,8 @@ test('toolchain-lock runs mise lock for the four platforms of the bootstrap and 
   miseReleaseStub(root);
   const result = start(TOOLCHAIN_LOCK, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
+  // The install of mise records the trust of the checkout's mise.toml first (K208), then the lock runs.
+  assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`, 'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
   assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
 });
 
@@ -171,6 +172,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
   assert.equal(result.status, 1);
   assert.deepEqual(stubs.calls(), [
+    `mise trust ${path.join(root, 'mise.toml')}`,
     'mise lock uv python --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
     'mise install --locked uv python',
     'mise which uv',
@@ -191,7 +193,8 @@ test('a pypi: tool without the uv or the Python of mise.toml is refused before a
   const alone = start(TOOLCHAIN_LOCK, root, stubs.env);
   assert.equal(alone.status, 1);
   assert.match(alone.stderr, /a pypi: tool of mise\.toml needs the uv and the Python of mise\.toml, which lock it; declare uv and python/);
-  assert.deepEqual(stubs.calls(), []);
+  // Only the trust of the checkout runs before the refusal: no lock and no install of a tool (K208).
+  assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`]);
 });
 
 test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', () => {
