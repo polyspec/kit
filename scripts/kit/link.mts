@@ -12,11 +12,11 @@
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
-// below it. Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
+// below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
 //   node link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
 //                 packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...
-// --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426); without it
-// the whole tree of the working directory is the consumer.
+// --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
+// <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
@@ -80,18 +80,29 @@ function parseOutput(text: string, what: string): unknown {
 /** The consumer of a directory: its work tree, its repository, the folder that bounds it, whether it is a named project, and its tracked manifests. */
 type Consumer = { top: string; repository: string; scope: string; project: boolean; manifests: (ecosystem: Ecosystem, all?: boolean) => string[] };
 
+/** The manifest of `ecosystem` that the folder `folder` holds itself, tracked or not: the consumer of --project (K212). */
+function ownManifest(folder: string, ecosystem: Ecosystem): string[] {
+  const file = path.join(folder, MANIFESTS[ecosystem]);
+  return existsSync(file) ? [file] : [];
+}
+
 /**
- * The consumer of `directory`. With `project`, only the manifests directly in it are its (a nested project is left out, K201);
- * without it, every manifest below it is.
+ * The consumer of `directory`. With `project`, the folder is the consumer and its own manifests are its (a nested project is
+ * left out, K201), tracked or not (K212), and a folder with none is an error; without it, every tracked manifest below it is.
  */
 function consumerOf(directory: string, project = false): Consumer {
   const scope = realpathSync(directory);
   const top = workTreeOf(scope);
+  if (project && !Object.values(MANIFESTS).some(file => existsSync(path.join(scope, file)))) {
+    throw new Error(`${scope} holds no ${Object.values(MANIFESTS).join(', ')}: --project names no consumer`);
+  }
   const inside = (file: string) => scope === top || `${file}/`.startsWith(`${scope}/`);
   return {
     top, scope, repository: repositoryOf(scope), project,
     // Go lists every module, so the go.work covers each module that a go command can run in; the others leave out EXCLUDED.
-    manifests: (ecosystem, all = false) => trackedManifests(top, [MANIFESTS[ecosystem]]).filter(file => all || !EXCLUDED.test(file)).map(file => path.join(top, file)).filter(inside).filter(file => !project || path.dirname(file) === scope),
+    manifests: (ecosystem, all = false) => project
+      ? ownManifest(scope, ecosystem)
+      : trackedManifests(top, [MANIFESTS[ecosystem]]).filter(file => all || !EXCLUDED.test(file)).map(file => path.join(top, file)).filter(inside),
   };
 }
 
@@ -179,7 +190,7 @@ function declaredNpm(file: string): string[] {
 
 function linkNpm(work: Run, consumer: Consumer) {
   const files = consumer.manifests('npm');
-  const projects = files.map(file => path.dirname(file)).filter(folder => existsSync(path.join(folder, 'package-lock.json')) && existsSync(path.join(folder, 'node_modules')));
+  const projects = files.map(file => path.dirname(file)).filter(folder => existsSync(path.join(folder, 'node_modules')));
   const seen = new Set<string>();
   if (projects.length) {
     const npm = consumerTool(consumer.top, 'npm', work.env);

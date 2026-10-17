@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `link.mjs link|check|unlink --project <dir>` reads the manifests of `<dir>` itself, tracked by Git or not, so an installation under a git-ignored tree (var/example/installation) links its npm copies without a package-lock.json. A `<dir>` with no manifest, or a declared polyspec package that a checkout provides and the run does not link, fails with a named error instead of exiting 0 (K212).
+
 - `make install-tools` records the trust of the mise.toml of the checkout with `mise trust` in its state dir, and no environment variable trusts it; the python extractor of parity runs in a new worktree without the variable (K208).
 
 - The rustdoc schema of the Rust symbol extractor reads format 61 (`format_version` 61, `macro` as a string), the format of the Rust nightlies of config/toolchain.json; R1 extraction failed on it (K207).

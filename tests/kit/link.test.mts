@@ -538,3 +538,41 @@ test('Composer under --project: a named folder with no composer.json of its own,
   assert.equal(lstatSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')).isSymbolicLink(), false);
   assert.doesNotMatch(log(), /composer/, 'Composer is not involved for a folder without a composer.json');
 });
+
+test('K212: an explicit --project folder under a git-ignored tree is read from its own manifests, and its npm copies link with no package-lock.json', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const installation = path.join(consumer, 'var/example/installation');
+  put(installation, {
+    'package.json': JSON.stringify({ name: 'installation', private: true, dependencies: { '@polyspec/x': '0.0.1' } }),
+    'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }]),
+    'node_modules/@polyspec/x/package.json': '{"name":"@polyspec/x","version":"0.0.1"}',
+  });
+  assert.equal(existsSync(path.join(installation, 'package-lock.json')), false);
+  const lines: string[] = [];
+  const ok = link({ checkouts: current, directories: [installation], project: true, check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, true, text);
+  assert.match(text, /linked .*@polyspec\/x -> /);
+  assert.equal(realpathSync(path.join(installation, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+});
+
+test('K212: an explicit --project folder that holds no manifest throws an error that names it, never a silent pass', (t) => {
+  const { consumer, env } = workspace(t);
+  const empty = path.join(consumer, 'var/example/empty');
+  put(empty, { 'README.txt': 'no manifest\n' });
+  assert.throws(
+    () => link({ checkouts: current, directories: [empty], project: true, check: false, print: () => {}, env }),
+    (error: unknown) => error instanceof Error && error.message.includes(empty) && /holds no package\.json/.test(error.message),
+  );
+});
+
+test('K212: a declared @polyspec dependency that an explicit --project folder does not link fails the run', (t) => {
+  const { consumer, env } = workspace(t);
+  const installation = path.join(consumer, 'var/example/installation');
+  put(installation, { 'package.json': JSON.stringify({ name: 'installation', private: true, dependencies: { '@polyspec/x': '0.0.1' } }) });
+  const lines: string[] = [];
+  const ok = link({ checkouts: current, directories: [installation], project: true, check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, false, text);
+  assert.match(text, /NOT linked npm {6}@polyspec\/x \(not installed\)/);
+});

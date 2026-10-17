@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 60472f2ff25ae3dfc641b58cd74173b7f2194132fc60f8eebe3e43b9854ac492 -->
+<!-- source-sha256: 0114e9ae48858b30988caa42963aad63a6feb07fa53cb0c2260f9c04f588112d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `link.mjs link|check|unlink --project <dir>`는 `<dir>`의 manifest를 Git 추적 여부와 관계없이 그 폴더에서 직접 읽는다. 그래서 git-ignored 트리(var/example/installation) 아래의 설치도 package-lock.json 없이 npm 사본을 링크한다. manifest가 없는 `<dir>`이나, checkout이 제공하는데 실행이 링크하지 않은 선언된 polyspec 패키지는 0으로 종료하지 않고 이름이 붙은 오류로 실패한다(K212).
 
 - `make install-tools`는 checkout의 mise.toml 신뢰를 state dir에 `mise trust`로 기록하며, 어떤 환경 변수도 그것을 신뢰시키지 않는다. parity의 python extractor는 새 worktree에서 그 변수 없이 실행된다(K208).
 
