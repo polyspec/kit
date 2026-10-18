@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 8d18cc03ccc8d0c27975bc3e63ffdce53a078f5fec837cdf7a2bfd257c1ab0bd -->
+<!-- source-sha256: 8d1bce82b517c019c24998115d660a9386908f5ab272cd8e8635f62c68651cc5 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -280,3 +280,4 @@
 | K218 | run-tests는 helper 모듈이 test()를 불러도 node가 실행하는 파일의 case로 셉니다. node는 --test-concurrency=1로 파일을 실행하고 reporter는 dequeue된 파일 group에 case를 붙입니다. 원인: tests/testcase.mts로 등록한 orm case가 helper 이름으로 보고되어 파일이 "ran no test case"로 실패했음. Red: helper fixture가 그 줄로 실패. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `scripts/kit/node-reporter.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
 | K219 | run-tests python은 `--module <name>`(기본 unittest)을 받아 `python -m <module> <args> -v`를 실행하고 pythonEvents로 읽습니다. 원인: 저장소 harness 모듈(orm의 case별 deadline)을 run-tests로 실행할 수 없었음. Red: module 옵션이 없었음. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
 | K220 | kit link은 전달된 provider checkout이 이름을 가진 모든 npm 패키지를 private 여부와 scope에 관계없이 링크 대상으로 봅니다. consumer는 선언한 것만 링크하고 이름 중복은 여전히 실패합니다. 원인: link가 private manifest를 건너뛰고 @polyspec/만 보아서 private인 @consumer 플랫폼 패키지가 tgz 사본으로 남았음. Red: private @x/p fixture가 NOT linked. Green: main에서 tests/kit/link.test.mts 41/41 | `scripts/kit/link.mts`, `scripts/kit/link-providers.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
+| K221 | parity는 `--unit <id>`(반복 가능, `make parity-check UNITS="..."`)를 받아 지정한 unit만 전체 실행과 같은 runner 경로(R3)로 실행합니다. unit 사이 규칙은 건너뛰고 그렇다고 출력하며, 없는 id는 이름을 대고 실패합니다. 원인: binding 하나는 전체 parity나 손으로 돌린 명령으로만 증명할 수 있었고, 후자는 runner 경로가 아님. Red: --unit이 알 수 없는 옵션. Green: main에서 tests/kit/parity.test.mts 69/69 | `scripts/kit/parity.mts`, `scripts/kit/parity-ledger.mts`, `scripts/kit/kit.mk`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
