@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make parity-check` folds the reports of a TypeScript coverage case that runs once per database item (`<case> [<database>]`) into that case, which passes when each report passes, as PHP data sets and Python items do; other repeated names are still R3 (K231).
 - `make parity-check` matches the id that a PHPUnit feature binding declares, `<Class>::<method>` (the id PHPUnit reports) or the bare method, so an orm binding such as `RollbackTest::test_rollback_failed` passes instead of R3 not-executed; cargo reads a result that stands alone on its line after the output printed between a test's name and its result, so `identity_load` cases that connect to a database count as run (K229).
 - Kit's parity declaration stays language-parity only: a consumer's interface manifest is reached through spec anchors, not a parity.json key (K227).
 - `link` satisfies a dependency that the project itself provides and reports it as `workspace` instead of NOT linked: an npm workspace member that `npm query` lists at a folder of the project, and a Composer name of the root composer.json or of a path repository that it declares. A dependency that no checkout and no project package provides still fails (K226).

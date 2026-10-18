@@ -51,8 +51,11 @@ export interface BindingRun {
   args: (test: string[]) => string[];
   cwd: string;
   caseOf: (test: TestRef) => string | undefined;
-  /** Whether outcomes that name one case are one case: the data sets of a method, which fails when any of them fails (K229). */
-  merge?: boolean;
+  /**
+   * Whether outcomes that name one case are one case, which fails when any of them fails (K229): `true` for every repeated name (the
+   * data sets of a method, the items of a python method), `'items'` for only the reports of a database item (K231).
+   */
+  merge?: boolean | 'items';
   read: (output: RunOutput, sink: Sink) => void;
   detail: (output: RunOutput) => string[];
 }
@@ -210,8 +213,9 @@ const RUNNERS: Record<Runner, RunnerOf> = {
     run: (root, binding, kind) => ({
       args: test => [...test, '--test', `--test-reporter=${NODE_REPORTER}`, binding.test],
       cwd: '.',
-      // A case of a suite is a top-level test; a test nested in it is none.
-      caseOf: kind === 'suite' ? test => (test.name.includes(' › ') ? undefined : test.name) : itself,
+      // A case of a suite is a top-level test; a test nested in it is none. A coverage file reports a case once per database item (K231).
+      caseOf: kind === 'suite' ? test => (test.name.includes(' › ') ? undefined : withoutItem(test.name)) : test => withoutItem(test.name),
+      merge: 'items',
       // The reporter's output is ours and always parses: a line that is no case is an error that names the line (K217).
       read: ({ stdout }, sink) => eachLine(stdout, nodeEvents({ ...sink, line: text => { throw new Error(`the parity node reporter wrote a line that is no case: ${text}`); } })),
       detail: stderrTail,
@@ -281,27 +285,38 @@ const RUNNERS: Record<Runner, RunnerOf> = {
 
 const rank: Record<Outcome, number> = { pass: 0, skip: 1, fail: 2 };
 
+/** The name of a node:test case without the database item that a coverage file adds: `<case> [<database>]` names `<case>` (K231). */
+const withoutItem = (name: string): string => name.replace(/ \[[^\][\s]+\]$/, '');
+
 /**
  * The outcomes that the output of a run reports for the binding: `[name, outcome]` pairs, one for each case event in the order
  * of the output. A case that the binding does not name is left out here, and R3 judges the names that remain.
  */
 export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read' | 'merge'>, output: RunOutput): [string, Outcome][] {
-  const outcomes: [string, Outcome][] = [];
+  // `item` is whether the report names a case through a database item, which the case name lacks.
+  const outcomes: [string, Outcome, boolean][] = [];
   const record = (outcome: Outcome) => (test: TestRef) => {
     const name = run.caseOf(test);
-    if (name !== undefined) outcomes.push([name, outcome]);
+    if (name !== undefined) outcomes.push([name, outcome, name !== test.name]);
   };
   // A todo is a test that the tool expects to fail, so it is no pass: the case fails.
   const sink = { ...SILENT, pass: record('pass'), fail: record('fail'), skip: record('skip'), todo: record('fail') };
   run.read(output, sink);
-  if (!run.merge) return outcomes;
-  // The worst outcome of each case: a fail, then a skip, is the case's outcome whatever passed before it.
-  const worst = new Map<string, Outcome>();
-  for (const [name, outcome] of outcomes) {
-    const previous = worst.get(name);
-    if (previous === undefined || rank[outcome] > rank[previous]) worst.set(name, outcome);
+  // The reports of one case fold into the first of them, with the worst outcome: a fail, then a skip, is the case's outcome
+  // whatever passed before it. Other repeated names stay repeated, so R3 reports them.
+  const result: [string, Outcome][] = [];
+  const folded = new Map<string, number>();
+  for (const [name, outcome, item] of outcomes) {
+    const fold = run.merge === true || (run.merge === 'items' && item);
+    const at = fold ? folded.get(name) : undefined;
+    if (at !== undefined) {
+      if (rank[outcome] > rank[present(result[at], 'result[at]')[1]]) present(result[at], 'result[at]')[1] = outcome;
+      continue;
+    }
+    if (fold) folded.set(name, result.length);
+    result.push([name, outcome]);
   }
-  return [...worst];
+  return result;
 }
 
 /**

@@ -583,6 +583,22 @@ test('a php feature binding that names its test as Class::method, the id PHPUnit
 
 // A PHPUnit method with data sets runs once per data set; the id of the method names all of them, which pass only when each
 // passes, and a failing data set fails the id (K229).
+// A node:test case that a coverage file runs once per database item reports `<case> [<database>]` for each item; the case passes
+// when each report passes, and the report of an item is no extra case (K231).
+test('a ts suite case reported once per database item passes when each report passes (K231)', TIMEOUT, (t) => {
+  const items = "import test from 'node:test';\ntest('empty [mysql]', () => {});\ntest('empty [sqlite]', () => {});\ntest('ascii [mysql]', () => {});\ntest('ascii [sqlite]', () => {});\n";
+  const { findings, ledger } = checkParity(repository(t, { files: { 'ts/tests/codec.mjs': items } }), { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(findings.filter(finding => finding.implementation === 'ts'), []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
+});
+
+test('a ts feature id reported once per database item passes when each report passes (K231)', TIMEOUT, (t) => {
+  const items = "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  test('bytes [mysql]', () => {});\n  test('bytes [sqlite]', () => {});\n});\n";
+  const { findings, ledger } = check(t, feature({ 'ts/tests/roundtrip.test.mjs': items }));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['roundtrip › bytes pass']);
+});
+
 test('a php feature id names a method with data sets: it passes when each data set passes (K229)', TIMEOUT, (t) => {
   const files = { 'php/tests/RoundtripTest.php': 'PASS test_bytes with data set "sqlite"\nPASS test_bytes with data set "mysql"\n' };
   const { findings, ledger } = check(t, feature(files, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
