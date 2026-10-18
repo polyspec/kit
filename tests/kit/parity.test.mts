@@ -690,6 +690,32 @@ test('a binding command that cannot start or exits non-zero is an R3 finding tha
   assert.deepEqual(failing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go').map(run => run.command), ['sh', 'sh']);
 });
 
+// A binding command references the invoking environment as its implementation's values do: ${NAME} is resolved when the runs
+// happen, an unset or empty NAME is a finding of that binding's runs and nothing runs, and the reference is printed, not its value (K223).
+test('a binding command references the invoking environment as ${NAME}, resolved when the runs happen (K223)', TIMEOUT, (t) => {
+  const root = repository(t, feature({}, (unit) => {
+    itemAt(unit.bindings ?? [], 0).command = ['go', 'test', '-json', '-count=1', '-tags', '${PARITY_TAG}', '-run', '^(TestRoundtrip)$', './'];
+    return unit;
+  }));
+  const lines: string[] = [];
+  const set = checkParity(root, { execute: true, env: { ...ENV, PARITY_TAG: 'orm' }, say: line => lines.push(line) });
+  assert.deepEqual(set.findings, []);
+  const go = known(set.ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'go'), 'the go feature run');
+  assert.deepEqual([go.command, ...go.args], ['go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './']);
+  assert.ok(lines.some(line => line.includes('-tags ${PARITY_TAG}')), lines.join('\n'));
+  assert.deepEqual(set.ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'go').map(entry => `${entry.case} ${entry.outcome}`), ['TestRoundtrip/bytes pass']);
+  const unset: NodeJS.ProcessEnv = { ...ENV };
+  delete unset.PARITY_TAG;
+  const missing = checkParity(root, { execute: true, env: unset, say: () => {} });
+  assert.deepEqual(keys(missing.findings), ['R3 roundtrip go']);
+  assert.equal(findingAt(missing.findings, 0).message, 'cannot start: binding command references ${PARITY_TAG}, which the environment does not set');
+  assert.deepEqual(missing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go'), []);
+  const empty = checkParity(root, { execute: true, env: { ...ENV, PARITY_TAG: '' }, say: () => {} });
+  assert.deepEqual(keys(empty.findings), ['R3 roundtrip go']);
+  assert.equal(findingAt(empty.findings, 0).message, 'cannot start: binding command references ${PARITY_TAG}, which the environment sets to an empty string');
+  assert.deepEqual(empty.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go'), []);
+});
+
 test('a feature unit fails R2 without a binding and R3 when its id is missing, fails or is not the full native id (K75)', TIMEOUT, (t) => {
   const missing = check(t, feature({ 'python/tests/test_roundtrip.py': null }, (unit) => { unit.bindings?.pop(); return unit; }));
   assert.deepEqual(keys(missing.findings), ['R2 roundtrip python']);

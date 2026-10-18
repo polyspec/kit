@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 89fcb277edb1e2f8c7f1acf21ba3c5c5fa318c56f315076eb593b51e6da4003a -->
+<!-- source-sha256: 1fcad872cdf328fa5a39f6828a09b6360e951dbbdf188eb56359bb178c553ed1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- parity binding `command`의 단어는 실행 environment를 `${NAME}`으로 참조할 수 있습니다. binding을 실행할 때 구현의 `command`, `args`, `env`와 같은 규칙으로 풀리며, NAME이 설정되지 않았거나 비었으면 그 NAME을 적은 R3 finding이고 그 binding은 아무것도 실행하지 않습니다. 이전에는 `${NAME}`을 그대로 실행했습니다(K223).
 
 - `link`는 Python 제공자를 editable wheel로 연결한다(K222). 각 제공자는 `uv sync --locked` 뒤에 `var/link/wheels/<name>/<fingerprint>/`의 wheel로 `uv pip install --no-deps`를 한다. 이전의 `-e`와 `--overrides` 파일은 없어졌다. checkout이 쓰기 가능하면 그 pyproject의 backend로 격리된 `uv run`에서 wheel을 만들고, 읽기 전용 checkout(컨테이너 마운트)은 미리 만든 wheel만 설치하며 트리에 쓰지 않는다. 그곳에 wheel이 없으면 `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`로 실패한다. `check`는 설치된 wheel의 fingerprint가 checkout의 것과 다르면 실패한다. `link`와 `restore`는 같은 sync를 쓴다.
 

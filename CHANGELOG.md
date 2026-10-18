@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A word of a parity binding `command` may reference the invoking environment as `${NAME}`, resolved when the bindings run by the rule of the implementation's `command`, `args` and `env`: an unset or empty NAME is an R3 finding that names it, and that binding runs nothing. The runs printed `${NAME}` literally before (K223).
+
 - `link` links Python providers through editable wheels (K222): each provider is installed with `uv pip install --no-deps` from its wheel under `var/link/wheels/<name>/<fingerprint>/`, after `uv sync --locked`, instead of `-e` with an `--overrides` file. The wheel is built where the checkout is writable, through its pyproject backend in an isolated `uv run`, so a read-only checkout (a container mount) installs a prebuilt wheel and never writes into the tree; a missing prebuilt wheel there fails with `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`. `check` fails when the installed wheel has another fingerprint than the checkout. `restore` and `link` share the sync.
 
 - `make parity-check UNITS="<id> …"` runs only the named units of `config/parity.json`: `scripts/kit/parity.mts --unit <id>` (repeatable) runs their bindings through the same runner, cwd and reader as a full run and reports their outcomes with the normal ledger lines. The cross-unit rules that need every unit (R1, R2, R4 to R11) do not run, and the output says so in one line. An id that no unit holds is an error that names it, with no run (K221).

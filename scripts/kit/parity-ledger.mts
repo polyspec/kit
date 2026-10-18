@@ -9,7 +9,7 @@
 import type { SpawnSyncReturns } from 'node:child_process';
 import path from 'node:path';
 import { execute } from './process.mts';
-import { finding, resolveReferences, supportFiles } from './parity-declaration.mts';
+import { finding, resolveCommand, resolveReferences, supportFiles } from './parity-declaration.mts';
 import type { Environment, Finding, ParityImplementation, ParityModel } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
 import type { BindingCommand, Outcome, RunError, RunKind, RunTarget } from './parity-runners.mts';
@@ -75,8 +75,10 @@ function differences(first: Attempt, second: Attempt): string[] {
  */
 function resolvedRun(declared: ParityImplementation, root: string, binding: RunTarget, kind: RunKind, env: Environment): ResolvedRun {
   const { implementation, errors } = resolveReferences(declared, env, root);
-  if (errors.length) return { error: `cannot start: ${errors.join('; ')}` };
-  const run = runOf(implementation, root, binding, kind, env);
+  const command = binding.command === undefined ? undefined : resolveCommand(binding.command, env, root);
+  const failures = [...errors, ...command?.errors ?? []];
+  if (failures.length) return { error: `cannot start: ${failures.join('; ')}` };
+  const run = runOf(implementation, root, { ...binding, command: command?.command }, kind, env);
   if (run.error) return run;
   const shown = runOf(declared, root, binding, kind, env);
   // The runner of a binding does not read the references, so the declared run starts where the resolved run does.

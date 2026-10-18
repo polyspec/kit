@@ -317,6 +317,15 @@ export function resolveReferences(entry: ParityImplementation, env: Environment,
   return { implementation: expanded(entry, env, message => errors.push(message), root), errors };
 }
 
+/**
+ * The words of the command of a binding with their references resolved from the invoking environment `env`, by the rules of
+ * resolveReferences: `{ command, errors }`, each error naming the word and the name that is unset or empty.
+ */
+export function resolveCommand(command: string[], env: Environment, root: string): { command: string[]; errors: string[] } {
+  const errors: string[] = [];
+  return { command: command.map(word => expand(word, env, 'binding command', message => errors.push(message), root)), errors };
+}
+
 // The symbol of a php suite binding: a test method of a fully qualified class, as PHPUnit names it (Ns\\ClassTest::testX).
 const PHP_METHOD = /^(?:[A-Za-z_]\w*\\)*[A-Za-z_]\w*::[A-Za-z_]\w*$/;
 
@@ -603,6 +612,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     for (const entry of unit.bindings ?? []) {
       if (!files.has(entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} does not exist`);
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
+      for (const word of entry.command ?? []) expand(word, undefined, 'binding command', message => fail(`${where}: the binding of ${entry.implementation}: ${message}`));
       if (unit.kind === 'feature') {
         if (entry.id === undefined) fail(`${where}: the binding of ${entry.implementation} needs id, the native test id that its runner reports`);
         if (entry.symbol !== undefined) fail(`${where}: the binding of ${entry.implementation} has symbol, which a feature binding does not take; its id names the test`);
