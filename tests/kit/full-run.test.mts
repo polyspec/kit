@@ -155,14 +155,24 @@ test('the gate refuses while an item is waiting or active and passes when every 
   assert.equal(existsSync(path.join(work, RECORD)), false);
 });
 
-test('parity-check of every unit starts with the gate, and parity-check of named units does not', () => {
-  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, ...args], { encoding: 'utf8' });
+test('parity-check of every unit passes the gate while make reads the makefiles, and parity-check of named units does not', (t) => {
+  const { work } = prepared(t, { state: '[o]' });
+  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, ...args], { cwd: work, encoding: 'utf8' });
   const full = dry('parity-check');
   assert.equal(full.status, 0, full.stderr);
-  assert.match(full.stdout.split('\n')[0] ?? '', /full-run\.mts gate$/);
+  assert.match(full.stderr, /^\[full-run\] gate: no item waiting or in an active state$/m);
   const units = dry('parity-check', 'UNITS=a');
   assert.equal(units.status, 0, units.stderr);
-  assert.doesNotMatch(units.stdout, /full-run/);
+  assert.doesNotMatch(units.stdout + units.stderr, /full-run/);
+});
+
+test('a full parity-check refuses before the prerequisites that a repository adds to it', (t) => {
+  const { work } = prepared(t, { state: '[ ]' });
+  writeFileSync(path.join(work, 'gate.mk'), `include ${path.join(KIT_MAKE[1] ?? '')}\nparity-check: early\nearly:\n\ttouch early.marker\n`);
+  const full = spawnSync('make', ['--no-print-directory', '-f', 'gate.mk', ...KIT_MAKE.slice(2), 'parity-check'], { cwd: work, encoding: 'utf8' });
+  assert.notEqual(full.status, 0);
+  assert.match(full.stdout + full.stderr, /\[full-run\] refuse: 1 item waiting or in an active state[\s\S]*T1-1/);
+  assert.equal(existsSync(path.join(work, 'early.marker')), false, 'a prerequisite ran before the gate');
 });
 
 test('a document under docs/ that holds checklist items but is no tracker refuses the run and the gate', async (t) => {

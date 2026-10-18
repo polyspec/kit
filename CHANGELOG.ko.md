@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0d7fe545c38b07d03077e96a713585beee48f476c62ee0f540d267fb0cb2e77a -->
+<!-- source-sha256: 8a1ec56b88787bc4e381825ab1dd7cf2f552586675dc1ed2a9eb56d78c14f739 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 전체 `make parity-check`는 makefile을 읽는 동안 full-run gate를 실행해, 저장소가 덧붙인 선행 target보다 먼저 거부한다 (K236).
 - 어떤 tracker도 선언하지 않은 docs/ 아래의 checklist 항목 문서는 전체 실행과 gate를 거부한다 (K235).
 - kit에 full-run guard로 전체 suite를 실행하는 `make check`가 생기고, UNITS 없는 `make parity-check`는 항목이 대기이거나 active이면 거부하는 `full-run gate`로 시작한다 (K234).
 - 전체 실행 guard는 항목이 대기(`[ ]`)일 때도 거부한다. 완료, 우회, 불가 항목만 남을 수 있다 (K233).

@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 8f9a9e69397c8496ef17ad6b507c3d16c34dee36fd5975deab7aee6b2bae0b42 -->
+<!-- source-sha256: 072f66caa24dca15e84c6a71fd400d39a200ee619e2fbed36292932febdff201 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -295,3 +295,4 @@
 | K233 | 전체 실행 guard는 tracker의 항목이 active 상태일 때뿐 아니라 대기 상태일 때도 실행을 거부한다. 완료, 우회, 불가 항목만 남을 수 있고, 전체 실행은 항목이 아니라 관문이다(사용자 결정 2026-10-19). `activeItems`와 `inspectTrackers`는 `open`을 받는다. push-gate는 여전히 active 상태만 막는다. Red: full-run.test.mts의 대기 항목 test가 이전 코드에서 실패한다(실패 3개). Green: full-run, checklist, push-gate test가 통과한다(56개 중 56개). | `node --test tests/kit/full-run.test.mts` | [o] |
 | K234 | kit과 각 저장소의 모든 전체 실행이 체크리스트 검사를 거친다. kit에 `make check`를 두어 전체 suite(typecheck, kit-test, source-test, rebuild-check, duplication-check)를 guard로 실행하고, UNITS 없는 `make parity-check`는 `full-run gate`로 시작한다. gate는 항목이 대기이거나 active이면 거부하고 lock이나 record를 두지 않으므로, guard가 도는 suite 안의 parity-check가 그 guard와 부딪히지 않는다. Red: full-run.test.mts의 gate와 parity-check test가 이전 코드에서 실패한다. Green: 22개 중 22개. | `node --test tests/kit/full-run.test.mts` | [o] |
 | K235 | 나뉜 checklist가 전체 실행 검사를 빠져나가지 못한다. docs/ 아래의 추적 문서가 checklist 항목(마지막 칸이 상태인 표 행, 또는 상태와 ID를 가진 목록 항목)을 가졌는데 어떤 tracker의 path나 translation도 아니면, config/checklist.json에 선언될 때까지 실행과 gate를 거부한다. Red: full-run.test.mts와 checklist.test.mts의 나뉜 checklist test가 이전 코드에서 실패한다. Green: 38개 중 38개. 각 저장소에서 gate는 선언되지 않은 checklist를 찾지 않는다. | `node --test tests/kit/full-run.test.mts tests/kit/checklist.test.mts` | [o] |
+| K236 | 전체 parity-check는 저장소가 덧붙인 어떤 선행 target보다 먼저 거부한다. 원인: gate가 kit.mk parity-check의 첫 recipe 줄이어서 make가 저장소의 선행 target을 먼저 실행했다 (orm의 interface-check가 gate 거부 전에 TypeScript와 Rust interface를 빌드함, orm T206 log). 수정: parity-check가 UNITS 없이 goal이면 kit.mk가 makefile을 읽는 동안 gate를 실행한다. Red: full-run.test.mts의 새 case가 `a prerequisite ran before the gate`로 실패 (/private/tmp/claude-501/-Users-maxkwon-Projects-polyspec/5880ca11-594f-4956-81ef-ddabed06f2b7/scratchpad/k236-red.log). Green: parse 시점 gate에 맞춰 고친 dry-run case와 함께 통과 (/private/tmp/claude-501/-Users-maxkwon-Projects-polyspec/5880ca11-594f-4956-81ef-ddabed06f2b7/scratchpad/k236-green.log). | `node --test --test-name-pattern="prerequisites that a repository adds|parity-check of every unit" tests/kit/full-run.test.mts` | [o] |

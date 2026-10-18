@@ -282,10 +282,17 @@ dependency-review: ## Ask the registries for newer stable releases and advisorie
 	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update)
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
+# Without UNITS the check is a full run: the gate of full-run refuses it while a checklist item is waiting or active. The
+# gate runs while make reads the makefiles, so no prerequisite that a repository adds to parity-check builds before it.
+ifneq ($(filter parity-check,$(MAKECMDGOALS)),)
+ifeq ($(UNITS),)
+ifneq ($(shell $(NODE) $(KIT)/full-run.$(KIT_EXT) gate >&2; echo $$?),0)
+$(error parity-check: the gate of full-run refuses the full run)
+endif
+endif
+endif
 .PHONY: parity-check parity-declarations-check
-# Without UNITS the check is a full run: the gate of full-run refuses it while a checklist item is waiting or active.
 parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; UNITS="<id>..." runs only the named units (their bindings), without the cross-unit rules; the full check runs only when no item is waiting or active; offline
-	$(if $(UNITS),,$(NODE) $(KIT)/full-run.$(KIT_EXT) gate)
 	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit))
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; offline
