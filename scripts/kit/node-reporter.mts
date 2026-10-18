@@ -36,6 +36,7 @@ export default class ProgressReporter extends Transform {
   declare completedFailures: Map<string, number>;
   declare failedFiles: Set<string>;
   declare cases: Map<string, number>;
+  declare running: string | undefined;
 
   constructor() {
     super({ writableObjectMode: true });
@@ -47,6 +48,9 @@ export default class ProgressReporter extends Transform {
     this.failedFiles = new Set();
     // The number of test cases each file reported, by real path; a file that reports none fails.
     this.cases = new Map();
+    // The real path of the test file that node runs now, from its group's start to its completion. A case registered by a
+    // helper module names that module as its file, so the file that owns the case is the one running (K218).
+    this.running = undefined;
   }
 
   key(data: TestPlace): string {
@@ -70,12 +74,14 @@ export default class ProgressReporter extends Transform {
     const { type, data } = event;
     if (type === 'test:dequeue') {
       const { id, group } = this.id(data);
+      if (group) this.running = realpathSync(present(data.file, 'file')); // group implies file.
       this.progress.start(id, { group });
     } else if (type === 'test:complete') {
       const { id, group } = this.id(data);
       const { duration_ms: duration, error, passed } = data.details;
       const file = data.file && realpathSync(data.file);
-      if (!group && file) this.cases.set(file, (this.cases.get(file) ?? 0) + 1);
+      if (!group && this.running) this.cases.set(this.running, (this.cases.get(this.running) ?? 0) + 1);
+      if (group) this.running = undefined;
       // A group is a file, so file is set wherever group holds below.
       if (data.skip || data.todo) this.progress.skip(id);
       else if (passed && group && this.failedFiles.has(present(file, 'file'))) {  // group implies file.

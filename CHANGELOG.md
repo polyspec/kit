@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `run-tests node` counts the cases that a helper module registers (a case function that calls `test()`, such as orm's `caseTest`) for the test file that `node --test` runs. node runs the files one at a time (`--test-concurrency=1`), so each case belongs to the file whose group event opened it, and a file of helper-registered cases no longer fails with `the file ran no test case`. A run in which no test ran still fails (K218).
+
 - `nodeEvents` of `scripts/kit/test-output.mts` (`@polyspec/kit/test-output`) reads the lines of the node:test reporter of parity (parity-node-reporter.mts) into a sink, as goEvents, cargoEvents, pythonEvents and phpunitEvents read the output of their tools. The language-parity check reads the node cases through it, and a consumer counts the node:test cases of a run the same way; a run with no case reads none (K217).
 
 - A parity binding names the command that runs it with `command`, an argv array that replaces the default command of its runner, such as `["make", "feature-check", "ITEM=…"]` for a feature that needs its own environment. The runner still reads the output of that command as it reads its default, the field is accepted on every unit kind, and a command that cannot start or exits with a status other than 0 is an R3 finding that names it, with no fallback to the default command (K216).

@@ -102,6 +102,19 @@ test('a run in which no test ran fails: a file without a test case, only skipped
   assert.equal(runner(root, ['node', '--', 'tests/ok.test.mjs']).status, 0);
 });
 
+// A case that a helper module registers (a case function that calls test()) is reported with the helper as its file; the
+// case still belongs to the test file that node --test runs, so the file counts it (K218).
+test('a node file whose cases a helper module registers counts them for the file that runs', (t) => {
+  const root = checkout(t, {
+    'tests/testcase.mjs': `${SPEC}export function caseTest(name, fn) {\n  test(name, fn);\n}\n`,
+    'tests/select.test.mjs': "import { caseTest } from './testcase.mjs';\ncaseTest('adds', () => {});\ncaseTest('subtracts', () => {});\n",
+  });
+  const result = runner(root, ['node', '--', 'tests/select.test.mjs']);
+  assert.equal(result.status, 0, output(result));
+  assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 timed out, 0 skipped/);
+  assert.match(result.stdout, /✔ tests\/testcase\.mjs › adds/);
+});
+
 // The top-level await never settles: node ends the process with no live handle and fails the file for the unsettled await.
 test('a file whose top-level await never settles fails', (t) => {
   const root = checkout(t, { 'tests/late.test.mjs': `${SPEC}test('early', () => {});\nawait new Promise(() => {});\ntest('late', () => {});\n` });

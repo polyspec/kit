@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d594846a3b98c9ad1aa080b5139e2a920060f593b37f2f6cf95b8ec9edce50da -->
+<!-- source-sha256: dd83d00411b2fce2b7f4f8baaed76e71a8fdacf2a79482d80cee262b38bc3a15 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `run-tests node`는 helper module이 등록한 case(`test()`를 부르는 case 함수, 예: orm의 `caseTest`)를 `node --test`가 실행하는 test 파일의 case로 센다. node는 파일을 하나씩 실행하므로(`--test-concurrency=1`) 각 case는 그 파일의 group 이벤트가 연 파일에 속한다. 그래서 helper가 등록한 case의 파일이 `the file ran no test case`로 실패하지 않는다. test가 하나도 실행되지 않은 실행은 여전히 실패한다 (K218).
 
 - `scripts/kit/test-output.mts`의 `nodeEvents`(`@polyspec/kit/test-output`)는 parity의 node:test reporter(parity-node-reporter.mts)가 내는 줄을 sink로 읽는다. goEvents, cargoEvents, pythonEvents, phpunitEvents가 각 도구의 출력을 읽는 것과 같다. 언어 parity 검사는 node의 case를 이것으로 읽고, consumer도 node:test case를 같은 방식으로 센다. case가 없는 실행은 아무 case도 읽지 않는다 (K217).
 

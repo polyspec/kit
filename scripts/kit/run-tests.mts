@@ -129,7 +129,8 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       return {
         command: process.execPath,
         // The preload fails a file whose process is still alive the test timeout after its last test, naming what holds it.
-        args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, `--test-reporter=${siblingTool(import.meta.url, 'node-reporter')}`, '--test-reporter-destination=stdout', ...args],
+        // One file runs at a time, so the reporter attributes each case to the file whose group event opened it (K218).
+        args: ['--test', `--import=${pathToFileURL(siblingTool(import.meta.url, 'test-exit-deadline')).href}?ms=${milliseconds}`, `--test-timeout=${milliseconds}`, '--test-concurrency=1', `--test-reporter=${siblingTool(import.meta.url, 'node-reporter')}`, '--test-reporter-destination=stdout', ...args],
       };
     case 'vitest':
       // The runner starts the entry of the vitest package with its own node, so vitest runs on the declared Node.js and not on
