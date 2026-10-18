@@ -4,7 +4,8 @@
 //   node scripts/kit/full-run.mts run [--key name=value]... <target>...   run every make target of the full suite
 //   node scripts/kit/full-run.mts rerun-failed [--key name=value]...      rerun the targets of the current tree that did not pass
 //
-// The full suite runs once per tree, when no item of a tracker of config/checklist.json is in its active state. The guard
+// The full suite runs once per tree, when no item of a tracker of config/checklist.json is waiting ([ ]) or in its active
+// state; only done, bypassed and impossible items may remain, and the full run is a gate, never an item. The guard
 // refuses a run while such an item exists or a tracker cannot be read, while the Git hooks are not installed
 // (git-hooks.mts), while tracked files have uncommitted changes or untracked files are not ignored (the record names the
 // tree, which holds neither), and while the run of another process is still going on. A full run is refused when
@@ -119,9 +120,9 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
   running?: boolean;
 }): Decision {
   const refuse = (reason: string) => ({ run: false, reason, targets: [] });
-  if (problems.length > 0) return refuse(`the trackers of config/checklist.json cannot be read, so no item is known to be out of its active state:\n${problems.map(line => `  ${line}`).join('\n')}`);
+  if (problems.length > 0) return refuse(`the trackers of config/checklist.json cannot be read, so no item is known to be closed:\n${problems.map(line => `  ${line}`).join('\n')}`);
   if (active.length > 0) {
-    return refuse(`${plural(active.length, 'item')} in an active state; the full suite runs once, when every item is out of its active state:\n${active.map(item => `  ${item.file} ${item.id} ${item.title}`).join('\n')}`);
+    return refuse(`${plural(active.length, 'item')} waiting or in an active state; the full suite runs once, when no item is waiting or in its active state:\n${active.map(item => `  ${item.file} ${item.id} ${item.title}`).join('\n')}`);
   }
   if (hooks) return refuse(`the Git hooks are not installed: ${hooks}`);
   if (dirty.length > 0) {
@@ -140,7 +141,7 @@ export function decide({ mode, targets = [], keys = {}, active = [], problems = 
       : !sameTree
         ? `tree ${tree} differs from the tree ${record.tree} of the last full run (result ${record.result}, started ${record.started})`
         : `the keys (${describeKeys(keys)}) differ from the keys (${describeKeys(record.keys ?? {})}) of the last full run of tree ${tree} (result ${record.result}, started ${record.started})`;
-    return { run: true, reason: `${before}; no item in an active state; ${plural(targets.length, 'target')}`, targets };
+    return { run: true, reason: `${before}; no item waiting or in an active state; ${plural(targets.length, 'target')}`, targets };
   }
   if (!record) return refuse(`no full-run record in ${RECORD}; rerun-failed reruns the targets of a full run of the current tree that did not pass`);
   if (!sameTree) return refuse(`the last full run (started ${record.started}) verified tree ${record.tree}, not the current tree ${tree}; rerun-failed reruns only targets of the current tree`);
@@ -208,7 +209,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
   print: (line: string) => void;
 }): Promise<number> {
   const config = loadConfig(root);
-  const found = inspectTrackers(config, (file: string) => readFileSync(path.join(root, file), 'utf8'));
+  const found = inspectTrackers(config, (file: string) => readFileSync(path.join(root, file), 'utf8'), { open: true });
   const dirty = git(root, 'status', '--porcelain', '--untracked-files=all').split('\n').filter(Boolean);
   const tree = git(root, 'rev-parse', 'HEAD^{tree}').trim();
   const commit = git(root, 'rev-parse', 'HEAD').trim();

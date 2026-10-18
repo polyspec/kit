@@ -702,7 +702,7 @@ the reader of the document check (K7.1). Both read the same documents (table row
 
 - `readChecklist(text, tracker, { strict })` returns `{ items, findings }`; an item is `{ id, title, state, line }` with the
   state as the document writes it (`[o]`). The lenient reading (the gate and the guard) reports a malformed row or item, a
-  state outside `states`, a repeated ID and a document without an item, and `activeItems` throws on any of them. The strict
+  state outside `states`, a repeated ID and a document without an item, and `activeItems` throws on any of them; with `open` it also returns the waiting items (`[ ]`), which the full-run guard refuses (K233). The strict
   reading (the document check) reports the same findings and also a line that is not a heading or a task, a state marker that is
   not the state of a task, a state cell that holds more than its state, a bypass without cause and retry, each with line and
   column. The messages of each reading are the ones that their tests asserted before the merge.

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The full-run guard also refuses while an item is waiting (`[ ]`); only done, bypassed and impossible items may remain (K233).
 - An implementation of `config/parity.json` can declare `shares`, the implementation of the same runner whose tests it runs in its own runtime; R6 accepts its bindings in that implementation's roots (K232).
 - `make parity-check` folds the reports of a TypeScript coverage case that runs once per database item (`<case> [<database>]`) into that case, which passes when each report passes, as PHP data sets and Python items do; other repeated names are still R3 (K231).
 - `make parity-check` matches the id that a PHPUnit feature binding declares, `<Class>::<method>` (the id PHPUnit reports) or the bare method, so an orm binding such as `RollbackTest::test_rollback_failed` passes instead of R3 not-executed; cargo reads a result that stands alone on its line after the output printed between a test's name and its result, so `identity_load` cases that connect to a database count as run (K229).

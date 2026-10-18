@@ -62,11 +62,11 @@ test('the decision refuses an active item, an unreadable tracker, missing hooks,
   const fresh = decide(CLEAN);
   assert.equal(fresh.run, true);
   assert.deepEqual(fresh.targets, ['a', 'b']);
-  assert.match(fresh.reason, /no full-run record in var\/full-run\.json for tree tree-1; no item in an active state; 2 targets/);
+  assert.match(fresh.reason, /no full-run record in var\/full-run\.json for tree tree-1; no item waiting or in an active state; 2 targets/);
 
   const active = decide({ ...CLEAN, active: [{ file: 'docs/c.md', id: 'T1.2', title: 'Print a union' }] });
   assert.equal(active.run, false);
-  assert.match(active.reason, /^1 item in an active state; the full suite runs once, when every item is out of its active state:\n  docs\/c\.md T1\.2 Print a union$/);
+  assert.match(active.reason, /^1 item waiting or in an active state; the full suite runs once, when no item is waiting or in its active state:\n  docs\/c\.md T1\.2 Print a union$/);
 
   const problems = decide({ ...CLEAN, problems: ['docs/c.md: it has no item'] });
   assert.match(problems.reason, /cannot be read[\s\S]*docs\/c\.md: it has no item/);
@@ -123,18 +123,27 @@ test('an item in an active state refuses the run before any target, naming its f
   const { status, output, ran } = await guard(work, 'run', ['a', 'b']);
   assert.equal(status, 1);
   assert.deepEqual(ran, []);
-  assert.match(output, /^\[full-run\] refuse: 1 item in an active state[\s\S]*docs\/plans\/execution-checklist\.md T1-1 Print `a \\\| b` for a union/);
+  assert.match(output, /^\[full-run\] refuse: 1 item waiting or in an active state[\s\S]*docs\/plans\/execution-checklist\.md T1-1 Print `a \\\| b` for a union/);
   assert.equal(existsSync(path.join(work, RECORD)), false);
   assert.equal(existsSync(path.join(work, LOCK)), false, 'a refusal leaves its lock');
 });
 
+test('a waiting item refuses the run before any target, naming its file and ID', async (t) => {
+  const { work } = prepared(t, { state: '[ ]' });
+  const { status, output, ran } = await guard(work, 'run', ['a', 'b']);
+  assert.equal(status, 1);
+  assert.deepEqual(ran, []);
+  assert.match(output, /^\[full-run\] refuse: 1 item waiting or in an active state[\s\S]*docs\/plans\/execution-checklist\.md T1-1 Print `a \\\| b` for a union/);
+  assert.equal(existsSync(path.join(work, RECORD)), false);
+});
+
 test('a translation with another state, and a missing tracker, refuse the run', async (t) => {
-  const { work } = prepared(t);
-  edit(work, TRANSLATION, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [o] |'));
+  const { work } = prepared(t, { state: '[o]' });
+  edit(work, TRANSLATION, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[o\] \|/, '$1| [ ] |'));
   commitAll(work, 'translation differs');
   const twin = await guard(work, 'run', ['a']);
   assert.equal(twin.status, 1);
-  assert.match(twin.output, /cannot be read[\s\S]*T1-1 is \[ \] in docs\/plans\/execution-checklist\.md and \[o\] in docs\/plans\/execution-checklist\.ko\.md/);
+  assert.match(twin.output, /cannot be read[\s\S]*T1-1 is \[o\] in docs\/plans\/execution-checklist\.md and \[ \] in docs\/plans\/execution-checklist\.ko\.md/);
   git(work, 'rm', '--quiet', '-f', CHECKLIST);
   commitAll(work, 'remove the checklist');
   const missing = await guard(work, 'run', ['a']);
@@ -143,7 +152,7 @@ test('a translation with another state, and a missing tracker, refuse the run', 
 });
 
 test('a checkout without installed hooks is refused before any target', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   git(work, 'config', '--unset', 'core.hooksPath');
   const { status, output, ran } = await guard(work, 'run', ['a']);
   assert.equal(status, 1);
@@ -152,7 +161,7 @@ test('a checkout without installed hooks is refused before any target', async (t
 });
 
 test('a changed tracked file and an untracked file that is not ignored are refused; an ignored file is not', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   edit(work, '.gitignore', text => `${text}/build/\n`);
   const changed = await guard(work, 'run', ['a']);
   assert.equal(changed.status, 1);
@@ -171,7 +180,7 @@ test('a changed tracked file and an untracked file that is not ignored are refus
 });
 
 test('a full run records each target, and the same tree is refused a second time', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const first = await guard(work, 'run', ['a', 'b', 'c']);
   assert.equal(first.status, 0, first.output);
   assert.deepEqual(first.ran, ['a', 'b', 'c']);
@@ -201,7 +210,7 @@ test('a full run records each target, and the same tree is refused a second time
 });
 
 test('a failed target keeps its last lines in the record and in the output, and the run result is failed', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const { status, output, ran } = await guard(work, 'run', ['a', 'b', 'c'], { failing: ['b'] });
   assert.equal(status, 1);
   assert.deepEqual(ran, ['a', 'b', 'c'], 'a failed target does not stop the run');
@@ -217,7 +226,7 @@ test('a failed target keeps its last lines in the record and in the output, and 
 });
 
 test('rerun-failed without a record is refused', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const { status, output, ran } = await guard(work, 'rerun-failed', []);
   assert.equal(status, 1);
   assert.deepEqual(ran, []);
@@ -225,7 +234,7 @@ test('rerun-failed without a record is refused', async (t) => {
 });
 
 test('rerun-failed reruns only the failed targets, and a passing rerun completes the result', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const first = await guard(work, 'run', ['a', 'b', 'c'], { failing: ['b'] });
   assert.equal(first.status, 1);
 
@@ -251,7 +260,7 @@ test('rerun-failed reruns only the failed targets, and a passing rerun completes
 });
 
 test('the keys of a run are recorded, and a rerun needs the same keys', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const first = await guard(work, 'run', ['a'], { failing: ['a'], keys: { dep: 'c1' } });
   assert.equal(first.status, 1);
   assert.deepEqual(record(work).keys, { dep: 'c1' });
@@ -263,7 +272,7 @@ test('the keys of a run are recorded, and a rerun needs the same keys', async (t
 });
 
 test('a run that stops records the run as incomplete, and rerun-failed runs its unfinished targets', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   await assert.rejects(fullRun({
     root: work,
     mode: 'run',
@@ -289,7 +298,7 @@ test('a run that stops records the run as incomplete, and rerun-failed runs its 
 });
 
 test('an incomplete record whose process runs refuses the run; a reused process ID with another start time does not', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const other = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => other.kill());
   // spawn gives the child its pid; the test fails when it does not start.
@@ -307,7 +316,7 @@ test('an incomplete record whose process runs refuses the run; a reused process 
 });
 
 test('a guard is refused while another process holds the lock of the record, and runs no target', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const other = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => other.kill());
   mkdirSync(path.join(work, 'var'), { recursive: true });
@@ -322,7 +331,7 @@ test('a guard is refused while another process holds the lock of the record, and
 });
 
 test('two guards that start together run the targets once: the second is refused with the holder', async (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const [first, second] = await Promise.all([guard(work, 'run', ['a', 'b']), guard(work, 'run', ['a', 'b'])]);
   assert.deepEqual([first.status, second.status], [0, 1]);
   assert.deepEqual([...first.ran, ...second.ran], ['a', 'b']);
@@ -346,7 +355,7 @@ printf 'no final newline of %s' "$target" >&2
 }
 
 test('the command runs make -k for each target, logs its output and exits 1 for a failed target', (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const bin = stubMake(work);
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, FAIL: 'bad' };
   const failed = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run', '--key', 'dep=c1', 'good', 'bad'], { env });
@@ -374,7 +383,7 @@ test('the command runs make -k for each target, logs its output and exits 1 for 
 });
 
 test('the command prints its usage for arguments that do not fit', (t) => {
-  const { work } = prepared(t);
+  const { work } = prepared(t, { state: '[o]' });
   const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/full-run.mts')), 'run']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/full-run\.mts run/);

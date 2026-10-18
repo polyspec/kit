@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bb97826e7f77722dcca269e18924cc7a713d03d01edce2526c75dda125df925a -->
+<!-- source-sha256: 890087eff2f4396b5c8fc701553da095f8b43c0ffb696e74fecff6c68b6d179d -->
 
 # 도구 목록
 
@@ -638,7 +638,7 @@ finding 하나입니다.
 
 - `readChecklist(text, tracker, { strict })`는 `{ items, findings }`를 반환합니다. item은 `{ id, title, state, line }`이며 state는
   문서에 적힌 그대로(`[o]`)입니다. 관대한 읽기(gate와 guard)는 형식이 틀린 행이나 항목, `states` 밖의 state, 반복된 ID, 항목이 없는
-  문서를 보고하고, `activeItems`는 그 어느 것에서든 예외를 던집니다. 엄격한 읽기(문서 검사)는 같은 finding에 더해 제목이나 task가
+  문서를 보고하고, `activeItems`는 그 어느 것에서든 예외를 던집니다. `open`을 주면 대기 항목(`[ ]`)도 돌려주며, 전체 실행 guard는 이를 거부합니다(K233). 엄격한 읽기(문서 검사)는 같은 finding에 더해 제목이나 task가
   아닌 줄, task의 state가 아닌 state marker, state 말고 다른 것을 담은 state cell, cause와 retry가 없는 bypass를 줄과 열과 함께
   보고합니다. 각 읽기의 메시지는 합치기 전에 test가 단언하던 메시지입니다.
 - `twinFindings`는 두 읽기에서 문서와 번역의 item을 비교합니다.

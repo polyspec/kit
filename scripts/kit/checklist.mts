@@ -228,11 +228,17 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
   return { items, findings };
 }
 
-/** The items of `text` in the active state of `tracker`; throws with every finding when the text cannot be read. */
-export function activeItems(text: string, tracker: Tracker): ChecklistItem[] {
+/** The waiting state: an item not yet started. The full run treats it as open, like the active state. */
+export const WAITING = '[ ]';
+
+/**
+ * The items of `text` in the active state of `tracker`, and with `open` also in the waiting state; throws with every
+ * finding when the text cannot be read.
+ */
+export function activeItems(text: string, tracker: Tracker, { open = false }: { open?: boolean } = {}): ChecklistItem[] {
   const { items, findings } = readChecklist(text, tracker);
   if (findings.length > 0) throw new Error(findings.map(describeFinding).join('; '));
-  return items.filter(item => item.state === tracker.active);
+  return items.filter(item => item.state === tracker.active || (open && item.state === WAITING));
 }
 
 /**
@@ -267,14 +273,14 @@ export function compareTwin(english: string, korean: string, tracker: Tracker): 
  * The state of every tracker as read by `read(file)`, which returns the text of a file or throws why it cannot. Returns
  * `{ active, problems }`: the active items as `{ file, id, title }` and the sentences that name what cannot be read.
  */
-export function inspectTrackers(config: Pick<ChecklistConfig, 'trackers'>, read: (file: string) => string): { active: { file: string; id: string; title: string }[]; problems: string[] } {
+export function inspectTrackers(config: Pick<ChecklistConfig, 'trackers'>, read: (file: string) => string, { open = false }: { open?: boolean } = {}): { active: { file: string; id: string; title: string }[]; problems: string[] } {
   const active: { file: string; id: string; title: string }[] = [];
   const problems: string[] = [];
   for (const tracker of config.trackers) {
     let english;
     try {
       english = read(tracker.path);
-      for (const item of activeItems(english, tracker)) active.push({ file: tracker.path, id: item.id, title: item.title });
+      for (const item of activeItems(english, tracker, { open })) active.push({ file: tracker.path, id: item.id, title: item.title });
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       problems.push(`${tracker.path}: ${error.message}`);
