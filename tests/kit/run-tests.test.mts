@@ -553,6 +553,22 @@ function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
   return root;
 }
 
+// A harness module (`python -m <module> discover ...`) runs the tests through unittest's own verbose output, which the python
+// reader counts; run-tests runs it in place of `-m unittest` (K219).
+test('python tests run through a harness module named by --module, and its cases are counted (K219)', async (t) => {
+  assert.equal(parseArguments(['python', '--module', 'pkg.harness', 'discover'], '/repo').module, 'pkg.harness');
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover'], module: 'pkg.harness' }, '/r').args, ['-m', 'pkg.harness', 'discover', '-v']);
+  assert.throws(() => parseArguments(['node', '--module', 'pkg.harness'], '/repo'), /Usage: node/);
+  // The stub answers only the harness command; any other command of python3 ends with no case, so the run fails.
+  const root = pythonRoot(t, `if (process.argv.slice(2, 4).join(' ') !== '-m pkg.harness') { process.exitCode = 2; } else { process.stderr.write('test_a (pkg.t.T.test_a) ... ok\\ntest_b (pkg.t.T.test_b) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 2 tests in 0.001s\\n\\nOK\\n'); }`);
+  const harness = await inProcess(t, ['python', '--module', 'pkg.harness', 'discover', 'tests'], { root });
+  assert.equal(harness.status, 0, harness.text);
+  assert.match(harness.text, /✔ python \. discover tests: 2 passed, 0 failed/);
+  const plain = await inProcess(t, ['python', 'discover', 'tests'], { root });
+  assert.equal(plain.status, 1, plain.text);
+  assert.match(plain.text, /no test ran/);
+});
+
 test('--venv runs the python tests with the interpreter of a virtual environment of the checkout Python (K37)', async (t) => {
   assert.equal(parseArguments(['python', '--venv', 'pkg/.venv', 'discover'], '/repo').venv, '/repo/pkg/.venv');
   assert.throws(() => parseArguments(['node', '--venv', 'pkg/.venv'], '/repo'), /Usage:/);

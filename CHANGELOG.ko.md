@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dd83d00411b2fce2b7f4f8baaed76e71a8fdacf2a79482d80cee262b38bc3a15 -->
+<!-- source-sha256: e96348e1e2336f664a4599b69dc601c154565574b6c851eef5abcc1e898a79d3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `run-tests python --module <name>`는 Python 테스트를 `unittest` 대신 그 module(`python -m <name> …`)로 실행한다. 그래서 자체 harness로 테스트를 실행하는 저장소(예: orm의 `packages.python.tests.testcase`)도 같은 reader로 harness의 case를 센다. module 옵션은 python 도구에서만 읽는다 (K219).
 
 - `run-tests node`는 helper module이 등록한 case(`test()`를 부르는 case 함수, 예: orm의 `caseTest`)를 `node --test`가 실행하는 test 파일의 case로 센다. node는 파일을 하나씩 실행하므로(`--test-concurrency=1`) 각 case는 그 파일의 group 이벤트가 연 파일에 속한다. 그래서 helper가 등록한 case의 파일이 `the file ran no test case`로 실패하지 않는다. test가 하나도 실행되지 않은 실행은 여전히 실패한다 (K218).
 

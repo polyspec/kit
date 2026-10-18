@@ -3,7 +3,7 @@
 // passes, fails or is skipped, with the elapsed time, and gives every test its own timeout.
 //
 //   node scripts/kit/run-tests.mts <tool> [--timeout <seconds>] [--cwd <directory>] [--php-extension <file>]... [--venv <directory>]
-//       [--results <file> [--inputs <path>]...] [--] [<arguments>]
+//       [--module <name>] [--results <file> [--inputs <path>]...] [--] [<arguments>]
 //
 // The arguments after the options of the runner go to the tool. --results writes the record of the run, passed or not, to
 // <file> (relative to the checkout root): the counts, each test with its status and elapsed time, the tool, the elapsed time
@@ -46,7 +46,7 @@ import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
-const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
+const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
@@ -61,11 +61,12 @@ export type RunOptions = {
   inputs: string[];
   phpExtensions: string[];
   venv?: string;
+  module?: string;
   results?: string;
 };
 
 /** The options that the command of a tool reads. */
-export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv'> & Partial<Pick<RunOptions, 'phpExtensions'>>;
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions'>>;
 
 // How a tool ended: it could not start, or it closed with a status or a signal.
 type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
@@ -99,6 +100,9 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
     } else if (flag === '--venv') {
       if (!value || tool !== 'python') throw new Error(USAGE);
       options.venv = path.resolve(root, value);
+    } else if (flag === '--module') {
+      if (!value || tool !== 'python') throw new Error(USAGE);
+      options.module = value;
     } else if (flag === '--cwd') {
       if (!value) throw new Error(USAGE);
       options.cwd = path.resolve(root, value);
@@ -122,7 +126,7 @@ function splitCargo(args: string[]) {
 }
 
 /** The command of a tool with its progress and timeout arguments. */
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv }: ToolOptions, root = repositoryRoot()) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -157,7 +161,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
       // `discover` argument unittest would read `discover` as a test name.
-      return { command: venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3'), args: ['-m', 'unittest', ...args, '-v'] };
+      return { command: venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3'), args: ['-m', module ?? 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }

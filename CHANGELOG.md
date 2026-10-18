@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `run-tests python --module <name>` runs the Python tests through that module (`python -m <name> …`) in place of `unittest`, so a repository whose tests run through its own harness, such as orm's `packages.python.tests.testcase`, counts the cases of the harness with the same reader. The module is read only for the python tool (K219).
+
 - `run-tests node` counts the cases that a helper module registers (a case function that calls `test()`, such as orm's `caseTest`) for the test file that `node --test` runs. node runs the files one at a time (`--test-concurrency=1`), so each case belongs to the file whose group event opened it, and a file of helper-registered cases no longer fails with `the file ran no test case`. A run in which no test ran still fails (K218).
 
 - `nodeEvents` of `scripts/kit/test-output.mts` (`@polyspec/kit/test-output`) reads the lines of the node:test reporter of parity (parity-node-reporter.mts) into a sink, as goEvents, cargoEvents, pythonEvents and phpunitEvents read the output of their tools. The language-parity check reads the node cases through it, and a consumer counts the node:test cases of a run the same way; a run with no case reads none (K217).
