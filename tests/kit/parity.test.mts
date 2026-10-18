@@ -139,8 +139,13 @@ process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 pr
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
 let exit = 0;
 const width = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS libtest-mimic') ? Math.max(...tests.map(([, , name]) => name.length)) : 0;
+// With the line HARNESS timed the stub writes what the timed harness of the orm testcase crate writes: the timing comes on the
+// line of the name and the outcome on the next line.
+const timed = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS timed');
 for (const [, outcome, name] of tests) {
-  process.stdout.write('test ' + name.padEnd(width) + ' ... ' + (outcome === 'PASS' ? 'ok' : 'FAILED') + '\\n');
+  const result = outcome === 'PASS' ? 'ok' : 'FAILED';
+  if (timed) process.stdout.write('test ' + name + ' ... cpu=12.5µs wall=13µs\\n' + result + '\\n');
+  else process.stdout.write('test ' + name.padEnd(width) + ' ... ' + result + '\\n');
   if (outcome === 'FAIL') exit = 1;
 }
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
@@ -579,9 +584,9 @@ test('a feature run that exits 1 names the failing tests outside its ids, read f
     'roundtrip go: exit 1, 1 of 1 ids passed; failed outside the ids: TestRoundtrip/text',
   ));
   // A package that does not build reports no test name, and the line says so.
-  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'BUILD ./roundtrip_test.go:1:1: undefined: boom\n' })).includes(
-    'roundtrip go: exit 1, 0 of 1 ids passed; failed outside the ids: no test name readable from the output',
-  ));
+  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'BUILD ./roundtrip_test.go:1:1: undefined: boom\n' })).some(line => line.startsWith(
+    'roundtrip go: exit 1, 0 of 1 ids passed; failed outside the ids: no test name readable from the output; last 20 lines: ',
+  ) && line.includes('undefined: boom')));
   // node:test names a failing test with its enclosing suites, and the failing suite is named too, as the parser reads it.
   assert.ok(reported(feature({ 'ts/tests/roundtrip.test.mjs': "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  test('bytes', () => {});\n  test('text', () => { throw new Error('no'); });\n});\n" })).includes(
     'roundtrip ts: exit 1, 1 of 1 ids passed; failed outside the ids: roundtrip › text, roundtrip',
@@ -597,6 +602,44 @@ test('a go feature run names its ids in one -run alternation, and a go suite run
   assert.deepEqual(escaped.args, ['test', '-json', '-count=1', '-run', '^(TestX\\.y)$', './']);
   const suite = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/codec_test.go', symbol: 'TestCodec' }, 'suite', ENV), 'the go suite run');
   assert.deepEqual(suite.args, ['test', '-json', '-count=1', '-run', '^TestCodec$', './']);
+});
+
+// A failed run that names no test shows the last 20 lines of its output, so its cause is visible (K215).
+test('a failed feature run that names no test prints the last 20 lines of its output (K215)', TIMEOUT, (t) => {
+  const lines: string[] = [];
+  checkParity(repository(t, feature({ 'go/roundtrip_test.go': Array.from({ length: 25 }, (_, i) => `BUILD ./roundtrip_test.go:${i + 1}:1: boom`).join('\n') + '\n' })), { execute: true, env: ENV, say: line => lines.push(line) });
+  const line = known(lines.find(text => text.startsWith('roundtrip go: exit 1')), 'the go feature line');
+  assert.match(line, /last 20 lines: .*roundtrip_test\.go:25:1: boom/);
+  assert.match(line, /roundtrip_test\.go:11:1: boom/);
+  assert.doesNotMatch(line, /roundtrip_test\.go:5:1: boom/);
+});
+
+// cargo test of libtest-mimic (the orm testcase crate) prints the timing after the name and the outcome on the next line, so
+// every id that passes is a pass (K215); the stub writes that layout with the line HARNESS timed.
+test('a timed cargo run whose every declared id passes counts each one as passed (K215)', TIMEOUT, (t) => {
+  const lines: string[] = [];
+  const { findings, ledger } = checkParity(repository(t, feature({ 'rust/tests/roundtrip.rs': 'HARNESS timed\nPASS roundtrip::bytes\n' })), { execute: true, env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['roundtrip::bytes pass']);
+  assert.ok(lines.includes('roundtrip rust: exit 0, 1 of 1 ids passed'));
+});
+
+// A suite run counts the declared cases it passed, never a case that the suite does not declare or a repeated one (K215).
+test('a suite run counts only the declared cases that passed, so a count never exceeds the declared number (K215)', TIMEOUT, (t) => {
+  const lines: string[] = [];
+  const { findings } = checkParity(repository(t, { files: { 'ts/tests/codec.mjs': `${NODE_CODEC}test('empty', () => {});\ntest('latin1', () => {});\n` } }), { execute: true, env: ENV, say: line => lines.push(line) });
+  const counts = lines.map(line => /^codec ts \(\d of 2\): exit 0, (\d+) of (\d+) cases passed$/.exec(line)).filter(match => match !== null);
+  assert.ok(counts.length > 0, lines.join('\n'));
+  for (const [, passed, declared] of counts) assert.ok(Number(passed) <= Number(declared), `${passed} passed of ${declared} declared`);
+  assert.deepEqual(keys(findings), ['R3 codec ts']);
+  assert.match(findingAt(findings, 0).message, /not in the suite: latin1/);
+});
+
+// A run that exits 0 without a declared id reports that id as not executed (K215).
+test('exit 0 with a declared id absent from the output is a failure that names the id (K215)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({ 'rust/tests/roundtrip.rs': 'PASS roundtrip::other\n' }));
+  assert.deepEqual(keys(findings), ['R3 roundtrip rust']);
+  assert.match(findingAt(findings, 0).message, /not executed: roundtrip::bytes/);
 });
 
 // Cargo builds tests/<name>/main.rs as the test target <name>, and the other files of tests/<name>/ are its modules (K148).

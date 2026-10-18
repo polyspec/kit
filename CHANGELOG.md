@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make parity-check` reads the timed cargo harness (libtest-mimic with timing, as the orm testcase crate prints it), whose outcome comes on the line after the test name, so a rust binding whose declared cases all pass counts each of them as passed (it counted 0 before). A suite run counts only the declared cases that passed, so the count never exceeds the declared number; an exit-0 run without a declared case fails and names it, and a failed run that names no test prints the last 20 lines of its output (K215).
+
 - `make parity-check` runs a go feature with `-run ^(<top>|…)$`, one alternation of the top-level test names of its ids (the part before the first `/`), instead of the whole package, so a package of feature units runs its tests once per test file and a failure in an unrelated test no longer fails every unit. A suite run keeps its symbol (K214).
 
 - `make parity-check` names the failing tests that a feature run reports outside its ids when the run exits with a status other than 0, read from `go test -json` (the fail events with a Test name) and from the node:test reporter; a run whose output names none says so (`failed outside the ids: no test name readable from the output`), where it used to print only the exit status (K213).

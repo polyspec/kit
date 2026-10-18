@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 67d5cc92d7b77d13a667ca854c6b88c17e985b143e392fd798be41654e869a81 -->
+<!-- source-sha256: 56979e5081d4dde0b7b103dca6accfc11736d87426610f08410265d9ca555874 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make parity-check`는 timing을 붙인 cargo 하네스(orm testcase crate가 출력하는 libtest-mimic)의 출력을 읽는다. 이 출력은 test 이름 줄 다음 줄에 결과가 나온다. 그래서 선언된 case가 모두 통과한 rust binding의 각 case를 통과로 센다(이전에는 0개로 셌다). suite 실행은 선언된 case 중 통과한 것만 세므로 셈이 선언된 개수를 넘지 않는다. 종료 0인 실행에 선언된 case가 없으면 그 이름을 적고 실패하며, 실패한 실행이 test 이름을 보고하지 않으면 출력의 마지막 20줄을 보인다 (K215).
 
 - `make parity-check`는 feature 실행을 패키지 전체가 아니라 `-run ^(<top>|…)$`로 실행한다. 이 정규식은 id의 첫 `/` 앞 top-level test 이름을 이스케이프해 하나의 선택으로 묶은 것이다. 그래서 feature가 많은 패키지도 test 파일마다 그 test만 실행되고, 관계없는 test의 실패가 모든 unit을 실패시키지 않는다. suite 실행은 symbol을 그대로 쓴다 (K214).
 

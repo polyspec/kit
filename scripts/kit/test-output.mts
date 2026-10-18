@@ -144,7 +144,7 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }:
  */
 export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stderr(text: string): void } {
   let binary = 'cargo';
-  const stdout = startResultLines(sink, {
+  const lines = startResultLines(sink, {
     result: /^test (\S+)(?: - should panic)?\s+\.\.\. (ok|FAILED|ignored)\b/,
     pending: /^test (\S+)(?: - should panic)?\s+\.\.\. $/,
     // `result` matches only these three words.
@@ -155,7 +155,9 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
     },
   });
   return {
-    stdout,
+    // The timed harness of the orm testcase crate (libtest-mimic with timing) writes the timing after the name and the outcome
+    // on the next line; joined here, the outcome is read as on the line of the name (K215).
+    stdout: data => lines(data.replace(/^(test \S+(?: - should panic)?\s+\.\.\. )cpu=\S+ wall=\S+\n(?=(?:ok|FAILED|ignored)\b)/gm, '$1')),
     stderr(text: string) {
       const running = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(text);
       if (running) binary = present(running[1], 'running[1]'); // The group always takes part in a match.

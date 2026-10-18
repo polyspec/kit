@@ -118,6 +118,9 @@ function twice(run: BindingCommand & { shown: string }, root: string, where: { u
   return [runOnce(1), runOnce(2)];
 }
 
+/** The last 20 non-blank lines of a run's standard output and then its standard error, joined by ' | ' (K215). */
+const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): string => [stdout ?? '', stderr ?? ''].join('\n').split('\n').filter(line => line.trim()).slice(-20).join(' | ');
+
 /**
  * R3 of the feature units: the test file of each feature binding runs twice as a whole, once for all the features that bind it
  * in its implementation, and each id passes in both runs, once in each, and the runs exit with 0.
@@ -142,7 +145,7 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);
     // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
     const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
-    const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : 'no test name readable from the output'}`;
+    const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : `no test name readable from the output; last 20 lines: ${lastLines(first.result)}`}`;
     say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
     const failedRun = [
       first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
@@ -189,7 +192,7 @@ export function runBindings(model: ParityModel, root: string, { env, files, say 
     const declared = model.cases.get(unit.id) ?? [];
     const group = (name: string) => implementation.runner === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
     const [first, second] = twice(run, root, { unit: unit.id, implementation: implementation.name }, ledger, say, group);
-    for (const [attempt, { status, cases }] of [first, second].entries()) say(`${unit.id} ${implementation.name} (${attempt + 1} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${named(cases, 'pass').length} of ${expected.length} cases passed`);
+    for (const [attempt, { status, cases }] of [first, second].entries()) say(`${unit.id} ${implementation.name} (${attempt + 1} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
     const { result, status, cases } = first;
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
     const problems = [
