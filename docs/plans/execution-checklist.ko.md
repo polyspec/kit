@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 1d94ad9ddf6be2d23edbae418a194adca1c04d35de426fd62fac9226da5a1459 -->
+<!-- source-sha256: 4ad993a4b59b3fe745a5f63899c9210a3290f4acc68f3374681f79657b2d534c -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -275,3 +275,5 @@
 | K213 | 0이 아닌 코드로 끝난 parity feature 실행이 선언된 id 밖에서 실패한 테스트 이름을 출력하거나(go `-json`의 Test가 있는 fail 이벤트, node:test 실패 이름), 읽을 수 있는 이름이 없다고 말합니다. 원인: 패키지의 다른 테스트가 실패하는데 orm 단위가 `exit 1, 1 of 1 ids passed`만 출력해 원인을 숨김. Red: tests/kit/parity.test.mts 60 중 59. Green: 60/60 | `scripts/kit/parity-ledger.mts`, `scripts/kit/parity-runners.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K214 | go parity feature 실행이 패키지 전체 대신 선언된 id의 최상위 테스트를 `-run ^(Top1|Top2)$` 하나로 고릅니다(첫 `/` 앞 부분, 중복 제거, 문법 문자 escape). suite 실행은 그대로입니다. 원인: orm 단위가 ./model과 ./orm 전체를 두 번씩 실행해 parity 실행이 60분을 넘고 메모리가 부족했음. Red: K214 사례에서 feature 단위에 -run이 없음. Green: tests/kit/parity.test.mts 61/61 | `scripts/kit/parity-runners.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K215 | cargo 테스트 출력 판독기가 시간 표시가 붙은 libtest-mimic 이름 줄(`test <name> ... cpu= wall=`)과 다음 줄의 결과를 합칩니다. suite 통과 수는 선언된 사례만 셉니다. 테스트 이름을 읽을 수 없는 feature 실행 실패에는 출력 마지막 20줄을 붙입니다. 원인: orm rust 통과가 미실행으로 집계되고(0 of 19) typescript가 16 of 1로 보고됨. Red: 새 K215/K213 사례 4개 실패. Green: main에서 tests/kit/parity.test.mts 65/65 | `scripts/kit/test-output.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
+| K216 | parity binding은 `command`(argv 배열)로 runner의 기본 명령을 대신할 명령을 적을 수 있고, 그 명령은 구현 디렉터리에서 실행됩니다. runner는 출력을 전과 같이 읽고, 시작하지 못하거나 0이 아닌 상태로 끝난 명령은 기본 명령으로 대신하지 않는 R3입니다. 원인: orm go feature 단위는 orm feature runner의 데이터베이스별 환경이 필요한데 schema가 저장소 명령을 받지 않았음. Red: schema가 `command`를 거부. Green: main에서 tests/kit/parity.test.mts 67/67 | `scripts/kit/schema/parity.schema.json`, `scripts/kit/parity-runners.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
+| K217 | `@polyspec/kit/test-output`을 package export로 내고, `nodeEvents`가 parity node:test reporter 줄을 다른 reader처럼 Sink로 읽습니다. parity는 node case를 이것으로 읽고 case가 아닌 줄에서 실패합니다. 원인: consumer가 parser를 복사하지 않고는 test case를 셀 수 없었음. Red: ERR_PACKAGE_PATH_NOT_EXPORTED, `nodeEvents` 없음. Green: main에서 tests/kit/test-output.test.mts 6/6, parity.test.mts 67/67 | `scripts/kit/test-output.mts`, `scripts/kit/parity-runners.mts`, `package.json`, `tests/kit/test-output.test.mts` | `tests/kit/test-output.test.mts` | [o] |
