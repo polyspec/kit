@@ -1,5 +1,6 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1fcad872cdf328fa5a39f6828a09b6360e951dbbdf188eb56359bb178c553ed1 -->
+<!-- source-sha256: 817153f6af757556169cc13a912fdf80d28eb16b874853ea2569ae94d596debf -->
+<!-- source-sha256: ee335d3ef50ce46675f76116905d817b3d0b834a89b0b8d696a302e094b26e6b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +8,7 @@
 ## Unreleased
 
 - parity binding `command`의 단어는 실행 environment를 `${NAME}`으로 참조할 수 있습니다. binding을 실행할 때 구현의 `command`, `args`, `env`와 같은 규칙으로 풀리며, NAME이 설정되지 않았거나 비었으면 그 NAME을 적은 R3 finding이고 그 binding은 아무것도 실행하지 않습니다. 이전에는 `${NAME}`을 그대로 실행했습니다(K223).
+- `link`는 제공자와 같이 동기화된 환경의 모든 Python 프로젝트를, 소비자 자신과 polyspec 의존 여부와 무관한 각 workspace member까지 editable wheel로 설치한다(K224). sync는 `uv sync --locked --no-install-project`이다(uv workspace root면 `--no-install-workspace`). 그래서 읽기 전용 소비자 checkout에서 `os.utime`으로 실패하던, 프로젝트를 제자리에서 빌드하는 일이 없다. wheel은 패키지 폴더가 쓰기 가능하면 `var/link/wheels/<name>/<fingerprint>/`에 만들고, 읽기 전용이면 있는 것을 재사용한다. 읽기 전용 폴더에 wheel이 없으면 `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`로 실패한다. 모든 wheel을 sync 전에 먼저 확인하므로 하나라도 없으면 환경은 그대로 둔다. `check`는 설치된 각 wheel의 fingerprint를 검사한다. `unlink`는 여전히 전체 `uv sync --locked`로 각 프로젝트 자신의 설치를 복원한다(K224).
 
 - `link`는 Python 제공자를 editable wheel로 연결한다(K222). 각 제공자는 `uv sync --locked` 뒤에 `var/link/wheels/<name>/<fingerprint>/`의 wheel로 `uv pip install --no-deps`를 한다. 이전의 `-e`와 `--overrides` 파일은 없어졌다. checkout이 쓰기 가능하면 그 pyproject의 backend로 격리된 `uv run`에서 wheel을 만들고, 읽기 전용 checkout(컨테이너 마운트)은 미리 만든 wheel만 설치하며 트리에 쓰지 않는다. 그곳에 wheel이 없으면 `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`로 실패한다. `check`는 설치된 wheel의 fingerprint가 checkout의 것과 다르면 실패한다. `link`와 `restore`는 같은 sync를 쓴다.
 

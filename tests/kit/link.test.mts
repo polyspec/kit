@@ -100,7 +100,7 @@ function workspace(t: TestContext) {
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
   stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl";; esac
-case "$1 $2" in "workspace dir") pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; esac`);
+case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -233,7 +233,7 @@ test('K222: a read-only Python provider is installed from its prebuilt editable 
     assert.ok(install.includes('--no-deps'), install);
     assert.ok(install.includes(z) && install.includes(w), install);
     assert.doesNotMatch(install, / -e /, 'no editable build of the checkout');
-    assert.ok(!log().includes('uv run'), 'no build in a read-only checkout');
+    assert.equal(log().split('\n').filter(item => item.startsWith('uv run')).length, 1, 'only the writable consumer project is built; no build in a read-only checkout');
   } finally {
     setWritable(provider, true);
   }
@@ -247,7 +247,7 @@ test('K222: a read-only Python provider without a prebuilt wheel of its fingerpr
     const { ok, text } = linkLines([consumer], env);
     assert.equal(ok, false);
     assert.match(text, /NOT linked python {3}polyspec-z \(stale prebuilt wheel polyspec-z \(fingerprint [0-9a-f]{12}\): run kit link on the host\)/);
-    assert.ok(!log().includes('uv sync'), 'no sync before a wheel is known to exist');
+    assert.ok(!log().includes('uv sync') && !log().includes('uv pip install'), 'a missing wheel leaves the environment untouched');
   } finally {
     setWritable(provider, true);
   }
@@ -306,6 +306,68 @@ test('K222: a writable Python provider without a wheel of its fingerprint is bui
   assert.ok(existsSync(wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'))));
 });
 
+test('K224: a read-only Python consumer with a prebuilt wheel of its own project links it, and the sync carries --no-install-project', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const w = wheelFile(consumer, 'polyspec-w', fingerprintOf(provider, 'packages/w'));
+  const project = wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'));
+  put(consumer, { 'python/uv.lock': 'version = 1\n', [path.relative(consumer, z)]: '', [path.relative(consumer, w)]: '', [path.relative(consumer, project)]: '' });
+  setWritable(path.join(consumer, 'python'), false);
+  try {
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, true, text);
+    assert.match(text, /linked {5}python {3}cons -> .*\/python \(.*python\/\.venv, now\)/);
+    const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
+    assert.ok(sync.includes('--no-install-project') && !sync.includes('--no-install-workspace'), sync);
+    const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
+    assert.ok(install.includes(project), install);
+    assert.doesNotMatch(install, / -e /, 'no editable build of the consumer');
+    assert.ok(!log().includes('uv run'), 'no build in a read-only consumer');
+  } finally {
+    setWritable(path.join(consumer, 'python'), true);
+  }
+});
+
+test('K224: a read-only Python consumer without a prebuilt wheel of its own project fails with the stale message, and syncs nothing', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  setWritable(path.join(consumer, 'python'), false);
+  try {
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, false);
+    assert.match(text, /NOT linked python {3}cons \(stale prebuilt wheel cons \(fingerprint [0-9a-f]{12}\): run kit link on the host\)/);
+    assert.ok(!log().includes('uv sync') && !log().includes('uv pip install'), 'a missing consumer wheel leaves the venv unchanged: no sync, no install');
+  } finally {
+    setWritable(path.join(consumer, 'python'), true);
+  }
+});
+
+test('K224: a uv workspace root syncs with --no-install-workspace, and its project is built and installed as a wheel', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n', 'python/pyproject.toml': `${readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8')}[tool.uv.workspace]\nmembers = []\n` });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
+  assert.ok(sync.includes('--no-install-workspace'), sync);
+  assert.ok(log().includes('uv run --no-project --isolated --with setuptools>=40.8.0 python -c'), 'the consumer project is built, as a provider is');
+  assert.ok(existsSync(wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'))));
+});
+
+test('K224: a uv workspace member without polyspec deps is installed from its wheel, so --no-install-workspace drops no member', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const root = readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8');
+  put(consumer, { 'python/uv.lock': 'version = 1\n', 'python/pyproject.toml': `${root}[tool.uv.workspace]\nmembers = ["member"]\n`, 'python/member/pyproject.toml': '[project]\nname = "member"\nversion = "0"\ndependencies = []\n' });
+  git(consumer, 'add', 'python/member/pyproject.toml');
+  git(consumer, 'commit', '--quiet', '-m', 'member');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
+  assert.ok(sync.includes('--no-install-workspace'), sync);
+  const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
+  assert.ok(install.includes(wheelFile(consumer, 'member', fingerprintOf(consumer, 'python/member'))), install);
+  assert.match(text, /linked {5}python {3}member -> .*\/python\/member \(.*python\/\.venv, now\)/);
+});
+
 test('the editable install of an older link (uv pip list shows an editable location, uv pip freeze no wheel) is NOT linked in check', (t) => {
   const { provider, consumer, env } = workspace(t);
   put(consumer, { 'python/uv.lock': 'version = 1\n', 'pip-list.json': JSON.stringify([{ name: 'polyspec-z', version: '0.0.1', editable_project_location: path.join(provider, 'packages/python') }, { name: 'polyspec-w', version: '0.0.1', editable_project_location: path.join(provider, 'packages/w') }]) });
@@ -321,7 +383,7 @@ test('a Python provider that uv pip list does not show is NOT linked, not instal
   assert.equal(ok, false);
   assert.match(text, /NOT linked python {3}polyspec-z \(not installed in .*python\/\.venv\)/);
   assert.match(text, /NOT linked python {3}polyspec-w \(not installed in .*python\/\.venv\)/);
-  assert.ok(!log().includes('uv pip install'), 'no install of a provider that is not installed');
+  assert.doesNotMatch(log(), /uv pip install.*polyspec[-_][zw]/, 'no install of a provider that is not installed');
 });
 
 test('a Composer record without install-path is NOT linked, and no folder is guessed from its name', (t) => {

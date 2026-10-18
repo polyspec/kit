@@ -4,9 +4,10 @@
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
 //   Composer  each copy that installed.json of the vendor of the consumer's Composer project (composer config vendor-dir)
 //             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
-//   Python    each declared polyspec package and each polyspec package below it is installed from its editable wheel
-//             (K222), built where its checkout is writable and kept under var/link/wheels, after uv sync --locked of the
-//             environment; a read-only checkout only installs the wheel that is already there;
+//   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
+//             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
+//             after uv sync --locked --no-install-project (--no-install-workspace in a uv workspace) of the environment, so
+//             the sync never builds a project; a read-only folder only installs the wheel that is already there;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
@@ -379,13 +380,13 @@ function buildEditable(uv: Tool, provider: Provider, directory: string) {
   renameSync(staging, directory);
 }
 
-/** The editable wheel of the Python provider at its fingerprint (K222): prebuilt, or built where the checkout is writable; else undefined with the stale reason. */
+/** The editable wheel of the Python provider at its fingerprint (K222): prebuilt, or built where its folder is writable; else undefined with the stale reason (K224). */
 function wheelOf(work: Run, consumer: Consumer, uv: Tool, provider: Provider): string | undefined {
   const fp = pythonFingerprint(provider.checkout, provider.folder);
   const directory = wheelDirOf(consumer, provider.name, fp);
   const existing = wheelIn(directory);
   if (existing) return existing;
-  if (!writable(provider.checkout)) {
+  if (!writable(provider.folder)) {
     unlinkable(work, 'python', provider.name, `stale prebuilt wheel ${provider.name} (fingerprint ${fp}): run kit link on the host`);
     return undefined;
   }
@@ -403,9 +404,29 @@ function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string
   return { venv, workspace };
 }
 
-/** uv sync --locked of the environment of `target`: the locked releases, the step before each install of a wheel (K222). */
-function syncPython(uv: Tool, target: { venv: string; workspace: string }) {
-  run(uv.command, ['sync', '--locked'], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
+/**
+ * The uv flag that keeps a sync of the workspace `workspace` from building its projects (K224): a workspace root
+ * (`[tool.uv.workspace]`) keeps every member out, a single project keeps its own out.
+ */
+function noInstallFlag(workspace: string): '--no-install-workspace' | '--no-install-project' {
+  const file = path.join(workspace, MANIFESTS.python);
+  const tool = existsSync(file) ? readTomlFile(file).tool : undefined;
+  return isJsonObject(tool) && isJsonObject(tool.uv) && tool.uv.workspace !== undefined ? '--no-install-workspace' : '--no-install-project';
+}
+
+/** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of a wheel (K222). */
+function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...flags: string[]) {
+  run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
+}
+
+/**
+ * The project of the pyproject `file` (the consumer's own, or a member of its workspace), as a provider of its folder, so that it is
+ * installed from its editable wheel like a provider (K224); undefined when the file declares no [project] name.
+ */
+function ownProject(consumer: Consumer, file: string): Provider | undefined {
+  const project = readTomlFile(file).project;
+  if (!isJsonObject(project) || typeof project.name !== 'string') return undefined;
+  return { ecosystem: 'python', name: project.name, folder: path.dirname(file), repository: consumer.repository, checkout: consumer.top };
 }
 
 /** The polyspec packages that `uv pip freeze` lists as installed from a local wheel, by normalized name: PEP 610 `name @ file:` (K222). */
@@ -458,27 +479,36 @@ function installedPython(uv: Tool, venv: string): Map<string, { version: string 
 }
 
 function linkPython(work: Run, consumer: Consumer) {
-  const byVenv = new Map<string, { workspace: string; names: Set<string> }>();
-  const files = consumer.manifests('python').filter(file => declaredPython(file).length);
-  if (!files.length) return;
+  const files = consumer.manifests('python');
+  if (!files.some(file => declaredPython(file).length)) return;
   const uv = consumerTool(consumer.top, 'uv', work.env);
+  // Every project of an environment is a member of it: with --no-install-workspace the sync installs none of them, so each
+  // member, polyspec or not, is installed from its wheel (K224). An environment with no polyspec package is not synced.
+  const byVenv = new Map<string, { workspace: string; names: Set<string>; projects: Provider[] }>();
   for (const file of files) {
     const target = pythonTarget(uv, file);
-    if (typeof target === 'string') { for (const name of declaredPython(file)) unlinkable(work, 'python', name, target); continue; }
-    const entry = byVenv.get(target.venv) ?? { workspace: target.workspace, names: new Set<string>() };
-    for (const name of declaredPython(file)) entry.names.add(name);
+    const declared = declaredPython(file);
+    if (typeof target === 'string') { for (const name of declared) unlinkable(work, 'python', name, target); continue; }
+    const entry = byVenv.get(target.venv) ?? { workspace: target.workspace, names: new Set<string>(), projects: [] };
+    for (const name of declared) entry.names.add(name);
+    const project = ownProject(consumer, file);
+    if (project) entry.projects.push(project);
     byVenv.set(target.venv, entry);
   }
-  for (const [venv, { workspace, names }] of byVenv) {
+  for (const [venv, { workspace, names, projects }] of byVenv) {
+    if (!names.size) continue;
     const installed = installedPython(uv, venv);
     const wheels = wheelsInstalled(uv, venv);
-    const linked = closure(work, consumer, names).filter((provider) => {
-      const found = installed.get(provider.name);
-      if (!found) { unlinkable(work, 'python', provider.name, `not installed in ${venv}`); return false; }
-      const problem = pinProblem(found.version);
-      if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
-      return !problem;
-    });
+    const linked = [
+      ...closure(work, consumer, names).filter((provider) => {
+        const found = installed.get(provider.name);
+        if (!found) { unlinkable(work, 'python', provider.name, `not installed in ${venv}`); return false; }
+        const problem = pinProblem(found.version);
+        if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
+        return !problem;
+      }),
+      ...projects,
+    ];
     const isLinked = (provider: Provider) => {
       const wheel = wheels.get(normalizeName(provider.name));
       return wheel !== undefined && path.dirname(wheel) === wheelDirOf(consumer, provider.name, pythonFingerprint(provider.checkout, provider.folder));
@@ -497,13 +527,17 @@ function linkPython(work: Run, consumer: Consumer) {
       for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock in ${workspace}: run the repository's install`);
       continue;
     }
+    // Every wheel is resolved before the sync: a sync removes each project that it does not install, so a missing wheel
+    // leaves the environment untouched and the run fails (K224).
     const ready: { provider: Provider; wheel: string }[] = [];
+    let complete = true;
     for (const provider of linked) {
       const wheel = wheelOf(work, consumer, uv, provider);
-      if (wheel !== undefined) ready.push({ provider, wheel });
+      if (wheel === undefined) complete = false;
+      else ready.push({ provider, wheel });
     }
-    if (!ready.length) continue;
-    syncPython(uv, { venv, workspace });
+    if (!complete || !ready.length) continue;
+    syncPython(uv, { venv, workspace }, noInstallFlag(workspace));
     run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--no-deps', ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
     for (const { provider } of ready) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}, now)`);
   }
