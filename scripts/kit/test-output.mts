@@ -100,12 +100,15 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
  * name into a test (`{ id, name }`) and `other` receives every other line. The runner is serial, so an outcome belongs to the
  * test that started last.
  */
-function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }: {
+function startResultLines(sink: Sink, { result, pending, outcome, idOf, other, interleaved }: {
   result: RegExp;
   pending: RegExp;
   outcome: (word: string) => Outcome;
   idOf: (name: string) => TestRef;
   other: (text: string) => unknown;
+  // The start of a test whose output is printed before its result, and the line of the result alone: `start` matches the
+  // line of the test's name (its first group is the name), `end` the result word, the first group of the line.
+  interleaved?: { start: RegExp; end: RegExp };
 }): (data: string) => void {
   let current: TestRef | undefined;
   let buffer = '';
@@ -116,7 +119,17 @@ function startResultLines(sink: Sink, { result, pending, outcome, idOf, other }:
   };
   const line = (text: string): unknown => {
     const match = result.exec(text);
-    if (!match) return other(text);
+    if (!match) {
+      const began = interleaved?.start.exec(text);
+      if (began) return start(present(began[1], 'began[1]'));
+      const ended = interleaved?.end.exec(text);
+      if (ended && current !== undefined) {
+        sink[outcome(present(ended[1], 'ended[1]'))](current);
+        current = undefined;
+        return undefined;
+      }
+      return other(text);
+    }
     // Both groups of `result` always take part in a match.
     start(present(match[1], 'match[1]'));
     // As above; start has set current.
@@ -150,6 +163,9 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
     // `result` matches only these three words.
     outcome: word => present(({ ok: 'pass', FAILED: 'fail', ignored: 'skip' } as Record<string, Outcome>)[word], '({ ok: \'pass\', FAILED: \'fail\', ignored: \'skip\' } as Record<string, Outcome>)[word]'),
     idOf: name => ({ id: `${binary} › ${name}`, name }),
+    // libtest-mimic and the test's own output (the case database's step lines) come between a name and its result: the name
+    // starts the test and its result is the word alone on its line (K229).
+    interleaved: { start: /^test (\S+)(?: - should panic)?\s+\.\.\. (?!(?:ok|FAILED|ignored)$)/, end: /^(ok|FAILED|ignored)$/ },
     other: (text) => {
       if (text.trim() && !/^(?:running \d+ tests?$|test result:|failures:$|successes:$)/.test(text.trim())) sink.line(`  ${text}`);
     },

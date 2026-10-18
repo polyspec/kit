@@ -18,8 +18,8 @@
 //           the phpunit.xml of the Composer package of the test (phpunit.xml.dist when only that exists), or
 //           `--no-configuration` when it has none; a suite binding with the symbol `<class>::<method>` (the fully qualified
 //           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
-//           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the method
-//   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the method
+//           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the test method, `<Class>::<method>` or the bare method (K229)
+//   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the test method
 import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
@@ -50,7 +50,9 @@ export interface BindingRun {
   error?: never;
   args: (test: string[]) => string[];
   cwd: string;
-  caseOf: (name: string) => string | undefined;
+  caseOf: (test: TestRef) => string | undefined;
+  /** Whether outcomes that name one case are one case: the data sets of a method, which fails when any of them fails (K229). */
+  merge?: boolean;
   read: (output: RunOutput, sink: Sink) => void;
   detail: (output: RunOutput) => string[];
 }
@@ -102,6 +104,21 @@ const after = (prefix: string, name: string): string | undefined => (name.starts
 /** The name of a unittest or PHPUnit test method: `test_<case>` names the case `<case>`; another name is the case itself. */
 const methodCase = (name: string): string => (name.startsWith('test_') ? name.slice(5) : name);
 
+/** The case of a feature test that the runner names by its native name (go, cargo, node, vitest and python): the name itself. */
+const itself = (test: TestRef): string => test.name;
+
+/**
+ * The case of a PHPUnit feature test: the id that the binding declares. PHPUnit names a test by its class and method
+ * (`<Class>::<method>`, the id that the TeamCity location gives), and a binding declares that form or the bare method name; a
+ * data set of the method is named by the method, so the id of a method with data sets is its case (K229).
+ */
+const featureCase = (ids: readonly string[] = []) => (test: TestRef): string => {
+  // The data set of a method is the method's case: `<method> with data set "<set>"` names the method `<method>`.
+  const method = (name: string) => name.replace(/ with data set [\s\S]*$/, '');
+  const candidates = [test.id, method(test.id), test.name, method(test.name)];
+  return candidates.find(candidate => ids.includes(candidate)) ?? test.id;
+};
+
 /**
  * The PHPUnit filter of the test method of the symbol `<class>::<method>`: PHPUnit matches it against `<class>::<method>` and
  * `<class>::<method> with data set …`, so it selects the method and each of its data sets, and no method that only starts so.
@@ -112,11 +129,11 @@ const methodFilter = (symbol: string): string => `/^${symbol.replaceAll('\\', '\
  * The case of a PHPUnit test of the method of `symbol`: the data set `<method> with data set "<case>"` names `<case>`, and an
  * integer key `<method> with data set #<n>` names `#<n>`, which no suite declares; the method without a data set is no case.
  */
-function dataSetCase(symbol: string): (name: string) => string | undefined {
+function dataSetCase(symbol: string): (test: TestRef) => string | undefined {
   // The declaration requires `<class>::<method>`, so the symbol has a method part.
   const method = present(symbol.split('::')[1], 'symbol.split(\'::\')[1]');
-  return (name) => {
-    const set = after(`${method} with data set `, name);
+  return (test) => {
+    const set = after(`${method} with data set `, test.name);
     return set === undefined ? undefined : /^"(.*)"$/s.exec(set)?.[1] ?? set;
   };
 }
@@ -131,9 +148,6 @@ const VITEST_OUTCOMES = { passed: 'pass', failed: 'fail', skipped: 'skip', pendi
 const implementationRoot = (roots: readonly string[], test: string): string | undefined =>
   roots.find(item => test === item || test.startsWith(`${item.replace(/\/$/, '')}/`));
 
-/** The native name itself, the id of a feature test. */
-const itself = (name: string): string => name;
-
 /**
  * The go test flags that select the tests of a run: the symbol of a suite, or the top-level tests of a feature's ids. A subtest id
  * belongs to its top-level test (the part before the first `/`), which go runs with all its subtests; none when a feature has no id.
@@ -147,7 +161,7 @@ function goRun(kind: RunKind, binding: RunTarget): string[] {
 
 // Each runner: the program that it starts unless the implementation declares `command`, the environment that it sets over the
 // check's environment, and `run`, which gives the arguments and the working directory of a binding and how its output is read.
-// `caseOf` names the case of a native test name, or undefined when the test is no case of the binding; `read` feeds the output
+// `caseOf` names the case of a native test, or undefined when the test is no case of the binding; `read` feeds the output
 // to a sink (test-output.mts); `detail` lists the lines that explain a failed run.
 const RUNNERS: Record<Runner, RunnerOf> = {
   go: {
@@ -161,7 +175,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         args: test => ['test', ...test, '-json', '-count=1', ...goRun(kind, binding), `./${directory}`],
         cwd: module,
         // A subtest nested below a case keeps its `/`, so R3 names it as a case that the suite does not declare.
-        caseOf: kind === 'suite' ? name => after(`${binding.symbol}/`, name) : itself,
+        caseOf: kind === 'suite' ? test => after(`${binding.symbol}/`, test.name) : itself,
         read: ({ stdout }, sink) => eachLine(stdout, goEvents(testFailures(sink))),
         // The compiler output of a package that does not build, then the standard error.
         detail: ({ stdout, stderr }) => {
@@ -185,7 +199,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       return {
         args: test => ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : [])],
         cwd: '.',
-        caseOf: kind === 'suite' ? name => after(`${binding.symbol}::`, name) : itself,
+        caseOf: kind === 'suite' ? test => after(`${binding.symbol}::`, test.name) : itself,
         read: ({ stdout }, sink) => cargoEvents(sink).stdout(`${stdout}\n`),
         detail: stderrTail,
       };
@@ -197,7 +211,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       args: test => [...test, '--test', `--test-reporter=${NODE_REPORTER}`, binding.test],
       cwd: '.',
       // A case of a suite is a top-level test; a test nested in it is none.
-      caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
+      caseOf: kind === 'suite' ? test => (test.name.includes(' › ') ? undefined : test.name) : itself,
       // The reporter's output is ours and always parses: a line that is no case is an error that names the line (K217).
       read: ({ stdout }, sink) => eachLine(stdout, nodeEvents({ ...sink, line: text => { throw new Error(`the parity node reporter wrote a line that is no case: ${text}`); } })),
       detail: stderrTail,
@@ -220,7 +234,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         // too (K202). --dir bounds discovery to the root of the implementation that holds the test.
         args: test => [path.join(root, vitest), 'run', ...test, '--dir', discovery, '--reporter=json', `--outputFile.json=${report}`, binding.test],
         cwd: '.',
-        caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
+        caseOf: kind === 'suite' ? test => (test.name.includes(' › ') ? undefined : test.name) : itself,
         read: (output, sink) => {
           if (!existsSync(report)) return;
           const { testResults } = readJsonFile<VitestReport>(report, 'vitest-report.schema.json');
@@ -250,7 +264,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       return {
         args: test => [...test, phpunit, '--teamcity', ...flags, ...(method === undefined ? [] : ['--filter', methodFilter(method)]), binding.test],
         cwd: '.',
-        caseOf: kind === 'feature' ? itself : method === undefined ? methodCase : dataSetCase(method),
+        caseOf: kind === 'feature' ? featureCase(binding.ids) : method === undefined ? test => methodCase(test.name) : dataSetCase(method),
+        merge: kind === 'feature',
         read: ({ stdout }, sink) => eachLine(stdout, phpunitEvents(sink)),
         detail: stderrTail,
       };
@@ -260,24 +275,33 @@ const RUNNERS: Record<Runner, RunnerOf> = {
     program: root => toolCommand(root, 'python3'),
     // unittest writes its results to standard error; the colors are off, so the lines are plain.
     env: { NO_COLOR: '1', PYTHON_COLORS: '0' },
-    run: (root, binding, kind) => ({ args: test => [...test, '-m', 'unittest', '-v', binding.test], cwd: '.', caseOf: kind === 'suite' ? methodCase : itself, read: ({ stderr }, sink) => pythonEvents(sink)(`${stderr}\n`), detail: stderrTail }),
+    run: (root, binding, kind) => ({ args: test => [...test, '-m', 'unittest', '-v', binding.test], cwd: '.', caseOf: kind === 'suite' ? test => methodCase(test.name) : itself, merge: kind === 'feature', read: ({ stderr }, sink) => pythonEvents(sink)(`${stderr}\n`), detail: stderrTail }),
   },
 };
+
+const rank: Record<Outcome, number> = { pass: 0, skip: 1, fail: 2 };
 
 /**
  * The outcomes that the output of a run reports for the binding: `[name, outcome]` pairs, one for each case event in the order
  * of the output. A case that the binding does not name is left out here, and R3 judges the names that remain.
  */
-export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: RunOutput): [string, Outcome][] {
+export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read' | 'merge'>, output: RunOutput): [string, Outcome][] {
   const outcomes: [string, Outcome][] = [];
   const record = (outcome: Outcome) => (test: TestRef) => {
-    const name = run.caseOf(test.name);
+    const name = run.caseOf(test);
     if (name !== undefined) outcomes.push([name, outcome]);
   };
   // A todo is a test that the tool expects to fail, so it is no pass: the case fails.
   const sink = { ...SILENT, pass: record('pass'), fail: record('fail'), skip: record('skip'), todo: record('fail') };
   run.read(output, sink);
-  return outcomes;
+  if (!run.merge) return outcomes;
+  // The worst outcome of each case: a fail, then a skip, is the case's outcome whatever passed before it.
+  const worst = new Map<string, Outcome>();
+  for (const [name, outcome] of outcomes) {
+    const previous = worst.get(name);
+    if (previous === undefined || rank[outcome] > rank[previous]) worst.set(name, outcome);
+  }
+  return [...worst];
 }
 
 /**

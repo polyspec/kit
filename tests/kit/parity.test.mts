@@ -573,6 +573,43 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
   assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
+// PHPUnit names a test by its class and method, `<Class>::<method>` (the id that its TeamCity location gives), and the orm
+// bindings declare that form; the bare method name stays a valid id too (K229). Both are judged by the output of the run.
+test('a php feature binding that names its test as Class::method, the id PHPUnit reports, passes (K229)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature({}, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['CodecTest::test_bytes pass']);
+});
+
+// A PHPUnit method with data sets runs once per data set; the id of the method names all of them, which pass only when each
+// passes, and a failing data set fails the id (K229).
+test('a php feature id names a method with data sets: it passes when each data set passes (K229)', TIMEOUT, (t) => {
+  const files = { 'php/tests/RoundtripTest.php': 'PASS test_bytes with data set "sqlite"\nPASS test_bytes with data set "mysql"\n' };
+  const { findings, ledger } = check(t, feature(files, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['CodecTest::test_bytes pass']);
+});
+
+// A unittest method that runs once per database item is reported once per item; its id passes when each report passes (K229).
+test('a python feature id reported once per database item passes when each report passes (K229)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature({ 'python/tests/test_roundtrip.py': 'PASS test_bytes\nPASS test_bytes\n' }));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'python').map(entry => `${entry.case} ${entry.outcome}`), ['test_bytes pass']);
+});
+
+test('a php feature id whose method has a failing data set fails, and the finding names it (K229)', TIMEOUT, (t) => {
+  const files = { 'php/tests/RoundtripTest.php': 'PASS test_bytes with data set "sqlite"\nFAIL test_bytes with data set "mysql"\n' };
+  const { findings } = check(t, feature(files, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
+  assert.deepEqual(keys(findings), ['R3 roundtrip php']);
+  assert.match(findingAt(findings, 0).message, /failed: CodecTest::test_bytes/);
+});
+
+test('a php feature binding whose Class::method names no test of its file is not executed (K229)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({}, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'OtherTest::test_bytes' } : entry)) })));
+  assert.deepEqual(keys(findings), ['R3 roundtrip php']);
+  assert.match(findingAt(findings, 0).message, /not executed: OtherTest::test_bytes/);
+});
+
 test('a feature run that exits 1 names the failing tests outside its ids, read from its output (K213)', TIMEOUT, (t) => {
   const reported = (change: Change) => {
     const lines: string[] = [];
@@ -1450,7 +1487,7 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   const namespaced = runOf({ name: 'php', runner: 'php' }, root, { test: 'php/tests/codec.php', symbol: 'Example\\Tests\\CodecTest::testCodec' }, 'suite', ENV);
   if (namespaced.error) throw new Error(namespaced.error);
   assert.equal(namespaced.args.at(-2), '/^Example\\\\Tests\\\\CodecTest::testCodec(?: with data set |$)/');
-  assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(namespaced.caseOf), ['a/b', '#0', undefined, undefined]);
+  assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(name => namespaced.caseOf({ id: name, name })), ['a/b', '#0', undefined, undefined]);
   const declared = (symbol: string) => check(t, { edit: (config) => { binding(config, 'codec', 'php').symbol = symbol; return config; } }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(declared('testCodec'), ['declaration: unit codec: the php binding names testCodec, which is no test method <class>::<method> of a fully qualified class']);
   assert.deepEqual(declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);

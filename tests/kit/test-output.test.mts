@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { nodeEvents, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
+import { cargoEvents, nodeEvents, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
 import { outcomesOf, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tool } from './kit-tools.mts';
 
@@ -104,6 +104,27 @@ test('a node:test run of 2 passing and 1 failing case gives pass=2 and fail=1 th
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+});
+
+// The lines that cargo test of the orm identity_load target prints when a case's database is missing: the case database
+// prints its step between the name of the test and its result, so the result FAILED stands alone on its line (K229).
+test('cargoEvents reads the result of a test whose output lies between its name and its result (K229)', () => {
+  const outcomes: string[] = [];
+  const record = (kind: string) => (test: TestRef) => { outcomes.push(`${test.name} ${kind}`); };
+  const sink = { ...counting(), pass: record('pass'), fail: record('fail'), skip: record('skip') };
+  const { stdout } = cargoEvents(sink);
+  stdout(`test identity_load::restart_identity_takes_only_entity ... ok
+test identity_load::execute_load_then_restart          ... mysql: case database
+
+thread 'main' (1069775896) panicked at case-database/src/lib.rs:43:14:
+ORM_TEST_MYSQL_DSN is required; database tests never skip
+note: run with \`RUST_BACKTRACE=1\` environment variable to display a backtrace
+FAILED
+test identity_load::execute_restart_after_delete       ... mysql: case database
+postgres: case database
+ok
+`);
+  assert.deepEqual(outcomes, ['identity_load::restart_identity_takes_only_entity pass', 'identity_load::execute_load_then_restart fail', 'identity_load::execute_restart_after_delete pass']);
 });
 
 test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', () => {
