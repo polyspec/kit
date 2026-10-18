@@ -521,6 +521,21 @@ const READ_INSTALLED = [
   "    print(name, location, 'yes' if editable else 'no', sep='\\t')",
 ].join('\n');
 
+/**
+ * The requirements that the installed packages of `venv` do not meet, by the normalized name of the package that states them,
+ * as uv pip check reports them (K238): uv evaluates each requirement's environment markers with the environment's interpreter,
+ * so a requirement whose marker holds is checked and one whose marker does not is not.
+ */
+function unmetPython(uv: Tool, venv: string): Map<string, string> {
+  const unmet = new Map<string, string>();
+  const output = run(uv.command, ['pip', 'check', '--python', path.join(venv, 'bin/python')], { env: uv.env, statuses: [0, 1] });
+  for (const line of output.split('\n')) {
+    const name = /^The package `([^`]+)` requires `/.exec(line)?.[1];
+    if (name !== undefined && !unmet.has(normalizeName(name))) unmet.set(normalizeName(name), `${line.trim()} (${venv})`);
+  }
+  return unmet;
+}
+
 /** The installed state of each of `names` in `venv`, by name (K230). */
 function installedFiles(venv: string, names: readonly string[], env: NodeJS.ProcessEnv): Map<string, Installed> {
   const found = new Map<string, Installed>();
@@ -565,16 +580,6 @@ function declaredPython(file: string): string[] {
     ...[...dependencyGroups(document, file).values()].flat(),
   ];
   return [...new Set(requirementNames(requirements).filter(name => name.startsWith('polyspec-')))];
-}
-
-/**
- * The normalized names of the default dependencies of the pyproject `file` that are not polyspec packages: a linked package
- * needs them installed (K237). A requirement with a marker is left out, since its marker decides whether it is installed.
- */
-function requiredPython(file: string): string[] {
-  const document = readTomlFile(file);
-  const plain = dependencyArrays(document, file).filter(array => array.kind === 'dependencies').flatMap(array => array.list).filter(item => typeof item === 'string' && !item.includes(';'));
-  return [...new Set(requirementNames(plain))].filter(name => !name.startsWith('polyspec-'));
 }
 
 /** `names` with every polyspec package that their providers require, as providers; a requirement without a provider is reported. */
@@ -633,24 +638,21 @@ function linkPython(work: Run, consumer: Consumer) {
       ...projects,
     ];
     // A link is reported from the installed state of the environment, after each install too (K230); a listing is not proof.
-    // A linked package is linked and its dependencies are installed (K237): a dependency that is missing is a problem too.
-    const requires = new Map(linked.map(provider => [provider.name, requiredPython(path.join(provider.folder, MANIFESTS.python))] as const));
-    const stateOf = (names: readonly string[]) => installedFiles(venv, [...new Set([...names, ...[...requires.values()].flat()])], work.env);
-    const problemOf = (provider: Provider, state: Map<string, Installed>): string | undefined => {
-      const link = editableProblem(consumer, provider, state.get(provider.name), venv);
-      if (link !== undefined) return link;
-      const missing = (requires.get(provider.name) ?? []).find(name => state.get(name)?.path === 'absent' || state.get(name) === undefined);
-      return missing === undefined ? undefined : `dependency ${missing} is not installed in ${venv}`;
-    };
+    // A linked package is linked and its requirements are met (K238): the unmet requirements are those that uv pip check states.
+    const stateOf = (names: readonly string[]) => installedFiles(venv, names, work.env);
+    const problemOf = (provider: Provider, state: Map<string, Installed>, unmet: ReadonlyMap<string, string>): string | undefined =>
+      editableProblem(consumer, provider, state.get(provider.name), venv) ?? unmet.get(normalizeName(provider.name));
     const reportLinks = (state: Map<string, Installed>, now: boolean) => {
+      const unmet = unmetPython(uv, venv);
       for (const provider of linked) {
-        const problem = problemOf(provider, state);
+        const problem = problemOf(provider, state, unmet);
         if (problem) unlinkable(work, 'python', provider.name, problem);
         else line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}${now ? ', now' : ''})`);
       }
     };
     const state = stateOf(linked.map(provider => provider.name));
-    if (work.check || linked.every(provider => problemOf(provider, state) === undefined)) {
+    const unmet = unmetPython(uv, venv);
+    if (work.check || linked.every(provider => problemOf(provider, state, unmet) === undefined)) {
       reportLinks(state, false);
       continue;
     }
@@ -772,9 +774,10 @@ export function unlink({ directories, print, env = process.env, project = false 
       for (const file of pythonFiles) {
         const target = pythonTarget(uv, file);
         if (typeof target === 'string' || !existsSync(path.join(target.workspace, 'uv.lock'))) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-        // The restore keeps the packages of the consumer's groups (K237) and reinstalls each declared polyspec package at its
-        // locked release, so a linked checkout is replaced by the release the lock holds.
-        syncPython(uv, target, '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
+        // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
+        // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
+        // --inexact keeps every other package (K237).
+        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);
       }
     }

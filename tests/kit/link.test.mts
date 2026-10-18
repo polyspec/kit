@@ -104,10 +104,10 @@ function workspace(t: TestContext) {
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
   stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl"; sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$PWD/pyproject.toml" | tr -d '" ' | tr ',' '\n' | sed 's/[=<>@].*//' > "$last/requires.txt";;
-sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
+sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
-case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") prev=""; for a; do if [ "$prev" = "--constraints" ]; then cp "$a" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; fi; prev="$a"; case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; for dep in $(cat "$(dirname "$a")/requires.txt" 2>/dev/null); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done;; esac; done;; esac`);
+case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; prev=""; for a; do if [ "$prev" = "--constraints" ]; then cp "$a" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; fi; prev="$a"; case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; for dep in $(cat "$(dirname "$a")/requires.txt" 2>/dev/null); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done;; esac; done;; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -717,7 +717,7 @@ test('K237: unlink restores the locked releases of the linked packages and keeps
   assert.ok(sync.includes('--inexact') && sync.includes('--reinstall-package polyspec-z'), sync);
 });
 
-test('K237: a link of packages that are already linked installs the dependency that is missing', (t) => {
+test('K238: a link of packages that are already linked installs the requirement that uv pip check reports as unmet', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.23.0", "small-dep>=1"]\n' });
   const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
@@ -730,6 +730,8 @@ test('K237: a link of packages that are already linked installs the dependency t
     [path.relative(consumer, project)]: '',
     'freeze.txt': `polyspec-z @ file://${z}\ncons @ file://${project}\n`,
     'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+    // What uv pip check reports for the environment: both dependencies of the linked package are not installed.
+    'pip-check.txt': 'The package `polyspec-z` requires `jsonschema==4.23.0`, but it\'s not installed\nThe package `polyspec-z` requires `small-dep>=1`, but it\'s not installed\n',
   });
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
@@ -737,6 +739,50 @@ test('K237: a link of packages that are already linked installs the dependency t
   const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
   assert.match(freeze, /^jsonschema==/m, 'jsonschema, a dependency of the linked package, is installed');
   assert.match(freeze, /^small-dep==/m, 'small-dep, a dependency of the linked package, is installed');
+});
+
+test('K238: a requirement whose environment marker holds is reported by uv pip check and installed; the check is the one of uv', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  // The checkout declares jsonschema with a marker. The marker is evaluated by uv: pip check states the requirement only when its marker holds.
+  put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = [\'jsonschema==4.23.0; python_version >= "3.12"\']\n' });
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const project = wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'));
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    [path.relative(consumer, z)]: '',
+    [path.join(path.dirname(path.relative(consumer, z)), 'requires.txt')]: 'jsonschema\n',
+    [path.relative(consumer, project)]: '',
+    'freeze.txt': `polyspec-z @ file://${z}\ncons @ file://${project}\n`,
+    'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+    'pip-check.txt': 'The package `polyspec-z` requires `jsonschema==4.23.0 ; python_full_version >= \'3.12\'`, but it\'s not installed\n',
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.ok(log().split('\n').some(item => item.startsWith('uv pip check')), 'the requirements are checked by uv');
+  assert.ok(log().split('\n').some(item => item.startsWith('uv pip install')), 'the requirement whose marker holds is installed');
+  assert.match(readFileSync(path.join(consumer, 'freeze.txt'), 'utf8'), /^jsonschema==/m);
+});
+
+test('K238: unlink keeps the consumer project wheel of the link, and restores the locked releases of the polyspec packages', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.23.0", "small-dep>=1"]\n' });
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    'freeze.txt': 'jsonschema==4.23.0\npolyspec-z @ file:///released/polyspec_z-0.0.1-py3-none-any.whl\n',
+    'test-only.txt': 'polyspec-z\njsonschema\n',
+    'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+  });
+  assert.equal(linkLines([consumer], env).ok, true);
+  const project = wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'));
+  assert.ok(readFileSync(path.join(consumer, 'freeze.txt'), 'utf8').includes(`cons @ file://${project}`), 'the consumer project is linked');
+  const lines: string[] = [];
+  unlink({ directories: [consumer], print: text => lines.push(text), env });
+  const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
+  assert.ok(freeze.includes(`cons @ file://${project}`), `the consumer project wheel survives the unlink: ${freeze}`);
+  assert.match(freeze, /^polyspec-z==0\.0\.1$/m, 'the polyspec package is back at its locked release');
+  assert.match(freeze, /^jsonschema==4\.23\.0$/m, 'the locked dependency is kept');
+  const sync = log().split('\n').filter(item => item.startsWith('uv sync --locked')).at(-1) ?? '';
+  assert.ok(sync.includes('--all-groups'), `the restore selects every group, as the consumer install does, so its reinstall reaches the test group: ${sync}`);
 });
 
 /** A copy of the Makefile of kit and of its kit.mk, with the empty folders that the build of the Makefile copies. */
