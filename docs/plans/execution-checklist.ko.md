@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 3435467073242b939bc887e991f6ae3892b7fd392b683c899e2c54ffb0868d39 -->
+<!-- source-sha256: 0afea739cb5f483b8c181c5b4341023b1ec849218493ab64fb4f37735b0a8355 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -284,3 +284,4 @@
 | K222 | kit link은 Python provider를 PEP 660 editable wheel로 링크합니다. checkout이 쓰기 가능하면 backend의 build_editable wheel을 var/link/wheels/<name>/<fp>/에 만들고(fp는 checkout의 실제 경로, pyproject, 소스 디렉터리를 해시), `uv sync --locked` 뒤 그 wheel을 설치합니다. 읽기 전용 checkout에서는 미리 만든 wheel을 다시 쓰고, 맞는 것이 없으면 stale 메시지로 실패합니다. check는 설치된 wheel(PEP 610)을 fingerprint와 비교합니다. 원인: setuptools editable build가 소스 트리에 egg-info를 쓰는데, 읽기 전용 컨테이너 마운트(uid 295 대 501:755)가 이를 거부했음. Red: K222 사례 5개. Green: main에서 tests/kit/link.test.mts 45/45, tsc 오류 0 | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
 | K223 | binding `command`는 구현의 command, args, env와 같은 함수로 호출 환경의 `${NAME}`을 해석합니다(기본값 형식 없음, 없거나 빈 값은 R3이며 아무것도 실행하지 않음). 원인: orm binding이 checkout root를 적을 수 없었고(`..` 금지) `${ORM_CHECKOUT}`가 글자 그대로 make에 전달됐음. Red: 단어가 `${PARITY_TAG}`로 남음. Green: main에서 tests/kit/parity.test.mts 70/70, tsc 0 | `scripts/kit/parity-declaration.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K224 | Python link은 환경의 모든 project(consumer와 workspace member, polyspec 여부 무관)를 editable wheel 경로로 설치하고, sync 전에 모든 wheel을 확인해 하나라도 없으면 venv를 건드리지 않고 stale로 실패하며, 외부 의존성만 sync합니다(`--no-install-project`, uv workspace는 `--no-install-workspace`). 원인: consumer 자신의 project가 읽기 전용 컨테이너 마운트에서 제자리 빌드됐음(consumer_python.egg-info). Red: K224 사례 3개. Green: main에서 tests/kit/link.test.mts 49/49, tsc 0 | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
+| K225 | Python wheel fingerprint는 폴더 아래 모든 디렉터리 대신 추적되거나 새로 생긴, 무시되지 않은 파일의 디렉터리(git ls-files)만 셉니다. 원인: python 테스트 컨테이너가 읽기 전용 python checkout 아래 git-ignored var/ 디렉터리를 써서 호스트 wheel과 다른 fingerprint(ba846cb015d9)를 계산하고 stale로 실패했음. Red: K225 사례에서 무시되는 var/test가 fingerprint를 바꿈. Green: tests/kit/link.test.mts 50/50, tsc 0 | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |

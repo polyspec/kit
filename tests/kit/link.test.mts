@@ -12,7 +12,7 @@ import test, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
-import { cargo, link, packages, unlink } from '../../scripts/kit/link.mts';
+import { cargo, link, packages, pythonFingerprint, unlink } from '../../scripts/kit/link.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -274,6 +274,18 @@ test('K222: the same content at another path has another fingerprint, so the whe
   } finally {
     setWritable(copy, true);
   }
+});
+
+test('K225: an ignored directory below the provider, such as var/ that a container writes, does not change its fingerprint', (t) => {
+  const { provider } = workspace(t);
+  put(provider, { 'packages/python/.gitignore': 'var/\n' });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'ignore var');
+  const before = pythonFingerprint(provider, path.join(provider, 'packages/python'));
+  put(provider, { 'packages/python/var/test/run/state.json': '{}' });
+  assert.equal(pythonFingerprint(provider, path.join(provider, 'packages/python')), before);
+  put(provider, { 'packages/python/src/pkg/new/__init__.py': '' });
+  assert.notEqual(pythonFingerprint(provider, path.join(provider, 'packages/python')), before);
 });
 
 test('K222: check fails when the installed wheel was built from another fingerprint than the checkout now has', (t) => {

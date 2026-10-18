@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The fingerprint of a Python editable wheel counts only the directories of tracked or new, not ignored, files, so a container's git-ignored var/ directories below a read-only checkout no longer change it and the host-built wheel is reused (K225).
+
 - A word of a parity binding `command` may reference the invoking environment as `${NAME}`, resolved when the bindings run by the rule of the implementation's `command`, `args` and `env`: an unset or empty NAME is an R3 finding that names it, and that binding runs nothing. The runs printed `${NAME}` literally before (K223).
 - `link` installs every Python project of a synced environment, the consumer's own and each workspace member with or without polyspec deps, through its editable wheel, as it installs a provider (K224): the sync is `uv sync --locked --no-install-project` (`--no-install-workspace` in a uv workspace root), so it no longer builds a project in place, which failed with `os.utime` on a read-only consumer checkout. Every wheel is resolved before the sync, so a missing one leaves the environment untouched. The wheel is built under `var/link/wheels/<name>/<fingerprint>/` where the package folder is writable, reused when read-only, and a read-only folder with no wheel fails with `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`. `check` verifies its installed wheel fingerprint. `unlink` still restores with the full `uv sync --locked` (K224).
 

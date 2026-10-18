@@ -28,6 +28,7 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
+import { trackedFiles } from './tracked-files.mts';
 import {
   assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider,
   providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf,
@@ -311,18 +312,19 @@ function linkComposer(work: Run, consumer: Consumer) {
 const BUILT = /^\.|^__pycache__$|^build$|^dist$|\.egg-info$/;
 
 /** The directories below `below` of `folder` as paths with /, left out: BUILT. */
-function pythonDirectories(folder: string, below = ''): string[] {
-  return readdirSync(path.join(folder, below), { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && !BUILT.test(entry.name))
-    .flatMap((entry) => {
-      const relative = path.posix.join(below, entry.name);
-      return [relative, ...pythonDirectories(folder, relative)];
-    });
+function pythonDirectories(folder: string): string[] {
+  const directories = new Set<string>();
+  for (const file of trackedFiles(folder)) {
+    for (let directory = path.posix.dirname(file); directory !== '.'; directory = path.posix.dirname(directory)) {
+      if (!directory.split('/').some(part => BUILT.test(part))) directories.add(directory);
+    }
+  }
+  return [...directories];
 }
 
 /**
  * The fingerprint of the Python provider `folder` of `checkout` (K222): the first 12 hex of sha256 over the resolved absolute
- * path of the checkout, its pyproject.toml bytes and the sorted directories below the folder. The path is part of it because
+ * path of the checkout, its pyproject.toml bytes and the sorted directories of its tracked or new, not ignored, files (K225; a container writes ignored var/ directories there). The path is part of it because
  * an editable wheel is bound to the path it points at: a wheel built for one checkout is never reused for another.
  */
 export function pythonFingerprint(checkout: string, folder: string): string {
