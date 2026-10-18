@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8a1ec56b88787bc4e381825ab1dd7cf2f552586675dc1ed2a9eb56d78c14f739 -->
+<!-- source-sha256: 86248dfdc115d849cb0b30ed285439a8e0074de5e106593be881e66a3295d3f8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python link는 consumer가 설치한 package를 지우지 않고 link한 checkout의 의존성을 설치한다. unlink도 지우지 않는다 (K237).
 - 전체 `make parity-check`는 makefile을 읽는 동안 full-run gate를 실행해, 저장소가 덧붙인 선행 target보다 먼저 거부한다 (K236).
 - 어떤 tracker도 선언하지 않은 docs/ 아래의 checklist 항목 문서는 전체 실행과 gate를 거부한다 (K235).
 - kit에 full-run guard로 전체 suite를 실행하는 `make check`가 생기고, UNITS 없는 `make parity-check`는 항목이 대기이거나 active이면 거부하는 `full-run gate`로 시작한다 (K234).

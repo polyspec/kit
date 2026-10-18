@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A Python link keeps the packages the consumer installed and installs the dependencies of each linked checkout; unlink keeps them too (K237).
 - A full `make parity-check` runs the full-run gate while make reads the makefiles, before any prerequisite a repository adds (K236).
 - A document under docs/ with checklist items that no tracker declares refuses the full run and the gate (K235).
 - kit has `make check`, its full suite through the full-run guard, and `make parity-check` without UNITS starts with `full-run gate`, which refuses while an item is waiting or active (K234).

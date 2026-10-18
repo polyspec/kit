@@ -6,7 +6,7 @@
 //             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
 //   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
 //             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
-//             after uv sync --locked --no-install-project (--no-install-workspace in a uv workspace) of the environment, so
+//             after uv sync --locked --inexact --no-install-project (--no-install-workspace in a uv workspace) of the environment, so
 //             the sync never builds a project; a read-only folder only installs the wheel that is already there;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
@@ -19,8 +19,9 @@
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -457,6 +458,39 @@ function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...fl
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
 }
 
+/** Writes `lines` to the file `relative` of the links of the consumer, through a temporary file and a rename; returns its path. */
+function writeLinkFile(consumer: Consumer, relative: string, lines: readonly string[]): string {
+  const file = linkFile(consumer.top, relative);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(`${file}.partial`, `${lines.join('\n')}\n`);
+  renameSync(`${file}.partial`, file);
+  return file;
+}
+
+/** The file name of an install's input for the environment `venv`, in var/link: a hash of its path, one file per environment. */
+const inputName = (venv: string, kind: string): string => path.join(kind, `${createHash('sha256').update(venv).digest('hex').slice(0, 12)}.txt`);
+
+/**
+ * The locked releases of the workspace as the constraints of an install (K237): uv export of every group, without the linked
+ * packages, which the install gives their checkout versions.
+ */
+function lockedConstraints(consumer: Consumer, uv: Tool, workspace: string, venv: string, linked: ReadonlySet<string>): string {
+  const exported = run(uv.command, ['export', '--frozen', '--all-groups', '--no-hashes', '--no-annotate', '--no-header', '--no-emit-workspace'], { cwd: workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: venv } });
+  const pins = exported.split('\n').filter(line => {
+    const name = /^([A-Za-z0-9._-]+)==/.exec(line)?.[1];
+    return name !== undefined && !linked.has(normalizeName(name));
+  });
+  return writeLinkFile(consumer, inputName(venv, 'constraints'), pins);
+}
+
+/**
+ * The overrides of an install of the linked wheels (K237): each linked package is the wheel of its checkout, also where another
+ * package requires it by its release URL, which would conflict with the wheel named on the command line.
+ */
+function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string }[]): string {
+  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => `${provider.name} @ ${pathToFileURL(wheel).href}`));
+}
+
 /**
  * The project of the pyproject `file` (the consumer's own, or a member of its workspace), as a provider of its folder, so that it is
  * installed from its editable wheel like a provider (K224); undefined when the file declares no [project] name.
@@ -467,7 +501,7 @@ function ownProject(consumer: Consumer, file: string): Provider | undefined {
   return { ecosystem: 'python', name: project.name, folder: path.dirname(file), repository: consumer.repository, checkout: consumer.top };
 }
 
-/** What an environment installs of a distribution (K230): the path that PEP 610 direct_url.json names ('none' when none is a file) and whether RECORD holds the PEP 660 editable marker. */
+/** What an environment installs of a distribution (K230): the path that PEP 610 direct_url.json names ('none' when none is a file, 'absent' when it is not installed) and whether RECORD holds the PEP 660 editable marker. */
 type Installed = { path: string; editable: boolean };
 
 /** Reads the installed state of `names` in the environment `venv` with its own python, outside any checkout (-I): the state, not a listing of it (K230). */
@@ -478,7 +512,7 @@ const READ_INSTALLED = [
   '    try:',
   '        dist = metadata.distribution(name)',
   '    except metadata.PackageNotFoundError:',
-  "        print(name, 'none', 'no', sep='\\t')",
+  "        print(name, 'absent', 'no', sep='\\t')",
   '        continue',
   "    text = dist.read_text('direct_url.json')",
   "    url = json.loads(text).get('url', '') if text else ''",
@@ -503,7 +537,7 @@ function installedFiles(venv: string, names: readonly string[], env: NodeJS.Proc
  * link is reported only when the environment itself holds that editable install.
  */
 function editableProblem(consumer: Consumer, provider: Provider, state: Installed | undefined, venv: string): string | undefined {
-  if (state === undefined || state.path === 'none') return `not installed from a wheel in ${venv}`;
+  if (state === undefined || state.path === 'none' || state.path === 'absent') return `not installed from a wheel in ${venv}`;
   const fp = pythonFingerprint(provider.checkout, provider.folder);
   const dir = path.dirname(state.path);
   if (dir !== wheelDirOf(consumer, provider.name, fp)) {
@@ -514,6 +548,15 @@ function editableProblem(consumer: Consumer, provider: Provider, state: Installe
   return state.editable ? undefined : `installed from its wheel without the editable install in ${venv}`;
 }
 
+/** The normalized project names of the PEP 508 requirements of `list`, a URL requirement too; any other item is ignored. */
+function requirementNames(list: readonly unknown[]): string[] {
+  return list.flatMap((item) => {
+    if (typeof item !== 'string') return [];
+    const parsed = parsePipRequirementsLine(item);
+    return parsed && (parsed.type === 'ProjectName' || parsed.type === 'ProjectURL') ? [normalizeName(parsed.name)] : [];
+  });
+}
+
 /** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
 function declaredPython(file: string): string[] {
   const document = readTomlFile(file);
@@ -521,11 +564,17 @@ function declaredPython(file: string): string[] {
     ...dependencyArrays(document, file).filter(array => !array.kind.startsWith('group:')).flatMap(array => array.list),
     ...[...dependencyGroups(document, file).values()].flat(),
   ];
-  return [...new Set(requirements.flatMap((item) => {
-    if (typeof item !== 'string') return [];
-    const parsed = parsePipRequirementsLine(item);
-    return parsed && (parsed.type === 'ProjectName' || parsed.type === 'ProjectURL') ? [normalizeName(parsed.name)] : [];
-  }).filter(name => name.startsWith('polyspec-')))];
+  return [...new Set(requirementNames(requirements).filter(name => name.startsWith('polyspec-')))];
+}
+
+/**
+ * The normalized names of the default dependencies of the pyproject `file` that are not polyspec packages: a linked package
+ * needs them installed (K237). A requirement with a marker is left out, since its marker decides whether it is installed.
+ */
+function requiredPython(file: string): string[] {
+  const document = readTomlFile(file);
+  const plain = dependencyArrays(document, file).filter(array => array.kind === 'dependencies').flatMap(array => array.list).filter(item => typeof item === 'string' && !item.includes(';'));
+  return [...new Set(requirementNames(plain))].filter(name => !name.startsWith('polyspec-'));
 }
 
 /** `names` with every polyspec package that their providers require, as providers; a requirement without a provider is reported. */
@@ -584,15 +633,24 @@ function linkPython(work: Run, consumer: Consumer) {
       ...projects,
     ];
     // A link is reported from the installed state of the environment, after each install too (K230); a listing is not proof.
+    // A linked package is linked and its dependencies are installed (K237): a dependency that is missing is a problem too.
+    const requires = new Map(linked.map(provider => [provider.name, requiredPython(path.join(provider.folder, MANIFESTS.python))] as const));
+    const stateOf = (names: readonly string[]) => installedFiles(venv, [...new Set([...names, ...[...requires.values()].flat()])], work.env);
+    const problemOf = (provider: Provider, state: Map<string, Installed>): string | undefined => {
+      const link = editableProblem(consumer, provider, state.get(provider.name), venv);
+      if (link !== undefined) return link;
+      const missing = (requires.get(provider.name) ?? []).find(name => state.get(name)?.path === 'absent' || state.get(name) === undefined);
+      return missing === undefined ? undefined : `dependency ${missing} is not installed in ${venv}`;
+    };
     const reportLinks = (state: Map<string, Installed>, now: boolean) => {
       for (const provider of linked) {
-        const problem = editableProblem(consumer, provider, state.get(provider.name), venv);
+        const problem = problemOf(provider, state);
         if (problem) unlinkable(work, 'python', provider.name, problem);
         else line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}${now ? ', now' : ''})`);
       }
     };
-    const state = installedFiles(venv, linked.map(provider => provider.name), work.env);
-    if (work.check || linked.every(provider => editableProblem(consumer, provider, state.get(provider.name), venv) === undefined)) {
+    const state = stateOf(linked.map(provider => provider.name));
+    if (work.check || linked.every(provider => problemOf(provider, state) === undefined)) {
       reportLinks(state, false);
       continue;
     }
@@ -610,9 +668,13 @@ function linkPython(work: Run, consumer: Consumer) {
       else ready.push({ provider, wheel });
     }
     if (!complete || !ready.length) continue;
-    syncPython(uv, { venv, workspace }, noInstallFlag(workspace));
-    run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--no-deps', ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
-    reportLinks(installedFiles(venv, linked.map(provider => provider.name), work.env), true);
+    // --inexact keeps what the consumer's install put there, the packages of its groups too (K237); the install then adds the
+    // dependencies of each wheel, constrained to the locked releases, so only the linked packages change.
+    syncPython(uv, { venv, workspace }, noInstallFlag(workspace), '--inexact');
+    const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(({ provider }) => normalizeName(provider.name))));
+    const overrides = linkedOverrides(consumer, venv, ready);
+    run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--constraints', constraints, '--overrides', overrides, ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
+    reportLinks(stateOf(linked.map(provider => provider.name)), true);
   }
 }
 
@@ -710,7 +772,9 @@ export function unlink({ directories, print, env = process.env, project = false 
       for (const file of pythonFiles) {
         const target = pythonTarget(uv, file);
         if (typeof target === 'string' || !existsSync(path.join(target.workspace, 'uv.lock'))) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-        syncPython(uv, target);
+        // The restore keeps the packages of the consumer's groups (K237) and reinstalls each declared polyspec package at its
+        // locked release, so a linked checkout is replaced by the release the lock holds.
+        syncPython(uv, target, '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);
       }
     }

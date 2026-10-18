@@ -95,7 +95,7 @@ function workspace(t: TestContext) {
     'python/.venv/pyvenv.cfg': 'home = /usr\n',
     // The venv's python (K230): for each distribution named after -c SCRIPT it prints the path of the wheel that freeze.txt installs
     // (its direct_url) and the editable marker, which editable.txt removes with a line "name no".
-    'python/.venv/bin/python': `#!/bin/sh\nshift 3\nfor name in "$@"; do\n  url=$(grep "^$name @ " ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null | tail -n 1 | sed 's/^[^@]* @ file:\\/\\///')\n  if grep -qx "$name no" ${JSON.stringify(path.join(consumer, 'editable.txt'))} 2>/dev/null; then editable=no; else editable=yes; fi\n  printf '%s\\t%s\\t%s\\n' "$name" "$url" "\${url:+$editable}"\ndone\n`,
+    'python/.venv/bin/python': `#!/bin/sh\nshift 3\nfor name in "$@"; do\n  if ! grep -q "^$name[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; then printf '%s\\tabsent\\tno\\n' "$name"; continue; fi\n  url=$(grep "^$name @ " ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null | tail -n 1 | sed 's/^[^@]* @ file:\\/\\///')\n  if grep -qx "$name no" ${JSON.stringify(path.join(consumer, 'editable.txt'))} 2>/dev/null; then editable=no; else editable=yes; fi\n  printf '%s\\t%s\\t%s\\n' "$name" "$( [ -n "$url" ] && echo "$url" || echo none)" "$( [ -n "$url" ] && echo "$editable" || echo no)"\ndone\n`,
     'pip-list.json': JSON.stringify([{ name: 'polyspec-z', version: '0.0.1' }, { name: 'polyspec-w', version: '0.0.1' }]),
     'go.mod.json': JSON.stringify({ Module: { Path: 'cons' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] }),
   });
@@ -103,8 +103,11 @@ function workspace(t: TestContext) {
   put(provider, { 'go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
-  stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl";; esac
-case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") for a; do case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))};; esac; done;; esac`);
+  stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl"; sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$PWD/pyproject.toml" | tr -d '" ' | tr ',' '\n' | sed 's/[=<>@].*//' > "$last/requires.txt";;
+sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
+export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
+esac
+case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") prev=""; for a; do if [ "$prev" = "--constraints" ]; then cp "$a" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; fi; prev="$a"; case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; for dep in $(cat "$(dirname "$a")/requires.txt" 2>/dev/null); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done;; esac; done;; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -234,7 +237,7 @@ test('K222: a read-only Python provider is installed from its prebuilt editable 
     assert.equal(ok, true, text);
     assert.match(text, /linked {5}python {3}polyspec-z -> /);
     const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
-    assert.ok(install.includes('--no-deps'), install);
+    assert.ok(!install.includes('--no-deps') && install.includes('--constraints'), install);
     assert.ok(install.includes(z) && install.includes(w), install);
     assert.doesNotMatch(install, / -e /, 'no editable build of the checkout');
     assert.equal(log().split('\n').filter(item => item.startsWith('uv run')).length, 1, 'only the writable consumer project is built; no build in a read-only checkout');
@@ -317,9 +320,39 @@ test('K222: a writable Python provider without a wheel of its fingerprint is bui
   const calls = log().split('\n');
   const build = calls.findIndex(item => item.startsWith('uv run --no-project --isolated --with setuptools>=40.8.0 python -c'));
   const sync = calls.findIndex(item => item.startsWith('uv sync --locked'));
-  const install = calls.findIndex(item => item.startsWith('uv pip install') && item.includes('--no-deps'));
+  const install = calls.findIndex(item => item.startsWith('uv pip install'));
   assert.ok(build >= 0 && sync > build && install > sync, log());
   assert.ok(existsSync(wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'))));
+});
+
+test('K237: a link keeps the packages of the consumer groups, installs the dependencies of the checkout and holds the locked versions', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  // The checkout declares jsonschema, which the consumer's lock holds for its test group, and small-dep, which the lock does not hold.
+  put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.23.0", "small-dep>=1"]\n' });
+  // The consumer's install with all groups: polyspec-z and jsonschema are in the test group, which the default sync does not select.
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    'freeze.txt': 'jsonschema==4.23.0\npolyspec-z @ file:///released/polyspec_z-0.0.1-py3-none-any.whl\n',
+    'test-only.txt': 'polyspec-z\njsonschema\n',
+    'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  assert.match(freeze, /^jsonschema==4\.23\.0$/m, 'the package of the test group that the consumer installed is kept');
+  assert.match(freeze, /^small-dep==1\.0$/m, 'a dependency that the checkout declares and the lock does not hold is installed');
+  assert.ok(freeze.includes(`polyspec-z @ file://${z}`), 'polyspec-z is the wheel of the checkout');
+  assert.match(text, /linked {5}python {3}polyspec-z -> /);
+  const calls = log().split('\n');
+  const sync = calls.find(item => item.startsWith('uv sync --locked')) ?? '';
+  assert.ok(sync.includes('--inexact'), `the sync keeps the consumer's set: ${sync}`);
+  assert.ok(calls.some(item => item.startsWith('uv export --frozen --all-groups')), log());
+  const install = calls.find(item => item.startsWith('uv pip install')) ?? '';
+  assert.ok(!install.includes('--no-deps') && install.includes('--constraints') && install.includes('--overrides'), install);
+  const constraints = readFileSync(path.join(consumer, 'constraints.logged'), 'utf8');
+  assert.match(constraints, /^jsonschema==4\.23\.0$/m, 'the locked versions are the constraints');
+  assert.doesNotMatch(constraints, /polyspec-z/, 'a linked package is no constraint: its checkout version is installed');
 });
 
 test('K230: a provider installed from its wheel without the editable install is NOT linked, though its wheel is the one of the fingerprint', (t) => {
@@ -660,6 +693,50 @@ test('unlink restores with each tool and reports each restore that it skips', (t
   assert.match(log(), /npm ci\n/);
   assert.match(lines.join('\n'), /skipped {4}composer .*: no composer\.lock/);
   assert.match(lines.join('\n'), /skipped {4}python .*: no environment or no uv\.lock/);
+});
+
+test('K237: unlink restores the locked releases of the linked packages and keeps the groups of the consumer install', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.23.0", "small-dep>=1"]\n' });
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    'freeze.txt': 'jsonschema==4.23.0\npolyspec-z @ file:///released/polyspec_z-0.0.1-py3-none-any.whl\n',
+    'test-only.txt': 'polyspec-z\njsonschema\n',
+    'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+  });
+  assert.equal(linkLines([consumer], env).ok, true);
+  assert.match(readFileSync(path.join(consumer, 'freeze.txt'), 'utf8'), /^polyspec-z @ file:\/\/.*var\/link/m, 'the checkout is linked');
+  const lines: string[] = [];
+  unlink({ directories: [consumer], print: text => lines.push(text), env });
+  assert.match(lines.join('\n'), /restored {3}python/);
+  const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
+  assert.match(freeze, /^jsonschema==4\.23\.0$/m, 'the test-group dependency of the consumer install is kept at its locked version');
+  assert.match(freeze, /^polyspec-z==0\.0\.1$/m, 'the linked package is restored to its locked release');
+  assert.doesNotMatch(freeze, /^polyspec-z @ .*var\/link/m, `no link of the polyspec checkout remains: ${freeze}`);
+  const sync = log().split('\n').filter(item => item.startsWith('uv sync --locked')).at(-1) ?? '';
+  assert.ok(sync.includes('--inexact') && sync.includes('--reinstall-package polyspec-z'), sync);
+});
+
+test('K237: a link of packages that are already linked installs the dependency that is missing', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, { 'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.23.0", "small-dep>=1"]\n' });
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const project = wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'));
+  // The links are in place from an earlier link that installed the wheels without their dependencies.
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    [path.relative(consumer, z)]: '',
+    [path.join(path.dirname(path.relative(consumer, z)), 'requires.txt')]: 'jsonschema\nsmall-dep\n',
+    [path.relative(consumer, project)]: '',
+    'freeze.txt': `polyspec-z @ file://${z}\ncons @ file://${project}\n`,
+    'export.txt': 'jsonschema==4.23.0\npolyspec-z==0.0.1\n',
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.ok(log().split('\n').some(item => item.startsWith('uv pip install')), 'the missing dependencies are installed');
+  const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
+  assert.match(freeze, /^jsonschema==/m, 'jsonschema, a dependency of the linked package, is installed');
+  assert.match(freeze, /^small-dep==/m, 'small-dep, a dependency of the linked package, is installed');
 });
 
 /** A copy of the Makefile of kit and of its kit.mk, with the empty folders that the build of the Makefile copies. */
