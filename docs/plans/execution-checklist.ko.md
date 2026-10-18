@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 09872b88e551bc21e7519fdaba9fa4ae0a4f01654d0b72a0ac7e68e482998e00 -->
+<!-- source-sha256: 8f9a9e69397c8496ef17ad6b507c3d16c34dee36fd5975deab7aee6b2bae0b42 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -294,3 +294,4 @@
 | K232 | implementation이 `shares`를 선언한다. 자기 runtime에서 test 파일을 실행하는, 같은 runner의 implementation이다. orm의 PHP extension이 library의 class 이름을 등록한 뒤 PHP library의 test를 실행하는 경우가 그렇다(orm T182-0-2). R6은 공유하는 쪽의 binding test를 공유된 implementation의 root 안에서도 받아들이고, R5는 공유하는 쪽 자신의 root와 test만 판정하며, 자기 자신, 없는 implementation, 다른 runner를 이름 붙인 `shares`는 declaration finding이다. Red: parity.test.mts의 K232 test 두 개가 이전 code에서 실패합니다(`/implementations/5 must NOT have additional properties {"additionalProperty":"shares"}`). Green: 두 test가 통과하고 parity.test.mts가 통과하며(test 79개) make typecheck가 0으로 끝납니다 | `scripts/kit/parity-declaration.mts`, `scripts/kit/parity-units.mts`, `scripts/kit/schema/parity.schema.json`, `tests/kit/parity.test.mts`, `docs/tool-inventory.ko.md`, `CHANGELOG.ko.md` | `node --test tests/kit/parity.test.mts`, `make typecheck` | [o] |
 | K233 | 전체 실행 guard는 tracker의 항목이 active 상태일 때뿐 아니라 대기 상태일 때도 실행을 거부한다. 완료, 우회, 불가 항목만 남을 수 있고, 전체 실행은 항목이 아니라 관문이다(사용자 결정 2026-10-19). `activeItems`와 `inspectTrackers`는 `open`을 받는다. push-gate는 여전히 active 상태만 막는다. Red: full-run.test.mts의 대기 항목 test가 이전 코드에서 실패한다(실패 3개). Green: full-run, checklist, push-gate test가 통과한다(56개 중 56개). | `node --test tests/kit/full-run.test.mts` | [o] |
 | K234 | kit과 각 저장소의 모든 전체 실행이 체크리스트 검사를 거친다. kit에 `make check`를 두어 전체 suite(typecheck, kit-test, source-test, rebuild-check, duplication-check)를 guard로 실행하고, UNITS 없는 `make parity-check`는 `full-run gate`로 시작한다. gate는 항목이 대기이거나 active이면 거부하고 lock이나 record를 두지 않으므로, guard가 도는 suite 안의 parity-check가 그 guard와 부딪히지 않는다. Red: full-run.test.mts의 gate와 parity-check test가 이전 코드에서 실패한다. Green: 22개 중 22개. | `node --test tests/kit/full-run.test.mts` | [o] |
+| K235 | 나뉜 checklist가 전체 실행 검사를 빠져나가지 못한다. docs/ 아래의 추적 문서가 checklist 항목(마지막 칸이 상태인 표 행, 또는 상태와 ID를 가진 목록 항목)을 가졌는데 어떤 tracker의 path나 translation도 아니면, config/checklist.json에 선언될 때까지 실행과 gate를 거부한다. Red: full-run.test.mts와 checklist.test.mts의 나뉜 checklist test가 이전 코드에서 실패한다. Green: 38개 중 38개. 각 저장소에서 gate는 선언되지 않은 checklist를 찾지 않는다. | `node --test tests/kit/full-run.test.mts tests/kit/checklist.test.mts` | [o] |

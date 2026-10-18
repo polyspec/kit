@@ -22,7 +22,8 @@
 // keeps its last output lines in the record. No step has a time limit.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { inspectTrackers, loadConfig } from './checklist.mts';
+import { inspectTrackers, loadConfig, undeclaredChecklists } from './checklist.mts';
+import type { ChecklistConfig } from './checklist.mts';
 import { hooksIssue } from './git-hooks.mts';
 import { acquireHolderLock, HolderLockRefused, holderRunning, processStart } from './holder-lock.mts';
 import type { ProcessStart } from './holder-lock.mts';
@@ -179,12 +180,23 @@ async function runMakeTarget(root: string, target: string, directory: string): P
  * status: 0 when the full result of the tree is passed, 1 otherwise.
  */
 /**
+ * What the guard reads of the checklists: the open items of every tracker and the problems, among them each document
+ * under docs/ that holds checklist items but is no tracker of config/checklist.json.
+ */
+function readTrackers(root: string, config: ChecklistConfig): { active: { file: string; id: string; title: string }[]; problems: string[] } {
+  const found = inspectTrackers(config, (file: string) => readFileSync(path.join(root, file), 'utf8'), { open: true });
+  const documents = git(root, 'ls-files', '-z', '--', 'docs/').split('\0').filter(file => file.endsWith('.md'));
+  const undeclared = undeclaredChecklists(config, documents.map(file => ({ path: file, text: readFileSync(path.join(root, file), 'utf8') })));
+  return { active: found.active, problems: [...found.problems, ...undeclared.map(file => `${file}: it holds checklist items but is no tracker of config/checklist.json`)] };
+}
+
+/**
  * The gate of a full run that is not the suite (a parity-check of every unit): it reads the trackers as the guard does and
  * returns 1 while an item is waiting or active or a tracker cannot be read, 0 otherwise. It holds no lock and writes no
  * record, so a gated run inside the suite does not meet the guard of the suite.
  */
 export function gate({ root, print = line => console.log(line) }: { root: string; print?: (line: string) => void }): number {
-  const found = inspectTrackers(loadConfig(root), (file: string) => readFileSync(path.join(root, file), 'utf8'), { open: true });
+  const found = readTrackers(root, loadConfig(root));
   const decision = decide({ mode: 'run', targets: ['gate'], active: found.active, problems: found.problems, tree: '' });
   if (decision.run) {
     print('[full-run] gate: no item waiting or in an active state');
@@ -227,7 +239,7 @@ async function guardedRun({ root, mode, targets, keys, runTarget, print }: {
   print: (line: string) => void;
 }): Promise<number> {
   const config = loadConfig(root);
-  const found = inspectTrackers(config, (file: string) => readFileSync(path.join(root, file), 'utf8'), { open: true });
+  const found = readTrackers(root, config);
   const dirty = git(root, 'status', '--porcelain', '--untracked-files=all').split('\n').filter(Boolean);
   const tree = git(root, 'rev-parse', 'HEAD^{tree}').trim();
   const commit = git(root, 'rev-parse', 'HEAD').trim();

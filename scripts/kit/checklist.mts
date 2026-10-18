@@ -269,6 +269,20 @@ export function compareTwin(english: string, korean: string, tracker: Tracker): 
   return twinFindings(a.items, b.items, tracker).map(found => found.message);
 }
 
+// A line that holds a checklist item: a table row whose last cell starts with a state marker, or a list item whose state
+// marker is followed by an ID (a bullet that only names a marker in prose, such as `- [o] never reopened`, is no item).
+const ITEM_LINE = /^\|.*\| \[[ ~o!-]\][^|]*\|\s*$|^ *[-*] \[[ ~o!-]\] [A-Z][A-Z0-9]*[-.]?[0-9]/m;
+
+/**
+ * The documents of `files` (repository paths under docs/, each with its text) that hold a checklist item but are neither
+ * the path nor the translation of a tracker: a checklist that was split or added without being declared, which the full
+ * run would not read.
+ */
+export function undeclaredChecklists(config: Pick<ChecklistConfig, 'trackers'>, files: { path: string; text: string }[]): string[] {
+  const declared = new Set(config.trackers.flatMap(tracker => [tracker.path, ...(tracker.translation ? [tracker.translation] : [])]));
+  return files.filter(file => file.path.startsWith('docs/') && !declared.has(file.path) && ITEM_LINE.test(file.text)).map(file => file.path);
+}
+
 /**
  * The state of every tracker as read by `read(file)`, which returns the text of a file or throws why it cannot. Returns
  * `{ active, problems }`: the active items as `{ file, id, title }` and the sentences that name what cannot be read.

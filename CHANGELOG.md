@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A document under docs/ with checklist items that no tracker declares refuses the full run and the gate (K235).
 - kit has `make check`, its full suite through the full-run guard, and `make parity-check` without UNITS starts with `full-run gate`, which refuses while an item is waiting or active (K234).
 - The full-run guard also refuses while an item is waiting (`[ ]`); only done, bypassed and impossible items may remain (K233).
 - An implementation of `config/parity.json` can declare `shares`, the implementation of the same runner whose tests it runs in its own runtime; R6 accepts its bindings in that implementation's roots (K232).

@@ -165,6 +165,20 @@ test('parity-check of every unit starts with the gate, and parity-check of named
   assert.doesNotMatch(units.stdout, /full-run/);
 });
 
+test('a document under docs/ that holds checklist items but is no tracker refuses the run and the gate', async (t) => {
+  const { work } = prepared(t, { state: '[o]' });
+  mkdirSync(path.join(work, 'docs', 'plans'), { recursive: true });
+  writeFileSync(path.join(work, 'docs', 'plans', 'second-checklist.md'), '# Second\n\n| ID | Task | Verification | State |\n|---|---|---|---|\n| T9 | Split work | `make test` | [o] |\n');
+  commitAll(work, 'docs(plans): Split the checklist (#T1)');
+  const { status, output, ran } = await guard(work, 'run', ['a']);
+  assert.equal(status, 1);
+  assert.deepEqual(ran, []);
+  assert.match(output, /cannot be read[\s\S]*docs\/plans\/second-checklist\.md: it holds checklist items but is no tracker of config\/checklist\.json/);
+  const lines: string[] = [];
+  assert.equal(gate({ root: work, print: line => lines.push(line) }), 1);
+  assert.match(lines.join('\n'), /second-checklist\.md: it holds checklist items/);
+});
+
 test('a translation with another state, and a missing tracker, refuse the run', async (t) => {
   const { work } = prepared(t, { state: '[o]' });
   edit(work, TRANSLATION, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[o\] \|/, '$1| [ ] |'));

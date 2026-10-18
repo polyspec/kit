@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist, type Tracker } from '../../scripts/kit/checklist.mts';
+import { blockingSentence, compareTwin, describeFinding, inspectTrackers, loadConfig, readChecklist, undeclaredChecklists, type Tracker } from '../../scripts/kit/checklist.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import type { ChecklistConfig } from '../../scripts/kit/checklist.mts';
@@ -207,4 +207,18 @@ test('kit-check validates config/checklist.json against its schema', (t) => {
   mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
   cpSync(path.join(HERE, '../../scripts/kit/schema/checklist.schema.json'), path.join(root, 'scripts/kit/schema/checklist.schema.json'));
   assert.deepEqual(checkConfig(root), ['config/checklist.json: /trackers/0 must NOT have additional properties {"additionalProperty":"extra"}. Rule: the schema checklist.schema.json of @polyspec/kit']);
+});
+
+test('undeclaredChecklists names each document under docs/ with checklist items that no tracker declares', () => {
+  const config = { trackers: [{ path: 'docs/a.md', translation: 'docs/a.ko.md', format: 'table' as const, active: '[~]' }] };
+  const files = [
+    { path: 'docs/a.md', text: '| T1 | x | y | [ ] |\n' },
+    { path: 'docs/a.ko.md', text: '| T1 | x | y | [ ] |\n' },
+    { path: 'docs/b.md', text: '| T2 | x | y | [o] |\n' },
+    { path: 'docs/c.md', text: '- [!] C-1 A bypassed item.\n' },
+    { path: 'docs/d.md', text: 'A plain document that names [o] in prose.\n' },
+    { path: 'docs/f.md', text: '    - [o] never reopened\n' },
+    { path: 'tests/e.md', text: '| T3 | x | y | [ ] |\n' },
+  ];
+  assert.deepEqual(undeclaredChecklists(config, files), ['docs/b.md', 'docs/c.md']);
 });
