@@ -3,15 +3,15 @@
 // keys have a record; it records each target as the run proceeds; and `rerun-failed` reruns only the targets of the current
 // tree that did not pass. The targets of the API tests are stubs; the command tests run a stub `make` on PATH.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { LOCK, RECORD, REPORT, decide, fullRun, parseArguments } from '../../scripts/kit/full-run.mts';
+import { LOCK, RECORD, REPORT, decide, fullRun, gate, parseArguments } from '../../scripts/kit/full-run.mts';
 import type { FullRunRecord, Keys } from '../../scripts/kit/full-run.mts';
 import { processStart } from '../../scripts/kit/holder-lock.mts';
 import { CHECKLIST, TRANSLATION, commitAll, git, prepared, run } from './gates-checkout.mts';
-import { tool } from './kit-tools.mts';
+import { KIT_MAKE, tool } from './kit-tools.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 import { known } from './known.mts';
 
@@ -56,6 +56,9 @@ test('the arguments are a mode, keys and make target names that are given once',
   assert.throws(() => parseArguments(['run', '--key', 'dep=', 'a']), /--key takes name=value/);
   assert.throws(() => parseArguments(['run', '--key', 'dep=1', '--key', 'dep=2', 'a']), /--key dep is given twice/);
   assert.throws(() => parseArguments(['check', 'a']), /Usage:/);
+  assert.deepEqual(parseArguments(['gate']), { mode: 'gate', keys: {}, targets: [] });
+  assert.throws(() => parseArguments(['gate', 'a']), /Usage:/);
+  assert.throws(() => parseArguments(['gate', '--key', 'dep=1']), /Usage:/);
 });
 
 test('the decision refuses an active item, an unreadable tracker, missing hooks, a dirty tree and a second run of a tree', () => {
@@ -135,6 +138,31 @@ test('a waiting item refuses the run before any target, naming its file and ID',
   assert.deepEqual(ran, []);
   assert.match(output, /^\[full-run\] refuse: 1 item waiting or in an active state[\s\S]*docs\/plans\/execution-checklist\.md T1-1 Print `a \\\| b` for a union/);
   assert.equal(existsSync(path.join(work, RECORD)), false);
+});
+
+test('the gate refuses while an item is waiting or active and passes when every item is closed, with no lock or record', (t) => {
+  for (const state of ['[ ]', '[~]']) {
+    const { work } = prepared(t, { state });
+    const lines: string[] = [];
+    assert.equal(gate({ root: work, print: line => lines.push(line) }), 1);
+    assert.match(lines.join('\n'), /^\[full-run\] refuse: 1 item waiting or in an active state[\s\S]*T1-1/);
+    assert.equal(existsSync(path.join(work, LOCK)), false);
+  }
+  const { work } = prepared(t, { state: '[o]' });
+  const lines: string[] = [];
+  assert.equal(gate({ root: work, print: line => lines.push(line) }), 0);
+  assert.deepEqual(lines, ['[full-run] gate: no item waiting or in an active state']);
+  assert.equal(existsSync(path.join(work, RECORD)), false);
+});
+
+test('parity-check of every unit starts with the gate, and parity-check of named units does not', () => {
+  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, ...args], { encoding: 'utf8' });
+  const full = dry('parity-check');
+  assert.equal(full.status, 0, full.stderr);
+  assert.match(full.stdout.split('\n')[0] ?? '', /full-run\.mts gate$/);
+  const units = dry('parity-check', 'UNITS=a');
+  assert.equal(units.status, 0, units.stderr);
+  assert.doesNotMatch(units.stdout, /full-run/);
 });
 
 test('a translation with another state, and a missing tracker, refuse the run', async (t) => {

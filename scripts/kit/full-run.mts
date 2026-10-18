@@ -3,6 +3,8 @@
 //
 //   node scripts/kit/full-run.mts run [--key name=value]... <target>...   run every make target of the full suite
 //   node scripts/kit/full-run.mts rerun-failed [--key name=value]...      rerun the targets of the current tree that did not pass
+//   node scripts/kit/full-run.mts gate                                     exit 1 while an item is waiting or active (a full
+//                                                                          run that is not the suite, such as parity-check)
 //
 // The full suite runs once per tree, when no item of a tracker of config/checklist.json is waiting ([ ]) or in its active
 // state; only done, bypassed and impossible items may remain, and the full run is a gate, never an item. The guard
@@ -32,7 +34,7 @@ import { git } from './git.mts';
 import { now, seconds } from './time.mts';
 import { present } from './present.mts';
 
-const USAGE = 'Usage: node scripts/kit/full-run.mts run [--key name=value]... <target>... | rerun-failed [--key name=value]...';
+const USAGE = 'Usage: node scripts/kit/full-run.mts run [--key name=value]... <target>... | rerun-failed [--key name=value]... | gate';
 // The record of the last full run of this checkout; /var/ is ignored by Git.
 export const RECORD = 'var/full-run.json';
 export const LOCK = 'var/full-run.lock';
@@ -176,6 +178,22 @@ async function runMakeTarget(root: string, target: string, directory: string): P
  * Inspects the checkout, decides and runs. `runTarget(name)` resolves `{ passed, lastLines }` of a target. Returns the exit
  * status: 0 when the full result of the tree is passed, 1 otherwise.
  */
+/**
+ * The gate of a full run that is not the suite (a parity-check of every unit): it reads the trackers as the guard does and
+ * returns 1 while an item is waiting or active or a tracker cannot be read, 0 otherwise. It holds no lock and writes no
+ * record, so a gated run inside the suite does not meet the guard of the suite.
+ */
+export function gate({ root, print = line => console.log(line) }: { root: string; print?: (line: string) => void }): number {
+  const found = inspectTrackers(loadConfig(root), (file: string) => readFileSync(path.join(root, file), 'utf8'), { open: true });
+  const decision = decide({ mode: 'run', targets: ['gate'], active: found.active, problems: found.problems, tree: '' });
+  if (decision.run) {
+    print('[full-run] gate: no item waiting or in an active state');
+    return 0;
+  }
+  print(`[full-run] refuse: ${decision.reason}`);
+  return 1;
+}
+
 export async function fullRun({ root, mode, targets = [], keys = {}, runTarget = name => runMakeTarget(root, name, path.join(root, REPORT)), print = line => console.log(line) }: {
   root: string;
   mode: string;
@@ -283,7 +301,8 @@ export function parseArguments(args: string[]): { mode: string; keys: Keys; targ
       throw new Error(`${JSON.stringify(rest[index])} is not a target name that is given once (${TARGET_NAME})`);
     }
   }
-  if (!((mode === 'run' && targets.length > 0) || (mode === 'rerun-failed' && targets.length === 0))) throw new Error(USAGE);
+  if (!((mode === 'run' && targets.length > 0) || ((mode === 'rerun-failed' || mode === 'gate') && targets.length === 0))) throw new Error(USAGE);
+  if (mode === 'gate' && Object.keys(keys).length > 0) throw new Error(USAGE);
   return { mode, keys, targets };
 }
 
@@ -297,7 +316,7 @@ if (isMain(import.meta.url)) {
     process.exit(2);
   }
   try {
-    process.exitCode = await fullRun({ root: repositoryRoot(), ...parsed });
+    process.exitCode = parsed.mode === 'gate' ? gate({ root: repositoryRoot() }) : await fullRun({ root: repositoryRoot(), ...parsed });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[full-run] failed: ${error.message}`);
