@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A parity binding names the command that runs it with `command`, an argv array that replaces the default command of its runner, such as `["make", "feature-check", "ITEM=…"]` for a feature that needs its own environment. The runner still reads the output of that command as it reads its default, the field is accepted on every unit kind, and a command that cannot start or exits with a status other than 0 is an R3 finding that names it, with no fallback to the default command (K216).
+
 - `make parity-check` reads the timed cargo harness (libtest-mimic with timing, as the orm testcase crate prints it), whose outcome comes on the line after the test name, so a rust binding whose declared cases all pass counts each of them as passed (it counted 0 before). A suite run counts only the declared cases that passed, so the count never exceeds the declared number; an exit-0 run without a declared case fails and names it, and a failed run that names no test prints the last 20 lines of its output (K215).
 
 - `make parity-check` runs a go feature with `-run ^(<top>|…)$`, one alternation of the top-level test names of its ids (the part before the first `/`), instead of the whole package, so a package of feature units runs its tests once per test file and a failure in an unrelated test no longer fails every unit. A suite run keeps its symbol (K214).

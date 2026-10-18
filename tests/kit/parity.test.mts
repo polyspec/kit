@@ -654,6 +654,36 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
   assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
+// A binding with command runs that command instead of the runner's default, in the directory of its implementation; the runner
+// still reads its output, so the ids that pass count (K216). The go stub is the program of the command, so the command runs.
+test('a binding with command runs that command in its implementation directory, and its passing ids count (K216)', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature({}, (unit) => {
+    itemAt(unit.bindings ?? [], 0).command = ['go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './'];
+    return unit;
+  }));
+  assert.deepEqual(findings, []);
+  const go = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'go'), 'the go feature run');
+  assert.deepEqual([go.cwd, go.command, ...go.args], ['go', 'go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'go').map(entry => `${entry.case} ${entry.outcome}`), ['TestRoundtrip/bytes pass']);
+});
+
+// A command that cannot start, or that exits non-zero, is an R3 finding that names the command; the runner's default is never run instead (K216).
+test('a binding command that cannot start or exits non-zero is an R3 finding that names it, with no fallback to the default (K216)', TIMEOUT, (t) => {
+  const missing = check(t, feature({}, (unit) => {
+    itemAt(unit.bindings ?? [], 0).command = ['no-such-parity-command', 'roundtrip'];
+    return unit;
+  }));
+  assert.deepEqual(keys(missing.findings), ['R3 roundtrip go']);
+  assert.match(findingAt(missing.findings, 0).message, /^no-such-parity-command roundtrip could not start: /);
+  const failing = check(t, feature({}, (unit) => {
+    itemAt(unit.bindings ?? [], 0).command = ['sh', '-c', 'echo failing run >&2; exit 3'];
+    return unit;
+  }));
+  assert.deepEqual(keys(failing.findings), ['R3 roundtrip go']);
+  assert.match(findingAt(failing.findings, 0).message, /exited with 3: failing run/);
+  assert.deepEqual(failing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go').map(run => run.command), ['sh', 'sh']);
+});
+
 test('a feature unit fails R2 without a binding and R3 when its id is missing, fails or is not the full native id (K75)', TIMEOUT, (t) => {
   const missing = check(t, feature({ 'python/tests/test_roundtrip.py': null }, (unit) => { unit.bindings?.pop(); return unit; }));
   assert.deepEqual(keys(missing.findings), ['R2 roundtrip python']);

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f2a800b03de319468b8c11d539307786af7b322e0348315760e0b7910f2fd7d1 -->
+<!-- source-sha256: a0356f1e864d5f7cb9f963b03aec1401de486e9521cdd340ec56a427cb48f415 -->
 
 # 도구 목록
 
@@ -1252,7 +1252,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 
 | Rule | Finding |
 |---|---|
-| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, `spec` anchor를 인용하지 않거나, 그 profile을 unit 하나만 쓰거나, 모든 implementation의 profile이 anchor를 인용합니다. <br>- profile이나 `nativeOnly` 항목의 `spec` anchor가 풀리지 않습니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`, `cases`, `admit`이 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` 항목이 없는 implementation이나 `symbols`를 선언하지 않은 implementation을 적습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`이 아닌 `${` 형식을 담습니다. <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). <br>- `admit` key가 어떤 case 객체에도 없거나, 목록이 비었거나, implementation 이름을 두 번 적거나, profile의 implementation이 admit하는 case가 없습니다(K47). |
+| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, `spec` anchor를 인용하지 않거나, 그 profile을 unit 하나만 쓰거나, 모든 implementation의 profile이 anchor를 인용합니다. <br>- profile이나 `nativeOnly` 항목의 `spec` anchor가 풀리지 않습니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`, `cases`, `admit`이 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` 항목이 없는 implementation이나 `symbols`를 선언하지 않은 implementation을 적습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값이 `${NAME}`이 아닌 `${` 형식을 담습니다. <br>- binding의 `command`가 비었거나 `args`의 pattern이 거부하는 단어를 담습니다(S3). <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). <br>- `admit` key가 어떤 case 객체에도 없거나, 목록이 비었거나, implementation 이름을 두 번 적거나, profile의 implementation이 admit하는 case가 없습니다(K47). |
 | R1 missing-implementation | API unit이 profile의 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol이 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
 | R2 missing-binding | suite 또는 feature unit에 profile의 한 implementation의 binding이 없습니다. |
 | R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 test 파일 전체의 실행이 오류로 끝나거나 그 `id`가 정확히 한 번 통과하지 않으면 실패합니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
@@ -1334,6 +1334,13 @@ kind가 `feature`인 unit은 profile의 각 implementation의 native test 하나
 `id`가 각 실행에서 한 번 통과하면 binding이 성립합니다. 없거나, 실패하거나, 건너뛰었거나, 반복되거나, 바뀌는 id는 R3이고, 한
 implementation의 binding이 없는 feature는 R2입니다.
 
+binding은 `command`(argv 배열, 예: `["make", "feature-check", "ITEM=roundtrip"]`)를 적어 runner의 기본 명령 대신 실행할 수 있습니다
+(K216). 첫 단어는 program이고, `/`를 담으면 checkout root에 상대적인 path, 아니면 PATH의 이름입니다. 나머지 단어는 인자입니다.
+명령은 test를 담은 implementation의 directory에서 실행되며, runner는 기본 명령의 출력과 같은 방식으로 출력을 읽으므로 명령은
+그 runner가 읽는 형식을 출력해야 합니다(go test -json, cargo test, node --test, vitest의 JSON 보고서, PHPUnit TeamCity, unittest).
+명령은 적은 그대로 쓰입니다. 시작하지 못하거나 0이 아닌 상태로 끝나면 그 명령을 이름 붙인 R3이며, runner의 기본 명령이 대신
+실행되지 않습니다. `command`에는 `${NAME}` 참조가 없고, 단어는 `args`의 path 규칙을 따릅니다.
+
 ### Symbol extractor (K75)
 
 implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
@@ -1390,7 +1397,7 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
 | `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
 | `errors` | `profile`과 `catalog`(`file`, `pattern`) |

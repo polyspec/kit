@@ -68,7 +68,7 @@ interface RunnerOf {
 }
 
 /** What a run covers: the test file, the symbol of a suite binding, and the ids of the feature bindings that the file holds. */
-export type RunTarget = Pick<ParityBinding, 'test' | 'symbol'> & { ids?: string[] };
+export type RunTarget = Pick<ParityBinding, 'test' | 'symbol' | 'command'> & { ids?: string[] };
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
 export type BindingCommand = Omit<BindingRun, 'args' | 'error'> & { error?: never; args: string[]; command: string; env: Environment };
@@ -286,16 +286,26 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: Run
 /**
  * The run of the binding `binding` of a unit of `kind` in `implementation`: `{ command, args, cwd, env, caseOf, read,
  * detail }` with `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `detail(output)` the
- * lines that explain a failed run; or `{ error }`. A `command` with a / is a path relative to `root`.
+ * lines that explain a failed run; or `{ error }`. A `command` with a / is a path relative to `root`. A binding `command` replaces
+ * the program and the arguments of the runner, and runs in the directory of the implementation that holds the test; the runner
+ * still reads its output (K216).
  */
 export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: RunTarget, kind: RunKind, base: Environment): BindingCommand | RunError {
   const runner = RUNNERS[implementation.runner];
   const run = runner.run(root, binding, kind, implementation.roots ?? []);
   if (run.error) return run;
-  const declared = implementation.command;
-  const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
   // A run started from inside node --test must not join that run as its child, and its node:test output reaches the reporter only outside it.
   const { NODE_TEST_CONTEXT: _joined, ...inherited } = base;
   const env = { ...inherited, ...runner.env, ...Object.fromEntries((implementation.env ?? []).map(entry => [entry.name, entry.value])) };
+  if (binding.command !== undefined) {
+    // The schema requires a command of at least one word.
+    const [first, ...words] = present(binding.command, 'binding.command');
+    const program = present(first, 'binding.command[0]');
+    const directory = implementationRoot(implementation.roots ?? [], binding.test);
+    if (directory === undefined) return { error: `${binding.test} lies under none of the declared roots (${(implementation.roots ?? []).join(', ') || 'none declared'})` };
+    return { ...run, cwd: directory, args: words, command: program.includes('/') ? path.resolve(root, program) : program, env };
+  }
+  const declared = implementation.command;
+  const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
   return { ...run, args: run.args(implementation.args ?? []), command, env };
 }

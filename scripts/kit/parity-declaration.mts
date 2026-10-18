@@ -48,6 +48,7 @@ export interface ParityBinding {
   test: string;
   symbol?: string;
   id?: string;
+  command?: string[] | undefined;
 }
 
 /** The symbol id of an implementation in an API unit. */
