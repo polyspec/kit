@@ -140,7 +140,7 @@ const itself = (name: string): string => name;
  */
 function goRun(kind: RunKind, binding: RunTarget): string[] {
   if (kind === 'suite') return ['-run', `^${binding.symbol}$`];
-  const tops = [...new Set((binding.ids ?? []).map(id => id.split('/')[0]))];
+  const tops = [...new Set((binding.ids ?? []).map(id => id.replace(/\/.*$/, '')))];
   // Only the syntax characters are escaped: RegExp.escape also escapes a leading letter, which go reads as another name.
   return tops.length === 0 ? [] : ['-run', `^(${tops.map(top => top.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')).join('|')})$`];
 }
