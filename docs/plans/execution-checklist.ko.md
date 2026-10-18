@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 4ad993a4b59b3fe745a5f63899c9210a3290f4acc68f3374681f79657b2d534c -->
+<!-- source-sha256: f220fab3372797bab4ac4a6161fe5686ed865b68bd0dc95be901c90bd2c73253 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -277,3 +277,5 @@
 | K215 | cargo 테스트 출력 판독기가 시간 표시가 붙은 libtest-mimic 이름 줄(`test <name> ... cpu= wall=`)과 다음 줄의 결과를 합칩니다. suite 통과 수는 선언된 사례만 셉니다. 테스트 이름을 읽을 수 없는 feature 실행 실패에는 출력 마지막 20줄을 붙입니다. 원인: orm rust 통과가 미실행으로 집계되고(0 of 19) typescript가 16 of 1로 보고됨. Red: 새 K215/K213 사례 4개 실패. Green: main에서 tests/kit/parity.test.mts 65/65 | `scripts/kit/test-output.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K216 | parity binding은 `command`(argv 배열)로 runner의 기본 명령을 대신할 명령을 적을 수 있고, 그 명령은 구현 디렉터리에서 실행됩니다. runner는 출력을 전과 같이 읽고, 시작하지 못하거나 0이 아닌 상태로 끝난 명령은 기본 명령으로 대신하지 않는 R3입니다. 원인: orm go feature 단위는 orm feature runner의 데이터베이스별 환경이 필요한데 schema가 저장소 명령을 받지 않았음. Red: schema가 `command`를 거부. Green: main에서 tests/kit/parity.test.mts 67/67 | `scripts/kit/schema/parity.schema.json`, `scripts/kit/parity-runners.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K217 | `@polyspec/kit/test-output`을 package export로 내고, `nodeEvents`가 parity node:test reporter 줄을 다른 reader처럼 Sink로 읽습니다. parity는 node case를 이것으로 읽고 case가 아닌 줄에서 실패합니다. 원인: consumer가 parser를 복사하지 않고는 test case를 셀 수 없었음. Red: ERR_PACKAGE_PATH_NOT_EXPORTED, `nodeEvents` 없음. Green: main에서 tests/kit/test-output.test.mts 6/6, parity.test.mts 67/67 | `scripts/kit/test-output.mts`, `scripts/kit/parity-runners.mts`, `package.json`, `tests/kit/test-output.test.mts` | `tests/kit/test-output.test.mts` | [o] |
+| K218 | run-tests는 helper 모듈이 test()를 불러도 node가 실행하는 파일의 case로 셉니다. node는 --test-concurrency=1로 파일을 실행하고 reporter는 dequeue된 파일 group에 case를 붙입니다. 원인: tests/testcase.mts로 등록한 orm case가 helper 이름으로 보고되어 파일이 "ran no test case"로 실패했음. Red: helper fixture가 그 줄로 실패. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `scripts/kit/node-reporter.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
+| K219 | run-tests python은 `--module <name>`(기본 unittest)을 받아 `python -m <module> <args> -v`를 실행하고 pythonEvents로 읽습니다. 원인: 저장소 harness 모듈(orm의 case별 deadline)을 run-tests로 실행할 수 없었음. Red: module 옵션이 없었음. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
