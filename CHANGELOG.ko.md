@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 62f3b5f376e00f1ff0acf75e3ffe52b0f9facc4793d86d6889815ed0c11edcf6 -->
+<!-- source-sha256: d9d6b3719d6fdca6046399105b56970e2e0965535e6589ce2d57791f0850ab25 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -53,6 +53,8 @@
 - `make link`(scripts/kit/link.mts)의 링크는 각 도구 자신의 기록(npm query, Composer의 installed.json, uv pip list, go mod edit -json)에서 읽은 0.0.x 고정 패키지만 링크하고, `composer config vendor-dir`이 각 Composer 프로젝트에 주는 vendor를 링크한 뒤 autoloader를 다시 쓰며, polyspec 패키지의 plain copy를 경로와 함께 NOT linked로 보고하고, 빌드하지 않으며(`link.mjs rebuild`가 빌드하고 `link-check`는 STALE을 보고한다), Git이 무시하는 경로에만 쓰고, release target과 `dependency-review`를 `GOWORK=off`로 실행한다. kit의 `make build`는 완성된 dist.next를 dist로 rename하고, (K201-1).
 
 - `link.mjs`는 checkout을 인자로 받고 환경 변수를 읽지 않는다(K205): `link.mjs link|check [--project <dir>] <checkout>...`, `unlink [--project <dir>]`. kit이 없는 소비자는 `node <kit checkout>/dist/link.mjs`를 실행한다.
+
+- `link`는 Python provider를 환경이 editable install을 가질 때만 linked로 보고합니다. 설치된 상태는 venv 자신의 python이 읽고(PEP 610 direct_url.json과 RECORD의 PEP 660 `__editable__` marker), 설치 후에도 다시 읽습니다. 예전에는 wheel의 `uv pip freeze` 경로를 믿었는데 non-editable 설치도 같은 경로를 가지므로 site-packages 복사본이 있는 venv가 `linked`를 출력했습니다. 이제 그런 venv는 NOT linked로 실패합니다(K230).
 
 ## 0.0.53
 

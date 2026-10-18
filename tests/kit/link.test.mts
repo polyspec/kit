@@ -93,14 +93,18 @@ function workspace(t: TestContext) {
     'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }] }),
     'var/contracts/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}',
     'python/.venv/pyvenv.cfg': 'home = /usr\n',
+    // The venv's python (K230): for each distribution named after -c SCRIPT it prints the path of the wheel that freeze.txt installs
+    // (its direct_url) and the editable marker, which editable.txt removes with a line "name no".
+    'python/.venv/bin/python': `#!/bin/sh\nshift 3\nfor name in "$@"; do\n  url=$(grep "^$name @ " ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null | tail -n 1 | sed 's/^[^@]* @ file:\\/\\///')\n  if grep -qx "$name no" ${JSON.stringify(path.join(consumer, 'editable.txt'))} 2>/dev/null; then editable=no; else editable=yes; fi\n  printf '%s\\t%s\\t%s\\n' "$name" "$url" "\${url:+$editable}"\ndone\n`,
     'pip-list.json': JSON.stringify([{ name: 'polyspec-z', version: '0.0.1' }, { name: 'polyspec-w', version: '0.0.1' }]),
     'go.mod.json': JSON.stringify({ Module: { Path: 'cons' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] }),
   });
+  chmodSync(path.join(consumer, 'python/.venv/bin/python'), 0o755);
   put(provider, { 'go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
   stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl";; esac
-case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; esac`);
+case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") for a; do case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))};; esac; done;; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -316,6 +320,20 @@ test('K222: a writable Python provider without a wheel of its fingerprint is bui
   const install = calls.findIndex(item => item.startsWith('uv pip install') && item.includes('--no-deps'));
   assert.ok(build >= 0 && sync > build && install > sync, log());
   assert.ok(existsSync(wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'))));
+});
+
+test('K230: a provider installed from its wheel without the editable install is NOT linked, though its wheel is the one of the fingerprint', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const w = wheelFile(consumer, 'polyspec-w', fingerprintOf(provider, 'packages/w'));
+  put(consumer, { [path.relative(consumer, z)]: '', [path.relative(consumer, w)]: '', 'freeze.txt': `polyspec-z @ ${pathToFileURL(z).href}\npolyspec-w @ ${pathToFileURL(w).href}\n`, 'editable.txt': 'polyspec-z no\n' });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, false, text);
+  assert.doesNotMatch(text, /linked {5}python {3}polyspec-z -> /, 'no link is reported while the venv holds no editable install');
+  assert.match(text, /NOT linked python {3}polyspec-z \(installed from its wheel without the editable install in .*python\/\.venv\)/);
+  assert.match(text, /linked {5}python {3}polyspec-w -> /);
+  assert.ok(log().includes('uv sync'), 'the environment is synced and the wheel installed again before the verdict');
 });
 
 test('K224: a read-only Python consumer with a prebuilt wheel of its own project links it, and the sync carries --no-install-project', (t) => {

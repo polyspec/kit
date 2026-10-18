@@ -21,7 +21,6 @@
 import { createHash } from 'node:crypto';
 import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -468,14 +467,51 @@ function ownProject(consumer: Consumer, file: string): Provider | undefined {
   return { ecosystem: 'python', name: project.name, folder: path.dirname(file), repository: consumer.repository, checkout: consumer.top };
 }
 
-/** The polyspec packages that `uv pip freeze` lists as installed from a local wheel, by normalized name: PEP 610 `name @ file:` (K222). */
-function wheelsInstalled(uv: Tool, venv: string): Map<string, string> {
-  const found = new Map<string, string>();
-  for (const line of run(uv.command, ['pip', 'freeze', '--python', path.join(venv, 'bin/python')], { env: uv.env }).split('\n')) {
-    const match = /^(\S+) @ (file:\/\/\S+)$/.exec(line.trim());
-    if (match?.[1] && match[2]) found.set(normalizeName(match[1]), fileURLToPath(match[2]));
+/** What an environment installs of a distribution (K230): the path that PEP 610 direct_url.json names ('none' when none is a file) and whether RECORD holds the PEP 660 editable marker. */
+type Installed = { path: string; editable: boolean };
+
+/** Reads the installed state of `names` in the environment `venv` with its own python, outside any checkout (-I): the state, not a listing of it (K230). */
+const READ_INSTALLED = [
+  'import importlib.metadata as metadata, json, sys',
+  'from urllib.parse import unquote, urlparse',
+  'for name in sys.argv[1:]:',
+  '    try:',
+  '        dist = metadata.distribution(name)',
+  '    except metadata.PackageNotFoundError:',
+  "        print(name, 'none', 'no', sep='\\t')",
+  '        continue',
+  "    text = dist.read_text('direct_url.json')",
+  "    url = json.loads(text).get('url', '') if text else ''",
+  "    location = unquote(urlparse(url).path) if url.startswith('file:') else 'none'",
+  "    editable = any(str(item).startswith('__editable__') for item in dist.files or [])",
+  "    print(name, location, 'yes' if editable else 'no', sep='\\t')",
+].join('\n');
+
+/** The installed state of each of `names` in `venv`, by name (K230). */
+function installedFiles(venv: string, names: readonly string[], env: NodeJS.ProcessEnv): Map<string, Installed> {
+  const found = new Map<string, Installed>();
+  if (!names.length) return found;
+  for (const line of run(path.join(venv, 'bin/python'), ['-I', '-c', READ_INSTALLED, ...names], { cwd: venv, env }).split('\n')) {
+    const [name, location, editable] = line.split('\t');
+    if (name && location && editable) found.set(name, { path: location, editable: editable === 'yes' });
   }
   return found;
+}
+
+/**
+ * Why the installed state of `provider` is not its editable wheel at the current fingerprint, or undefined when it is (K230): a
+ * link is reported only when the environment itself holds that editable install.
+ */
+function editableProblem(consumer: Consumer, provider: Provider, state: Installed | undefined, venv: string): string | undefined {
+  if (state === undefined || state.path === 'none') return `not installed from a wheel in ${venv}`;
+  const fp = pythonFingerprint(provider.checkout, provider.folder);
+  const dir = path.dirname(state.path);
+  if (dir !== wheelDirOf(consumer, provider.name, fp)) {
+    return path.basename(path.dirname(dir)) === normalizeName(provider.name)
+      ? `installed fingerprint ${path.basename(dir)} differs from ${fp} in ${venv}`
+      : `installed from ${state.path}, not the editable wheel of ${provider.folder} in ${venv}`;
+  }
+  return state.editable ? undefined : `installed from its wheel without the editable install in ${venv}`;
 }
 
 /** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
@@ -537,7 +573,6 @@ function linkPython(work: Run, consumer: Consumer) {
   for (const [venv, { workspace, names, projects }] of byVenv) {
     if (!names.size) continue;
     const installed = installedPython(uv, venv);
-    const wheels = wheelsInstalled(uv, venv);
     const linked = [
       ...closure(work, consumer, names).filter((provider) => {
         const found = installed.get(provider.name);
@@ -548,18 +583,17 @@ function linkPython(work: Run, consumer: Consumer) {
       }),
       ...projects,
     ];
-    const isLinked = (provider: Provider) => {
-      const wheel = wheels.get(normalizeName(provider.name));
-      return wheel !== undefined && path.dirname(wheel) === wheelDirOf(consumer, provider.name, pythonFingerprint(provider.checkout, provider.folder));
-    };
-    if (work.check || linked.every(isLinked)) {
+    // A link is reported from the installed state of the environment, after each install too (K230); a listing is not proof.
+    const reportLinks = (state: Map<string, Installed>, now: boolean) => {
       for (const provider of linked) {
-        if (isLinked(provider)) { line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv})`); continue; }
-        const wheel = wheels.get(normalizeName(provider.name));
-        const fp = pythonFingerprint(provider.checkout, provider.folder);
-        const built = wheel === undefined ? undefined : path.basename(path.dirname(wheel));
-        unlinkable(work, 'python', provider.name, built !== undefined && built !== fp ? `installed fingerprint ${built} differs from ${fp} in ${venv}` : venv);
+        const problem = editableProblem(consumer, provider, state.get(provider.name), venv);
+        if (problem) unlinkable(work, 'python', provider.name, problem);
+        else line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}${now ? ', now' : ''})`);
       }
+    };
+    const state = installedFiles(venv, linked.map(provider => provider.name), work.env);
+    if (work.check || linked.every(provider => editableProblem(consumer, provider, state.get(provider.name), venv) === undefined)) {
+      reportLinks(state, false);
       continue;
     }
     if (!existsSync(path.join(workspace, 'uv.lock'))) {
@@ -578,7 +612,7 @@ function linkPython(work: Run, consumer: Consumer) {
     if (!complete || !ready.length) continue;
     syncPython(uv, { venv, workspace }, noInstallFlag(workspace));
     run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--no-deps', ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
-    for (const { provider } of ready) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}, now)`);
+    reportLinks(installedFiles(venv, linked.map(provider => provider.name), work.env), true);
   }
 }
 

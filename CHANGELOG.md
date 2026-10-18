@@ -53,6 +53,8 @@
 
 - `link.mjs` takes the checkouts as arguments and reads no environment variable (K205): `link.mjs link|check [--project <dir>] <checkout>...`, `unlink [--project <dir>]`. A consumer without kit runs `node <kit checkout>/dist/link.mjs`.
 
+- `link` reports a Python provider as linked only when the environment holds its editable install. The installed state is read by the venv's own python (PEP 610 direct_url.json and the PEP 660 `__editable__` marker of RECORD) and again after each install; it used to trust the `uv pip freeze` path of the wheel, which a non-editable install shares, so a venv with the site-packages copy printed `linked`. Such a venv now fails NOT linked (K230).
+
 ## 0.0.53
 
 - `make release-proof` checks that the release lists the asset of each sibling a wheel requires and compares no URL. It compared the sibling's URL with the URL that the draft lists, but GitHub lists the assets of a draft under an `untagged-` URL until the draft is published, so the first release with a sibling wheel failed its proof (crudui v0.0.6). The URL of a sibling, the asset URL of the tag, is checked before the release builds (K195).
