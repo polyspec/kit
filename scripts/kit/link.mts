@@ -23,7 +23,7 @@ import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
-import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';

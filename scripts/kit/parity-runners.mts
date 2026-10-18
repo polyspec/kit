@@ -26,7 +26,7 @@ import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Si
 import { toolCommand } from './mise-tools.mts';
 import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
-import { parseJson, readJsonFile } from './schema-validate.mts';
+import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 

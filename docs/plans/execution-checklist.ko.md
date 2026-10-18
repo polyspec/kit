@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: ddbcd26c0a86c7fa136848a683e7e6021c21fdc3f76584d8907afbae9cd036f5 -->
+<!-- source-sha256: 3e35f002fb37b93da617ee66f4b297e5d19328756327ec0207009c619f7a5f51 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -287,3 +287,4 @@
 | K225 | Python wheel fingerprint는 폴더 아래 모든 디렉터리 대신 추적되거나 새로 생긴, 무시되지 않은 파일의 디렉터리(git ls-files)만 셉니다. 원인: python 테스트 컨테이너가 읽기 전용 python checkout 아래 git-ignored var/ 디렉터리를 써서 호스트 wheel과 다른 fingerprint(ba846cb015d9)를 계산하고 stale로 실패했음. Red: K225 사례에서 무시되는 var/test가 fingerprint를 바꿈. Green: tests/kit/link.test.mts 50/50, tsc 0 | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
 | K226 | `link`는 프로젝트 자신이 제공하는 의존성을 충족된 것으로 보고 `workspace`로 표시합니다: `npm query`가 프로젝트의 폴더에 나열하는 npm workspace member, 그리고 루트 composer.json 또는 그것이 선언한 path repository의 Composer 이름입니다. 체크아웃도 프로젝트 패키지도 제공하지 않는 의존성은 여전히 실패합니다. 원인: orm의 `link --project`가 체크아웃이 제공하지 않는 자체 workspace 패키지(@polyspec/orm, dbspec-lsp, dbspec-language, dbspec-codemirror)와 polyspec/orm을 NOT linked로 보고하며 exit 1로 끝났음. Red: K226 사례 2건 실패(member가 NOT linked로 출력되고 실행이 false를 반환). Green: tests/kit/link.test.mts 52 of 52, tsc 0; orm 재현 명령이 exit 0으로 끝나고 kit과 ordered-json은 여전히 linked | `scripts/kit/link.mts`, `tests/kit/link.test.mts`, `docs/plans/execution-checklist.md(.ko)`, `CHANGELOG.md(.ko)` | `tests/kit/link.test.mts` | [o] |
 | K227 | kit은 소비자 interface manifest를 위한 config/parity.json 키를 추가하지 않습니다. parity.json은 언어 parity만 담고, 소비자 manifest는 contracts/ 또는 docs/spec/ 아래 spec anchor로만 참조됩니다(결정: docs/tool-inventory.md "Consumer interface manifests (K227)"). 원인: orm T77-8-1-5가 interfaces 키를 요청함. 증거: kit은 contracts/interfaces.json을 orm의 spec anchor 4160개로만 읽고 rules, records, owners는 읽지 않음. ajv: orm parity.json은 유효하고 `interfaces` 키를 더하면 additionalProperties로 실패. 코드 변경 없음 | `docs/tool-inventory.md` | documents-check | [o] |
+| K228 | make lint-ts가 통과합니다: 쓰지 않는 import 4개를 지웁니다(parity-runners의 parseJson, link의 writeAtomic, link.test의 readdirSync와 packages). 원인: K221-K226 이후 main에서 oxlint no-unused-vars가 실패했음. Red: lint-ts exit 2, 문제 4개. Green: lint-ts의 oxlint와 knip 통과, tsc 0 | `scripts/kit/parity-runners.mts`, `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `make lint-ts` | [o] |
