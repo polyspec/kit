@@ -1499,6 +1499,22 @@ A permanent difference cites the spec that makes it one (S6). A profile narrower
 `docs/spec/`. Each one resolves: a Markdown file defines the fragment as an explicit anchor `<a id>` or a heading anchor, and
 the fragment of a JSON file is a JSON Pointer (RFC 6901) to one of its values. A profile of every implementation cites none.
 
+### Consumer interface manifests (K227)
+
+`config/parity.json` declares language parity and nothing else. A consumer's other contract data, such as the rules, records
+and owners of its interface manifest, stays in the consumer's own file and is not a key of this schema. The only reference that
+kit reads from such a file is a spec anchor (above): a `nativeOnly` entry or a profile that cites `<file>#<fragment>` under
+`contracts/` or `docs/spec/`. While an anchor cites a file, the file must exist among the checked files and the JSON Pointer must
+resolve; otherwise it is a `declaration` finding. So such a file can be neither deleted nor moved out of `contracts/` or
+`docs/spec/` without re-pointing every anchor that cites it.
+
+Decision (K227): kit adds no schema key for a consumer's interface manifest, neither typed nor opaque, and
+`parity.schema.json` keeps `additionalProperties: false`. Reasons: (1) the parity reader never reads such data, so a key for it
+would validate facts that no check of kit evaluates; (2) a typed key would make kit's schema encode one consumer's data model,
+and an opaque key would let any content pass the declaration check; (3) the coupling that exists between kit and a consumer's
+file is the spec anchor, which the schema already validates. A consumer that wants one parity source keeps its language facts
+in `config/parity.json` and its other contract data in its own file.
+
 ### Per-case admission
 
 A suite unit may declare `admit`: the key of each case object, beside the case name at `cases`, that lists the implementations

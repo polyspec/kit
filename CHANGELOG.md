@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Kit's parity declaration stays language-parity only: a consumer's interface manifest is reached through spec anchors, not a parity.json key (K227).
 - The fingerprint of a Python editable wheel counts only the directories of tracked or new, not ignored, files, so a container's git-ignored var/ directories below a read-only checkout no longer change it and the host-built wheel is reused (K225).
 
 - A word of a parity binding `command` may reference the invoking environment as `${NAME}`, resolved when the bindings run by the rule of the implementation's `command`, `args` and `env`: an unset or empty NAME is an R3 finding that names it, and that binding runs nothing. The runs printed `${NAME}` literally before (K223).

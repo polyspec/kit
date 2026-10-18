@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ea29f8a9195f74d550273f1081deaf8234d1116cd455a6554bbf17801f2cb943 -->
+<!-- source-sha256: e052b8f95732fe2e02fa774658af6168ffb04b0c338893574dace8ffcf2026e4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit parity 선언은 언어 parity만 담습니다. 소비자 interface manifest는 parity.json 키가 아니라 spec anchor로 참조합니다(K227).
 - Python editable wheel의 fingerprint는 추적되거나 새로 생긴, 무시되지 않은 파일의 디렉터리만 셉니다. 그래서 읽기 전용 checkout 아래 컨테이너가 쓰는 git-ignored var/ 디렉터리가 fingerprint를 바꾸지 않고, 호스트에서 만든 wheel을 다시 씁니다(K225).
 
 - parity binding `command`의 단어는 실행 environment를 `${NAME}`으로 참조할 수 있습니다. binding을 실행할 때 구현의 `command`, `args`, `env`와 같은 규칙으로 풀리며, NAME이 설정되지 않았거나 비었으면 그 NAME을 적은 R3 finding이고 그 binding은 아무것도 실행하지 않습니다. 이전에는 `${NAME}`을 그대로 실행했습니다(K223).

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 43aa41be108ce684a710fea5dc45f4800d4e329ab348fb4421d87234f2c81a33 -->
+<!-- source-sha256: a7c97aaf9ce72051ab39770bb51aa833dedd3290b95d36920933d03f2976355a -->
 
 # 도구 목록
 
@@ -1372,6 +1372,20 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
 `spec`에 그 이유의 anchor `<file>#<fragment>`를 선언하며, 파일은 `contracts/`나 `docs/spec/` 아래에 있습니다. 각 anchor는
 풀립니다. Markdown 파일은 fragment를 explicit anchor `<a id>`나 heading anchor로 정의하고, JSON 파일의 fragment는 그 값 하나를
 가리키는 JSON Pointer(RFC 6901)입니다. 모든 implementation의 profile은 anchor를 인용하지 않습니다.
+
+### Consumer의 interface manifest (K227)
+
+`config/parity.json`은 language parity만 선언하며 그 밖은 선언하지 않습니다. consumer의 다른 contract 데이터(interface manifest의
+rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 key가 아닙니다. kit이 그런 파일에서 읽는 것은 spec anchor(위)뿐입니다.
+`nativeOnly` 항목이나 profile이 `contracts/` 또는 `docs/spec/` 아래의 `<file>#<fragment>`를 인용하며, anchor가 파일을 인용하는 동안
+파일은 검사 대상 파일 안에 있어야 하고 JSON Pointer가 풀려야 합니다. 그렇지 않으면 `declaration` finding입니다. 따라서 anchor가 인용하는
+파일은 그 anchor를 모두 다시 가리키기 전에는 지우거나 `contracts/`나 `docs/spec/` 밖으로 옮길 수 없습니다.
+
+결정(K227): kit은 consumer의 interface manifest를 위한 schema key를 추가하지 않습니다(typed든 opaque든). `parity.schema.json`은
+`additionalProperties: false`를 유지합니다. 이유: (1) parity reader는 그런 데이터를 읽지 않으므로 kit의 어떤 검사도 평가하지 않는 사실을
+검증하게 된다. (2) typed key는 kit의 schema가 한 consumer의 데이터 모델을 담게 하고, opaque key는 declaration 검사를 아무 내용이나
+통과시킨다. (3) kit과 consumer 파일 사이에 실제로 있는 결합은 spec anchor이며, schema가 이미 그것을 검증한다. 한 spec의 language 사실을
+한 곳에 두려는 consumer는 language 사실을 `config/parity.json`에, 나머지 contract 데이터는 자기 파일에 둡니다.
 
 ### case별 admission
 
