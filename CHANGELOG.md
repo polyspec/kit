@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make parity-check` runs a go feature with `-run ^(<top>|…)$`, one alternation of the top-level test names of its ids (the part before the first `/`), instead of the whole package, so a package of feature units runs its tests once per test file and a failure in an unrelated test no longer fails every unit. A suite run keeps its symbol (K214).
+
 - `make parity-check` names the failing tests that a feature run reports outside its ids when the run exits with a status other than 0, read from `go test -json` (the fail events with a Test name) and from the node:test reporter; a run whose output names none says so (`failed outside the ids: no test name readable from the output`), where it used to print only the exit status (K213).
 
 - `link.mjs link|check|unlink --project <dir>` reads the manifests of `<dir>` itself, tracked by Git or not, so an installation under a git-ignored tree (var/example/installation) links its npm copies without a package-lock.json. A `<dir>` with no manifest, or a declared polyspec package that a checkout provides and the run does not link, fails with a named error instead of exiting 0 (K212).

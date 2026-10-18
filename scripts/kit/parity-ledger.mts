@@ -10,9 +10,9 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import path from 'node:path';
 import { execute } from './process.mts';
 import { finding, resolveReferences, supportFiles } from './parity-declaration.mts';
-import type { Environment, Finding, ParityBinding, ParityImplementation, ParityModel } from './parity-declaration.mts';
+import type { Environment, Finding, ParityImplementation, ParityModel } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
-import type { BindingCommand, Outcome, RunError, RunKind } from './parity-runners.mts';
+import type { BindingCommand, Outcome, RunError, RunKind, RunTarget } from './parity-runners.mts';
 import { pairs } from './parity-units.mts';
 import { present } from './present.mts';
 
@@ -73,7 +73,7 @@ function differences(first: Attempt, second: Attempt): string[] {
  * The run of `binding` in the implementation `declared` with its environment references resolved from `env`: the run of
  * runOf, with `shown`, the command line as declared (a reference is printed, never its value), or `{ error }`.
  */
-function resolvedRun(declared: ParityImplementation, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, env: Environment): ResolvedRun {
+function resolvedRun(declared: ParityImplementation, root: string, binding: RunTarget, kind: RunKind, env: Environment): ResolvedRun {
   const { implementation, errors } = resolveReferences(declared, env, root);
   if (errors.length) return { error: `cannot start: ${errors.join('; ')}` };
   const run = runOf(implementation, root, binding, kind, env);
@@ -136,7 +136,7 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
   }
   return [...files.values()].flatMap(({ implementation, test, bound }) => {
     const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
-    const run = resolvedRun(implementation, root, { test }, 'feature', env);
+    const run = resolvedRun(implementation, root, { test, ids: bound.map(entry => entry.id) }, 'feature', env);
     if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
     const units = bound.map(entry => entry.unit).join(', ');
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);

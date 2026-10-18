@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 94f09f4c0cc91e80c2e97992e063c0b5f4adf3b93ff59367c27e33798af17ff0 -->
+<!-- source-sha256: 67d5cc92d7b77d13a667ca854c6b88c17e985b143e392fd798be41654e869a81 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make parity-check`는 feature 실행을 패키지 전체가 아니라 `-run ^(<top>|…)$`로 실행한다. 이 정규식은 id의 첫 `/` 앞 top-level test 이름을 이스케이프해 하나의 선택으로 묶은 것이다. 그래서 feature가 많은 패키지도 test 파일마다 그 test만 실행되고, 관계없는 test의 실패가 모든 unit을 실패시키지 않는다. suite 실행은 symbol을 그대로 쓴다 (K214).
 
 - `make parity-check`는 feature 실행이 0이 아닌 상태로 끝나면, 그 실행이 보고한 실패 test 중 id가 아닌 것의 이름을 줄에 적는다. 이름은 `go test -json`의 Test 이름을 가진 fail 이벤트와 node:test reporter에서 읽는다. 읽을 이름이 없으면 `failed outside the ids: no test name readable from the output`로 그렇게 적는다. 이전에는 종료 상태만 출력했다 (K213).
 

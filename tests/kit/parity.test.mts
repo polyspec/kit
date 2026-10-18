@@ -63,6 +63,9 @@ const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
 const symbol = args.includes('-run') ? args[args.indexOf('-run') + 1].replace(/^\\^|\\$$/g, '') : undefined;
+// An alternation (a feature run) selects the top-level tests it names with all their subtests; a suite symbol selects its subtests (K214).
+const ids = symbol !== undefined && symbol.startsWith('(') ? symbol.slice(1, -1).split('|') : undefined;
+const selected = name => symbol === undefined || (ids ? ids.includes(name.split('/')[0]) : name.startsWith(symbol + '/'));
 const directory = args[args.length - 1];
 let exit = 0;
 // A line \`BUILD <message>\` makes the package fail to build, with the events that go 1.27 writes, observed with a real module.
@@ -82,8 +85,8 @@ console.log(JSON.stringify({ Action: 'start', Package: 'example' }));
 for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()) {
   for (const line of fs.readFileSync(path.join(directory, file), 'utf8').split('\\n')) {
     const found = /^(PASS|FAIL) (\\S+)$/.exec(line);
-    if (found && (symbol === undefined || found[2].startsWith(symbol + '/'))) {
-      if (symbol === undefined && found[1] === 'FAIL') exit = 1;
+    if (found && selected(found[2])) {
+      if ((symbol === undefined || ids) && found[1] === 'FAIL') exit = 1;
       console.log(JSON.stringify({ Action: 'run', Package: 'example', Test: found[2] }));
       console.log(JSON.stringify({ Action: 'output', Package: 'example', Test: found[2], Output: '=== RUN ' + found[2] + '\\n' }));
       console.log(JSON.stringify({ Action: found[1] === 'PASS' ? 'pass' : 'fail', Package: 'example', Test: found[2], Elapsed: 0 }));
@@ -92,7 +95,7 @@ for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test
     if (status && status[1] === symbol) exit = Number(status[2]);
   }
 }
-if (symbol !== undefined) console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Package: 'example', Test: symbol, Elapsed: 0 }));
+if (symbol !== undefined && !ids) console.log(JSON.stringify({ Action: exit ? 'fail' : 'pass', Package: 'example', Test: symbol, Elapsed: 0 }));
 process.exit(exit);
 `;
 
@@ -561,7 +564,7 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
     'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › bytes pass', 'php test_bytes pass', 'python test_bytes pass',
   ]);
   const commands = Object.fromEntries(ledger.runs.filter(run => run.unit === 'roundtrip').map(run => [run.implementation, [run.command, ...run.args]]));
-  assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', './']);
+  assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', '-run', '^(TestRoundtrip)$', './']);
   assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
@@ -571,9 +574,9 @@ test('a feature run that exits 1 names the failing tests outside its ids, read f
     checkParity(repository(t, change), { execute: true, env: ENV, say: line => lines.push(line) });
     return lines.filter(line => line.startsWith('roundtrip '));
   };
-  // go test -json passes the declared id and fails TestCaseHarnessReportsOnlyFailure, which no binding declares.
-  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'PASS TestRoundtrip/bytes\nFAIL TestCaseHarnessReportsOnlyFailure\n' })).includes(
-    'roundtrip go: exit 1, 1 of 1 ids passed; failed outside the ids: TestCaseHarnessReportsOnlyFailure',
+  // go test runs the top-level test of an id with all its subtests (K214), so a failing sibling subtest of that test is outside the ids.
+  assert.ok(reported(feature({ 'go/roundtrip_test.go': 'PASS TestRoundtrip/bytes\nFAIL TestRoundtrip/text\n' })).includes(
+    'roundtrip go: exit 1, 1 of 1 ids passed; failed outside the ids: TestRoundtrip/text',
   ));
   // A package that does not build reports no test name, and the line says so.
   assert.ok(reported(feature({ 'go/roundtrip_test.go': 'BUILD ./roundtrip_test.go:1:1: undefined: boom\n' })).includes(
@@ -583,6 +586,17 @@ test('a feature run that exits 1 names the failing tests outside its ids, read f
   assert.ok(reported(feature({ 'ts/tests/roundtrip.test.mjs': "import { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  test('bytes', () => {});\n  test('text', () => { throw new Error('no'); });\n});\n" })).includes(
     'roundtrip ts: exit 1, 1 of 1 ids passed; failed outside the ids: roundtrip › text, roundtrip',
   ));
+});
+
+// A go run of a feature file runs only the ids of its bindings, in one alternation; a suite run keeps its symbol (K214).
+test('a go feature run names its ids in one -run alternation, and a go suite run keeps its symbol (K214)', TIMEOUT, (t) => {
+  const root = repository(t);
+  const feature = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestA', 'TestB/sub', 'TestA/other'] }, 'feature', ENV), 'the go feature run');
+  assert.deepEqual(feature.args, ['test', '-json', '-count=1', '-run', '^(TestA|TestB)$', './']);
+  const escaped = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestX.y/z'] }, 'feature', ENV), 'the escaped go feature run');
+  assert.deepEqual(escaped.args, ['test', '-json', '-count=1', '-run', '^(TestX\\.y)$', './']);
+  const suite = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/codec_test.go', symbol: 'TestCodec' }, 'suite', ENV), 'the go suite run');
+  assert.deepEqual(suite.args, ['test', '-json', '-count=1', '-run', '^TestCodec$', './']);
 });
 
 // Cargo builds tests/<name>/main.rs as the test target <name>, and the other files of tests/<name>/ are its modules (K148).

@@ -64,8 +64,11 @@ export interface RunError {
 interface RunnerOf {
   program: (root: string) => string;
   env?: Record<string, string>;
-  run: (root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, roots: readonly string[]) => BindingRun | RunError;
+  run: (root: string, binding: RunTarget, kind: RunKind, roots: readonly string[]) => BindingRun | RunError;
 }
+
+/** What a run covers: the test file, the symbol of a suite binding, and the ids of the feature bindings that the file holds. */
+export type RunTarget = Pick<ParityBinding, 'test' | 'symbol'> & { ids?: string[] };
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
 export type BindingCommand = Omit<BindingRun, 'args' | 'error'> & { error?: never; args: string[]; command: string; env: Environment };
@@ -131,6 +134,17 @@ const implementationRoot = (roots: readonly string[], test: string): string | un
 /** The native name itself, the id of a feature test. */
 const itself = (name: string): string => name;
 
+/**
+ * The go test flags that select the tests of a run: the symbol of a suite, or the top-level tests of a feature's ids. A subtest id
+ * belongs to its top-level test (the part before the first `/`), which go runs with all its subtests; none when a feature has no id.
+ */
+function goRun(kind: RunKind, binding: RunTarget): string[] {
+  if (kind === 'suite') return ['-run', `^${binding.symbol}$`];
+  const tops = [...new Set((binding.ids ?? []).map(id => id.split('/')[0]))];
+  // Only the syntax characters are escaped: RegExp.escape also escapes a leading letter, which go reads as another name.
+  return tops.length === 0 ? [] : ['-run', `^(${tops.map(top => top.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')).join('|')})$`];
+}
+
 // Each runner: the program that it starts unless the implementation declares `command`, the environment that it sets over the
 // check's environment, and `run`, which gives the arguments and the working directory of a binding and how its output is read.
 // `caseOf` names the case of a native test name, or undefined when the test is no case of the binding; `read` feeds the output
@@ -143,7 +157,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       if (module === undefined) return { error: `no go.mod lies above ${binding.test}` };
       const directory = path.posix.relative(module, path.posix.dirname(binding.test));
       return {
-        args: test => ['test', ...test, '-json', '-count=1', ...(kind === 'suite' ? ['-run', `^${binding.symbol}$`] : []), `./${directory}`],
+        // A feature run names the top-level tests of its ids in one alternation; go test -run matches each level by regexp, so a name is escaped.
+        args: test => ['test', ...test, '-json', '-count=1', ...goRun(kind, binding), `./${directory}`],
         cwd: module,
         // A subtest nested below a case keeps its `/`, so R3 names it as a case that the suite does not declare.
         caseOf: kind === 'suite' ? name => after(`${binding.symbol}/`, name) : itself,
@@ -273,7 +288,7 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read'>, output: Run
  * detail }` with `cwd` relative to `root`, `env` the variables of the implementation over `base`, and `detail(output)` the
  * lines that explain a failed run; or `{ error }`. A `command` with a / is a path relative to `root`.
  */
-export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: Pick<ParityBinding, 'test' | 'symbol'>, kind: RunKind, base: Environment): BindingCommand | RunError {
+export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: RunTarget, kind: RunKind, base: Environment): BindingCommand | RunError {
   const runner = RUNNERS[implementation.runner];
   const run = runner.run(root, binding, kind, implementation.roots ?? []);
   if (run.error) return run;
