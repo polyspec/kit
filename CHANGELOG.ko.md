@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f3030a207e0f172db744741887f98a4ee0b7fd36502d7a0fc110ac45c0982ea0 -->
+<!-- source-sha256: bbfeae7f759ade69642740b9043f286b6530f12b60f8109137f69f2535659b4a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make parity-check UNITS="<id> …"`는 `config/parity.json`의 이름 붙은 unit만 실행합니다. `scripts/kit/parity.mts --unit <id>`(반복 가능)는 그 binding을 전체 실행과 같은 runner, cwd, reader로 실행하고 결과를 일반 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 출력이 그 사실을 한 줄로 적습니다. 어떤 unit도 갖지 않은 id는 실행 없이 그 id를 적은 오류입니다 (K221).
 
 - `link`는 provider checkout의 private npm 패키지도 다른 패키지와 같이 연결한다. manifest의 `package.json` `name`은 `private` 여부와 관계없이 제공한다. `private`는 게시만 막고 로컬 연결과는 무관하므로, tgz에서 설치된 복사본이 링크로 바뀌고 `check`가 통과한다. 제공자가 이름을 제공하는 npm 패키지는 `/*`만이 아니라 모든 scope(예: `/*`)를 연결한다(K220). 같은 이름의 manifest가 둘이면 전과 같이 둘 다 밝히며 실패한다(K220).
 

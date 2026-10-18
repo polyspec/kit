@@ -6,8 +6,10 @@
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
-//   node scripts/kit/parity.mts [--declarations]
+//   node scripts/kit/parity.mts [--declarations] [--unit <id>]...
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
+//     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
+//                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221)
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no public symbol in an implementation of its profile, or the extractor of
@@ -37,7 +39,7 @@
 // A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
 // the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
 import { parseArgs } from 'node:util';
-import { DECLARATION, findingLine, readDeclaration } from './parity-declaration.mts';
+import { DECLARATION, finding, findingLine, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
@@ -55,7 +57,7 @@ export type ParityFinding = Finding;
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
  * bindings (R3) with the environment `env`; `say` prints a line for each step.
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {} }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   say(`read ${DECLARATION}`);
   const declaration = readDeclaration(root, files);
@@ -63,6 +65,14 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   const ledger: Ledger = { runs: [], cases: [] };
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
   if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
+  // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).
+  const selected = units === undefined ? undefined : new Set(units);
+  if (selected !== undefined) {
+    const known = new Set(model.config.units.map((unit: { id: string }) => unit.id));
+    const unknown = units?.filter(id => !known.has(id)) ?? [];
+    if (unknown.length) return { findings: unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION })), ledger };
+    if (execute) say(`--unit ${[...selected].join(', ')}: only their bindings (R3) run; the cross-unit rules (R1, R2, R4 to R11) need every unit and do not run`);
+  }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
@@ -70,7 +80,8 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   for (const unit of model.config.units.filter((entry: { kind: string; admit?: string }) => entry.kind === 'suite' && entry.admit !== undefined)) {
     for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
   }
-  const executed = execute ? runBindings(model, root, { env, files, say }) : { ledger, findings: [] };
+  const executed = execute ? runBindings(model, root, { env, files, say, units: selected }) : { ledger, findings: [] };
+  if (selected !== undefined) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
   say('check the units against the tree');
   const findings = [
@@ -91,9 +102,9 @@ export function checkParity(root: string, { execute = true, env = process.env, s
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, say });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, say, units: values.unit });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);

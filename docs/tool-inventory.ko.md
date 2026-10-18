@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a0356f1e864d5f7cb9f963b03aec1401de486e9521cdd340ec56a427cb48f415 -->
+<!-- source-sha256: 36b41d09b6c6660f98a2ddb0e1d7232507db60404c47112d2e4fcd85bfb37640 -->
 
 # 도구 목록
 
@@ -1230,6 +1230,7 @@ implementation(repository의 language 집합의 유일한 원천), 그것을 묶
 
 Make target: `parity-check`는 binding과 symbol extractor를 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는
 R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
+`make parity-check UNITS="<id> <id>"`(K221)는 이름 붙은 unit의 binding(R3)만 실행합니다. 전체 실행과 같은 runner, cwd, reader를 쓰고 결과를 같은 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 그 실행은 이를 알리는 줄을 한 줄 출력합니다. `config/parity.json`의 어떤 unit도 갖지 않은 id는 실행을 시작하지 않고 그 id를 적어 실패합니다.
 
 | Module | 담당 |
 |---|---|

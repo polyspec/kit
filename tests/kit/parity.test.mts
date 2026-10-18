@@ -1355,6 +1355,31 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   assert.match(failed.stderr, /\[parity\] 1 findings/);
 });
 
+test('--unit runs only the named unit through the runner of a full run, and reports its outcome (K221)', TIMEOUT, (t) => {
+  const root = repository(t, { files: { 'python/tests/test_codec.py': 'PASS test_empty\n' } });
+  const run = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts')), ...args], { cwd: root, env: ENV, encoding: 'utf8' });
+  const only = run('--unit', 'codec');
+  const viaMake = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-check', 'UNITS=codec'], { cwd: root, env: ENV, encoding: 'utf8' });
+  assert.notEqual(viaMake.status, 0, viaMake.stdout + viaMake.stderr);
+  assert.match(viaMake.stdout, /\[parity\] run codec go \(1 of 2\)/);
+  assert.doesNotMatch(viaMake.stdout, /run width /);
+  assert.equal(only.status, 1, only.stdout + only.stderr);
+  assert.match(only.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
+  assert.doesNotMatch(only.stdout, /run width /);
+  assert.match(only.stdout, /\[parity\] codec python \(1 of 2\): exit 0, 1 of 2 cases passed/);
+  assert.match(only.stderr, /\[parity\] R3 not-executed codec python python\/tests\/test_codec\.py: .*not executed: ascii/);
+  assert.match(only.stdout, /\[parity\] --unit codec: only their bindings \(R3\) run; the cross-unit rules \(R1, R2, R4 to R11\) need every unit and do not run/);
+  assert.match(only.stderr, /\[parity\] 1 findings/);
+});
+
+test('--unit with an id that no unit of the declaration holds is an error that names the id, and runs nothing (K221)', TIMEOUT, (t) => {
+  const root = repository(t);
+  const unknown = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts')), '--unit', 'codec', '--unit', 'nope'], { cwd: root, env: ENV, encoding: 'utf8' });
+  assert.notEqual(unknown.status, 0, unknown.stdout + unknown.stderr);
+  assert.match(unknown.stderr, /--unit nope names no unit of config\/parity\.json/);
+  assert.doesNotMatch(unknown.stdout, /\[parity\] run /);
+});
+
 test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a class is a group, a method a case (K47)', TIMEOUT, (t) => {
   // The messages of PHPUnit 11 for a class with a passing and a failing test method, as the php runner reads them.
   const teamcity = [

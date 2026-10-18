@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make parity-check UNITS="<id> …"` runs only the named units of `config/parity.json`: `scripts/kit/parity.mts --unit <id>` (repeatable) runs their bindings through the same runner, cwd and reader as a full run and reports their outcomes with the normal ledger lines. The cross-unit rules that need every unit (R1, R2, R4 to R11) do not run, and the output says so in one line. An id that no unit holds is an error that names it, with no run (K221).
+
 - `link` links a private npm package of a provider checkout like any other: the `package.json` `name` of a manifest is provided whether or not it is `private`, since `private` stops publishing and says nothing about local linking, so the copy that npm installed from the tgz is replaced with a link and `check` passes. An npm package of any scope, such as `/*`, is linked when a provider provides its name, not only `/*` (K220). Two manifests of one name still fail with both, as before (K220).
 
 - `run-tests python --module <name>` runs the Python tests through that module (`python -m <name> …`) in place of `unittest`, so a repository whose tests run through its own harness, such as orm's `packages.python.tests.testcase`, counts the cases of the harness with the same reader. The module is read only for the python tool (K219).
