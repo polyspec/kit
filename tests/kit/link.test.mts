@@ -762,3 +762,58 @@ test('K212: a declared @polyspec dependency that an explicit --project folder do
   assert.equal(ok, false, text);
   assert.match(text, /NOT linked npm {6}@polyspec\/x \(not installed\)/);
 });
+
+/**
+ * K226: a consumer whose own repository provides a dependency: an npm workspace member (the root package.json `workspaces`
+ * glob) that a sibling declares, and the Composer name of the root composer.json and of a path repository it declares. With
+ * `ghost`, one more npm and one more Composer dependency have no provider at all.
+ */
+function ownPackages(t: TestContext, ghost: boolean) {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const log = path.join(root, 'tools.log');
+  writeFileSync(log, '');
+  const bin = path.join(root, 'bin');
+  const consumer = repository(root, 'mono', {
+    'package.json': JSON.stringify({ name: 'mono', private: true, workspaces: ['packages/*'] }),
+    'package-lock.json': '{}',
+    'packages/a/package.json': JSON.stringify({ name: '@polyspec/a', version: '0.0.1', dependencies: { '@polyspec/b': '0.0.1', ...(ghost ? { '@polyspec/ghost': '0.0.1' } : {}) } }),
+    'packages/b/package.json': JSON.stringify({ name: '@polyspec/b', version: '0.0.1' }),
+    'composer.json': JSON.stringify({ name: 'polyspec/mono', require: { 'polyspec/mono': '0.0.1', 'polyspec/orm': '0.0.18', ...(ghost ? { 'polyspec/ghost': '0.0.1' } : {}) }, repositories: [{ type: 'path', url: 'packages/php', options: { symlink: true } }] }),
+    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/orm' }),
+    '.gitignore': 'node_modules/\nvar/\nvendor/\n',
+  });
+  mkdirSync(path.join(consumer, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync('../../packages/a', path.join(consumer, 'node_modules/@polyspec/a'));
+  symlinkSync('../../packages/b', path.join(consumer, 'node_modules/@polyspec/b'));
+  put(consumer, {
+    'npm-query.json': JSON.stringify([{ name: '@polyspec/a', version: '0.0.1', location: 'packages/a' }, { name: '@polyspec/b', version: '0.0.1', location: 'packages/b' }]),
+  });
+  stub(bin, log, 'npm', 'cat npm-query.json');
+  stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then echo vendor; fi`);
+  const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer') };
+  return { consumer, env };
+}
+
+test('K226: a dependency that the project itself provides (an npm workspace member, the root Composer name, a Composer path repository) is satisfied as workspace', (t) => {
+  const { consumer, env } = ownPackages(t, false);
+  const lines: string[] = [];
+  const ok = link({ checkouts: [], directories: [consumer], check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, true, text);
+  assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
+  assert.match(text, /^ {2}workspace +composer +polyspec\/orm \(/m);
+  assert.match(text, /^ {2}workspace +composer +polyspec\/mono \(/m);
+  assert.doesNotMatch(text, /NOT linked/);
+});
+
+test('K226: a dependency that no provider and no project package provides still fails the run', (t) => {
+  const { consumer, env } = ownPackages(t, true);
+  const lines: string[] = [];
+  const ok = link({ checkouts: [], directories: [consumer], check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, false, text);
+  assert.match(text, /NOT linked npm +@polyspec\/ghost \(no provider\)/);
+  assert.match(text, /NOT linked composer polyspec\/ghost \(no provider\)/);
+  assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
+});

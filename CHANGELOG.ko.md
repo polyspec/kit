@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e052b8f95732fe2e02fa774658af6168ffb04b0c338893574dace8ffcf2026e4 -->
+<!-- source-sha256: 62f3b5f376e00f1ff0acf75e3ffe52b0f9facc4793d86d6889815ed0c11edcf6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 - kit parity 선언은 언어 parity만 담습니다. 소비자 interface manifest는 parity.json 키가 아니라 spec anchor로 참조합니다(K227).
+- `link`는 프로젝트 자신이 제공하는 의존성을 NOT linked 대신 `workspace`로 보고하고 충족된 것으로 봅니다: `npm query`가 프로젝트의 폴더에 나열하는 npm workspace member, 그리고 루트 composer.json 또는 그것이 선언한 path repository의 Composer 이름입니다. 체크아웃도 프로젝트 패키지도 제공하지 않는 의존성은 여전히 실패합니다(K226).
+
 - Python editable wheel의 fingerprint는 추적되거나 새로 생긴, 무시되지 않은 파일의 디렉터리만 셉니다. 그래서 읽기 전용 checkout 아래 컨테이너가 쓰는 git-ignored var/ 디렉터리가 fingerprint를 바꾸지 않고, 호스트에서 만든 wheel을 다시 씁니다(K225).
 
 - parity binding `command`의 단어는 실행 environment를 `${NAME}`으로 참조할 수 있습니다. binding을 실행할 때 구현의 `command`, `args`, `env`와 같은 규칙으로 풀리며, NAME이 설정되지 않았거나 비었으면 그 NAME을 적은 R3 finding이고 그 binding은 아무것도 실행하지 않습니다. 이전에는 `${NAME}`을 그대로 실행했습니다(K223).

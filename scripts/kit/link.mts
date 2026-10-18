@@ -123,6 +123,16 @@ function providerFor(work: Run, consumer: Consumer, ecosystem: Ecosystem, name: 
   return found.repository === consumer.repository ? 'own' : found;
 }
 
+/**
+ * K226: a package that the project provides itself (`own`: its npm workspace members, its Composer names) and no checkout
+ * provides is satisfied, reported as workspace and never linked. Returns whether it was one.
+ */
+function projectPackage(work: Run, ecosystem: Ecosystem, name: string, provider: Provider | 'own' | 'no provider', own: ReadonlySet<string>): boolean {
+  if (provider !== 'no provider' || !own.has(name)) return false;
+  line(work, 'workspace', ecosystem, `${name} (provided by this project)`);
+  return true;
+}
+
 /** Reports a polyspec package that is not linked for `reason`, which fails the run; own packages are listed and pass. */
 function unlinkable(work: Run, ecosystem: Ecosystem, name: string, reason: string) {
   if (reason === 'own') { line(work, 'own', ecosystem, `${name} (this repository)`); return; }
@@ -199,10 +209,17 @@ function linkNpm(work: Run, consumer: Consumer) {
   const seen = new Set<string>();
   // A name is linked when it is a polyspec package or a package that a provider provides (K220: a private provider too); other packages are no concern.
   const linkable = (name: string) => name.startsWith('@polyspec/') || work.found.has(providerKey('npm', name));
+  // K226: the packages that npm query lists at a folder of the project itself, not below a node_modules: its workspace members.
+  const own = new Set<string>();
   if (projects.length) {
     const npm = consumerTool(consumer.top, 'npm', work.env);
-    for (const project of projects) {
-      const queried = parseOutput(run(npm.command, ['query', '*'], { cwd: project, env: npm.env }), `npm query in ${project}`);
+    const queries = projects.map(project => ({ project, queried: parseOutput(run(npm.command, ['query', '*'], { cwd: project, env: npm.env }), `npm query in ${project}`) }));
+    for (const { queried } of queries) {
+      for (const entry of Array.isArray(queried) ? queried.filter(isJsonObject) : []) {
+        if (typeof entry.name === 'string' && typeof entry.location === 'string' && entry.location !== '' && !entry.location.startsWith('..') && !entry.location.includes('node_modules/')) own.add(entry.name);
+      }
+    }
+    for (const { project, queried } of queries) {
       const versions = new Map<string, string>();
       for (const entry of Array.isArray(queried) ? queried.filter(isJsonObject) : []) {
         if (typeof entry.location === 'string' && entry.location.includes('node_modules/') && !entry.location.startsWith('..') && typeof entry.version === 'string') versions.set(path.join(project, entry.location), entry.version);
@@ -210,7 +227,7 @@ function linkNpm(work: Run, consumer: Consumer) {
       for (const { name, folder } of linkableFolders(project, linkable)) {
         seen.add(name);
         const provider = providerFor(work, consumer, 'npm', name);
-        if (typeof provider === 'string') { unlinkable(work, 'npm', name, provider); continue; }
+        if (typeof provider === 'string') { if (!projectPackage(work, 'npm', name, provider, own)) unlinkable(work, 'npm', name, provider); continue; }
         const version = versions.get(folder);
         // Without a version from npm query there is no pin to judge, so only the copy that is the provider already passes.
         if (version === undefined) {
@@ -225,6 +242,7 @@ function linkNpm(work: Run, consumer: Consumer) {
   for (const name of new Set(files.flatMap(declaredNpm).filter(linkable))) {
     if (seen.has(name)) continue;
     const provider = providerFor(work, consumer, 'npm', name);
+    if (projectPackage(work, 'npm', name, provider, own)) continue;
     unlinkable(work, 'npm', name, typeof provider === 'string' ? provider : 'not installed');
   }
 }
@@ -237,6 +255,22 @@ function installedPackages(record: string): Record<string, unknown>[] {
   const list = isJsonObject(parsed) ? parsed.packages : parsed;
   if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);
   return list.filter(isJsonObject);
+}
+
+/**
+ * K226: the Composer names that the project at `project` provides itself: the name of its composer.json and the name of the
+ * composer.json of each path repository it declares (a literal folder; a glob is not expanded, so it provides nothing).
+ */
+function ownComposer(project: string): Set<string> {
+  const manifest = readComposerManifestFile(path.join(project, MANIFESTS.composer));
+  const names = new Set<string>(manifest.name ? [manifest.name] : []);
+  for (const repository of manifest.repositories ?? []) {
+    if (repository.type !== 'path' || repository.url === undefined) continue;
+    const file = path.resolve(project, repository.url, MANIFESTS.composer);
+    const name = existsSync(file) ? readComposerManifestFile(file).name : undefined;
+    if (name) names.add(name);
+  }
+  return names;
 }
 
 /** The polyspec names that the composer.json `file` requires, in require and require-dev. */
@@ -275,8 +309,10 @@ function linkComposer(work: Run, consumer: Consumer) {
   const composer = consumerTool(consumer.top, 'composer', work.env);
   for (const { project, vendor, installed, declared } of composerProjects(consumer, composer)) {
     // A declared name that is not installed, as the npm copies of a consumer that does not record it.
+    const own = ownComposer(project);
     const notInstalled = (name: string) => {
       const provider = providerFor(work, consumer, 'composer', name);
+      if (projectPackage(work, 'composer', name, provider, own)) return;
       unlinkable(work, 'composer', name, typeof provider === 'string' ? provider : `not installed in ${vendor}`);
     };
     if (!installed) { declared.forEach(notInstalled); continue; }
@@ -290,6 +326,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       const copy = path.resolve(path.dirname(record), entry['install-path']);
       recorded.add(copy);
       const provider = providerFor(work, consumer, 'composer', entry.name);
+      if (projectPackage(work, 'composer', entry.name, provider, own)) continue;
       if (typeof provider === 'string') { unlinkable(work, 'composer', entry.name, provider); continue; }
       linkCopy(work, 'composer', entry.name, copy, typeof entry.version === 'string' ? entry.version : '', provider);
     }
