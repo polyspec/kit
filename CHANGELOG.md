@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `link` links Python providers through editable wheels (K222): each provider is installed with `uv pip install --no-deps` from its wheel under `var/link/wheels/<name>/<fingerprint>/`, after `uv sync --locked`, instead of `-e` with an `--overrides` file. The wheel is built where the checkout is writable, through its pyproject backend in an isolated `uv run`, so a read-only checkout (a container mount) installs a prebuilt wheel and never writes into the tree; a missing prebuilt wheel there fails with `stale prebuilt wheel <name> (fingerprint <fp>): run kit link on the host`. `check` fails when the installed wheel has another fingerprint than the checkout. `restore` and `link` share the sync.
+
 - `make parity-check UNITS="<id> …"` runs only the named units of `config/parity.json`: `scripts/kit/parity.mts --unit <id>` (repeatable) runs their bindings through the same runner, cwd and reader as a full run and reports their outcomes with the normal ledger lines. The cross-unit rules that need every unit (R1, R2, R4 to R11) do not run, and the output says so in one line. An id that no unit holds is an error that names it, with no run (K221).
 
 - `link` links a private npm package of a provider checkout like any other: the `package.json` `name` of a manifest is provided whether or not it is `private`, since `private` stops publishing and says nothing about local linking, so the copy that npm installed from the tgz is replaced with a link and `check` passes. An npm package of any scope, such as `/*`, is linked when a provider provides its name, not only `/*` (K220). Two manifests of one name still fail with both, as before (K220).

@@ -4,9 +4,9 @@
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
 //   Composer  each copy that installed.json of the vendor of the consumer's Composer project (composer config vendor-dir)
 //             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
-//   Python    one uv pip install per environment, with dependencies: -e for each declared polyspec package and each
-//             polyspec package below it, and an --overrides file of -e lines, so a sibling that a provider requires by
-//             its release URL resolves to the editable provider too;
+//   Python    each declared polyspec package and each polyspec package below it is installed from its editable wheel
+//             (K222), built where its checkout is writable and kept under var/link/wheels, after uv sync --locked of the
+//             environment; a read-only checkout only installs the wheel that is already there;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
@@ -17,8 +17,10 @@
 //                 packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -299,14 +301,121 @@ function linkComposer(work: Run, consumer: Consumer) {
   }
 }
 
-// --- Python: the environment of each pyproject, uv's project environment of its workspace root.
+// --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed
+// from an editable wheel (K222): setuptools writes <name>.egg-info into its source tree when it builds, so the wheel is built
+// where the checkout is writable, through the backend of its pyproject, in an isolated uv env, and kept under
+// var/link/wheels/<name>/<fingerprint>/. A read-only checkout (a container's mount) only installs the wheel that is there.
 
-/** The environment of the pyproject in `folder`: VENV, else UV_PROJECT_ENVIRONMENT or .venv of `uv workspace dir`; undefined when none exists. */
-function environmentOf(uv: Tool, folder: string): string | undefined {
-  if (uv.env.VENV) return existsSync(path.join(uv.env.VENV, 'pyvenv.cfg')) ? path.resolve(uv.env.VENV) : undefined;
-  const workspace = run(uv.command, ['workspace', 'dir'], { cwd: folder, env: uv.env }).trim();
-  const venv = path.resolve(workspace, uv.env.UV_PROJECT_ENVIRONMENT ?? '.venv');
-  return existsSync(path.join(venv, 'pyvenv.cfg')) ? venv : undefined;
+/** Directories that a build writes (its own, hidden, cache and egg-info folders): never sources, so never fingerprinted. */
+const BUILT = /^\.|^__pycache__$|^build$|^dist$|\.egg-info$/;
+
+/** The directories below `below` of `folder` as paths with /, left out: BUILT. */
+function pythonDirectories(folder: string, below = ''): string[] {
+  return readdirSync(path.join(folder, below), { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && !BUILT.test(entry.name))
+    .flatMap((entry) => {
+      const relative = path.posix.join(below, entry.name);
+      return [relative, ...pythonDirectories(folder, relative)];
+    });
+}
+
+/**
+ * The fingerprint of the Python provider `folder` of `checkout` (K222): the first 12 hex of sha256 over the resolved absolute
+ * path of the checkout, its pyproject.toml bytes and the sorted directories below the folder. The path is part of it because
+ * an editable wheel is bound to the path it points at: a wheel built for one checkout is never reused for another.
+ */
+export function pythonFingerprint(checkout: string, folder: string): string {
+  const hash = createHash('sha256').update(`${realpathSync(checkout)}\n`).update(readFileSync(path.join(folder, MANIFESTS.python)));
+  for (const directory of pythonDirectories(folder).sort()) hash.update(`\n${directory}`);
+  return hash.digest('hex').slice(0, 12);
+}
+
+/** The folder of the editable wheel of `name` at fingerprint `fp` in the consumer: var/link/wheels/<name>/<fp> (K222). */
+const wheelDirOf = (consumer: Consumer, name: string, fp: string): string => linkFile(consumer.top, path.join('wheels', normalizeName(name), fp));
+
+/** The wheel in `directory`, or undefined when there is none. */
+function wheelIn(directory: string): string | undefined {
+  if (!existsSync(directory)) return undefined;
+  const wheel = readdirSync(directory).find(item => item.endsWith('.whl'));
+  return wheel === undefined ? undefined : path.join(directory, wheel);
+}
+
+/** Whether this process can write the checkout `folder`: a read-only mount cannot be built in, so its wheel must be prebuilt (K222). */
+function writable(folder: string): boolean {
+  try { accessSync(folder, constants.W_OK); return true; } catch { return false; }
+}
+
+/** The PEP 517 build of the pyproject `file`: its requirements, backend and backend-path, with the defaults of PEP 517 and 518. */
+function buildSystemOf(file: string): { requires: string[]; backend: string; backendPath: string[] } {
+  const system = readTomlFile(file)['build-system'];
+  const table = isJsonObject(system) ? system : {};
+  const strings = (value: unknown, fallback: string[]) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : fallback);
+  return {
+    requires: strings(table.requires, ['setuptools>=40.8.0']),
+    backend: typeof table['build-backend'] === 'string' ? table['build-backend'] : 'setuptools.build_meta:__legacy__',
+    backendPath: strings(table['backend-path'], []),
+  };
+}
+
+/** The script of buildEditable: the backend (module:object) builds the editable wheel of the working directory into the folder given. */
+const BUILD_EDITABLE = [
+  'import importlib, os, sys',
+  'backend, paths, out = sys.argv[1], sys.argv[2], sys.argv[3]',
+  'sys.path[:0] = [os.path.abspath(p) for p in paths.split(os.pathsep) if p]',
+  "module, _, attribute = backend.partition(':')",
+  'target = importlib.import_module(module)',
+  "for part in filter(None, attribute.split('.')): target = getattr(target, part)",
+  'target.build_editable(out)',
+].join('\n');
+
+/** Builds the editable wheel of the Python provider into `directory` (K222): an isolated uv env with [build-system].requires, in the checkout. */
+function buildEditable(uv: Tool, provider: Provider, directory: string) {
+  const system = buildSystemOf(path.join(provider.folder, MANIFESTS.python));
+  const staging = `${directory}.partial`;
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
+  run(uv.command, ['run', '--no-project', '--isolated', ...system.requires.flatMap(requirement => ['--with', requirement]), 'python', '-c', BUILD_EDITABLE, system.backend, system.backendPath.join(path.delimiter), staging], { cwd: provider.folder, env: uv.env });
+  rmSync(directory, { recursive: true, force: true });
+  renameSync(staging, directory);
+}
+
+/** The editable wheel of the Python provider at its fingerprint (K222): prebuilt, or built where the checkout is writable; else undefined with the stale reason. */
+function wheelOf(work: Run, consumer: Consumer, uv: Tool, provider: Provider): string | undefined {
+  const fp = pythonFingerprint(provider.checkout, provider.folder);
+  const directory = wheelDirOf(consumer, provider.name, fp);
+  const existing = wheelIn(directory);
+  if (existing) return existing;
+  if (!writable(provider.checkout)) {
+    unlinkable(work, 'python', provider.name, `stale prebuilt wheel ${provider.name} (fingerprint ${fp}): run kit link on the host`);
+    return undefined;
+  }
+  buildEditable(uv, provider, directory);
+  const built = wheelIn(directory);
+  if (!built) throw new Error(`the build of ${provider.folder} wrote no wheel into ${directory}`);
+  return built;
+}
+
+/** The environment of the pyproject `file` and its uv workspace, or why there is none. */
+function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
+  const workspace = run(uv.command, ['workspace', 'dir'], { cwd: path.dirname(file), env: uv.env }).trim();
+  const venv = uv.env.VENV ? path.resolve(uv.env.VENV) : path.resolve(workspace, uv.env.UV_PROJECT_ENVIRONMENT ?? '.venv');
+  if (!existsSync(path.join(venv, 'pyvenv.cfg'))) return `no environment in ${workspace}: run the repository's install, or give VENV or UV_PROJECT_ENVIRONMENT`;
+  return { venv, workspace };
+}
+
+/** uv sync --locked of the environment of `target`: the locked releases, the step before each install of a wheel (K222). */
+function syncPython(uv: Tool, target: { venv: string; workspace: string }) {
+  run(uv.command, ['sync', '--locked'], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
+}
+
+/** The polyspec packages that `uv pip freeze` lists as installed from a local wheel, by normalized name: PEP 610 `name @ file:` (K222). */
+function wheelsInstalled(uv: Tool, venv: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const line of run(uv.command, ['pip', 'freeze', '--python', path.join(venv, 'bin/python')], { env: uv.env }).split('\n')) {
+    const match = /^(\S+) @ (file:\/\/\S+)$/.exec(line.trim());
+    if (match?.[1] && match[2]) found.set(normalizeName(match[1]), fileURLToPath(match[2]));
+  }
+  return found;
 }
 
 /** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
@@ -338,28 +447,31 @@ function closure(work: Run, consumer: Consumer, names: Iterable<string>): Provid
 }
 
 /** The installed distributions of `venv` by normalized name: version and editable location (uv pip list --format json). */
-function installedPython(uv: Tool, venv: string): Map<string, { version: string; editable?: string }> {
+function installedPython(uv: Tool, venv: string): Map<string, { version: string }> {
   const listed = parseOutput(run(uv.command, ['pip', 'list', '--format', 'json', '--python', path.join(venv, 'bin/python')], { env: uv.env }), `uv pip list in ${venv}`);
-  const found = new Map<string, { version: string; editable?: string }>();
+  const found = new Map<string, { version: string }>();
   for (const item of Array.isArray(listed) ? listed.filter(isJsonObject) : []) {
     if (typeof item.name !== 'string' || typeof item.version !== 'string') continue;
-    found.set(normalizeName(item.name), typeof item.editable_project_location === 'string' ? { version: item.version, editable: item.editable_project_location } : { version: item.version });
+    found.set(normalizeName(item.name), { version: item.version });
   }
   return found;
 }
 
 function linkPython(work: Run, consumer: Consumer) {
-  const byVenv = new Map<string, Set<string>>();
+  const byVenv = new Map<string, { workspace: string; names: Set<string> }>();
   const files = consumer.manifests('python').filter(file => declaredPython(file).length);
   if (!files.length) return;
   const uv = consumerTool(consumer.top, 'uv', work.env);
   for (const file of files) {
-    const venv = environmentOf(uv, path.dirname(file));
-    if (!venv) { for (const name of declaredPython(file)) unlinkable(work, 'python', name, `environment not installed for ${path.relative(consumer.top, path.dirname(file)) || '.'}: run the repository's install, or give VENV or UV_PROJECT_ENVIRONMENT`); continue; }
-    byVenv.set(venv, new Set([...byVenv.get(venv) ?? [], ...declaredPython(file)]));
+    const target = pythonTarget(uv, file);
+    if (typeof target === 'string') { for (const name of declaredPython(file)) unlinkable(work, 'python', name, target); continue; }
+    const entry = byVenv.get(target.venv) ?? { workspace: target.workspace, names: new Set<string>() };
+    for (const name of declaredPython(file)) entry.names.add(name);
+    byVenv.set(target.venv, entry);
   }
-  for (const [venv, names] of byVenv) {
+  for (const [venv, { workspace, names }] of byVenv) {
     const installed = installedPython(uv, venv);
+    const wheels = wheelsInstalled(uv, venv);
     const linked = closure(work, consumer, names).filter((provider) => {
       const found = installed.get(provider.name);
       if (!found) { unlinkable(work, 'python', provider.name, `not installed in ${venv}`); return false; }
@@ -367,20 +479,33 @@ function linkPython(work: Run, consumer: Consumer) {
       if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
       return !problem;
     });
-    const isLinked = (provider: Provider) => real(installed.get(provider.name)?.editable ?? '') === realpathSync(provider.folder);
+    const isLinked = (provider: Provider) => {
+      const wheel = wheels.get(normalizeName(provider.name));
+      return wheel !== undefined && path.dirname(wheel) === wheelDirOf(consumer, provider.name, pythonFingerprint(provider.checkout, provider.folder));
+    };
     if (work.check || linked.every(isLinked)) {
       for (const provider of linked) {
-        if (isLinked(provider)) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv})`);
-        else unlinkable(work, 'python', provider.name, venv);
+        if (isLinked(provider)) { line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv})`); continue; }
+        const wheel = wheels.get(normalizeName(provider.name));
+        const fp = pythonFingerprint(provider.checkout, provider.folder);
+        const built = wheel === undefined ? undefined : path.basename(path.dirname(wheel));
+        unlinkable(work, 'python', provider.name, built !== undefined && built !== fp ? `installed fingerprint ${built} differs from ${fp} in ${venv}` : venv);
       }
       continue;
     }
-    // uv reads the paths of a requirements file relative to its working directory, the consumer's top.
-    const relative = (folder: string) => path.relative(consumer.top, folder) || '.';
-    const overrides = linkFile(consumer.top,`${path.relative(consumer.top, venv).replaceAll('/', '_') || 'venv'}.overrides.txt`);
-    writeAtomic(overrides, [...work.found.values()].filter(item => item.ecosystem === 'python' && item.repository !== consumer.repository).map(item => `-e ${relative(item.folder)}\n`).sort().join(''));
-    run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--overrides', relative(overrides), ...linked.flatMap(item => ['--reinstall-package', item.name]), ...linked.flatMap(item => ['-e', relative(item.folder)])], { cwd: consumer.top, env: uv.env });
-    for (const provider of linked) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}, now)`);
+    if (!existsSync(path.join(workspace, 'uv.lock'))) {
+      for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock in ${workspace}: run the repository's install`);
+      continue;
+    }
+    const ready: { provider: Provider; wheel: string }[] = [];
+    for (const provider of linked) {
+      const wheel = wheelOf(work, consumer, uv, provider);
+      if (wheel !== undefined) ready.push({ provider, wheel });
+    }
+    if (!ready.length) continue;
+    syncPython(uv, { venv, workspace });
+    run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--no-deps', ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
+    for (const { provider } of ready) line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}, now)`);
   }
 }
 
@@ -476,11 +601,10 @@ export function unlink({ directories, print, env = process.env, project = false 
     if (pythonFiles.length) {
       const uv = consumerTool(consumer.top, 'uv', env);
       for (const file of pythonFiles) {
-        const venv = environmentOf(uv, path.dirname(file));
-        const workspace = run(uv.command, ['workspace', 'dir'], { cwd: path.dirname(file), env: uv.env }).trim();
-        if (!venv || !existsSync(path.join(workspace, 'uv.lock'))) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-        run(uv.command, ['sync', '--locked'], { cwd: workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: venv } });
-        print(`  restored   python   ${venv}`);
+        const target = pythonTarget(uv, file);
+        if (typeof target === 'string' || !existsSync(path.join(target.workspace, 'uv.lock'))) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
+        syncPython(uv, target);
+        print(`  restored   python   ${target.venv}`);
       }
     }
     removeWritten(consumer);
@@ -499,9 +623,6 @@ function removeWritten(consumer: Consumer) {
   for (const module of consumer.manifests('go', true)) {
     const file = goWorkOf(path.dirname(module));
     written.push(file, `${file}.sum`);
-  }
-  for (const entry of existsSync(base) ? readdirSync(base, { withFileTypes: true }) : []) {
-    if (entry.isFile() && entry.name.endsWith('.overrides.txt')) written.push(path.join(base, entry.name));
   }
   const cargo = path.join(base, 'cargo');
   for (const entry of existsSync(cargo) ? readdirSync(cargo, { withFileTypes: true }) : []) {

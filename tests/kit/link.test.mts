@@ -4,11 +4,12 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { cargo, link, packages, unlink } from '../../scripts/kit/link.mts';
@@ -77,6 +78,7 @@ function workspace(t: TestContext) {
     'composer.lock': '{}',
     'tests/release-consumer/composer/composer.json': JSON.stringify({ require: { 'polyspec/y': '0.0.1' } }),
     'python/pyproject.toml': '[project]\nname = "cons"\nversion = "0"\ndependencies = []\n[dependency-groups]\nbase = ["polyspec_Z[extra]==0.0.1; python_version>=\'3\'"]\ntest = [{ include-group = "base" }]\n',
+    'python/uv.lock': 'version = 1\n',
     'go.mod': 'module cons\n',
     'Cargo.toml': '[package]\nname = "cons"\nversion = "0.0.0"\n',
     'Cargo.lock': 'version = 4\n',
@@ -97,7 +99,8 @@ function workspace(t: TestContext) {
   put(provider, { 'go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
-  stub(bin, log, 'uv', `case "$1 $2" in "workspace dir") pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; esac`);
+  stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl";; esac
+case "$1 $2" in "workspace dir") pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; esac`);
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -202,25 +205,113 @@ test('an npm copy that npm query does not record is linked only when it already 
   assert.doesNotMatch(linked.text, /npm {6}@polyspec\/x -> .*\(now\)/, 'the provider already is the copy: nothing is linked anew');
 });
 
-test('Python reads PEP 508 requirements and PEP 735 groups, and installs the providers editable with their dependencies and overrides', (t) => {
+/** The fingerprint of the Python provider `folder` of `checkout` in the tests (K222): the resolved checkout path, its pyproject bytes; the fixture has no subdirectories. */
+function fingerprintOf(checkout: string, folder: string): string {
+  return createHash('sha256').update(`${realpathSync(checkout)}\n`).update(readFileSync(path.join(checkout, folder, 'pyproject.toml'))).digest('hex').slice(0, 12);
+}
+
+/** Makes `folder` writable (`writable`) or read-only for its owner, the way a read-only container mount of a checkout is (K222). */
+function setWritable(folder: string, writable: boolean) {
+  const result = spawnSync('chmod', ['-R', writable ? 'u+w' : 'a-w', folder], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+}
+
+/** The wheel that link keeps for `name` of the consumer at fingerprint `fp`: var/link/wheels/<name>/<fp>/ (K222). */
+const wheelFile = (consumer: string, name: string, fp: string) => path.join(consumer, 'var/link/wheels', name, fp, `${name.replaceAll('-', '_')}-0.0.1-py3-none-any.whl`);
+
+test('K222: a read-only Python provider is installed from its prebuilt editable wheel of the same fingerprint, with no build in its checkout', (t) => {
   const { provider, consumer, env, log } = workspace(t);
-  assert.deepEqual(packages(consumer, 'python'), ['polyspec-z']);
-  linkLines([consumer], env);
-  const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
-  assert.ok(!install.includes('--no-deps'), install);
-  assert.match(install, /--reinstall-package polyspec-w --reinstall-package polyspec-z -e \.\.\/prov\/packages\/w -e \.\.\/prov\/packages\/python$/);
-  const overrides = path.join(consumer, /--overrides (\S+)/.exec(install)?.[1] ?? '');
-  assert.equal(readFileSync(overrides, 'utf8'), '-e ../prov/packages/python\n-e ../prov/packages/w\n');
-  assert.ok(provider);
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const w = wheelFile(consumer, 'polyspec-w', fingerprintOf(provider, 'packages/w'));
+  put(consumer, { 'python/uv.lock': 'version = 1\n', [path.relative(consumer, z)]: '', [path.relative(consumer, w)]: '' });
+  setWritable(provider, false);
+  try {
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, true, text);
+    assert.match(text, /linked {5}python {3}polyspec-z -> /);
+    const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
+    assert.ok(install.includes('--no-deps'), install);
+    assert.ok(install.includes(z) && install.includes(w), install);
+    assert.doesNotMatch(install, / -e /, 'no editable build of the checkout');
+    assert.ok(!log().includes('uv run'), 'no build in a read-only checkout');
+  } finally {
+    setWritable(provider, true);
+  }
 });
 
-test('the state of the environment comes from uv pip list: an editable install of the provider is linked', (t) => {
+test('K222: a read-only Python provider without a prebuilt wheel of its fingerprint fails with the stale message, and syncs nothing', (t) => {
   const { provider, consumer, env, log } = workspace(t);
-  put(consumer, { 'pip-list.json': JSON.stringify([{ name: 'polyspec-z', version: '0.0.1', editable_project_location: path.join(provider, 'packages/python') }, { name: 'polyspec-w', version: '0.0.1', editable_project_location: path.join(provider, 'packages/w') }]) });
-  const { text } = linkLines([consumer], env, true);
-  assert.match(text, /linked {5}python {3}polyspec-z -> /);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  setWritable(provider, false);
+  try {
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, false);
+    assert.match(text, /NOT linked python {3}polyspec-z \(stale prebuilt wheel polyspec-z \(fingerprint [0-9a-f]{12}\): run kit link on the host\)/);
+    assert.ok(!log().includes('uv sync'), 'no sync before a wheel is known to exist');
+  } finally {
+    setWritable(provider, true);
+  }
+});
+
+test('K222: the same content at another path has another fingerprint, so the wheel of the first checkout is never reused and a read-only copy fails stale', (t) => {
+  const { root, provider, kit, consumer, env } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  const copy = path.join(root, 'prov-copy');
+  cpSync(provider, copy, { recursive: true });
+  const z = wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'));
+  const w = wheelFile(consumer, 'polyspec-w', fingerprintOf(provider, 'packages/w'));
+  put(consumer, { [path.relative(consumer, z)]: '', [path.relative(consumer, w)]: '' });
+  const copyFp = fingerprintOf(copy, 'packages/python');
+  assert.notEqual(copyFp, fingerprintOf(provider, 'packages/python'));
+  setWritable(copy, false);
+  try {
+    const lines: string[] = [];
+    const ok = link({ checkouts: [copy, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
+    const text = lines.join('\n');
+    assert.equal(ok, false, text);
+    assert.match(text, new RegExp(`NOT linked python {3}polyspec-z \\(stale prebuilt wheel polyspec-z \\(fingerprint ${copyFp}\\): run kit link on the host\\)`));
+    assert.doesNotMatch(text, /linked {5}python {3}polyspec-z -> /);
+  } finally {
+    setWritable(copy, true);
+  }
+});
+
+test('K222: check fails when the installed wheel was built from another fingerprint than the checkout now has', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  const oldFp = fingerprintOf(provider, 'packages/python');
+  const oldZ = wheelFile(consumer, 'polyspec-z', oldFp);
+  const oldW = wheelFile(consumer, 'polyspec-w', fingerprintOf(provider, 'packages/w'));
+  put(consumer, { [path.relative(consumer, oldZ)]: '', [path.relative(consumer, oldW)]: '', 'freeze.txt': `polyspec-z @ ${pathToFileURL(oldZ).href}\npolyspec-w @ ${pathToFileURL(oldW).href}\n` });
+  assert.match(linkLines([consumer], env, true).text, /linked {5}python {3}polyspec-z -> /);
+  put(provider, { 'packages/python/pyproject.toml': `${readFileSync(path.join(provider, 'packages/python/pyproject.toml'), 'utf8')}# changed\n` });
+  const newFp = fingerprintOf(provider, 'packages/python');
+  assert.notEqual(newFp, oldFp);
+  const { ok, text } = linkLines([consumer], env, true);
+  assert.equal(ok, false, text);
+  assert.match(text, new RegExp(`NOT linked python {3}polyspec-z \\(installed fingerprint ${oldFp} differs from ${newFp} in .*python/\\.venv\\)`));
   assert.match(text, /linked {5}python {3}polyspec-w -> /);
-  assert.ok(!log().includes('uv pip install'));
+});
+
+test('K222: a writable Python provider without a wheel of its fingerprint is built as an editable wheel by its backend in an isolated uv env, then installed after the sync', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const calls = log().split('\n');
+  const build = calls.findIndex(item => item.startsWith('uv run --no-project --isolated --with setuptools>=40.8.0 python -c'));
+  const sync = calls.findIndex(item => item.startsWith('uv sync --locked'));
+  const install = calls.findIndex(item => item.startsWith('uv pip install') && item.includes('--no-deps'));
+  assert.ok(build >= 0 && sync > build && install > sync, log());
+  assert.ok(existsSync(wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'))));
+});
+
+test('the editable install of an older link (uv pip list shows an editable location, uv pip freeze no wheel) is NOT linked in check', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n', 'pip-list.json': JSON.stringify([{ name: 'polyspec-z', version: '0.0.1', editable_project_location: path.join(provider, 'packages/python') }, { name: 'polyspec-w', version: '0.0.1', editable_project_location: path.join(provider, 'packages/w') }]) });
+  const { ok, text } = linkLines([consumer], env, true);
+  assert.equal(ok, false);
+  assert.match(text, /NOT linked python {3}polyspec-z \(.*python\/\.venv\)/);
 });
 
 test('a Python provider that uv pip list does not show is NOT linked, not installed, and nothing is installed for it', (t) => {
@@ -471,6 +562,7 @@ test('cargo copies the tracked lock afresh on every run and patches the URL that
 test('unlink restores with each tool and reports each restore that it skips', (t) => {
   const { consumer, env, log } = workspace(t);
   rmSync(path.join(consumer, 'composer.lock'));
+  rmSync(path.join(consumer, 'python/uv.lock'));
   const lines: string[] = [];
   assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), false);
   assert.match(log(), /npm ci\n/);
