@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
-import { runOf } from '../../scripts/kit/parity-runners.mts';
+import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
@@ -593,14 +593,20 @@ test('a feature run that exits 1 names the failing tests outside its ids, read f
   ));
 });
 
+/** The command of a run that the test knows to be runnable: a RunError fails the test with its sentence (K222 typing). */
+function commandOf(run: BindingCommand | RunError, what: string): BindingCommand {
+  if ('error' in run) assert.fail(`${what}: ${run.error}`);
+  return run;
+}
+
 // A go run of a feature file runs only the ids of its bindings, in one alternation; a suite run keeps its symbol (K214).
 test('a go feature run names its ids in one -run alternation, and a go suite run keeps its symbol (K214)', TIMEOUT, (t) => {
   const root = repository(t);
-  const feature = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestA', 'TestB/sub', 'TestA/other'] }, 'feature', ENV), 'the go feature run');
+  const feature = commandOf(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestA', 'TestB/sub', 'TestA/other'] }, 'feature', ENV), 'the go feature run');
   assert.deepEqual(feature.args, ['test', '-json', '-count=1', '-run', '^(TestA|TestB)$', './']);
-  const escaped = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestX.y/z'] }, 'feature', ENV), 'the escaped go feature run');
+  const escaped = commandOf(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/roundtrip_test.go', ids: ['TestX.y/z'] }, 'feature', ENV), 'the escaped go feature run');
   assert.deepEqual(escaped.args, ['test', '-json', '-count=1', '-run', '^(TestX\\.y)$', './']);
-  const suite = known(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/codec_test.go', symbol: 'TestCodec' }, 'suite', ENV), 'the go suite run');
+  const suite = commandOf(runOf({ name: 'go', runner: 'go' }, root, { test: 'go/codec_test.go', symbol: 'TestCodec' }, 'suite', ENV), 'the go suite run');
   assert.deepEqual(suite.args, ['test', '-json', '-count=1', '-run', '^TestCodec$', './']);
 });
 
