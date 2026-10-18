@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 98f872a89218ad05a2bf3ef128216d6efea47ec703a7188ef31a1ba5020cd701 -->
+<!-- source-sha256: 2b942fbb94489d5b95e79d9f1e8e7d6bb7b4e3785196e45408417b63246051cd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `config/parity.json`의 implementation이 자기 runtime에서 test를 실행하는 같은 runner의 implementation을 `shares`로 선언할 수 있고, R6은 그 binding을 그 implementation의 root 안에서 받아들인다(K232).
 - `make parity-check`는 database item마다 실행되는 TypeScript coverage case의 보고(`<case> [<database>]`)를 그 case로 묶습니다. case는 모든 보고가 통과해야 통과하며, PHP data set과 Python item과 같습니다. 그 밖의 반복된 이름은 여전히 R3입니다(K231).
 - `make parity-check`는 PHPUnit feature binding이 선언한 id, 즉 `<Class>::<method>`(PHPUnit이 보고하는 id) 또는 bare method와 맞춥니다. 그래서 `RollbackTest::test_rollback_failed` 같은 orm binding이 R3 not-executed 대신 통과합니다. cargo는 test의 이름과 결과 사이에 출력이 끼었을 때 줄 하나에 홀로 적힌 결과를 읽으므로, 데이터베이스에 연결하는 `identity_load` case가 실행된 것으로 셉니다(K229).
 - kit parity 선언은 언어 parity만 담습니다. 소비자 interface manifest는 parity.json 키가 아니라 spec anchor로 참조합니다(K227).

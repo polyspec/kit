@@ -77,7 +77,8 @@ export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
 const KIT_DIRECTORIES = ['scripts/kit', 'tests/kit'];
 
 /**
- * R6: the test of each binding lies in a root of its implementation or in a comparator root, and every other file of the test
+ * R6: the test of each binding lies in a root of its implementation, in a root of the implementation it shares (K232) or in a
+ * comparator root, and every other file of the test
  * patterns of a runner, except a support file of an implementation of that runner, lies in a root of an implementation of that
  * runner, in a comparator root or in a tools root.
  */
@@ -88,7 +89,9 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
   const bindings = bound.flatMap(({ unit, entry }) => {
     // readDeclaration reports a binding of an implementation outside the profile, and every profile member is declared.
-    const roots = present(model.implementations.get(entry.implementation), 'model.implementations.get(entry.implementation)').roots;
+    const implementation = present(model.implementations.get(entry.implementation), 'model.implementations.get(entry.implementation)');
+    const shared = implementation.shares === undefined ? [] : present(model.implementations.get(implementation.shares), 'model.implementations.get(implementation.shares)').roots;
+    const roots = [...implementation.roots, ...shared];
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));

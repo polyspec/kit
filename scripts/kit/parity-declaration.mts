@@ -32,6 +32,8 @@ export interface ParityImplementation {
   env?: { name: string; value: string }[];
   symbols?: { extractor: Extractor; entry: string };
   errors?: { file: string; pattern: string };
+  /** The implementation whose test files this one runs in its own runtime (K232). */
+  shares?: string;
 }
 
 /** A profile of the declaration. */
@@ -491,6 +493,14 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (implementations.has(entry.name)) fail(`the implementation ${entry.name} is declared twice`);
     implementations.set(entry.name, entry);
     expanded(entry, undefined, message => fail(`implementation ${entry.name}: ${message}`));
+  }
+  // An implementation that shares the tests of another runs that implementation's test files in its own runtime: the other is
+  // a declared implementation of the same runner, never itself (K232).
+  for (const entry of config.implementations.filter(entry => entry.shares !== undefined)) {
+    const shared = implementations.get(entry.shares ?? '');
+    if (entry.shares === entry.name) fail(`implementation ${entry.name} shares its own tests; shares names the implementation whose tests it runs`);
+    else if (shared === undefined) fail(`implementation ${entry.name} shares the tests of ${entry.shares}, which is no implementation`);
+    else if (shared.runner !== entry.runner) fail(`implementation ${entry.name} shares the tests of ${shared.name}, whose runner ${shared.runner} is not its runner ${entry.runner}`);
   }
   // R10 reads a name or a prose name, in any case, as one implementation, so no written name belongs to two.
   for (const entry of config.implementations) {

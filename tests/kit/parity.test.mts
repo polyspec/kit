@@ -1137,6 +1137,38 @@ test('R6: a binding whose test lies outside the roots of its implementation fail
   assert.match(findingAt(findings, 0).message, /outside php/);
 });
 
+/** Adds gonative, a go implementation of the compiled profile whose bindings run the go tests of width and size. */
+function sharing(config: Declaration, shares: string | undefined): Declaration {
+  config.implementations.push({ name: 'gonative', runner: 'go', roots: ['gonative'], ...(shares === undefined ? {} : { shares }) });
+  itemAt(config.profiles, 1).implementations.push('gonative');
+  itemAt(config.profiles, 0).reason = 'gonative implements only the width tables';
+  itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec'];
+  for (const id of ['width', 'size']) {
+    itemWhere(config.units, entry => entry.id === id).bindings?.push({ ...binding(config, id, 'go'), implementation: 'gonative' });
+  }
+  return config;
+}
+
+test('R6: a binding of an implementation that shares the tests of another lies in the roots of either (K232)', TIMEOUT, (t) => {
+  const placed = (findings: ParityFinding[]) => findings.filter(finding => finding.rule === 'R6').map(finding => `${finding.unit} ${finding.implementation}`);
+  // Without shares, the go tests are outside gonative's roots.
+  assert.deepEqual(placed(check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, undefined) }, { execute: false }).findings), ['width gonative', 'size gonative']);
+  // With shares, gonative's bindings may run go's tests, and R5 still judges only gonative's own roots.
+  const { findings } = check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, 'go') }, { execute: false });
+  // The declaration holds, so the rules ran and R6 found the shared roots.
+  assert.deepEqual(findings.filter(finding => finding.rule === 'declaration').map(finding => finding.message), []);
+  assert.deepEqual(placed(findings), []);
+  assert.deepEqual(findings.filter(finding => finding.rule === 'R5' && finding.implementation === 'gonative'), []);
+});
+
+test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {
+  const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
+    .filter(finding => finding.rule === 'declaration').map(finding => finding.message);
+  assert.deepEqual(messages('gonative'), ['implementation gonative shares its own tests; shares names the implementation whose tests it runs']);
+  assert.deepEqual(messages('swift'), ['implementation gonative shares the tests of swift, which is no implementation']);
+  assert.deepEqual(messages('php'), ['implementation gonative shares the tests of php, whose runner php is not its runner go']);
+});
+
 test('R6: a test of a runner outside the roots of every implementation of that runner and every comparator root fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {
