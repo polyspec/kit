@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: f220fab3372797bab4ac4a6161fe5686ed865b68bd0dc95be901c90bd2c73253 -->
+<!-- source-sha256: 8d18cc03ccc8d0c27975bc3e63ffdce53a078f5fec837cdf7a2bfd257c1ab0bd -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -279,3 +279,4 @@
 | K217 | `@polyspec/kit/test-output`을 package export로 내고, `nodeEvents`가 parity node:test reporter 줄을 다른 reader처럼 Sink로 읽습니다. parity는 node case를 이것으로 읽고 case가 아닌 줄에서 실패합니다. 원인: consumer가 parser를 복사하지 않고는 test case를 셀 수 없었음. Red: ERR_PACKAGE_PATH_NOT_EXPORTED, `nodeEvents` 없음. Green: main에서 tests/kit/test-output.test.mts 6/6, parity.test.mts 67/67 | `scripts/kit/test-output.mts`, `scripts/kit/parity-runners.mts`, `package.json`, `tests/kit/test-output.test.mts` | `tests/kit/test-output.test.mts` | [o] |
 | K218 | run-tests는 helper 모듈이 test()를 불러도 node가 실행하는 파일의 case로 셉니다. node는 --test-concurrency=1로 파일을 실행하고 reporter는 dequeue된 파일 group에 case를 붙입니다. 원인: tests/testcase.mts로 등록한 orm case가 helper 이름으로 보고되어 파일이 "ran no test case"로 실패했음. Red: helper fixture가 그 줄로 실패. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `scripts/kit/node-reporter.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
 | K219 | run-tests python은 `--module <name>`(기본 unittest)을 받아 `python -m <module> <args> -v`를 실행하고 pythonEvents로 읽습니다. 원인: 저장소 harness 모듈(orm의 case별 deadline)을 run-tests로 실행할 수 없었음. Red: module 옵션이 없었음. Green: main에서 tests/kit/run-tests.test.mts 43/43 | `scripts/kit/run-tests.mts`, `tests/kit/run-tests.test.mts` | `tests/kit/run-tests.test.mts` | [o] |
+| K220 | kit link은 전달된 provider checkout이 이름을 가진 모든 npm 패키지를 private 여부와 scope에 관계없이 링크 대상으로 봅니다. consumer는 선언한 것만 링크하고 이름 중복은 여전히 실패합니다. 원인: link가 private manifest를 건너뛰고 @polyspec/만 보아서 private인 @consumer 플랫폼 패키지가 tgz 사본으로 남았음. Red: private @x/p fixture가 NOT linked. Green: main에서 tests/kit/link.test.mts 41/41 | `scripts/kit/link.mts`, `scripts/kit/link-providers.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
