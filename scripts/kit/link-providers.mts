@@ -1,5 +1,5 @@
 // The providers of the local links of 0.0.x development (docs/plans/local-links.md): the main checkouts that `link` is given
-// as arguments, one per polyspec repository, and each tracked manifest of a package there names what it provides: package.json `name` (npm, a private package provides nothing), composer.json `name`,
+// as arguments, one per polyspec repository, and each tracked manifest of a package there names what it provides: package.json `name` (npm, private or not: "private" stops publishing, not linking), composer.json `name`,
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
@@ -164,7 +164,7 @@ function providedName(file: string, go: Tool | undefined, cwd: string): { ecosys
   switch (path.basename(file)) {
     case MANIFESTS.npm: {
       const manifest = readNpmManifestFile(file);
-      return manifest.name && manifest.private !== true ? { ecosystem: 'npm', name: manifest.name } : undefined;
+      return manifest.name ? { ecosystem: 'npm', name: manifest.name } : undefined;
     }
     case MANIFESTS.composer: {
       const name = readComposerManifestFile(file).name;

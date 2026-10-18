@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `link` links a private npm package of a provider checkout like any other: the `package.json` `name` of a manifest is provided whether or not it is `private`, since `private` stops publishing and says nothing about local linking, so the copy that npm installed from the tgz is replaced with a link and `check` passes. An npm package of any scope, such as `/*`, is linked when a provider provides its name, not only `/*` (K220). Two manifests of one name still fail with both, as before (K220).
+
 - `run-tests python --module <name>` runs the Python tests through that module (`python -m <name> …`) in place of `unittest`, so a repository whose tests run through its own harness, such as orm's `packages.python.tests.testcase`, counts the cases of the harness with the same reader. The module is read only for the python tool (K219).
 
 - `run-tests node` counts the cases that a helper module registers (a case function that calls `test()`, such as orm's `caseTest`) for the test file that `node --test` runs. node runs the files one at a time (`--test-concurrency=1`), so each case belongs to the file whose group event opened it, and a file of helper-registered cases no longer fails with `the file ran no test case`. A run in which no test ran still fails (K218).

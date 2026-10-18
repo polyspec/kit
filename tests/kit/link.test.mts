@@ -295,6 +295,26 @@ test('a root-level provider of another checkout yields to a package folder of on
   assert.equal(providers([...current, other], undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
 });
 
+test('K220: a private npm package of a provider checkout is linked like any other: its copy becomes a link, and check passes', (t) => {
+  const { root, consumer, env } = workspace(t);
+  const priv = repository(root, 'priv', { 'package.json': JSON.stringify({ name: '@x/p', version: '0.0.1', private: true }), 'index.js': '' });
+  current = [...current, priv];
+  put(consumer, {
+    'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: { '@polyspec/x': '0.0.1', '@polyspec/own': '0.0.1', '@x/p': '0.0.1' }, devDependencies: { '@polyspec/kit': '0.0.53' } }),
+    'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }, { name: '@polyspec/kit', version: '0.0.53', location: 'node_modules/@polyspec/kit' }, { name: '@polyspec/own', version: '0.0.1', location: 'packages/own' }, { name: '@x/p', version: '0.0.1', location: 'node_modules/@x/p' }]),
+    'node_modules/@x/p/package.json': '{"name":"@x/p","version":"0.0.1"}',
+  });
+  const before = linkLines([consumer], env, true);
+  assert.equal(before.ok, false, before.text);
+  assert.match(before.text, /NOT linked npm {6}@x\/p \(/);
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.equal(realpathSync(path.join(consumer, 'node_modules/@x/p')), priv);
+  const checked = linkLines([consumer], env, true);
+  assert.match(checked.text, /^ {2}linked +npm +@x\/p -> /m, checked.text);
+  assert.doesNotMatch(checked.text, /NOT linked npm +@x\/p /);
+});
+
 test('isIgnored is false outside a repository, decided by the absence of a .git entry; a folder inside one is checked by git', (t) => {
   const { root, consumer } = workspace(t);
   assert.equal(isIgnored(path.join(root, 'outside/var/link/go.work')), false);

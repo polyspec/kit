@@ -162,46 +162,48 @@ export function linkFile(top: string, relative: string): string {
 
 // --- npm: npm query lists the installed copies; every @polyspec folder of a node_modules is either such a copy or a link.
 
-/** Every @polyspec/<name> folder of the node_modules trees of `project`, as it is found: a link or a folder. */
-function polyspecFolders(project: string): string[] {
-  const found: string[] = [];
+/** Every folder of the node_modules trees of `project` whose package name `linkable` accepts, as it is found: a link or a folder. */
+function linkableFolders(project: string, linkable: (name: string) => boolean): { name: string; folder: string }[] {
+  const found: { name: string; folder: string }[] = [];
   const walk = (modules: string) => {
     if (!existsSync(modules)) return;
     for (const entry of readdirSync(modules, { withFileTypes: true })) {
       if (entry.name.startsWith('.')) continue;
       const folder = path.join(modules, entry.name);
-      const packages = entry.name.startsWith('@') && entry.isDirectory() ? readdirSync(folder, { withFileTypes: true }).map(item => ({ item, at: path.join(folder, item.name) })) : [{ item: entry, at: folder }];
-      for (const { item, at } of packages) {
-        if (entry.name === '@polyspec') found.push(at);
+      const scoped = entry.name.startsWith('@') && entry.isDirectory();
+      const packages = scoped ? readdirSync(folder, { withFileTypes: true }).map(item => ({ item, at: path.join(folder, item.name), name: `${entry.name}/${item.name}` })) : [{ item: entry, at: folder, name: entry.name }];
+      for (const { item, at, name } of packages) {
+        if (linkable(name)) found.push({ name, folder: at });
         if (item.isDirectory()) walk(path.join(at, 'node_modules'));
       }
     }
   };
   walk(path.join(project, 'node_modules'));
-  return found.sort();
+  return found.sort((a, b) => (a.folder < b.folder ? -1 : a.folder > b.folder ? 1 : 0));
 }
 
-/** The polyspec dependencies that the npm manifest `file` declares, in every section and overrides. */
+/** The npm dependencies that the npm manifest `file` declares, in every section and overrides. */
 function declaredNpm(file: string): string[] {
   const manifest = readJsonObject(file);
   return ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies', 'overrides']
-    .flatMap(section => (isJsonObject(manifest[section]) ? Object.keys(manifest[section]) : [])).filter(name => name.startsWith('@polyspec/'));
+    .flatMap(section => (isJsonObject(manifest[section]) ? Object.keys(manifest[section]) : []));
 }
 
 function linkNpm(work: Run, consumer: Consumer) {
   const files = consumer.manifests('npm');
   const projects = files.map(file => path.dirname(file)).filter(folder => existsSync(path.join(folder, 'node_modules')));
   const seen = new Set<string>();
+  // A name is linked when it is a polyspec package or a package that a provider provides (K220: a private provider too); other packages are no concern.
+  const linkable = (name: string) => name.startsWith('@polyspec/') || work.found.has(providerKey('npm', name));
   if (projects.length) {
     const npm = consumerTool(consumer.top, 'npm', work.env);
     for (const project of projects) {
-      const queried = parseOutput(run(npm.command, ['query', '[name^="@polyspec/"]'], { cwd: project, env: npm.env }), `npm query in ${project}`);
+      const queried = parseOutput(run(npm.command, ['query', '*'], { cwd: project, env: npm.env }), `npm query in ${project}`);
       const versions = new Map<string, string>();
       for (const entry of Array.isArray(queried) ? queried.filter(isJsonObject) : []) {
         if (typeof entry.location === 'string' && entry.location.includes('node_modules/') && !entry.location.startsWith('..') && typeof entry.version === 'string') versions.set(path.join(project, entry.location), entry.version);
       }
-      for (const folder of polyspecFolders(project)) {
-        const name = `@polyspec/${path.basename(folder)}`;
+      for (const { name, folder } of linkableFolders(project, linkable)) {
         seen.add(name);
         const provider = providerFor(work, consumer, 'npm', name);
         if (typeof provider === 'string') { unlinkable(work, 'npm', name, provider); continue; }
@@ -216,7 +218,7 @@ function linkNpm(work: Run, consumer: Consumer) {
       }
     }
   }
-  for (const name of new Set(files.flatMap(declaredNpm))) {
+  for (const name of new Set(files.flatMap(declaredNpm).filter(linkable))) {
     if (seen.has(name)) continue;
     const provider = providerFor(work, consumer, 'npm', name);
     unlinkable(work, 'npm', name, typeof provider === 'string' ? provider : 'not installed');
