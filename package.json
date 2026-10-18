@@ -17,6 +17,10 @@
       "types": "./dist/test-progress.d.mts",
       "default": "./dist/test-progress.mjs"
     },
+    "./test-output": {
+      "types": "./dist/test-output.d.mts",
+      "default": "./dist/test-output.mjs"
+    },
     "./run-tests": {
       "types": "./dist/run-tests.d.mts",
       "default": "./dist/run-tests.mjs"

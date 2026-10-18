@@ -1,7 +1,8 @@
 // The node:test reporter of the language-parity check (parity-runners.mts, the node runner): one JSON line
 // `{"name":…,"outcome":…}` on its destination for each test that ends, read by parity-runners.mts. The name of a test is the
 // names of its enclosing suites and its own, joined by ' › ', as node:test nests them; the test of the file itself is none.
-// The outcome is pass, fail or skip, and a todo test is fail: a test that its author expects to fail is no pass.
+// The outcome is pass, fail or skip, and a todo test is fail: a test that its author expects to fail is no pass. nodeEvents
+// (test-output.mts) reads these lines into a sink.
 import path from 'node:path';
 import type { TestEvent } from 'node:test/reporters';
 

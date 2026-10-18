@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `nodeEvents` of `scripts/kit/test-output.mts` (`@polyspec/kit/test-output`) reads the lines of the node:test reporter of parity (parity-node-reporter.mts) into a sink, as goEvents, cargoEvents, pythonEvents and phpunitEvents read the output of their tools. The language-parity check reads the node cases through it, and a consumer counts the node:test cases of a run the same way; a run with no case reads none (K217).
+
 - A parity binding names the command that runs it with `command`, an argv array that replaces the default command of its runner, such as `["make", "feature-check", "ITEM=…"]` for a feature that needs its own environment. The runner still reads the output of that command as it reads its default, the field is accepted on every unit kind, and a command that cannot start or exits with a status other than 0 is an R3 finding that names it, with no fallback to the default command (K216).
 
 - `make parity-check` reads the timed cargo harness (libtest-mimic with timing, as the orm testcase crate prints it), whose outcome comes on the line after the test name, so a rust binding whose declared cases all pass counts each of them as passed (it counted 0 before). A suite run counts only the declared cases that passed, so the count never exceeds the declared number; an exit-0 run without a declared case fails and names it, and a failed run that names no test prints the last 20 lines of its output (K215).

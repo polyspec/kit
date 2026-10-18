@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 471dce6b0d508af57930d0be89b1b5e49bd155259679249334335f213bc13f72 -->
+<!-- source-sha256: d594846a3b98c9ad1aa080b5139e2a920060f593b37f2f6cf95b8ec9edce50da -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `scripts/kit/test-output.mts`의 `nodeEvents`(`@polyspec/kit/test-output`)는 parity의 node:test reporter(parity-node-reporter.mts)가 내는 줄을 sink로 읽는다. goEvents, cargoEvents, pythonEvents, phpunitEvents가 각 도구의 출력을 읽는 것과 같다. 언어 parity 검사는 node의 case를 이것으로 읽고, consumer도 node:test case를 같은 방식으로 센다. case가 없는 실행은 아무 case도 읽지 않는다 (K217).
 
 - parity binding은 `command`로 그 binding을 실행할 명령을 적습니다. 이 argv 배열은 runner의 기본 명령을 대신합니다(예: orm의 데이터베이스별 feature를 위한 `["make", "feature-check", "ITEM=…"]`). runner는 그 명령의 출력을 기본 명령의 출력과 같은 방식으로 읽고, 필드는 모든 unit 종류에서 받습니다. 시작하지 못하거나 0이 아닌 상태로 끝나는 명령은 그 명령을 이름 붙인 R3이며, 기본 명령으로 대신하지 않습니다 (K216).
 

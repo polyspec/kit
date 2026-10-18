@@ -22,7 +22,7 @@
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the method
 import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { goEvents, cargoEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
+import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolCommand } from './mise-tools.mts';
 import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
@@ -198,11 +198,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       cwd: '.',
       // A case of a suite is a top-level test; a test nested in it is none.
       caseOf: kind === 'suite' ? name => (name.includes(' › ') ? undefined : name) : itself,
-      read: ({ stdout }, sink) => eachLine(stdout, (line) => {
-        if (!line) return;
-        const { name, outcome } = parseJson<{ name: string; outcome: 'pass' | 'fail' | 'skip' }>(line, 'parity-node-case.schema.json', 'the parity node reporter');
-        sink[outcome]({ id: name, name });
-      }),
+      // The reporter's output is ours and always parses: a line that is no case is an error that names the line (K217).
+      read: ({ stdout }, sink) => eachLine(stdout, nodeEvents({ ...sink, line: text => { throw new Error(`the parity node reporter wrote a line that is no case: ${text}`); } })),
       detail: stderrTail,
     }),
   },
