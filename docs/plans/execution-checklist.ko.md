@@ -1,5 +1,5 @@
 <!-- doc-id: execution-checklist -->
-<!-- source-sha256: 959754114448c880aa45463162cc6e1379a6f952c90c60f374d946a32f8dbab2 -->
+<!-- source-sha256: 6a1663fe79882e164e3d97db4fdbd70b222709ec62277c7ef1037098ecd78525 -->
 # 실행 체크리스트
 
 ## 도구 통합
@@ -282,3 +282,4 @@
 | K220 | kit link은 전달된 provider checkout이 이름을 가진 모든 npm 패키지를 private 여부와 scope에 관계없이 링크 대상으로 봅니다. consumer는 선언한 것만 링크하고 이름 중복은 여전히 실패합니다. 원인: link가 private manifest를 건너뛰고 @polyspec/만 보아서 private인 @consumer 플랫폼 패키지가 tgz 사본으로 남았음. Red: private @x/p fixture가 NOT linked. Green: main에서 tests/kit/link.test.mts 41/41 | `scripts/kit/link.mts`, `scripts/kit/link-providers.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
 | K221 | parity는 `--unit <id>`(반복 가능, `make parity-check UNITS="..."`)를 받아 지정한 unit만 전체 실행과 같은 runner 경로(R3)로 실행합니다. unit 사이 규칙은 건너뛰고 그렇다고 출력하며, 없는 id는 이름을 대고 실패합니다. 원인: binding 하나는 전체 parity나 손으로 돌린 명령으로만 증명할 수 있었고, 후자는 runner 경로가 아님. Red: --unit이 알 수 없는 옵션. Green: main에서 tests/kit/parity.test.mts 69/69 | `scripts/kit/parity.mts`, `scripts/kit/parity-ledger.mts`, `scripts/kit/kit.mk`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
 | K222 | kit link은 Python provider를 PEP 660 editable wheel로 링크합니다. checkout이 쓰기 가능하면 backend의 build_editable wheel을 var/link/wheels/<name>/<fp>/에 만들고(fp는 checkout의 실제 경로, pyproject, 소스 디렉터리를 해시), `uv sync --locked` 뒤 그 wheel을 설치합니다. 읽기 전용 checkout에서는 미리 만든 wheel을 다시 쓰고, 맞는 것이 없으면 stale 메시지로 실패합니다. check는 설치된 wheel(PEP 610)을 fingerprint와 비교합니다. 원인: setuptools editable build가 소스 트리에 egg-info를 쓰는데, 읽기 전용 컨테이너 마운트(uid 295 대 501:755)가 이를 거부했음. Red: K222 사례 5개. Green: main에서 tests/kit/link.test.mts 45/45, tsc 오류 0 | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `tests/kit/link.test.mts` | [o] |
+| K223 | binding `command`는 구현의 command, args, env와 같은 함수로 호출 환경의 `${NAME}`을 해석합니다(기본값 형식 없음, 없거나 빈 값은 R3이며 아무것도 실행하지 않음). 원인: orm binding이 checkout root를 적을 수 없었고(`..` 금지) `${ORM_CHECKOUT}`가 글자 그대로 make에 전달됐음. Red: 단어가 `${PARITY_TAG}`로 남음. Green: main에서 tests/kit/parity.test.mts 70/70, tsc 0 | `scripts/kit/parity-declaration.mts`, `scripts/kit/parity-ledger.mts`, `tests/kit/parity.test.mts` | `tests/kit/parity.test.mts` | [o] |
