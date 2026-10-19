@@ -2,7 +2,7 @@
 <!-- source-sha256: 10205aee97947dc4a72caecd9534bdfb9f23a678e6ef14be14da74d277a9f07d -->
 # Standards enforcement 체크리스트
 
-| ID | 작업 | 산출물 | 검증 | 상태 |
+| ID | Task | Deliverables | Verification | State |
 |---|---|---|---|---|
 | K69 | standards enforcement 계획(적대적 사실 검증과 적대적 설계 검증 뒤의 개정 2)을 기록하고 그 kit 항목을 등록합니다. | `docs/plans/standards-enforcement.md(.ko)`, 이 절 | `node scripts/kit/check-documents.mjs` | [o] |
 | K70 | owner의 기준 S1–S9를 `PRINCIPLES.md`에 담아, 모든 소비자가 vendor된 사본으로 갖게 합니다. | `PRINCIPLES.md(.ko)` | `node scripts/kit/check-documents.mjs`; `make kit-test` | [o] |

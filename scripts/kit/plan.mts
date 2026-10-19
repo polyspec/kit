@@ -12,14 +12,21 @@
 //              moves the item to STATE in both languages along an allowed transition; the done state needs a line with
 //              (<id>) that the working tree adds to each changelog of config/commits.json, the bypassed state a cause and a
 //              retry condition, the impossible state a cause; it refuses what the commit-msg hook would refuse
+//   item-test  ID=<id>
+//              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
+//              fails or that the Claude Code hook refuses (verification.mts)
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { ACTIVE, BYPASSED, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
 import { fileAt, loadCommitRules, workingItemFindings } from './check-commits.mts';
+import { refusal } from './claude-hook.mts';
+import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { itemCommands, verificationFindings } from './verification.mts';
+import { spawnSync } from 'node:child_process';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
@@ -28,8 +35,6 @@ import { present } from './present.mts';
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
 
-/** The header of a checklist table: the ID, the task, what it delivers, the command that verifies it, and its state. */
-export const CHECKLIST_HEADER = '| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n';
 
 /** The text of a Korean twin of `english`: `korean` with the revision marker of `english` after its doc-id. */
 const twin = (english: string, korean: string) => present(stamped(korean, sha256(english)), 'stamped(korean)');
@@ -132,8 +137,11 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 function refuseAdded(root: string, trackers: Tracker[], files: Record<string, string>): void {
   const current = (name: string) => (existsSync(path.join(root, name)) ? readFileSync(path.join(root, name), 'utf8') : undefined);
   const key = ({ file, finding }: FileFinding) => `${file}\0${finding.rule}\0${finding.message}`;
-  const before = new Set(checklistsFindings(trackers, current).map(key));
-  const added = checklistsFindings(trackers, name => files[name] ?? current(name)).filter(entry => !before.has(key(entry)));
+  let database: MakeDatabase | undefined;
+  const make = () => (database ??= makeDatabase(root));
+  const findings = (read: (name: string) => string | undefined) => [...checklistsFindings(trackers, read), ...verificationFindings(trackers, read, make)];
+  const before = new Set(findings(current).map(key));
+  const added = findings(name => files[name] ?? current(name)).filter(entry => !before.has(key(entry)));
   if (added.length) throw new Error(added.map(({ file, finding }) => `${file}: ${describeFinding(finding)}`).join('\n'));
 }
 
@@ -207,6 +215,32 @@ export function setState(root: string, change: NewState): Record<string, string>
   return files;
 }
 
+/**
+ * Runs each command of the Verification cell of the item `id` in order, in `root`, with its output on this process, and
+ * returns them. Throws on an item that names no command, a command that the Claude Code hook refuses, and the first command
+ * that fails, naming it and its status.
+ */
+export function testItem(root: string, id: string, print: (text: string) => void = text => console.log(text)): string[] {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
+  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  const commands = itemCommands(read(tracker.path), tracker, id);
+  if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
+  let database: MakeDatabase | undefined;
+  for (const command of commands) {
+    const refused = refusal(command, undefined, () => (database ??= makeDatabase(root)));
+    if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
+  }
+  for (const command of commands) {
+    print(`[plan] ${id}: ${command}`);
+    const result = spawnSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' });
+    if (result.error) throw new Error(`\`${command}\` of ${id} could not start: ${result.error.message}`);
+    if (result.status !== 0) throw new Error(`\`${command}\` of ${id} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`}`);
+  }
+  return commands;
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [command] = process.argv.slice(2);
@@ -220,8 +254,11 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
+    } else if (command === 'item-test') {
+      const id = required(env.ID, 'ID');
+      console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new or item-state`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new, item-state or item-test`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

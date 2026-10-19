@@ -2,7 +2,7 @@
 <!-- source-sha256: 5f0e831034d50df294ea97e318214c5d4d00fe5e53431abdfc4a9ba0fe10a25c -->
 # 도구 통합 체크리스트
 
-| ID | 작업 | 산출물 | 검증 | 상태 |
+| ID | Task | Deliverables | Verification | State |
 |---|---|---|---|---|
 | K1 | 다섯 저장소의 공유 도구를 크기와 kit의 기반 구현과 함께 목록으로 만든다 | `docs/tool-inventory.md(.ko)` | `make kit-test` | [o] |
 | K2.1 | crudui의 npm workspaces, tagged 패키지, npm 범위 판정, 중복 검사를 의존성 상태로 옮긴다 | `scripts/kit/dependency-state.mjs` | `make kit-test` | [o] |

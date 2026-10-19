@@ -22,6 +22,12 @@ export const PLANS = 'docs/plans';
 export const PLAN_FILES = ['plan.md', 'plan.ko.md', 'checklist.md', 'checklist.ko.md'] as const;
 const CHECKLIST_FILE = /^docs\/plans\/([^/]+)\/checklist\.md$/;
 
+/** The columns of a checklist table: the ID, the task, what it delivers, the commands that verify it, and its state. */
+export const CHECKLIST_COLUMNS = ['ID', 'Task', 'Deliverables', 'Verification', 'State'] as const;
+
+/** The header of a checklist table, with its delimiter row. */
+export const CHECKLIST_HEADER = `| ${CHECKLIST_COLUMNS.join(' | ')} |\n|${CHECKLIST_COLUMNS.map(() => '---').join('|')}|\n`;
+
 /** The states of kit, in their order: waiting, active, done, bypassed, impossible. */
 export const WAITING = '[ ]';
 export const ACTIVE = '[~]';
@@ -162,12 +168,14 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
       // lineBlocks marks the first row of every table as its header.
       const header = blocks[block.header - 1];
       if (header?.kind !== 'tableHeader') throw new Error(`line ${block.header}, the header of the table of line ${number}, is no table header`);
-      if (header.columns !== row.length) finding(number, indent + 1, 'checklist-cells', `the row has ${row.length} cells; the header of its table on line ${block.header} has ${header.columns}`);
+      if (header.names.length !== row.length) finding(number, indent + 1, 'checklist-cells', `the row has ${row.length} cells; the header of its table on line ${block.header} has ${header.names.length}`);
     }
     const first = row[0]?.text.trim() ?? '';
     const task = ID_CELL.exec(first)?.[1];
     if (block.kind === 'tableHeader' || block.kind === 'tableDelimiter') {
       allowed = true;
+      // The columns are fixed, so a reader finds the verification and the state of a row by their place (K249-3).
+      if (block.kind === 'tableHeader' && block.names.join(' | ') !== CHECKLIST_COLUMNS.join(' | ')) strictOnly(number, indent + 1, 'checklist-header', `the header is | ${block.names.join(' | ')} |; a checklist table has the header | ${CHECKLIST_COLUMNS.join(' | ')} |`);
     } else if (task && id.test(task)) {
       allowed = true;
       const column = row.length - 1;

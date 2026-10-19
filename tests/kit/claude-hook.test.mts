@@ -51,3 +51,29 @@ test('a Bash input runs the command check, and another tool passes', () => {
   assert.match(toolRefusal({ tool_name: 'Bash', tool_input: { command: 'make check' } }, '/') ?? '', /CI/);
   assert.equal(toolRefusal({ tool_name: 'Read', tool_input: { file_path: '/x' } }, '/'), null);
 });
+
+// A make database with the suite of a repository's own Makefile and a unit target, as makeDatabase reads it.
+const MAKE = {
+  targets: new Map([
+    ['kit-test', { prerequisites: ['build'], recipe: '@mkdir -p var\n$(NODE) scripts/kit/run-tests.mts node -- tests/kit' }],
+    ['build', { prerequisites: [], recipe: 'tsc -p tsconfig.build.json' }],
+    ['unit', { prerequisites: [], recipe: '$(NODE) scripts/kit/run-tests.mts node -- tests/kit/plan.test.mts' }],
+    ['all', { prerequisites: [], recipe: '$(MAKE) kit-test' }],
+  ]),
+  variables: new Map([['NODE', '/repo/var/tools/bin/node']]),
+};
+const named = (file: string) => /\.[a-z]+$/.test(file);
+
+test('a make target whose recipes or prerequisites run a suite is refused, as the suite would be (K249-3)', () => {
+  assert.match(refusal('make kit-test', named, () => MAKE) ?? '', /^make kit-test runs .*run-tests\.mts node -- tests\/kit runs a whole runtime without a selection/);
+  assert.match(refusal('make all', named, () => MAKE) ?? '', /^make all runs make kit-test runs /);
+  assert.equal(refusal('make unit', named, () => MAKE), null);
+  assert.equal(refusal('make build', named, () => MAKE), null);
+});
+
+test('run-tests runs its runner over the arguments after --, so it needs their selection (K249-3)', () => {
+  assert.match(refusal('node scripts/kit/run-tests.mts node -- tests/kit', named) ?? '', /runs a whole runtime without a selection/);
+  assert.equal(refusal('node scripts/kit/run-tests.mts node -- tests/kit/plan.test.mts', named), null);
+  assert.match(refusal('node scripts/kit/run-tests.mts go -- ./...', named) ?? '', /add -run <pattern>/);
+  assert.equal(refusal('node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
+});

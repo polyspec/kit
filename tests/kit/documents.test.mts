@@ -139,7 +139,9 @@ test('interpolation: {{ outside a code block fails in the selected documents', (
 const PLAN = 'docs/plans/p';
 const CHECKLIST = `${PLAN}/checklist.md`;
 const ID_PATTERN = 'T[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)*';
-const checklist = (rows: string, extra = '') => `# Plan\n\n${extra}| ID | Task | State |\n| --- | --- | --- |\n${rows}\n`;
+// Each row is written with its ID, task and state; the helper gives it the deliverables and the verification of kit's header.
+const widen = (row: string) => row.replace(/^(\|[^|]*\|[^|]*\|)/, '$1 `a.mts` | `node --test a.test.mts` |');
+const checklist = (rows: string, extra = '') => `# Plan\n\n${extra}| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n${rows.split('\n').map(widen).join('\n')}\n`;
 const withChecklist = (t: TestContext, en: string, ko = en) => tree(t, {
   ...pair(CHECKLIST, 'checklist', en.replace(/^# Plan\n/, '').trimStart(), ko.replace(/^# Plan\n/, '').trimStart()),
   ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'),

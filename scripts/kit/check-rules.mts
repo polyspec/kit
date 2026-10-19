@@ -15,7 +15,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
-import { commandParts, makeArguments } from './recipe-tools.mts';
+import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
@@ -32,7 +32,6 @@ const ENFORCED = /^\s*Enforced by:\s*(.*)$/;
 const DEFAULT_DOCUMENTS = ['PRINCIPLES.md', 'AGENTS.md'];
 // The points that cannot be skipped: the folders whose files start make.
 const ENTRY_FOLDERS = ['.github/workflows', '.githooks'];
-const MAX_EXPANSION = 16;
 
 /** The rules of the document `text`: the items of its top-level lists, each with its `Enforced by:` line. */
 function rulesOf(text: string): Rule[] {
@@ -59,17 +58,6 @@ const checksOf = (enforced: string) => [...enforced.matchAll(/`([^`]+)`/g)].map(
 
 /** The planned items of an `Enforced by:` text: the ID after each `planned`. */
 const plannedOf = (enforced: string) => [...enforced.matchAll(/\bplanned (\S+?)(?=[,.;]|\s|$)/g)].map(match => match[1] ?? '');
-
-/** `text` with the variables of make expanded from `variables`; a function call or an unknown variable stays as written. */
-function expand(text: string, variables: ReadonlyMap<string, string>): string {
-  let result = text.replaceAll('$(MAKE)', 'make').replaceAll('${MAKE}', 'make');
-  for (let round = 0; round < MAX_EXPANSION; round += 1) {
-    const next = result.replace(/\$[({]([A-Za-z_][A-Za-z0-9_]*)[)}]/g, (reference, name: string) => variables.get(name) ?? reference);
-    if (next === result) break;
-    result = next;
-  }
-  return result;
-}
 
 /** The words of the commands of `text`, a recipe or a script, line by line. */
 const commandsOf = (text: string) => text.split('\n').flatMap(line => commandParts(line)).filter(words => words.length > 0);
@@ -127,7 +115,7 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     targets.add(item.target);
     const variables = new Map([...make.variables, ...item.variables]);
     for (const prerequisite of rule.prerequisites) queue.push({ target: prerequisite, variables: item.variables });
-    for (const words of commandsOf(expand(rule.recipe, variables))) enter(words.flatMap(word => word.split(/\s+/)).filter(Boolean), item.variables);
+    for (const words of commandsOf(expandMake(rule.recipe, variables))) enter(words.flatMap(word => word.split(/\s+/)).filter(Boolean), item.variables);
   }
   return { targets, paths };
 }

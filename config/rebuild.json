@@ -78,6 +78,10 @@
       "kind": "policy",
       "reason": "the plan folders and checklist table of PRINCIPLES.md (K241, K242): writes a plan or a row only when it passes the checks of documents-check and the hooks"
     },
+    "scripts/kit/verification.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: the commands of the Verification cell of an open item, read with the refusals of the Claude Code hook (K249-3)"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

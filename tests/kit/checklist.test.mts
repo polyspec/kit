@@ -22,6 +22,9 @@ function parseTracker(text: string, tracker: Tracker) {
   return { items, errors: findings.map(describeFinding) };
 }
 
+// The header of a checklist of kit (K249-3), which the strict reading requires.
+const HEADER = '| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n';
+
 const TABLE: Tracker = { path: 'a.md', translation: 'a.ko.md', idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
 
 const TABLE_TEXT = `# Tasks
@@ -63,13 +66,13 @@ test('the items are the rows of the Markdown tree: a row in a fenced example is 
   assert.deepEqual(table.errors, []);
   assert.deepEqual(table.items.map(item => item.id), ['T1', 'T1.2', 'T1.2-1', 'T2']);
   // The strict reading reports the lines of the fence: a checklist holds only tasks.
-  const strict = readChecklist(`| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n${fence('| T9 | An example row | [~] |')}`, TABLE, { strict: true });
+  const strict = readChecklist(`${HEADER}| T1 | A | \`a.mts\` | \`node --test a.test.mts\` | [o] |\n${fence('| T9 | An example row | [~] |')}`, TABLE, { strict: true });
   assert.deepEqual(strict.items.map(item => item.id), ['T1']);
   assert.deepEqual(strict.findings.map(({ line, rule }) => [line, rule]), [[5, 'checklist-line'], [6, 'checklist-line'], [6, 'checklist-marker'], [7, 'checklist-line']]);
 });
 
 test('the lenient reading ignores the prose of a checklist that the strict reading reports', () => {
-  const text = `# Items\n\nFree text before the table.\n\n| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n\nmore free text\n`;
+  const text = `# Items\n\nFree text before the table.\n\n${HEADER}| T1 | A | \`a.mts\` | \`node --test a.test.mts\` | [o] |\n\nmore free text\n`;
   assert.deepEqual(parseTracker(text, TABLE).errors, []);
   const strict = readChecklist(text, TABLE, { strict: true });
   assert.deepEqual(strict.findings.map(({ line, rule }) => [line, rule]), [[3, 'checklist-line'], [9, 'checklist-line']]);
@@ -103,8 +106,15 @@ test('a row whose number of cells differs from the header of its table fails wit
   }
 });
 
+test('the strict reading requires the header of kit: ID, Task, Deliverables, Verification and State (K249-3)', () => {
+  const rows = '| T1 | A | `a.mts` | `node --test a.test.mts` | [o] |\n';
+  assert.deepEqual(readChecklist(`| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n${rows}`, TABLE, { strict: true }).findings, []);
+  const strict = readChecklist(`| ID | Task | Files | Check | Done |\n|---|---|---|---|---|\n${rows}`, TABLE, { strict: true });
+  assert.deepEqual(strict.findings.map(({ line, rule, message }) => [line, rule, message]), [[1, 'checklist-header', 'the header is | ID | Task | Files | Check | Done |; a checklist table has the header | ID | Task | Deliverables | Verification | State |']]);
+});
+
 test('the strict reading reports a state marker of the impossible state outside a task', () => {
-  const strict = readChecklist('| ID | Task | Done |\n|---|---|---|\n| T1 | Done; a note names [-] | [o] |\n', TABLE, { strict: true });
+  const strict = readChecklist(`${HEADER}| T1 | Done; a note names [-] | \`a.mts\` | \`node --test a.test.mts\` | [o] |\n`, TABLE, { strict: true });
   assert.deepEqual(strict.findings.map(({ line, column, rule }) => [line, column, rule]), [[3, 27, 'checklist-marker']]);
 });
 

@@ -52,8 +52,8 @@ test('a push is refused while the working tree has an item in progress and the p
 
 test('every item in progress is named, in each pushed commit and in the working tree', (t) => {
   const { work } = prepared(t);
-  edit(work, CHECKLIST, text => text.replace('| T1 | Write the parser | `make test` | [o] |', '| T1 | Write the parser | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
-  edit(work, TRANSLATION, text => text.replace('| T1 | parser를 작성한다 | `make test` | [o] |', '| T1 | parser를 작성한다 | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
+  edit(work, CHECKLIST, text => text.replace('| T1 | Write the parser | `src/parser.ts` | `make test` | [o] |', '| T1 | Write the parser | `src/parser.ts` | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
+  edit(work, TRANSLATION, text => text.replace('| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [o] |', '| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
   const pushed = push(work);
   assert.match(pushed.stderr, /2 items are in the active state/);
   assert.match(pushed.stderr, /working tree: docs\/plans\/work\/checklist\.md T1 Write the parser/);

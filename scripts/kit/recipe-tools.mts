@@ -30,6 +30,20 @@ const REFERENCE = /\$\(([^()]*)\)/g;
 const PLACEHOLDER_NAME = 'KIT_MAKE_REFERENCE_';
 const PLACEHOLDER = new RegExp(String.raw`\$\{${PLACEHOLDER_NAME}(\d+)\}`, 'g');
 
+// The rounds of expansion of a reference whose value holds references, as make expands them recursively.
+const MAX_EXPANSION = 16;
+
+/** `text` with the variables of make expanded from `variables`; a function call or an unknown variable stays as written. */
+export function expandMake(text: string, variables: ReadonlyMap<string, string>): string {
+  let result = text.replaceAll('$(MAKE)', 'make').replaceAll('${MAKE}', 'make');
+  for (let round = 0; round < MAX_EXPANSION; round += 1) {
+    const next = result.replace(/\$[({]([A-Za-z_][A-Za-z0-9_]*)[)}]/g, (reference, name: string) => variables.get(name) ?? reference);
+    if (next === result) break;
+    result = next;
+  }
+  return result;
+}
+
 /**
  * The words of each command of the recipe line `line`, split by the quoting rules of the POSIX shell with the parse of
  * shell-quote: a quoted string is one word with its quotes removed, and an operator or a blank inside quotes is text of the

@@ -22,6 +22,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
+import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, planFindings, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
@@ -217,7 +219,9 @@ export function check(root: string, config: DocumentsConfig) {
   }
   const missing = checklists.flatMap(list => [list.path, list.translation]).filter(file => !existsSync(path.join(root, file)));
   for (const file of missing) add(file, { rule: 'pair-missing', message: 'the file named in docs/plans does not exist' });
-  for (const { file, finding } of checklistsFindings(checklists, file => (missing.includes(file) ? undefined : read(file)))) add(file, finding);
+  const available = (file: string) => (missing.includes(file) ? undefined : read(file));
+  let database: MakeDatabase | undefined;
+  for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available, () => (database ??= makeDatabase(root)))]) add(file, finding);
   // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
   const prose = documents.filter(name => name.startsWith('docs/'));
   for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {

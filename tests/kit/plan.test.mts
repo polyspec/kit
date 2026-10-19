@@ -1,11 +1,11 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and documents-check run on it (K249).
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { newItem, newPlan, setState } from '../../scripts/kit/plan.mts';
+import { newItem, newPlan, setState, testItem } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { tree } from './tree.mts';
@@ -123,4 +123,23 @@ test('item-state refuses while another item has a state other than that of HEAD,
   const root = committed(t, 'T1', 'T2');
   setState(root, { id: 'T1', state: '[~]' });
   assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /the commit changes the state of 2 items/);
+});
+
+test('item-new refuses an open item whose Verification cell runs a suite or names no command (K249-3)', (t) => {
+  const root = plans(t, 'parser');
+  assert.throws(() => newItem(root, item('parser', 'T1', { verification: '`node scripts/kit/run-tests.mts node -- tests`' })), /runs a whole runtime without a selection/);
+  assert.throws(() => newItem(root, item('parser', 'T1', { verification: 'a red test' })), /names no command in backticks/);
+});
+
+test('item-test runs the commands of the Verification cell in order and fails on the first that fails (K249-3)', (t) => {
+  const root = plans(t, 'parser');
+  const writes = (file: string) => `\`node -e "require('fs').writeFileSync('${file}', '1')"\``;
+  newItem(root, item('parser', 'T1', { verification: `${writes('one')}, ${writes('two')}` }));
+  newItem(root, item('parser', 'T2', { verification: `\`node -e "process.exit(3)"\`, ${writes('three')}` }));
+  const quiet = () => {};
+  assert.equal(testItem(root, 'T1', quiet).length, 2);
+  assert.ok(existsSync(path.join(root, 'one')) && existsSync(path.join(root, 'two')));
+  assert.throws(() => testItem(root, 'T2', quiet), /`node -e "process.exit\(3\)"` of T2 ended with exit status 3/);
+  assert.ok(!existsSync(path.join(root, 'three')), 'no command runs after the first that failed');
+  assert.throws(() => testItem(root, 'T9', quiet), /T9 is no item/);
 });

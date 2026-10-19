@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0b589ed3670e32064d6e976d32669664cb42d04bd6a42462a688890845300415 -->
+<!-- source-sha256: db374e5cbfd04a1ac06cc3b022ce6ba7143221689b562c24b3c24b91464cd8f3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 열린 checklist item은 자기를 검증하는 command를 명시하고, 그중 Claude Code hook이 거부하는 것은 없으므로, documents-check는 suite로 검증하는 item에서 실패한다(`verification.mts`). `make item-test ID=`가 그 command를 실행한다. checklist header는 ID, Task, Deliverables, Verification, State로 고정된다. hook은 make target을 그 prerequisite와 recipe를 따라 읽고 `run-tests.mts <runner> -- <args>`를 그 runner로 읽으므로, 저장소 자신의 suite target도 거부된다 (K249-3).
 - kit은 어떤 코드도 필요로 하지 않는 8.5 대신, 저장소의 코드와 도구가 필요로 하는 하한인 PHP 8.4를 pin한다. `toolchain-pins.json`과 `.php-version`이 8.4를 선언하고, kit의 Composer project는 platform 8.4(PHPUnit 13은 8.4.1)와 함께 `>=8.4`를 요구한다 (K259).
 - PHP symbol extractor는 phpcs를 통과한다. visitor는 `extract.php` 옆 `PublicSymbols.php`의 class `Polyspec\Kit\Symbols\PublicSymbols`이다. extractor의 release는 kit PHP lint의 vendor/를 건너뛰고 다른 folder에서 실패한다 (K248-4-1).
 - `make item-state ID= STATE=`는 허용된 전이를 따라 두 언어에서 item을 옮기고, working tree가 두 changelog에 그 줄을 추가할 때만 done을 설정하며, bypass의 원인과 재시도 조건, impossible item의 원인을 쓰고, commit-msg hook이 거부할 것을 거부한다(`workingItemFindings`). kit의 config/commits.json이 changelog를 선언하므로 commit check는 done item의 entry를 요구한다 (K249-2).

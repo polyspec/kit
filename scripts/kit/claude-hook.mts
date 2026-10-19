@@ -18,7 +18,8 @@ import { isJsonObject } from './bootstrap/files.mts';
 import { copiesOf, INSTALLED, isSource } from './kit-check.mts';
 import { readNpmManifest } from './manifests.mts';
 import { existsSync } from 'node:fs';
-import { commandParts, makeArguments } from './recipe-tools.mts';
+import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
+import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { isFile, selects } from './test-selection.mts';
 
 // The make targets of kit that run a suite or a group of its targets.
@@ -38,29 +39,81 @@ const EDITS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const assigned = (word: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
 const marker = (word: string) => CI_MARKERS.has(word.slice(0, word.indexOf('=')));
 
+// The way to select tests of each runner of test-selection.mts, which a refusal names as its fix.
+const SELECT: Record<string, string> = {
+  go: 'add -run <pattern>',
+  cargo: 'add a test name filter or --test <target>',
+  phpunit: 'add --filter <pattern> or a test file',
+  node: 'name the test files or add --test-name-pattern <pattern>',
+  vitest: 'name the test files or add -t <pattern>',
+  python: 'name the test ids or add -k <pattern>',
+};
+
+/** The refusal of `command`, which runs the runner `tool` of test-selection.mts with `args`, when they select no test. */
+function selection(command: string[], tool: string, args: string[], isFileAt: (file: string) => boolean): string | null {
+  return selects(tool, args, isFileAt) ? null : `${command.join(' ')} runs a whole runtime without a selection, which ${SUITE}: ${SELECT[tool] ?? 'select the tests'}`;
+}
+
 /** The refusal of a test runner `program` with `args` that selects no test, or null. */
 function runnerRefusal(program: string, args: string[], isFileAt: (file: string) => boolean): string | null {
   const [first, second] = args;
-  const run = (tool: string, rest: string[], how: string) => selects(tool, rest, isFileAt) ? null : `${[program, ...args].join(' ')} runs a whole runtime without a selection, which ${SUITE}: ${how}`;
-  if (program === 'go' && first === 'test') return run('go', args.slice(1), 'add -run <pattern>');
-  if (program === 'cargo' && first === 'test') return run('cargo', args.slice(1), 'add a test name filter or --test <target>');
-  if (program === 'cargo' && first === 'nextest' && second === 'run') return run('cargo', args.slice(2), 'add a test name filter or --test <target>');
-  if (program === 'phpunit') return run('phpunit', args, 'add --filter <pattern> or a test file');
-  if (program === 'php' && first !== undefined && path.basename(first) === 'phpunit') return run('phpunit', args.slice(1), 'add --filter <pattern> or a test file');
-  if (program === 'node' && args.includes('--test')) return run('node', args.filter(arg => arg !== '--test'), 'name the test files or add --test-name-pattern <pattern>');
-  if (program === 'vitest') return run('vitest', args, 'name the test files or add -t <pattern>');
-  if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return run('python', args.slice(2), 'name the test ids or add -k <pattern>');
-  if (program === 'pytest') return run('python', args, 'name the test ids or add -k <pattern>');
+  const command = [program, ...args];
+  if (program === 'go' && first === 'test') return selection(command, 'go', args.slice(1), isFileAt);
+  if (program === 'cargo' && first === 'test') return selection(command, 'cargo', args.slice(1), isFileAt);
+  if (program === 'cargo' && first === 'nextest' && second === 'run') return selection(command, 'cargo', args.slice(2), isFileAt);
+  if (program === 'phpunit') return selection(command, 'phpunit', args, isFileAt);
+  if (program === 'php' && first !== undefined && path.basename(first) === 'phpunit') return selection(command, 'phpunit', args.slice(1), isFileAt);
+  if (program === 'node' && args.includes('--test')) return selection(command, 'node', args.filter(arg => arg !== '--test'), isFileAt);
+  if (program === 'vitest') return selection(command, 'vitest', args, isFileAt);
+  if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return selection(command, 'python', args.slice(2), isFileAt);
+  if (program === 'pytest') return selection(command, 'python', args, isFileAt);
+  // run-tests.mts <runner> -- <args> runs the runner over the arguments after --, so it needs their selection (K249-3).
+  if (program === 'node' && first !== undefined && second !== undefined && /(?:^|\/)run-tests\.m[jt]s$/.test(first)) {
+    return selection(command, second, args.includes('--') ? args.slice(args.indexOf('--') + 1) : [], isFileAt);
+  }
   return null;
 }
 
-/** The refusal of a make command with `args`, or null. */
-function makeRefusal(args: string[]): string | null {
+/** What a refusal reads besides the command: whether a word names a file, and the database of the Makefile of the root. */
+type Context = { isFileAt: (file: string) => boolean; make: () => MakeDatabase | undefined };
+
+/** The refusal of the first command that the target `target` runs, through its prerequisites and recipes, or null. */
+function recipeRefusal(target: string, database: MakeDatabase, assignments: ReadonlyMap<string, string>, context: Context, seen: Set<string>): string | null {
+  if (seen.has(target)) return null;
+  seen.add(target);
+  const rule = database.targets.get(target);
+  if (!rule) return null;
+  for (const prerequisite of rule.prerequisites) {
+    const refused = recipeRefusal(prerequisite, database, assignments, context, seen);
+    if (refused) return refused;
+  }
+  const variables = new Map([...database.variables, ...assignments]);
+  for (const line of expandMake(rule.recipe, variables).split('\n')) {
+    // @, - and + are the prefixes of make that a recipe line may start with; the shell never sees them.
+    const command = line.replace(/^[\s@+-]+/, '');
+    const refused = command ? refusalIn(command, context, seen) : null;
+    if (refused) return refused;
+  }
+  return null;
+}
+
+/**
+ * The refusal of a make command with `args`, or null: a suite target of kit, a full parity-check, and a target whose recipes
+ * or prerequisites, in the database of the Makefile, run a command that the hook refuses, such as the suite of a repository's
+ * own Makefile (K249-3).
+ */
+function makeRefusal(args: string[], context: Context, seen: Set<string>): string | null {
   const { targets, assignments } = makeArguments(args);
   const variables = new Set(assignments.keys());
   const suite = targets.find(target => SUITE_TARGETS.has(target));
   if (suite) return `make ${suite} ${SUITE}`;
   if (targets.includes('parity-check') && !variables.has('UNITS')) return `make parity-check without UNITS ${SUITE}: name the units with UNITS="<id>..."`;
+  const database = context.make();
+  if (!database) return null;
+  for (const target of targets) {
+    const refused = recipeRefusal(target, database, assignments, context, seen);
+    if (refused) return `make ${target} runs ${refused}`;
+  }
   return null;
 }
 
@@ -84,7 +137,8 @@ function gitRefusal(args: string[]): string | null {
 }
 
 /** The refusal of one simple command, its `words`, or null. */
-function commandRefusal(words: string[], isFileAt: (file: string) => boolean): string | null {
+function commandRefusal(words: string[], context: Context, seen: Set<string>): string | null {
+  const { isFileAt } = context;
   let rest = words;
   if (rest[0] === 'export' && rest.slice(1).some(word => assigned(word) && marker(word))) return `${rest.join(' ')} sets the variable that marks a CI run; a suite ${SUITE}`;
   if (rest[0] === 'env') rest = rest.slice(1).filter(word => !word.startsWith('-'));
@@ -96,21 +150,29 @@ function commandRefusal(words: string[], isFileAt: (file: string) => boolean): s
   const [command, ...args] = rest;
   if (command === undefined) return null;
   const program = path.basename(command);
-  if (program === 'make') return makeRefusal(args);
+  if (program === 'make') return makeRefusal(args, context, seen);
   if (program === 'git') return gitRefusal(args);
   return runnerRefusal(program, args, isFileAt);
 }
 
-/** The refusal of the Bash command `command`, or null when the hook allows it. */
-export function refusal(command: string, isFileAt: (file: string) => boolean = isFile): string | null {
+/** The refusal of the Bash command `command` in `context`, or null; `seen` holds the make targets already read. */
+function refusalIn(command: string, context: Context, seen: Set<string>): string | null {
   const parts = commandParts(command);
   const loop = parts.some(words => words[0] === 'while' || words[0] === 'until');
   if (loop && parts.some(words => words.includes('sleep'))) return `${command} polls in a loop with a sleep, which has no known end; wait for one command that its own work bounds, or for the event of the work`;
   for (const words of parts) {
-    const refused = commandRefusal(words, isFileAt);
+    const refused = commandRefusal(words, context, seen);
     if (refused) return refused;
   }
   return null;
+}
+
+/**
+ * The refusal of the Bash command `command`, or null when the hook allows it. `make` gives the database of the Makefile of
+ * the root, which a make command is followed through; without it a make command is read by its targets alone.
+ */
+export function refusal(command: string, isFileAt: (file: string) => boolean = isFile, make: () => MakeDatabase | undefined = () => undefined): string | null {
+  return refusalIn(command, { isFileAt, make }, new Set());
 }
 
 /**
@@ -121,7 +183,10 @@ export function refusal(command: string, isFileAt: (file: string) => boolean = i
 export function toolRefusal(input: unknown, root: string): string | null {
   if (!isJsonObject(input) || !isJsonObject(input.tool_input)) return null;
   const tool = input.tool_name;
-  if (tool === 'Bash') return typeof input.tool_input.command === 'string' ? refusal(input.tool_input.command) : null;
+  if (tool === 'Bash') {
+    let database: MakeDatabase | undefined;
+    return typeof input.tool_input.command === 'string' ? refusal(input.tool_input.command, isFile, () => (database ??= makeDatabase(root))) : null;
+  }
   if (typeof tool !== 'string' || !EDITS.has(tool)) return null;
   const file = input.tool_input.file_path ?? input.tool_input.notebook_path;
   if (typeof file !== 'string' || isSource(root) || !existsSync(path.join(root, INSTALLED, 'package.json'))) return null;
