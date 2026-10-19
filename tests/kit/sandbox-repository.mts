@@ -3,7 +3,9 @@
 // After a commit, a merge or a received push, git starts `git maintenance run --auto --detach`, which leaves the process
 // group of the test and can repack into objects/pack after the command has returned. A removal of the sandbox in that time
 // fails with ENOTEMPTY on the file that the repack creates. Each repository therefore turns automatic maintenance and
-// automatic gc off in its own configuration, which every git command in it reads, the commands of the tools included.
+// automatic gc off in its own configuration, which every git command in it reads, the commands of the tools included. A
+// received push also starts `git gc --auto` from receive-pack unless receive.autogc is false; git 2.43 starts it even with
+// gc.auto 0, so that is turned off too.
 import { spawnSync } from 'node:child_process';
 
 /** Runs git with `args` and fails with its status and stderr. */
@@ -17,4 +19,5 @@ export function initRepository(directory: string, ...options: string[]) {
   git(['init', '--quiet', ...options, directory]);
   git(['-C', directory, 'config', 'maintenance.auto', 'false']);
   git(['-C', directory, 'config', 'gc.auto', '0']);
+  git(['-C', directory, 'config', 'receive.autogc', 'false']);
 }
