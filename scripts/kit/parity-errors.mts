@@ -1,4 +1,4 @@
-// R7 of the language-parity check: every implementation of the profile of `errors` has the codes of the catalog, read from the
+// R7 of the language-parity check: every implementation has the codes of the catalog, read from the
 // generated artifact that each implementation declares, no code more and no code less. The catalog pattern reads every line of
 // the catalog that is not blank or a comment (`#` or `//`), so no code escapes it; a line that the pattern matches without its
 // group holds no code. A catalog or an artifact from which the pattern reads no code is a declaration finding. Whether a
@@ -38,13 +38,11 @@ export function readCodes(model: ParityModel, root: string) {
   return { codes, findings };
 }
 
-/** R7: the codes of each implementation of the profile against the catalog. */
+/** R7: the codes of each implementation against the catalog. */
 export function errorCatalog(model: ParityModel, codes: Codes) {
   const errors = model.config.errors;
   if (!errors) return [];
-  // readDeclaration reports an unknown errors profile and a profile member that is no implementation, and the rules do not
-  // run on a declaration with findings.
-  return present(model.profiles.get(errors.profile), 'model.profiles.get(errors.profile)').map(name => present(model.implementations.get(name), 'model.implementations.get(name)')).flatMap((implementation) => {
+  return model.config.implementations.flatMap((implementation) => {
     if (!implementation.errors) return [finding('R7', `${implementation.name} declares no error codes; name its generated codes in errors of the implementation`, { implementation: implementation.name, place: errors.catalog.file })];
     // readCodes reads the codes of every implementation that declares errors.
     const differs = difference([...codes.catalog], [...present(codes.implementations.get(implementation.name), 'codes.implementations.get(implementation.name)')], 'the catalog');

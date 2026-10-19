@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // The language-parity check (`make parity-check`, `make parity-declarations-check`). config/parity.json declares the
-// implementations of the repository, the one source of its language set, the profiles that group them and the units that
-// every implementation of a profile holds: vector suites, features, API symbols, the error-code catalog, native-only symbols and
-// exclusions. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
+// implementations of the repository, the one source of its language set, and the units that every implementation holds:
+// vector suites, features, API symbols and the error-code catalog. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
@@ -12,9 +11,9 @@
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221)
 //
 // The rules, each a finding that fails the check:
-//   R1 missing-implementation  an API unit has no public symbol in an implementation of its profile, or the extractor of
+//   R1 missing-implementation  an API unit has no public symbol in an implementation, or the extractor of
 //                              an implementation gives no symbols
-//   R2 missing-binding         a suite or a feature has no binding of an implementation of its profile
+//   R2 missing-binding         a suite or a feature has no binding of an implementation
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
 //                              the id of a feature binding did not pass once in a run of its whole test file, or the
 //                              second run gives another status, case or result than the first; a run whose environment
@@ -28,18 +27,15 @@
 //                              convention or the testPatterns of a runner, other than a support file of that runner, lies
 //                              outside its roots, the comparator roots and the tools roots
 //   R7 error-catalog           the codes of an implementation differ from the catalog, or it declares none
-//   R8 exclusion               an exclusion: it never counts as holding the unit
-//   R9 language-set-drift      a declared list of implementation names in another file differs from its profile
-//   R10 docs-count             a document counts implementations that no profile of that count holds, or lists
-//                              implementations in a sentence whose names are no profile
-//   R11 undeclared-public      a public symbol that no API unit and no native-only entry declares, or a native-only entry
-//                              that names no public symbol
+//   R9 language-set-drift      a declared list of implementation names in another file differs from the implementations
+//   R10 docs-count             a document counts a number of implementations that is not the number of the
+//                              implementations, or lists implementations in a sentence that names not all of them
+//   R11 undeclared-public      a public symbol that no API unit declares
 //   R13 untraced-requirement  a requirement that docs/spec defines (a bullet **<id>** or a heading <id>) and no unit cites
 //   R14 unknown-requirement   a unit cites an id that docs/spec does not define (parity-requirements.mts, K273)
 //   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
-// A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
-// the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
+// Every unit holds in every implementation: there is no profile, no exclusion and no native-only symbol.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -51,7 +47,7 @@ import type { Ledger } from './parity-ledger.mts';
 import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
 import { requirementFindings } from './parity-requirements.mts';
-import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
+import { misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -89,7 +85,6 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
-  for (const profile of model.narrow) say(`profile ${profile.name} omits ${profile.omitted.join(', ')}: ${profile.reason}`);
   for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
   for (const unit of model.config.units.filter((entry: { kind: string; admit?: string }) => entry.kind === 'suite' && entry.admit !== undefined)) {
     for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
@@ -107,7 +102,6 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...undeclaredTests(model, files),
     ...misplacedTests(model, files),
     ...errorCatalog(model, codes),
-    ...exclusions(model),
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
     ...undeclaredPublic(model, extracted.snapshots),

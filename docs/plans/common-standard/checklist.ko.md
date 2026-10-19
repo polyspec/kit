@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2b51dc52ba092b4ec89c731710f5e7b4b51cb2b04107e94d8440178d60e28ffe -->
+<!-- source-sha256: ab9b5abd2ae0ab9f47a618db9273f6e58885a9fb0639484e037e0cc8bb2cb3fd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -68,3 +68,4 @@
 | K273 | spec의 모든 requirement를 parity unit이 인용하므로 모든 구현이 그것을 test한다 | scripts/kit/parity-requirements.mts, scripts/kit/schema/parity.schema.json, PRINCIPLES.md | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
 | K274 | parity declaration check는 인용된 spec을 한 번만 parse한다 | scripts/kit/parity-declaration.mts | `node --test tests/kit/parity.test.mts` | [o] |
 | K275 | test는 자신의 unit이 인용하는 각 requirement를 이름으로 적는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
+| K276 | 모든 unit은 모든 구현이 가진다: 선언에 profile, exclusion, native-only symbol이 없고, 하나라도 있으면 schema가 실패시킨다 (S6) | scripts/kit/parity.mts, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, scripts/kit/parity-text.mts, scripts/kit/parity-errors.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity.test.mts, tests/source/parity-real.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | `node --test tests/kit/parity.test.mts` | [o] |

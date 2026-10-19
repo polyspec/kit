@@ -28,13 +28,10 @@ type UnitJson = Entry & { id: string; bindings?: BindingJson[]; symbols?: Bindin
 type ImplementationJson = Entry & { name: string; runner: string; env?: Entry[] };
 type Declaration = Entry & {
   implementations: ImplementationJson[];
-  profiles: (Entry & { implementations: string[] })[];
   units: UnitJson[];
   suites: string[];
   testPatterns?: { runner: string; globs: string[] }[];
-  nativeOnly: Entry[];
-  exclusions: Entry[];
-  errors: { profile: string; catalog: { file: string; pattern: string } };
+  errors: { catalog: { file: string; pattern: string } };
   languageLists: Entry[];
   documents: { globs: string[]; nouns: string[] };
 };
@@ -249,12 +246,18 @@ const FILES = {
   'ts/src/index.ts': 'export const encode = () => 1;\n',
   'ts/src/codes.ts': "export const CONFIG = 'CONFIG';\nexport const CODEC_DECODE = 'CODEC_DECODE';\n",
   'ts/tests/codec.mjs': NODE_CODEC,
+  'ts/tests/width.mjs': "import test from 'node:test';\ntest('narrow', () => {});\ntest('wide', () => {});\n",
+  'ts/tests/size.mjs': "import test from 'node:test';\ntest('small', () => {});\n",
   'php/src/Code.php': "<?php\nfinal class Code\n{\n    const CONFIG = 'CONFIG';\n    const CODEC_DECODE = 'CODEC_DECODE';\n}\n",
   'php/tests/codec.php': 'PASS test_empty\nPASS test_ascii\n',
+  'php/tests/width.php': 'PASS test_narrow\nPASS test_wide\n',
+  'php/tests/size.php': 'PASS test_small\n',
   'php/composer.json': '{}\n',
   'php/vendor/bin/phpunit': '',
   'python/codes.py': 'CONFIG = "CONFIG"\nCODEC_DECODE = "CODEC_DECODE"\n',
   'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n',
+  'python/tests/test_width.py': 'PASS test_narrow\nPASS test_wide\n',
+  'python/tests/test_size.py': 'PASS test_small\n',
   'var/tools/mise/shims/python3': PY_STUB,
   // The Composer of the checkout, which make parity-check asks for the vendor directory of a php binding (K184); the tests
   // that call checkParity ask the Composer of kit.
@@ -263,7 +266,7 @@ const FILES = {
   'var/tools/symbols-go/bin/kit-symbols-go': GO_SYMBOLS_STUB,
   'var/tools/symbols-php/vendor/autoload.php': '<?php\n',
   'go/symbols.txt': 'go/codec.go::Encode\n',
-  'rust/symbols.txt': 'encode\nhex_upper\n',
+  'rust/symbols.txt': 'encode\n',
   // rustdoc JSON is unstable, so the rust extractor runs the Rust nightly that an exception declares.
   'config/toolchain.json': JSON.stringify({ schema: 1,
     requirements: { pattern: 'CX-[0-9]+' }, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
@@ -273,9 +276,8 @@ const FILES = {
   'python/symbols.txt': 'python/codec.py::encode\n',
   'docs/errors.yaml': '- code: CONFIG\n- code: CODEC_DECODE\n',
   'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php', 'python'];\n",
-  'docs/index.md': '# Codec\n\nFive languages share the codec: Go, Rust, TS, PHP and Python.\nThe two implementations go and rust compile.\n',
-  'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n\n## Width tables\n\nThe compiled implementations hold the width tables.\n',
-  'contracts/codec.json': JSON.stringify({ benchmarks: { hex: ['rust'] } }),
+  'docs/index.md': '# Codec\n\nFive languages share the codec: Go, Rust, TS, PHP and Python.\n',
+  'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n\n## Width tables\n\nEvery implementation holds the width tables.\n',
   'docs/index.ko.md': '# Codec\n\n다섯 언어가 codec을 공유한다: Go, Rust, TS, PHP와 Python.\n',
 };
 
@@ -289,10 +291,6 @@ const CONFIG = {
     { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'php', entry: 'php' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
     { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python/symbols.txt' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
   ],
-  profiles: [
-    { name: 'all', implementations: ['go', 'rust', 'ts', 'php', 'python'] },
-    { name: 'compiled', implementations: ['go', 'rust'], reason: 'the width tables exist only in the compiled implementations', spec: ['docs/spec/codec.md#width-tables'] },
-  ],
   suites: ['tests/vectors/*.json'],
   comparators: ['tests/compare'],
   testPatterns: [
@@ -304,7 +302,7 @@ const CONFIG = {
   ],
   units: [
     {
-      id: 'codec', kind: 'suite', profile: 'all', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
+      id: 'codec', kind: 'suite', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
       bindings: [
         { implementation: 'go', test: 'go/codec_test.go', symbol: 'TestCodec' },
         { implementation: 'rust', test: 'rust/tests/codec.rs', symbol: 'vectors' },
@@ -314,21 +312,27 @@ const CONFIG = {
       ],
     },
     {
-      id: 'width', kind: 'suite', profile: 'compiled', requirements: ['CX-1'], file: 'tests/vectors/width.json', cases: '$[*]',
+      id: 'width', kind: 'suite', requirements: ['CX-1'], file: 'tests/vectors/width.json', cases: '$[*]',
       bindings: [
         { implementation: 'go', test: 'go/width_test.go', symbol: 'TestWidth' },
         { implementation: 'rust', test: 'rust/src/lib.rs', symbol: 'width::tests::vectors' },
+        { implementation: 'ts', test: 'ts/tests/width.mjs' },
+        { implementation: 'php', test: 'php/tests/width.php' },
+        { implementation: 'python', test: 'python/tests/test_width.py' },
       ],
     },
     {
-      id: 'size', kind: 'suite', profile: 'compiled', requirements: ['CX-1'], file: 'tests/vectors/size.json', cases: '$[*]',
+      id: 'size', kind: 'suite', requirements: ['CX-1'], file: 'tests/vectors/size.json', cases: '$[*]',
       bindings: [
         { implementation: 'go', test: 'go/size_test.go', symbol: 'TestSize' },
         { implementation: 'rust', test: 'rust/tests/size.rs', symbol: 'vectors' },
+        { implementation: 'ts', test: 'ts/tests/size.mjs' },
+        { implementation: 'php', test: 'php/tests/size.php' },
+        { implementation: 'python', test: 'python/tests/test_size.py' },
       ],
     },
     {
-      id: 'encode', kind: 'api', profile: 'all', requirements: ['CX-1'],
+      id: 'encode', kind: 'api', requirements: ['CX-1'],
       symbols: [
         { implementation: 'go', symbol: 'go/codec.go::Encode' },
         { implementation: 'rust', symbol: 'codec::encode' },
@@ -338,10 +342,8 @@ const CONFIG = {
       ],
     },
   ],
-  nativeOnly: [{ implementation: 'rust', symbol: 'codec::hex_upper', reason: 'the hex helper of the Rust codec, which the crate exports for its benchmarks', spec: ['contracts/codec.json#/benchmarks/hex'] }],
-  exclusions: [],
-  errors: { profile: 'all', catalog: { file: 'docs/errors.yaml', pattern: '^- code: (\\w+)$' } },
-  languageLists: [{ file: 'tools/languages.mjs', pattern: 'LANGUAGES = \\[([^\\]]*)\\]', profile: 'all' }],
+  errors: { catalog: { file: 'docs/errors.yaml', pattern: '^- code: (\\w+)$' } },
+  languageLists: [{ file: 'tools/languages.mjs', pattern: 'LANGUAGES = \\[([^\\]]*)\\]' }],
   documents: { globs: ['docs/**/*.md'], nouns: ['languages', 'implementations', '언어'] },
 };
 
@@ -388,38 +390,17 @@ test('the declaration of five implementations passes, with every case of every s
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.attempt} ${run.status}`), [
     'codec go 1 0', 'codec go 2 0', 'codec rust 1 0', 'codec rust 2 0', 'codec ts 1 0', 'codec ts 2 0', 'codec php 1 0', 'codec php 2 0',
-    'codec python 1 0', 'codec python 2 0', 'width go 1 0', 'width go 2 0', 'width rust 1 0', 'width rust 2 0', 'size go 1 0', 'size go 2 0',
-    'size rust 1 0', 'size rust 2 0',
+    'codec python 1 0', 'codec python 2 0', 'width go 1 0', 'width go 2 0', 'width rust 1 0', 'width rust 2 0', 'width ts 1 0', 'width ts 2 0',
+    'width php 1 0', 'width php 2 0', 'width python 1 0', 'width python 2 0', 'size go 1 0', 'size go 2 0', 'size rust 1 0', 'size rust 2 0',
+    'size ts 1 0', 'size ts 2 0', 'size php 1 0', 'size php 2 0', 'size python 1 0', 'size python 2 0',
   ]);
   assert.deepEqual(ledger.cases.map(entry => `${entry.unit} ${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'codec go empty pass', 'codec go ascii pass', 'codec rust empty pass', 'codec rust ascii pass',
     'codec ts empty pass', 'codec ts ascii pass', 'codec php empty pass', 'codec php ascii pass',
     'codec python empty pass', 'codec python ascii pass',
     'width go narrow pass', 'width go wide pass', 'width rust narrow pass', 'width rust wide pass',
-    'size go small pass', 'size rust small pass',
-  ]);
-});
-
-test('a profile narrower than every implementation is printed on every run with what it omits and why', TIMEOUT, (t) => {
-  const lines: string[] = [];
-  const { findings } = checkParity(repository(t), { execute: false, env: ENV, say: line => lines.push(line) });
-  assert.deepEqual(findings, []);
-  assert.ok(lines.includes('profile compiled omits ts, php, python: the width tables exist only in the compiled implementations'), lines.join('\n'));
-});
-
-test('a narrower profile without a reason or with one unit, and an implementation in no profile, fail the declaration', TIMEOUT, (t) => {
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: (config) => { delete itemAt(config.profiles, 1).reason; return config; } }), [
-    'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
-  ]);
-  assert.deepEqual(messages({ edit: (config) => { itemAt(config.profiles, 1).reason = ' '; return config; } }), [
-    'declaration: profile compiled omits ts, php, python and gives no reason; write the reason in reason',
-  ]);
-  assert.deepEqual(messages({ files: { 'go/size_test.go': null, 'rust/tests/size.rs': null, 'tests/vectors/size.json': null }, edit: (config) => { config.units = config.units.filter((unit: { id: string }) => unit.id !== 'size'); return config; } }), [
-    'declaration: profile compiled omits implementations and only the unit width uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks',
-  ]);
-  assert.deepEqual(messages({ edit: (config) => { config.implementations.push({ name: 'kotlin', runner: 'node', roots: ['kotlin'], tests: ['kotlin/*.mjs'] }); itemAt(config.profiles, 0).reason = 'kotlin starts later'; itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec']; return config; } }), [
-    'declaration: the implementation kotlin is in no profile, so no unit applies to it',
+    'width ts narrow pass', 'width ts wide pass', 'width php narrow pass', 'width php wide pass', 'width python narrow pass', 'width python wide pass',
+    'size go small pass', 'size rust small pass', 'size ts small pass', 'size php small pass', 'size python small pass',
   ]);
 });
 
@@ -458,7 +439,7 @@ test('an implementation declares the command, the arguments and the environment 
   const other = repository(t, { files, edit: declare(false) });
   chmodSync(path.join(other, 'python/.venv/bin/python'), 0o755);
   const missing = checkParity(other, { execute: true, env: ENV, say: () => {} }).findings;
-  assert.deepEqual(keys(missing), ['R3 codec python']);
+  assert.deepEqual(keys(missing), ['R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(missing, 0).message, /exited with 3/);
 });
 
@@ -485,8 +466,8 @@ test('a runner value references the invoking environment as ${NAME}, resolved wh
   assert.deepEqual(checkParity(root, { execute: false, env: ENV, say: () => {} }).findings, [], 'the declarations do not read the environment');
   const unset: NodeJS.ProcessEnv = { ...env };
   delete unset.PARITY_PHP;
-  assert.deepEqual(messages(unset), ['R3 codec php: cannot start: args references ${PARITY_PHP}, which the environment does not set']);
-  assert.deepEqual(messages({ ...env, PARITY_VENV: '' }), ['R3 codec python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string']);
+  assert.deepEqual(messages(unset), ['R3 codec php: cannot start: args references ${PARITY_PHP}, which the environment does not set', 'R3 width php: cannot start: args references ${PARITY_PHP}, which the environment does not set', 'R3 size php: cannot start: args references ${PARITY_PHP}, which the environment does not set']);
+  assert.deepEqual(messages({ ...env, PARITY_VENV: '' }), ['R3 codec python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string', 'R3 width python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string', 'R3 size python: cannot start: command references ${PARITY_VENV}, which the environment sets to an empty string']);
   const other = repository(t, { files, edit: (config) => { itemAt(itemWhere(declare(config).implementations, (entry: { name: string }) => entry.name === 'python').env ?? [], 0).value = '${PARITY_PYTHON:-python}/src'; return config; } });
   assert.deepEqual(checkParity(other, { execute: false, env, say: () => {} }).findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: implementation python: env CODEC_SOURCE holds ${PARITY_PYTHON:-python}, which is no reference; a reference is ${NAME} and has no default',
@@ -533,28 +514,6 @@ test('a support file of an implementation is never a test: it lies in its roots 
   ]);
 });
 
-test('the reason of a narrow profile and of a native-only entry cites a spec anchor that resolves (K75)', TIMEOUT, (t) => {
-  // A schema finding names the path in the declaration; another names the anchor, or the profile.
-  const findings = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${(finding.message.startsWith('config/parity.json: ') ? /(?<=^config\/parity\.json: )\/\S*/.exec(finding.message) : /(?:docs|contracts)\/\S+/.exec(finding.message) ?? /profile \S+/.exec(finding.message))?.[0]}`);
-  assert.deepEqual(findings((config) => { delete itemAt(config.profiles, 1).spec; itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec']; return config; }), [
-    'declaration profile all',
-    'declaration profile compiled',
-  ]);
-  assert.deepEqual(findings((config) => { delete itemAt(config.nativeOnly, 0).spec; itemAt(config.profiles, 1).spec = ['docs/notes.md#width']; return config; }), [
-    'declaration /profiles/1/spec/0',
-    'declaration /nativeOnly/0',
-  ]);
-  assert.deepEqual(findings((config) => {
-    itemAt(config.profiles, 1).spec = ['docs/spec/missing.md#width', 'docs/spec/codec.md#depth-tables', 'contracts/codec.json#/benchmarks/hex'];
-    itemAt(config.nativeOnly, 0).spec = ['contracts/codec.json#/benchmarks/octal', 'docs/spec/codec.md#codec'];
-    return config;
-  }), [
-    'declaration docs/spec/missing.md#width',
-    'declaration docs/spec/codec.md#depth-tables',
-    'declaration contracts/codec.json#/benchmarks/octal',
-  ]);
-});
-
 // A feature unit: one native test of each implementation, named by the id that its runner reports.
 const FEATURE_FILES = {
   'go/roundtrip_test.go': 'PASS TestRoundtrip/bytes\nPASS TestRoundtrip/text\n',
@@ -564,7 +523,7 @@ const FEATURE_FILES = {
   'python/tests/test_roundtrip.py': 'PASS test_bytes\n',
 };
 const FEATURE = {
-  id: 'roundtrip', kind: 'feature', profile: 'all', requirements: ['CX-1'],
+  id: 'roundtrip', kind: 'feature', requirements: ['CX-1'],
   bindings: [
     { implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' },
     { implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip::bytes' },
@@ -603,7 +562,7 @@ test('a ts suite case reported once per database item passes when each report pa
   const items = "import test from 'node:test';\ntest('empty [mysql]', () => {});\ntest('empty [sqlite]', () => {});\ntest('ascii [mysql]', () => {});\ntest('ascii [sqlite]', () => {});\n";
   const { findings, ledger } = checkParity(repository(t, { files: { 'ts/tests/codec.mjs': items } }), { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(findings.filter(finding => finding.implementation === 'ts'), []);
-  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
 });
 
 test('a ts feature id reported once per database item passes when each report passes (K231)', TIMEOUT, (t) => {
@@ -854,10 +813,9 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
     schema: 1,
     requirements: { pattern: 'CX-[0-9]+' },
     implementations: [{ name: 'ts', runner: 'node', roots: ['ts'] }, { name: 'web', runner: 'vitest', roots: ['web'] }],
-    profiles: [{ name: 'all', implementations: ['ts', 'web'] }],
     units: [
-      { id: 'codec', kind: 'suite', profile: 'all', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$[*]', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs' }, { implementation: 'web', test: 'web/src/codec.spec.ts' }] },
-      { id: 'roundtrip', kind: 'feature', profile: 'all', requirements: ['CX-1'], bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs', id: 'empty' }, { implementation: 'web', test: 'web/src/roundtrip.test.ts', id: 'roundtrip › nested › bytes' }] },
+      { id: 'codec', kind: 'suite', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$[*]', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs' }, { implementation: 'web', test: 'web/src/codec.spec.ts' }] },
+      { id: 'roundtrip', kind: 'feature', requirements: ['CX-1'], bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs', id: 'empty' }, { implementation: 'web', test: 'web/src/roundtrip.test.ts', id: 'roundtrip › nested › bytes' }] },
     ],
   };
   const all = {
@@ -932,7 +890,7 @@ test('R1: an API unit whose symbol an extractor does not give, or that declares 
     },
   });
   // The python symbol that the unit no longer declares is also an undeclared public symbol (R11).
-  assert.deepEqual(keys(findings), ['R1 encode rust', 'R1 encode python', 'R11 - python']);
+  assert.deepEqual(keys(findings), ['R1 encode rust', 'R1 encode python', 'R11 - rust', 'R11 - python']);
   assert.match(findingAt(findings, 0).message, /codec::encode is no public symbol of rust/);
   assert.match(findingAt(findings, 1).message, /declares no symbol of python/);
   // An extractor that fails is a finding that names it, and the rules of its symbols do not run on a guess.
@@ -987,7 +945,7 @@ test('the rust extractor runs the Rust nightly of the exception whose scope hold
   assert.match(known(uninstalled, 'uninstalled'), /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
 });
 
-test('R2: a suite without a binding of an implementation of its profile fails', TIMEOUT, (t) => {
+test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'python/tests/test_codec.py': null },
     edit: config => {
@@ -1034,7 +992,7 @@ test('R3: a binding whose second run executes other cases or other results than 
   const { findings, ledger } = check(t, { files: { 'ts/tests/codec.mjs': `${flaky}\n` } });
   assert.deepEqual(keys(findings), ['R3 codec ts']);
   assert.equal(findingAt(findings, 0).message, 'the second run differs from the first: exit 0 then 1; ascii pass then fail; latin1 only in the second run');
-  assert.deepEqual(ledger.runs.filter(run => run.implementation === 'ts').map(run => run.attempt), [1, 2]);
+  assert.deepEqual(ledger.runs.filter(run => run.unit === 'codec' && run.implementation === 'ts').map(run => run.attempt), [1, 2]);
 });
 
 test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
@@ -1042,7 +1000,7 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   rmSync(path.join(root, 'var/tools/mise/shims/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // The python extractor, which the stub implementations use, cannot start either.
-  assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python']);
+  assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(missing, 0).message, /the python extractor of python\/symbols\.txt gives no symbols: .* could not start/);
   assert.match(findingAt(missing, 1).message, /could not start/);
   // An extractor that install-tools did not build names the declaration and the install.
@@ -1071,7 +1029,6 @@ test('a case name that a runner cannot report, and a Go symbol that is no test f
     'declaration: unit width: the go binding names Width, which is no test function (^Test\\w*$)',
     'declaration: unit width: tests/vectors/width.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
   ]);
-  assert.deepEqual(messages({ files: { 'tests/vectors/size.json': JSON.stringify(['a/b']) }, edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'size').bindings?.shift(); config.exclusions.push({ unit: 'size', implementation: 'go', reason: 'r', item: 'T1' }); return config; } }).filter(message => message.startsWith('declaration')), [], 'without a go binding, a harness line reports a case with /');
 });
 
 test('R4: a suite file that no unit declares fails', TIMEOUT, (t) => {
@@ -1155,12 +1112,9 @@ test('R6: a binding whose test lies outside the roots of its implementation fail
   assert.match(findingAt(findings, 0).message, /outside php/);
 });
 
-/** Adds gonative, a go implementation of the compiled profile whose bindings run the go tests of width and size. */
+/** Adds gonative, a go implementation whose bindings run the go tests of width and size. */
 function sharing(config: Declaration, shares: string | undefined): Declaration {
-  config.implementations.push({ name: 'gonative', runner: 'go', roots: ['gonative'], ...(shares === undefined ? {} : { shares }) });
-  itemAt(config.profiles, 1).implementations.push('gonative');
-  itemAt(config.profiles, 0).reason = 'gonative implements only the width tables';
-  itemAt(config.profiles, 0).spec = ['docs/spec/codec.md#codec'];
+  config.implementations.push({ name: 'gonative', runner: 'go', roots: ['gonative'], symbols: { extractor: 'go', entry: 'gonative' }, ...(shares === undefined ? {} : { shares }) });
   for (const id of ['width', 'size']) {
     itemWhere(config.units, entry => entry.id === id).bindings?.push({ ...binding(config, id, 'go'), implementation: 'gonative' });
   }
@@ -1241,7 +1195,7 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
   assert.deepEqual(places((config) => { python(config).command = 'python3'; python(config).args = ['-X', 'dev', '--range=1..2', '${PARITY_ARGS}']; return config; }), []);
   const root = repository(t, { edit: (config) => { python(config).command = '${PARITY_VENV}/bin/python'; return config; } });
   const outside = checkParity(root, { execute: true, env: { ...ENV, PARITY_VENV: path.dirname(root) }, say: () => {} }).findings;
-  assert.deepEqual(keys(outside), ['R3 codec python']);
+  assert.deepEqual(keys(outside), ['R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(outside, 0).message, /cannot start: command/);
   assert.ok(findingAt(outside, 0).message.includes(path.dirname(root)) === false, 'the value of a reference is never printed');
 });
@@ -1274,31 +1228,14 @@ test('the catalog pattern reads every line of the catalog that is not blank or a
   }), [], 'a line that the pattern matches without its group holds no code');
 });
 
-test('R8: an exclusion is always a finding, with its reason and item', TIMEOUT, (t) => {
-  const change: Change = {
-    files: { 'python/tests/test_codec.py': null },
-    edit: config => {
-      const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec');
-      unit.bindings = (unit.bindings ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
-      config.exclusions.push({ unit: 'codec', implementation: 'python', reason: 'the Python harness reports no cases yet', item: 'T76-1' });
-      return config;
-    },
-  };
-  for (const execute of [false, true]) {
-    const { findings } = check(t, change, { execute });
-    assert.deepEqual(keys(findings), ['R8 codec python']);
-    assert.match(findingAt(findings, 0).message, /excluded: the Python harness reports no cases yet \(T76-1\)/);
-  }
-});
-
-test('R9: a language list of another file that differs from its profile fails', TIMEOUT, (t) => {
+test('R9: a language list of another file that differs from the implementations fails', TIMEOUT, (t) => {
   const { findings } = check(t, { files: { 'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php'];\n" } }, { execute: false });
   assert.deepEqual(keys(findings), ['R9 - -']);
   assert.match(findingAt(findings, 0).message, /missing python/);
   assert.equal(findingAt(findings, 0).place, 'tools/languages.mjs:1');
 });
 
-test('R10: a document that counts or lists the implementations unlike every profile fails', TIMEOUT, (t) => {
+test('R10: a document that counts or lists the implementations unlike the implementations fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {
       'docs/index.md': '# Codec\n\nFour languages share the codec.\nGo, PHP, Rust, and TS share one contract.\n',
@@ -1310,11 +1247,11 @@ test('R10: a document that counts or lists the implementations unlike every prof
   assert.match(findingAt(findings, 2).message, /go, php, rust, ts/);
 });
 
-test('R10: a count or a list is judged with the implementations of its sentence, read from the prose of a Markdown passage', TIMEOUT, (t) => {
+test('R10: a count or a list is judged against every implementation, read from the prose of a Markdown passage', TIMEOUT, (t) => {
   // Each paragraph, and the findings that it gives: `count` or `list`, at its first line or at the line after @.
   const paragraphs: [string, string[]][] = [
     ['The codec has one language.', ['count']],
-    ['Both implementations, Go and Rust, compile ahead of time.', []],
+    ['Both implementations, Go and Rust, compile ahead of time.', ['count']],
     ['Both implementations, Go and PHP, compile ahead of time.', ['count']],
     ['The four-language check runs the vectors.', ['count']],
     ['Three languages share the planner: Go, Rust and TS.', ['count', 'list']],
@@ -1357,8 +1294,8 @@ test('R10: a count or a list is judged with the implementations of its sentence,
   ]);
   const message = (place: string) => findings.filter(finding => finding.place === place).map(finding => finding.message);
   assert.deepEqual(message(`docs/index.md:${3 + 2 * 4}`), [
-    '"Three languages" counts 3, and no profile of 3 implementations holds go, rust, ts, the implementations of its sentence (all 5, compiled 2)',
-    'the list go, rust, ts is in a sentence that names go, rust, ts, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+    '"Three languages" counts 3, and there are 5 implementations (the implementations: go, rust, ts, php, python)',
+    'the list go, rust, ts is in a sentence that names go, rust, ts, which is not every implementation (the implementations: go, rust, ts, php, python)',
   ]);
 });
 
@@ -1408,8 +1345,8 @@ test('R10: a bullet list of one implementation per item is one list, and a decla
     edit: prose,
   }, { execute: false });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`), [
-    'R10 docs/index.md:3: the Markdown list go, php, rust, ts names one implementation per item, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
-    'R10 docs/index.md:22: the list ts, go, php, rust is in a sentence that names ts, go, php, rust, which is no profile (all: go, rust, ts, php, python; compiled: go, rust)',
+    'R10 docs/index.md:3: the Markdown list go, php, rust, ts names one implementation per item, which is not every implementation (the implementations: go, rust, ts, php, python)',
+    'R10 docs/index.md:22: the list ts, go, php, rust is in a sentence that names ts, go, php, rust, which is not every implementation (the implementations: go, rust, ts, php, python)',
   ]);
   const messages = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(messages((config) => { itemAt(prose(config).implementations, 0).prose = ['typescript']; return config; }), [
@@ -1426,7 +1363,7 @@ test('R10: a bullet list of one implementation per item is one list, and a decla
   ]);
 });
 
-test('R11: a public symbol that no API unit and no native-only entry declares, and a stale native-only entry, fail (K75)', TIMEOUT, (t) => {
+test('R11: a public symbol that no API unit declares fails (K75)', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: {
       'ts/index.d.ts': TS_API('export declare const encode: () => number;', 'export declare function orderedJsonOutput(): string;'),
@@ -1434,8 +1371,16 @@ test('R11: a public symbol that no API unit and no native-only entry declares, a
     },
   });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`), [
-    'R11 rust: nativeOnly names codec::hex_upper, which is no public symbol of rust; remove the entry',
-    'R11 ts: codec-ts!orderedJsonOutput:function(1) is public, and no API unit and no nativeOnly entry declares it',
+    'R11 ts: codec-ts!orderedJsonOutput:function(1) is public, and no API unit declares it',
+  ]);
+});
+
+test('K276: a declaration with profiles, nativeOnly or exclusions fails the schema, since every unit holds in every implementation', TIMEOUT, (t) => {
+  const { findings } = check(t, { edit: (config) => { config.profiles = [{ name: 'all', implementations: ['go'] }]; config.nativeOnly = []; config.exclusions = []; return config; } }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
+    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"profiles"}',
+    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"nativeOnly"}',
+    'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"exclusions"}',
   ]);
 });
 
@@ -1451,11 +1396,9 @@ test('a declaration that names what does not exist or holds a stale entry fails,
   const { findings, ledger } = check(t, {
     files: { 'tests/vectors/width.json': JSON.stringify(['narrow', 'narrow']) },
     edit: (config) => {
-      itemAt(config.profiles, 1).implementations.push('swift');
-      config.nativeOnly.push({ implementation: 'swift', symbol: 'Codec.encode', reason: 'no implementation, so the entry is stale', spec: ['docs/spec/codec.md#codec'] });
+      itemAt(config.units, 0).bindings?.push({ implementation: 'swift', test: 'php/tests/codec.php' });
       binding(config, 'codec', 'php').test = 'php/tests/missing.php';
       delete binding(config, 'codec', 'go').symbol;
-      config.exclusions.push({ unit: 'codec', implementation: 'ts', reason: 'bound and excluded', item: 'T1' });
       itemAt(config.languageLists, 0).pattern = 'LANGUAGES = [^\\]]*';
       return config;
     },
@@ -1464,11 +1407,9 @@ test('a declaration that names what does not exist or holds a stale entry fails,
   assert.ok(findings.every(finding => finding.rule === 'declaration'), messages.join('\n'));
   assert.deepEqual(ledger.runs, []);
   for (const expected of [
-    /profile compiled names swift, which is no implementation/,
-    /nativeOnly names swift, which is no implementation/,
+    /unit codec names swift, which is no implementation/,
     /the test php\/tests\/missing\.php of php does not exist/,
     /the binding of go needs symbol/,
-    /exclusions: codec declares ts; remove the exclusion or the declaration/,
     /languageLists tools\/languages\.mjs: the pattern LANGUAGES = \[\^\\\]\]\* has no group/,
     /tests\/vectors\/width\.json repeats the case narrow/,
   ]) assert.ok(messages.some(message => expected.test(message)), `${expected} in\n${messages.join('\n')}`);
@@ -1531,7 +1472,7 @@ test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a
   const { findings, ledger } = check(t, { files: { 'php/tests/codec.php': `${teamcity}\n` } });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
-  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
 });
 
 test('R3 reads each case of a cargo binding whose harness libtest-mimic pads the test names (K136)', TIMEOUT, (t) => {
@@ -1547,7 +1488,7 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
-  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
   const run = known(ledger.runs.find(entry => entry.unit === 'codec' && entry.implementation === 'php'), 'ledger.runs.find(entry => entry.unit === … && entry.implementation === …)');
   assert.deepEqual([run.command, ...run.args], ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', '--filter', '/^CodecTest::testCodec(?: with data set |$)/', 'php/tests/codec.php']);
   // A namespaced class is escaped for the regular expression; an integer key of a data set is a case that no suite declares.
@@ -1574,12 +1515,12 @@ test('a case that the admit list of its suite does not name is not run for the i
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: line => lines.push(line) });
   assert.deepEqual(findings, []);
   assert.ok(lines.includes('unit codec does not run ascii for python: kinds lists go, rust, ts, php'), lines.join('\n'));
-  assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'python').map(entry => entry.case), ['empty']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'python').map(entry => entry.case), ['empty']);
   const reported = check(t, { files: { 'tests/vectors/codec.json': vectors, 'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n' }, edit });
   assert.deepEqual(keys(reported.findings), ['R3 codec python']);
   assert.match(findingAt(reported.findings, 0).message, /not in the suite: ascii/);
   const declared = (kinds: unknown) => check(t, { files: { 'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'ascii', kinds }] }) }, edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(declared(['go', 'kotlin']), ['declaration: unit codec: case ascii admits kotlin, which is not an implementation of the profile all']);
+  assert.deepEqual(declared(['go', 'kotlin']), ['declaration: unit codec: case ascii admits kotlin, which is no implementation']);
   assert.deepEqual(declared('go'), ['declaration: unit codec: case ascii has kinds that is no array of implementation names']);
 });
 
@@ -1604,7 +1545,7 @@ test('a php binding of a Composer monorepo runs the PHPUnit of the root project,
   assert.deepEqual(run.args, ['vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
   assert.deepEqual(check(t, { files: monorepo }).findings, []);
   const { findings } = check(t, { files: { 'php/vendor/bin/phpunit': null } });
-  assert.deepEqual(keys(findings), ['R3 codec php']);
+  assert.deepEqual(keys(findings), ['R3 codec php', 'R3 width php', 'R3 size php']);
   assert.match(findingAt(findings, 0).message, /php\/vendor\/bin\/phpunit does not exist; run composer install in php, or in the project that requires it/);
 });
 test('admit: an implementation that admits no case, a key on no case, an empty list and a repeated name are declaration findings (K47)', TIMEOUT, (t) => {
@@ -1615,18 +1556,7 @@ test('admit: an implementation that admits no case, a key on no case, an empty l
   const none = findings([{ name: 'empty', kinds: ['go', 'rust', 'ts', 'php'] }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }]);
   assert.equal(none.length, 1, none.join('\n'));
   // The line above asserts one finding; without it, assert.match fails on undefined as before.
-  assert.match(known(none[0], 'none[0]'), /^declaration unit codec: no case of .* admits python, so the suite runs nothing.*R8/);
-  // An excluded implementation is reported by R8 only.
-  const excluded = findings([{ name: 'empty', kinds: ['go', 'rust', 'ts', 'php'] }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }], {
-    files: { 'python/tests/test_codec.py': null },
-    edit: (config) => {
-      edit(config);
-      itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').bindings = (itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').bindings ?? []).filter((entry: { implementation: string }) => entry.implementation !== 'python');
-      config.exclusions.push({ unit: 'codec', implementation: 'python', reason: 'the Python harness reports no cases yet', item: 'T76-1' });
-      return config;
-    },
-  });
-  assert.deepEqual(excluded.map(line => line.split(' ')[0]), ['R8']);
+  assert.match(known(none[0], 'none[0]'), /^declaration unit codec: no case of .* admits python, so the suite runs nothing for it; add python to kinds/);
   // A key that no case has, an empty list and a repeated name.
   assert.match(findings([{ name: 'empty' }, { name: 'ascii' }]).join('\n'), /^declaration unit codec: .*no case of .* has kinds/m);
   assert.match(findings([{ name: 'empty', kinds: [] }, { name: 'ascii', kinds: all }]).join('\n'), /declaration unit codec: .*case empty has kinds that is empty/);
@@ -1641,7 +1571,7 @@ test('a case path step .~ selects the keys of an object as the case names (K42)'
   const keyed = { files: { 'tests/vectors/width.json': JSON.stringify({ narrow: { width: 1 }, wide: { width: 2 } }) }, edit: (config: Declaration) => { widthUnit(config).cases = '$.~'; return config; } };
   const { findings, ledger } = check(t, keyed);
   assert.deepEqual(findings, []);
-  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case}`), ['go narrow', 'go wide', 'rust narrow', 'rust wide']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case}`), ['go narrow', 'go wide', 'rust narrow', 'rust wide', 'ts narrow', 'ts wide', 'php narrow', 'php wide', 'python narrow', 'python wide']);
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(messages({ edit: keyed.edit }), ['declaration: unit width: tests/vectors/width.json: $ is no object']);
   assert.deepEqual(messages({ files: { 'tests/vectors/width.json': '{}' }, edit: keyed.edit }), ['declaration: unit width: $.~ selects no case in tests/vectors/width.json']);
@@ -1661,19 +1591,17 @@ const CASE_DIRECTORIES = {
 const caseDirectories = (config: Declaration) => {
   Object.assign(widthUnit(config), { file: 'tests/cases', cases: '*/*' });
   config.suites.push('tests/cases/**');
-  // cargo names no test with a /, so the rust half of the profile is excluded here.
-  widthUnit(config).bindings = (widthUnit(config).bindings ?? []).filter((entry: { implementation: string }) => entry.implementation === 'go');
-  config.exclusions.push({ unit: 'width', implementation: 'rust', reason: 'cargo names no test with a /', item: 'K42' });
   return config;
 };
 
 test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, { files: CASE_DIRECTORIES, edit: caseDirectories });
-  assert.deepEqual(keys(findings), ['R8 width rust']);
-  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), ['go echo/bool pass', 'go echo/html-escape-five-chars pass', 'go if/true pass']);
+  // The other implementations hold the unit too, and their native test names are no nested case of the suite.
+  assert.deepEqual(keys(findings), ['R3 width rust', 'R3 width ts', 'R3 width php', 'R3 width python']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width' && entry.implementation === 'go').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), ['go echo/bool pass', 'go echo/html-escape-five-chars pass', 'go if/true pass']);
   // A subtest below a case is no case of the suite.
   const nested = check(t, { files: { ...CASE_DIRECTORIES, 'go/width_test.go': `${CASE_DIRECTORIES['go/width_test.go']}PASS TestWidth/if/true/sub\n` }, edit: caseDirectories });
-  assert.deepEqual(nested.findings.map(finding => `${finding.rule} ${finding.unit}: ${finding.message}`), ['R3 width: not in the suite: if/true/sub', 'R8 width: excluded: cargo names no test with a / (K42)']);
+  assert.deepEqual(nested.findings.map(finding => `${finding.rule} ${finding.unit}: ${finding.message}`), ['R3 width: not in the suite: if/true/sub', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide']);
   const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(messages({ files: { ...CASE_DIRECTORIES, 'tests/cases/README.md': 'x\n', 'tests/cases/echo/notes.md': 'x\n' }, edit: caseDirectories }), [
     'declaration: unit width: tests/cases/README.md is a file where the case glob */* matches a directory',

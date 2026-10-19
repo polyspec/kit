@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/parity.json",
-  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
+  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set) and the units that every implementation must hold. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
   "type": "object",
-  "required": ["schema", "implementations", "profiles", "requirements", "units"],
+  "required": ["schema", "implementations", "requirements", "units"],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -16,7 +16,7 @@
         "required": ["name", "runner", "roots"],
         "additionalProperties": false,
         "properties": {
-          "name": { "description": "The name of the implementation, used by the profiles, bindings and documents.", "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "name": { "description": "The name of the implementation, used by the bindings and documents.", "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
           "prose": { "description": "The names that the documents write for the implementation besides its name, such as \"PHP extension\" for php-extension; R10 reads each, in any case, as the implementation. A prose name is a name of no other implementation and is declared once.", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^\\S(?:.*\\S)?$" } },
           "runner": { "description": "How a binding runs and reads its outcomes, through the output parsers of scripts/kit/test-output.mts: go (go test -json), cargo (cargo test), node (node --test with the reporter scripts/kit/parity-node-reporter.mts), vitest (node_modules/vitest/vitest.mjs run with the JSON reporter of vitest), php (PHPUnit of the Composer package of the test, TeamCity messages) and python (the python3 of mise.toml, var/tools/mise/shims/python3, -m unittest -v). A case is a subtest, a test named by the case, or a test method test_<case>.", "type": "string", "enum": ["go", "cargo", "node", "vitest", "php", "python"] },
           "roots": { "description": "The directories that hold the implementation and its tests; the whole repository is no root.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
@@ -56,21 +56,6 @@
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           }
-        }
-      }
-    },
-    "profiles": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["name", "implementations"],
-        "additionalProperties": false,
-        "properties": {
-          "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "implementations": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-          "reason": { "description": "Why the profile omits implementations; a profile narrower than every implementation needs it, and every run prints it.", "type": "string" },
-          "spec": { "description": "The spec anchors that the reason of a profile narrower than every implementation cites; only such a profile has them (S6): a Markdown file under contracts/ or docs/spec/ with an explicit anchor <a id> or a heading anchor, or a JSON file there with a JSON Pointer (RFC 6901), as <file>#<anchor>. Each one resolves.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?:contracts|docs/spec)/(?!(?:.*/)?\\.\\.(?:/|#))[^#]+#.+$" } }
         }
       }
     },
@@ -114,17 +99,16 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "kind", "profile", "requirements"],
+        "required": ["id", "kind", "requirements"],
         "additionalProperties": false,
         "properties": {
           "id": { "description": "The name of the unit; the findings name a case of a suite as <id>/<case>.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
           "kind": { "description": "suite: the shared cases of a vector file, run by a binding of each implementation; feature: one native test of each implementation, named by its id; api: an exported symbol of each implementation.", "type": "string", "enum": ["suite", "feature", "api"] },
-          "profile": { "type": "string" },
           "requirements": { "description": "The ids of the spec requirements that the unit tests (K273): each is defined in docs/spec as a bullet **<id>** or a heading <id>; every requirement is cited by a unit (R13), and a unit cites only defined ones (R14).", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
           "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), what lies inside a case not examined. A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
           "admit": {
-            "description": "suite: the key of each case object (the object that holds the name at cases) that lists the implementations which admit the case, such as \"kinds\". A case without the key is admitted by every implementation of the profile; an implementation that the list omits does not run the case, and every run prints it. A listed name is an implementation of the profile, a list is not empty and names each implementation once, the key is on some case, and every implementation of the profile admits some case or is excluded under R8.",
+            "description": "suite: the key of each case object (the object that holds the name at cases) that lists the implementations which admit the case, such as \"kinds\". A case without the key is admitted by every implementation; an implementation that the list omits does not run the case, and every run prints it. A listed name is an implementation, a list is not empty and names each implementation once, the key is on some case, and every implementation admits some case.",
             "type": "string",
             "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
           },
@@ -160,43 +144,12 @@
         }
       }
     },
-    "nativeOnly": {
-      "description": "Exported symbols that belong to one implementation only, each with its reason.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["implementation", "symbol", "reason", "spec"],
-        "additionalProperties": false,
-        "properties": {
-          "implementation": { "type": "string" },
-          "symbol": { "type": "string" },
-          "reason": { "type": "string" },
-          "spec": { "description": "The spec anchors that the reason cites (S6): a Markdown file under contracts/ or docs/spec/ with an explicit anchor <a id> or a heading anchor, or a JSON file there with a JSON Pointer (RFC 6901), as <file>#<anchor>. Each one resolves.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?:contracts|docs/spec)/(?!(?:.*/)?\\.\\.(?:/|#))[^#]+#.+$" } }
-        }
-      }
-    },
-    "exclusions": {
-      "description": "A unit that an implementation of its profile does not hold yet; every exclusion is a finding until it is removed.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["unit", "implementation", "reason", "item"],
-        "additionalProperties": false,
-        "properties": {
-          "unit": { "type": "string" },
-          "implementation": { "type": "string" },
-          "reason": { "type": "string" },
-          "item": { "description": "The checklist item that removes the exclusion.", "type": "string" }
-        }
-      }
-    },
     "errors": {
-      "description": "The error-code catalog that every implementation of the profile generates.",
+      "description": "The error-code catalog that every implementation generates.",
       "type": "object",
-      "required": ["profile", "catalog"],
+      "required": ["catalog"],
       "additionalProperties": false,
       "properties": {
-        "profile": { "type": "string" },
         "catalog": {
           "description": "The catalog file and the regular expression whose first group is a code.",
           "type": "object",
@@ -207,21 +160,20 @@
       }
     },
     "languageLists": {
-      "description": "Lists of implementation names in other files, each equal to its profile.",
+      "description": "Lists of implementation names in other files, each equal to the set of the implementations.",
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["file", "pattern", "profile"],
+        "required": ["file", "pattern"],
         "additionalProperties": false,
         "properties": {
           "file": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-          "pattern": { "description": "A regular expression whose first group holds the list; its words are the names.", "type": "string" },
-          "profile": { "type": "string" }
+          "pattern": { "description": "A regular expression whose first group holds the list; its words are the names.", "type": "string" }
         }
       }
     },
     "documents": {
-      "description": "The documents whose counts and lists of implementations must match a profile.",
+      "description": "The documents whose counts and lists of implementations must match the implementations.",
       "type": "object",
       "required": ["globs", "nouns"],
       "additionalProperties": false,

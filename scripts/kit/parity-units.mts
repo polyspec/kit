@@ -1,25 +1,23 @@
 // The rules of the language-parity check that compare the units with the tree, without running anything: R1 (an API unit
-// without the exported symbol of an implementation), R2 (a suite without a binding of an implementation), R4 (a suite file
-// that no unit declares), R5 (a test file that no binding runs), R6 (a binding test outside its implementation), R8 (an
-// exclusion) and R11 (an exported symbol that no unit declares).
+// without the exported symbol of an implementation), R2 (a suite or feature without a binding of an implementation), R4 (a
+// suite file that no unit declares), R5 (a test file that no binding runs), R6 (a binding test outside its implementation)
+// and R11 (an exported symbol that no API unit declares).
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mts';
 import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
 import { present } from './present.mts';
 
-/** The pairs of each unit of `kind` with each implementation of its profile that no exclusion removes, in declaration order. */
+/** The pairs of each unit of `kind` with each implementation, in declaration order. */
 export function pairs(model: ParityModel, kind: ParityUnit['kind']) {
-  return model.config.units.filter(unit => unit.kind === kind)
-    // members keeps only the names of declared implementations, so get finds each one.
-    .flatMap(unit => model.members(unit).filter(name => !model.exclusion(unit, name)).map(name => ({ unit, implementation: present(model.implementations.get(name), 'model.implementations.get(name)') })));
+  return model.config.units.filter(unit => unit.kind === kind).flatMap(unit => model.config.implementations.map(implementation => ({ unit, implementation })));
 }
 
 /** The public symbols of each implementation, by its name, as its extractor gave them (parity-symbols.mts). */
 export type Snapshots = ReadonlyMap<string, ReadonlySet<string>>;
 
 /**
- * R1: each API unit has a public symbol in each implementation of its profile. An implementation whose extractor failed has no
+ * R1: each API unit has a public symbol in each implementation. An implementation whose extractor failed has no
  * snapshot, and that failure is already its finding.
  */
 export function missingImplementations(model: ParityModel, snapshots: Snapshots) {
@@ -34,7 +32,7 @@ export function missingImplementations(model: ParityModel, snapshots: Snapshots)
   });
 }
 
-/** R2: each suite and feature unit has a binding of each implementation of its profile. */
+/** R2: each suite and feature unit has a binding of each implementation. */
 export function missingBindings(model: ParityModel) {
   return [...pairs(model, 'suite'), ...pairs(model, 'feature')]
     // readDeclaration reports a suite or feature unit without bindings, and the rules do not run on a declaration with findings.
@@ -88,7 +86,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const inComparator = (file: string) => comparators.some(root => within(root, file));
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
   const bindings = bound.flatMap(({ unit, entry }) => {
-    // readDeclaration reports a binding of an implementation outside the profile, and every profile member is declared.
+    // readDeclaration reports a binding of an implementation that is no declared implementation.
     const implementation = present(model.implementations.get(entry.implementation), 'model.implementations.get(entry.implementation)');
     const shared = implementation.shares === undefined ? [] : present(model.implementations.get(implementation.shares), 'model.implementations.get(implementation.shares)').roots;
     const roots = [...implementation.roots, ...shared];
@@ -107,25 +105,12 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   return [...bindings, ...patterns];
 }
 
-/** R8: each exclusion, which never counts as holding the unit. */
-export function exclusions(model: ParityModel) {
-  return (model.config.exclusions ?? []).map(entry => finding('R8', `excluded: ${entry.reason} (${entry.item})`, { unit: entry.unit, implementation: entry.implementation }));
-}
-
-/**
- * R11: each public symbol of an implementation is the symbol of an API unit or a native-only entry of it, and each native-only
- * entry names a public symbol.
- */
+/** R11: each public symbol of an implementation is the symbol of an API unit of it. */
 export function undeclaredPublic(model: ParityModel, snapshots: Snapshots) {
   return model.config.implementations.flatMap((implementation) => {
     const snapshot = snapshots.get(implementation.name);
     if (snapshot === undefined) return [];
-    const where = { implementation: implementation.name, place: implementation.symbols?.entry };
-    const native = (model.config.nativeOnly ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.symbol);
-    const declared = new Set([...model.config.units.flatMap(unit => unit.symbols ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.symbol), ...native]);
-    return [
-      ...[...snapshot].filter(id => !declared.has(id)).map(id => finding('R11', `${id} is public, and no API unit and no nativeOnly entry declares it`, where)),
-      ...native.filter(id => !snapshot.has(id)).map(id => finding('R11', `nativeOnly names ${id}, which is no public symbol of ${implementation.name}; remove the entry`, where)),
-    ];
+    const declared = new Set(model.config.units.flatMap(unit => unit.symbols ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.symbol));
+    return [...snapshot].filter(id => !declared.has(id)).map(id => finding('R11', `${id} is public, and no API unit declares it`, { implementation: implementation.name, place: implementation.symbols?.entry }));
   });
 }

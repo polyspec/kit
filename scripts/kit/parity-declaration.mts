@@ -1,10 +1,9 @@
 // The declaration of the language-parity check (config/parity.json): reading it against its schema, resolving its references
 // against the tree, and the finding that every rule of the check reports. A declaration that names a missing file, an unknown
-// implementation or profile, or a stale entry is a finding of the rule `declaration`, and the other rules do not run on it.
+// implementation, or a stale entry is a finding of the rule `declaration`, and the other rules do not run on it.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { anchors, headingAnchors } from './markdown.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
 import { isJsonList, isJsonObject, isStringList } from './bootstrap/files.mts';
 import { present } from './present.mts';
@@ -36,14 +35,6 @@ export interface ParityImplementation {
   shares?: string;
 }
 
-/** A profile of the declaration. */
-export interface ParityProfile {
-  name: string;
-  implementations: string[];
-  reason?: string;
-  spec?: string[];
-}
-
 /** The native test of an implementation in a suite unit. */
 export interface ParityBinding {
   implementation: string;
@@ -63,7 +54,6 @@ export interface ParitySymbol {
 export interface ParityUnit {
   id: string;
   kind: 'suite' | 'feature' | 'api';
-  profile: string;
   /** The ids of the spec requirements that the unit tests (K273). */
   requirements: string[];
   file?: string;
@@ -73,20 +63,11 @@ export interface ParityUnit {
   symbols?: ParitySymbol[];
 }
 
-/** A unit that an implementation of its profile does not hold yet. */
-export interface ParityExclusion {
-  unit: string;
-  implementation: string;
-  reason: string;
-  item: string;
-}
-
 /** config/parity.json as parity.schema.json describes it. */
 export interface ParityConfig {
   schema: 1;
   comment?: string;
   implementations: ParityImplementation[];
-  profiles: ParityProfile[];
   suites?: string[];
   comparators?: string[];
   tools?: { root: string; reason: string }[];
@@ -94,34 +75,21 @@ export interface ParityConfig {
   /** The pattern of the requirement ids that docs/spec defines (K273). */
   requirements: { pattern: string };
   units: ParityUnit[];
-  nativeOnly?: { implementation: string; symbol: string; reason: string; spec: string[] }[];
-  exclusions?: ParityExclusion[];
-  errors?: { profile: string; catalog: { file: string; pattern: string } };
-  languageLists?: { file: string; pattern: string; profile: string }[];
+  errors?: { catalog: { file: string; pattern: string } };
+  languageLists?: { file: string; pattern: string }[];
   documents?: { globs: string[]; nouns: string[] };
-}
-
-/** A profile narrower than every implementation, with the implementations it omits and its reason. */
-export interface NarrowProfile {
-  name: string;
-  omitted: string[];
-  reason: string;
 }
 
 /** The declaration resolved against the tree; readDeclaration describes it. */
 export interface ParityModel {
   config: ParityConfig;
   implementations: Map<string, ParityImplementation>;
-  profiles: Map<string, string[]>;
-  narrow: NarrowProfile[];
   cases: Map<string, string[]>;
   admit: (unit: ParityUnit) => string | undefined;
   admitted: (unit: ParityUnit, implementation: string) => string[];
   notAdmitted: (unit: ParityUnit) => { name: string; list: string[]; omitted: string[] }[];
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
-  members: (unit: ParityUnit) => string[];
-  exclusion: (unit: ParityUnit, implementation: string) => ParityExclusion | undefined;
 }
 
 /** The environment that the references of a runner value read. */
@@ -137,7 +105,6 @@ export const RULES = {
   R5: 'undeclared-test',
   R6: 'misplaced-test',
   R7: 'error-catalog',
-  R8: 'exclusion',
   R9: 'language-set-drift',
   R10: 'docs-count',
   R11: 'undeclared-public',
@@ -448,39 +415,6 @@ function readTrackedJson(root: string, files: ReadonlySet<string>, file: string,
   }
 }
 
-/**
- * Why the spec anchor `anchor` (<file>#<fragment>, the file under contracts/ or docs/spec/) does not resolve among the
- * checked `files`, or undefined when it does: a Markdown file defines the fragment as an explicit anchor or a heading anchor,
- * and the fragment of a JSON file is a JSON Pointer (RFC 6901) to a value of it.
- */
-function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: string, parsed: Map<string, { explicit: Set<string>; headings: Set<string> }>): string | undefined {
-  const hash = anchor.indexOf('#');
-  const file = anchor.slice(0, hash);
-  const fragment = anchor.slice(hash + 1);
-  if (!files.has(file)) return `${file} does not exist`;
-  const text = readFileSync(path.join(root, file), 'utf8');
-  if (file.endsWith('.md')) {
-    // A spec that many anchors cite is parsed once per declaration: a parse per anchor took minutes on a large spec (K274).
-    let defined = parsed.get(file);
-    if (defined === undefined) parsed.set(file, (defined = { explicit: new Set(anchors(text)), headings: new Set(headingAnchors(text)) }));
-    return defined.explicit.has(fragment) || defined.headings.has(fragment.toLowerCase()) ? undefined : `${file} defines no anchor ${fragment}`;
-  }
-  if (!file.endsWith('.json')) return `${file} is no Markdown or JSON file, so it has no anchor`;
-  if (!fragment.startsWith('/')) return `${fragment} is no JSON Pointer; it starts with /`;
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return `${file} is no JSON: ${error.message}`;
-  }
-  for (const token of fragment.slice(1).split('/').map(part => part.replaceAll('~1', '/').replaceAll('~0', '~'))) {
-    if (!(isJsonObject(value) || isJsonList(value)) || !Object.hasOwn(value, token)) return `${file} has no value at ${fragment}`;
-    value = isJsonList(value) ? value[Number(token)] : value[token];
-  }
-  return undefined;
-}
-
 // The runtimes of an implementation folder (S5): packages/<runtime>/ holds a port of the main spec, and
 // packages/<component>/<runtime>/ a port of a component; config/layout.kit.yml names the same runtimes.
 const RUNTIMES = new Set(['go', 'php', 'php-ext', 'python', 'rust', 'ts', 'js']);
@@ -499,9 +433,8 @@ export function implementationFolders(files: Iterable<string>): string[] {
 
 /**
  * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
- * implementations and profiles by name, the case names of each suite unit, and `members(unit)`,
- * the implementations of the unit's profile, and `exclusion(unit, implementation)`. The environment references of the runner
- * values are checked as forms only; the runs resolve them (resolveReferences).
+ * implementations by name and the case names of each suite unit. The environment references of the runner values are checked
+ * as forms only; the runs resolve them (resolveReferences).
  */
 export function readDeclaration(root: string, files: ReadonlySet<string>): { errors: Finding[]; model?: ParityModel } {
   let read: ReturnType<typeof readConfigFindings<ParityConfig>>;
@@ -536,42 +469,6 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       if (other) fail(`implementation ${entry.name}: the prose name ${name} is also a name of ${other.name}`);
     }
   }
-  const profiles = new Map<string, string[]>();
-  for (const profile of config.profiles) {
-    if (profiles.has(profile.name)) fail(`the profile ${profile.name} is declared twice`);
-    profiles.set(profile.name, profile.implementations);
-    for (const name of profile.implementations) if (!implementations.has(name)) fail(`profile ${profile.name} names ${name}, which is no implementation`);
-    if (new Set(profile.implementations).size !== profile.implementations.length) fail(`profile ${profile.name} names an implementation twice`);
-  }
-  // A profile narrower than every implementation removes the omitted ones from its units, so it states why, every run prints
-  // it, and it groups at least two units: a profile of one unit would be an exclusion that never fails.
-  const narrow = config.profiles.map(profile => ({ name: profile.name, omitted: config.implementations.map(entry => entry.name).filter(name => !profile.implementations.includes(name)), reason: profile.reason?.trim() ?? '' }))
-    .filter(profile => profile.omitted.length);
-  // A narrow profile is a permanent difference, so its reason cites the spec that makes it one (S6); a profile of every
-  // implementation is no difference and cites none.
-  const parsed = new Map<string, { explicit: Set<string>; headings: Set<string> }>();
-  const unresolved = (where: string, spec: string[]) => {
-    for (const anchor of spec) {
-      const problem = unresolvedAnchor(root, files, anchor, parsed);
-      if (problem) fail(`${where}: the spec anchor ${anchor} does not resolve: ${problem}`);
-    }
-  };
-  for (const profile of config.profiles) {
-    if (narrow.some(entry => entry.name === profile.name)) {
-      if (!profile.spec) fail(`profile ${profile.name} omits implementations and cites no spec anchor; write the anchors of its reason in spec`);
-    } else if (profile.spec) fail(`profile ${profile.name} omits no implementation, so it cites no spec anchor; remove spec`);
-    unresolved(`profile ${profile.name}`, profile.spec ?? []);
-  }
-  for (const entry of config.nativeOnly ?? []) unresolved(`nativeOnly ${entry.symbol}`, entry.spec);
-  for (const profile of narrow) {
-    if (!profile.reason) fail(`profile ${profile.name} omits ${profile.omitted.join(', ')} and gives no reason; write the reason in reason`);
-    const users = config.units.filter(unit => unit.profile === profile.name);
-    // users[0] below exists: it is read only when users holds one unit.
-    if (users.length === 1) fail(`profile ${profile.name} omits implementations and only the unit ${present(users[0], 'users[0]').id} uses it; a profile groups the units that share its reason, so put the unit in a wider profile or exclude what it lacks`);
-  }
-  for (const entry of config.implementations) {
-    if (!config.profiles.some(profile => profile.implementations.includes(entry.name))) fail(`the implementation ${entry.name} is in no profile, so no unit applies to it`);
-  }
   // A root of the whole repository would hold every test of every runner, so no test could lie outside it.
   for (const entry of config.implementations) {
     for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
@@ -588,7 +485,6 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       for (const entry of (unit.bindings ?? []).filter(entry => within(tool.root, entry.test))) fail(`tools: the root ${tool.root} holds ${entry.test}, the test of the ${unit.kind} ${unit.id} in ${entry.implementation}`);
     }
   }
-  const knownProfile = (name: string, where: string): boolean => profiles.has(name) || (fail(`${where} names the profile ${name}, which is not declared`), false);
   for (const entry of config.implementations) {
     if (entry.symbols !== undefined && !existsSync(path.join(root, entry.symbols.entry))) fail(`implementation ${entry.name}: the symbols entry ${entry.symbols.entry} does not exist`);
     if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
@@ -622,6 +518,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     const error = patternError(source);
     if (error) fail(`${where}: ${error}`);
   }
+  const names = [...implementations.keys()];
   const units = new Map<string, ParityUnit>();
   const cases = new Map<string, string[]>();
   const admissions = new Map<string, Map<string, string[]>>();
@@ -629,21 +526,19 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     if (units.has(unit.id)) fail(`the unit ${unit.id} is declared twice`);
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
-    // A known profile is in profiles.
-    const members = knownProfile(unit.profile, where) ? present(profiles.get(unit.profile), 'profiles.get(unit.profile)') : [];
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
     const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'admit', 'symbols'], api: ['file', 'cases', 'bindings', 'admit'] }[unit.kind];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
     const seen = new Set();
     for (const entry of owned) {
-      if (!members.includes(entry.implementation)) fail(`${where} names ${entry.implementation}, which is not an implementation of the profile ${unit.profile}`);
+      if (!implementations.has(entry.implementation)) fail(`${where} names ${entry.implementation}, which is no implementation`);
       if (seen.has(entry.implementation)) errors.push(finding('R12', `${where} names ${entry.implementation} twice; a unit binds each implementation once, so keep one binding and remove the other`, { unit: unit.id, implementation: entry.implementation, place: DECLARATION }));
       seen.add(entry.implementation);
     }
     if (unit.kind === 'api') {
       if (!('symbols' in unit)) fail(`${where}: a unit of kind api needs symbols`);
       // has(name) holds before get(name).
-      for (const name of members) if (implementations.has(name) && !present(implementations.get(name), 'implementations.get(name)').symbols) fail(`${where}: the implementation ${name} declares no symbols`);
+      for (const name of names) if (!present(implementations.get(name), 'implementations.get(name)').symbols) fail(`${where}: the implementation ${name} declares no symbols`);
       continue;
     }
     for (const key of unit.kind === 'suite' ? ['file', 'cases', 'bindings'] : ['bindings']) if (!(key in unit)) fail(`${where}: a unit of kind ${unit.kind} needs ${key}`);
@@ -715,63 +610,41 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
         // An empty list admits nothing, which is no list; a name twice is a copy that the list does not need.
         if (list.length === 0) fail(`${where}: case ${name} has ${unit.admit} that is empty; list the implementations that admit it, or remove the key`);
         for (const repeat of new Set(list.filter((entry, index) => list.indexOf(entry) !== index))) fail(`${where}: case ${name} lists ${repeat} twice in ${unit.admit}`);
-        for (const implementation of list) if (!members.includes(implementation)) fail(`${where}: case ${name} admits ${implementation}, which is not an implementation of the profile ${unit.profile}`);
+        for (const implementation of list) if (!implementations.has(implementation)) fail(`${where}: case ${name} admits ${implementation}, which is no implementation`);
         admitted.set(name, list);
       }
       if (!found.errors.length && carriers === 0) fail(`${where}: no case of ${unit.file} has ${unit.admit}; remove the admit key or add it to the cases that it admits`);
       admissions.set(unit.id, admitted);
     }
   }
-  for (const entry of config.nativeOnly ?? []) {
-    if (!implementations.has(entry.implementation)) fail(`nativeOnly names ${entry.implementation}, which is no implementation`);
-    else if (!present(implementations.get(entry.implementation), 'implementations.get(entry.implementation)').symbols) fail(`nativeOnly names ${entry.symbol} of ${entry.implementation}, which declares no symbols`);
-  }
-  const exclusions = new Map<string, ParityExclusion>();
-  for (const entry of config.exclusions ?? []) {
-    const unit = units.get(entry.unit);
-    const key = `${entry.unit}\0${entry.implementation}`;
-    if (!unit) fail(`exclusions names the unit ${entry.unit}, which is not declared`);
-    else if (!(profiles.get(unit.profile) ?? []).includes(entry.implementation)) fail(`exclusions: ${entry.implementation} is not an implementation of the profile of ${entry.unit}`);
-    else if ((unit.bindings ?? unit.symbols ?? []).some(owned => owned.implementation === entry.implementation)) fail(`exclusions: ${entry.unit} declares ${entry.implementation}; remove the exclusion or the declaration`);
-    if (exclusions.has(key)) fail(`exclusions names ${entry.unit} of ${entry.implementation} twice`);
-    exclusions.set(key, entry);
-  }
   if (config.errors) {
-    knownProfile(config.errors.profile, 'errors');
     if (!files.has(config.errors.catalog.file)) fail(`errors: the catalog ${config.errors.catalog.file} does not exist`);
   }
   for (const list of config.languageLists ?? []) {
-    knownProfile(list.profile, `languageLists ${list.file}`);
     if (!files.has(list.file)) fail(`languageLists: ${list.file} does not exist`);
   }
   // The case names of a suite that `implementation` runs: every case, except those whose admit list omits it.
   // The second operand runs only when the admissions of the unit hold the name.
   const admitted = (unit: ParityUnit, implementation: string): string[] => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || present(present(admissions.get(unit.id), 'admissions.get(unit.id)').get(name), 'admissions.get(unit.id).get(name)').includes(implementation));
-  // An implementation of the profile of an admit suite that admits no case runs nothing: it leaves the profile, or R8 excludes
-  // it. An excluded one is already an R8 finding, so it is not repeated here.
+  // An implementation that admits no case of an admit suite runs nothing, so each one admits some case.
   for (const unit of config.units.filter(entry => entry.kind === 'suite' && entry.admit !== undefined && cases.has(entry.id))) {
-    for (const name of (profiles.get(unit.profile) ?? []).filter(member => implementations.has(member))) {
-      if (exclusions.has(`${unit.id}\0${name}`) || admitted(unit, name).length) continue;
-      fail(`unit ${unit.id}: no case of ${unit.file} admits ${name}, so the suite runs nothing for it; take ${name} out of the profile ${unit.profile}, or exclude it under R8 with its reason and item`);
+    for (const name of names) {
+      if (!admitted(unit, name).length) fail(`unit ${unit.id}: no case of ${unit.file} admits ${name}, so the suite runs nothing for it; add ${name} to ${unit.admit} of the cases it admits`);
     }
   }
   const model: ParityModel = {
     config,
     implementations,
-    profiles,
-    narrow,
     cases,
     admit: unit => unit.admit,
     admitted,
-    // The cases that an admit list keeps from some implementation of the profile, as `case`, its list and the implementations it omits.
+    // The cases that an admit list keeps from some implementation, as `case`, its list and the implementations it omits.
     notAdmitted: unit => (cases.get(unit.id) ?? []).flatMap((name) => {
       const list = admissions.get(unit.id)?.get(name);
-      return list === undefined ? [] : [{ name, list, omitted: (profiles.get(unit.profile) ?? []).filter(member => implementations.has(member) && !list.includes(member)) }];
+      return list === undefined ? [] : [{ name, list, omitted: names.filter(member => !list.includes(member)) }];
     }).filter(entry => entry.omitted.length),
     tests,
     testRunners,
-    members: unit => (profiles.get(unit.profile) ?? []).filter(name => implementations.has(name)),
-    exclusion: (unit, implementation) => exclusions.get(`${unit.id}\0${implementation}`),
   };
   return { errors, model };
 }

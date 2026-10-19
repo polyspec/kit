@@ -1,6 +1,6 @@
 // The rules of the language-parity check that read text: R9 (a list of implementation names in another file, such as the
-// language constant of a tool, that differs from its profile) and R10 (a document that counts or lists the implementations
-// unlike every profile).
+// language constant of a tool, that differs from the implementations) and R10 (a document that counts or lists the
+// implementations unlike the implementations of the declaration).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
@@ -12,17 +12,16 @@ import { present } from './present.mts';
 /** The words of a list: each run of letters, digits, _ and - that starts with a letter. */
 const words = (text: string) => [...text.matchAll(/[A-Za-z][A-Za-z0-9_-]*/g)].map(match => match[0].toLowerCase());
 
-/** R9: the names of each declared list against its profile. */
+/** R9: the names of each declared list against the implementations. */
 export function languageLists(model: ParityModel, root: string) {
+  const expected = model.config.implementations.map(entry => entry.name);
   return (model.config.languageLists ?? []).flatMap((list) => {
-    // readDeclaration reports an unknown profile of a list, and the rules do not run on a declaration with findings.
-    const expected = present(model.profiles.get(list.profile), 'model.profiles.get(list.profile)');
     const matches = captured(readFileSync(path.join(root, list.file), 'utf8'), list.pattern);
     if (!matches.length) return [finding('R9', `the pattern ${list.pattern} matches nothing; the list moved or the declaration is stale`, { place: list.file })];
     return matches.flatMap((match) => {
       const found = [...new Set(words(match.text))];
-      const differs = difference(expected, found, 'the profile');
-      return differs ? [finding('R9', `the list differs from the profile ${list.profile}: ${differs}`, { place: `${list.file}:${match.line}` })] : [];
+      const differs = difference(expected, found, 'the implementations');
+      return differs ? [finding('R9', `the list differs from the implementations: ${differs}`, { place: `${list.file}:${match.line}` })] : [];
     });
   });
 }
@@ -98,48 +97,43 @@ function sentencesOf(text: string, table: boolean) {
 
 /**
  * R10: the counts and lists of implementations in the prose of the declared documents. A count N, a number before a noun of
- * `documents`, holds when a profile of N implementations holds every implementation that its sentence names, or when its
- * sentence names exactly N implementations and the names of its passage together are a profile. A list, three names or more,
- * holds when the names of its sentence together are a profile.
+ * `documents`, holds when N is the number of the implementations. A list, three names or more, holds when the names of its
+ * sentence are every implementation.
  */
 export function documentCounts(model: ParityModel, root: string, files: Iterable<string>) {
   const documents = model.config.documents;
   if (!documents) return [];
-  const profiles = [...model.profiles].map(([name, members]) => ({ name, members }));
-  const known = profiles.map(profile => `${profile.name} ${profile.members.length}`).join(', ');
-  const listed = profiles.map(profile => `${profile.name}: ${profile.members.join(', ')}`).join('; ');
-  const sameSet = (names: string[], members: string[]) => names.length === members.length && names.every(name => members.includes(name));
+  const all = model.config.implementations.map(entry => entry.name);
+  const listed = `the implementations: ${all.join(', ')}`;
+  const sameSet = (names: string[]) => names.length === all.length && names.every(name => all.includes(name));
   const written = new Map(model.config.implementations.flatMap(entry => [entry.name, ...entry.prose ?? []].map(name => [name.toLowerCase(), entry.name] as const)));
   const found: ReturnType<typeof finding>[] = [];
   for (const file of [...files].filter(name => matchesAny(documents.globs, name)).sort()) {
     // The passages of prose of the document, as the Markdown tree reads them (markdown.mts).
     const passages = prosePassages(readFileSync(path.join(root, file), 'utf8'));
-    // A Markdown list whose every item names one implementation lists them, and three or more of them are a profile.
+    // A Markdown list whose every item names one implementation lists them, and three or more of them are every implementation.
     for (const id of new Set(passages.map(passage => passage.list).filter(list => list !== undefined))) {
       const items = passages.filter(passage => passage.list === id);
       const each = items.map(item => [...new Set(namesOf(item.text, written).map(match => match.name))]);
       if (!each.every(names => names.length === 1)) continue;
       const names = [...new Set(each.flat())];
-      if (names.length < 3 || profiles.some(profile => sameSet(names, profile.members))) continue;
-      found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is no profile (${listed})`, { place: `${file}:${present(items[0], 'items[0]').line}` }));
+      if (names.length < 3 || sameSet(names)) continue;
+      found.push(finding('R10', `the Markdown list ${names.join(', ')} names one implementation per item, which is not every implementation (${listed})`, { place: `${file}:${present(items[0], 'items[0]').line}` }));
     }
     for (const passage of passages) {
       const prose = passage.text;
       const place = (index: number) => `${file}:${passage.line + prose.slice(0, index).split('\n').length - 1}`;
       const named = (text: string) => [...new Set(namesOf(text, written).map(match => match.name))];
-      const passageProfile = profiles.some(profile => sameSet(named(prose), profile.members));
       for (const sentence of sentencesOf(prose, passage.table)) {
         const names = namesOf(sentence.text, written);
         const sentenceNames = named(sentence.text);
         for (const count of countsOf(sentence.text, documents.nouns)) {
-          const held = profiles.some(profile => profile.members.length === count.count && sentenceNames.every(name => profile.members.includes(name)));
-          if (held || (sentenceNames.length === count.count && passageProfile)) continue;
-          const holds = sentenceNames.length ? `no profile of ${count.count} implementations holds ${sentenceNames.join(', ')}, the implementations of its sentence` : `no profile has ${count.count} implementations`;
-          found.push(finding('R10', `"${count.text}" counts ${count.count}, and ${holds} (${known})`, { place: place(sentence.index + count.index) }));
+          if (count.count === all.length) continue;
+          found.push(finding('R10', `"${count.text}" counts ${count.count}, and there are ${all.length} implementations (${listed})`, { place: place(sentence.index + count.index) }));
         }
-        if (profiles.some(profile => sameSet(sentenceNames, profile.members))) continue;
+        if (sameSet(sentenceNames)) continue;
         for (const list of listsOf(sentence.text, names, documents.nouns)) {
-          found.push(finding('R10', `the list ${list.names.join(', ')} is in a sentence that names ${sentenceNames.join(', ')}, which is no profile (${listed})`, { place: place(sentence.index + list.index) }));
+          found.push(finding('R10', `the list ${list.names.join(', ')} is in a sentence that names ${sentenceNames.join(', ')}, which is not every implementation (${listed})`, { place: place(sentence.index + list.index) }));
         }
       }
     }
