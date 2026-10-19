@@ -14,8 +14,14 @@ const push = (work: string, ...refspecs: string[]) => run(work, 'git', ['push', 
 const remoteHead = (remote: string) => run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/main']).stdout.trim();
 const gate = (work: string, args: string[], env: NodeJS.ProcessEnv = {}, input?: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/push-gate.mts')), ...args], { env: { ...process.env, ...env }, input });
 const edit = (work: string, file: string, change: (text: string) => string) => writeFileSync(path.join(work, file), change(readFileSync(path.join(work, file), 'utf8')));
+// `text` with `from` replaced; a row that a fixture no longer holds fails here instead of leaving the text unchanged (K260).
+const swap = (text: string, from: string | RegExp, to: string) => {
+  const next = text.replace(from, to);
+  assert.notEqual(next, text, `the text holds no ${String(from)}`);
+  return next;
+};
 const start = (work: string, id = 'T1-1') => {
-  for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => text.replace(new RegExp(`(\\| ${id} \\|[^\\n]*)\\| \\[ \\] \\|`), '$1| [~] |'));
+  for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => swap(text, new RegExp(`(\\| ${id} \\|[^\\n]*)\\| \\[ \\] \\|`), '$1| [~] |'));
 };
 
 test('a push whose checklists hold waiting, done and bypassed items reaches the remote', (t) => {
@@ -52,8 +58,8 @@ test('a push is refused while the working tree has an item in progress and the p
 
 test('every item in progress is named, in each pushed commit and in the working tree', (t) => {
   const { work } = prepared(t);
-  edit(work, CHECKLIST, text => text.replace('| T1 | Write the parser | `src/parser.ts` | `make test` | [o] |', '| T1 | Write the parser | `src/parser.ts` | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
-  edit(work, TRANSLATION, text => text.replace('| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [o] |', '| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [~] |').replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
+  edit(work, CHECKLIST, text => swap(swap(text, '| T1 | Write the parser | `src/parser.ts` | `make test` | [o] |', '| T1 | Write the parser | `src/parser.ts` | `make test` | [~] |'), /(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
+  edit(work, TRANSLATION, text => swap(swap(text, '| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [o] |', '| T1 | parser를 작성한다 | `src/parser.ts` | `make test` | [~] |'), /(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
   const pushed = push(work);
   assert.match(pushed.stderr, /2 items are in the active state/);
   assert.match(pushed.stderr, /working tree: docs\/plans\/work\/checklist\.md T1 Write the parser/);
@@ -81,7 +87,7 @@ test('a document without an item or with an unknown state is unreadable and refu
 
 test('a translation with another state than its document refuses the push', (t) => {
   const { work, remote } = prepared(t);
-  edit(work, TRANSLATION, text => text.replace(/(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [o] |'));
+  edit(work, TRANSLATION, text => swap(text, /(\| T1-1 \|[^\n]*)\| \[ \] \|/, '$1| [o] |'));
   commitAll(work, 'docs(checklist): Differ the translation (#T1-1)');
   const pushed = push(work);
   assert.notEqual(pushed.status, 0);
@@ -136,8 +142,8 @@ test('the commit command fails for an item in progress with an annotation for ea
   const { work } = prepared(t);
   const summary = path.join(work, '..', 'summary.md');
   start(work);
-  edit(work, CHECKLIST, text => text.replace('Print `a \\| b` for a union', '100% done\\|'));
-  edit(work, TRANSLATION, text => text.replace('union을 `a \\| b`로 출력한다', '100% 끝'));
+  edit(work, CHECKLIST, text => swap(text, 'Print `a \\| b` for a union', '100% done\\|'));
+  edit(work, TRANSLATION, text => swap(text, 'union을 `a \\| b`로 출력한다', '100% 끝'));
   commitAll(work, 'docs(checklist): Start T1-1 (#T1-1)');
   const failed = gate(work, ['commit', 'HEAD'], { GITHUB_STEP_SUMMARY: summary });
   assert.equal(failed.status, 1);

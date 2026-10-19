@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2d66ea1b19b0e4bcbade010dbb15580273ddf047569b4d4e3caf5680b51d0062 -->
+<!-- source-sha256: 1abbbb2a7c63de8be7401639c3245e6d308b7be6ab6ce5778079e06bd943f78e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- push gate test의 편집은 text에 일치가 없으면 그대로 두는 대신 실패한다 (K260).
 - `make commit ID= TYPE= SCOPE= SUBJECT= BODY_FILE=`은 commit-msg hook의 check를 거친 뒤, body를 config/commits.json의 폭으로 감싸고 trailer를 그대로 둔 item의 message로 index를 commit한다 (K249-4).
 - 열린 checklist item은 자기를 검증하는 command를 명시하고, 그중 Claude Code hook이 거부하는 것은 없으므로, documents-check는 suite로 검증하는 item에서 실패한다(`verification.mts`). `make item-test ID=`가 그 command를 실행한다. checklist header는 ID, Task, Deliverables, Verification, State로 고정된다. hook은 make target을 그 prerequisite와 recipe를 따라 읽고 `run-tests.mts <runner> -- <args>`를 그 runner로 읽으므로, 저장소 자신의 suite target도 거부된다 (K249-3).
 - kit은 어떤 코드도 필요로 하지 않는 8.5 대신, 저장소의 코드와 도구가 필요로 하는 하한인 PHP 8.4를 pin한다. `toolchain-pins.json`과 `.php-version`이 8.4를 선언하고, kit의 Composer project는 platform 8.4(PHPUnit 13은 8.4.1)와 함께 `>=8.4`를 요구한다 (K259).

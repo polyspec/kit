@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The edits of the push gate test fail when the text holds no match, instead of leaving it unchanged (K260).
 - `make commit ID= TYPE= SCOPE= SUBJECT= BODY_FILE=` commits the index with the message of an item, its body wrapped at the width of config/commits.json and its trailers kept, after the checks of the commit-msg hook (K249-4).
 - An open checklist item names the commands that verify it, none of which the Claude Code hook refuses, so documents-check fails an item verified by a suite (`verification.mts`); `make item-test ID=` runs them; the checklist header is fixed as ID, Task, Deliverables, Verification and State; the hook follows a make target through its prerequisites and recipes and reads `run-tests.mts <runner> -- <args>` as that runner, so a repository's own suite target is refused as well (K249-3).
 - kit pins PHP 8.4, the floor that the code and tools of the repositories need, instead of 8.5, which no code needs: `toolchain-pins.json` and `.php-version` declare 8.4, and the Composer projects of kit require `>=8.4` with the platform 8.4, or 8.4.1 for PHPUnit 13 (K259).
