@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0adc2dabd4f07bac8c40892c18a52db572a0d473e987a444cddaf7ceabb7c808 -->
+<!-- source-sha256: 7be178574a235f3f3875455b62defe4c97cc8132d5fa277bd1e6bdd18ef75cec -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit check는 oxlint가 요구하는 대로 fix commit의 type을 `startsWith`로 읽는다 (K257-1).
 - push gate는 `{type}/{shortname}-{checklist id}`로 이름 붙지 않은 main 외의 push된 branch, `{project}-{shortname}-{checklist id}`로 이름 붙지 않은 worktree folder, main이 merge한 local branch를 그것을 제거하는 command와 함께 거부한다 (K253).
 - commit check는 kit runner의 test 파일(tests/, `*.test.*`, `*_test.go`, `test_*.py`, `*Test.php`)을 바꾸지 않는 `fix` commit을 range, commit-msg hook, `make commit`에서 거부한다 (K257).
 - `make kit-check`는 Git index의 symbolic link에서 실패하고 그것을 명시하므로, 어떤 저장소도 자신이 만든 link를 track하지 않는다 (K254).

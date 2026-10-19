@@ -125,7 +125,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
   }
-  if (message !== undefined && /^fix\(/.test(message) && !changed.some(isTestFile)) {
+  if (message !== undefined && message.startsWith('fix(') && !changed.some(isTestFile)) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect` });
   }
   return found;
