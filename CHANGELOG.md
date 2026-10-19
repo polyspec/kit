@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A repository keeps its suite target `check`, which is no fixed task, and `make install` runs the bootstrap of kit as its prerequisite `install-kit` before the install steps that a repository adds (K246-2).
 ## 0.0.54
 
 - A release starts from a dispatch of the release workflow with its tag: `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the tag already names that commit, so no machine has to push a tag (K269).

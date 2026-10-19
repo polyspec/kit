@@ -33,7 +33,7 @@ test('a target that repeats a fixed task under another name fails, and a prerequ
   const kit = new Set(['build', 'test', 'lint', 'install', 'test-ts']);
   const makefile = 'build: kit-build\nkit-build:\ntest-unit:\ncheck:\ninstall-python:\ntest-ts: extra\nlinter:\ntypecheck:\n';
   const fix = 'Fix: name it <repository>-<task> and add it as a prerequisite of the fixed task, such as build: kit-build';
-  assert.deepEqual(taskNameFindings(makefile, kit), ['test-unit', 'check', 'install-python'].map(name => `Makefile: the target ${name} repeats a fixed task of kit.mk under another name. ${fix}`));
+  assert.deepEqual(taskNameFindings(makefile, kit), ['test-unit', 'install-python'].map(name => `Makefile: the target ${name} repeats a fixed task of kit.mk under another name. ${fix}`));
 });
 
 test('a runtime of packages/ without its build, test or lint target fails (K246)', () => {

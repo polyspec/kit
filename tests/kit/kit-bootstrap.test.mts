@@ -91,3 +91,12 @@ test('npm of install-packages and of dependency-review gets allow-remote=root fr
   assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: node_modules/@polyspec/kit/dist/dependency-review.mjs --update']);
   assert.deepEqual(lines('docs-check'), ['node allow-remote=: node_modules/@polyspec/kit/dist/check-documents.mjs'], 'another recipe does not get it');
 });
+
+test('make install runs the bootstrap of kit first, then the install steps that the repository adds to install (K246-2)', (t) => {
+  const root = repository(t);
+  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\ninstall: demo-install\n.PHONY: demo-install\ndemo-install: install-kit\n\t@echo demo-install\n');
+  const lines = make(root, '-n', 'install').stdout.split('\n').filter(Boolean);
+  const kit = lines.findIndex(line => line.includes('install-tools TOOLS=npm'));
+  assert.ok(kit !== -1, `make install runs the bootstrap of kit:\n${lines.join('\n')}`);
+  assert.ok(lines.indexOf('echo demo-install') > kit, `the steps of the repository follow the bootstrap:\n${lines.join('\n')}`);
+});

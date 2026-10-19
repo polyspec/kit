@@ -56,8 +56,11 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json
 
-.PHONY: install
-install: ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools; ONLINE
+.PHONY: install install-kit
+# install runs the bootstrap of kit as its first prerequisite; a repository adds its install steps as later prerequisites
+# that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2).
+install: install-kit ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository; ONLINE
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools

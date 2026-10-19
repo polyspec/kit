@@ -176,8 +176,9 @@ export function symlinkFindings(root: string): string[] {
   });
 }
 
-// A target of the repository whose name starts with one of the fixed tasks repeats that task under another name (K246).
-const TASK_NAME = /^(?:install|build|test|lint)(?:-|$)|^check$/;
+// A target of the repository whose name starts with one of the fixed tasks repeats that task under another name (K246); check is
+// the suite of a repository, which runs only in CI, and no fixed task (K246-2).
+const TASK_NAME = /^(?:install|build|test|lint)(?:-|$)/;
 
 /** The targets that the rules of the makefile `text` define: a line out of a recipe with a colon that assigns nothing. */
 export function ruleTargets(text: string): string[] {
