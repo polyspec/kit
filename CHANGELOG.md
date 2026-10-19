@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The commit check refuses a `fix` commit that changes no test file of a runner of kit (tests/, `*.test.*`, `*_test.go`, `test_*.py`, `*Test.php`), in a range, in the commit-msg hook and in `make commit` (K257).
 - `make kit-check` fails on a symbolic link in the index of Git and names it, so no repository tracks a link that it creates (K254).
 - The edits of the push gate test fail when the text holds no match, instead of leaving it unchanged (K260).
 - `make commit ID= TYPE= SCOPE= SUBJECT= BODY_FILE=` commits the index with the message of an item, its body wrapped at the width of config/commits.json and its trailers kept, after the checks of the commit-msg hook (K249-4).

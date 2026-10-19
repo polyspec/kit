@@ -48,7 +48,7 @@ export type CommitMessage = { id: string; message: string };
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
  * files at both sides.
  */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[] };
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string };
 
 /** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
 export function loadCommitRules(root: string): CommitRules {
@@ -92,11 +92,20 @@ export const fileAt = (root: string, rev: string, file: string) => {
   return shown.stdout;
 };
 
+// A test file of a runner that kit fixes (S3): a file below a tests/ folder, a *.test.* or *.spec.* file of node and
+// vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file.
+const TEST_FILE = /(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]sx?$|_test\.go$|(?:^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/;
+const TEST_FILES = 'tests/, *.test.*, *_test.go, test_*.py, *Test.php';
+
+/** Whether `file` is a test file of a runner that kit fixes. */
+export const isTestFile = (file: string) => TEST_FILE.test(file);
+
 /**
  * The item findings of one change as `{ rule, message }`: `before` and `after` read a checklist file at the two sides of the
- * change, `changed` holds the paths that the change touches.
+ * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
+ * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message }: Change) {
   const changes = [];
   for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
@@ -116,28 +125,33 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
   }
+  if (message !== undefined && /^fix\(/.test(message) && !changed.some(isTestFile)) {
+    found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect` });
+  }
   return found;
 }
 
 /** The item findings of the commit `id` against its parent; a root commit is compared with an empty tree. */
-const commitItemFindings = (root: string, config: CommitRules, id: string) => {
+const commitItemFindings = (root: string, config: CommitRules, id: string, message: string) => {
   const parent = gitResult(root, 'rev-parse', '--verify', '--quiet', `${id}^`).status === 0 ? `${id}^` : null;
   return itemFindings(root, config, {
     before: file => (parent ? fileAt(root, parent, file) : ''),
     after: file => fileAt(root, id, file),
     changed: git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--root', id).split('\n').filter(Boolean),
     plans: [...(parent ? plansAt(root, parent) : []), ...plansAt(root, id)],
+    message,
   });
 };
 
-/** The item findings of the change being committed: the index against HEAD. */
-export function indexItemFindings(root: string, config: CommitRules) {
+/** The item findings of the change being committed with `message`: the index against HEAD. */
+export function indexItemFindings(root: string, config: CommitRules, message: string) {
   const head = gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status === 0;
   return itemFindings(root, config, {
     before: file => (head ? fileAt(root, 'HEAD', file) : ''),
     after: file => fileAt(root, '', file),
     changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
     plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
+    message,
   });
 }
 
@@ -192,7 +206,7 @@ export function rangeMessages(root: string, range: string) {
 
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
-  return commits.flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id)].map(found => `${id}: ${found.rule}: ${found.message}`));
+  return commits.flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id, message)].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
@@ -210,7 +224,7 @@ if (isMain(import.meta.url)) {
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : [...messageFindings(message, config), ...indexItemFindings(root, config)].map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...messageFindings(message, config), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);

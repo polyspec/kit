@@ -283,7 +283,7 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
-  const findings = [...messageFindings(message, rules), ...indexItemFindings(root, rules)];
+  const findings = [...messageFindings(message, rules), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);

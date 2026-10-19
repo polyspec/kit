@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: babcec327d4d37706caa360863baa9e744daee118cd3f604c40712fe397d462d -->
+<!-- source-sha256: 68608175c84a84a789ff3cbb7552f3da52b7c803e9fd406675fea0bc4cbae74e -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -76,7 +76,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - 결함은 그것을 재현하고 의도한 이유로 실패하는 test에서 시작합니다; 그다음 고치고; 같은 test가 통과합니다. 실패할 수 없는
   test는 아무것도 증명하지 않으며, 실행되지 않고 통과하는 test는 결함입니다.
-  Enforced by: planned K257
+  Enforced by: `make commits-check`
 - 항목은 자기 단위 test의 red, 구현, green으로 완료합니다. 바뀐 것의 소유 검사만 돌리며, 전체 모음은 수정마다, 항목마다,
   마지막에도 돌리지 않습니다.
   Enforced by: `.claude/settings.json`

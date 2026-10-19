@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2a6cb176693a35a51ea9d86b0ae24d8313ecbb8454064c8c5e2c2d51c5d9e69e -->
+<!-- source-sha256: a1909e7dd53075742e50310bc46b6fc38ba3f9439e1ae4f9489de0106001a731 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit check는 kit runner의 test 파일(tests/, `*.test.*`, `*_test.go`, `test_*.py`, `*Test.php`)을 바꾸지 않는 `fix` commit을 range, commit-msg hook, `make commit`에서 거부한다 (K257).
 - `make kit-check`는 Git index의 symbolic link에서 실패하고 그것을 명시하므로, 어떤 저장소도 자신이 만든 link를 track하지 않는다 (K254).
 - push gate test의 편집은 text에 일치가 없으면 그대로 두는 대신 실패한다 (K260).
 - `make commit ID= TYPE= SCOPE= SUBJECT= BODY_FILE=`은 commit-msg hook의 check를 거친 뒤, body를 config/commits.json의 폭으로 감싸고 trailer를 그대로 둔 item의 message로 index를 commit한다 (K249-4).

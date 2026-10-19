@@ -66,7 +66,7 @@ function repository(t: TestContext, messages: string[]) {
 }
 
 test('the commits of a range are checked and each finding names the commit', (t) => {
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject', 'fix(ci): Fine (#K2)']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject', 'feat(ci): Fine (#K2)']);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', CONFIG);
   const bad = git('rev-parse', '--short', 'HEAD~1').stdout.trim();
   assert.equal(findings.length, 1);
@@ -83,11 +83,11 @@ test('a merge commit in the range is not checked', (t) => {
   git('checkout', '-q', '-b', 'side');
   put(root, { 'side.txt': 'x' });
   git('add', '-A');
-  git('commit', '-q', '-m', 'fix(ci): Side (#K2)');
+  git('commit', '-q', '-m', 'feat(ci): Side (#K2)');
   git('checkout', '-q', '-');
   put(root, { 'main.txt': 'x' });
   git('add', '-A');
-  git('commit', '-q', '-m', 'fix(ci): Main (#K3)');
+  git('commit', '-q', '-m', 'feat(ci): Main (#K3)');
   const merged = git('merge', '--no-ff', '-m', 'Merge branch side', 'side');
   assert.equal(merged.status, 0, merged.stderr);
   assert.deepEqual(rangeFindings(root, 'HEAD~2..HEAD', CONFIG), []);
@@ -101,7 +101,7 @@ test('the command checks a range or a message file and exits with the findings',
   assert.match(range.stderr, /\[check-commits\] \w+: commit-subject: the subject is "bad subject"/);
   assert.match(range.stderr, /1 findings in the commits of HEAD~1\.\.HEAD \(config\/commits\.json\)/);
   const file = path.join(root, 'MSG');
-  writeFileSync(file, '# comment\nfix(ci): Fine (#K2)\n');
+  writeFileSync(file, '# comment\nfeat(ci): Fine (#K2)\n');
   const good = command('--message', file);
   assert.equal(good.status, 0, good.stderr);
   assert.match(good.stdout, /the message being committed passed/);
@@ -192,10 +192,10 @@ test('the item rules of the commit-msg hook compare the index with HEAD', (t) =>
   const { root, git } = tracked(t, [['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }]]);
   put(root, { [PLAN]: plan([['S1', '[o]']]) });
   git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, TRACKED).map(found => found.message.split(' does not change ')[1]), ['CHANGELOG.md; record the item in the changelog of both languages', 'CHANGELOG.ko.md; record the item in the changelog of both languages']);
+  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)').map(found => found.message.split(' does not change ')[1]), ['CHANGELOG.md; record the item in the changelog of both languages', 'CHANGELOG.ko.md; record the item in the changelog of both languages']);
   put(root, { 'CHANGELOG.md': '# Changelog\n\n- S1\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S1\n' });
   git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, TRACKED), []);
+  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)'), []);
 });
 
 test('a repository without a changelog keeps the one item rule', (t) => {
@@ -204,4 +204,17 @@ test('a repository without a changelog keeps the one item rule', (t) => {
     ['feat(core): Finish S1 (#S1)', { [PLAN]: plan([['S1', '[o]']]) }],
   ]);
   assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), []);
+});
+
+test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257)', (t) => {
+  const { root } = tracked(t, [
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[ ]']]), 'src/a.ts': 'export const a = 1;\n' }],
+    ['fix(core): Correct a without a test (#S1)', { 'src/a.ts': 'export const a = 2;\n' }],
+    ['fix(core): Correct a with its test (#S1)', { 'src/a.ts': 'export const a = 3;\n', 'tests/a.test.ts': 'test;\n' }],
+    ['fix(go): Correct b with its test (#S1)', { 'b.go': 'package b\n', 'b_test.go': 'package b\n' }],
+    ['feat(core): Extend a without a test (#S1)', { 'src/a.ts': 'export const a = 4;\n' }],
+  ]);
+  const findings = rangeFindings(root, 'HEAD~4..HEAD', TRACKED);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php\); a fix starts with a test that reproduces the defect$/);
 });

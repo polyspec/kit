@@ -77,7 +77,7 @@ in kit, with its grounding.
 
 - A defect starts as a test that reproduces it and fails for the intended reason; the fix follows; the same test passes.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
-  Enforced by: planned K257
+  Enforced by: `make commits-check`
 - An item is completed by its own unit tests: red, implementation, green. Only the checks that own what changed run; the
   full suite is not run, neither per fix, per item nor at the end.
   Enforced by: `.claude/settings.json`
