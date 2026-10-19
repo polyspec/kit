@@ -22,3 +22,13 @@ export function sandboxShims(root: string, names: readonly string[]): void {
   mkdirSync(shims, { recursive: true });
   for (const name of names) writeFileSync(path.join(shims, name), `#!/bin/sh\nexec '${installedBinary(name)}' "$@"\n`, { mode: 0o755 });
 }
+
+/**
+ * Writes var/tools/bin/mise of the sandbox `root`: a script that runs the mise of this checkout in this checkout, so that
+ * `mise where <tool>`, which a tool asks the wrapper of its root (K199), names the install of this checkout that the shims run.
+ */
+export function sandboxMise(root: string): void {
+  const bin = path.join(root, 'var/tools/bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'mise'), `#!/bin/sh\ncd '${ROOT}' && exec '${path.join(ROOT, 'var/tools/bin/mise')}' "$@"\n`, { mode: 0o755 });
+}

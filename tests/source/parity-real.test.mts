@@ -13,7 +13,7 @@ import { checkParity } from '../../scripts/kit/parity.mts';
 import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
-import { sandboxShims } from './real-tools.mts';
+import { sandboxMise, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -26,9 +26,12 @@ function phpunitVendor() {
 
 /**
  * Gives the temporary tree root the go, the python3 and the Composer of the checkout as its shims: they run as the tools of
- * mise.toml, never those of PATH.
+ * mise.toml, never those of PATH. Its mise wrapper names the installs of the checkout, which the go extractor builds with.
  */
-const giveTools = (root: string) => sandboxShims(root, ['go', 'python3', 'composer']);
+const giveTools = (root: string) => {
+  sandboxShims(root, ['go', 'python3', 'composer']);
+  sandboxMise(root);
+};
 
 /** The findings of the check of a repository as `<rule> <unit> <implementation>`. */
 const keys = (findings: Array<{ rule: string; unit?: string | undefined; implementation?: string | undefined }>) => findings.map(finding => [finding.rule, finding.unit ?? '-', finding.implementation ?? '-'].join(' '));
