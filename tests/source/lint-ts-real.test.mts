@@ -180,9 +180,9 @@ test('the TypeScript lint of a consumer leaves out the copies of kit and lints i
   assert.match(own.output, /scripts\/build\.mts:.*eslint\(no-debugger\)/);
 });
 
-test('the TypeScript lint of a consumer fails when the installed kit is not the version that package-lock.json resolves (K157)', (t) => {
+test('the TypeScript lint of a consumer reads the installed kit of any version, as a local link of kit is (K267)', (t) => {
   const root = repository(t, { 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: '0.0.1' } } }) });
-  assert.throws(() => lintSteps(root), new RegExp(`node_modules/@polyspec/kit is ${KIT.version.replaceAll('.', '\\.')}, but package-lock\\.json resolves 0\\.0\\.1`));
+  assert.doesNotThrow(() => lintSteps(root), 'npm ci enforces the lock at install time; the lint reads what is installed');
 });
 
 // make runs a file that the layout entries of knip.json do not cover; the repository declares it in config/knip-entries.json, its

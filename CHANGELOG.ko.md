@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0b26c4fbec04a16a5f1829c85ad212f81195b2e7715720f6af3a7c7d21e04d58 -->
+<!-- source-sha256: 3ec9c59400e7cfcbf0f66ad1428ed07c3ac9c42b828ed9c0ef7cccf72b2b802d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-sync, kit-check, lint-ts는 버전과 상관없이 설치된 @polyspec/kit을 읽는다. npm ci가 lock의 integrity로 설치할 때 강제하며, 개발 상태인 kit checkout의 local link를 더는 버전 때문에 거부하지 않는다 (K267).
 ## 0.0.54
 
 - kit 0.0.54가 K243~K266의 공통 표준과 함께 release된다 (K263).

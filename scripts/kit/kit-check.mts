@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Checks a repository against the installed package @polyspec/kit, without a network (`make kit-check`): the package under
-// node_modules is the version that package-lock.json resolves, and each copy that the package declares (`kit.copies` of its
-// package.json) is byte for byte its file of the package. Both together tie the copies to the locked version. The
+// Checks a repository against the installed package @polyspec/kit, without a network (`make kit-check`): each copy that the
+// package declares (`kit.copies` of its package.json) is byte for byte its file of the installed package, of whatever version;
+// npm ci installs the version of package-lock.json by its integrity, and a local link is the development state (K267). The
 // configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
 // wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, a repository
 // that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no recipe of the Makefile
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
 import { backendFinding, type WheelUsers } from './release-wheel.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { readNpmLock, readNpmManifest } from './manifests.mts';
+import { readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
@@ -66,23 +66,16 @@ export function writtenByKit(copies: readonly { file: string }[]): (file: string
   return file => files.has(file) || file.startsWith(MISE_LOCKS);
 }
 
-/** The version of @polyspec/kit that package-lock.json of `root` resolves, or undefined when the lock resolves none. */
-export function lockedVersion(root: string): string | undefined {
-  return readNpmLock(root, 'package-lock.json').packages?.[INSTALLED]?.version;
-}
-
 /**
- * The installed package of `root` when it is the version that package-lock.json resolves: its version and its copies; otherwise
- * the finding that names the cause and the fix.
+ * The installed package of `root`: its version and its copies; otherwise the finding that names the cause and the fix. The
+ * version is not compared with package-lock.json: npm ci enforces the lock at install time by its integrity, and a local link of
+ * a kit checkout is the development state (K267), so the copies are those of the installed content.
  */
 export function installedKit(root: string): { version: string; copies: { file: string; from: string }[] } | { finding: string } {
   if (!existsSync(path.join(root, 'package-lock.json'))) return { finding: `package-lock.json is missing; it locks ${PACKAGE}. Fix: run make install-packages and commit package-lock.json` };
-  const locked = lockedVersion(root);
-  if (locked === undefined) return { finding: `package-lock.json resolves no ${PACKAGE}. Fix: add ${PACKAGE} to devDependencies and run make install-packages` };
-  if (!existsSync(path.join(root, INSTALLED, 'package.json'))) return { finding: `${INSTALLED} is not installed; package-lock.json resolves ${locked}. Fix: make install-packages` };
+  if (!existsSync(path.join(root, INSTALLED, 'package.json'))) return { finding: `${INSTALLED} is not installed. Fix: make install-packages` };
   const installed = readNpmManifest(root, `${INSTALLED}/package.json`);
-  if (installed.version !== locked) return { finding: `${INSTALLED} is ${installed.version}, but package-lock.json resolves ${locked}. Fix: make install-packages` };
-  return { version: installed.version, copies: copiesOf(installed) };
+  return { version: installed.version ?? 'without a version', copies: copiesOf(installed) };
 }
 
 // The release configuration, whose wheels need pythonBackend of config/toolchain.json.
@@ -251,5 +244,5 @@ if (isMain(import.meta.url)) {
     console.error(`[kit-check] ${found.length} findings in the configuration and the copies of ${PACKAGE}`);
     process.exit(1);
   }
-  console.log(isSource(root) ? '[kit-check] the configuration matches its schemas' : `[kit-check] the configuration matches its schemas and the copies match ${PACKAGE} ${lockedVersion(root)}`);
+  console.log(isSource(root) ? '[kit-check] the configuration matches its schemas' : `[kit-check] the configuration matches its schemas and the copies match ${PACKAGE} ${readNpmManifest(root, `${INSTALLED}/package.json`).version ?? ''}`);
 }

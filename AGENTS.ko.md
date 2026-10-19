@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: f38df72e23f540f097eae2bd80875da82ddf8a0470d82ea8e4d353e66b223da0 -->
+<!-- source-sha256: ca9ec127b8b50e6eeb7924130381eb23e7829c0a3ea2b23ef2cf41d53be218be -->
 # 개발
 
 [English](AGENTS.md)
@@ -24,7 +24,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
   Enforced by: `tests/kit/isolation.test.mts`
-- vendored 파일은 kit에서 고치고 package-lock.json이 resolve하는 version의 사본을 쓰는 `make kit-sync`로 복사합니다. 저장소에서
+- vendored 파일은 kit에서 고치고 설치된 package의 사본을 쓰는 `make kit-sync`로 복사합니다(npm ci가 package-lock.json의 version을 integrity로 설치합니다). 저장소에서
   직접 고치지 않으며, 고치면 `make kit-check`가 바뀐 파일이나 빠진 파일로 실패합니다. `scripts/kit/`은 kit의 사본만 담으므로
   사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
   Enforced by: `make kit-check`, `.claude/settings.json`

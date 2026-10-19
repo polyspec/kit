@@ -3,8 +3,9 @@
 //
 //   node scripts/kit/kit-sync.mts
 //
-// The package under node_modules must be the version that package-lock.json resolves; there is no tag or ref to give, so a
-// sync writes the copies of the locked version only. Each copy of `kit.copies` (the package.json of the package) is written
+// The copies are those of the package under node_modules, whatever its version: npm ci installs the version of
+// package-lock.json by its integrity, and a local link of a kit checkout is the development state (K267); there is no tag or ref
+// to give. Each copy of `kit.copies` (the package.json of the package) is written
 // to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
 // that the package does not declare is removed: that directory holds the copies of kit only. The command reads
 // no network; it prints a line for each change.
@@ -42,13 +43,12 @@ export function sync(root: string): string[] {
 
 if (isMain(import.meta.url)) {
   if (process.argv.length > 2) {
-    console.error(`[kit-sync] kit-sync takes no argument: the version is the one that package-lock.json resolves. ${USAGE}`);
+    console.error(`[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. ${USAGE}`);
     process.exit(2);
   }
   try {
     const changes = sync(repositoryRoot());
     for (const line of changes) console.log(`[kit-sync] ${line}`);
-    // sync returned, so the installed package is the version that package-lock.json resolves.
     const { version } = readNpmManifest(repositoryRoot(), `${INSTALLED}/package.json`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${PACKAGE} ${version}` : `[kit-sync] unchanged: ${PACKAGE} ${version}`);
   } catch (error) {

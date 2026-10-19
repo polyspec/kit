@@ -57,10 +57,9 @@ test('a sync writes a copy that differs from the package, and only that copy', (
   assert.equal(readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8'), 'on: push\n');
 });
 
-test('a sync refuses a package that is not the version of package-lock.json, a lock without the package and a missing install', (t) => {
-  assert.throws(() => sync(repository(t, { installed: '0.0.9' })), { message: 'node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages' });
-  assert.throws(() => sync(repository(t, { locked: null })), { message: 'package-lock.json resolves no @polyspec/kit. Fix: add @polyspec/kit to devDependencies and run make install-packages' });
-  assert.throws(() => sync(repository(t, { installed: null })), { message: 'node_modules/@polyspec/kit is not installed; package-lock.json resolves 0.1.0. Fix: make install-packages' });
+test('a sync writes the copies of the installed package of any version, such as a linked checkout, and refuses a missing install (K267)', (t) => {
+  assert.doesNotThrow(() => sync(repository(t, { installed: '0.0.9' })), 'npm ci enforces the lock at install time; a sync reads what is installed');
+  assert.throws(() => sync(repository(t, { installed: null })), { message: 'node_modules/@polyspec/kit is not installed. Fix: make install-packages' });
 });
 
 test('a copy whose path leaves its directory is refused, and nothing is written', (t) => {
@@ -99,11 +98,11 @@ test('kit-sync removes a file of scripts/kit that is no copy, and kit-check name
   assert.deepEqual(sync(root), []);
 });
 
-test('kit-check fails while the installed package is not the version that package-lock.json resolves', (t) => {
+test('kit-check compares the copies with the installed package of any version, and fails on a missing install (K267)', (t) => {
   const root = repository(t, { installed: '0.0.9' });
-  assert.deepEqual(check(root), ['node_modules/@polyspec/kit is 0.0.9, but package-lock.json resolves 0.1.0. Fix: make install-packages']);
-  assert.deepEqual(check(repository(t, { locked: null })), ['package-lock.json resolves no @polyspec/kit. Fix: add @polyspec/kit to devDependencies and run make install-packages']);
-  assert.deepEqual(check(repository(t, { installed: null })), ['node_modules/@polyspec/kit is not installed; package-lock.json resolves 0.1.0. Fix: make install-packages']);
+  sync(root);
+  assert.deepEqual(check(root), [], 'a linked or other installed version is checked by its content');
+  assert.deepEqual(check(repository(t, { installed: null })), ['node_modules/@polyspec/kit is not installed. Fix: make install-packages']);
   const unlocked = repository(t);
   rmSync(path.join(unlocked, 'package-lock.json'));
   assert.deepEqual(check(unlocked), ['package-lock.json is missing; it locks @polyspec/kit. Fix: run make install-packages and commit package-lock.json']);
@@ -127,7 +126,7 @@ test('the commands run in the repository of their working directory and print th
   assert.equal(checked.stdout, '[kit-check] the configuration matches its schemas and the copies match @polyspec/kit 0.1.0\n');
   const refused = spawnSync(process.execPath, [KIT_SYNC, '--tag', 'v0.1.0'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 2, refused.stdout);
-  assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: the version is the one that package-lock.json resolves. Usage: node scripts/kit/kit-sync.mts\n');
+  assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts\n');
 });
 
 test('the package.json of kit declares its copies: the bootstrap, the release workflow and the principles, each a file of kit', () => {

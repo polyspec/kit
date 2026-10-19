@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 36f06e108f991797a52aab787f3065fb2cb4de99577fe0147c0052da15198e59 -->
+<!-- source-sha256: e5caa0bb3796c31862e0ce2b0f1c8b03d3a46b6e88817088b931482eec0b302f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -56,3 +56,4 @@
 | K265 | commit의 author나 committer는 AI 도구가 아니다. 원인: cloud 환경의 git identity가 Claude <noreply@anthropic.com>이어서 kit의 commit 95개가 그것을 가졌는데, owner는 모든 commit의 계정을 min-0-max로 정했다. | `scripts/kit/check-commits.mts`, `scripts/kit/plan.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
 | K266 | isolation test는 공통 단어를 저장소 이름으로 쓰지 않는다. 원인: history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 다른 저장소 목록이 그것을 모든 곳에서 거부한다. | `tests/kit/isolation.test.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/isolation.test.mts` | [o] |
 | K263 | kit 0.0.54가 공통 표준과 함께 release되어, 각 저장소가 자기 plan에서 그것을 채택한다. 원인: 저장소들은 K243~K266을 하나도 갖지 않은 0.0.53을 pin한다. | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)`, `tests/release-consumer/`, `config/dependency-review.json` | `make release-versions TAG=v0.0.54` | [o] |
+| K267 | kit-sync와 kit-check는 버전과 상관없이 설치된 package를 읽는다. 원인: package-lock.json이 resolve하는 버전과 다른 package를 거부했는데, 이는 npm ci가 lock의 integrity로 설치할 때 이미 강제하는 실행 시점 제약이며, 개발용 local link를 거부한다. | `scripts/kit/kit-check.mts`, `scripts/kit/kit-sync.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts` | [o] |

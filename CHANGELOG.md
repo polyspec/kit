@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit-sync, kit-check and lint-ts read the installed @polyspec/kit of any version: npm ci enforces the lock at install time by its integrity, and a local link of a kit checkout, the state of development, is no longer refused for its version (K267).
 ## 0.0.54
 
 - kit 0.0.54 is released with the common standard of K243 to K266 (K263).
