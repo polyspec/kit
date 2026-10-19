@@ -85,7 +85,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const steps = [...workflow.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1] ?? '');
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
   assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-tag', 'make release-prepare'], 'the release workflow bootstraps the package, checks the checkout and prepares the release before release-tools');
-  for (const command of bootstrap) {
+  // release-tag runs only on a dispatch, with the tag of its input (K269); release-tag.test.mts runs it.
+  for (const command of bootstrap.filter(command => command !== 'make release-tag')) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }
