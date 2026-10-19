@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The K208 trust test removes CI and GITHUB_ACTIONS from the environment of the shim, since mise trusts every config file when either is set (K250-2).
 - A sandbox repository of the tests sets receive.autogc to false, so a push into it starts no gc on git 2.43 (K250-4).
 - The parity declaration test creates its repositories through initRepository and fails on a failed git command (K248-2-1).
 - A plan is a folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins, and kit finds the checklists by these folders (K241): `config/checklist.json` holds only the hooks and the ID pattern; a checklist is a table with the five states, so the list format and the declared states are removed; a folder with another file or without its plan, an item ID in two checklists and a sub-item without its parent fail with the file and line; the document check again fails a document under docs/ with checklist items outside a plan folder, the check of K235 that K240 had removed with full-run; kit's execution checklist is split into the plans tool-unification and standards-enforcement, and local-links moves to docs/operations/.

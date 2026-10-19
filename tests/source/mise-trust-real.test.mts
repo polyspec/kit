@@ -29,6 +29,10 @@ test('the python shim of the checkout runs a worktree mise.toml only after `mise
   // The installs are those of the checkout; the state dir, where trust is recorded, is the worktree's own.
   const env: NodeJS.ProcessEnv = { ...process.env, ...environment, MISE_DATA_DIR: DATA };
   delete env.MISE_TRUSTED_CONFIG_PATHS;
+  // mise trusts every config file when CI or GITHUB_ACTIONS is set, so in a CI run the shim would run the worktree's mise.toml
+  // untrusted; the case is the run on a machine, where neither is set.
+  delete env.CI;
+  delete env.GITHUB_ACTIONS;
   // The worktree's mise.toml is a project config, not the global one, as in a run of the extractor outside make.
   delete env.MISE_GLOBAL_CONFIG_FILE;
   const extract = () => spawnSync(SHIM, ['-I', EXTRACTOR, path.join(worktree, 'pkg')], { cwd: worktree, env, encoding: 'utf8' });

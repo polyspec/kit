@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f38bd86ad17c0d30b103fbd17355379a7f16f10fe87920f3562992021362c8f6 -->
+<!-- source-sha256: 0f6b642efd7e92126882b7e2ba175e07058c319ccc55489b1ba2c169e3e71648 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K208 trust test는 shim의 environment에서 CI와 GITHUB_ACTIONS를 제거한다. 둘 중 하나가 설정되면 mise가 모든 config file을 trust하기 때문이다 (K250-2).
 - test의 sandbox 저장소는 receive.autogc를 false로 설정하여, git 2.43에서 그 저장소로의 push가 gc를 시작하지 않는다 (K250-4).
 - parity 선언 test는 initRepository로 저장소를 만들고 실패한 git command에서 실패한다 (K248-2-1).
 - plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이며, kit은 이 folder로 checklist를 찾는다 (K241). `config/checklist.json`은 hook과 ID pattern만 가진다. checklist는 state 5개를 가진 table이므로 list format과 선언된 state는 제거된다. 다른 파일이 있거나 plan이 없는 folder, 두 checklist에 있는 item ID, 부모가 없는 sub-item은 파일과 줄을 알리며 실패한다. document check는 plan folder 밖에서 checklist item을 가진 docs/ 아래 문서를 다시 실패시킨다. 이는 K240이 full-run과 함께 제거한 K235의 check다. kit의 execution checklist는 plan tool-unification과 standards-enforcement로 나뉘고, local-links는 docs/operations/로 옮긴다.
