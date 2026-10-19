@@ -33,7 +33,7 @@ export const symbolsPrefix = (root: string, extractor: InstalledExtractor): stri
 /**
  * The release of the extractor `extractor`: the sha256 of the names and contents of its source files, the files of its folder.
  * The folder holds no other folder but vendor/, the packages that kit's Makefile installs there for its own PHP lint
- * (install-symbols-php, K248-4), which are no source; another folder throws.
+ * (kit-install-symbols-php, K248-4), which are no source; another folder throws.
  */
 export function extractorRelease(extractor: InstalledExtractor, symbols = SYMBOLS): string {
   const directory = path.join(symbols, extractor);

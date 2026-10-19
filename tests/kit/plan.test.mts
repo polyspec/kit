@@ -1,5 +1,5 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
-// result passes the checks that the hooks and documents-check run on it (K249).
+// result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';

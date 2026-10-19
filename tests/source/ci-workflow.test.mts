@@ -1,5 +1,5 @@
 // The CI workflow of kit (.github/workflows/ci.yml), which only kit runs. Every gate of a kit commit runs there: the
-// documents and the commit messages besides the tests. Without them a commit that fails documents-check passed CI (b415ad8,
+// documents and the commit messages besides the tests. Without them a commit that fails docs-check passed CI (b415ad8,
 // K82).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -66,13 +66,13 @@ test('the CI workflow runs every make target of config/owner-checks.json but the
 test('the CI workflow installs the packages of the PHP symbol extractor after install-tools and before lint-php (K248-4)', () => {
   // lint-php runs PHPStan on scripts/kit/symbols/php with the autoloader of its Composer project; without the install the
   // step failed in the run of e9d0bb8.
-  const install = runs.indexOf('make install-symbols-php');
-  assert.ok(install > runs.indexOf('make install-tools'), 'make install-symbols-php runs after install-tools installed Composer');
-  assert.ok(install < runs.indexOf('make lint-php'), 'make install-symbols-php runs before make lint-php');
+  const install = runs.indexOf('make kit-install-symbols-php');
+  assert.ok(install > runs.indexOf('make install-tools'), 'make kit-install-symbols-php runs after install-tools installed Composer');
+  assert.ok(install < runs.indexOf('make lint-php'), 'make kit-install-symbols-php runs before make lint-php');
 });
 
-test('the CI workflow runs documents-check', () => {
-  assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
+test('the CI workflow runs docs-check', () => {
+  assert.ok(runs.includes('make docs-check'), 'a step runs make docs-check');
 });
 
 test('the CI workflow runs commits-check over the commits it was triggered by, on the full commit graph', () => {
@@ -124,7 +124,7 @@ test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustu
 test('every check step runs after an earlier step failed, so one run shows every failure (K251)', () => {
   // The steps of the job, each from its line `      - ` to the next; the checks follow the last install step.
   const steps = text.split(/\n(?= {6}- )/).slice(1);
-  const install = steps.findLastIndex(step => /run: (make install-|rustup toolchain install)/.test(step));
+  const install = steps.findLastIndex(step => /run: (make (?:kit-)?install-|rustup toolchain install)/.test(step));
   assert.ok(install >= 0, 'the job installs its tools');
   const checks = steps.slice(install + 1);
   assert.ok(checks.length > 0, 'the job runs checks after the installs');

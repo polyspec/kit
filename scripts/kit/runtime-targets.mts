@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// The test targets of a repository (K244):
+// The targets of a repository by runtime (K244, K246):
 //
 //   make test-<runtime> CASES=<pattern>   the unit tests of each package of the runtime (packages/<runtime> or
 //                                         packages/<component>/<runtime>), where its runner finds them, run through
 //                                         run-tests.mts in the folder of the package with the name filter of the runner
 //   make test-integration                 the folder of each runtime under tests/integration/ of the root
 //   make test-conformance                 the folder of each runtime under tests/conformance/ of the root
+//   make build-<runtime>                  the build of the ecosystem in each package of the runtime: go build, cargo build,
+//                                         tsc with the tsconfig.build.json of the package, uv build; a PHP library has none
+//   make build, make test, make lint      the target of each runtime that packages/ holds
 //
 // A unit test stays where the runner of its ecosystem finds it (S1): beside the code in Go, in src or tests of a crate, in the
 // tests of a package elsewhere. The integration and conformance suites cross packages, so they live at the root, where a run
@@ -58,6 +61,34 @@ export function runtimeRuns(files: readonly string[], runtime: string, cases: st
   return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest));
 }
 
+/** A command of a build: its folder relative to the root, the command and its arguments. */
+export type Build = { cwd: string; command: string; args: string[] };
+
+/** The builds of the packages of `runtime` among the tracked `files`; a runtime without a build step has none. */
+export function buildRuns(files: readonly string[], runtime: string): Build[] {
+  const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
+  const has = (folder: string, name: string) => files.includes(`${folder}/${name}`);
+  switch (runtime) {
+    case 'go':
+      return files.filter(file => folders.some(folder => file.startsWith(`${folder}/`)) && path.posix.basename(file) === 'go.mod').map(file => ({ cwd: path.posix.dirname(file), command: 'go', args: ['build', './...'] }));
+    case 'rust':
+      return folders.filter(folder => has(folder, 'Cargo.toml')).map(folder => ({ cwd: folder, command: 'cargo', args: ['build', '--locked'] }));
+    case 'ts':
+    case 'js':
+      return folders.filter(folder => has(folder, 'tsconfig.build.json')).map(folder => ({ cwd: folder, command: 'tsc', args: ['-p', 'tsconfig.build.json'] }));
+    case 'python':
+      return folders.filter(folder => has(folder, 'pyproject.toml')).map(folder => ({ cwd: folder, command: 'uv', args: ['build'] }));
+    case 'php':
+      return [];
+  }
+  throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
+}
+
+/** The targets `<task>-<runtime>` of each runtime that the packages among `files` hold, in their order. */
+export function taskTargets(files: readonly string[], task: string): string[] {
+  return [...new Set(implementationFolders(files).map(folder => path.posix.basename(folder)))].sort().map(runtime => `${task}-${runtime}`);
+}
+
 /** The runs of the suite `suite`: the folder of each runtime under tests/<suite>/ of the root. */
 export function suiteRuns(files: readonly string[], suite: string, vitest: (folder: string) => boolean): Run[] {
   const runtimes = RUNTIMES.filter(runtime => files.some(file => file.startsWith(`tests/${suite}/${runtime}/`)));
@@ -76,13 +107,35 @@ function usesVitest(root: string, folder: string): boolean {
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const [target = ''] = process.argv.slice(2);
+  const [target = '', name = ''] = process.argv.slice(2);
   const files = trackedFiles(root);
+  if (target === 'task') {
+    const targets = taskTargets(files, name);
+    // A repository without a runtime, such as kit, joins the task by its own prerequisites (build: kit-build).
+    if (targets.length === 0) {
+      console.log(`[runtime-targets] packages/ holds no runtime; make ${name} runs only the prerequisites of the repository`);
+      process.exit(0);
+    }
+    const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: root, stdio: 'inherit' });
+    process.exit(result.status ?? 1);
+  }
+  if (target === 'build') {
+    const builds = buildRuns(files, name);
+    if (builds.length === 0) console.log(`[runtime-targets] the packages of ${name} have no build step`);
+    for (const build of builds) {
+      const command = build.command === 'tsc' ? path.join(root, 'node_modules/.bin/tsc') : build.command;
+      console.log(`[runtime-targets] ${build.cwd}: ${build.command} ${build.args.join(' ')}`);
+      const result = spawnSync(command, build.args, { cwd: path.join(root, build.cwd), stdio: 'inherit' });
+      if (result.error) throw new Error(`${build.command} could not start: ${result.error.message}`);
+      if (result.status !== 0) process.exit(1);
+    }
+    process.exit(0);
+  }
   const vitest = (folder: string) => usesVitest(root, folder);
   const suite = (SUITES as readonly string[]).includes(target);
   const refused = suite ? ciRefusal(`make test-${target}`) : null;
   if (refused) {
-    console.error(`[test-runtime] ${refused}`);
+    console.error(`[runtime-targets] ${refused}`);
     process.exit(1);
   }
   let runs: Run[];
@@ -90,11 +143,11 @@ if (isMain(import.meta.url)) {
     runs = suite ? suiteRuns(files, target, vitest) : runtimeRuns(files, target, process.env.CASES || undefined, vitest);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    console.error(`[test-runtime] ${error.message}`);
+    console.error(`[runtime-targets] ${error.message}`);
     process.exit(1);
   }
   if (runs.length === 0) {
-    console.error(`[test-runtime] tests/${target}/ holds no folder of a runtime`);
+    console.error(`[runtime-targets] tests/${target}/ holds no folder of a runtime`);
     process.exit(1);
   }
   let failed = 0;

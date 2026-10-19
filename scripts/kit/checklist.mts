@@ -268,7 +268,7 @@ export function twinFindings(english: ChecklistItem[], korean: ChecklistItem[], 
 export type FileFinding = { file: string; finding: ChecklistFinding };
 
 /**
- * The findings of the checklists of `trackers` as documents-check reads them: the strict reading of each checklist and of its
+ * The findings of the checklists of `trackers` as docs-check reads them: the strict reading of each checklist and of its
  * translation that `read` gives (undefined for a missing file, which the pair check reports), the comparison of the twins
  * and the cross check of the item IDs. The plan utilities check the files they would write with it too (K249).
  */

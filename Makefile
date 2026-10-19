@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages install-symbols-php
+.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages kit-install-symbols-php install kit-build
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
 # (node scripts/kit/run-tests.mts node -- <test file>).
@@ -18,7 +18,7 @@ install-packages: ## Install the packages of package-lock.json with the npm of v
 
 # The PHP lint runs PHPStan on the PHP symbol extractor with the autoloader of its Composer project, as on every Composer
 # package (lint-php.mts); a consumer installs the extractor into var/tools/symbols-php instead (install-symbols.mts).
-install-symbols-php: ## Install the locked packages of the PHP symbol extractor into scripts/kit/symbols/php/vendor with the Composer of mise.toml, for the PHPStan of lint-php; ONLINE
+kit-install-symbols-php: ## Install the locked packages of the PHP symbol extractor into scripts/kit/symbols/php/vendor with the Composer of mise.toml, for the PHPStan of lint-php; ONLINE
 	$(ONLINE) env COMPOSER_HOME=$(CURDIR)/var/tools/composer/home COMPOSER_CACHE_DIR=$(CURDIR)/var/tools/composer/cache $(CURDIR)/var/tools/mise/shims/composer install --working-dir=scripts/kit/symbols/php --no-interaction --no-progress --no-scripts --no-plugins --prefer-dist
 
 # kit-test fails when its run changes the checkout: git status --porcelain -uall and the hash of git diff --binary HEAD are
@@ -38,8 +38,13 @@ kit-fixture-record: ## Write the review record of tests/kit/fixture with the stu
 kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
 	$(NODE) tests/kit/record-tools.mts
 
-.PHONY: build typecheck
-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors without the vendor/ of install-symbols-php; offline after npm ci
+.PHONY: typecheck
+# kit holds no runtime of packages/; its build, tests and lints join the fixed tasks of kit.mk as prerequisites (K246).
+build: kit-build
+test: kit-test source-test
+lint: lint-ts lint-php lint-python lint-go
+
+kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors without the vendor/ of kit-install-symbols-php; offline after npm ci
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
 	cp scripts/kit/kit.mk dist.next/kit.mk
@@ -51,4 +56,8 @@ build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a re
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json
 
-
+.PHONY: install
+install: ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools; ONLINE
+	$(MAKE) --no-print-directory install-tools TOOLS=npm
+	$(MAKE) --no-print-directory install-packages
+	$(MAKE) --no-print-directory install-tools

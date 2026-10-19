@@ -23,14 +23,14 @@ test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none nam
 });
 
 test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT name', () => {
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'documents-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {
   for (const args of [[], ['KIT=scripts/kit'], ['KIT_EXT=mts']]) {
-    const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'documents-check', ...args], { cwd: ROOT, encoding: 'utf8' });
+    const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', ...args], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(dry.status, 2, `${args.join(' ')}: ${dry.stdout}`);
     assert.match(dry.stderr, /kit\.mk needs KIT and KIT_EXT; include it through kit-bootstrap\.mk, or set both as the Makefile of kit does/, args.join(' '));
   }

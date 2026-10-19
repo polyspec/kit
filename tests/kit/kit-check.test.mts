@@ -1,11 +1,11 @@
 // Tests of the checks of kit-check.mts that read the tracked files of a checkout: a repository tracks no symbolic link
-// that it creates (K254).
+// that it creates (K254), and the targets of the Makefile (K246).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { retiredFindings, symlinkFindings } from '../../scripts/kit/kit-check.mts';
+import { retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
 import { tree } from './tree.mts';
 
 test('a tracked symbolic link fails with its path, and a tree without one passes (K254)', (t) => {
@@ -22,4 +22,23 @@ test('a configuration that kit no longer reads is a finding (K243)', (t) => {
   const root = tree(t, { 'config/commits.json': '{}' });
   assert.deepEqual(retiredFindings(root), ['config/commits.json: kit no longer reads it; the commit rules are COMMIT_RULES of check-commits.mts (K243). Fix: git rm config/commits.json']);
   assert.deepEqual(retiredFindings(tree(t)), []);
+});
+
+test('the rules of a makefile name their targets, and no recipe line, variable or special target is one (K246)', () => {
+  const text = '.PHONY: build\nNODE := node\nbuild test: ## Run\n\tcp a: b\nbuild: kit-build\nkit-build:\ninstall-packages dependency-review: export X := 1\nA ?= b:c\n';
+  assert.deepEqual(ruleTargets(text), ['build', 'test', 'build', 'kit-build', 'install-packages', 'dependency-review']);
+});
+
+test('a target that repeats a fixed task under another name fails, and a prerequisite of a fixed task passes (K246)', () => {
+  const kit = new Set(['build', 'test', 'lint', 'install', 'test-ts']);
+  const makefile = 'build: kit-build\nkit-build:\ntest-unit:\ncheck:\ninstall-python:\ntest-ts: extra\nlinter:\ntypecheck:\n';
+  const fix = 'Fix: name it <repository>-<task> and add it as a prerequisite of the fixed task, such as build: kit-build';
+  assert.deepEqual(taskNameFindings(makefile, kit), ['test-unit', 'check', 'install-python'].map(name => `Makefile: the target ${name} repeats a fixed task of kit.mk under another name. ${fix}`));
+});
+
+test('a runtime of packages/ without its build, test or lint target fails (K246)', () => {
+  const make = { targets: new Map(['build-ts', 'test-ts', 'lint-ts', 'build-php-ext'].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() };
+  const files = ['packages/ts/src/a.ts', 'packages/php-ext/src/a.c', 'packages/orm/ts/b.ts', 'docs/a.md'];
+  assert.deepEqual(runtimeTargetFindings(files, make), ['test-php-ext', 'lint-php-ext'].map(target => `packages/: the runtime php-ext has no target ${target}; kit.mk defines the targets of each runtime`));
+  assert.deepEqual(runtimeTargetFindings(['docs/a.md'], make), []);
 });

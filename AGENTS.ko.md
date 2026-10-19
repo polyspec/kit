@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: f7165531bdda762f7c0e09f92b58dcb0d86adb70c26f541112fc12f564626dbd -->
+<!-- source-sha256: f38df72e23f540f097eae2bd80875da82ddf8a0470d82ea8e4d353e66b223da0 -->
 # 개발
 
 [English](AGENTS.md)
@@ -15,7 +15,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 
 - 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
   개정 표식 `source-sha256`은 영어 파일의 sha256입니다. 한국어 문서는 기술 용어를 영어로 씁니다.
-  Enforced by: `make documents-check`
+  Enforced by: `make docs-check`
 - 도구는 Node 내장 모듈(`node:`), `scripts/kit/`의 파일, `package.json`의 `dependencies`가 선언한 package(각각 정확히 pin)와,
   `peerDependencies`가 선언하고 도구를 실행하는 저장소가 설치하는 optional peer(`install-vscode.mts`의 `@vscode/test-electron` 등)만
   import합니다. `scripts/kit/bootstrap/`의 module은 npm이 package를 설치하기 전에 실행되므로 Node 내장 모듈과 같은 디렉터리의 파일만

@@ -5,8 +5,9 @@
 // configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
 // wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, a repository
 // that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no recipe of the Makefile
-// starts a tool of the checkout by its bare name (recipe-tools.mts, K171). kit itself, the source of the copies, checks its
-// configuration and its recipes only.
+// starts a tool of the checkout by its bare name (recipe-tools.mts, K171), no target of the Makefile repeats a fixed task
+// of kit.mk under another name and each runtime of packages/ has its targets (K246). kit itself, the source of the copies,
+// checks its configuration and its recipes only.
 //
 //   node scripts/kit/kit-check.mts
 //
@@ -21,7 +22,9 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmLock, readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
-import { makeDatabase } from './owner-check.mts';
+import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { implementationFolders } from './parity-declaration.mts';
+import { trackedFiles } from './tracked-files.mts';
 import { bareToolFindings } from './recipe-tools.mts';
 import { git } from './git.mts';
 
@@ -166,12 +169,12 @@ const RETIRED = ['config/commits.json'];
 // The mode of a symbolic link in the index of Git.
 const LINK_MODE = '120000';
 
-/** A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254). */
 /** A finding for each configuration that kit no longer reads, so a stale file does not look like a rule (K243). */
 export function retiredFindings(root: string): string[] {
   return RETIRED.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer reads it; the commit rules are COMMIT_RULES of check-commits.mts (K243). Fix: git rm ${file}`);
 }
 
+/** A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254). */
 export function symlinkFindings(root: string): string[] {
   return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
     const tab = entry.indexOf('\t');
@@ -180,12 +183,51 @@ export function symlinkFindings(root: string): string[] {
   });
 }
 
+// A target of the repository whose name starts with one of the fixed tasks repeats that task under another name (K246).
+const TASK_NAME = /^(?:install|build|test|lint)(?:-|$)|^check$/;
+
+/** The targets that the rules of the makefile `text` define: a line out of a recipe with a colon that assigns nothing. */
+export function ruleTargets(text: string): string[] {
+  return text.split('\n').flatMap(line => {
+    const rule = /^([^\t#$.=:][^=:]*?)\s*::?(?!=)/.exec(line);
+    return rule ? (rule[1] ?? '').split(/\s+/).filter(Boolean) : [];
+  });
+}
+
+/**
+ * The findings of the Makefile `repository` against the targets `kit` of kit.mk and kit-bootstrap.mk: a target of a fixed
+ * task's name that kit does not define; the repository joins a fixed task by a prerequisite, such as `build: kit-build` (K246).
+ */
+export function taskNameFindings(repository: string, kit: ReadonlySet<string>): string[] {
+  return [...new Set(ruleTargets(repository))].filter(name => TASK_NAME.test(name) && !kit.has(name)).map(name => `Makefile: the target ${name} repeats a fixed task of kit.mk under another name. Fix: name it <repository>-<task> and add it as a prerequisite of the fixed task, such as build: kit-build`);
+}
+
+/** The findings of the runtimes of packages/ among `files` that lack one of the targets build-, test- and lint-<runtime> in `make` (K246). */
+export function runtimeTargetFindings(files: readonly string[], make: MakeDatabase): string[] {
+  const runtimes = [...new Set(implementationFolders(files).map(folder => path.posix.basename(folder)))].sort();
+  return runtimes.flatMap(runtime => ['build', 'test', 'lint'].map(task => `${task}-${runtime}`).filter(target => !make.targets.has(target)).map(target => `packages/: the runtime ${runtime} has no target ${target}; kit.mk defines the targets of each runtime`));
+}
+
+/** The targets that kit defines: those of the kit.mk beside this module and of the kit-bootstrap.mk of `root`. */
+function kitTargets(root: string): Set<string> {
+  const files = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit.mk'), path.join(root, 'scripts/kit/kit-bootstrap.mk')];
+  return new Set(files.filter(file => existsSync(file)).flatMap(file => ruleTargets(readFileSync(file, 'utf8'))));
+}
+
+/** The findings of the targets of `root`: the names of its Makefile and the targets of its runtimes (K246). */
+function targetFindings(root: string, make: MakeDatabase): string[] {
+  const makefile = path.join(root, 'Makefile');
+  const names = existsSync(makefile) ? taskNameFindings(readFileSync(makefile, 'utf8'), kitTargets(root)) : [];
+  return [...names, ...runtimeTargetFindings(trackedFiles(root), make)];
+}
+
 /**
  * The findings of `root`: the configuration, the recipes, the tracked links, and the installed package and its copies; empty
  * when they match.
  */
 export function check(root: string): string[] {
-  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root)), ...symlinkFindings(root), ...retiredFindings(root)];
+  const make = makeDatabase(root);
+  const config = [...checkConfig(root), ...bareToolFindings(make), ...targetFindings(root, make), ...symlinkFindings(root), ...retiredFindings(root)];
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];

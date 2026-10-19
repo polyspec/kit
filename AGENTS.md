@@ -17,7 +17,7 @@ and states only its own rules. The rules below are kit's own.
 - English documents are canonical. Every document has a `.ko.md` file with the same information; edit both in the same
   change. The revision marker `source-sha256` of the Korean file is the sha256 of the English file. Korean documents write
   technical terms in English.
-  Enforced by: `make documents-check`
+  Enforced by: `make docs-check`
 - A tool imports only Node built-ins (`node:`), files of `scripts/kit/` and the packages that `dependencies` of
   `package.json` declares, each pinned exactly, or an optional peer that `peerDependencies` declares and the repository that
   runs the tool installs, such as the `@vscode/test-electron` of `install-vscode.mts`. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,

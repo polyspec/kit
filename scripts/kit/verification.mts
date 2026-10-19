@@ -1,7 +1,7 @@
 // The verification of the items of the checklists (K249-3): the Verification cell of an item names, in backticks, the
 // commands that verify it. An open item, waiting or active, names at least one, and none that the Claude Code hook refuses
 // (claude-hook.mts), so no item is verified by a suite or a run without a selection: each runs its own unit tests. A closed
-// item is history and is not read. documents-check reports the findings, and `make item-test` runs the commands.
+// item is history and is not read. docs-check reports the findings, and `make item-test` runs the commands.
 import { ACTIVE, CHECKLIST_COLUMNS, readChecklist, WAITING } from './checklist.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { refusal } from './claude-hook.mts';

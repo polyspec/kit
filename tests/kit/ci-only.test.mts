@@ -85,7 +85,7 @@ test('the Claude Code hook refuses a suite target, a whole runtime and a CI mark
   const allowed = [
     'make owner-validate',
     'make parity-check UNITS="kit-parity"',
-    'make documents-check',
+    'make docs-check',
     'node --test tests/kit/ci-only.test.mts',
     'node scripts/kit/run-tests.mts node -- tests/kit/ci-only.test.mts',
     'go test -run ^TestParse$ ./engine/...',

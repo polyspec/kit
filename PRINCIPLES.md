@@ -12,7 +12,7 @@ in kit, with its grounding.
 
 - Everything is the responsibility of whoever works on it: the code, its tests, its documents, AGENTS and the memory. A task
   is not done while one of them is missing.
-  Enforced by: `make commits-check`, `make documents-check`
+  Enforced by: `make commits-check`, `make docs-check`
 - A rule is followed because it is right, never because it exists. "It was there before" is no ground. A rule, a code path
   or a document found wrong is reported and corrected; a found oddity is reported at once, with the question whether a rule
   must be made or corrected, and it is fixed or confirmed convincingly before the work moves on.
@@ -107,14 +107,14 @@ repository.
 - A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins. A checklist is one table
   with the columns ID, Task, Deliverables, Verification and State; an item ID is unique among the checklists, and a
   sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them.
-  Enforced by: `make documents-check`
+  Enforced by: `make docs-check`
 - An item is `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item
   is a sub-item of its own; the done item keeps its state.
-  Enforced by: `make documents-check`, `make commits-check`
+  Enforced by: `make docs-check`, `make commits-check`
 - An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite, which
   runs only in CI. `make item-test` runs the commands.
-  Enforced by: `make documents-check`, `.claude/settings.json`
+  Enforced by: `make docs-check`, `.claude/settings.json`
 - A commit completes at most one item: it moves at most one state, and the commit that moves an item to done records it in
   CHANGELOG.md and its Korean twin. The uncommitted work is at most one item.
   Enforced by: `make commits-check`
@@ -122,6 +122,10 @@ repository.
   of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
   72 characters. `make commit` writes it.
   Enforced by: `make commits-check`
+- The make targets of a task have fixed names: `install`, `build`, `test`, `lint`, `docs-check`, and `build-<runtime>`,
+  `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a
+  prerequisite of its own, such as `build: kit-build`, never by another target that starts with a task's name (K246).
+  Enforced by: `make kit-check`
 
 ## Repository standards
 

@@ -108,14 +108,26 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
+.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js
+# The fixed tasks of a repository (K246): each runs its target for every runtime that packages/ holds; a repository adds its
+# own steps to a task as prerequisites, never under another name.
+build test lint: ## Run build-<runtime>, test-<runtime> or lint-<runtime> for every runtime that packages/ holds; offline
+	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) task $@
+
+build-go build-js build-php build-python build-rust build-ts: ## Build each package of the runtime with the build of its ecosystem; offline
+	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) build $(@:build-%=%)
+
+# oxlint lints the JavaScript as it lints the TypeScript.
+lint-js: lint-ts
+
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which
 # run-tests allows only in CI. The suites run only in CI (K244).
 test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of each package of the runtime with the name filter CASES=<pattern>; offline
-	$(NODE) $(KIT)/test-runtime.$(KIT_EXT) $(@:test-%=%)
+	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
 test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root; only in CI
-	$(NODE) $(KIT)/test-runtime.$(KIT_EXT) $(@:test-%=%)
+	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
@@ -138,9 +150,9 @@ rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a che
 	$(NODE) $(KIT)/check-rules.$(KIT_EXT)
 
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
-.PHONY: documents-check
+.PHONY: docs-check
 
-documents-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
+docs-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
 	$(NODE) $(KIT)/check-documents.$(KIT_EXT)
 
 .PHONY: plan-new item-new item-state item-test commit
@@ -189,7 +201,7 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 
 .PHONY: commits-check
 
-commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against config/commits.json; offline
+commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against COMMIT_RULES of check-commits.mts; offline
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.

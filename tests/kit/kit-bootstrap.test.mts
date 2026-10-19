@@ -30,7 +30,7 @@ const tool = (root: string, file: string) => path.join(realpathSync(root), 'var/
 
 test('without the package, a goal other than the bootstrap steps stops with the commands that install it', (t) => {
   const root = repository(t);
-  for (const goals of [['documents-check'], [], ['install-packages', 'kit-check']]) {
+  for (const goals of [['docs-check'], [], ['install-packages', 'kit-check']]) {
     const run = make(root, ...goals);
     assert.equal(run.status, 2, `${goals.join(' ')}: ${run.stdout}`);
     assert.match(run.stderr, new RegExp(MISSING.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), goals.join(' '));
@@ -61,7 +61,7 @@ test('with the package, the kit.mk of its dist runs the built tools', (t) => {
   const root = repository(t);
   mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
   cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  const dry = make(root, '-n', 'documents-check');
+  const dry = make(root, '-n', 'docs-check');
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
   assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/install-tools.mjs go`, 'install-tools is the target of the package');
@@ -89,5 +89,5 @@ test('npm of install-packages and of dependency-review gets allow-remote=root fr
   const lines = (...goal: string[]) => make(root, '-s', ...goal).stdout.split('\n').filter(line => line.includes(' allow-remote='));
   assert.deepEqual(lines('install-packages'), ['npm allow-remote=root: ci']);
   assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: node_modules/@polyspec/kit/dist/dependency-review.mjs --update']);
-  assert.deepEqual(lines('documents-check'), ['node allow-remote=: node_modules/@polyspec/kit/dist/check-documents.mjs'], 'another recipe does not get it');
+  assert.deepEqual(lines('docs-check'), ['node allow-remote=: node_modules/@polyspec/kit/dist/check-documents.mjs'], 'another recipe does not get it');
 });

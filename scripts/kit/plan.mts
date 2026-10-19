@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The utilities that write plans and checklist rows (K249). Each computes the files it would write and writes them only when
-// they pass the checks that documents-check and the Git hooks run on them, so its output never fails those checks:
+// they pass the checks that docs-check and the Git hooks run on them, so its output never fails those checks:
 //
 //   plan-new   NAME=<slug> TITLE=<English title> TITLE_KO=<Korean title>
 //              writes docs/plans/<slug>/ with plan.md, checklist.md and their Korean twins: the doc-id, the language link,
@@ -110,7 +110,7 @@ export type NewItem = { plan: string; id: string; task: string | undefined; task
 /**
  * Adds the waiting row of `item` to the checklist of its plan and to the Korean twin, and returns the two files as
  * { path: text }. Throws, writing nothing, when the plan has no checklist, the ID does not match the pattern, a text is empty
- * or holds a line break, or the checklists with the row fail the checks of documents-check (an ID of two checklists, a
+ * or holds a line break, or the checklists with the row fail the checks of docs-check (an ID of two checklists, a
  * sub-item without its parent).
  */
 export function newItem(root: string, item: NewItem): Record<string, string> {
@@ -134,7 +134,7 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 }
 
 /**
- * Throws with the findings that writing `files` ({ path: text }) would add to the checklists of `trackers`, as documents-check
+ * Throws with the findings that writing `files` ({ path: text }) would add to the checklists of `trackers`, as docs-check
  * reads them. A finding that the checkout has already, such as an empty checklist of another plan, is the work of another
  * change; a finding is the same when its file, rule and message are, since an inserted row moves the lines.
  */

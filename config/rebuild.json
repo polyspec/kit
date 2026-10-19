@@ -76,7 +76,7 @@
     },
     "scripts/kit/plan.mts": {
       "kind": "policy",
-      "reason": "the plan folders and checklist table of PRINCIPLES.md (K241, K242): writes a plan or a row only when it passes the checks of documents-check and the hooks"
+      "reason": "the plan folders and checklist table of PRINCIPLES.md (K241, K242): writes a plan or a row only when it passes the checks of docs-check and the hooks"
     },
     "scripts/kit/verification.mts": {
       "kind": "policy",
@@ -94,7 +94,7 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that comments, identifiers, logs, error messages and test names are English: no lint of the runtimes reads the language of a comment, so kit reads them with the parser of each script (K252)"
     },
-    "scripts/kit/test-runtime.mts": {
+    "scripts/kit/runtime-targets.mts": {
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: one command per runtime that runs each package's runner with its name filter, and the suites only in CI (K244)"
     },

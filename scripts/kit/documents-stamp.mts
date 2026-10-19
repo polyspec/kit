@@ -2,7 +2,7 @@
 // Writes the revision marker of the Korean documents (`make documents-stamp`): in every pair that config/documents.json
 // selects, the Korean file gets `<!-- source-sha256: <sha256 of the English file> -->`, which replaces its marker or, when
 // it has none, follows its `<!-- doc-id: ... -->` line. Run it after the Korean text matches the English text; the checker
-// (`make documents-check`) compares the marker, so a stamp on an unreviewed translation hides a missing translation.
+// (`make docs-check`) compares the marker, so a stamp on an unreviewed translation hides a missing translation.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CONFIG, documentsOf } from './check-documents.mts';

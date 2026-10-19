@@ -84,3 +84,8 @@ test('a test target of a runtime needs CASES, and the suites run only in CI (K24
   assert.match(refusal('make test-integration') ?? '', /make test-integration runs only in CI/);
   assert.match(refusal('make test-conformance CASES=x') ?? '', /make test-conformance runs only in CI/);
 });
+
+test('make test runs the unit tests of every runtime, so it runs only in CI (K246)', () => {
+  assert.match(refusal('make test') ?? '', /make test runs only in CI/);
+  assert.match(refusal('make test CASES=x') ?? '', /make test runs only in CI/);
+});

@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: f4d61fa08e423499a40d189cc75ecc89112e37f95c121588bca1e8576f78bf6e -->
+<!-- source-sha256: 8e5c7c5b458d2c271640fd06757451e09186be452e437ad8b57a36d58bbe10ac -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -12,7 +12,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - 모든 것은 그 일을 하는 사람의 책임입니다: code, test, 문서, AGENTS, memory. 그중 하나라도 빠지면 작업은 끝나지
   않았습니다.
-  Enforced by: `make commits-check`, `make documents-check`
+  Enforced by: `make commits-check`, `make docs-check`
 - 규칙은 옳기 때문에 지키며, 있기 때문에 지키지 않습니다. "원래 있었다"는 근거가 아닙니다. 틀린 규칙, code 경로, 문서를
   발견하면 보고하고 바로잡습니다; 발견한 이상한 점은 즉시 보고하며 규칙을 만들거나 바로잡아야 하는지를 함께 묻고, 작업이
   넘어가기 전에 고치거나 납득할 만하게 확인합니다.
@@ -102,14 +102,14 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이다. checklist는 ID, Task,
   Deliverables, Verification, State column을 가진 table 하나이다. item ID는 checklist 사이에서 유일하고, sub-item
   `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓴다.
-  Enforced by: `make documents-check`
+  Enforced by: `make docs-check`
 - item은 `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
   `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. done item에 대한 새 발견은 그 자신의
   sub-item이 되고, done item은 state를 유지한다.
-  Enforced by: `make documents-check`, `make commits-check`
+  Enforced by: `make docs-check`, `make commits-check`
 - 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 CI에서만 도는 suite로 검증하지 않는다.
   `make item-test`가 그 command를 실행한다.
-  Enforced by: `make documents-check`, `.claude/settings.json`
+  Enforced by: `make docs-check`, `.claude/settings.json`
 - commit은 최대 한 item을 완료한다. state를 최대 하나 바꾸고, item을 done으로 옮기는 commit은 그것을 CHANGELOG.md와 그
   한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.
   Enforced by: `make commits-check`
@@ -117,6 +117,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
   쓴다.
   Enforced by: `make commits-check`
+- 작업의 make target은 고정된 이름을 가진다. `install`, `build`, `test`, `lint`, `docs-check`와 `packages/`의 runtime마다
+  `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
+  prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
+  Enforced by: `make kit-check`
 
 ## Repository 기준
 

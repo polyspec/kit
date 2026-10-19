@@ -47,7 +47,7 @@ jobs:
         run: rustup toolchain install
       # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
       - name: install php symbol packages
-        run: make install-symbols-php
+        run: make kit-install-symbols-php
       # Every check below runs after an earlier one failed (`!cancelled()`), so one run shows every failure (K251).
       # Every tool that install-tools, setup-php and rustup installed runs at the version of config/toolchain.json (K183).
       - name: toolchain check
@@ -98,9 +98,9 @@ jobs:
       - name: source tests
         if: ${{ !cancelled() }}
         run: make source-test
-      - name: documents check
+      - name: docs check
         if: ${{ !cancelled() }}
-        run: make documents-check
+        run: make docs-check
       # Every tool of scripts/kit has its class in config/rebuild.json (S1), and every tracked path an owner rule in
       # config/owner-checks.json (K182).
       - name: rebuild check

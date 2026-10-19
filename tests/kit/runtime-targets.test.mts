@@ -1,9 +1,9 @@
-// Tests of scripts/kit/test-runtime.mts: `make test-<runtime> CASES=<pattern>` runs the unit tests of each package of the
+// Tests of scripts/kit/runtime-targets.mts: `make test-<runtime> CASES=<pattern>` runs the unit tests of each package of the
 // runtime with the name filter of its runner, in the folder of the package; the integration and conformance suites live
 // under tests/ of the root and run only in CI (K244).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runtimeRuns, suiteRuns } from '../../scripts/kit/test-runtime.mts';
+import { buildRuns, runtimeRuns, suiteRuns, taskTargets } from '../../scripts/kit/runtime-targets.mts';
 
 const FILES = [
   'packages/ts/src/a.ts', 'packages/ts/tests/a.test.ts', 'packages/ts/package.json',
@@ -27,4 +27,18 @@ test('each package of a runtime runs its runner with the name filter of CASES in
 test('a suite runs the folder of each runtime under tests/<suite>/ of the root (K244)', () => {
   assert.deepEqual(suiteRuns(FILES, 'integration', node), [{ cwd: 'tests/integration/go', tool: 'go', args: ['./...'] }]);
   assert.deepEqual(suiteRuns(FILES, 'conformance', node), [{ cwd: 'tests/conformance/ts', tool: 'node', args: ['a.test.ts'] }]);
+});
+
+test('build-<runtime> runs the build of its ecosystem in each package, and names a runtime that has none (K246)', () => {
+  const files = [...FILES, 'packages/ts/tsconfig.build.json', 'packages/python/pyproject.toml'];
+  assert.deepEqual(buildRuns(files, 'go'), [{ cwd: 'packages/validator/go', command: 'go', args: ['build', './...'] }]);
+  assert.deepEqual(buildRuns(files, 'rust'), [{ cwd: 'packages/rust', command: 'cargo', args: ['build', '--locked'] }]);
+  assert.deepEqual(buildRuns(files, 'ts'), [{ cwd: 'packages/ts', command: 'tsc', args: ['-p', 'tsconfig.build.json'] }]);
+  assert.deepEqual(buildRuns(files, 'python'), [{ cwd: 'packages/python', command: 'uv', args: ['build'] }]);
+  assert.deepEqual(buildRuns(files, 'php'), [], 'a PHP library has no build step');
+});
+
+test('build, test and lint run the target of each runtime that packages/ holds (K246)', () => {
+  assert.deepEqual(taskTargets(FILES, 'lint'), ['lint-go', 'lint-php', 'lint-python', 'lint-rust', 'lint-ts']);
+  assert.deepEqual(taskTargets(FILES, 'test'), ['test-go', 'test-php', 'test-python', 'test-rust', 'test-ts']);
 });

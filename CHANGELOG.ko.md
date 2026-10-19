@@ -1,13 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0d29dd93a25094e1c34624c868e3a6a2e6106c0784d5b6a057141422778635ac -->
+<!-- source-sha256: 52401064d41bb2e56f80dd11b80b462c8d7d1c0105d4d193bbb8e5f896990b87 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 작업의 make target은 kit.mk와 kit-bootstrap.mk가 정의하는 고정된 이름을 가진다. `install`, `build`, `test`, `lint`는 `packages/`의 각 runtime의 target을 실행하고, `build-<runtime>`은 그 ecosystem의 build를 실행하며, documents-check는 `docs-check`이다. kit-check는 작업 이름으로 시작하면서 kit이 정의하지 않는 Makefile target과, build, test, lint target이 없는 runtime에서 실패한다. Claude Code hook은 CI에서만 실행하는 `make test`를 거부한다. kit 자신의 target은 고정 작업의 prerequisite인 `kit-build`와 `kit-install-symbols-php`이다 (K246).
 - 공통 layout은 관심사마다 한 곳을 고정한다. `docs/`는 `spec/`, `operations/`, `plans/`, `rebuild/`, `features.md`와 VitePress site의 파일을 가지고, AGENTS, CHANGELOG, Makefile은 root에 두며, test 폴더는 `tests/`이고, `js` 폴더는 TypeScript를 가지지 않는다. kit의 tool inventory는 docs/operations/로 옮긴다 (K245).
-- `make test-<runtime> CASES=<pattern>`(`test-runtime.mts`)은 runtime의 각 package의 unit test를 그 runner의 name filter로 실행한다. `make test-integration`과 `make test-conformance`는 root의 `tests/integration/`과 `tests/conformance/`의 suite를 CI에서만 실행한다. layout 규칙은 suite를 package 밖에 두게 하고, Claude Code hook은 CASES 없는 test target과 suite를 거부한다 (K244).
+- `make test-<runtime> CASES=<pattern>`(`runtime-targets.mts`)은 runtime의 각 package의 unit test를 그 runner의 name filter로 실행한다. `make test-integration`과 `make test-conformance`는 root의 `tests/integration/`과 `tests/conformance/`의 suite를 CI에서만 실행한다. layout 규칙은 suite를 package 밖에 두게 하고, Claude Code hook은 CASES 없는 test target과 suite를 거부한다 (K244).
 - rules check는 규칙 문서에서 section을 소개하는 문단 밖의 문단에서 실패하므로, 규칙은 자기 check를 가진 list item이다. kit의 릴리스 절차는 docs/operations/release.md로 옮기고, AGENTS.md는 릴리스와 생성 파일 규칙을 list item으로 기술한다 (K243-1).
 - commit 규칙은 모든 저장소에 같은 check-commits.mts의 상수 `COMMIT_RULES`이고, kit-check는 남은 `config/commits.json`을 알린다. PRINCIPLES.md에 plan, item, 검증, commit 규칙을 가진 Workflow 절이 있고, kit의 AGENTS.md는 그것을 다시 기술하지 않는다 (K243).
 - `make language-check`(`language-check.mts`)는 data인 문자열을 빼고 code의 주석, identifier, error 또는 log message, test name의 한글에서 실패하고, commit check는 commit message의 한글에서 실패한다(`commit-language`). kit의 CI가 둘 다 실행한다 (K252).

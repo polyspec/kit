@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Checks the documents of a checkout (`make documents-check`), as `config/documents.json` declares them:
+// Checks the documents of a checkout (`make docs-check`), as `config/documents.json` declares them:
 //
 //   pair-missing    every English document has a Korean twin .ko.md and the reverse
 //   doc-id          both files hold the same <!-- doc-id: <id> --> once; an id belongs to one document

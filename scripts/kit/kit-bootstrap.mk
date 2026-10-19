@@ -16,7 +16,7 @@ else
 BOOTSTRAP_NODE := node
 NODE := $(CURDIR)/var/tools/bin/node
 NPM := $(CURDIR)/var/tools/bin/npm
-ifneq ($(filter-out install-tools install-packages,$(or $(MAKECMDGOALS),the default goal)),)
+ifneq ($(filter-out install install-tools install-packages,$(or $(MAKECMDGOALS),the default goal)),)
 $(error $(KIT)/kit.mk is missing; run make install-tools TOOLS=npm, then make install-packages)
 endif
 
@@ -37,3 +37,9 @@ endif
 install-packages dependency-review: export npm_config_allow_remote := root
 install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools; never builds or links; ONLINE
 	$(ONLINE) $(NPM) ci
+
+.PHONY: install
+install: ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools; ONLINE
+	$(MAKE) --no-print-directory install-tools TOOLS=npm
+	$(MAKE) --no-print-directory install-packages
+	$(MAKE) --no-print-directory install-tools
