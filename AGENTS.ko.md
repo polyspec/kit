@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: dfad6671d3e76358a3ec93502d20ebc369981200aa455320d42136ebd654cc62 -->
+<!-- source-sha256: d670af7c1a4558ce7add952d93840097150143a526ff95ce06380dfe67e78d56 -->
 # 개발
 
 [English](AGENTS.md)
@@ -99,13 +99,6 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 ## 생성 파일
 
 생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`), 캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구 다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`, `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture. 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서 ignore 항목을 추가합니다.
-
-## 체크리스트
-
-plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이고, kit은 plan folder의 checklist를
-읽습니다(K241). 작업은 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!] cause: <cause>; retry: <condition>`
-우회, `[-] cause: <cause>` 불가입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤 `[o]`가 됩니다. commit message는 `type(scope): Subject (#task)`이며
-subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`입니다.
 
 ## 릴리스
 

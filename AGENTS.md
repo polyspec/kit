@@ -111,15 +111,6 @@ and states only its own rules. The rules below are kit's own.
 
 Generated files are never tracked in Git. This covers dependency installs (`node_modules/`, `vendor/`, virtual environments), build output (`dist/`, `target/`, `*.tsbuildinfo`), caches (`.cache/`, `__pycache__/`, `.pytest_cache/`), test run artifacts (`test-results/`, `playwright-report/`, PHPUnit caches) and tool downloads (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this file names, and test fixtures. Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same commit.
 
-## Checklist
-
-A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins, and kit reads the checklists
-of the plan folders (K241). A task is `[ ]` waiting, `[~]` in progress, `[o]` done,
-`[!] cause: <cause>; retry: <condition>` bypassed or `[-] cause: <cause>` impossible. A task becomes `[o]` in the commit
-that completes it, after its owning command passes. A commit message is `type(scope): Subject (#task)`, with a subject of
-at most 50 characters, a body wrapped at 72 characters, and the types `feat`, `fix`, `docs`, `style`, `refactor`, `test`,
-`chore`.
-
 ## Release
 
 kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci` success. `package.json` holds the version of the

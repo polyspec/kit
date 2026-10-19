@@ -186,7 +186,7 @@ test('the commit command refuses a revision that is not a commit', (t) => {
   assert.match(refused.stdout, /^::error::push refused: no-such-revision is not a commit of this repository$/m);
 });
 
-// The commit messages of the pushed range, checked with the rules of config/commits.json (the same check as make commits-check).
+// The commit messages of the pushed range, checked with the commit rules of kit (the same check as make commits-check).
 const WIDE = `${'word '.repeat(14)}abcd`; // 74 characters with a space, so the line is not a single long word
 const note = (work: string, name: string, message: string) => {
   writeFileSync(path.join(work, name), `${name}\n`);

@@ -14,7 +14,6 @@ const SCHEMAS: Record<string, string> = {
   'installed.json': 'composer-lock.schema.json',
   'knip.json': 'knip.schema.json',
   'checklist.json': 'checklist.schema.json',
-  'commits.json': 'commits.schema.json',
   'dependency-policy.json': 'dependency-policy.schema.json',
   'dependency-review.json': 'dependency-review.schema.json',
   'documents.json': 'documents.schema.json',

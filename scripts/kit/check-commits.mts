@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Checks commit messages against config/commits.json (`make commits-check`):
+// Checks commit messages against the commit rules of kit, COMMIT_RULES (`make commits-check`):
 //
-//   commit-subject   the first line is `type(scope): Subject (#id)` with a type of the configuration, a scope of lower case
+//   commit-subject   the first line is `type(scope): Subject (#id)` with a type of the rules, a scope of lower case
 //                    letters, digits and hyphens, and an id of letters, digits, dots and hyphens
 //   commit-capital   the Subject starts with a capital letter
 //   commit-period    the Subject does not end with a period
@@ -10,8 +10,8 @@
 //   commit-width     a line of the body has at most `bodyMax` characters
 //   commit-items     the commit changes the state of at most one item of the checklists of docs/plans; a row
 //                    that the commit adds is not a change, so a commit may add items and sub-items
-//   commit-changelog a commit that moves an item to the done state [o] also changes the `changelog` of the
-//                    configuration, its path and its translation (only when config/commits.json declares a changelog)
+//   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
+//                    CHANGELOG.md and its Korean twin
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -27,16 +27,25 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { readConfig } from './schema-validate.mts';
 
-export const CONFIG = 'config/commits.json';
-
-/** The commit rules of config/commits.json (scripts/kit/schema/commits.schema.json). */
+/** The rules of a commit: the types of its subject, the limits of its lines, and the changelog that a done item changes. */
 export type CommitRules = {
   types: string[];
   subjectMax: number;
   bodyMax: number;
   changelog?: { path: string; translation?: string };
+};
+
+/**
+ * The commit rules of every repository (K243): one set, stated once, so no repository declares its own. The types are those
+ * of PRINCIPLES.md, the Subject has at most 50 characters and a line of the body at most 72, and a done item changes the
+ * changelog in both languages.
+ */
+export const COMMIT_RULES: CommitRules = {
+  types: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'],
+  subjectMax: 50,
+  bodyMax: 72,
+  changelog: { path: 'CHANGELOG.md', translation: 'CHANGELOG.ko.md' },
 };
 
 /** A finding of a commit message or change. */
@@ -51,11 +60,6 @@ export type CommitMessage = { id: string; message: string };
  */
 export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string };
 
-/** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
-export function loadCommitRules(root: string): CommitRules {
-  if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist; declare the commit rules there (scripts/kit/schema/commits.schema.json)`);
-  return readConfig<CommitRules>(root, CONFIG, 'commits.schema.json');
-}
 
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message: string, config: CommitRules) {
@@ -223,7 +227,7 @@ if (isMain(import.meta.url)) {
   let findings: string[];
   let label: string;
   try {
-    const config = loadCommitRules(root);
+    const config = COMMIT_RULES;
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
@@ -241,7 +245,7 @@ if (isMain(import.meta.url)) {
   }
   for (const line of findings) console.error(`[check-commits] ${line}`);
   if (findings.length) {
-    console.error(`[check-commits] ${findings.length} findings in ${label} (${CONFIG})`);
+    console.error(`[check-commits] ${findings.length} findings in ${label} (the commit rules of kit)`);
     process.exit(1);
   }
   console.log(`[check-commits] ${label} passed`);

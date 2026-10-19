@@ -73,14 +73,13 @@ test('item-new refuses an ID of another checklist, a sub-item without its parent
   assert.deepEqual(before(), kept);
 });
 
-const COMMITS = { 'config/commits.json': '{"schema":1,"types":["feat"],"subjectMax":50,"bodyMax":72,"changelog":{"path":"CHANGELOG.md","translation":"CHANGELOG.ko.md"}}\n' };
 const CHANGELOG = '# Changelog\n\n## Unreleased\n\n';
 
 /** A committed checkout with the plan parser and its items `ids`, each waiting. */
 function committed(t: Parameters<typeof tree>[0], ...ids: string[]) {
   const root = plans(t, 'parser');
   for (const id of ids) newItem(root, item('parser', id));
-  for (const [file, text] of Object.entries({ ...COMMITS, 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG })) writeFileSync(path.join(root, file), text);
+  for (const [file, text] of Object.entries({ 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG })) writeFileSync(path.join(root, file), text);
   for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'base']]) {
     const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr);

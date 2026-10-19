@@ -15,8 +15,6 @@ const FIXTURE = path.join(HERE, 'fixture');
 
 export const CHECKLIST = 'docs/plans/work/checklist.md';
 export const TRANSLATION = 'docs/plans/work/checklist.ko.md';
-// The commit rules of the checkout: the same rules as the kit repository's config/commits.json.
-const COMMITS = { schema: 1, types: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'], subjectMax: 50, bodyMax: 72 };
 
 export function run(cwd: string, command: string, args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> = {}) {
   return spawnSync(command, args, { cwd, encoding: 'utf8', ...options });
@@ -66,7 +64,6 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   mkdirSync(path.join(work, 'config'));
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(work, 'config/checklist.json'));
   cpSync(path.join(FIXTURE, 'config/generated.json'), path.join(work, 'config/generated.json'));
-  writeFileSync(path.join(work, 'config/commits.json'), JSON.stringify(COMMITS));
   if (config) writeFileSync(path.join(work, 'config/checklist.json'), JSON.stringify(config));
   mkdirSync(path.join(work, 'docs/plans/work'), { recursive: true });
   const { english, korean } = checklists(state);

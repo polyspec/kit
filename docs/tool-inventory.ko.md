@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7a7c2a801bde09bce4c1c160ed4766afcc60cf856740ec24493980e718ac4366 -->
+<!-- source-sha256: da958c7f3d7b24c0913b748e529a3d5980f8dbb4cd086ddc49a8c8e1b9126778 -->
 
 # 도구 목록
 
@@ -272,7 +272,7 @@ lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합
 ### 정책
 
 tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. 대기 `[ ]`, 완료
-`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `config/commits.json`)의
+`[o]`, 우회 `[!]` 상태는 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `COMMIT_RULES`)의
 규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
 0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
 각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
@@ -503,8 +503,8 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 ## 커밋 메시지 검사 (K8.1-4)
 
 `scripts/kit/check-commits.mts`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
-ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 형식과 한도는 `config/commits.json`
-(`scripts/kit/schema/commits.schema.json`)의 data입니다.
+ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 형식과 한도는 모든 저장소에 같은 check-commits.mts의
+상수 `COMMIT_RULES`입니다(K243).
 
 합친 동작:
 
@@ -514,7 +514,7 @@ ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없�
 - 새로 추가, 저장소의 공통 규칙에서: subject 다음에 빈 줄이 오고, 본문 한 줄은 `bodyMax`자 이하입니다(그보다 긴 단어 하나, 예를
   들어 URL은 허용).
 - 새로 추가(K19): commit 하나는 모든 저장소가 선언하는 config/checklist.json의 tracker 항목 하나의 상태만 바꾸고(그 commit이
-  추가한 행은 변경이 아님), 항목을 tracker의 `done` 상태로 옮기는 commit은 `config/commits.json`의 `changelog`와 그 번역도 바꿉니다. 범위의 commit은
+  추가한 행은 변경이 아님), 항목을 tracker의 `done` 상태로 옮기는 commit은 CHANGELOG.md와 그 한국어 짝도 바꿉니다. 범위의 commit은
   부모와 비교하고, commit하려는 메시지는 index를 HEAD와 비교합니다.
 
 version 일관성과 orm의 다른 영역 검사:
@@ -530,7 +530,7 @@ version 일관성과 orm의 다른 영역 검사:
 버린 동작:
 
 - `ORM_GIT_RANGE`: 범위는 인자 `--range`(make 변수 `RANGE`)입니다.
-- rule id `git.subject-format`과 `contracts/rules.json`: 설정은 `config/commits.json`입니다.
+- rule id `git.subject-format`과 `contracts/rules.json`: 규칙은 check-commits.mts의 `COMMIT_RULES`입니다.
 
 ## Release 도구 (K5)
 

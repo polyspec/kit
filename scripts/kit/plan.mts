@@ -10,14 +10,14 @@
 //              (an ID that ends in -<n>) after the last sub-item of its parent, another item at the end of the last table
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
 //              moves the item to STATE in both languages along an allowed transition; the done state needs a line with
-//              (<id>) that the working tree adds to each changelog of config/commits.json, the bypassed state a cause and a
+//              (<id>) that the working tree adds to each changelog of the commit rules, the bypassed state a cause and a
 //              retry condition, the impossible state a cause; it refuses what the commit-msg hook would refuse
 //   item-test  ID=<id>
 //              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
 //              fails or that the Claude Code hook refuses (verification.mts)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
-//              paragraphs wrapped at the width of config/commits.json and its trailer lines kept; it refuses what the
+//              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
 //              commit-msg hook would refuse, and git commit runs the hooks again
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
@@ -26,7 +26,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { fileAt, indexItemFindings, loadCommitRules, messageFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, fileAt, indexItemFindings, messageFindings, workingItemFindings } from './check-commits.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
@@ -183,7 +183,7 @@ function withState(text: string, id: string, state: string): string {
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
  * { path: text }. Throws, writing nothing, on a state that is none of the five, a transition that TRANSITIONS does not allow,
- * the done state without a line with (<id>) that the working tree adds to each changelog of config/commits.json, a missing
+ * the done state without a line with (<id>) that the working tree adds to each changelog of the commit rules, a missing
  * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
@@ -198,10 +198,10 @@ export function setState(root: string, change: NewState): Record<string, string>
     const next = allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own';
     throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
   }
-  const rules = loadCommitRules(root);
+  const rules = COMMIT_RULES;
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
-    if (changelogs.length === 0) throw new Error('config/commits.json declares no changelog; the done state needs the entry of the item in it');
+    if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');
     const count = (text: string) => text.split('\n').filter(line => line.includes(`(${change.id})`)).length;
     for (const file of changelogs) {
       if (count(existsSync(path.join(root, file)) ? read(file) : '') <= count(fileAt(root, 'HEAD', file))) throw new Error(`${file} adds no line with (${change.id}) to HEAD; record the item in the changelog of both languages first`);
@@ -279,7 +279,7 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
   if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
-  const rules = loadCommitRules(root);
+  const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;

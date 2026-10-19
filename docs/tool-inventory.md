@@ -305,7 +305,7 @@ A push is refused while an item of a tracker is in its active state (`[~]` for a
 tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
 gate. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
 `.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
-unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `config/commits.json`),
+unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `COMMIT_RULES`),
 because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
 the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
 refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
@@ -549,8 +549,8 @@ Dropped behaviors:
 ## Commit message check (K8.1-4)
 
 `scripts/kit/check-commits.mts` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
-and ordered-json state the same message format in their rules but have no check. The format and the limits are data in
-`config/commits.json` (`scripts/kit/schema/commits.schema.json`).
+and ordered-json state the same message format in their rules but have no check. The format and the limits are the constant
+`COMMIT_RULES` of check-commits.mts, the same for every repository (K243).
 
 Merged behaviors:
 
@@ -560,8 +560,8 @@ Merged behaviors:
 - New, from the shared rule of the repositories: a blank line follows the subject, and a body line has at most `bodyMax`
   characters (a single longer word, such as a URL, is allowed).
 - New (K19): a commit changes the state of at most one tracker item of config/checklist.json, which every repository
-  declares (a row the commit adds is not a change), and a commit that moves an item to the `done` state of its tracker also changes the `changelog` of
-  `config/commits.json` and its translation. A commit of a range is compared with its parent; the message being committed,
+  declares (a row the commit adds is not a change), and a commit that moves an item to the `done` state of its tracker also changes CHANGELOG.md
+  and its Korean twin. A commit of a range is compared with its parent; the message being committed,
   with the index against HEAD.
 
 Version consistency and the other area checks of orm:
@@ -579,7 +579,7 @@ Version consistency and the other area checks of orm:
 Dropped behaviors:
 
 - `ORM_GIT_RANGE`: the range is the argument `--range` (the make variable `RANGE`).
-- The rule id `git.subject-format` and `contracts/rules.json`: the configuration is `config/commits.json`.
+- The rule id `git.subject-format` and `contracts/rules.json`: the rules are `COMMIT_RULES` of check-commits.mts.
 
 ## Release tool (K5)
 

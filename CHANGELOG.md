@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The commit rules are the constant `COMMIT_RULES` of check-commits.mts, the same for every repository, and kit-check names a leftover `config/commits.json`; PRINCIPLES.md has a Workflow section with the rules of plans, items, verification and commits, and kit's AGENTS.md no longer restates them (K243).
 - `make language-check` (`language-check.mts`) fails on Hangul in a comment, an identifier, an error or log message or a test name of the code, a string that is data excepted, and the commit check fails on Hangul in a commit message (`commit-language`); kit's CI runs both (K252).
 - The duplication check names the command of jscpd that it runs, which the isolation test of kit reads (K248-3-1).
 - `make test-markers-check` (`test-markers.mts`) fails on a test that a marker skips or narrows: `test.skip`, `it.only`, a `skip`, `only` or `todo` option of node:test or vitest read with the parser, and `t.Skip`, `unittest.skip`, `pytest.mark.skip`, `markTestSkipped` and `#[ignore]` on a line of code; kit's CI runs it (K255).

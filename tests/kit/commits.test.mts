@@ -10,7 +10,6 @@ import type { TestContext } from 'node:test';
 import { fileMessage, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
-import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
 const rules = (message: string) => messageFindings(message, CONFIG).map(found => found.rule);
@@ -59,7 +58,7 @@ test('a message file loses its comment lines, and a merge commit is not checked'
 });
 
 function repository(t: TestContext, messages: string[]) {
-  const root = tree(t, { 'config/commits.json': JSON.stringify(CONFIG), 'config/checklist.json': JSON.stringify(CHECKLIST) });
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   messages.forEach((message, index) => {
     put(root, { [`f${index}.txt`]: String(index) });
@@ -104,7 +103,7 @@ test('the command checks a range or a message file and exits with the findings',
   const range = command('--range', 'HEAD~1..HEAD');
   assert.equal(range.status, 1, range.stdout + range.stderr);
   assert.match(range.stderr, /\[check-commits\] \w+: commit-subject: the subject is "bad subject"/);
-  assert.match(range.stderr, /1 findings in the commits of HEAD~1\.\.HEAD \(config\/commits\.json\)/);
+  assert.match(range.stderr, /1 findings in the commits of HEAD~1\.\.HEAD \(the commit rules of kit\)/);
   const file = path.join(root, 'MSG');
   writeFileSync(file, '# comment\nfeat(ci): Fine (#K2)\n');
   const good = command('--message', file);
@@ -115,25 +114,12 @@ test('the command checks a range or a message file and exits with the findings',
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /\[check-commits\] commit-subject: the subject is "wip"/);
   assert.equal(command('--range', 'bogus').status, 1);
-  put(root, { 'config/commits.json': null });
-  const missing = command();
-  assert.equal(missing.status, 1);
-  assert.match(missing.stderr, /config\/commits\.json does not exist; declare the commit rules there/);
 });
 
 test('the item rules need config/checklist.json: a range of a checkout without it fails and names the file', (t) => {
   const { root } = repository(t, ['feat(docs): Start (#K1)']);
   put(root, { 'config/checklist.json': null });
   assert.throws(() => rangeFindings(root, 'HEAD', CONFIG), /config\/checklist\.json does not exist in .*; the repository declares its hooks and the pattern of its item IDs there/);
-});
-
-test('config/commits.json is validated against its schema', () => {
-  const schema = schemaFile('commits.schema.json');
-  assert.deepEqual(validate(CONFIG, schema), []);
-  assert.deepEqual(validate({ schema: 1, types: ['Feat'], subjectMax: 0, bodyMax: 72 }, schema), [
-    '/types/0 must match pattern "^[a-z]+$" {"pattern":"^[a-z]+$"}, value "Feat"',
-    '/subjectMax must be >= 1 {"comparison":">=","limit":1}, value 0',
-  ]);
 });
 
 const TRACKED = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72, changelog: { path: 'CHANGELOG.md', translation: 'CHANGELOG.ko.md' } };
@@ -143,7 +129,7 @@ const PLAN = 'docs/plans/p/checklist.md';
 const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;
 
 function tracked(t: TestContext, steps: Array<[string, Record<string, string | null>]>) {
-  const root = tree(t, { 'config/commits.json': JSON.stringify(TRACKED), 'config/checklist.json': JSON.stringify(CHECKLIST) });
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   for (const [message, files] of steps) {
     put(root, files);

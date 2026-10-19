@@ -99,6 +99,30 @@ in kit, with its grounding.
   asked again.
   Enforced by: none, whether a question is needed is a judgement.
 
+## Workflow
+
+The rules of work that every repository follows, stated once here (K243); an AGENTS.md holds only the rules of its own
+repository.
+
+- A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins. A checklist is one table
+  with the columns ID, Task, Deliverables, Verification and State; an item ID is unique among the checklists, and a
+  sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them.
+  Enforced by: `make documents-check`
+- An item is `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
+  `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item
+  is a sub-item of its own; the done item keeps its state.
+  Enforced by: `make documents-check`, `make commits-check`
+- An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite, which
+  runs only in CI. `make item-test` runs the commands.
+  Enforced by: `make documents-check`, `.claude/settings.json`
+- A commit completes at most one item: it moves at most one state, and the commit that moves an item to done records it in
+  CHANGELOG.md and its Korean twin. The uncommitted work is at most one item.
+  Enforced by: `make commits-check`
+- A commit message is `type(scope): Subject (#id)` with a type of feat, fix, docs, style, refactor, test or chore, a Subject
+  of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
+  72 characters. `make commit` writes it.
+  Enforced by: `make commits-check`
+
 ## Repository standards
 
 The owner approved these standards on 2026-10-13. Each is enforced by a tool that fails on a violation; the tools, their

@@ -7,7 +7,7 @@
 //                                                `<local ref> <local sha> <remote ref> <remote sha>` of Git on standard
 //                                                input and refuses the push while a checklist of a pushed commit or of the
 //                                                working tree has an item in the active state, or cannot be read, and refuses it while a commit that the push sends has a
-//                                                finding of the commit check (check-commits.mts, config/commits.json, as make commits-check)
+//                                                finding of the commit check (check-commits.mts, COMMIT_RULES, as make commits-check)
 //   node scripts/kit/push-gate.mts commit <rev>  the check of a pushed commit, for a push from a checkout without the
 //                                                hook: fails for the same reasons and when the commit does not track a
 //                                                hook of config/checklist.json with mode 100755; prints each line also as
@@ -21,7 +21,7 @@ import { BLOCKING, inspectTrackers, loadConfig, PLANS, trackersOf, workingPlanFi
 import { HOOKS_PATH } from './git-hooks.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
-import { findingLines, loadCommitRules, logMessages } from './check-commits.mts';
+import { COMMIT_RULES, findingLines, logMessages } from './check-commits.mts';
 import { present } from './present.mts';
 
 const USAGE = 'Usage: node scripts/kit/push-gate.mts hook | commit <rev>';
@@ -30,9 +30,9 @@ const SHORT = 12;
 
 const RULE = 'A push happens only when no item of a checklist is in its active state; work in progress does not reach the remote.';
 const COMMIT_FIX = 'Amend each listed commit that the remote does not hold yet, then push again; this gate does not rewrite a pushed commit.';
-// The configuration of config/checklist.json and the commit rules of config/commits.json, as their loaders read them.
+// The configuration of config/checklist.json, as its loader reads it, and the commit rules of kit.
 type ChecklistConfig = ReturnType<typeof loadConfig>;
-type CommitRules = ReturnType<typeof loadCommitRules>;
+type CommitRules = typeof COMMIT_RULES;
 
 /** A place whose checklists the gate reads: its name, the paths of its plan files and the reader of its files. */
 export interface Source {
@@ -92,7 +92,7 @@ function pushedFindings(root: string, localSha: string, remoteSha: string, rules
 /** The refusal lines of the commit findings of a push, empty when there is none. */
 function commitRefusal(findings: string[]): string[] {
   if (findings.length === 0) return [];
-  return [`push refused: ${findings.length} commit finding${findings.length === 1 ? '' : 's'} (config/commits.json)`, ...findings.map(finding => `  ${finding}`), COMMIT_FIX];
+  return [`push refused: ${findings.length} commit finding${findings.length === 1 ? '' : 's'} (the commit rules of kit)`, ...findings.map(finding => `  ${finding}`), COMMIT_FIX];
 }
 
 // The branch that work may go to directly; every other branch is named for its item and deleted once merged into it.
@@ -145,7 +145,7 @@ export function branchFindings(root: string, pushed: readonly string[], types: r
 /** The refusal lines of a push: `input` holds the lines that Git passes to the pre-push hook. */
 export function hook(root: string, input: string): string[] {
   const config = loadConfig(root);
-  const rules = loadCommitRules(root);
+  const rules = COMMIT_RULES;
   const sources: Source[] = [];
   const findings: string[] = [];
   const branches: string[] = [];

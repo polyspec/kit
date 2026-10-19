@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 3f4dee82349634d0087d757de4f5fe08d5eeeb88083e7021bcacdf5083ad1d3f -->
+<!-- source-sha256: 4172e73b7ed55963f3c5a9e960df4d4c7846c22d6fc8c91054c3af9d9f37275b -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -94,6 +94,29 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - 질문은 필요할 때만 합니다: 이미 정해졌거나 분명하지 않고, 버릇으로 묻지 않으며, 무언가를 빠뜨리는 수단이 아니고, 결코
   혼란스럽지 않아야 합니다; 그리고 필요한 질문은 결코 빠뜨리지 않습니다. 새 이정표가 다시 연 결정은 다시 묻습니다.
   Enforced by: none, 질문이 필요한지는 판단입니다.
+
+## 작업 방식
+
+모든 저장소가 따르는 작업 규칙이며 여기에 한 번 기술한다(K243). AGENTS.md는 자기 저장소의 규칙만 가진다.
+
+- plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이다. checklist는 ID, Task,
+  Deliverables, Verification, State column을 가진 table 하나이다. item ID는 checklist 사이에서 유일하고, sub-item
+  `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓴다.
+  Enforced by: `make documents-check`
+- item은 `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
+  `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. done item에 대한 새 발견은 그 자신의
+  sub-item이 되고, done item은 state를 유지한다.
+  Enforced by: `make documents-check`, `make commits-check`
+- 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 CI에서만 도는 suite로 검증하지 않는다.
+  `make item-test`가 그 command를 실행한다.
+  Enforced by: `make documents-check`, `.claude/settings.json`
+- commit은 최대 한 item을 완료한다. state를 최대 하나 바꾸고, item을 done으로 옮기는 commit은 그것을 CHANGELOG.md와 그
+  한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.
+  Enforced by: `make commits-check`
+- commit message는 `type(scope): Subject (#id)`이며, type은 feat, fix, docs, style, refactor, test, chore 중 하나,
+  Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
+  쓴다.
+  Enforced by: `make commits-check`
 
 ## Repository 기준
 

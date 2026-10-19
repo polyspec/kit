@@ -160,10 +160,18 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
     .sort();
 }
 
+// The configurations that kit no longer reads.
+const RETIRED = ['config/commits.json'];
+
 // The mode of a symbolic link in the index of Git.
 const LINK_MODE = '120000';
 
 /** A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254). */
+/** A finding for each configuration that kit no longer reads, so a stale file does not look like a rule (K243). */
+export function retiredFindings(root: string): string[] {
+  return RETIRED.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer reads it; the commit rules are COMMIT_RULES of check-commits.mts (K243). Fix: git rm ${file}`);
+}
+
 export function symlinkFindings(root: string): string[] {
   return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
     const tab = entry.indexOf('\t');
@@ -177,7 +185,7 @@ export function symlinkFindings(root: string): string[] {
  * when they match.
  */
 export function check(root: string): string[] {
-  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root)), ...symlinkFindings(root)];
+  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root)), ...symlinkFindings(root), ...retiredFindings(root)];
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];
