@@ -30,10 +30,17 @@ export const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 /** The installation directory of the extractor `extractor` under `root`. */
 export const symbolsPrefix = (root: string, extractor: InstalledExtractor): string => toolsPath(root, `symbols-${extractor}`);
 
-/** The release of the extractor `extractor`: the sha256 of the names and contents of its source files. */
-export function extractorRelease(extractor: InstalledExtractor): string {
-  const directory = path.join(SYMBOLS, extractor);
-  return sha256(readdirSync(directory).sort().map(file => `${file}\0${sha256(readFileSync(path.join(directory, file)))}\n`).join(''));
+/**
+ * The release of the extractor `extractor`: the sha256 of the names and contents of its source files, the files of its folder.
+ * The folder holds no other folder but vendor/, the packages that kit's Makefile installs there for its own PHP lint
+ * (install-symbols-php, K248-4), which are no source; another folder throws.
+ */
+export function extractorRelease(extractor: InstalledExtractor, symbols = SYMBOLS): string {
+  const directory = path.join(symbols, extractor);
+  const entries = readdirSync(directory, { withFileTypes: true }).filter(entry => !(entry.isDirectory() && entry.name === 'vendor'));
+  const folders = entries.filter(entry => !entry.isFile()).map(entry => entry.name);
+  if (folders.length) throw new Error(`${directory} holds ${folders.join(', ')}, which is no source file; an extractor is the files of its folder`);
+  return sha256(entries.map(entry => entry.name).sort().map(file => `${file}\0${sha256(readFileSync(path.join(directory, file)))}\n`).join(''));
 }
 
 /** The release that an installation in `directory` records, or undefined when it has no RELEASE; another read error throws. */

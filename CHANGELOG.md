@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHP symbol extractor passes phpcs: its visitor is the class `Polyspec\Kit\Symbols\PublicSymbols` of `PublicSymbols.php`, beside `extract.php`; the release of an extractor skips the vendor/ of kit's PHP lint and fails on another folder (K248-4-1).
 - `make item-state ID= STATE=` moves an item along an allowed transition in both languages, sets done only when the working tree adds its line to both changelogs, writes the cause and the retry condition of a bypass and the cause of an impossible item, and refuses what the commit-msg hook would refuse (`workingItemFindings`); kit's config/commits.json declares its changelog, so the commit check requires the entry of a done item (K249-2).
 - `make item-new PLAN= ID= TASK= TASK_KO= DELIVERABLES= VERIFICATION=` adds a waiting row to a checklist and its twin, a sub-item after the last sub-item of its parent, escapes a pipe of a cell, and refuses the findings of documents-check that the row would add; documents-check and the utility read the checklists through the one function `checklistsFindings` (K249-1).
 - `make plan-new NAME= TITLE= TITLE_KO=` (`plan.mts`) writes a plan folder with its four files, doc-ids, language links, the checklist header and the revision markers, and refuses a name that is no slug, an existing plan and an empty title (K249).

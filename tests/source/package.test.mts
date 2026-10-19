@@ -34,7 +34,8 @@ test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imp
   assert.ok(schemas.length > 0);
   for (const schema of schemas) assert.equal(readFileSync(path.join(copy, 'dist/schema', schema), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/schema', schema), 'utf8'), `dist/schema/${schema}`);
   // The symbol extractors of parity are programs of their ecosystems, which dist/parity-symbols.mjs runs from dist/symbols.
-  const extractors = walk(path.join(ROOT, 'scripts/kit/symbols'));
+  // The tracked sources, not the folder: kit's CI installs the packages of the PHP extractor into its vendor/ (K248-4).
+  const extractors = run('git', ['ls-files', '--', 'scripts/kit/symbols'], ROOT).split('\n').filter(Boolean).map(file => path.posix.relative('scripts/kit/symbols', file));
   assert.ok(extractors.length > 0);
   for (const extractor of extractors) assert.equal(readFileSync(path.join(copy, 'dist/symbols', extractor), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/symbols', extractor), 'utf8'), `dist/symbols/${extractor}`);
 });

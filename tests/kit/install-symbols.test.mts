@@ -4,11 +4,12 @@
 // whose RELEASE cannot be read fails with the file instead of counting as not installed. go is a stub that writes the output
 // binary, so no test builds Go.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
+import { extractorRelease, installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 // A go that logs its arguments and writes the file after -o, as go build writes the binary.
@@ -74,4 +75,19 @@ test('an installation whose RELEASE cannot be read fails with the file, and is n
   mkdirSync(path.join(root, 'var/tools/symbols-go/RELEASE'), { recursive: true });
   assert.throws(() => installExtractor({ root, extractor: 'go' }), /var\/tools\/symbols-go\/RELEASE cannot be read: EISDIR/);
   assert.deepEqual(calls(), []);
+});
+
+test('the release of an extractor is that of its files: the vendor/ of kit\'s PHP lint is none, another folder fails (K248-4-1)', (t) => {
+  const symbols = mkdtempSync(path.join(tmpdir(), 'kit-symbols-'));
+  t.after(() => rmSync(symbols, { recursive: true, force: true }));
+  mkdirSync(path.join(symbols, 'php'));
+  writeFileSync(path.join(symbols, 'php', 'extract.php'), '<?php\n');
+  const release = extractorRelease('php', symbols);
+  mkdirSync(path.join(symbols, 'php', 'vendor'));
+  writeFileSync(path.join(symbols, 'php', 'vendor', 'autoload.php'), '<?php\n');
+  assert.equal(extractorRelease('php', symbols), release, 'vendor/ changes no release');
+  writeFileSync(path.join(symbols, 'php', 'PublicSymbols.php'), '<?php\n');
+  assert.notEqual(extractorRelease('php', symbols), release, 'a source file changes the release');
+  mkdirSync(path.join(symbols, 'php', 'src'));
+  assert.throws(() => extractorRelease('php', symbols), /holds src, which is no source file/);
 });
