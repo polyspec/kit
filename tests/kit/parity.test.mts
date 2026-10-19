@@ -265,7 +265,8 @@ const FILES = {
   'go/symbols.txt': 'go/codec.go::Encode\n',
   'rust/symbols.txt': 'encode\nhex_upper\n',
   // rustdoc JSON is unstable, so the rust extractor runs the Rust nightly that an exception declares.
-  'config/toolchain.json': JSON.stringify({ schema: 1, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
+  'config/toolchain.json': JSON.stringify({ schema: 1,
+    requirements: { pattern: 'CX-[0-9]+' }, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
   'ts/index.d.ts': TS_API('export declare const encode: () => number;'),
   'php/symbols.txt': 'php/src/Codec.php::Codec::encode\n',
@@ -273,13 +274,14 @@ const FILES = {
   'docs/errors.yaml': '- code: CONFIG\n- code: CODEC_DECODE\n',
   'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php', 'python'];\n",
   'docs/index.md': '# Codec\n\nFive languages share the codec: Go, Rust, TS, PHP and Python.\nThe two implementations go and rust compile.\n',
-  'docs/spec/codec.md': '# Codec\n\n## Width tables\n\nThe compiled implementations hold the width tables.\n',
+  'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n\n## Width tables\n\nThe compiled implementations hold the width tables.\n',
   'contracts/codec.json': JSON.stringify({ benchmarks: { hex: ['rust'] } }),
   'docs/index.ko.md': '# Codec\n\n다섯 언어가 codec을 공유한다: Go, Rust, TS, PHP와 Python.\n',
 };
 
 const CONFIG = {
   schema: 1,
+    requirements: { pattern: 'CX-[0-9]+' },
   implementations: [
     { name: 'go', runner: 'go', roots: ['go'], tests: ['go/**/*_test.go'], symbols: { extractor: 'go', entry: 'go' }, errors: { file: 'go/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' } },
     { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'rust', entry: 'rust/Cargo.toml' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
@@ -302,7 +304,7 @@ const CONFIG = {
   ],
   units: [
     {
-      id: 'codec', kind: 'suite', profile: 'all', file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
+      id: 'codec', kind: 'suite', profile: 'all', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$.vectors[*].name',
       bindings: [
         { implementation: 'go', test: 'go/codec_test.go', symbol: 'TestCodec' },
         { implementation: 'rust', test: 'rust/tests/codec.rs', symbol: 'vectors' },
@@ -312,21 +314,21 @@ const CONFIG = {
       ],
     },
     {
-      id: 'width', kind: 'suite', profile: 'compiled', file: 'tests/vectors/width.json', cases: '$[*]',
+      id: 'width', kind: 'suite', profile: 'compiled', requirements: ['CX-1'], file: 'tests/vectors/width.json', cases: '$[*]',
       bindings: [
         { implementation: 'go', test: 'go/width_test.go', symbol: 'TestWidth' },
         { implementation: 'rust', test: 'rust/src/lib.rs', symbol: 'width::tests::vectors' },
       ],
     },
     {
-      id: 'size', kind: 'suite', profile: 'compiled', file: 'tests/vectors/size.json', cases: '$[*]',
+      id: 'size', kind: 'suite', profile: 'compiled', requirements: ['CX-1'], file: 'tests/vectors/size.json', cases: '$[*]',
       bindings: [
         { implementation: 'go', test: 'go/size_test.go', symbol: 'TestSize' },
         { implementation: 'rust', test: 'rust/tests/size.rs', symbol: 'vectors' },
       ],
     },
     {
-      id: 'encode', kind: 'api', profile: 'all',
+      id: 'encode', kind: 'api', profile: 'all', requirements: ['CX-1'],
       symbols: [
         { implementation: 'go', symbol: 'go/codec.go::Encode' },
         { implementation: 'rust', symbol: 'codec::encode' },
@@ -551,7 +553,7 @@ const FEATURE_FILES = {
   'python/tests/test_roundtrip.py': 'PASS test_bytes\n',
 };
 const FEATURE = {
-  id: 'roundtrip', kind: 'feature', profile: 'all',
+  id: 'roundtrip', kind: 'feature', profile: 'all', requirements: ['CX-1'],
   bindings: [
     { implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' },
     { implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip::bytes' },
@@ -839,16 +841,18 @@ process.exit(testResults.some(file => file.assertionResults.some(result => resul
 function vitestRepository(t: TestContext, files: Record<string, string | null> = {}) {
   const config = {
     schema: 1,
+    requirements: { pattern: 'CX-[0-9]+' },
     implementations: [{ name: 'ts', runner: 'node', roots: ['ts'] }, { name: 'web', runner: 'vitest', roots: ['web'] }],
     profiles: [{ name: 'all', implementations: ['ts', 'web'] }],
     units: [
-      { id: 'codec', kind: 'suite', profile: 'all', file: 'tests/vectors/codec.json', cases: '$[*]', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs' }, { implementation: 'web', test: 'web/src/codec.spec.ts' }] },
-      { id: 'roundtrip', kind: 'feature', profile: 'all', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs', id: 'empty' }, { implementation: 'web', test: 'web/src/roundtrip.test.ts', id: 'roundtrip › nested › bytes' }] },
+      { id: 'codec', kind: 'suite', profile: 'all', requirements: ['CX-1'], file: 'tests/vectors/codec.json', cases: '$[*]', bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs' }, { implementation: 'web', test: 'web/src/codec.spec.ts' }] },
+      { id: 'roundtrip', kind: 'feature', profile: 'all', requirements: ['CX-1'], bindings: [{ implementation: 'ts', test: 'ts/codec.test.mjs', id: 'empty' }, { implementation: 'web', test: 'web/src/roundtrip.test.ts', id: 'roundtrip › nested › bytes' }] },
     ],
   };
   const all = {
     '.gitignore': 'var/\nnode_modules/\n',
     'tests/vectors/codec.json': JSON.stringify(['empty', 'ascii']),
+    'docs/spec/codec.md': '- **CX-1** The codec encodes every vector.\n',
     'ts/codec.test.mjs': NODE_CODEC,
     'web/src/codec.spec.ts': 'PASS empty\nPASS ascii\nPASS group › inner\n',
     'web/src/roundtrip.test.ts': 'PASS roundtrip › nested › bytes\nSKIP roundtrip › later\n',
@@ -960,7 +964,8 @@ test('an API unit without symbols fails the declaration and names the unit, and 
 
 test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, (t) => {
   const exception = (channel: string, scope = '.') => ({ tool: 'rust', channel, scope, reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' });
-  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
+  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1,
+    requirements: { pattern: 'CX-[0-9]+' }, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
   assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
   const [none] = messages([exception('nightly-2026-10-01', 'go')]);
   assert.match(known(none, 'none'), /^R1 rust: the rust extractor of rust\/Cargo\.toml gives no symbols: rustdoc JSON needs a Rust nightly \(rust-lang\/rust#76578\), and config\/toolchain\.json exceptions declares none whose scope holds rust\/Cargo\.toml/);

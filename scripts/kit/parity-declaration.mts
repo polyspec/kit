@@ -64,6 +64,8 @@ export interface ParityUnit {
   id: string;
   kind: 'suite' | 'feature' | 'api';
   profile: string;
+  /** The ids of the spec requirements that the unit tests (K273). */
+  requirements: string[];
   file?: string;
   cases?: string;
   admit?: string;
@@ -89,6 +91,8 @@ export interface ParityConfig {
   comparators?: string[];
   tools?: { root: string; reason: string }[];
   testPatterns?: { runner: Runner; globs: string[] }[];
+  /** The pattern of the requirement ids that docs/spec defines (K273). */
+  requirements: { pattern: string };
   units: ParityUnit[];
   nativeOnly?: { implementation: string; symbol: string; reason: string; spec: string[] }[];
   exclusions?: ParityExclusion[];
@@ -138,6 +142,8 @@ export const RULES = {
   R10: 'docs-count',
   R11: 'undeclared-public',
   R12: 'duplicate-binding',
+  R13: 'untraced-requirement',
+  R14: 'unknown-requirement',
 };
 
 /** A rule of the check, a key of RULES. */

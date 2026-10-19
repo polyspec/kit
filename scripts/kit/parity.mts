@@ -34,11 +34,13 @@
 //                              implementations in a sentence whose names are no profile
 //   R11 undeclared-public      a public symbol that no API unit and no native-only entry declares, or a native-only entry
 //                              that names no public symbol
+//   R13 untraced-requirement  a requirement that docs/spec defines (a bullet **<id>** or a heading <id>) and no unit cites
+//   R14 unknown-requirement   a unit cites an id that docs/spec does not define (parity-requirements.mts, K273)
 //   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 // A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
 // the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { DECLARATION, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
@@ -48,6 +50,7 @@ import { runBindings } from './parity-ledger.mts';
 import type { Ledger } from './parity-ledger.mts';
 import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
+import { requirementFindings } from './parity-requirements.mts';
 import { exclusions, misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -108,6 +111,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
     ...undeclaredPublic(model, extracted.snapshots),
+    ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8')),
   ];
   return { findings, ledger: executed.ledger };
 }

@@ -132,6 +132,9 @@ jobs:
       - name: parity declarations check
         if: ${{ !cancelled() }}
         run: make parity-declarations-check
+      - name: parity
+        if: ${{ !cancelled() }}
+        run: make parity-check
       # The configuration against its schemas, and every package file classified in config/release.json (K183). Each make
       # target of config/owner-checks.json runs in a step here, or its ciExempt entry gives the reason it cannot.
       - name: kit check

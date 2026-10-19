@@ -6,6 +6,7 @@
 ## Unreleased
 
 - An ID is a sub-item only when the part before its last -<number> is an ID of the pattern of its repository, so an ID scheme such as S-01 needs no parent S (K249-5).
+- config/parity.json declares requirements.pattern, and every unit cites the requirements it tests: a requirement that docs/spec defines and no unit cites fails (R13), and so does a unit that cites an undefined one (R14). A repository with implementations writes its requirement ids into its spec (K273).
 - kit-gates runs the full parity check: every binding of config/parity.json runs in each implementation in CI, so a feature tested in one language and not in another fails the gates (K272).
 - The kit tests follow the installed version rule, the TSX parser and the release tag step: no test expects a version comparison, every sandbox repository comes from initRepository, and no comment names a repository (K271).
 - kit vendors the gates workflow `workflows/gates.yml` to `.github/workflows/gates.yml` of every repository: it installs the repository and runs `make -k kit-gates`, every check that a rule of PRINCIPLES.md is enforced by, so no repository wires the gates into its CI by hand (K270).

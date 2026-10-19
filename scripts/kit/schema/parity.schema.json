@@ -3,7 +3,7 @@
   "title": "config/parity.json",
   "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), the profiles that group them, and the units that every implementation of a profile must hold. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
   "type": "object",
-  "required": ["schema", "implementations", "profiles", "units"],
+  "required": ["schema", "implementations", "profiles", "requirements", "units"],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
@@ -103,16 +103,24 @@
         }
       }
     },
+    "requirements": {
+      "description": "The requirement ids of the spec (K273): docs/spec/**/*.md, not the Korean twins, defines each as a bullet **<id>** or a heading <id> whose id matches pattern.",
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": { "pattern": { "description": "A regular expression of one id, without anchors, such as HY-[0-9]+.", "type": "string" } }
+    },
     "units": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "kind", "profile"],
+        "required": ["id", "kind", "profile", "requirements"],
         "additionalProperties": false,
         "properties": {
           "id": { "description": "The name of the unit; the findings name a case of a suite as <id>/<case>.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
           "kind": { "description": "suite: the shared cases of a vector file, run by a binding of each implementation; feature: one native test of each implementation, named by its id; api: an exported symbol of each implementation.", "type": "string", "enum": ["suite", "feature", "api"] },
           "profile": { "type": "string" },
+          "requirements": { "description": "The ids of the spec requirements that the unit tests (K273): each is defined in docs/spec as a bullet **<id>** or a heading <id>; every requirement is cited by a unit (R13), and a unit cites only defined ones (R14).", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
           "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), what lies inside a case not examined. A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
           "admit": {
