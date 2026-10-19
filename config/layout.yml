@@ -31,6 +31,10 @@ rules:
       - "!.mise"
       # The source of the vendored release workflow; the copy of a consumer repository lies in .github/workflows/.
       - "!workflows"
+      # The settings that Claude Code reads (S1), with the hook of kit's own checkout.
+      - "!.claude"
+      # The source of the vendored Claude Code settings; the copy of a consumer repository lies in .claude/.
+      - "!claude"
 
   - id: layout-root-tests
     paths:

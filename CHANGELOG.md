@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The common layout allows `.claude/`, where Claude Code reads its settings, and kit's layout allows `claude/`, the source of the vendored settings (K240-2).
 - The full suite runs only in CI (K240): `make ci-targets`, a full `make parity-check`, the run of `make owner-check` and a test run that selects no test file, name or id refuse outside a GitHub Actions run (`ci-only.mts`, `test-selection.mts`); `full-run.mts`, its record, kit's `make check` and `make rerun-failed` are removed; kit vendors `.claude/settings.json`, whose PreToolUse hook (`claude-hook.mts`) refuses a Bash command that runs a suite target, a whole test runtime without a selection, or sets GITHUB_ACTIONS or CI.
 - The isolation test reads the imports of a module through module-imports.mts, so a string that holds an option name such as `--import` is no import (K240-1).
 - lint-ts passes again, and no module or test of kit names another repository (fsm and flowmark are in the list), the make tests assert what every make release prints, and the read-only link tests assert the behaviour of the writability that link reads, so a run as root passes (K250).
