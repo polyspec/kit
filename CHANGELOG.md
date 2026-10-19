@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The CI workflow test compares `.php-version` with the PHP pin of kit instead of the literal 8.5 (K259-1).
 - The commit check reads the type of a fix commit with `startsWith`, as oxlint requires (K257-1).
 - The push gate refuses a pushed branch other than main that is not named `{type}/{shortname}-{checklist id}`, a worktree folder not named `{project}-{shortname}-{checklist id}`, and a local branch that main has merged, naming the command that removes it (K253).
 - The commit check refuses a `fix` commit that changes no test file of a runner of kit (tests/, `*.test.*`, `*_test.go`, `test_*.py`, `*Test.php`), in a range, in the commit-msg hook and in `make commit` (K257).

@@ -8,6 +8,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFixture } from '../kit/json-fixture.mts';
 import { known } from '../kit/known.mts';
+import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
@@ -93,7 +94,7 @@ test('the CI workflow bootstraps in the order of a repository: the npm of packag
 test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
   // The Composer projects of kit (config/phpunit, config/php-lint) require the PHP of the pin; the runner's own PHP is
   // older, so the workflow installs the declared release first (CI run 38438896766 failed on PHP 8.3.6).
-  assert.equal(readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim(), '8.5');
+  assert.equal(readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim(), PINS.php);
   const setup = text.indexOf('php-version-file: .php-version');
   const tools = text.indexOf('run: make install-tools\n');
   assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
