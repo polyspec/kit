@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A Python link runs no sync and changes only the linked packages (K239).
 - A Python unlink restores the releases of every group and keeps the consumer project; the link checks dependencies with uv pip check, markers included (K238).
 - A Python link keeps the packages the consumer installed and installs the dependencies of each linked checkout; unlink keeps them too (K237).
 - A full `make parity-check` runs the full-run gate while make reads the makefiles, before any prerequisite a repository adds (K236).

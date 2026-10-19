@@ -6,8 +6,8 @@
 //             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
 //   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
 //             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
-//             after uv sync --locked --inexact --no-install-project (--no-install-workspace in a uv workspace) of the environment, so
-//             the sync never builds a project; a read-only folder only installs the wheel that is already there;
+//             installed into the environment as they are (no sync: the link changes only the linked packages, K239); a read-only
+//             folder only installs the wheel that is already there;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
@@ -443,16 +443,6 @@ function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string
   return { venv, workspace };
 }
 
-/**
- * The uv flag that keeps a sync of the workspace `workspace` from building its projects (K224): a workspace root
- * (`[tool.uv.workspace]`) keeps every member out, a single project keeps its own out.
- */
-function noInstallFlag(workspace: string): '--no-install-workspace' | '--no-install-project' {
-  const file = path.join(workspace, MANIFESTS.python);
-  const tool = existsSync(file) ? readTomlFile(file).tool : undefined;
-  return isJsonObject(tool) && isJsonObject(tool.uv) && tool.uv.workspace !== undefined ? '--no-install-workspace' : '--no-install-project';
-}
-
 /** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of a wheel (K222). */
 function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...flags: string[]) {
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
@@ -670,9 +660,8 @@ function linkPython(work: Run, consumer: Consumer) {
       else ready.push({ provider, wheel });
     }
     if (!complete || !ready.length) continue;
-    // --inexact keeps what the consumer's install put there, the packages of its groups too (K237); the install then adds the
-    // dependencies of each wheel, constrained to the locked releases, so only the linked packages change.
-    syncPython(uv, { venv, workspace }, noInstallFlag(workspace), '--inexact');
+    // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
+    // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
     const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(({ provider }) => normalizeName(provider.name))));
     const overrides = linkedOverrides(consumer, venv, ready);
     run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--constraints', constraints, '--overrides', overrides, ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });

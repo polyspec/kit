@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b22418f639903c9c1f760377dd7d3667f9166b79c7403df1ce02592cd80f5b36 -->
+<!-- source-sha256: b9471d120e90450cee87272c7613855c571869a11e512077722164aabe2d76fe -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python link는 sync를 실행하지 않고 link한 package만 바꾼다 (K239).
 - Python unlink는 모든 group의 release를 복원하고 consumer project를 남긴다. link는 marker를 포함해 uv pip check로 의존성을 검사한다 (K238).
 - Python link는 consumer가 설치한 package를 지우지 않고 link한 checkout의 의존성을 설치한다. unlink도 지우지 않는다 (K237).
 - 전체 `make parity-check`는 makefile을 읽는 동안 full-run gate를 실행해, 저장소가 덧붙인 선행 target보다 먼저 거부한다 (K236).

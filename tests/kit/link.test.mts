@@ -104,7 +104,7 @@ function workspace(t: TestContext) {
   stub(bin, log, 'npm', 'cat npm-query.json');
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
   stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl"; sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$PWD/pyproject.toml" | tr -d '" ' | tr ',' '\n' | sed 's/[=<>@].*//' > "$last/requires.txt";;
-sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
+sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
 case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; prev=""; for a; do if [ "$prev" = "--constraints" ]; then cp "$a" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; fi; prev="$a"; case "$a" in *.whl) n=$(basename "$a" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$a" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; for dep in $(cat "$(dirname "$a")/requires.txt" 2>/dev/null); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done;; esac; done;; esac`);
@@ -319,9 +319,9 @@ test('K222: a writable Python provider without a wheel of its fingerprint is bui
   assert.equal(ok, true, text);
   const calls = log().split('\n');
   const build = calls.findIndex(item => item.startsWith('uv run --no-project --isolated --with setuptools>=40.8.0 python -c'));
-  const sync = calls.findIndex(item => item.startsWith('uv sync --locked'));
   const install = calls.findIndex(item => item.startsWith('uv pip install'));
-  assert.ok(build >= 0 && sync > build && install > sync, log());
+  assert.ok(build >= 0 && install > build, log());
+  assert.ok(!log().includes('uv sync'), 'the link runs no sync: it changes only the linked packages (K239)');
   assert.ok(existsSync(wheelFile(consumer, 'polyspec-z', fingerprintOf(provider, 'packages/python'))));
 });
 
@@ -345,8 +345,7 @@ test('K237: a link keeps the packages of the consumer groups, installs the depen
   assert.ok(freeze.includes(`polyspec-z @ file://${z}`), 'polyspec-z is the wheel of the checkout');
   assert.match(text, /linked {5}python {3}polyspec-z -> /);
   const calls = log().split('\n');
-  const sync = calls.find(item => item.startsWith('uv sync --locked')) ?? '';
-  assert.ok(sync.includes('--inexact'), `the sync keeps the consumer's set: ${sync}`);
+  assert.ok(!log().includes('uv sync'), 'the link runs no sync: the consumer set is not reinstalled (K239)');
   assert.ok(calls.some(item => item.startsWith('uv export --frozen --all-groups')), log());
   const install = calls.find(item => item.startsWith('uv pip install')) ?? '';
   assert.ok(!install.includes('--no-deps') && install.includes('--constraints') && install.includes('--overrides'), install);
@@ -366,7 +365,7 @@ test('K230: a provider installed from its wheel without the editable install is 
   assert.doesNotMatch(text, /linked {5}python {3}polyspec-z -> /, 'no link is reported while the venv holds no editable install');
   assert.match(text, /NOT linked python {3}polyspec-z \(installed from its wheel without the editable install in .*python\/\.venv\)/);
   assert.match(text, /linked {5}python {3}polyspec-w -> /);
-  assert.ok(log().includes('uv sync'), 'the environment is synced and the wheel installed again before the verdict');
+  assert.ok(log().includes('uv pip install'), 'the wheel is installed again before the verdict');
 });
 
 test('K224: a read-only Python consumer with a prebuilt wheel of its own project links it, and the sync carries --no-install-project', (t) => {
@@ -380,8 +379,7 @@ test('K224: a read-only Python consumer with a prebuilt wheel of its own project
     const { ok, text } = linkLines([consumer], env);
     assert.equal(ok, true, text);
     assert.match(text, /linked {5}python {3}cons -> .*\/python \(.*python\/\.venv, now\)/);
-    const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
-    assert.ok(sync.includes('--no-install-project') && !sync.includes('--no-install-workspace'), sync);
+    assert.ok(!log().includes('uv sync'), 'the link runs no sync, so the consumer project is never built by a sync (K239)');
     const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
     assert.ok(install.includes(project), install);
     assert.doesNotMatch(install, / -e /, 'no editable build of the consumer');
@@ -410,8 +408,7 @@ test('K224: a uv workspace root syncs with --no-install-workspace, and its proje
   put(consumer, { 'python/uv.lock': 'version = 1\n', 'python/pyproject.toml': `${readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8')}[tool.uv.workspace]\nmembers = []\n` });
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
-  const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
-  assert.ok(sync.includes('--no-install-workspace'), sync);
+  assert.ok(!log().includes('uv sync'), 'the link runs no sync (K239)');
   assert.ok(log().includes('uv run --no-project --isolated --with setuptools>=40.8.0 python -c'), 'the consumer project is built, as a provider is');
   assert.ok(existsSync(wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'))));
 });
@@ -424,8 +421,7 @@ test('K224: a uv workspace member without polyspec deps is installed from its wh
   git(consumer, 'commit', '--quiet', '-m', 'member');
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
-  const sync = log().split('\n').find(item => item.startsWith('uv sync --locked')) ?? '';
-  assert.ok(sync.includes('--no-install-workspace'), sync);
+  assert.ok(!log().includes('uv sync'), 'the link runs no sync (K239)');
   const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
   assert.ok(install.includes(wheelFile(consumer, 'member', fingerprintOf(consumer, 'python/member'))), install);
   assert.match(text, /linked {5}python {3}member -> .*\/python\/member \(.*python\/\.venv, now\)/);
@@ -783,6 +779,23 @@ test('K238: unlink keeps the consumer project wheel of the link, and restores th
   assert.match(freeze, /^jsonschema==4\.23\.0$/m, 'the locked dependency is kept');
   const sync = log().split('\n').filter(item => item.startsWith('uv sync --locked')).at(-1) ?? '';
   assert.ok(sync.includes('--all-groups'), `the restore selects every group, as the consumer install does, so its reinstall reaches the test group: ${sync}`);
+});
+
+test('K239: a link leaves a package that is installed outside its lock source as it is, and runs no sync', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  // consumer-contracts is installed editable from a checkout that the lock does not name as its source. A sync of the lock would
+  // reinstall it from the lock's path source (sync-rewrites.txt models that), so a link must not sync at all.
+  put(consumer, {
+    'python/uv.lock': 'version = 1\n',
+    'freeze.txt': 'consumer-contracts @ file:///editable/contracts\n',
+    'sync-rewrites.txt': 'consumer-contracts file:///consumer/python/var/platforms/contracts\n',
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const freeze = readFileSync(path.join(consumer, 'freeze.txt'), 'utf8');
+  assert.match(freeze, /^consumer-contracts @ file:\/\/\/editable\/contracts$/m, `the editable install is kept as it is: ${freeze}`);
+  assert.ok(!log().includes('uv sync'), 'the link runs no sync (K239)');
+  assert.match(text, /linked {5}python {3}polyspec-z -> /, 'the linked package is still linked');
 });
 
 /** A copy of the Makefile of kit and of its kit.mk, with the empty folders that the build of the Makefile copies. */
