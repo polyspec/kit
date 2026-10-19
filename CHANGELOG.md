@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The export test of @polyspec/kit/test-output runs in tests/source on a built copy, so the vendored tests need no dist/ (K250-1).
 - The go extractor test gives its sandbox a mise wrapper that names the installs of the checkout, which K199 builds the extractor with (K250-3).
 - The K208 trust test removes CI and GITHUB_ACTIONS from the environment of the shim, since mise trusts every config file when either is set (K250-2).
 - A sandbox repository of the tests sets receive.autogc to false, so a push into it starts no gc on git 2.43 (K250-4).

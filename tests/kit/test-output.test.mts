@@ -1,7 +1,6 @@
 // Tests of the node:test reader of scripts/kit/test-output.mts (nodeEvents) and of its package export. The reader reads the
 // lines of parity-node-reporter.mts, which node --test prints for each test that ends; a run of node --test over a fixture
-// test file in a temporary folder gives those lines. The export test imports the built package by its name and needs
-// make build first, since the export resolves to dist/.
+// test file in a temporary folder gives those lines. The export of the built package is tested in tests/source/package.test.mts.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -125,13 +124,6 @@ postgres: case database
 ok
 `);
   assert.deepEqual(outcomes, ['identity_load::restart_identity_takes_only_entity pass', 'identity_load::execute_load_then_restart fail', 'identity_load::execute_restart_after_delete pass']);
-});
-
-test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', () => {
-  const script = "import * as m from '@polyspec/kit/test-output'; console.log(['goEvents', 'cargoEvents', 'pythonEvents', 'phpunitEvents', 'nodeEvents'].map(name => typeof m[name]).join(' '));";
-  const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8', env: ENV });
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout.trim(), 'function function function function function');
 });
 
 test('a malformed line of the parity node reporter fails the parity run and shows the line (K217)', () => {

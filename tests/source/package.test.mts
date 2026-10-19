@@ -39,6 +39,13 @@ test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imp
   for (const extractor of extractors) assert.equal(readFileSync(path.join(copy, 'dist/symbols', extractor), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/symbols', extractor), 'utf8'), `dist/symbols/${extractor}`);
 });
 
+// The export resolves to dist/, so it is read in a built copy (K217).
+test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', (t) => {
+  const copy = builtCopy(t);
+  const script = "import * as m from '@polyspec/kit/test-output'; console.log(['goEvents', 'cargoEvents', 'pythonEvents', 'phpunitEvents', 'nodeEvents'].map(name => typeof m[name]).join(' '));";
+  assert.equal(run(process.execPath, ['--input-type=module', '-e', script], copy).trim(), 'function function function function function');
+});
+
 test('npm pack packs exactly the files of package.json files and the files npm always packs', (t) => {
   const copy = builtCopy(t);
   const { files } = readFixture<NpmManifest>(copy, 'package.json');

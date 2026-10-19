@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4a9e87e7b4ed9a73bb28b142abd516239c224346dd83883233c5ecccc0538600 -->
+<!-- source-sha256: 57e005fab406351e381b53797fa710bf5d517b07054c17ab705ea16af31c2a42 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- @polyspec/kit/test-output의 export test는 tests/source에서 build된 copy로 실행되므로, vendor된 test에는 dist/가 필요 없다 (K250-1).
 - go extractor test는 sandbox에 checkout의 install을 가리키는 mise wrapper를 준다. K199가 그 install로 extractor를 build한다 (K250-3).
 - K208 trust test는 shim의 environment에서 CI와 GITHUB_ACTIONS를 제거한다. 둘 중 하나가 설정되면 mise가 모든 config file을 trust하기 때문이다 (K250-2).
 - test의 sandbox 저장소는 receive.autogc를 false로 설정하여, git 2.43에서 그 저장소로의 push가 gc를 시작하지 않는다 (K250-4).
