@@ -64,7 +64,7 @@ test('every step runs after an earlier one failed, and each failure is named', (
 });
 
 test('a missing tool, configuration or autoloader fails with its fix', (t) => {
-  assert.throws(() => lintSteps(checkout(t, { installed: ['phpstan'] }).root), /var\/tools\/bin\/phpcs is missing; run make install-tools TOOLS=phpLint, which installs config\/php-lint/);
+  assert.throws(() => lintSteps(checkout(t, { installed: ['phpstan'] }).root), /var\/tools\/bin\/phpcs is missing; run make install-tools, which installs config\/php-lint/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'phpstan.dist.neon' }).root), /phpstan\.dist\.neon is missing; it is the PHP lint configuration that kit copies into every repository \(make kit-sync\)/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'packages/php/vendor/autoload.php' }).root), /packages\/php\/vendor\/autoload\.php is missing, and no Composer project above packages\/php has one; PHPStan resolves the calls of the package with its autoloader: run composer install in packages\/php, or in the project that requires it/);
 });

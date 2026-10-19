@@ -22,7 +22,7 @@ import { present } from './present.mts';
 
 /** The steps of the lint of `root`; throws when a tool, a configuration or the autoloader of a package is missing. */
 export function lintSteps(root: string): LintStep[] {
-  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools TOOLS=phpLint, which installs config/php-lint');
+  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
   requireConfigurations(root, [['phpcs.xml.dist', 'PHP lint'], ['phpstan.dist.neon', 'PHP lint']]);
   const files = checkedFiles(root);
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
