@@ -381,7 +381,7 @@ function wheelIn(directory: string): string | undefined {
 }
 
 /** Whether this process can write the checkout `folder`: a read-only mount cannot be built in, so its wheel must be prebuilt (K222). */
-function writable(folder: string): boolean {
+export function writable(folder: string): boolean {
   try { accessSync(folder, constants.W_OK); return true; } catch { return false; }
 }
 

@@ -11,7 +11,7 @@ import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { known } from './known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|consumer)\b/i;
+const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|fsm|flowmark|consumer)\b/i;
 
 const files = (directory: string): string[] => readdirSync(path.join(ROOT, directory)).sort().flatMap((entry) => {
   const relative = `${directory}/${entry}`;

@@ -139,8 +139,8 @@ process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 pr
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
 let exit = 0;
 const width = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS libtest-mimic') ? Math.max(...tests.map(([, , name]) => name.length)) : 0;
-// With the line HARNESS timed the stub writes what the timed harness of the orm testcase crate writes: the timing comes on the
-// line of the name and the outcome on the next line.
+// With the line HARNESS timed the stub writes what a timed libtest-mimic harness writes: the timing comes on the line of the
+// name and the outcome on the next line.
 const timed = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS timed');
 for (const [, outcome, name] of tests) {
   const result = outcome === 'PASS' ? 'ok' : 'FAILED';
@@ -573,8 +573,8 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
   assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
 });
 
-// PHPUnit names a test by its class and method, `<Class>::<method>` (the id that its TeamCity location gives), and the orm
-// bindings declare that form; the bare method name stays a valid id too (K229). Both are judged by the output of the run.
+// PHPUnit names a test by its class and method, `<Class>::<method>` (the id that its TeamCity location gives), and a
+// binding may declare that form; the bare method name stays a valid id too (K229). Both are judged by the output of the run.
 test('a php feature binding that names its test as Class::method, the id PHPUnit reports, passes (K229)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature({}, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
   assert.deepEqual(findings, []);
@@ -673,7 +673,7 @@ test('a failed feature run that names no test prints the last 20 lines of its ou
   assert.doesNotMatch(line, /roundtrip_test\.go:5:1: boom/);
 });
 
-// cargo test of libtest-mimic (the orm testcase crate) prints the timing after the name and the outcome on the next line, so
+// cargo test of a timed libtest-mimic harness prints the timing after the name and the outcome on the next line, so
 // every id that passes is a pass (K215); the stub writes that layout with the line HARNESS timed.
 test('a timed cargo run whose every declared id passes counts each one as passed (K215)', TIMEOUT, (t) => {
   const lines: string[] = [];
@@ -717,12 +717,12 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
 // still reads its output, so the ids that pass count (K216). The go stub is the program of the command, so the command runs.
 test('a binding with command runs that command in its implementation directory, and its passing ids count (K216)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature({}, (unit) => {
-    itemAt(unit.bindings ?? [], 0).command = ['go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './'];
+    itemAt(unit.bindings ?? [], 0).command = ['go', 'test', '-json', '-count=1', '-tags', 'feature', '-run', '^(TestRoundtrip)$', './'];
     return unit;
   }));
   assert.deepEqual(findings, []);
   const go = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'go'), 'the go feature run');
-  assert.deepEqual([go.cwd, go.command, ...go.args], ['go', 'go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './']);
+  assert.deepEqual([go.cwd, go.command, ...go.args], ['go', 'go', 'test', '-json', '-count=1', '-tags', 'feature', '-run', '^(TestRoundtrip)$', './']);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'go').map(entry => `${entry.case} ${entry.outcome}`), ['TestRoundtrip/bytes pass']);
 });
 
@@ -751,10 +751,10 @@ test('a binding command references the invoking environment as ${NAME}, resolved
     return unit;
   }));
   const lines: string[] = [];
-  const set = checkParity(root, { execute: true, env: { ...ENV, PARITY_TAG: 'orm' }, say: line => lines.push(line) });
+  const set = checkParity(root, { execute: true, env: { ...ENV, PARITY_TAG: 'feature' }, say: line => lines.push(line) });
   assert.deepEqual(set.findings, []);
   const go = known(set.ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'go'), 'the go feature run');
-  assert.deepEqual([go.command, ...go.args], ['go', 'test', '-json', '-count=1', '-tags', 'orm', '-run', '^(TestRoundtrip)$', './']);
+  assert.deepEqual([go.command, ...go.args], ['go', 'test', '-json', '-count=1', '-tags', 'feature', '-run', '^(TestRoundtrip)$', './']);
   assert.ok(lines.some(line => line.includes('-tags ${PARITY_TAG}')), lines.join('\n'));
   assert.deepEqual(set.ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'go').map(entry => `${entry.case} ${entry.outcome}`), ['TestRoundtrip/bytes pass']);
   const unset: NodeJS.ProcessEnv = { ...ENV };

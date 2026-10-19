@@ -171,8 +171,8 @@ export function cargoEvents(sink: Sink): { stdout: (data: string) => void; stder
     },
   });
   return {
-    // The timed harness of the orm testcase crate (libtest-mimic with timing) writes the timing after the name and the outcome
-    // on the next line; joined here, the outcome is read as on the line of the name (K215).
+    // A timed libtest-mimic harness writes the timing `cpu=… wall=…` after the name and the outcome on the next line;
+    // joined here, the outcome is read as on the line of the name (K215).
     stdout: data => lines(data.replace(/^(test \S+(?: - should panic)?\s+\.\.\. )cpu=\S+ wall=\S+\n(?=(?:ok|FAILED|ignored)\b)/gm, '$1')),
     stderr(text: string) {
       const running = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(text);

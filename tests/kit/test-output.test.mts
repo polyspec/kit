@@ -106,7 +106,7 @@ test('a node:test run of 2 passing and 1 failing case gives pass=2 and fail=1 th
   }
 });
 
-// The lines that cargo test of the orm identity_load target prints when a case's database is missing: the case database
+// The lines that cargo test of a database target prints when a case's database is missing: the case database
 // prints its step between the name of the test and its result, so the result FAILED stands alone on its line (K229).
 test('cargoEvents reads the result of a test whose output lies between its name and its result (K229)', () => {
   const outcomes: string[] = [];

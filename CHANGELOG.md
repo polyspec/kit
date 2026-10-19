@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- lint-ts passes again, and no module or test of kit names another repository (fsm and flowmark are in the list), the make tests assert what every make release prints, and the read-only link tests assert the behaviour of the writability that link reads, so a run as root passes (K250).
 - A Python link runs no sync and changes only the linked packages (K239).
 - A Python unlink restores the releases of every group and keeps the consumer project; the link checks dependencies with uv pip check, markers included (K238).
 - A Python link keeps the packages the consumer installed and installs the dependencies of each linked checkout; unlink keeps them too (K237).

@@ -12,7 +12,7 @@ import test, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
-import { cargo, link, pythonFingerprint, unlink } from '../../scripts/kit/link.mts';
+import { cargo, link, pythonFingerprint, unlink, writable } from '../../scripts/kit/link.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -252,6 +252,13 @@ test('K222: a read-only Python provider without a prebuilt wheel of its fingerpr
   setWritable(provider, false);
   try {
     const { ok, text } = linkLines([consumer], env);
+    // link judges a checkout by whether this process can write it; a user whom chmod does not stop, such as root, writes
+    // it, so the run builds the wheel there, as for any writable checkout.
+    if (writable(provider)) {
+      assert.equal(ok, true, text);
+      assert.match(text, /linked {5}python {3}polyspec-z -> /);
+      return;
+    }
     assert.equal(ok, false);
     assert.match(text, /NOT linked python {3}polyspec-z \(stale prebuilt wheel polyspec-z \(fingerprint [0-9a-f]{12}\): run kit link on the host\)/);
     assert.ok(!log().includes('uv sync') && !log().includes('uv pip install'), 'a missing wheel leaves the environment untouched');
@@ -275,6 +282,12 @@ test('K222: the same content at another path has another fingerprint, so the whe
     const lines: string[] = [];
     const ok = link({ checkouts: [copy, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
     const text = lines.join('\n');
+    // A user whom chmod does not stop writes the copy, and the run builds its wheel there (see K222 above).
+    if (writable(copy)) {
+      assert.equal(ok, true, text);
+      assert.match(text, /linked {5}python {3}polyspec-z -> /);
+      return;
+    }
     assert.equal(ok, false, text);
     assert.match(text, new RegExp(`NOT linked python {3}polyspec-z \\(stale prebuilt wheel polyspec-z \\(fingerprint ${copyFp}\\): run kit link on the host\\)`));
     assert.doesNotMatch(text, /linked {5}python {3}polyspec-z -> /);
@@ -395,6 +408,11 @@ test('K224: a read-only Python consumer without a prebuilt wheel of its own proj
   setWritable(path.join(consumer, 'python'), false);
   try {
     const { ok, text } = linkLines([consumer], env);
+    // A user whom chmod does not stop writes the project, and the run builds its wheel there (see K222 above).
+    if (writable(path.join(consumer, 'python'))) {
+      assert.equal(ok, true, text);
+      return;
+    }
     assert.equal(ok, false);
     assert.match(text, /NOT linked python {3}cons \(stale prebuilt wheel cons \(fingerprint [0-9a-f]{12}\): run kit link on the host\)/);
     assert.ok(!log().includes('uv sync') && !log().includes('uv pip install'), 'a missing consumer wheel leaves the venv unchanged: no sync, no install');
@@ -665,7 +683,8 @@ test('a make status 2 other than a missing rule fails the build targets with its
 test('a missing prerequisite of release-assets fails with make\'s error, not as a missing target', (t) => {
   const { provider } = workspace(t);
   put(provider, { Makefile: 'release-assets: missing-dep\n\ttrue\n' });
-  assert.throws(() => buildTargets(provider), /No rule to make target `missing-dep', needed by `release-assets'\./);
+  // make names the missing prerequisite and the target that needs it; the quotes around them differ between make releases.
+  assert.throws(() => buildTargets(provider), /No rule to make target .missing-dep., needed by .release-assets./);
 });
 
 test('cargo copies the tracked lock afresh on every run and patches the URL that the provider declares', (t) => {
@@ -782,7 +801,7 @@ test('K238: unlink keeps the consumer project wheel of the link, and restores th
 });
 
 test('K239: a link leaves a package that is installed outside its lock source as it is, and runs no sync', (t) => {
-  const { provider, consumer, env, log } = workspace(t);
+  const { consumer, env, log } = workspace(t);
   // consumer-contracts is installed editable from a checkout that the lock does not name as its source. A sync of the lock would
   // reinstall it from the lock's path source (sync-rewrites.txt models that), so a link must not sync at all.
   put(consumer, {
@@ -816,7 +835,7 @@ test('make build restores dist when the rename of dist.next fails, and exits 1',
   chmodSync(path.join(dir, 'bin/mv'), 0o755);
   const result = spawnSync('make', ['-C', dir, 'build'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` } });
   assert.notEqual(result.status, 0, result.stderr);
-  assert.match(result.stderr, /\*\*\* \[build\] Error 1/);
+  assert.match(result.stderr, /mv: injected failure/, 'the recipe stopped at the failed rename');
   assert.equal(readFileSync(path.join(dir, 'dist/old.js'), 'utf8'), 'old\n', 'the previous dist is back');
   assert.equal(existsSync(path.join(dir, 'dist.old')), false);
 });
@@ -933,8 +952,8 @@ function ownPackages(t: TestContext, ghost: boolean) {
     'package-lock.json': '{}',
     'packages/a/package.json': JSON.stringify({ name: '@polyspec/a', version: '0.0.1', dependencies: { '@polyspec/b': '0.0.1', ...(ghost ? { '@polyspec/ghost': '0.0.1' } : {}) } }),
     'packages/b/package.json': JSON.stringify({ name: '@polyspec/b', version: '0.0.1' }),
-    'composer.json': JSON.stringify({ name: 'polyspec/mono', require: { 'polyspec/mono': '0.0.1', 'polyspec/orm': '0.0.18', ...(ghost ? { 'polyspec/ghost': '0.0.1' } : {}) }, repositories: [{ type: 'path', url: 'packages/php', options: { symlink: true } }] }),
-    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/orm' }),
+    'composer.json': JSON.stringify({ name: 'polyspec/mono', require: { 'polyspec/mono': '0.0.1', 'polyspec/widget': '0.0.18', ...(ghost ? { 'polyspec/ghost': '0.0.1' } : {}) }, repositories: [{ type: 'path', url: 'packages/php', options: { symlink: true } }] }),
+    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/widget' }),
     '.gitignore': 'node_modules/\nvar/\nvendor/\n',
   });
   mkdirSync(path.join(consumer, 'node_modules/@polyspec'), { recursive: true });
@@ -956,7 +975,7 @@ test('K226: a dependency that the project itself provides (an npm workspace memb
   const text = lines.join('\n');
   assert.equal(ok, true, text);
   assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
-  assert.match(text, /^ {2}workspace +composer +polyspec\/orm \(/m);
+  assert.match(text, /^ {2}workspace +composer +polyspec\/widget \(/m);
   assert.match(text, /^ {2}workspace +composer +polyspec\/mono \(/m);
   assert.doesNotMatch(text, /NOT linked/);
 });
