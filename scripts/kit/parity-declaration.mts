@@ -452,13 +452,18 @@ function readTrackedJson(root: string, files: ReadonlySet<string>, file: string,
  * checked `files`, or undefined when it does: a Markdown file defines the fragment as an explicit anchor or a heading anchor,
  * and the fragment of a JSON file is a JSON Pointer (RFC 6901) to a value of it.
  */
-function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: string): string | undefined {
+function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: string, parsed: Map<string, { explicit: Set<string>; headings: Set<string> }>): string | undefined {
   const hash = anchor.indexOf('#');
   const file = anchor.slice(0, hash);
   const fragment = anchor.slice(hash + 1);
   if (!files.has(file)) return `${file} does not exist`;
   const text = readFileSync(path.join(root, file), 'utf8');
-  if (file.endsWith('.md')) return anchors(text).includes(fragment) || headingAnchors(text).includes(fragment.toLowerCase()) ? undefined : `${file} defines no anchor ${fragment}`;
+  if (file.endsWith('.md')) {
+    // A spec that many anchors cite is parsed once per declaration: a parse per anchor took minutes on a large spec (K274).
+    let defined = parsed.get(file);
+    if (defined === undefined) parsed.set(file, (defined = { explicit: new Set(anchors(text)), headings: new Set(headingAnchors(text)) }));
+    return defined.explicit.has(fragment) || defined.headings.has(fragment.toLowerCase()) ? undefined : `${file} defines no anchor ${fragment}`;
+  }
   if (!file.endsWith('.json')) return `${file} is no Markdown or JSON file, so it has no anchor`;
   if (!fragment.startsWith('/')) return `${fragment} is no JSON Pointer; it starts with /`;
   let value: unknown;
@@ -543,9 +548,10 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     .filter(profile => profile.omitted.length);
   // A narrow profile is a permanent difference, so its reason cites the spec that makes it one (S6); a profile of every
   // implementation is no difference and cites none.
+  const parsed = new Map<string, { explicit: Set<string>; headings: Set<string> }>();
   const unresolved = (where: string, spec: string[]) => {
     for (const anchor of spec) {
-      const problem = unresolvedAnchor(root, files, anchor);
+      const problem = unresolvedAnchor(root, files, anchor, parsed);
       if (problem) fail(`${where}: the spec anchor ${anchor} does not resolve: ${problem}`);
     }
   };
