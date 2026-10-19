@@ -120,7 +120,8 @@ repository.
   Enforced by: `make commits-check`
 - A commit message is `type(scope): Subject (#id)` with a type of feat, fix, docs, style, refactor, test or chore, a Subject
   of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
-  72 characters, with no footer of an AI tool: no co-author or session trailer of one. `make commit` writes it.
+  72 characters, with no footer of an AI tool: no co-author or session trailer of one. Its author and committer are a
+  person, never an AI tool. `make commit` writes it.
   Enforced by: `make commits-check`
 - The make targets of a task have fixed names: `install`, `build`, `test`, `lint`, `docs-check`, and `build-<runtime>`,
   `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a

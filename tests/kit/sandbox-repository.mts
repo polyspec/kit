@@ -5,7 +5,8 @@
 // fails with ENOTEMPTY on the file that the repack creates. Each repository therefore turns automatic maintenance and
 // automatic gc off in its own configuration, which every git command in it reads, the commands of the tools included. A
 // received push also starts `git gc --auto` from receive-pack unless receive.autogc is false; git 2.43 starts it even with
-// gc.auto 0, so that is turned off too.
+// gc.auto 0, so that is turned off too. Each repository also names its own identity, so a commit of a test does not take
+// the identity of the machine, which the commit check may refuse (K265).
 import { spawnSync } from 'node:child_process';
 
 /** Runs git with `args` and fails with its status and stderr. */
@@ -20,4 +21,6 @@ export function initRepository(directory: string, ...options: string[]) {
   git(['-C', directory, 'config', 'maintenance.auto', 'false']);
   git(['-C', directory, 'config', 'gc.auto', '0']);
   git(['-C', directory, 'config', 'receive.autogc', 'false']);
+  git(['-C', directory, 'config', 'user.name', 'kit test']);
+  git(['-C', directory, 'config', 'user.email', 'test@example.com']);
 }

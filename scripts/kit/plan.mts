@@ -26,7 +26,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, fileAt, indexItemFindings, messageFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, fileAt, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
@@ -283,7 +283,7 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
-  const findings = [...messageFindings(message, rules), ...indexItemFindings(root, rules, message)];
+  const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);

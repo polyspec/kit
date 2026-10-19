@@ -7,7 +7,7 @@ import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileMessage, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
+import { fileMessage, identityFindings, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -59,6 +59,18 @@ test('commit-blank and commit-width: the body', () => {
   assert.ok(width, 'the wide body has no finding');
   assert.match(width.message, /^line 3 of the message has 75 characters; expected at most 72; wrap the body$/);
   assert.deepEqual(rules(`feat(docs): Merge the checks (#K1)\n\n${'word '.repeat(14)}ab`), []);
+});
+
+test('commit-ai-identity: no AI tool is the author or the committer of a commit (K265)', (t) => {
+  assert.deepEqual(identityFindings('Claude <noreply@anthropic.com>', 'author').map(found => found.rule), ['commit-ai-identity']);
+  assert.deepEqual(identityFindings('min-0-max <max@blue.tools>', 'committer'), []);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)']);
+  put(root, { 'g.txt': 'g' });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '--author', 'Claude <noreply@anthropic.com>', '-m', 'feat(docs): Add (#K2)').status, 0);
+  const findings = rangeFindings(root, 'HEAD~1..HEAD', CONFIG);
+  assert.equal(findings.length, 1);
+  assert.match(findings[0] ?? '', /: commit-ai-identity: the author Claude <noreply@anthropic\.com> is an AI tool; the account of a commit is a person \(K265\)/);
 });
 
 test('a message file loses its comment lines, and a merge commit is not checked', () => {

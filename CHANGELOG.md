@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The commit check refuses an AI tool as the author or the committer of a commit (`commit-ai-identity`), in a range, in the commit-msg hook and in `make commit`; the sandbox repositories of the tests name their own identity (K265).
 - The commit check refuses the footer of an AI tool, a co-author or session trailer of one or a generated-with line (`commit-ai-footer`), in a range, in the commit-msg hook and in `make commit` (K264).
 - A missing phpcs or PHPStan names `make install-tools`, which installs config/php-lint, instead of `make install-tools TOOLS=phpLint`, which install-tools refuses (K262).
 - The layout rule suites-at-root applies: it lay among the templates of config/layout.kit.yml, which no rule extended, so no checkout ran it; the real layout test plants a suite in a package (K244-1).

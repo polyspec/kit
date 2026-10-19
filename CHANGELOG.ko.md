@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8d0d41c7b0ed2d6f59ac26c3121b5058cd61593f43562dda3535b904a9a9f47a -->
+<!-- source-sha256: 46731b817bad6a332eebf3e7ba262a6e7b28dc4b6fe232d68608ac4000b7aa3c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit check는 AI 도구가 commit의 author나 committer인 것을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-identity`). test의 sandbox 저장소는 자기 identity를 가진다 (K265).
 - commit check는 AI 도구의 footer, 곧 그 co-author나 session trailer 또는 generated-with 줄을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-footer`) (K264).
 - 없는 phpcs 또는 PHPStan은 install-tools가 거부하는 `make install-tools TOOLS=phpLint` 대신 config/php-lint를 설치하는 `make install-tools`를 안내한다 (K262).
 - layout 규칙 suites-at-root가 적용된다. 어떤 규칙도 확장하지 않는 config/layout.kit.yml의 templates 안에 있어 어떤 checkout도 실행하지 않았다. 실제 layout test가 package 안에 suite를 심는다 (K244-1).

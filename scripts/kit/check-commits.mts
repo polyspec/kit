@@ -52,7 +52,7 @@ export const COMMIT_RULES: CommitRules = {
 export type CommitFinding = { rule: string; message: string };
 
 /** A commit as `logMessages` reads it. */
-export type CommitMessage = { id: string; message: string };
+export type CommitMessage = { id: string; message: string; author?: string; committer?: string };
 
 /**
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
@@ -63,6 +63,20 @@ export type Change = { before: (file: string) => string; after: (file: string) =
 
 // A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
 const AI_FOOTER = /^(?:co-authored-by:.*\b(?:claude|anthropic|copilot|chatgpt|openai|gemini)\b|claude-session:|.*generated (?:with|by) \[?claude code)/i;
+
+// An identity that names an AI tool, by its name or its address (K265).
+const AI_IDENTITY = /\b(?:claude|anthropic|copilot|chatgpt|openai|gemini)\b/i;
+
+/** The finding of the identity `ident` (`Name <address>`) of the `role` of a commit when it is an AI tool (K265). */
+export function identityFindings(ident: string, role: 'author' | 'committer'): CommitFinding[] {
+  return AI_IDENTITY.test(ident) ? [{ rule: 'commit-ai-identity', message: `the ${role} ${ident} is an AI tool; the account of a commit is a person (K265). Fix: set user.name and user.email of the clone` }] : [];
+}
+
+/** The findings of the author and the committer that git gives the next commit of `root` (`git var`). */
+export function nextIdentityFindings(root: string): CommitFinding[] {
+  const ident = (name: string) => git(root, 'var', name).replace(/ [0-9]+ [+-][0-9]{4}\n?$/, '').trim();
+  return [...identityFindings(ident('GIT_AUTHOR_IDENT'), 'author'), ...identityFindings(ident('GIT_COMMITTER_IDENT'), 'committer')];
+}
 
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message: string, config: CommitRules) {
@@ -196,15 +210,15 @@ export function fileMessage(text: string) {
 export function logMessages(root: string, args: string[], label: string): CommitMessage[] {
   let output: string;
   try {
-    output = git(root, 'log', '--no-merges', '--format=%h%x1f%B%x1e', ...args);
+    output = git(root, 'log', '--no-merges', '--format=%h%x1f%an <%ae>%x1f%cn <%ce>%x1f%B%x1e', ...args);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // git fails with a Stop, which is an Error.
     throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
-    const separator = entry.indexOf('\x1f');
-    return { id: entry.slice(0, separator), message: entry.slice(separator + 1) };
+    const [id = '', author = '', committer = '', ...message] = entry.split('\x1f');
+    return { id, author, committer, message: message.join('\x1f') };
   });
 }
 
@@ -218,7 +232,12 @@ export function rangeMessages(root: string, range: string) {
 
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
-  return commits.flatMap(({ id, message }) => [...messageFindings(message, config), ...commitItemFindings(root, config, id, message)].map(found => `${id}: ${found.rule}: ${found.message}`));
+  return commits.flatMap(({ id, message, author, committer }) => [
+    ...messageFindings(message, config),
+    ...(author === undefined ? [] : identityFindings(author, 'author')),
+    ...(committer === undefined ? [] : identityFindings(committer, 'committer')),
+    ...commitItemFindings(root, config, id, message),
+  ].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
@@ -236,7 +255,7 @@ if (isMain(import.meta.url)) {
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : [...messageFindings(message, config), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);
