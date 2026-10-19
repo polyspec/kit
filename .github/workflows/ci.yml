@@ -70,7 +70,7 @@ jobs:
       - name: dependency policy mutation check
         if: ${{ !cancelled() }}
         run: make dependency-policy-mutation-check
-      # jscpd, which npm ci installs, fails while a piece of scripts/kit exists twice (K126).
+      # jscpd, which npm ci installs, fails while a piece of code exists twice outside config/duplication.json (K126, K248-3).
       - name: duplication check
         if: ${{ !cancelled() }}
         run: make duplication-check

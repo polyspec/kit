@@ -75,7 +75,6 @@
     "@types/picomatch": "4.0.3",
     "@types/semver": "7.8.0",
     "@vscode/test-electron": "3.1.0",
-    "jscpd": "5.4.1",
     "typescript": "7.0.2"
   },
   "kit": {
@@ -121,6 +120,7 @@
     "amaro": "1.2.1",
     "eslint-scope": "9.1.2",
     "github-slugger": "2.0.0",
+    "jscpd": "5.4.1",
     "knip": "6.42.0",
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-frontmatter": "2.0.1",

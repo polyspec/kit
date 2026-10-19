@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8e4ed2c5c26024b6168b406200ece116c281becc9dc1a59d5af7c1ba4ccf94e8 -->
+<!-- source-sha256: 7a7c2a801bde09bce4c1c160ed4766afcc60cf856740ec24493980e718ac4366 -->
 
 # 도구 목록
 
@@ -654,7 +654,10 @@ finding 하나입니다.
 `scripts/kit`의 여러 도구가 같은 helper를 각자 가지고 있었습니다. 이제 각 helper는 module 하나에 있고 사용하는 쪽이 import하며,
 `make duplication-check`는 6줄 이상의 같은 부분이 두 번 있으면 실패합니다. jscpd가 scripts/kit의 token을 읽으므로 함수 안에서
 되풀이된 부분도 찾는데, 이것이 대신한 test(`tests/kit/duplication.test.mts`, 함수 전체만 비교)는 찾지 못했습니다(K126). 기준 코드에는
-그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다.
+그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다. K248-3부터 이 check는 kit.mk의 kit 도구
+`duplication-check.mts`이므로 모든 저장소가 실행합니다. package의 dependency인 jscpd가 .gitignore가 남기는 checkout의 code를
+runtime의 format으로, `config/duplication.json`이 각자의 이유와 함께 제외하는 folder 밖에서 읽습니다. kit은 test가 자기 case를
+온전히 기술하므로 `tests/`를 제외합니다.
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|

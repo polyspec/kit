@@ -61,7 +61,7 @@ in kit, with its grounding.
 - What an outside ecosystem already provides is used as it is, never redeveloped: its standard tool, library or protocol.
   Enforced by: `make rebuild-check`
 - Components are modular, each concern clearly separated.
-  Enforced by: `make duplication-check`, planned K248-3
+  Enforced by: `make duplication-check`
 - Architecture is decided for the long term: a stopgap that works now and must be replaced later is not accepted. A
   problem is never solved by creating another problem.
   Enforced by: none, whether a measure is a stopgap is a design judgement.

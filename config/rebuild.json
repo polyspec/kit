@@ -82,6 +82,10 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: the commands of the Verification cell of an open item, read with the refusals of the Claude Code hook (K249-3)"
     },
+    "scripts/kit/duplication-check.mts": {
+      "kind": "ecosystem",
+      "tool": "jscpd finds the pieces of code that exist twice; the tool passes it the code formats of the runtimes and the excluded folders (K248-3)"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

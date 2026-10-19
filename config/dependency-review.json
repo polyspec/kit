@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-19T09:17:41.558Z",
+  "reviewed": "2026-10-19T09:19:40.574Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "821089a810e3050f40f41d81d2c1bb3eac9c2e8d46588d5bba67d0f2a34cc4ac",
+      "sha256": "2b92abb6a412cdb728056d7d866dee4c081e11507c35ebf8f7d165e0152ec52c",
       "advisories": [
         {
           "package": "sprintf-js",
@@ -100,6 +100,13 @@
       "package": "github-slugger",
       "version": "2.0.0",
       "latest": "2.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "jscpd",
+      "version": "5.4.1",
+      "latest": "5.4.1"
     },
     {
       "ecosystem": "npm",
@@ -233,13 +240,6 @@
       "package": "@vscode/test-electron",
       "version": "3.1.0",
       "latest": "3.1.0"
-    },
-    {
-      "ecosystem": "npm",
-      "manifest": "package.json",
-      "package": "jscpd",
-      "version": "5.4.1",
-      "latest": "5.4.1"
     },
     {
       "ecosystem": "npm",

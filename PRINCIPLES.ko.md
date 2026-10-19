@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 3fc6ecc7ef54dc93b0b0a4392c1e48726a85ecaab4037c745224e5f0f6c5a6b8 -->
+<!-- source-sha256: aa548113ea341e3ab75ff5d459581820980f7e3dc6957e809fd6c3a882775252 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -60,7 +60,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - 외부 생태계가 이미 제공하는 것은 그대로 쓰며 다시 개발하지 않습니다: 그 표준 tool, library, protocol.
   Enforced by: `make rebuild-check`
 - component는 module로 나누고 각 관심사를 분명히 분리합니다.
-  Enforced by: `make duplication-check`, planned K248-3
+  Enforced by: `make duplication-check`
 - architecture는 장기적 관점에서 정합니다: 지금만 작동하고 나중에 바꿔야 하는 임시방편은 받아들이지 않습니다. 문제를
   다른 문제를 만들어 해결하지 않습니다.
   Enforced by: none, 임시방편인지는 설계 판단입니다.

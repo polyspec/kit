@@ -720,7 +720,10 @@ the reader of the document check (K7.1). Both read the same documents (table row
 Several tools of `scripts/kit` held their own copy of the same helper. Each helper now lives in one module that its users
 import. `make duplication-check` fails when a piece of 6 lines or more exists twice: jscpd reads the tokens of scripts/kit, so
 it also finds a repeated piece inside a function, which the test that it replaced (`tests/kit/duplication.test.mts`, whole
-functions only) did not (K126). The base had no pair that long; the shortest pair was the 4 lines of `startReport`.
+functions only) did not (K126). The base had no pair that long; the shortest pair was the 4 lines of `startReport`. Since
+K248-3 the check is a tool of kit, `duplication-check.mts` in kit.mk, so every repository runs it: jscpd, a dependency of the
+package, reads the code of the checkout that .gitignore leaves, in the formats of the runtimes, outside the folders that
+`config/duplication.json` excludes, each with its reason; kit excludes `tests/`, since a test states its case in full.
 
 | Module | Holds | Replaces | Users |
 |---|---|---|---|

@@ -52,6 +52,3 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json
 
 
-.PHONY: duplication-check
-duplication-check: ## Fail while a piece of 6 lines or more of scripts/kit exists twice (jscpd); offline after npm ci
-	$(CURDIR)/node_modules/.bin/jscpd --min-lines 6 --format typescript --exit-code 1 --reporters console scripts/kit

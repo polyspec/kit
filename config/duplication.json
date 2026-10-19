@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "exclude": [
+    {
+      "glob": "tests/**",
+      "reason": "a test states its case in full; the rule separates the concerns of components, the tools of scripts/kit"
+    }
+  ]
+}

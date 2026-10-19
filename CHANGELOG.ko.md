@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: eaf69a7d6bdf87f26baea20e44634c165bf73594593a7e7851255d65b2881f24 -->
+<!-- source-sha256: 37cc96b4ab62e9234bfcfa0c1b327d4afe38ab46032dfe41e5841c4cc5ba989d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make duplication-check`는 kit.mk의 도구(`duplication-check.mts`)이므로 모든 저장소가 실행한다. 이제 package의 dependency인 jscpd가 `config/duplication.json`이 이유와 함께 제외하는 folder 밖에서 checkout의 code를 runtime의 format으로 읽는다 (K248-3).
 - kit은 2026-10-19 review 시점의 최신 stable release인 knip 6.42.0, @decimalturn/toml-patch 3.3.1, ruff 0.17.1을 lock한다 (K261).
 - CI workflow test는 `.php-version`을 literal 8.5 대신 kit의 PHP pin과 비교한다 (K259-1).
 - commit check는 oxlint가 요구하는 대로 fix commit의 type을 `startsWith`로 읽는다 (K257-1).
