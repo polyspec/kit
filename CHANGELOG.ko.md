@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0420cdbf4d3f5a011ceb569d869928f91540f071b5f7a5cd2e7e0275db791dc6 -->
+<!-- source-sha256: 3ebc46e7a6b19eeb23fd38b2701b3d96f36b83c001cb6d2821ed9e20a4e644f8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit CI의 모든 check step은 앞의 step이 실패한 뒤에도 실행되어, run 하나가 모든 실패를 보여 준다 (K251).
 - 공통 layout은 Claude Code가 설정을 읽는 `.claude/`를 허용하고, kit의 layout은 vendor되는 설정의 원본 `claude/`를 허용한다 (K240-2).
 - full suite는 CI에서만 실행된다 (K240). `make ci-targets`, 전체 `make parity-check`, `make owner-check`의 실행, test file, 이름, id를 선택하지 않은 test 실행은 GitHub Actions run 밖에서 거부한다(`ci-only.mts`, `test-selection.mts`). `full-run.mts`, 그 record, kit의 `make check`와 `make rerun-failed`를 제거했다. kit은 `.claude/settings.json`을 vendor하며, 그 PreToolUse hook(`claude-hook.mts`)은 suite target, selection 없는 test runtime 전체를 실행하거나 GITHUB_ACTIONS 또는 CI를 설정하는 Bash command를 거부한다.
 - isolation test는 module-imports.mts로 module의 import를 읽어, `--import` 같은 option 이름을 가진 문자열은 import가 아니다 (K240-1).

@@ -111,3 +111,13 @@ test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustu
   const toolchain = readFileSync(path.join(ROOT, 'rust-toolchain.toml'), 'utf8');
   assert.match(toolchain, /^components = \[[^\]]*"clippy"[^\]]*\]$/m);
 });
+
+test('every check step runs after an earlier step failed, so one run shows every failure (K251)', () => {
+  // The steps of the job, each from its line `      - ` to the next; the checks follow the last install step.
+  const steps = text.split(/\n(?= {6}- )/).slice(1);
+  const install = steps.findLastIndex(step => /run: (make install-|rustup toolchain install)/.test(step));
+  assert.ok(install >= 0, 'the job installs its tools');
+  const checks = steps.slice(install + 1);
+  assert.ok(checks.length > 0, 'the job runs checks after the installs');
+  for (const step of checks) assert.match(step, /^ {8}if: \$\{\{ !cancelled\(\) \}\}$/m, `the step runs after a failed one:\n${step}`);
+});

@@ -45,52 +45,68 @@ jobs:
       # channel of rust-toolchain.toml.
       - name: install rust
         run: rustup toolchain install
+      # Every check below runs after an earlier one failed (`!cancelled()`), so one run shows every failure (K251).
       # Every tool that install-tools, setup-php and rustup installed runs at the version of config/toolchain.json (K183).
       - name: toolchain check
+        if: ${{ !cancelled() }}
         run: make toolchain-check
       # tsc checks the types of the tools and tests (tsconfig.json, K71-1).
       - name: typecheck
+        if: ${{ !cancelled() }}
         run: make typecheck
       # alint, which install-tools installs from mise.toml, checks the folder layout (S5) against config/layout.yml (K76).
       - name: layout check
+        if: ${{ !cancelled() }}
         run: make layout-check
       # kit checks its own dependencies as each consumer does (K169): the manifests and locks against
       # config/dependency-policy.json and the review record config/dependency-review.json, offline, and that the gate rejects
       # each known mutation of the checkout. A dependency change without make dependency-review RECORD=1 fails here.
       - name: dependency policy check
+        if: ${{ !cancelled() }}
         run: make dependency-policy-check
       - name: dependency policy mutation check
+        if: ${{ !cancelled() }}
         run: make dependency-policy-mutation-check
       # jscpd, which npm ci installs, fails while a piece of scripts/kit exists twice (K126).
       - name: duplication check
+        if: ${{ !cancelled() }}
         run: make duplication-check
       # kit lints itself with the TypeScript lint that its consumers get (K142): oxlint type-aware with .oxlintrc.json and
       # knip with knip.json, over scripts/kit (the copies of scripts/kit/bootstrap included) and the tests.
       - name: lint
+        if: ${{ !cancelled() }}
         run: make lint-ts
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
+        if: ${{ !cancelled() }}
         run: make kit-test
       # The kit's own tests (tests/source) build the wheel with the Python and backend of install-tools; kit-sync does not vendor them.
       - name: source tests
+        if: ${{ !cancelled() }}
         run: make source-test
       - name: documents check
+        if: ${{ !cancelled() }}
         run: make documents-check
       # Every tool of scripts/kit has its class in config/rebuild.json (S1), and every tracked path an owner rule in
       # config/owner-checks.json (K182).
       - name: rebuild check
+        if: ${{ !cancelled() }}
         run: make rebuild-check
       - name: owner validate
+        if: ${{ !cancelled() }}
         run: make owner-validate
       # The configuration against its schemas, and every package file classified in config/release.json (K183). Each make
       # target of config/owner-checks.json runs in a step here, or its ciExempt entry gives the reason it cannot.
       - name: kit check
+        if: ${{ !cancelled() }}
         run: make kit-check
       - name: release coverage
+        if: ${{ !cancelled() }}
         run: make release-coverage
       # The commits the run was triggered by: those of the pull request over its base, or those of the push. A manual run and
       # the first push of a branch have no earlier commit, so the run checks HEAD.
       - name: commit range
+        if: ${{ !cancelled() }}
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -101,4 +117,5 @@ jobs:
           else echo "range=HEAD"
           fi >> "$GITHUB_ENV"
       - name: commits check
+        if: ${{ !cancelled() }}
         run: make commits-check RANGE="$range"
