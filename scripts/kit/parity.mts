@@ -86,9 +86,6 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
-  for (const unit of model.config.units.filter((entry: { kind: string; admit?: string }) => entry.kind === 'suite' && entry.admit !== undefined)) {
-    for (const entry of model.notAdmitted(unit)) say(`unit ${unit.id} does not run ${entry.name} for ${entry.omitted.join(', ')}: ${unit.admit} lists ${entry.list.join(', ')}`);
-  }
   const executed = execute ? runBindings(model, root, { env, files, say, units: selected }) : { ledger, findings: [] };
   if (selected !== undefined) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };

@@ -107,11 +107,6 @@
           "requirements": { "description": "The ids of the spec requirements that the unit tests (K273): each is defined in docs/spec as a bullet **<id>** or a heading <id>; every requirement is cited by a unit (R13), and a unit cites only defined ones (R14).", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
           "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), what lies inside a case not examined. A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
-          "admit": {
-            "description": "suite: the key of each case object (the object that holds the name at cases) that lists the implementations which admit the case, such as \"kinds\". A case without the key is admitted by every implementation; an implementation that the list omits does not run the case, and every run prints it. A listed name is an implementation, a list is not empty and names each implementation once, the key is on some case, and every implementation admits some case.",
-            "type": "string",
-            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-          },
           "bindings": {
             "description": "suite and feature: the native test of each implementation.",
             "type": "array",

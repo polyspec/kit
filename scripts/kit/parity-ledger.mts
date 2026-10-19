@@ -190,7 +190,7 @@ export function runBindings(model: ParityModel, root: string, { env, files, say,
       findings.push(finding('R3', run.error, where));
       continue;
     }
-    const expected = model.admitted(unit, implementation.name);
+    const expected = model.cases.get(unit.id) ?? [];
     // The binding runs twice; the same tree gives the same cases with the same results, or the binding does not hold.
     // map gives one attempt for each of the two runs.
     // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.

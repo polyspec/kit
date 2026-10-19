@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b58e67a479632140cd6fc3c81fb5169e11ca4bbcf1b58d47a4def22cfffbfc64 -->
+<!-- source-sha256: 5128caf3212b2863c291a26da3d82da8f193c68b2724973589d12c9c77fb1da0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,7 @@
 ## Unreleased
 
 - ID는 마지막 -<number> 앞부분이 그 저장소 pattern의 ID일 때만 sub-item이므로, S-01 같은 ID 체계는 부모 S를 요구하지 않는다 (K249-5).
+- parity 선언에는 `admit` key가 없다: 모든 구현이 모든 suite의 모든 case를 실행하므로, 한 구현이 건너뛰는 case는 더 이상 영구 차이가 아니다 (K276-1).
 - config/parity.json은 모든 unit을 모든 구현이 가진다고 선언합니다: `profiles`, `nativeOnly`, `exclusions`와 unit의 `profile`이 없고(schema가 거부합니다), R8과 R11의 native-only 절이 없으며, width와 size suite는 모든 구현에 있습니다 (K276).
 - suite 또는 feature unit은 각 binding의 test 또는 suite의 vector file이 이름으로 적은 requirement만 인용하고(R15), 그런 unit만 requirement를 추적한다: unit이 spec의 모든 requirement를 인용해 R13을 통과할 수 없다 (K275).
 - parity declaration check는 인용된 spec file을 한 번만 parse한다: anchor마다 file을 다시 parse해서 큰 spec에서 8분이 걸렸다 (K274).

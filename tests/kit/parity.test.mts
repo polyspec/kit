@@ -1384,6 +1384,13 @@ test('K276: a declaration with profiles, nativeOnly or exclusions fails the sche
   ]);
 });
 
+test('K276-1: a suite that declares admit fails the schema, since every implementation runs every case', TIMEOUT, (t) => {
+  const { findings } = check(t, { edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; } }, { execute: false });
+  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
+    'declaration: config/parity.json: /units/0 must NOT have additional properties {"additionalProperty":"admit"}',
+  ]);
+});
+
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
   const { findings } = check(t, { edit: (config) => { config.extra = true; itemAt(config.units, 0).kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
@@ -1507,23 +1514,6 @@ test('R3: a case that one run reports twice fails, and the finding names the cas
   assert.equal(findingAt(findings, 0).message, 'reported twice in run 1: empty; reported twice in run 2: empty');
 });
 
-test('a case that the admit list of its suite does not name is not run for the implementation, and every run prints it (K47)', TIMEOUT, (t) => {
-  const vectors = JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }] });
-  const edit = (config: Declaration) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
-  const lines: string[] = [];
-  const root = repository(t, { files: { 'tests/vectors/codec.json': vectors, 'python/tests/test_codec.py': 'PASS test_empty\n' }, edit });
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: line => lines.push(line) });
-  assert.deepEqual(findings, []);
-  assert.ok(lines.includes('unit codec does not run ascii for python: kinds lists go, rust, ts, php'), lines.join('\n'));
-  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'python').map(entry => entry.case), ['empty']);
-  const reported = check(t, { files: { 'tests/vectors/codec.json': vectors, 'python/tests/test_codec.py': 'PASS test_empty\nPASS test_ascii\n' }, edit });
-  assert.deepEqual(keys(reported.findings), ['R3 codec python']);
-  assert.match(findingAt(reported.findings, 0).message, /not in the suite: ascii/);
-  const declared = (kinds: unknown) => check(t, { files: { 'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'ascii', kinds }] }) }, edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(declared(['go', 'kotlin']), ['declaration: unit codec: case ascii admits kotlin, which is no implementation']);
-  assert.deepEqual(declared('go'), ['declaration: unit codec: case ascii has kinds that is no array of implementation names']);
-});
-
 test('the PHPUnit run names the configuration of its package, phpunit.xml or phpunit.xml.dist, or none (K47)', TIMEOUT, (t) => {
   const args = (files: Record<string, string>) => {
     const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files }), { test: 'php/tests/codec.php' }, 'suite', ENV);
@@ -1548,22 +1538,6 @@ test('a php binding of a Composer monorepo runs the PHPUnit of the root project,
   assert.deepEqual(keys(findings), ['R3 codec php', 'R3 width php', 'R3 size php']);
   assert.match(findingAt(findings, 0).message, /php\/vendor\/bin\/phpunit does not exist; run composer install in php, or in the project that requires it/);
 });
-test('admit: an implementation that admits no case, a key on no case, an empty list and a repeated name are declaration findings (K47)', TIMEOUT, (t) => {
-  const edit = (config: Declaration) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; };
-  const all = ['go', 'rust', 'ts', 'php', 'python'];
-  const findings = (vectors: unknown[], change: Change = {}) => check(t, { files: { 'tests/vectors/codec.json': JSON.stringify({ vectors }), ...change.files }, edit: change.edit ?? edit }, { execute: false }).findings.map(finding => `${finding.rule} ${finding.message}`);
-  // python admits no case of the suite: the finding names the implementation and the way out.
-  const none = findings([{ name: 'empty', kinds: ['go', 'rust', 'ts', 'php'] }, { name: 'ascii', kinds: ['go', 'rust', 'ts', 'php'] }]);
-  assert.equal(none.length, 1, none.join('\n'));
-  // The line above asserts one finding; without it, assert.match fails on undefined as before.
-  assert.match(known(none[0], 'none[0]'), /^declaration unit codec: no case of .* admits python, so the suite runs nothing for it; add python to kinds/);
-  // A key that no case has, an empty list and a repeated name.
-  assert.match(findings([{ name: 'empty' }, { name: 'ascii' }]).join('\n'), /^declaration unit codec: .*no case of .* has kinds/m);
-  assert.match(findings([{ name: 'empty', kinds: [] }, { name: 'ascii', kinds: all }]).join('\n'), /declaration unit codec: .*case empty has kinds that is empty/);
-  assert.match(findings([{ name: 'empty', kinds: ['go', 'go', 'rust', 'ts', 'php', 'python'] }, { name: 'ascii', kinds: all }]).join('\n'), /declaration unit codec: .*case empty lists go twice/);
-});
-
-
 /** The unit width of `config`, the go and rust suite that the K42 cases read in other forms. */
 const widthUnit = (config: Declaration) => itemWhere(config.units, (unit: { id: string }) => unit.id === 'width');
 

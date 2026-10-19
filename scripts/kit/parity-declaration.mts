@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
-import { isJsonList, isJsonObject, isStringList } from './bootstrap/files.mts';
+import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
 
 export const DECLARATION = 'config/parity.json';
@@ -58,7 +58,6 @@ export interface ParityUnit {
   requirements: string[];
   file?: string;
   cases?: string;
-  admit?: string;
   bindings?: ParityBinding[];
   symbols?: ParitySymbol[];
 }
@@ -85,9 +84,6 @@ export interface ParityModel {
   config: ParityConfig;
   implementations: Map<string, ParityImplementation>;
   cases: Map<string, string[]>;
-  admit: (unit: ParityUnit) => string | undefined;
-  admitted: (unit: ParityUnit, implementation: string) => string[];
-  notAdmitted: (unit: ParityUnit) => { name: string; list: string[]; omitted: string[] }[];
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
 }
@@ -165,7 +161,7 @@ function patternError(source: string): string | undefined {
 /**
  * The case names that the path `cases` ($ followed by .<key> and [*] steps, and an optional last .~ step) selects in `value`,
  * with an error for each step that finds nothing. `entries` pairs each name with `parent`, the object or array that holds it,
- * which carries the admit list of its case; the case of a .~ name is the value of its key.
+ * which holds the case; the case of a .~ name is the value of its key.
  */
 export function casesOf(value: unknown, cases: string): { names: string[]; entries: CaseEntry[]; errors: string[] } {
   let selected: Selected[] = [{ value, where: '$', parent: undefined }];
@@ -521,13 +517,12 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   const names = [...implementations.keys()];
   const units = new Map<string, ParityUnit>();
   const cases = new Map<string, string[]>();
-  const admissions = new Map<string, Map<string, string[]>>();
   for (const unit of config.units) {
     if (units.has(unit.id)) fail(`the unit ${unit.id} is declared twice`);
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
-    const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'admit', 'symbols'], api: ['file', 'cases', 'bindings', 'admit'] }[unit.kind];
+    const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'symbols'], api: ['file', 'cases', 'bindings'] }[unit.kind];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
     const seen = new Set();
     for (const entry of owned) {
@@ -592,30 +587,6 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       if (goBound && !directory && name.includes('/')) fail(`${where}: ${unit.file}: the case ${JSON.stringify(name)} holds /, which Go nests as a subtest; the unit has a go binding`);
     }
     cases.set(unit.id, found.names);
-    if (unit.admit !== undefined) {
-      const admitted = new Map<string, string[]>();
-      let carriers = 0;
-      for (const { name, parent } of found.entries) {
-        if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
-          fail(`${where}: case ${name} is no object, so ${unit.admit} cannot list the implementations that admit it`);
-          continue;
-        }
-        if (!(unit.admit in parent)) continue;
-        carriers++;
-        const list = parent[unit.admit];
-        if (!isStringList(list)) {
-          fail(`${where}: case ${name} has ${unit.admit} that is no array of implementation names`);
-          continue;
-        }
-        // An empty list admits nothing, which is no list; a name twice is a copy that the list does not need.
-        if (list.length === 0) fail(`${where}: case ${name} has ${unit.admit} that is empty; list the implementations that admit it, or remove the key`);
-        for (const repeat of new Set(list.filter((entry, index) => list.indexOf(entry) !== index))) fail(`${where}: case ${name} lists ${repeat} twice in ${unit.admit}`);
-        for (const implementation of list) if (!implementations.has(implementation)) fail(`${where}: case ${name} admits ${implementation}, which is no implementation`);
-        admitted.set(name, list);
-      }
-      if (!found.errors.length && carriers === 0) fail(`${where}: no case of ${unit.file} has ${unit.admit}; remove the admit key or add it to the cases that it admits`);
-      admissions.set(unit.id, admitted);
-    }
   }
   if (config.errors) {
     if (!files.has(config.errors.catalog.file)) fail(`errors: the catalog ${config.errors.catalog.file} does not exist`);
@@ -623,26 +594,10 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
   for (const list of config.languageLists ?? []) {
     if (!files.has(list.file)) fail(`languageLists: ${list.file} does not exist`);
   }
-  // The case names of a suite that `implementation` runs: every case, except those whose admit list omits it.
-  // The second operand runs only when the admissions of the unit hold the name.
-  const admitted = (unit: ParityUnit, implementation: string): string[] => (cases.get(unit.id) ?? []).filter(name => !admissions.get(unit.id)?.has(name) || present(present(admissions.get(unit.id), 'admissions.get(unit.id)').get(name), 'admissions.get(unit.id).get(name)').includes(implementation));
-  // An implementation that admits no case of an admit suite runs nothing, so each one admits some case.
-  for (const unit of config.units.filter(entry => entry.kind === 'suite' && entry.admit !== undefined && cases.has(entry.id))) {
-    for (const name of names) {
-      if (!admitted(unit, name).length) fail(`unit ${unit.id}: no case of ${unit.file} admits ${name}, so the suite runs nothing for it; add ${name} to ${unit.admit} of the cases it admits`);
-    }
-  }
   const model: ParityModel = {
     config,
     implementations,
     cases,
-    admit: unit => unit.admit,
-    admitted,
-    // The cases that an admit list keeps from some implementation, as `case`, its list and the implementations it omits.
-    notAdmitted: unit => (cases.get(unit.id) ?? []).flatMap((name) => {
-      const list = admissions.get(unit.id)?.get(name);
-      return list === undefined ? [] : [{ name, list, omitted: names.filter(member => !list.includes(member)) }];
-    }).filter(entry => entry.omitted.length),
     tests,
     testRunners,
   };
