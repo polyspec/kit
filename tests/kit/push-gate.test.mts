@@ -98,10 +98,10 @@ test('a translation with another state than its document refuses the push', (t) 
 
 test('the deletion of a remote branch reads only the working tree', (t) => {
   const { work, remote } = prepared(t);
-  assert.equal(push(work, 'HEAD:refs/heads/main', 'HEAD:refs/heads/other').status, 0);
-  const deleted = push(work, ':refs/heads/other');
+  assert.equal(push(work, 'HEAD:refs/heads/main', 'HEAD:refs/heads/feat/other-T1').status, 0);
+  const deleted = push(work, ':refs/heads/feat/other-T1');
   assert.equal(deleted.status, 0, deleted.stderr);
-  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/other']).stdout.trim(), '');
+  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat/other-T1']).stdout.trim(), '');
   start(work);
   const refused = push(work, ':refs/heads/main');
   assert.notEqual(refused.status, 0);
@@ -218,10 +218,10 @@ test('a new branch is checked for the commits that no remote ref holds', (t) => 
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
   const wide = note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
-  const refused = push(work, 'HEAD:refs/heads/other');
+  const refused = push(work, 'HEAD:refs/heads/feat/other-T1');
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, new RegExp(`^  ${wide.slice(0, 7)}[0-9a-f]*: commit-width: line 3 `, 'm'));
-  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/other']).stdout.trim(), '');
+  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat/other-T1']).stdout.trim(), '');
 });
 
 test('a push checks only the commits after the remote sha, so a wide commit the remote holds does not refuse', (t) => {
@@ -239,8 +239,36 @@ test('a deleted ref pushes no commit and is not checked', (t) => {
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
   note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
-  assert.equal(push(work, '--no-verify', 'HEAD:refs/heads/other').status, 0);
-  const deleted = push(work, ':refs/heads/other');
+  assert.equal(push(work, '--no-verify', 'HEAD:refs/heads/feat/other-T1').status, 0);
+  const deleted = push(work, ':refs/heads/feat/other-T1');
   assert.equal(deleted.status, 0, deleted.stderr);
-  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/other']).stdout.trim(), '');
+  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat/other-T1']).stdout.trim(), '');
+});
+
+test('a pushed branch other than main is named {type}/{shortname}-{item id} (K253)', (t) => {
+  const { work, remote } = prepared(t);
+  assert.equal(push(work).status, 0);
+  assert.equal(push(work, 'HEAD:refs/heads/feat/parser-T1').status, 0);
+  const pushed = push(work, 'HEAD:refs/heads/wip');
+  assert.notEqual(pushed.status, 0);
+  assert.match(pushed.stderr, /push refused: the branch wip is not named \{type\}\/\{shortname\}-\{checklist id\}/);
+  assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/wip']).stdout.trim(), '');
+});
+
+test('a branch that main has merged, or a worktree whose folder breaks its name, refuses the push (K253)', (t) => {
+  const { work } = prepared(t);
+  git(work, 'branch', 'feat/parser-T1');
+  writeFileSync(path.join(work, 'later.txt'), 'later\n');
+  commitAll(work, 'feat(core): Add a later file (#T1)');
+  const merged = push(work);
+  assert.notEqual(merged.status, 0);
+  assert.match(merged.stderr, /the branch feat\/parser-T1 is merged into main; delete it with git branch -d feat\/parser-T1/);
+  git(work, 'branch', '-d', 'feat/parser-T1');
+  git(work, 'worktree', 'add', '--quiet', '-b', 'feat/lexer-T2', path.join(path.dirname(work), 'scratch'));
+  const named = push(work);
+  assert.notEqual(named.status, 0);
+  assert.match(named.stderr, /the worktree .*scratch is not named \{project\}-\{shortname\}-\{checklist id\}, here work-<shortname>-<id>/);
+  git(work, 'worktree', 'remove', path.join(path.dirname(work), 'scratch'));
+  git(work, 'worktree', 'add', '--quiet', '-b', 'feat/lexer-T3', path.join(path.dirname(work), 'work-lexer-T3'));
+  assert.equal(push(work).status, 0, 'a worktree named for its item, on a branch that main has not merged, passes');
 });

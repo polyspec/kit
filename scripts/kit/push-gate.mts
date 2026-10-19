@@ -95,12 +95,60 @@ function commitRefusal(findings: string[]): string[] {
   return [`push refused: ${findings.length} commit finding${findings.length === 1 ? '' : 's'} (config/commits.json)`, ...findings.map(finding => `  ${finding}`), COMMIT_FIX];
 }
 
+// The branch that work may go to directly; every other branch is named for its item and deleted once merged into it.
+const MAIN = 'main';
+const SHORTNAME = '[a-z0-9]+(?:-[a-z0-9]+)*';
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The worktrees of `root` as `git worktree list --porcelain` lists them: the main worktree first, each with its branch. */
+function worktrees(root: string): { path: string; branch?: string }[] {
+  return git(root, 'worktree', 'list', '--porcelain').split('\n\n').filter(block => block.trim()).map(block => {
+    const fields = new Map(block.split('\n').map(line => [line.slice(0, line.indexOf(' ') === -1 ? line.length : line.indexOf(' ')), line.slice(line.indexOf(' ') + 1)]));
+    const branch = fields.get('branch')?.replace(/^refs\/heads\//, '');
+    return { path: present(fields.get('worktree'), 'the worktree field of git worktree list'), ...(branch ? { branch } : {}) };
+  });
+}
+
+/**
+ * The refusal lines of the branch rules of PRINCIPLES.md (K253): a pushed branch other than main is named
+ * {type}/{shortname}-{checklist id}, a worktree folder {project}-{shortname}-{checklist id}, where the project is the folder
+ * of the main worktree, and no local branch that main has merged remains. A branch is merged when main holds its tip and has
+ * moved past it, so a branch just created from the tip of main is work that has not started yet.
+ */
+export function branchFindings(root: string, pushed: readonly string[], types: readonly string[], idPattern: string): string[] {
+  const found: string[] = [];
+  const branchName = new RegExp(`^(?:${types.map(escaped).join('|')})/${SHORTNAME}-(?:${idPattern})$`);
+  for (const branch of pushed.filter(name => name !== MAIN && !branchName.test(name))) {
+    found.push(`the branch ${branch} is not named {type}/{shortname}-{checklist id}, such as ${types[0] ?? 'feat'}/<shortname>-<id>; push it under such a name`);
+  }
+  const [primary, ...others] = worktrees(root);
+  if (primary) {
+    const project = path.basename(primary.path);
+    const folderName = new RegExp(`^${escaped(project)}-${SHORTNAME}-(?:${idPattern})$`);
+    for (const tree of others.filter(entry => !folderName.test(path.basename(entry.path)))) {
+      found.push(`the worktree ${tree.path} is not named {project}-{shortname}-{checklist id}, here ${project}-<shortname>-<id>; move it with git worktree move`);
+    }
+  }
+  const main = gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${MAIN}`);
+  if (main.status === 0) {
+    const tip = main.stdout.trim();
+    for (const line of git(root, 'for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/heads').split('\n').filter(Boolean)) {
+      const [branch = '', sha = ''] = line.split(' ');
+      if (branch === MAIN || sha === tip || gitResult(root, 'merge-base', '--is-ancestor', sha, tip).status !== 0) continue;
+      const tree = others.find(entry => entry.branch === branch);
+      found.push(`the branch ${branch} is merged into main; delete it with ${tree ? `git worktree remove ${tree.path} && ` : ''}git branch -d ${branch}`);
+    }
+  }
+  return found.map(line => `push refused: ${line}`);
+}
+
 /** The refusal lines of a push: `input` holds the lines that Git passes to the pre-push hook. */
 export function hook(root: string, input: string): string[] {
   const config = loadConfig(root);
   const rules = loadCommitRules(root);
   const sources: Source[] = [];
   const findings: string[] = [];
+  const branches: string[] = [];
   for (const line of input.split('\n').filter(entry => entry.trim())) {
     const fields = line.trim().split(/\s+/);
     if (fields.length !== 4) throw new Error(`the pre-push input line ${JSON.stringify(line)} is not "<local ref> <local sha> <remote ref> <remote sha>"`);
@@ -110,11 +158,13 @@ export function hook(root: string, input: string): string[] {
     const remoteSha = present(fields[3], 'the remote sha of a pre-push input line');
     // A deleted ref pushes no commit.
     if (NO_OBJECT.test(localSha)) continue;
+    const remoteRef = present(fields[2], 'the remote ref of a pre-push input line');
+    if (remoteRef.startsWith('refs/heads/')) branches.push(remoteRef.slice('refs/heads/'.length));
     sources.push({ where: `${localRef} ${localSha.slice(0, SHORT)}`, files: committedFiles(root, localSha), read: committed(root, localSha) });
     findings.push(...pushedFindings(root, localSha, remoteSha, rules));
   }
   sources.push({ where: 'working tree', files: workingPlanFiles(root), read: working(root) });
-  return [...inspect(config, sources), ...commitRefusal(findings)];
+  return [...inspect(config, sources), ...commitRefusal(findings), ...branchFindings(root, branches, rules.types, config.idPattern)];
 }
 
 /** The failure lines of the commit `rev`, or an empty array, with the commit that `rev` names. */

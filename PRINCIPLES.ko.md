@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 68608175c84a84a789ff3cbb7552f3da52b7c803e9fd406675fea0bc4cbae74e -->
+<!-- source-sha256: 3fc6ecc7ef54dc93b0b0a4392c1e48726a85ecaab4037c745224e5f0f6c5a6b8 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -45,7 +45,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로 이름 짓고, main에 merge되는 즉시
   지웁니다. merge될 수 없는 test나 실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에
   합니다; 바로 지울 수 없으면 checklist 하위 항목에 제거 조건을 적습니다.
-  Enforced by: planned K253
+  Enforced by: `.githooks/pre-push`
 - code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
   영어로 쓰는 한국어 쌍을 가집니다.
   Enforced by: `make commits-check`는 commit message에 대해, planned K252
