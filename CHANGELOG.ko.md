@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0a64e8395ddbe4c94fda681b8cba39621209ca0674211a0de540d776a7639fa1 -->
+<!-- source-sha256: 37e2a1d3026cb9df1ffcda2df04c035ecfc694d91d556d5376be8282cafa0ce7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make plan-new NAME= TITLE= TITLE_KO=`(`plan.mts`)는 plan folder를 네 파일, doc-id, 언어 link, checklist header, revision 표식과 함께 쓰고, slug가 아닌 이름, 이미 있는 plan, 빈 title을 거부한다 (K249).
 - Composer installer의 comment는 Composer가 archive digest를 검사한다고 주장하는 대신, commit reference가 각 package를 고정하고 lock에 archive digest가 없음을 기술한다 (K258).
 - 읽기가 state를 위치로 가져오므로, cell 수가 그 table의 header와 다른 checklist row는 줄과 두 수를 알리며 실패한다. kit의 checklist에서 그런 row 31개를 고쳤다 (K242).
 - kit의 `make install-symbols-php`는 lint-php의 PHPStan을 위해 PHP symbol extractor의 package를 install하고, kit의 CI는 lint 전에 그것을 실행하며, `make build`는 그 vendor/를 dist/에서 뺀다 (K248-4).

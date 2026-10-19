@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make plan-new NAME= TITLE= TITLE_KO=` (`plan.mts`) writes a plan folder with its four files, doc-ids, language links, the checklist header and the revision markers, and refuses a name that is no slug, an existing plan and an empty title (K249).
 - The comment of the Composer installer states that the commit reference pins each package and that the lock holds no archive digest, instead of claiming that Composer checks one (K258).
 - A checklist row whose number of cells differs from the header of its table fails with the line and both counts, since the reading takes the state by position; the 31 such rows of kit's checklists are fixed (K242).
 - kit's `make install-symbols-php` installs the packages of the PHP symbol extractor for the PHPStan of lint-php, kit's CI runs it before the lint, and `make build` leaves its vendor/ out of dist/ (K248-4).
