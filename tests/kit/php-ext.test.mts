@@ -8,6 +8,7 @@ import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { execute } from '../../scripts/kit/process.mts';
 import { declarationFindings, declarationsOf, extensionFindings, extensionNames, stubHash } from '../../scripts/kit/php-extension.mts';
 import { put, tree } from './tree.mts';
 
@@ -98,7 +99,7 @@ test('the build publishes the extension, whose declarations Reflection compares 
   assert.ok(existsSync(extension), 'the library is published');
   const script = path.join(ROOT, 'scripts/kit/symbols/php/reflection.php');
   const read = (args: string[]) => {
-    const result = spawnSync('php', args, { cwd: root, encoding: 'utf8' });
+    const result = execute('php', args, { cwd: root });
     assert.equal(result.status, 0, result.stderr);
     return declarationsOf(result.stdout);
   };

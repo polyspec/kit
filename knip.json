@@ -12,8 +12,5 @@
     "oxlint",
     "oxlint-tsgolint",
     "jscpd"
-  ],
-  "ignoreBinaries": [
-    "php"
   ]
 }

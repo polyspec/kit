@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d2133d7fced73dd3055021ce8c05e7b64007160c062d0ef1ba4f8895690da4df -->
+<!-- source-sha256: f8a85d9179b7819505aeeeed8cb422c2761f3b7fee4b60f01c0e4e45fccc3803 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- vendored knip.json은 어떤 binary도 허용하지 않는다. K247이 `ignoreBinaries` php를 넣었는데, php를 실행하지 않는 저장소의 knip이 configuration hint를 출력했다. PHP extension test는 도구처럼 process.mts의 `execute`로 php를 실행한다 (K247-1).
 - package test는 `make kit-build`로 kit을 build하고, package.json의 build와 prepack script도 그것을 실행한다. K246이 `make build`를 runtime 집계로 바꿨는데, Git과 var/tools의 node가 없는 복사본은 그것을 실행할 수 없다. runtime target과 PHP extension의 test는 isolation test가 요구하는 대로 다른 저장소 이름을 쓰지 않는다 (K246-1).
 - commit check는 AI 도구가 commit의 author나 committer인 것을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-identity`). test의 sandbox 저장소는 자기 identity를 가진다 (K265).
 - commit check는 AI 도구의 footer, 곧 그 co-author나 session trailer 또는 generated-with 줄을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-footer`) (K264).
