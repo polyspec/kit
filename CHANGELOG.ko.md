@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5128caf3212b2863c291a26da3d82da8f193c68b2724973589d12c9c77fb1da0 -->
+<!-- source-sha256: 11b9178c05dce014250e5fb239a2319369aea4149bf20c415702fa229932a626 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.54
 
 - ID는 마지막 -<number> 앞부분이 그 저장소 pattern의 ID일 때만 sub-item이므로, S-01 같은 ID 체계는 부모 S를 요구하지 않는다 (K249-5).
 - parity 선언에는 `admit` key가 없다: 모든 구현이 모든 suite의 모든 case를 실행하므로, 한 구현이 건너뛰는 case는 더 이상 영구 차이가 아니다 (K276-1).
@@ -17,8 +19,6 @@
 - kit은 gate workflow `workflows/gates.yml`을 모든 저장소의 `.github/workflows/gates.yml`로 vendor한다. 저장소를 설치하고 PRINCIPLES.md의 규칙을 강제하는 모든 check인 `make -k kit-gates`를 실행하므로, 어떤 저장소도 gate를 CI에 손으로 연결하지 않는다 (K270).
 - language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽으므로, 그 안의 한국어 데이터는 identifier가 아니다 (K268-1).
 - 저장소는 고정 작업이 아닌 suite target `check`를 유지하고, `make install`은 저장소가 더한 install 단계보다 먼저 kit의 bootstrap을 prerequisite `install-kit`으로 실행한다 (K246-2).
-## 0.0.54
-
 - release는 tag와 함께 release workflow를 dispatch해서 시작한다. `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 그 commit을 가리키면 통과하므로, 어떤 machine도 tag를 push할 필요가 없다 (K269).
 - language check와 test-markers check는 JSX와 TSX를 읽는다. JSX를 읽지 못하는 Node.js의 type stripping과 acorn 대신, 이제 package의 의존성인 oxc-parser로 script를 해석하고 tree의 모든 node를 `script-ast.mts`에서 type으로 순회한다 (K268).
 - kit-sync, kit-check, lint-ts는 버전과 상관없이 설치된 @polyspec/kit을 읽는다. npm ci가 lock의 integrity로 설치할 때 강제하며, 개발 상태인 kit checkout의 local link를 더는 버전 때문에 거부하지 않는다 (K267).

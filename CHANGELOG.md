@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.54
+
 - An ID is a sub-item only when the part before its last -<number> is an ID of the pattern of its repository, so an ID scheme such as S-01 needs no parent S (K249-5).
 - The parity declaration has no `admit` key: every implementation runs every case of every suite, so a case that one implementation skips is no longer a permanent difference (K276-1).
 - config/parity.json holds every unit in every implementation: the declaration has no `profiles`, `nativeOnly`, `exclusions` or unit `profile` (the schema refuses them), R8 and the native-only half of R11 are gone, and the width and size suites hold in every implementation (K276).
@@ -16,8 +18,6 @@
 - kit vendors the gates workflow `workflows/gates.yml` to `.github/workflows/gates.yml` of every repository: it installs the repository and runs `make -k kit-gates`, every check that a rule of PRINCIPLES.md is enforced by, so no repository wires the gates into its CI by hand (K270).
 - The language check reads a raw string of Go or Rust as data over its lines, so Korean data in it is no identifier (K268-1).
 - A repository keeps its suite target `check`, which is no fixed task, and `make install` runs the bootstrap of kit as its prerequisite `install-kit` before the install steps that a repository adds (K246-2).
-## 0.0.54
-
 - A release starts from a dispatch of the release workflow with its tag: `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the tag already names that commit, so no machine has to push a tag (K269).
 - The language check and the test-markers check read JSX and TSX: they parse a script with oxc-parser, now a dependency of the package, instead of the type stripping of Node.js and acorn, which read no JSX, and walk every node of the tree by its type in `script-ast.mts` (K268).
 - kit-sync, kit-check and lint-ts read the installed @polyspec/kit of any version: npm ci enforces the lock at install time by its integrity, and a local link of a kit checkout, the state of development, is no longer refused for its version (K267).
