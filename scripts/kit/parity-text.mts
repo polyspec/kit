@@ -29,7 +29,7 @@ export function languageLists(model: ParityModel, root: string) {
 
 // The numbers that a count of implementations is written with: digits, the English words with both, and the Korean native
 // numerals.
-const NUMBERS: Record<string, number> = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const NUMBERS: Record<string, number> = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, '한': 1, '두': 2, '세': 3, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10 };
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // The text between two items of one list: a comma, and, or, /, the Korean conjunction for and, or a Korean particle for and
 // after the item.

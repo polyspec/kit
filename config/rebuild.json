@@ -82,6 +82,10 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: the commands of the Verification cell of an open item, read with the refusals of the Claude Code hook (K249-3)"
     },
+    "scripts/kit/script-ast.mts": {
+      "kind": "ecosystem",
+      "tool": "oxc-parser reads JavaScript, TypeScript, JSX and TSX with their comments; the module walks its ESTree by the type of each node (K268)"
+    },
     "scripts/kit/php-extension.mts": {
       "kind": "ecosystem",
       "tool": "phpize, configure and make build the extension, the gen_stub.php of the PHP writes its arginfo header and Reflection reads its declarations; the tool runs them in one order for every repository (S10)"

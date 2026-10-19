@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 // The language check of the code (`make language-check`, K252): PRINCIPLES.md requires English comments, identifiers, logs,
 // error messages and test names, so Hangul in them fails. A string that is data, such as a Korean phrase that a tool writes
-// into a Korean document, is not read. A TypeScript or JavaScript file is read with its parser (module-imports.mts): its
+// into a Korean document, is not read. A TypeScript or JavaScript file, JSX and TSX included, is read with its parser (script-ast.mts): its
 // comments, identifiers, the text of an Error or a console call and the name of a test; a file of Go, Python, PHP or Rust is
 // read line by line: its comments, and Hangul outside a string literal, which is an identifier. The commit messages are
 // checked by the commit check (check-commits.mts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { full, simple } from 'acorn-walk';
-import type { CallExpression, Comment, Expression, NewExpression, PrivateIdentifier, SpreadElement, Super } from 'acorn';
-import { parseModule } from './module-imports.mts';
+import { calleeName, isNode, parseScript, stringText, walk } from './script-ast.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -28,41 +26,20 @@ const LINE_LANGUAGES: { files: RegExp; line: string[]; block?: [string, string] 
 
 type Kind = 'a comment' | 'an identifier' | 'an error or log message' | 'a test name';
 
-/** The text of a string literal or a backquoted string `node`, or undefined for another node. */
-function textOf(node: Expression | SpreadElement | undefined): string | undefined {
-  if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
-  if (node?.type === 'TemplateLiteral') return node.quasis.map(quasi => quasi.value.raw).join('');
-  return undefined;
-}
-
-/** The name of a callee: `name`, or `object.name` for a member. */
-function calleeName(node: Expression | Super | PrivateIdentifier): string {
-  if (node.type === 'Identifier') return node.name;
-  if (node.type === 'MemberExpression') return `${calleeName(node.object)}.${calleeName(node.property)}`;
-  return '';
-}
-
 /** The findings of a script: its comments, identifiers, Error and console texts and test names, each by its line. */
 function scriptFindings(file: string, text: string): { line: number; kind: Kind }[] {
   const lineOf = (offset: number) => text.slice(0, offset).split('\n').length;
-  const comments: Comment[] = [];
-  const program = parseModule(file, text, 'strip-only', comments);
+  const { program, comments } = parseScript(file, text);
   const found: { line: number; kind: Kind }[] = comments.filter(comment => HANGUL.test(comment.value)).map(comment => ({ line: lineOf(comment.start), kind: 'a comment' }));
-  const call = (node: CallExpression | NewExpression) => {
+  walk(program, (node) => {
+    if ((node.type === 'Identifier' || node.type === 'JSXIdentifier') && typeof node.name === 'string' && HANGUL.test(node.name)) found.push({ line: lineOf(node.start), kind: 'an identifier' });
+    if ((node.type !== 'CallExpression' && node.type !== 'NewExpression') || !Array.isArray(node.arguments)) return;
     const name = calleeName(node.callee);
     if (/(?:^|\.)\w*Error$/.test(name) || name.startsWith('console.')) {
-      for (const arg of node.arguments) if (HANGUL.test(textOf(arg) ?? '')) found.push({ line: lineOf(arg.start), kind: 'an error or log message' });
-    } else if (REGISTRATIONS.has(name.split('.')[0] ?? '') && HANGUL.test(textOf(node.arguments[0]) ?? '')) {
+      for (const arg of node.arguments) if (isNode(arg) && HANGUL.test(stringText(arg) ?? '')) found.push({ line: lineOf(arg.start), kind: 'an error or log message' });
+    } else if (REGISTRATIONS.has(name.split('.')[0] ?? '') && HANGUL.test(stringText(node.arguments[0]) ?? '')) {
       found.push({ line: lineOf(node.start), kind: 'a test name' });
     }
-  };
-  // full passes every node, a declared name too, which simple passes as a VariablePattern that its types do not name.
-  full(program, (node) => {
-    if (node.type === 'Identifier' && HANGUL.test(node.name)) found.push({ line: lineOf(node.start), kind: 'an identifier' });
-  });
-  simple(program, {
-    CallExpression: call,
-    NewExpression: call,
   });
   return found;
 }

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The language check and the test-markers check read JSX and TSX: they parse a script with oxc-parser, now a dependency of the package, instead of the type stripping of Node.js and acorn, which read no JSX, and walk every node of the tree by its type in `script-ast.mts` (K268).
 - kit-sync, kit-check and lint-ts read the installed @polyspec/kit of any version: npm ci enforces the lock at install time by its integrity, and a local link of a kit checkout, the state of development, is no longer refused for its version (K267).
 ## 0.0.54
 

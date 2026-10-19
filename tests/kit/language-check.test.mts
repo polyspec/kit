@@ -29,3 +29,9 @@ test('Hangul fails in a comment or outside a string of Go, Python, PHP and Rust,
   assert.deepEqual(languageFindings('a.rs', '/// 주석\nconst CAUSE: &str = "원인";\n'), ['a.rs:1: Hangul in a comment']);
   assert.deepEqual(languageFindings('docs/a.md', '# 제목\n'), [], 'a document is no code');
 });
+
+test('TSX and JSX are read: Hangul fails in a comment of JSX and in an identifier, and the text of an element is data (K268)', () => {
+  const text = "const 표 = () => <div title=\"제목\">{/* 설명 */}안녕</div>;\nexport { 표 };\n";
+  assert.deepEqual(languageFindings('src/a.tsx', text), ['src/a.tsx:1: Hangul in a comment', 'src/a.tsx:1: Hangul in an identifier', 'src/a.tsx:2: Hangul in an identifier']);
+  assert.deepEqual(languageFindings('src/b.jsx', 'export const A = () => <p>{"값"}</p>;\n'), []);
+});

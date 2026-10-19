@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 // The check that no test is skipped or narrowed by a marker (`make test-markers-check`, K255): PRINCIPLES.md forbids lowering
 // a standard while testing, and a skip or focus marker lowers it without a trace. The tracked test files of each runner of
-// kit (S3) are read: a TypeScript or JavaScript test with its parser (module-imports.mts), so a marker inside a string, such
+// kit (S3) are read: a TypeScript or JavaScript test, JSX and TSX included, with its parser (script-ast.mts), so a marker inside a string, such
 // as the fixture of a test, is no marker; a test of Go, Python, PHP or Rust by the marker on a line of code, its comment left
 // out. Each finding names the file, the line and the marker.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { simple } from 'acorn-walk';
-import type { CallExpression, Node } from 'acorn';
 import { isTestFile } from './check-commits.mts';
-import { parseModule } from './module-imports.mts';
+import { calleeName, isNode, parseScript, walk } from './script-ast.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -31,22 +29,23 @@ const finding = (file: string, line: number, marker: string) => `${file}:${line}
 /** The markers of a script `text` of `file`: a call of a narrowing method of a registration, or a narrowing option. */
 function scriptMarkers(file: string, text: string): string[] {
   const found: { line: number; text: string }[] = [];
-  const lineOf = (node: Node) => text.slice(0, node.start).split('\n').length;
-  simple(parseModule(file, text, 'strip-only'), {
-    CallExpression(node: CallExpression) {
-      const callee = node.callee;
-      if (callee.type === 'MemberExpression' && callee.object.type === 'Identifier' && callee.property.type === 'Identifier' && REGISTRATIONS.has(callee.object.name) && NARROWING.has(callee.property.name)) {
-        found.push({ line: lineOf(node), text: `${callee.object.name}.${callee.property.name}` });
-        return;
-      }
-      if (callee.type !== 'Identifier' || !REGISTRATIONS.has(callee.name)) return;
-      for (const argument of node.arguments) {
-        if (argument.type !== 'ObjectExpression') continue;
-        for (const property of argument.properties) {
-          if (property.type === 'Property' && property.key.type === 'Identifier' && NARROWING.has(property.key.name)) found.push({ line: lineOf(property), text: `the option ${property.key.name}` });
+  const lineOf = (offset: number) => text.slice(0, offset).split('\n').length;
+  walk(parseScript(file, text).program, (node) => {
+    if (node.type !== 'CallExpression' || !Array.isArray(node.arguments)) return;
+    const [registration = '', method, ...rest] = calleeName(node.callee).split('.');
+    if (method !== undefined && rest.length === 0 && REGISTRATIONS.has(registration) && NARROWING.has(method)) {
+      found.push({ line: lineOf(node.start), text: `${registration}.${method}` });
+      return;
+    }
+    if (method !== undefined || !REGISTRATIONS.has(registration)) return;
+    for (const argument of node.arguments) {
+      if (!isNode(argument) || argument.type !== 'ObjectExpression' || !Array.isArray(argument.properties)) continue;
+      for (const property of argument.properties) {
+        if (isNode(property) && property.type === 'Property' && isNode(property.key) && property.key.type === 'Identifier' && typeof property.key.name === 'string' && NARROWING.has(property.key.name)) {
+          found.push({ line: lineOf(property.start), text: `the option ${property.key.name}` });
         }
       }
-    },
+    }
   });
   return found.sort((a, b) => a.line - b.line).map(entry => finding(file, entry.line, entry.text));
 }

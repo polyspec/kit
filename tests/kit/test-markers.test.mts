@@ -27,3 +27,8 @@ test('the skip markers of Go, Python, PHP and Rust fail on a line of code, not i
   assert.deepEqual(markerFindings('tests/a.rs', '#[test]\n#[ignore]\nfn a() {}\n'), ['tests/a.rs:2: #[ignore] skips or narrows a test']);
   assert.deepEqual(markerFindings('src/a.ts', "test.skip('a', () => {});\n"), [], 'a file that is no test is not read');
 });
+
+test('a marker in a TSX test fails, and the JSX around it is read (K268)', () => {
+  const text = "import { test } from 'vitest';\ntest.skip('renders', () => { render(<Form a={1} />); });\n";
+  assert.deepEqual(markerFindings('src/Form.test.tsx', text), ['src/Form.test.tsx:2: test.skip skips or narrows a test']);
+});

@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-19T12:49:24.967Z",
+  "reviewed": "2026-10-19T13:28:07.942Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "8291c8f988920d45b7d2c343c48464a34fbc775ff7cafb20c016a88351d65d70",
+      "sha256": "7984cc86b4ff624f8f3fbfb6cc35c2ada3466c316d7b645f346acb9e2b876345",
       "advisories": [
         {
           "package": "sprintf-js",
@@ -156,6 +156,13 @@
       "package": "micromark-extension-gfm",
       "version": "3.0.0",
       "latest": "3.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "oxc-parser",
+      "version": "0.154.0",
+      "latest": "0.154.0"
     },
     {
       "ecosystem": "npm",

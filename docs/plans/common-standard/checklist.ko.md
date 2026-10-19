@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e5caa0bb3796c31862e0ce2b0f1c8b03d3a46b6e88817088b931482eec0b302f -->
+<!-- source-sha256: c32d6115f0e6b914885e4400182bfb2c0cf7cbd0a91b0f54a87aa457627bab3e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -57,3 +57,4 @@
 | K266 | isolation test는 공통 단어를 저장소 이름으로 쓰지 않는다. 원인: history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 다른 저장소 목록이 그것을 모든 곳에서 거부한다. | `tests/kit/isolation.test.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/isolation.test.mts` | [o] |
 | K263 | kit 0.0.54가 공통 표준과 함께 release되어, 각 저장소가 자기 plan에서 그것을 채택한다. 원인: 저장소들은 K243~K266을 하나도 갖지 않은 0.0.53을 pin한다. | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)`, `tests/release-consumer/`, `config/dependency-review.json` | `make release-versions TAG=v0.0.54` | [o] |
 | K267 | kit-sync와 kit-check는 버전과 상관없이 설치된 package를 읽는다. 원인: package-lock.json이 resolve하는 버전과 다른 package를 거부했는데, 이는 npm ci가 lock의 integrity로 설치할 때 이미 강제하는 실행 시점 제약이며, 개발용 local link를 거부한다. | `scripts/kit/kit-check.mts`, `scripts/kit/kit-sync.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts` | [o] |
+| K268 | language check와 test-markers check는 TSX와 JSX를 읽는다. 원인: Node.js의 type stripping과 acorn으로 script를 해석했는데, 둘 다 JSX를 읽지 못해 저장소의 .tsx나 .jsx 파일이 parse error로 실패했다. | `scripts/kit/script-ast.mts`, `scripts/kit/language-check.mts`, `scripts/kit/test-markers.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/language-check.test.mts tests/kit/test-markers.test.mts` | [o] |
