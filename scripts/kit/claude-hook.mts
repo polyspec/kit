@@ -108,6 +108,11 @@ function makeRefusal(args: string[], context: Context, seen: Set<string>): strin
   const suite = targets.find(target => SUITE_TARGETS.has(target));
   if (suite) return `make ${suite} ${SUITE}`;
   if (targets.includes('parity-check') && !variables.has('UNITS')) return `make parity-check without UNITS ${SUITE}: name the units with UNITS="<id>..."`;
+  // The suites and a test target of a runtime without its name filter run every test (test-runtime.mts, K244).
+  const suiteTarget = targets.find(target => target === 'test-integration' || target === 'test-conformance');
+  if (suiteTarget) return `make ${suiteTarget} ${SUITE}`;
+  const runtime = targets.find(target => /^test-(?:go|js|php|python|rust|ts)$/.test(target));
+  if (runtime && !variables.has('CASES')) return `make ${runtime} without CASES ${SUITE}: name the cases with CASES=<pattern>`;
   const database = context.make();
   if (!database) return null;
   for (const target of targets) {

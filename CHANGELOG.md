@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make test-<runtime> CASES=<pattern>` (`test-runtime.mts`) runs the unit tests of each package of a runtime with the name filter of its runner; `make test-integration` and `make test-conformance` run the suites of `tests/integration/` and `tests/conformance/` of the root only in CI; a layout rule keeps the suites out of packages, and the Claude Code hook refuses a test target without CASES and a suite (K244).
 - The rules check fails on a paragraph of a rule document beyond the one that introduces a section, so a rule is a list item with its check; kit's release procedure moves to docs/operations/release.md, and its AGENTS.md states the release and generated-file rules as list items (K243-1).
 - The commit rules are the constant `COMMIT_RULES` of check-commits.mts, the same for every repository, and kit-check names a leftover `config/commits.json`; PRINCIPLES.md has a Workflow section with the rules of plans, items, verification and commits, and kit's AGENTS.md no longer restates them (K243).
 - `make language-check` (`language-check.mts`) fails on Hangul in a comment, an identifier, an error or log message or a test name of the code, a string that is data excepted, and the commit check fails on Hangul in a commit message (`commit-language`); kit's CI runs both (K252).

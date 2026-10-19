@@ -108,6 +108,15 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
+.PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
+# The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which
+# run-tests allows only in CI. The suites run only in CI (K244).
+test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of each package of the runtime with the name filter CASES=<pattern>; offline
+	$(NODE) $(KIT)/test-runtime.$(KIT_EXT) $(@:test-%=%)
+
+test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root; only in CI
+	$(NODE) $(KIT)/test-runtime.$(KIT_EXT) $(@:test-%=%)
+
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
 	$(NODE) $(KIT)/language-check.$(KIT_EXT)

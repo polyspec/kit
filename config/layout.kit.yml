@@ -15,6 +15,13 @@ templates:
     level: error
     paths: ["packages/{{vars.repo}}-*", "packages/*/{{vars.repo}}-*"]
     message: "S5: a folder under packages/ carries no repository prefix; name it by its runtime or component"
+  # K244: the integration and conformance suites cross packages, so they live under tests/ of the root, where a unit run in a
+  # package never reaches them.
+  - id: suites-at-root
+    kind: dir_absent
+    level: error
+    paths: ["packages/**/integration", "packages/**/conformance"]
+    message: "K244: an integration or conformance suite lives in tests/integration/<runtime> or tests/conformance/<runtime> of the root"
   # S5: the module path of a go.mod is the repository path followed by its folder, with the major version suffix of Go.
   - id: go-module-path
     kind: for_each_file
