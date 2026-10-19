@@ -62,6 +62,14 @@ test('the CI workflow runs every make target of config/owner-checks.json but the
   assert.deepEqual([...exempt].filter(target => ran.has(target)), [], 'an exempt target that a step runs needs no exemption');
 });
 
+test('the CI workflow installs the packages of the PHP symbol extractor after install-tools and before lint-php (K248-4)', () => {
+  // lint-php runs PHPStan on scripts/kit/symbols/php with the autoloader of its Composer project; without the install the
+  // step failed in the run of e9d0bb8.
+  const install = runs.indexOf('make install-symbols-php');
+  assert.ok(install > runs.indexOf('make install-tools'), 'make install-symbols-php runs after install-tools installed Composer');
+  assert.ok(install < runs.indexOf('make lint-php'), 'make install-symbols-php runs before make lint-php');
+});
+
 test('the CI workflow runs documents-check', () => {
   assert.ok(runs.includes('make documents-check'), 'a step runs make documents-check');
 });

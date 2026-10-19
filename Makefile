@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages
+.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages install-symbols-php
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
 # (node scripts/kit/run-tests.mts node -- <test file>).
@@ -15,6 +15,11 @@ CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 # repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
 install-packages: ## Install the packages of package-lock.json with the npm of var/tools; ONLINE
 	$(ONLINE) $(NPM) ci
+
+# The PHP lint runs PHPStan on the PHP symbol extractor with the autoloader of its Composer project, as on every Composer
+# package (lint-php.mts); a consumer installs the extractor into var/tools/symbols-php instead (install-symbols.mts).
+install-symbols-php: ## Install the locked packages of the PHP symbol extractor into scripts/kit/symbols/php/vendor with the Composer of mise.toml, for the PHPStan of lint-php; ONLINE
+	$(ONLINE) env COMPOSER_HOME=$(CURDIR)/var/tools/composer/home COMPOSER_CACHE_DIR=$(CURDIR)/var/tools/composer/cache $(CURDIR)/var/tools/mise/shims/composer install --working-dir=scripts/kit/symbols/php --no-interaction --no-progress --no-scripts --no-plugins --prefer-dist
 
 # kit-test fails when its run changes the checkout: git status --porcelain -uall and the hash of git diff --binary HEAD are
 # recorded under var/ (ignored) before the run and compared after it; the changed status lines are printed.
@@ -34,12 +39,12 @@ kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Co
 	$(NODE) tests/kit/record-tools.mts
 
 .PHONY: build typecheck
-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors; offline after npm ci
+build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors without the vendor/ of install-symbols-php; offline after npm ci
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
 	cp scripts/kit/kit.mk dist.next/kit.mk
 	cp -R scripts/kit/schema dist.next/schema
-	cp -R scripts/kit/symbols dist.next/symbols
+	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
 	if [ -d dist ]; then mv dist dist.old; fi
 	if mv dist.next dist; then rm -rf dist.old; else if [ -d dist.old ]; then mv dist.old dist; fi; exit 1; fi
 
