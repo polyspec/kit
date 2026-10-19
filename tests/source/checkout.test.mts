@@ -122,5 +122,5 @@ test('builtCopy installs the packages of kit into the copy and links none', (t) 
   // AGENTS: this repository creates no symbolic link; the copy installs its packages as a checkout does.
   assert.ok(!lstatSync(path.join(copy, 'node_modules')).isSymbolicLink(), 'node_modules of the copy is a link');
   assert.ok(existsSync(path.join(copy, 'node_modules/typescript/package.json')), 'the copy holds the packages of package-lock.json');
-  assert.ok(existsSync(path.join(copy, 'dist/kit.mk')), 'make build ran in the copy');
+  assert.ok(existsSync(path.join(copy, 'dist/kit.mk')), 'make kit-build ran in the copy');
 });

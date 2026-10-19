@@ -125,7 +125,7 @@ export const run = (command: string, args: string[], cwd: string, env: NodeJS.Pr
   return result.stdout;
 };
 
-// A copy of the tracked and new files of the kit checkout with its installed node_modules, built with make build.
+// A copy of the tracked and new files of the kit checkout with its installed node_modules, built with make kit-build.
 export function builtCopy(t: { after: (fn: () => void) => void }) {
   const copy = mkdtempSync(path.join(tmpdir(), 'kit-package-'));
   t.after(() => rmSync(copy, { recursive: true, force: true }));
@@ -134,7 +134,7 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   // The copy installs the packages of package-lock.json as a checkout does: npm ci of the npm of packageManager, offline,
   // from the primed cache.
   run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], copy);
-  run('make', ['--no-print-directory', 'build'], copy);
+  run('make', ['--no-print-directory', 'kit-build'], copy);
   return copy;
 }
 

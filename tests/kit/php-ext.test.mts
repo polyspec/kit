@@ -28,11 +28,11 @@ const good = (): Record<string, string> => ({
 const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file]);
 
 test('the names of an extension follow from the repository, a hyphen an underscore (S10)', () => {
-  assert.deepEqual(extensionNames('ordered-json'), {
-    composer: 'polyspec/ordered-json-php-ext',
-    extension: 'polyspec_ordered_json',
-    stub: 'packages/php-ext/src/polyspec_ordered_json.stub.php',
-    arginfo: 'packages/php-ext/src/polyspec_ordered_json_arginfo.h',
+  assert.deepEqual(extensionNames('demo-codec'), {
+    composer: 'polyspec/demo-codec-php-ext',
+    extension: 'polyspec_demo_codec',
+    stub: 'packages/php-ext/src/polyspec_demo_codec.stub.php',
+    arginfo: 'packages/php-ext/src/polyspec_demo_codec_arginfo.h',
   });
   assert.equal(stubHash(STUB), /Stub hash: ([0-9a-f]+)/.exec(HEADER)?.[1], 'the hash of gen_stub.php');
   assert.equal(stubHash('a\r\nb\n'), stubHash('a\nb\n'));

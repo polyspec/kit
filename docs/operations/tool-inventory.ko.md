@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: da958c7f3d7b24c0913b748e529a3d5980f8dbb4cd086ddc49a8c8e1b9126778 -->
+<!-- source-sha256: 1e902adbd29dab08c6eebd09c469c399b0a47fcbd68a025940c850c46b8618ee -->
 
 # 도구 목록
 
@@ -1360,7 +1360,7 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
 - repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을
   `var/tools/symbols-go`에 build하고, php extractor의 lock된 Composer project를 선언된 Composer로 `var/tools/symbols-php`에
   설치합니다(`install-symbols.mts`). 각각의 release는 source 파일의 sha256이므로, 그것을 바꾸는 kit release는 다시 설치합니다.
-  `make build`는 `scripts/kit/symbols`를 `dist/symbols`로 복사합니다.
+  `make kit-build`는 `scripts/kit/symbols`를 `dist/symbols`로 복사합니다.
 - rustdoc JSON은 불안정하므로(rust-lang/rust#76578), rust extractor는 `config/toolchain.json` `exceptions`에서 tool이 `rust`이고
   scope가 crate를 담는 항목의 Rust nightly를 `RUSTUP_AUTO_INSTALL=0`으로 실행합니다. 그 재시도 조건은 "rustdoc JSON is stable"이며,
   nightly를 쓰는 곳은 이것뿐입니다. `make install-tools`가 exceptions의 Rust channel마다

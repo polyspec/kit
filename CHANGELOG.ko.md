@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 46731b817bad6a332eebf3e7ba262a6e7b28dc4b6fe232d68608ac4000b7aa3c -->
+<!-- source-sha256: d2133d7fced73dd3055021ce8c05e7b64007160c062d0ef1ba4f8895690da4df -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- package test는 `make kit-build`로 kit을 build하고, package.json의 build와 prepack script도 그것을 실행한다. K246이 `make build`를 runtime 집계로 바꿨는데, Git과 var/tools의 node가 없는 복사본은 그것을 실행할 수 없다. runtime target과 PHP extension의 test는 isolation test가 요구하는 대로 다른 저장소 이름을 쓰지 않는다 (K246-1).
 - commit check는 AI 도구가 commit의 author나 committer인 것을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-identity`). test의 sandbox 저장소는 자기 identity를 가진다 (K265).
 - commit check는 AI 도구의 footer, 곧 그 co-author나 session trailer 또는 generated-with 줄을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-footer`) (K264).
 - 없는 phpcs 또는 PHPStan은 install-tools가 거부하는 `make install-tools TOOLS=phpLint` 대신 config/php-lint를 설치하는 `make install-tools`를 안내한다 (K262).

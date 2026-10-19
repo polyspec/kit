@@ -38,7 +38,7 @@ test('a target that repeats a fixed task under another name fails, and a prerequ
 
 test('a runtime of packages/ without its build, test or lint target fails (K246)', () => {
   const make = { targets: new Map(['build-ts', 'test-ts', 'lint-ts', 'build-php-ext'].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() };
-  const files = ['packages/ts/src/a.ts', 'packages/php-ext/src/a.c', 'packages/orm/ts/b.ts', 'docs/a.md'];
+  const files = ['packages/ts/src/a.ts', 'packages/php-ext/src/a.c', 'packages/codec/ts/b.ts', 'docs/a.md'];
   assert.deepEqual(runtimeTargetFindings(files, make), ['test-php-ext', 'lint-php-ext'].map(target => `packages/: the runtime php-ext has no target ${target}; kit.mk defines the targets of each runtime`));
   assert.deepEqual(runtimeTargetFindings(['docs/a.md'], make), []);
 });

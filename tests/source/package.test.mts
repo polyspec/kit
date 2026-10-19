@@ -1,4 +1,4 @@
-// kit as the npm package @polyspec/kit (K71-2): make build emits the tools of scripts/kit as JavaScript into dist/ with
+// kit as the npm package @polyspec/kit (K71-2): make kit-build emits the tools of scripts/kit as JavaScript into dist/ with
 // kit.mk, the schemas and the symbol extractors, npm pack packs exactly the declared files, and a repository that installs the tarball imports
 // the exported module and runs a tool from dist with the result of the source. The checks run on a copy of the checkout,
 // so neither the build nor the pack writes into this checkout.
@@ -20,7 +20,7 @@ const EXPORTS: JSONSchemaType<{ resolved: string; names: string[] }> = { type: '
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('make build emits every tool of scripts/kit into dist as .mjs with .mjs imports, with kit.mk and the schemas', (t) => {
+test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs imports, with kit.mk and the schemas', (t) => {
   const copy = builtCopy(t);
   const sources = walk(path.join(ROOT, 'scripts/kit')).filter(file => file.endsWith('.mts'));
   assert.ok(sources.length > 50, `scripts/kit holds ${sources.length} modules`);

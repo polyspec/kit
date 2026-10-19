@@ -1485,7 +1485,7 @@ snapshot, and `parity-declarations-check` runs no extractor.
 - A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `make install-tools` then builds the go
   program into `var/tools/symbols-go` and installs the locked Composer project of the php extractor into
   `var/tools/symbols-php` with the declared Composer (`install-symbols.mts`). The release of each is the sha256 of its source
-  files, so a kit release that changes it reinstalls it. `make build` copies `scripts/kit/symbols` into `dist/symbols`.
+  files, so a kit release that changes it reinstalls it. `make kit-build` copies `scripts/kit/symbols` into `dist/symbols`.
 - rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
   `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
   "rustdoc JSON is stable". This is the only use of a nightly. `make install-tools` installs each Rust channel of the exceptions with

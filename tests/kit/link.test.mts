@@ -828,12 +828,12 @@ function kitSandbox(t: TestContext): string {
   return dir;
 }
 
-test('make build restores dist when the rename of dist.next fails, and exits 1', (t) => {
+test('make kit-build restores dist when the rename of dist.next fails, and exits 1', (t) => {
   const dir = kitSandbox(t);
   put(dir, { 'node_modules/.bin/tsc': '#!/bin/sh\nmkdir -p dist.next\n', 'dist/old.js': 'old\n', 'bin/mv': '#!/bin/sh\nif [ "$1" = dist.next ] && [ "$2" = dist ]; then echo "mv: injected failure" >&2; exit 1; fi\nexec /bin/mv "$@"\n' });
   chmodSync(path.join(dir, 'node_modules/.bin/tsc'), 0o755);
   chmodSync(path.join(dir, 'bin/mv'), 0o755);
-  const result = spawnSync('make', ['-C', dir, 'build'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` } });
+  const result = spawnSync('make', ['-C', dir, 'kit-build'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` } });
   assert.notEqual(result.status, 0, result.stderr);
   assert.match(result.stderr, /mv: injected failure/, 'the recipe stopped at the failed rename');
   assert.equal(readFileSync(path.join(dir, 'dist/old.js'), 'utf8'), 'old\n', 'the previous dist is back');

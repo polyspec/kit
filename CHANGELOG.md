@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The package tests build kit with `make kit-build`, and the scripts build and prepack of package.json run it too: K246 made `make build` the aggregate of the runtimes, which a copy without Git and the node of var/tools cannot run; the tests of the runtime targets and of the PHP extension name no other repository, as the isolation test requires (K246-1).
 - The commit check refuses an AI tool as the author or the committer of a commit (`commit-ai-identity`), in a range, in the commit-msg hook and in `make commit`; the sandbox repositories of the tests name their own identity (K265).
 - The commit check refuses the footer of an AI tool, a co-author or session trailer of one or a generated-with line (`commit-ai-footer`), in a range, in the commit-msg hook and in `make commit` (K264).
 - A missing phpcs or PHPStan names `make install-tools`, which installs config/php-lint, instead of `make install-tools TOOLS=phpLint`, which install-tools refuses (K262).
