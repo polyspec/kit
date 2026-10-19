@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { known } from './known.mts';
+import { moduleImports, parseModule } from '../../scripts/kit/module-imports.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|fsm|flowmark|consumer)\b/i;
@@ -41,8 +42,9 @@ const PACKAGE = readFixture<NpmManifest>(ROOT, 'package.json');
 // @vscode/test-electron of install-vscode.mts, is one that the repository which runs the tool installs.
 const DECLARED = (['dependencies', 'peerDependencies'] as const).flatMap(field => Object.keys(PACKAGE[field] ?? {}).map(name => ({ field, name })));
 const DEPENDENCIES = DECLARED.map(({ name }) => name);
-// The specifiers of the imports of a module: `from '…'`, `import '…'` and `import('…')`.
-const importsOf = (text: string) => [...text.matchAll(/(?:from|import\(?)\s*'([^']+)'/g)].map(([, specifier]) => known(specifier, 'specifier'));
+// The specifiers of the imports of a module, as Node.js reads it (module-imports.mts), so a string that holds the word import
+// is no import; a computed specifier is named as such and fails the rule.
+const importsOf = (file: string, text: string) => moduleImports(file, parseModule(file, text)).map(specifier => specifier ?? '(a computed specifier)');
 
 test('the import rule allows built-ins, files of scripts/kit and declared packages, and keeps bootstrap to built-ins', () => {
   const declared = ['ajv', '@scope/name'];
@@ -67,7 +69,7 @@ test('a kit tool imports only Node built-ins, files of scripts/kit and the decla
   assert.ok(modules.length > 0, 'the scan found the modules of scripts/kit');
   assert.ok(modules.some(file => file.startsWith('scripts/kit/bootstrap/')), 'the scan found the modules of scripts/kit/bootstrap');
   for (const file of modules) {
-    for (const specifier of importsOf(readFileSync(path.join(ROOT, file), 'utf8'))) {
+    for (const specifier of importsOf(file, readFileSync(path.join(ROOT, file), 'utf8'))) {
       assert.ok(allowedImport(file, specifier, DEPENDENCIES), `${file} imports ${specifier}, which is neither a node: built-in, a file of scripts/kit nor a package of dependencies or peerDependencies in package.json${file.startsWith('scripts/kit/bootstrap/') ? ' (a bootstrap module imports only node: built-ins and files of scripts/kit/bootstrap)' : ''}`);
     }
   }
@@ -77,10 +79,11 @@ test('every package of dependencies and peerDependencies in package.json is used
   // A package is used when a tool imports it, when a tool runs one of its commands (the name of a command of its bin, as a
   // quoted string of a tool, such as the knip that lint-ts.mts runs), or when it is a peer dependency of a used package,
   // such as the oxlint-tsgolint that oxlint loads for --type-aware; the manifests of node_modules say which.
-  const texts = tools.filter(name => name.endsWith('.mts')).map(file => readFileSync(path.join(ROOT, file), 'utf8'));
+  const modules = tools.filter(name => name.endsWith('.mts')).map(file => ({ file, text: readFileSync(path.join(ROOT, file), 'utf8') }));
+  const texts = modules.map(({ text }) => text);
   const manifest = (name: string) => readFixture<NpmManifest>(ROOT, `node_modules/${name}/package.json`);
   const commands = (name: string) => { const { bin } = manifest(name); return typeof bin === 'string' ? [known(name.split('/').at(-1), 'name.split(…).at(-1)')] : Object.keys(bin ?? {}); };
-  const used = new Set(texts.flatMap(importsOf).map(packageOf));
+  const used = new Set(modules.flatMap(({ file, text }) => importsOf(file, text)).map(packageOf));
   for (const { name } of DECLARED) if (commands(name).some(command => texts.some(text => text.includes(`'${command}'`)))) used.add(name);
   for (const name of DEPENDENCIES.filter(name => used.has(name))) for (const peer of Object.keys(manifest(name).peerDependencies ?? {})) used.add(peer);
   for (const { field, name } of DECLARED) assert.ok(used.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it, runs its command or uses a package that it is a peer of; remove it`);

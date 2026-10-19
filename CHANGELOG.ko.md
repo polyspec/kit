@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a03cb2ce1f8d72d23dbabacc521c9b624b9e256e5a3fb881153b60bea704417e -->
+<!-- source-sha256: 35c7ce1490ee45ba942e23ba33e03ed873fe8342861fc274abc0338d1724437c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- isolation test는 module-imports.mts로 module의 import를 읽어, `--import` 같은 option 이름을 가진 문자열은 import가 아니다 (K240-1).
 - lint-ts가 다시 통과하고, kit의 어떤 module과 test도 다른 저장소를 지명하지 않고(fsm과 flowmark도 목록에 있다), make test는 모든 make release가 출력하는 것을 assert하며, read-only link test는 link가 읽는 쓰기 가능성에 따른 동작을 assert하여 root로 실행해도 통과한다 (K250).
 - Python link는 sync를 실행하지 않고 link한 package만 바꾼다 (K239).
 - Python unlink는 모든 group의 release를 복원하고 consumer project를 남긴다. link는 marker를 포함해 uv pip check로 의존성을 검사한다 (K238).
