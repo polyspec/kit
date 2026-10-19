@@ -469,6 +469,22 @@ function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: stri
   return undefined;
 }
 
+// The runtimes of an implementation folder (S5): packages/<runtime>/ holds a port of the main spec, and
+// packages/<component>/<runtime>/ a port of a component; config/layout.kit.yml names the same runtimes.
+const RUNTIMES = new Set(['go', 'php', 'php-ext', 'python', 'rust', 'ts', 'js']);
+
+/** The implementation folders of the checked `files`, sorted: packages/<runtime> and packages/<component>/<runtime>. */
+export function implementationFolders(files: Iterable<string>): string[] {
+  const folders = new Set<string>();
+  for (const file of files) {
+    const [top, first, second, third] = file.split('/');
+    if (top !== 'packages' || first === undefined || second === undefined) continue;
+    if (RUNTIMES.has(first)) folders.add(`packages/${first}`);
+    else if (third !== undefined && RUNTIMES.has(second)) folders.add(`packages/${first}/${second}`);
+  }
+  return [...folders].sort();
+}
+
 /**
  * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
  * implementations and profiles by name, the case names of each suite unit, and `members(unit)`,
@@ -476,7 +492,6 @@ function unresolvedAnchor(root: string, files: ReadonlySet<string>, anchor: stri
  * values are checked as forms only; the runs resolve them (resolveReferences).
  */
 export function readDeclaration(root: string, files: ReadonlySet<string>): { errors: Finding[]; model?: ParityModel } {
-  if (!existsSync(path.join(root, DECLARATION))) return { errors: [finding('declaration', `${DECLARATION} does not exist; declare the implementations and units there (scripts/kit/schema/parity.schema.json)`)] };
   let read: ReturnType<typeof readConfigFindings<ParityConfig>>;
   try {
     read = readConfigFindings<ParityConfig>(root, DECLARATION, 'parity.schema.json');

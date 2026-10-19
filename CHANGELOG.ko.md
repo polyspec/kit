@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 47d8987350803d61af884b9277d1cfb581cea62ff735520a881556ef3e77e302 -->
+<!-- source-sha256: bad3c5b255cda2f097fd2ef3effe33bbd95842284b200109c6f02da691cb0b52 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 구현 folder가 최대 하나인 checkout은 `config/parity.json`이 필요 없고, 둘 이상인 checkout은 그것 없이 실패한다 (K248-2).
 - kit.mk가 `rebuild-check`와 `rules-check`를 정의하여 모든 저장소가 그것을 실행한다 (K248-1).
 - kit CI의 모든 check step은 앞의 step이 실패한 뒤에도 실행되어, run 하나가 모든 실패를 보여 준다 (K251).
 - 공통 layout은 Claude Code가 설정을 읽는 `.claude/`를 허용하고, kit의 layout은 vendor되는 설정의 원본 `claude/`를 허용한다 (K240-2).

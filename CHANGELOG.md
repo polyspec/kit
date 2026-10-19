@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A checkout with at most one implementation folder needs no `config/parity.json`; one with two or more fails without it (K248-2).
 - kit.mk defines `rebuild-check` and `rules-check`, so every repository runs them (K248-1).
 - Every check step of the CI of kit runs after an earlier one failed, so one run shows every failure (K251).
 - The common layout allows `.claude/`, where Claude Code reads its settings, and kit's layout allows `claude/`, the source of the vendored settings (K240-2).

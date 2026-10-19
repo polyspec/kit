@@ -38,8 +38,10 @@
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
 // A permanent difference, a profile narrower than every implementation or a native-only entry, cites in spec the anchors of
 // the spec that make it one (contracts/…#id or docs/spec/…#id); an anchor that does not resolve is a `declaration` finding.
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { DECLARATION, finding, findingLine, readDeclaration } from './parity-declaration.mts';
+import { DECLARATION, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
@@ -59,10 +61,19 @@ export type ParityFinding = Finding;
  */
 export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
+  const ledger: Ledger = { runs: [], cases: [] };
+  // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
+  if (!existsSync(path.join(root, DECLARATION))) {
+    const implementations = implementationFolders(files);
+    if (implementations.length < 2) {
+      say(`${DECLARATION} is absent, and packages/ holds ${implementations.length === 1 ? 'one implementation' : 'no implementation'}: no parity to check`);
+      return { findings: [], ledger };
+    }
+    return { findings: [finding('declaration', `${DECLARATION} does not exist, and packages/ holds ${implementations.length} implementations (${implementations.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`)], ledger };
+  }
   say(`read ${DECLARATION}`);
   const declaration = readDeclaration(root, files);
   const model = declaration.model;
-  const ledger: Ledger = { runs: [], cases: [] };
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
   if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
   // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).

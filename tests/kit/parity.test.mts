@@ -1693,3 +1693,16 @@ test('a tools root holds single-language tooling tests that R6 accepts and every
     'declaration: tools: the root tools holds tools/tests/codec.mjs, the test of the suite codec in ts',
   ]);
 });
+
+test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', (t) => {
+  const git = (root: string) => {
+    for (const args of [['init', '--quiet'], ['add', '-A']]) spawnSync('git', args, { cwd: root });
+  };
+  const one = tree(t, { 'packages/ts/src/a.ts': '', 'scripts/b.mts': '' });
+  git(one);
+  assert.deepEqual(checkParity(one, { execute: false }).findings, []);
+  const two = tree(t, { 'packages/ts/src/a.ts': '', 'packages/validator/go/a.go': '', 'packages/validator/php/A.php': '' });
+  git(two);
+  const findings = checkParity(two, { execute: false }).findings.map(item => item.message);
+  assert.deepEqual(findings, ['config/parity.json does not exist, and packages/ holds 3 implementations (packages/ts, packages/validator/go, packages/validator/php); declare them and their units there (scripts/kit/schema/parity.schema.json)']);
+});
