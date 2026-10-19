@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bad3c5b255cda2f097fd2ef3effe33bbd95842284b200109c6f02da691cb0b52 -->
+<!-- source-sha256: 0a178fbb74cb34e9f39f13b97d533e29b7845430c85f54c7ba41eeb7a60fa859 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PRINCIPLES.md와 AGENTS.md의 모든 규칙은 `Enforced by:`로 끝나며, `make rules-check`(`check-rules.mts`)가 명시된 check를 CI workflow와 Git hook에서 make를 따라 추적하고, 그런 지점이 실행하지 않는 check를 가진 규칙에서 실패하며, tool이 강제하지 않는 규칙과 planned item이 강제할 규칙을 나열한다. Claude Code hook은 `--no-verify`, `core.hooksPath` 변경, sleep으로 polling하는 loop, consumer에서 vendor된 파일의 편집도 거부한다. kit의 CI는 PHP, Python, Go lint, rules check, parity 선언을 실행한다 (K248).
 - 구현 folder가 최대 하나인 checkout은 `config/parity.json`이 필요 없고, 둘 이상인 checkout은 그것 없이 실패한다 (K248-2).
 - kit.mk가 `rebuild-check`와 `rules-check`를 정의하여 모든 저장소가 그것을 실행한다 (K248-1).
 - kit CI의 모든 check step은 앞의 step이 실패한 뒤에도 실행되어, run 하나가 모든 실패를 보여 준다 (K251).

@@ -76,6 +76,17 @@ jobs:
       - name: lint
         if: ${{ !cancelled() }}
         run: make lint-ts
+      # The PHP lint of every repository (S2): phpcs and PHPStan over the PHP of the checkout, the extractor of the symbols.
+      - name: php lint
+        if: ${{ !cancelled() }}
+        run: make lint-php
+      # The Python and Go lints of every repository: ruff and vulture, golangci-lint and deadcode, over the symbol extractors.
+      - name: python lint
+        if: ${{ !cancelled() }}
+        run: make lint-python
+      - name: go lint
+        if: ${{ !cancelled() }}
+        run: make lint-go
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         if: ${{ !cancelled() }}
@@ -95,6 +106,14 @@ jobs:
       - name: owner validate
         if: ${{ !cancelled() }}
         run: make owner-validate
+      # Every rule of PRINCIPLES.md and AGENTS.md names a check that this workflow, a Git hook or the Claude Code hook runs
+      # (K248); the parity declarations hold, and a checkout with one implementation needs none (K248-2).
+      - name: rules check
+        if: ${{ !cancelled() }}
+        run: make rules-check
+      - name: parity declarations check
+        if: ${{ !cancelled() }}
+        run: make parity-declarations-check
       # The configuration against its schemas, and every package file classified in config/release.json (K183). Each make
       # target of config/owner-checks.json runs in a step here, or its ciExempt entry gives the reason it cannot.
       - name: kit check

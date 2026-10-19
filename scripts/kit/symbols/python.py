@@ -24,13 +24,22 @@ def module_name(path, base):
 
 
 def private(path, base):
-    return any(part.startswith("_") and part != "__init__.py" for part in path.relative_to(base).parts)
+    return any(
+        part.startswith("_") and part != "__init__.py"
+        for part in path.relative_to(base).parts
+    )
 
 
 def declared_all(tree):
     for node in tree.body:
-        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
-            if not isinstance(node.value, (ast.List, ast.Tuple)) or not all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.value.elts):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        ):
+            if not isinstance(node.value, (ast.List, ast.Tuple)) or not all(
+                isinstance(item, ast.Constant) and isinstance(item.value, str)
+                for item in node.value.elts
+            ):
                 raise SystemExit("__all__ is no literal list or tuple of strings")
             return [item.value for item in node.value.elts]
     return None
@@ -42,7 +51,9 @@ def defined(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             names[node.name] = node
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            for target in node.targets if isinstance(node, ast.Assign) else [node.target]:
+            for target in (
+                node.targets if isinstance(node, ast.Assign) else [node.target]
+            ):
                 if isinstance(target, ast.Name):
                     names[target.id] = node
     return names
@@ -61,7 +72,9 @@ def symbols(path, base):
         node = names.get(name)
         if isinstance(node, ast.ClassDef):
             for member in node.body:
-                if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and not member.name.startswith("_"):
+                if isinstance(
+                    member, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and not member.name.startswith("_"):
                     found.append(f"{module}.{name}.{member.name}")
     return found
 
@@ -74,7 +87,12 @@ def main():
         raise SystemExit(f"{sys.argv[1]} does not exist")
     base = entry.parent
     files = sorted(entry.rglob("*.py")) if entry.is_dir() else [entry]
-    found = [symbol for path in files if not private(path, base) for symbol in symbols(path, base)]
+    found = [
+        symbol
+        for path in files
+        if not private(path, base)
+        for symbol in symbols(path, base)
+    ]
     print(json.dumps(sorted(found)))
 
 

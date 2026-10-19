@@ -70,6 +70,10 @@
       "kind": "ecosystem",
       "tool": "amaro turns TypeScript into JavaScript, acorn parses it and acorn-walk finds the imports and the started modules, for the editor boundaries and the import graph of owner-check (K191)"
     },
+    "scripts/kit/check-rules.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that every rule is enforced where it cannot be skipped: the check that each rule names and the reach of that check from CI and the hooks"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

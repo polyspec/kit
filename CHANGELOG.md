@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Every rule of PRINCIPLES.md and AGENTS.md ends with `Enforced by:`, and `make rules-check` (`check-rules.mts`) follows each named check from the CI workflows and the Git hooks through make, fails on a rule whose check no such point runs, and lists the rules that no tool enforces and those that a planned item will; the Claude Code hook also refuses `--no-verify`, a change of `core.hooksPath`, a loop that polls with a sleep and, in a consumer, an edit of a vendored file; kit's CI runs the PHP, Python and Go lints, the rules check and the parity declarations (K248).
 - A checkout with at most one implementation folder needs no `config/parity.json`; one with two or more fails without it (K248-2).
 - kit.mk defines `rebuild-check` and `rules-check`, so every repository runs them (K248-1).
 - Every check step of the CI of kit runs after an earlier one failed, so one run shows every failure (K251).

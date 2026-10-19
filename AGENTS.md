@@ -19,6 +19,7 @@ and states only its own rules. The rules below are kit's own.
 - English documents are canonical. Every document has a `.ko.md` file with the same information; edit both in the same
   change. The revision marker `source-sha256` of the Korean file is the sha256 of the English file. Korean documents write
   technical terms in English.
+  Enforced by: `make documents-check`
 - A tool imports only Node built-ins (`node:`), files of `scripts/kit/` and the packages that `dependencies` of
   `package.json` declares, each pinned exactly, or an optional peer that `peerDependencies` declares and the repository that
   runs the tool installs, such as the `@vscode/test-electron` of `install-vscode.mts`. A module of `scripts/kit/bootstrap/` runs before npm installs the packages,
@@ -27,12 +28,15 @@ and states only its own rules. The rules below are kit's own.
   such a package. No tool or test, except the fixture and `tests/kit/isolation.test.mts`, names
   another repository. A value that differs between repositories is data in
   `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
+  Enforced by: `tests/kit/isolation.test.mts`
 - A vendored file is changed in kit and copied with `make kit-sync`, which writes the copies of the version that
   package-lock.json resolves, never edited in a repository: `make kit-check` fails on a changed or missing vendored file, and
   on a file of `scripts/kit/` that is no copy, since that directory holds the copies of kit only; `make kit-sync` removes it.
+  Enforced by: `make kit-check`, `.claude/settings.json`
 - The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to kit's tools: uv for Python interpreters,
   environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
   creates, is accepted; our rules govern what we create.
+  Enforced by: `make rebuild-check`
 - This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. The one
   exception is the local link of 0.0.x development (`docs/plans/local-links.md`): when a polyspec root is declared, a
   development checkout's installed polyspec package folder pinned at 0.0.x is replaced by a link to its provider's source;
@@ -45,12 +49,15 @@ and states only its own rules. The rules below are kit's own.
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
+  Enforced by: planned K254
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
+  Enforced by: `make duplication-check`
 - Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
   A stub never runs a command that a stub or a mise shim provides (go, composer, npm, node, php, python, uv, mise), since a
   shim outside its checkout runs the next command of PATH; the archivers of the machine are allowed (`tests/kit/stubs.test.mts`).
+  Enforced by: `tests/kit/stubs.test.mts`
 - A repository declares the tools that it installs in `mise.toml` (Go, Python, uv, ruff, alint, golangci-lint, deadcode,
   govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture), writes their digests into `mise.lock` with
   `make toolchain-lock` and installs them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap. The uv lock of a `pypi:` tool is the sidecar folder
@@ -61,6 +68,7 @@ and states only its own rules. The rules below are kit's own.
   never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
   them after `make kit-test`.
+  Enforced by: `make toolchain-check`
 - kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`; the Node.js of `mise.toml` is installed by the bootstrap
   (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the
@@ -72,23 +80,32 @@ and states only its own rules. The rules below are kit's own.
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
   install, and `make toolchain-check` names a toolchain that is not installed. PHP is the
   release of `.php-version` (in CI, the setup-php step before install-tools), which `make toolchain-check` verifies.
+  Enforced by: `make toolchain-check`, `make kit-check`
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
   (docs/tool-inventory.md, Language parity).
+  Enforced by: `make parity-declarations-check`
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   the targets that kit.mk marks ONLINE (`dependency-review`, `python-lock`, `install-tools`, `release-tools`,
   `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
+  Enforced by: `make kit-test`
 - A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of `advisoryExceptions`
   in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
   it is never hidden. kit reviews its own `package-lock.json` (docs/tool-inventory.md, Accepted advisories).
+  Enforced by: `make dependency-policy-check`
 - Do not keep backward compatibility: remove an old path instead of adding a compatibility layer, a fallback or a migration.
+  Enforced by: none, a design judgement, which PRINCIPLES.md states; K243 removes this copy.
 - Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection for
   an uncertain future.
+  Enforced by: `make lint-ts`
 - Build modular components, each concern clearly separated in its own module.
+  Enforced by: `make duplication-check`
 - Decide the architecture for the long term: a stopgap that works now and must be replaced later is not accepted.
+  Enforced by: none, a design judgement, which PRINCIPLES.md states; K243 removes this copy.
 - Write comments, documents and commit messages in direct language: name the action and its object.
+  Enforced by: none, direct wording is a judgement of review.
 
 ## Generated files
 

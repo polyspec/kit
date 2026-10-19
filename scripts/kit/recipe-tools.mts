@@ -85,3 +85,21 @@ export function bareToolFindings(make: MakeDatabase): string[] {
     .filter(word => CHECKOUT_TOOLS.has(word))
     .map(word => `make target ${target} starts ${word} by its bare name: \`${line.trim()}\`; make 3.81 looks it up on the PATH that make started with, so it runs the ${word} of the machine. Fix: start it by its absolute path, such as $(NODE) of kit.mk for node`)));
 }
+
+// The options of make that take the next word as their value.
+const MAKE_VALUED = new Set(['-C', '-f', '--file', '--makefile', '-j', '--jobs', '-I', '-o', '-W']);
+
+/** The targets and the variable assignments of the arguments `args` of a make command. */
+export function makeArguments(args: readonly string[]): { targets: string[]; assignments: Map<string, string> } {
+  const targets: string[] = [];
+  const assignments = new Map<string, string>();
+  let value = false;
+  for (const arg of args) {
+    if (value) value = false;
+    else if (MAKE_VALUED.has(arg)) value = true;
+    else if (arg.startsWith('-')) continue;
+    else if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(arg)) assignments.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
+    else targets.push(arg);
+  }
+  return { targets, assignments };
+}

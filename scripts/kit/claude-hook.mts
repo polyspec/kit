@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // The Claude Code PreToolUse hook of every repository that takes kit (.claude/settings.json, vendored from
 // claude/settings.json). It reads the hook input on stdin and refuses, with exit status 2 and the reason on stderr, a Bash
-// command that runs a suite, a whole test runtime without a selection, or sets the variable that marks a CI run; the
-// suite runs only in CI (ci-only.mts), and locally only the unit tests that own a change run.
+// command that runs a suite, a whole test runtime without a selection, or sets the variable that marks a CI run (the suite
+// runs only in CI, ci-only.mts, and locally only the unit tests that own a change run, K240); a Bash command that skips the
+// Git hooks or changes their path, or polls in a loop with a sleep (K248); and, in a consumer repository, an edit of a file
+// that kit vendors, which `make kit-sync` writes (K248).
 //
 //   node scripts/kit/claude-hook.mts < <hook input JSON>
 //
@@ -13,7 +15,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
-import { commandParts } from './recipe-tools.mts';
+import { copiesOf, INSTALLED, isSource } from './kit-check.mts';
+import { readNpmManifest } from './manifests.mts';
+import { existsSync } from 'node:fs';
+import { commandParts, makeArguments } from './recipe-tools.mts';
 import { isFile, selects } from './test-selection.mts';
 
 // The make targets of kit that run a suite or a group of its targets.
@@ -22,10 +27,13 @@ const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-
 const CI_MARKERS = new Set(['GITHUB_ACTIONS', 'CI']);
 // The words that run the command after them.
 const PREFIXES = new Set(['time', 'nice', 'command', 'exec', 'npx']);
-// The make options that take the next word as their value.
-const MAKE_VALUED = new Set(['-C', '-f', '--file', '--makefile', '-j', '--jobs', '-I', '-o', '-W']);
 
 const SUITE = 'runs only in CI (GITHUB_ACTIONS=true); locally run the unit tests that own the change by their file or a name filter';
+const HOOKS = 'skips the Git hooks, which enforce the rules at the commit and the push; commit and push with the hooks';
+// The Git commands whose hooks --no-verify skips.
+const VERIFIED = new Set(['commit', 'push', 'merge', 'am', 'rebase']);
+// The tools of Claude Code that change a file, by the field that names it.
+const EDITS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 const assigned = (word: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
 const marker = (word: string) => CI_MARKERS.has(word.slice(0, word.indexOf('=')));
@@ -48,19 +56,30 @@ function runnerRefusal(program: string, args: string[], isFileAt: (file: string)
 
 /** The refusal of a make command with `args`, or null. */
 function makeRefusal(args: string[]): string | null {
-  const targets: string[] = [];
-  const variables = new Set<string>();
-  let value = false;
-  for (const arg of args) {
-    if (value) value = false;
-    else if (MAKE_VALUED.has(arg)) value = true;
-    else if (arg.startsWith('-')) continue;
-    else if (assigned(arg)) variables.add(arg.slice(0, arg.indexOf('=')));
-    else targets.push(arg);
-  }
+  const { targets, assignments } = makeArguments(args);
+  const variables = new Set(assignments.keys());
   const suite = targets.find(target => SUITE_TARGETS.has(target));
   if (suite) return `make ${suite} ${SUITE}`;
   if (targets.includes('parity-check') && !variables.has('UNITS')) return `make parity-check without UNITS ${SUITE}: name the units with UNITS="<id>..."`;
+  return null;
+}
+
+/** The refusal of a git command with `args` that skips the Git hooks or changes their path, or null. */
+function gitRefusal(args: string[]): string | null {
+  for (const [index, arg] of args.entries()) {
+    if ((arg === '-c' && args[index + 1]?.startsWith('core.hooksPath=')) || arg.startsWith('-ccore.hooksPath=')) return `git -c core.hooksPath ${HOOKS}`;
+  }
+  const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
+  const [command] = words;
+  if (command === 'config' && args.includes('core.hooksPath')) {
+    const value = words[words.indexOf('core.hooksPath') + 1];
+    if (args.includes('--unset') || args.includes('--unset-all') || (value !== undefined && value !== '.githooks')) return `git config core.hooksPath ${HOOKS}`;
+  }
+  if (command !== undefined && VERIFIED.has(command)) {
+    // -n of git commit is --no-verify, also inside a group of short options such as -anm.
+    const short = command === 'commit' && args.some(arg => /^-[a-zA-Z]+$/.test(arg) && arg.includes('n'));
+    if (args.includes('--no-verify') || short) return `git ${command} --no-verify ${HOOKS}`;
+  }
   return null;
 }
 
@@ -77,16 +96,38 @@ function commandRefusal(words: string[], isFileAt: (file: string) => boolean): s
   const [command, ...args] = rest;
   if (command === undefined) return null;
   const program = path.basename(command);
-  return program === 'make' ? makeRefusal(args) : runnerRefusal(program, args, isFileAt);
+  if (program === 'make') return makeRefusal(args);
+  if (program === 'git') return gitRefusal(args);
+  return runnerRefusal(program, args, isFileAt);
 }
 
 /** The refusal of the Bash command `command`, or null when the hook allows it. */
 export function refusal(command: string, isFileAt: (file: string) => boolean = isFile): string | null {
-  for (const words of commandParts(command)) {
+  const parts = commandParts(command);
+  const loop = parts.some(words => words[0] === 'while' || words[0] === 'until');
+  if (loop && parts.some(words => words.includes('sleep'))) return `${command} polls in a loop with a sleep, which has no known end; wait for one command that its own work bounds, or for the event of the work`;
+  for (const words of parts) {
     const refused = commandRefusal(words, isFileAt);
     if (refused) return refused;
   }
   return null;
+}
+
+/**
+ * The refusal of the tool call `input` in the repository `root`, or null: a Bash command by `refusal`, and an edit of a file
+ * that kit vendors. kit itself is the source of the copies and edits them; a consumer without the installed package has no
+ * known copies, and its kit-check names a changed copy.
+ */
+export function toolRefusal(input: unknown, root: string): string | null {
+  if (!isJsonObject(input) || !isJsonObject(input.tool_input)) return null;
+  const tool = input.tool_name;
+  if (tool === 'Bash') return typeof input.tool_input.command === 'string' ? refusal(input.tool_input.command) : null;
+  if (typeof tool !== 'string' || !EDITS.has(tool)) return null;
+  const file = input.tool_input.file_path ?? input.tool_input.notebook_path;
+  if (typeof file !== 'string' || isSource(root) || !existsSync(path.join(root, INSTALLED, 'package.json'))) return null;
+  const relative = path.relative(root, path.resolve(root, file));
+  const copy = copiesOf(readNpmManifest(root, `${INSTALLED}/package.json`)).find(item => item.file === relative);
+  return copy ? `kit vendors ${relative}; change it in kit and write it with make kit-sync` : null;
 }
 
 if (isMain(import.meta.url)) {
@@ -97,9 +138,7 @@ if (isMain(import.meta.url)) {
     console.error(`[kit claude-hook] refuse: the hook input on stdin is no JSON (${error instanceof Error ? error.message : String(error)})`);
     process.exit(2);
   }
-  const tool = isJsonObject(input) && input.tool_name === 'Bash' && isJsonObject(input.tool_input) ? input.tool_input : null;
-  const command = tool?.command;
-  const refused = typeof command === 'string' ? refusal(command) : null;
+  const refused = toolRefusal(input, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
   if (refused) {
     console.error(`[kit claude-hook] refuse: ${refused}`);
     process.exit(2);
