@@ -302,6 +302,10 @@
       "kind": "ecosystem",
       "tool": "the standard library's ast of Python, API Extractor, golang.org/x/tools/go/packages, nikic/php-parser and rustdoc JSON read the public symbols (K75)"
     },
+    "scripts/kit/parity-requirements.mts": {
+      "kind": "policy",
+      "reason": "the requirement trace of the language-parity check of polyspec, K273"
+    },
     "scripts/kit/parity-text.mts": {
       "kind": "policy",
       "reason": "the language-parity check of polyspec, classified with K75"
