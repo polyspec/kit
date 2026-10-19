@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 1c7cf72cb6d21353b8e713839fa76e3427489d7aa5f2e02e417b45fe5006b5c0 -->
+<!-- source-sha256: 474f9dd567c3cabd76d9c92ff1d6e04908dd7e188e406eccab83eabb071e539c -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -115,7 +115,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `make commits-check`
 - commit message는 `type(scope): Subject (#id)`이며, type은 feat, fix, docs, style, refactor, test, chore 중 하나,
   Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
-  쓴다.
+  쓴다. AI 도구의 footer, 곧 그 co-author나 session trailer는 넣지 않는다.
   Enforced by: `make commits-check`
 - 작업의 make target은 고정된 이름을 가진다. `install`, `build`, `test`, `lint`, `docs-check`와 `packages/`의 runtime마다
   `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기

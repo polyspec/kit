@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The commit check refuses the footer of an AI tool, a co-author or session trailer of one or a generated-with line (`commit-ai-footer`), in a range, in the commit-msg hook and in `make commit` (K264).
 - A missing phpcs or PHPStan names `make install-tools`, which installs config/php-lint, instead of `make install-tools TOOLS=phpLint`, which install-tools refuses (K262).
 - The layout rule suites-at-root applies: it lay among the templates of config/layout.kit.yml, which no rule extended, so no checkout ran it; the real layout test plants a suite in a package (K244-1).
 - A PHP extension follows S10: it implements the PHP library `polyspec/<repository>` of `packages/php`, lies in `packages/php-ext/` with one stub `src/polyspec_<repository>.stub.php`, and is named `polyspec/<repository>-php-ext` and `polyspec_<repository>`; `php-extension.mts` checks the names and the stub hash of the arginfo header (`make lint-php-ext`), builds the extension with phpize into var/php-ext (`make build-php-ext`), writes the header with the gen_stub.php of the PHP (`make php-ext-arginfo`), and compares by Reflection what the extension registers with the PHP library before its unit tests (`make test-php-ext`); a layout rule refuses a stub elsewhere, kit's CI runs the lint and the tests, and knip allows the binary php (K247).

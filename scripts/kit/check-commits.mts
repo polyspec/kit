@@ -61,6 +61,9 @@ export type CommitMessage = { id: string; message: string };
 export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string };
 
 
+// A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
+const AI_FOOTER = /^(?:co-authored-by:.*\b(?:claude|anthropic|copilot|chatgpt|openai|gemini)\b|claude-session:|.*generated (?:with|by) \[?claude code)/i;
+
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message: string, config: CommitRules) {
   const lines = message.replace(/\s+$/, '').split('\n');
@@ -78,6 +81,8 @@ export function messageFindings(message: string, config: CommitRules) {
   if (lines.length > 1 && lines[1] !== '') found.push({ rule: 'commit-blank', message: 'the line after the subject is not blank; leave a blank line before the body' });
   const korean = lines.findIndex(line => HANGUL.test(line));
   if (korean !== -1) found.push({ rule: 'commit-language', message: `line ${korean + 1} of the message holds Hangul; a commit message is English (K252)` });
+  const footer = lines.findIndex(line => AI_FOOTER.test(line));
+  if (footer !== -1) found.push({ rule: 'commit-ai-footer', message: `line ${footer + 1} of the message is the footer of an AI tool; git holds no co-author or session trailer of one (K264). Fix: remove the line` });
   lines.slice(2).forEach((line, index) => {
     if (line.length > config.bodyMax && /\s/.test(line.trim())) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });

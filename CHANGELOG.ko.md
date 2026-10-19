@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 27743fed485229209ac8396b985bf5854bc317afdf885814553ae5ab7db3523e -->
+<!-- source-sha256: 8d0d41c7b0ed2d6f59ac26c3121b5058cd61593f43562dda3535b904a9a9f47a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit check는 AI 도구의 footer, 곧 그 co-author나 session trailer 또는 generated-with 줄을 range, commit-msg hook, `make commit`에서 거부한다(`commit-ai-footer`) (K264).
 - 없는 phpcs 또는 PHPStan은 install-tools가 거부하는 `make install-tools TOOLS=phpLint` 대신 config/php-lint를 설치하는 `make install-tools`를 안내한다 (K262).
 - layout 규칙 suites-at-root가 적용된다. 어떤 규칙도 확장하지 않는 config/layout.kit.yml의 templates 안에 있어 어떤 checkout도 실행하지 않았다. 실제 layout test가 package 안에 suite를 심는다 (K244-1).
 - PHP extension은 S10을 따른다. `packages/php`의 PHP library `polyspec/<repository>`를 구현하고, stub 하나 `src/polyspec_<repository>.stub.php`와 함께 `packages/php-ext/`에 두며, 이름은 `polyspec/<repository>-php-ext`와 `polyspec_<repository>`이다. `php-extension.mts`는 이름과 arginfo header의 stub hash를 확인하고(`make lint-php-ext`), phpize로 extension을 var/php-ext에 build하며(`make build-php-ext`), PHP의 gen_stub.php로 header를 쓰고(`make php-ext-arginfo`), unit test 전에 extension이 등록한 것을 Reflection으로 PHP library와 비교한다(`make test-php-ext`). layout 규칙은 다른 곳의 stub을 거부하고, kit의 CI가 lint와 test를 실행하며, knip은 binary php를 허용한다 (K247).

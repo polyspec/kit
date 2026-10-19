@@ -41,6 +41,15 @@ test('commit-language: a message holds no Hangul (K252)', () => {
   assert.deepEqual(rules('feat(core): Add the parser (#K1)\n\nThe body is English.\n'), []);
 });
 
+test('commit-ai-footer: a message holds no co-author or session trailer of an AI tool (K264)', () => {
+  const body = 'feat(core): Add the parser (#K1)\n\nThe body.\n\n';
+  assert.deepEqual(rules(`${body}Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`), ['commit-ai-footer']);
+  assert.deepEqual(rules(`${body}Claude-Session: https://claude.ai/code/session_1\n`), ['commit-ai-footer']);
+  assert.deepEqual(rules(`${body}Generated with [Claude Code](https://claude.com/claude-code)\n`), ['commit-ai-footer']);
+  assert.deepEqual(rules(`${body}Co-authored-by: GitHub Copilot <copilot@github.com>\n`), ['commit-ai-footer']);
+  assert.deepEqual(rules(`${body}Co-Authored-By: Jane Roe <jane@example.com>\n`), [], 'a person is a co-author');
+});
+
 test('commit-blank and commit-width: the body', () => {
   assert.deepEqual(rules('feat(docs): Merge the checks (#K1)\nbody without a blank line'), ['commit-blank']);
   const wide = `feat(docs): Merge the checks (#K1)\n\n${'word '.repeat(15)}\nshort\n${'x'.repeat(100)}\n`;

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f5dc342c53bb1d814fbd4fba6b7f950236575e325109f9735563b66d45aafcf7 -->
+<!-- source-sha256: 8648de2d8cc903bdaa9492b393352a22ca2da339f074960ef0287481270a1f6e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -50,3 +50,4 @@
 | K260 | push gate의 test 편집은 text에 일치가 없으면 실패한다. 원인: `tests/kit/push-gate.test.mts`의 편집은 일치가 없는 text를 그대로 두는 `String.prototype.replace`를 써서, K249-3이 fixture row에 deliverables cell을 주었을 때 한 test가 아무것도 편집하지 않고 무관한 assertion에서 실패했다. Acceptance: test의 모든 편집은 빠진 pattern을 알리며 실패하는 `swap`을 거친다. | `tests/kit/push-gate.test.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/push-gate.test.mts` | [o] |
 | K261 | kit은 2026-10-19 review 시점의 최신 stable release 의존성을 가진다. 원인: K248-3이 lock을 위해 필요로 하는 review가 knip 6.42.0, @decimalturn/toml-patch 3.3.1, ruff 0.17.1을 찾았고, dependency policy는 각 의존성을 그 review가 아는 최신 stable release로 lock한다. Acceptance: package.json, package-lock.json, mise.toml, mise.lock이 그 release를 가지고, config/dependency-review.json이 review를 기록하며, `make dependency-policy-check`, `make lint-ts`, `make lint-python`이 통과한다. | `package.json`, `package-lock.json`, `mise.toml`, `mise.lock`, `config/dependency-review.json` | `make dependency-policy-check`, `make lint-ts`, `make lint-python` | [o] |
 | K262 | 없는 PHP lint 도구는 존재하는 설치를 안내한다. 원인: lint-php는 make install-tools TOOLS=phpLint를 실행하라고 하지만, install-tools는 도구 이름을 받지 않으므로 그것을 거부한다. | `scripts/kit/lint-php.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/lint-php.test.mts` | [o] |
+| K264 | commit message에 AI footer가 없다. 원인: owner는 git에 AI 도구의 co-author나 session trailer가 없어야 한다고 정했는데 이를 거부하는 check가 없어, K243~K262의 commit에 그것이 남았다. | `scripts/kit/check-commits.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
