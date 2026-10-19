@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dec89ee01e94cb8376f0a62a2885b6b95b5c70dc6eb0218273b26dac8be93195 -->
+<!-- source-sha256: 1f2626b555de1c4a66c35097f45ca75adbdb4f90c3cda7aabc4152ee4c6ff1c3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,7 @@
 ## Unreleased
 
 - ID는 마지막 -<number> 앞부분이 그 저장소 pattern의 ID일 때만 sub-item이므로, S-01 같은 ID 체계는 부모 S를 요구하지 않는다 (K249-5).
+- suite 또는 feature unit은 각 binding의 test 또는 suite의 vector file이 이름으로 적은 requirement만 인용하고(R15), 그런 unit만 requirement를 추적한다: unit이 spec의 모든 requirement를 인용해 R13을 통과할 수 없다 (K275).
 - parity declaration check는 인용된 spec file을 한 번만 parse한다: anchor마다 file을 다시 parse해서 큰 spec에서 8분이 걸렸다 (K274).
 - config/parity.json은 requirements.pattern을 선언하고, 모든 unit은 자신이 test하는 requirement를 인용한다: docs/spec이 정의했으나 어떤 unit도 인용하지 않는 requirement는 실패하고(R13), 정의되지 않은 것을 인용하는 unit도 실패한다(R14). 구현을 가진 repository는 requirement id를 spec에 쓴다 (K273).
 - kit-gates가 전체 parity check를 실행한다: config/parity.json의 모든 binding이 CI에서 각 구현마다 실행되므로, 한 언어에서만 test된 feature는 gate를 실패시킨다 (K272).

@@ -345,9 +345,20 @@ const CONFIG = {
   documents: { globs: ['docs/**/*.md'], nouns: ['languages', 'implementations', '언어'] },
 };
 
+/** Each bound test of `config` names the requirements of its unit, as R15 asks (K273). */
+function named(all: Record<string, string | null>, config: Declaration) {
+  for (const unit of config.units) for (const entry of unit.bindings ?? []) {
+    const text = all[entry.test];
+    const comment = entry.test.endsWith('.py') ? '# CX-1' : '// CX-1';
+    if (typeof text === 'string' && !text.includes('CX-1')) all[entry.test] = `${text}${text.endsWith('\n') || text === '' ? '' : '\n'}${comment}\n`;
+  }
+}
+
 /** A mini repository: FILES with `files` applied (null removes) and the declaration that `edit` returns from a copy of CONFIG. */
 function repository(t: TestContext, { files = {}, edit = config => config }: Change = {}) {
-  const all = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(edit(structuredClone(CONFIG)), null, 2)}\n` };
+  const config = edit(structuredClone(CONFIG));
+  const all: Record<string, string | null> = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(config, null, 2)}\n` };
+  named(all, config);
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
   chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
   chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
@@ -860,6 +871,7 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
     ...files,
     'config/parity.json': `${JSON.stringify(config, null, 2)}\n`,
   };
+  named(all, config as Declaration);
   return tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
 }
 
@@ -1470,7 +1482,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
   assert.match(passed.stdout, /\[parity\] every unit holds in every implementation/);
-  writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n');
+  writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n# CX-1\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
   assert.notEqual(make('parity-check').status, 0);
   const failed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts'))], { cwd: root, env: ENV, encoding: 'utf8' });

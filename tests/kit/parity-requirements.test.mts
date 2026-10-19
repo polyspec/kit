@@ -11,8 +11,13 @@ const SPEC = {
   'docs/operations/x.md': '- **AB-8** outside the spec\n',
 };
 const read = (files: Record<string, string>) => (file: string) => files[file] ?? '';
-const run = (units: { id: string; requirements: string[] }[], files: Record<string, string> = SPEC) =>
-  requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units }, Object.keys(files), read(files)).map(f => `${f.rule} ${f.unit ?? '-'}: ${f.message}`);
+type Unit = { id: string; kind?: 'suite' | 'feature' | 'api'; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] };
+const TESTS = { 'go/a_test.go': '// AB-1 AB-2 AB-3', 'ts/a.test.ts': "test('keeps the order (AB-1, AB-2, AB-3)')" };
+const bound = (unit: Unit): Unit => ({ kind: 'feature', bindings: [{ implementation: 'go', test: 'go/a_test.go' }, { implementation: 'ts', test: 'ts/a.test.ts' }], ...unit });
+const run = (units: Unit[], files: Record<string, string> = SPEC) => {
+  const all = { ...TESTS, ...files };
+  return requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) }, Object.keys(all), read(all)).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
+};
 
 test('every requirement that the spec defines is cited by a unit: no finding', () => {
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }, { id: 'decode', requirements: ['AB-2'] }]), []);
@@ -37,5 +42,21 @@ test('a requirement defined twice, and a pattern that the spec never matches, fa
   ]);
   assert.deepEqual(run([], { 'docs/spec/api.md': '# nothing\n' }), [
     'declaration -: requirements.pattern AB-[0-9]+ matches no requirement of docs/spec; the spec defines each requirement as a bullet **<id>** or a heading <id>',
+  ]);
+});
+
+test('a requirement that a test unit cites appears in the test of every binding, or in the vector file of a suite (R15)', () => {
+  const files = { ...SPEC, 'ts/b.test.ts': "test('keeps the order (AB-1)')", 'tests/v.json': '{"AB-2": []}' };
+  assert.deepEqual(run([
+    { id: 'codec', requirements: ['AB-1', 'AB-3'], bindings: [{ implementation: 'go', test: 'go/a_test.go' }, { implementation: 'ts', test: 'ts/b.test.ts' }] },
+    { id: 'vectors', kind: 'suite', file: 'tests/v.json', requirements: ['AB-2'], bindings: [{ implementation: 'ts', test: 'ts/b.test.ts' }] },
+  ], files), [
+    'R15 codec ts: cites AB-3, which its test ts/b.test.ts does not name; a test names the requirement it tests',
+  ]);
+});
+
+test('only a unit with tests traces a requirement: one that only an api unit cites is untraced (R13)', () => {
+  assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }, { id: 'surface', kind: 'api', requirements: ['AB-2'], bindings: [] }]), [
+    'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
   ]);
 });

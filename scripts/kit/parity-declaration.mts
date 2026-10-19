@@ -144,6 +144,7 @@ export const RULES = {
   R12: 'duplicate-binding',
   R13: 'untraced-requirement',
   R14: 'unknown-requirement',
+  R15: 'unnamed-requirement',
 };
 
 /** A rule of the check, a key of RULES. */

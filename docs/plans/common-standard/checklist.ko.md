@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d6b07bb00d23d1427262ae98424f731f8501117ca14625778b55ee7a5a86d49f -->
+<!-- source-sha256: 2b51dc52ba092b4ec89c731710f5e7b4b51cb2b04107e94d8440178d60e28ffe -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -67,3 +67,4 @@
 | K272 | gate가 전체 parity check를 실행하므로 모든 구현이 CI에서 test를 실행한다 | scripts/kit/kit.mk, PRINCIPLES.md | `node --test tests/kit/gates-workflow.test.mts` | [o] |
 | K273 | spec의 모든 requirement를 parity unit이 인용하므로 모든 구현이 그것을 test한다 | scripts/kit/parity-requirements.mts, scripts/kit/schema/parity.schema.json, PRINCIPLES.md | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
 | K274 | parity declaration check는 인용된 spec을 한 번만 parse한다 | scripts/kit/parity-declaration.mts | `node --test tests/kit/parity.test.mts` | [o] |
+| K275 | test는 자신의 unit이 인용하는 각 requirement를 이름으로 적는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |

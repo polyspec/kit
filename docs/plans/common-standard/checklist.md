@@ -66,3 +66,4 @@
 | K272 | The gates run the full parity check, so every implementation runs its tests in CI | scripts/kit/kit.mk, PRINCIPLES.md | `node --test tests/kit/gates-workflow.test.mts` | [o] |
 | K273 | Every requirement of the spec is cited by a parity unit, so every implementation tests it | scripts/kit/parity-requirements.mts, scripts/kit/schema/parity.schema.json, PRINCIPLES.md | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
 | K274 | The parity declaration check parses each cited spec once | scripts/kit/parity-declaration.mts | `node --test tests/kit/parity.test.mts` | [o] |
+| K275 | A test names each requirement that its unit cites | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
