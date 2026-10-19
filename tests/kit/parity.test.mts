@@ -346,7 +346,7 @@ const CONFIG = {
 };
 
 /** Each bound test of `config` names the requirements of its unit, as R15 asks (K273). */
-function named(all: Record<string, string | null>, config: Declaration) {
+function named(all: Record<string, string | null>, config: { units: { bindings?: { test: string }[] | undefined }[] }) {
   for (const unit of config.units) for (const entry of unit.bindings ?? []) {
     const text = all[entry.test];
     const comment = entry.test.endsWith('.py') ? '# CX-1' : '// CX-1';
@@ -871,7 +871,7 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
     ...files,
     'config/parity.json': `${JSON.stringify(config, null, 2)}\n`,
   };
-  named(all, config as Declaration);
+  named(all, config);
   return tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
 }
 
