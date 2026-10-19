@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d5654cae4fb08f78f81630f7789a8df036ec39645d731d76c790804abdb1733b -->
+<!-- source-sha256: 9d2bb42b04d139131002ec64966bf5379398121235149e1e5860797bf17f76e9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -59,4 +59,5 @@
 | K263 | kit 0.0.54가 공통 표준과 함께 release되어, 각 저장소가 자기 plan에서 그것을 채택한다. 원인: 저장소들은 K243~K266을 하나도 갖지 않은 0.0.53을 pin한다. | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)`, `tests/release-consumer/`, `config/dependency-review.json` | `make release-versions TAG=v0.0.54` | [o] |
 | K267 | kit-sync와 kit-check는 버전과 상관없이 설치된 package를 읽는다. 원인: package-lock.json이 resolve하는 버전과 다른 package를 거부했는데, 이는 npm ci가 lock의 integrity로 설치할 때 이미 강제하는 실행 시점 제약이며, 개발용 local link를 거부한다. | `scripts/kit/kit-check.mts`, `scripts/kit/kit-sync.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts` | [o] |
 | K268 | language check와 test-markers check는 TSX와 JSX를 읽는다. 원인: Node.js의 type stripping과 acorn으로 script를 해석했는데, 둘 다 JSX를 읽지 못해 저장소의 .tsx나 .jsx 파일이 parse error로 실패했다. | `scripts/kit/script-ast.mts`, `scripts/kit/language-check.mts`, `scripts/kit/test-markers.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/language-check.test.mts tests/kit/test-markers.test.mts` | [o] |
+| K268-1 | language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽는다. 원인: 한 줄의 따옴표 string만 제거해, backquote Go string이나 raw Rust string 안의 한국어 데이터를 identifier로 보고했다. | `scripts/kit/language-check.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/language-check.test.mts` | [o] |
 | K269 | release는 tag와 함께 release workflow를 dispatch해서 시작한다. make release-tag가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 그 commit을 가리키면 다시 통과한다. 원인: release에 사람 손의 tag push가 필요했는데, tag push가 없는 환경에서는 그것을 할 수 없다. | `scripts/kit/release.mts`, `scripts/kit/kit.mk`, `workflows/release.yml` | `node scripts/kit/run-tests.mts node -- tests/kit/release-tag.test.mts` | [o] |

@@ -17,9 +17,10 @@ const SCRIPT = /\.[cm]?[jt]sx?$/;
 const REGISTRATIONS = new Set(['test', 'it', 'describe', 'suite']);
 
 // The comment syntax of each other language: a line comment, and a block comment when it has one.
-const LINE_LANGUAGES: { files: RegExp; line: string[]; block?: [string, string] }[] = [
-  { files: /\.go$/, line: ['//'], block: ['/*', '*/'] },
-  { files: /\.rs$/, line: ['//'], block: ['/*', '*/'] },
+// A raw string, which may span lines, is data (K268-1): the backquoted string of Go and the r"..." or r#"..."# string of Rust.
+const LINE_LANGUAGES: { files: RegExp; line: string[]; block?: [string, string]; raw?: RegExp }[] = [
+  { files: /\.go$/, line: ['//'], block: ['/*', '*/'], raw: /`[^`]*`/g },
+  { files: /\.rs$/, line: ['//'], block: ['/*', '*/'], raw: /(?<![\w])r(#*)"[\s\S]*?"\1/g },
   { files: /\.php$/, line: ['//', '#'], block: ['/*', '*/'] },
   { files: /\.py$/, line: ['#'] },
 ];
@@ -51,7 +52,9 @@ const withoutStrings = (line: string) => line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'
 function lineFindings(text: string, language: (typeof LINE_LANGUAGES)[number]): { line: number; kind: Kind }[] {
   const found: { line: number; kind: Kind }[] = [];
   let inBlock = false;
-  text.split('\n').forEach((raw, index) => {
+  // A raw string becomes an empty string with its line breaks kept, so every line keeps its number.
+  const source = language.raw ? text.replace(language.raw, match => `""${'\n'.repeat(match.split('\n').length - 1)}`) : text;
+  source.split('\n').forEach((raw, index) => {
     let code = withoutStrings(raw);
     let comment = '';
     if (language.block) {

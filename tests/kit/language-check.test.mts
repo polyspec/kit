@@ -35,3 +35,8 @@ test('TSX and JSX are read: Hangul fails in a comment of JSX and in an identifie
   assert.deepEqual(languageFindings('src/a.tsx', text), ['src/a.tsx:1: Hangul in a comment', 'src/a.tsx:1: Hangul in an identifier', 'src/a.tsx:2: Hangul in an identifier']);
   assert.deepEqual(languageFindings('src/b.jsx', 'export const A = () => <p>{"값"}</p>;\n'), []);
 });
+
+test('a raw string of Go or Rust is data over its lines, and code after it is read (K268-1)', () => {
+  assert.deepEqual(languageFindings('a.go', 'var s = `첫 줄\n둘째 줄` // English\nvar 값 = 1\n'), ['a.go:3: Hangul in an identifier']);
+  assert.deepEqual(languageFindings('a.rs', 'let s = r#"{"a": "값"}\n"둘"# ;\nlet t = r"한";\n'), []);
+});

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The language check reads a raw string of Go or Rust as data over its lines, so Korean data in it is no identifier (K268-1).
 - A repository keeps its suite target `check`, which is no fixed task, and `make install` runs the bootstrap of kit as its prerequisite `install-kit` before the install steps that a repository adds (K246-2).
 ## 0.0.54
 

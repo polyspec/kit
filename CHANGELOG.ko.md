@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4f432bcfc7d07bd1c72c5e0ccb987ed7c29ac8ad127866a2de6892a1dff1e1a1 -->
+<!-- source-sha256: 71de45ceedb962118be3148524765fb0db55a952ec51df3ca2896e1cc9e7d500 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽으므로, 그 안의 한국어 데이터는 identifier가 아니다 (K268-1).
 - 저장소는 고정 작업이 아닌 suite target `check`를 유지하고, `make install`은 저장소가 더한 install 단계보다 먼저 kit의 bootstrap을 prerequisite `install-kit`으로 실행한다 (K246-2).
 ## 0.0.54
 
