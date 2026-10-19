@@ -91,6 +91,18 @@ test('the impossible state is a state of its own that the lenient reading accept
   assert.deepEqual(table.items.at(-1), { id: 'T4', title: 'Impossible', state: '[-]', line: 11 });
 });
 
+test('a row whose number of cells differs from the header of its table fails with the line and both counts (K242)', () => {
+  // A missing or an extra cell moves the cells that the reading takes by position, such as the state in the last cell.
+  const text = '| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T2 | [ ] |\n| T3 | B | C | [ ] |\n';
+  for (const strict of [false, true]) {
+    const { findings } = readChecklist(text, TABLE, { strict });
+    assert.deepEqual(findings.filter(finding => finding.rule === 'checklist-cells').map(({ line, message }) => [line, message]), [
+      [4, 'the row has 2 cells; the header of its table on line 1 has 3'],
+      [5, 'the row has 4 cells; the header of its table on line 1 has 3'],
+    ], `strict: ${strict}`);
+  }
+});
+
 test('the strict reading reports a state marker of the impossible state outside a task', () => {
   const strict = readChecklist('| ID | Task | Done |\n|---|---|---|\n| T1 | Done; a note names [-] | [o] |\n', TABLE, { strict: true });
   assert.deepEqual(strict.findings.map(({ line, column, rule }) => [line, column, rule]), [[3, 27, 'checklist-marker']]);

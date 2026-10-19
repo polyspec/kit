@@ -157,6 +157,13 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
     const block = present(blocks[index], 'blocks[index]');
     let allowed = block.kind === 'blank' || block.kind === 'heading' || (block.kind === 'html' && DOCUMENT_MARKER.test(line));
     const row = block.kind === 'tableRow' ? block.cells : [];
+    // A missing or an extra cell moves the cells that the reading takes by position (K242).
+    if (block.kind === 'tableRow') {
+      // lineBlocks marks the first row of every table as its header.
+      const header = blocks[block.header - 1];
+      if (header?.kind !== 'tableHeader') throw new Error(`line ${block.header}, the header of the table of line ${number}, is no table header`);
+      if (header.columns !== row.length) finding(number, indent + 1, 'checklist-cells', `the row has ${row.length} cells; the header of its table on line ${block.header} has ${header.columns}`);
+    }
     const first = row[0]?.text.trim() ?? '';
     const task = ID_CELL.exec(first)?.[1];
     if (block.kind === 'tableHeader' || block.kind === 'tableDelimiter') {

@@ -190,13 +190,14 @@ export function headings(text: string): Heading[] {
 export type LineCell = { text: string; start: number };
 
 /**
- * What a line of a document is, as the Markdown tree reads it: blank, a heading, HTML, a table header row, a delimiter row,
- * a body row with its cells, the first line of a list item, a further line of a list item, or another block (a paragraph,
- * code, a quote).
+ * What a line of a document is, as the Markdown tree reads it: blank, a heading, HTML, a table header row with its number
+ * of cells, a delimiter row, a body row with its cells and the line of the header of its table, the first line of a list
+ * item, a further line of a list item, or another block (a paragraph, code, a quote).
  */
 export type LineBlock =
-  | { kind: 'blank' | 'heading' | 'html' | 'tableHeader' | 'tableDelimiter' | 'listItem' | 'listContinuation' | 'other' }
-  | { kind: 'tableRow'; cells: LineCell[] };
+  | { kind: 'blank' | 'heading' | 'html' | 'tableDelimiter' | 'listItem' | 'listContinuation' | 'other' }
+  | { kind: 'tableHeader'; columns: number }
+  | { kind: 'tableRow'; cells: LineCell[]; header: number };
 
 /** The block of each line of `text` (index 0 is line 1); a nested list item has its own first line. */
 export function lineBlocks(text: string): LineBlock[] {
@@ -223,7 +224,7 @@ export function lineBlocks(text: string): LineBlock[] {
     table.children.forEach((row, index) => {
       const line = placeOf(row).startLine;
       if (index === 0) {
-        blocks[line - 1] = { kind: 'tableHeader' };
+        blocks[line - 1] = { kind: 'tableHeader', columns: row.children.length };
         return;
       }
       const cells = row.children.map((cell, cellIndex) => {
@@ -235,7 +236,7 @@ export function lineBlocks(text: string): LineBlock[] {
         if (cellIndex === row.children.length - 1 && end > start && text[end - 1] === '|') end -= 1;
         return { text: text.slice(start, end), start: column };
       });
-      blocks[line - 1] = { kind: 'tableRow', cells };
+      blocks[line - 1] = { kind: 'tableRow', cells, header: place.startLine };
     });
   });
   return blocks;
