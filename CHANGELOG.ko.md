@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9bec5a16be69cf169fdf2e5729b75a0e89971c656ff21a077e79330361e5faeb -->
+<!-- source-sha256: 0b589ed3670e32064d6e976d32669664cb42d04bd6a42462a688890845300415 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 어떤 코드도 필요로 하지 않는 8.5 대신, 저장소의 코드와 도구가 필요로 하는 하한인 PHP 8.4를 pin한다. `toolchain-pins.json`과 `.php-version`이 8.4를 선언하고, kit의 Composer project는 platform 8.4(PHPUnit 13은 8.4.1)와 함께 `>=8.4`를 요구한다 (K259).
 - PHP symbol extractor는 phpcs를 통과한다. visitor는 `extract.php` 옆 `PublicSymbols.php`의 class `Polyspec\Kit\Symbols\PublicSymbols`이다. extractor의 release는 kit PHP lint의 vendor/를 건너뛰고 다른 folder에서 실패한다 (K248-4-1).
 - `make item-state ID= STATE=`는 허용된 전이를 따라 두 언어에서 item을 옮기고, working tree가 두 changelog에 그 줄을 추가할 때만 done을 설정하며, bypass의 원인과 재시도 조건, impossible item의 원인을 쓰고, commit-msg hook이 거부할 것을 거부한다(`workingItemFindings`). kit의 config/commits.json이 changelog를 선언하므로 commit check는 done item의 entry를 요구한다 (K249-2).
 - `make item-new PLAN= ID= TASK= TASK_KO= DELIVERABLES= VERIFICATION=`은 checklist와 그 짝에 waiting row를 추가하고, sub-item은 부모의 마지막 sub-item 뒤에 두며, cell의 pipe를 escape하고, row가 추가할 documents-check의 finding을 거부한다. documents-check와 utility는 하나의 함수 `checklistsFindings`로 checklist를 읽는다 (K249-1).

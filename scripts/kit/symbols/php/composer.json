@@ -4,12 +4,12 @@
     "type": "project",
     "license": "MIT",
     "require": {
-        "php": ">=8.5",
+        "php": ">=8.4",
         "nikic/php-parser": "5.9.0"
     },
     "config": {
         "platform": {
-            "php": "8.5"
+            "php": "8.4"
         }
     }
 }

@@ -21,6 +21,7 @@ import { known } from './known.mts';
 const NODE = process.versions.node;
 const GO = PINS.go;
 const RUST = PINS.rust;
+const PHP = PINS.php;
 const PYTHON = `${PINS.python}.1`;
 const SUM = `sha256:${'a'.repeat(64)}`;
 // The tools of mise.toml of the checkout: kit's key of mise.toml and the release.
@@ -32,7 +33,7 @@ const FILES = {
   'package.json': `{ "packageManager": "npm@12.2.0", "engines": { "node": ">=${NODE}" } }`,
   'rust-toolchain.toml': `[toolchain]\nchannel = "${RUST}"\n`,
   'go.mod': `module example.com/fixture\n\ngo ${GO}\n`,
-  'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.5'] }),
+  'config/toolchain.json': JSON.stringify({ schema: 1, php: [PHP] }),
   'mise.toml': miseToml(MISE),
   'mise.lock': miseLock(MISE),
 };
@@ -40,7 +41,7 @@ const OUTPUTS = {
   npm: '12.2.0',
   go: `go${GO}`,
   rustc: `rustc ${RUST} (abcdef123 2026-01-01)`,
-  php: '8.5.3',
+  php: `${PHP}.3`,
   python3: `Python ${PYTHON}`,
   composer: 'Composer version 2.10.3 2026-01-01 00:00:00',
   ruff: 'ruff 0.16.10',
@@ -67,14 +68,14 @@ test('every declared tool at its declared version passes, offline, and the run p
   const { root, stubs } = setup(t);
   const result = check(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php 8.5.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run at the declared versions\n`);
+  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php ${PHP}.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run at the declared versions\n`);
   assert.equal(result.stderr, '');
   assert.deepEqual(stubs.calls().map(line => known(line.split(' ')[0], 'line.split(…)[0]')).sort(), ['composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
 });
 
 test('every tool that differs is named with the declaring file, the expected and the running version, and the fix', (t) => {
   const { root, stubs } = setup(t, {
-    npm: '12.1.0', go: 'go1.26.0', rustc: 'rustc 1.97.0 (abcdef123 2026-01-01)', php: '8.4.9', python3: 'Python 3.13.2',
+    npm: '12.1.0', go: 'go1.26.0', rustc: 'rustc 1.97.0 (abcdef123 2026-01-01)', php: '8.3.9', python3: 'Python 3.13.2',
     composer: 'Composer version 2.9.0 2026-01-01 00:00:00', ruff: 'ruff 0.15.0',
   });
   const result = check(root, stubs.env);
@@ -82,7 +83,7 @@ test('every tool that differs is named with the declaring file, the expected and
   assert.deepEqual(result.stderr.trim().split('\n'), [
     '[check-toolchain] npm: 12.1.0 runs here and packageManager of package.json declares 12.2.0; fix: make install-tools TOOLS=npm',
     `[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares ${RUST}; fix: make install-tools`,
-    '[check-toolchain] php: 8.4.9 runs here and config/toolchain.json php declares 8.5; fix: install PHP 8.5',
+    `[check-toolchain] php: 8.3.9 runs here and config/toolchain.json php declares ${PHP}; fix: install PHP ${PHP}`,
     `[check-toolchain] go: 1.26.0 runs here and mise.toml tools.go declares ${GO}; fix: make install-tools`,
     `[check-toolchain] python: 3.13.2 runs here and mise.toml tools.python declares ${PYTHON}; fix: make install-tools`,
     '[check-toolchain] ruff: 0.15.0 runs here and mise.toml tools.ruff declares 0.16.10; fix: make install-tools',
@@ -101,7 +102,7 @@ const LINT_LOCKED = miseLock({ 'golangci-lint': '2.14.0', 'go:golang.org/x/tools
 // The uv lock of vulture that mise.lock names, a sidecar folder that the checkout tracks (K192).
 const SIDECAR = '.mise/locks/pypi-vulture/2.16';
 const SIDECAR_FILES = { [`${SIDECAR}/pyproject.toml`]: '[project]\nname = "mise-pypi-tool-environment"\n', [`${SIDECAR}/uv.lock`]: 'version = 1\n' };
-const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.5'] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK, ...SIDECAR_FILES };
+const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: [PHP] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK, ...SIDECAR_FILES };
 const track = (root: string, ...paths: string[]) => spawnSync('git', ['-C', root, 'add', '--', ...paths], { encoding: 'utf8' });
 // The lint setup: the version stubs, the tracked sidecar, and the stub of mise that names the deadcode binary.
 const lintSetup = (t: TestContext, outputs: Record<string, string | null>) => {
@@ -180,7 +181,7 @@ test('cargo-nextest and cargo-deny of mise.toml pass at their releases and each 
 });
 
 test('PHP is compared by minor release, and the Python of mise.toml by its exact release', (t) => {
-  const { root, stubs } = setup(t, { ...OUTPUTS, php: '8.5.99' });
+  const { root, stubs } = setup(t, { ...OUTPUTS, php: `${PHP}.99` });
   assert.deepEqual(toolchainMismatches(['php', 'python'], { root, env: stubs.env }), []);
   const other = setup(t, { ...OUTPUTS, php: '8.3.0', python3: 'Python 3.14.0' });
   assert.equal(toolchainMismatches(['php', 'python'], { root: other.root, env: other.stubs.env }).length, 2);
@@ -229,11 +230,12 @@ test('a version command ended by a signal names the signal, not an exit status (
 });
 
 test('a tool that cannot run names the declared release in its fix: the minors of PHP (K108)', (t) => {
-  const twoMinors = { ...FILES, 'config/toolchain.json': JSON.stringify({ ...JSON.parse(FILES['config/toolchain.json']), php: ['8.2', '8.5'] }) };
+  const twoMinors = { ...FILES, 'config/toolchain.json': JSON.stringify({ ...JSON.parse(FILES['config/toolchain.json']), php: ['8.2', PHP] }) };
   const { root, stubs } = setup(t, { ...OUTPUTS, php: null }, twoMinors);
   const result = check(root, stubs.env, 'php');
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /php: `php -n -r .*` failed .*; config\/toolchain\.json php declares 8\.2 or 8\.5; fix: install PHP 8\.2 or 8\.5\n/);
+  const pin = PHP.replaceAll('.', '\\.');
+  assert.match(result.stderr, new RegExp(`php: \`php -n -r .*\` failed .*; config/toolchain\\.json php declares 8\\.2 or ${pin}; fix: install PHP 8\\.2 or ${pin}\\n`));
 });
 
 test('the tools to check come from the arguments; an undeclared tool, an unknown tool or no declaration fails', (t) => {

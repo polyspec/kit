@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 659c6ff2cbeacc3a23412bf3456c57e48e5232082d7e3c3b4e2122e53e8028f8 -->
+<!-- source-sha256: 8e4ed2c5c26024b6168b406200ece116c281becc9dc1a59d5af7c1ba4ccf94e8 -->
 
 # 도구 목록
 
@@ -105,7 +105,7 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 ### Pin, 하한, 예외(K78)
 
 kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
-`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.5, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
+`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
 `toolchain-check`는 어떤 도구를 실행하든, pin 정밀도에서 pin과 다른 선언과 manifest 하한마다 실패합니다
 (`toolchain-floors.mts`, `checkedFiles`의 파일 대상, mise가 `.mise`에 쓰는 도구 환경은 제외). pin은 version만 담고,
 digest는 `mise.lock`의 것입니다. pin마다 출처는 하나입니다. kit이 pin을 배포하고, kit을 포함한 모든 checkout의 `mise.toml`은
@@ -115,7 +115,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 |---|---|
 | `mise.toml`의 `node`, `go`와 `python`의 minor, `rust-toolchain.toml`의 `channel`, `php` | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
-| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.5.0`), dependency-policy가 요구하는 형식 |
+| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.4.1`), dependency-policy가 요구하는 형식 |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |

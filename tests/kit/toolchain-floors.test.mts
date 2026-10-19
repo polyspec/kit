@@ -7,6 +7,8 @@ import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
 
+const PHP = PINS.php;
+
 // npm hoists the typescript of a package's dependency, such as the TypeScript 5.9.3 of API Extractor, to the top-level
 // node_modules/typescript when nothing else claims it: the lock resolves it, but no manifest of the repository declares it.
 test('a lock entry of typescript is checked only when the package of its folder declares typescript', (t) => {
@@ -40,36 +42,36 @@ test('every composer.json requires php >= the pin, and a locked one sets config.
   const root = tree(t, {
     'composer.json': json({ require: { php: '^8.2' }, config: { platform: { php: '8.2.0' } } }),
     'composer.lock': '{}',
-    'packages/a/composer.json': json({ require: { php: '>=8.5' } }),
+    'packages/a/composer.json': json({ require: { php: `>=${PHP}` } }),
     'packages/b/composer.json': json({ require: {} }),
-    'packages/c/composer.json': json({ require: { php: '>=8.5' } }),
+    'packages/c/composer.json': json({ require: { php: `>=${PHP}` } }),
     'packages/c/composer.lock': '{}',
-    'packages/d/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.5' } } }),
+    'packages/d/composer.json': json({ require: { php: `>=${PHP}` }, config: { platform: { php: PHP } } }),
     'packages/d/composer.lock': '{}',
     'tests/kit/fixture/composer.json': json({ require: { php: '>=8.2' } }),
   });
   assert.deepEqual(composerFindings(root, new Pinning(PINS)), [
-    'composer.json: require.php is "^8.2"; kit pins php 8.5, so it must be ">=8.5"',
-    'composer.json: config.platform.php is "8.2.0"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
-    'packages/b/composer.json: require.php is missing; kit pins php 8.5, so it must be ">=8.5"',
-    'packages/c/composer.json: config.platform.php is missing; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
+    `composer.json: require.php is "^8.2"; kit pins php ${PHP}, so it must be ">=${PHP}"`,
+    `composer.json: config.platform.php is "8.2.0"; kit pins php ${PHP}, so it must be "${PHP}" or "${PHP}.<patch>"`,
+    `packages/b/composer.json: require.php is missing; kit pins php ${PHP}, so it must be ">=${PHP}"`,
+    `packages/c/composer.json: config.platform.php is missing; kit pins php ${PHP}, so it must be "${PHP}" or "${PHP}.<patch>"`,
   ]);
 });
 
 // dependency-policy requires the platform of a lock as <major>.<minor>.<patch>; the floor compares it at the precision of the
-// PHP pin, <major>.<minor>, so 8.5.0 is the pin 8.5 and 8.4.1 is not.
+// PHP pin, <major>.<minor>, so <pin>.0 is the pin and 8.3.1 is not.
 test('config.platform.php is compared at the precision of the PHP pin', (t) => {
   const root = tree(t, {
-    'packages/a/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.5.0' } } }),
+    'packages/a/composer.json': json({ require: { php: `>=${PHP}` }, config: { platform: { php: `${PHP}.0` } } }),
     'packages/a/composer.lock': '{}',
-    'packages/b/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.4.1' } } }),
+    'packages/b/composer.json': json({ require: { php: `>=${PHP}` }, config: { platform: { php: '8.3.1' } } }),
     'packages/b/composer.lock': '{}',
-    'packages/c/composer.json': json({ require: { php: '>=8.5' }, config: { platform: { php: '8.5.x' } } }),
+    'packages/c/composer.json': json({ require: { php: `>=${PHP}` }, config: { platform: { php: `${PHP}.x` } } }),
     'packages/c/composer.lock': '{}',
   });
   assert.deepEqual(composerFindings(root, new Pinning(PINS)), [
-    'packages/b/composer.json: config.platform.php is "8.4.1"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
-    'packages/c/composer.json: config.platform.php is "8.5.x"; kit pins php 8.5, so it must be "8.5" or "8.5.<patch>"',
+    `packages/b/composer.json: config.platform.php is "8.3.1"; kit pins php ${PHP}, so it must be "${PHP}" or "${PHP}.<patch>"`,
+    `packages/c/composer.json: config.platform.php is "${PHP}.x"; kit pins php ${PHP}, so it must be "${PHP}" or "${PHP}.<patch>"`,
   ]);
 });
 

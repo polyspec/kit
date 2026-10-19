@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit pins PHP 8.4, the floor that the code and tools of the repositories need, instead of 8.5, which no code needs: `toolchain-pins.json` and `.php-version` declare 8.4, and the Composer projects of kit require `>=8.4` with the platform 8.4, or 8.4.1 for PHPUnit 13 (K259).
 - The PHP symbol extractor passes phpcs: its visitor is the class `Polyspec\Kit\Symbols\PublicSymbols` of `PublicSymbols.php`, beside `extract.php`; the release of an extractor skips the vendor/ of kit's PHP lint and fails on another folder (K248-4-1).
 - `make item-state ID= STATE=` moves an item along an allowed transition in both languages, sets done only when the working tree adds its line to both changelogs, writes the cause and the retry condition of a bypass and the cause of an impossible item, and refuses what the commit-msg hook would refuse (`workingItemFindings`); kit's config/commits.json declares its changelog, so the commit check requires the entry of a done item (K249-2).
 - `make item-new PLAN= ID= TASK= TASK_KO= DELIVERABLES= VERIFICATION=` adds a waiting row to a checklist and its twin, a sub-item after the last sub-item of its parent, escapes a pipe of a cell, and refuses the findings of documents-check that the row would add; documents-check and the utility read the checklists through the one function `checklistsFindings` (K249-1).
