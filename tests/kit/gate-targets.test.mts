@@ -60,3 +60,9 @@ test('the dependency targets run the gate, its mutation check and the review wit
   assert.deepEqual(lines('dependency-review', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record']);
   assert.deepEqual(lines('dependency-review', 'UPDATE=1', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record --update']);
 });
+
+test('kit.mk runs the rebuild check and the rules check in every repository that includes it (K248)', (t) => {
+  const directory = repository(t);
+  assert.deepEqual(commands(directory, 'rebuild-check'), ['$(NODE) scripts/kit/rebuild-check.mts']);
+  assert.deepEqual(commands(directory, 'rules-check'), ['$(NODE) scripts/kit/check-rules.mts']);
+});

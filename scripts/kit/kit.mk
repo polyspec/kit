@@ -107,6 +107,15 @@ push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on s
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
+# --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
+.PHONY: rebuild-check rules-check
+
+rebuild-check: ## Check that every tool that config/rebuild.json selects has its class: ecosystem, replaced, record or policy (S1); offline
+	$(NODE) $(KIT)/rebuild-check.$(KIT_EXT)
+
+rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a check that a CI workflow, a Git hook or the Claude Code hook runs (K248); offline
+	$(NODE) $(KIT)/check-rules.$(KIT_EXT)
+
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
 .PHONY: documents-check
 

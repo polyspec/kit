@@ -46,9 +46,6 @@ build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a re
 typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.json); offline after npm ci
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.json
 
-.PHONY: rebuild-check
-rebuild-check: ## Check that every tool of config/rebuild.json paths has its class: ecosystem, replaced, record or policy (S1); offline
-	$(NODE) scripts/kit/rebuild-check.mts
 
 .PHONY: duplication-check
 duplication-check: ## Fail while a piece of 6 lines or more of scripts/kit exists twice (jscpd); offline after npm ci
