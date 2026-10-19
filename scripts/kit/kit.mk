@@ -108,7 +108,7 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
-.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js
+.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext php-ext-arginfo
 # The fixed tasks of a repository (K246): each runs its target for every runtime that packages/ holds; a repository adds its
 # own steps to a task as prerequisites, never under another name.
 build test lint: ## Run build-<runtime>, test-<runtime> or lint-<runtime> for every runtime that packages/ holds; offline
@@ -119,6 +119,21 @@ build-go build-js build-php build-python build-rust build-ts: ## Build each pack
 
 # oxlint lints the JavaScript as it lints the TypeScript.
 lint-js: lint-ts
+
+# The PHP extension of packages/php-ext (php-extension.mts, S10): one build with phpize, the check of its names, its stub and
+# the stub hash of its arginfo header, and the declaration test against the PHP library before its unit tests. A repository
+# without an extension passes them, so every CI runs them.
+build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/polyspec_<repository>.so after the check of lint-php-ext; offline
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) build
+
+lint-php-ext: ## Check the names, the one stub and the stub hash of the arginfo header of packages/php-ext (S10); offline
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check
+
+test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test
+
+php-ext-arginfo: ## Write the arginfo header of packages/php-ext from its stub with the gen_stub.php of the PHP, which downloads its PHP-Parser once; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/php-extension.$(KIT_EXT) arginfo
 
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which

@@ -112,7 +112,7 @@ function makeRefusal(args: string[], context: Context, seen: Set<string>): strin
   // make test runs test-<runtime> of every runtime without CASES (K246).
   const suiteTarget = targets.find(target => target === 'test' || target === 'test-integration' || target === 'test-conformance');
   if (suiteTarget) return `make ${suiteTarget} ${SUITE}`;
-  const runtime = targets.find(target => /^test-(?:go|js|php|python|rust|ts)$/.test(target));
+  const runtime = targets.find(target => /^test-(?:go|js|php|php-ext|python|rust|ts)$/.test(target));
   if (runtime && !variables.has('CASES')) return `make ${runtime} without CASES ${SUITE}: name the cases with CASES=<pattern>`;
   const database = context.make();
   if (!database) return null;

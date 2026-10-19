@@ -24,6 +24,12 @@ test('each package of a runtime runs its runner with the name filter of CASES in
   assert.throws(() => runtimeRuns(FILES, 'js', 'x', node), /no package of the runtime js/);
 });
 
+test('the tests of the PHP extension run on PHPUnit with the built extension loaded (S10)', () => {
+  const files = ['packages/php-ext/src/a.c', 'packages/php-ext/tests/ATest.php'];
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so'), [{ cwd: 'packages/php-ext', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
+  assert.throws(() => runtimeRuns(files, 'php-ext', 'parses', node), /load the built extension, which is not named/);
+});
+
 test('a suite runs the folder of each runtime under tests/<suite>/ of the root (K244)', () => {
   assert.deepEqual(suiteRuns(FILES, 'integration', node), [{ cwd: 'tests/integration/go', tool: 'go', args: ['./...'] }]);
   assert.deepEqual(suiteRuns(FILES, 'conformance', node), [{ cwd: 'tests/conformance/ts', tool: 'node', args: ['a.test.ts'] }]);

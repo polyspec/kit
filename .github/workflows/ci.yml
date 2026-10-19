@@ -83,6 +83,13 @@ jobs:
       - name: php lint
         if: ${{ !cancelled() }}
         run: make lint-php
+      # The PHP extension of the repository (S10); kit has none, which both targets state and pass.
+      - name: php extension lint
+        if: ${{ !cancelled() }}
+        run: make lint-php-ext
+      - name: php extension tests
+        if: ${{ !cancelled() }}
+        run: make test-php-ext
       # The Python and Go lints of every repository: ruff and vulture, golangci-lint and deadcode, over the symbol extractors.
       - name: python lint
         if: ${{ !cancelled() }}

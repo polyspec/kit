@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 8e5c7c5b458d2c271640fd06757451e09186be452e437ad8b57a36d58bbe10ac -->
+<!-- source-sha256: 1c7cf72cb6d21353b8e713839fa76e3427489d7aa5f2e02e417b45fe5006b5c0 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -166,3 +166,10 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   언어의 구현을 구동하는 harness는 그 언어의 test이고, 언어별 정적 check는 그 생태계 analyzer의 plugin이며, symbol
   추출기는 그 생태계의 tool을 돌립니다.
   Enforced by: `make layout-check`
+- S10 PHP extension: PHP extension은 자기 저장소의 PHP library, 즉 `polyspec/<repository>`라는 이름의 `packages/php`를
+  구현하고, 그 class와 function을 같은 이름과 signature로 등록한다. `packages/php-ext/`에 두며 source는 `src/`에, stub은 하나,
+  `src/polyspec_<repository>.stub.php`이다. 이름은 `polyspec/<repository>-php-ext`와 `polyspec_<repository>`이고, 저장소
+  이름의 hyphen은 underscore가 된다. `make build-php-ext`는 `make php-ext-arginfo`가 PHP의 gen_stub.php로 쓰는 arginfo
+  header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build한다. `make test-php-ext`는 unit test 전에 등록한 것을
+  Reflection으로 PHP library와 비교한다.
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`

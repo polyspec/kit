@@ -36,6 +36,10 @@ rules:
       # The source of the vendored Claude Code settings; the copy of a consumer repository lies in .claude/.
       - "!claude"
 
+  # The extension of the PHP extension tests holds its stub as data of the tests (S10).
+  - id: php-ext-stub-place
+    paths: ["**/*.stub.php", "!packages/php-ext/src/*.stub.php", "!tests/kit/php-ext-fixture/*.stub.php"]
+
   - id: layout-root-tests
     paths:
       - "tests/*"
@@ -45,7 +49,7 @@ rules:
       # The consumer project in which the release of kit installs its archive and runs the smoke command (config/release.json).
       - "!tests/release-consumer"
 
-  # kit builds its package into dist/ with tsconfig.build.json (make build); the other root files are the common ones.
+  # kit builds its package into dist/ with tsconfig.build.json (make kit-build); the other root files are the common ones.
   - id: layout-root-files
     vars: { root_files: "{tsconfig.build.json}" }
 
@@ -79,4 +83,6 @@ rules:
       - "tests/**/*.{js,mjs,cjs,py,sh,bash,zsh,rb,pl,php,go,rs,ps1,bat,cmd}"
       # The fixture checkouts of kit hold the packages of a consumer repository as test data, not infrastructure.
       - "!tests/kit/fixture/**"
+      # The extension of the PHP extension tests (S10): its stub is PHP, which gen_stub.php reads, as data of the tests.
+      - "!tests/kit/php-ext-fixture/**"
       - "!scripts/kit/symbols/**"

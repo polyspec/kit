@@ -81,6 +81,7 @@ test('run-tests runs its runner over the arguments after --, so it needs their s
 test('a test target of a runtime needs CASES, and the suites run only in CI (K244)', () => {
   assert.match(refusal('make test-go') ?? '', /make test-go without CASES runs only in CI/);
   assert.equal(refusal('make test-go CASES=TestParse'), null);
+  assert.match(refusal('make test-php-ext') ?? '', /make test-php-ext without CASES runs only in CI/);
   assert.match(refusal('make test-integration') ?? '', /make test-integration runs only in CI/);
   assert.match(refusal('make test-conformance CASES=x') ?? '', /make test-conformance runs only in CI/);
 });

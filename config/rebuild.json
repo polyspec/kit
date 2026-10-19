@@ -82,6 +82,10 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: the commands of the Verification cell of an open item, read with the refusals of the Claude Code hook (K249-3)"
     },
+    "scripts/kit/php-extension.mts": {
+      "kind": "ecosystem",
+      "tool": "phpize, configure and make build the extension, the gen_stub.php of the PHP writes its arginfo header and Reflection reads its declarations; the tool runs them in one order for every repository (S10)"
+    },
     "scripts/kit/duplication-check.mts": {
       "kind": "ecosystem",
       "tool": "jscpd finds the pieces of code that exist twice; the tool passes it the code formats of the runtimes and the excluded folders (K248-3)"

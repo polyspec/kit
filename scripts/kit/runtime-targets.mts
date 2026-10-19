@@ -10,6 +10,9 @@
 //                                         tsc with the tsconfig.build.json of the package, uv build; a PHP library has none
 //   make build, make test, make lint      the target of each runtime that packages/ holds
 //
+// The PHP extension of packages/php-ext has targets of its own (php-extension.mts, S10): its unit tests run on PHPUnit with
+// the extension that build-php-ext published loaded.
+//
 // A unit test stays where the runner of its ecosystem finds it (S1): beside the code in Go, in src or tests of a crate, in the
 // tests of a package elsewhere. The integration and conformance suites cross packages, so they live at the root, where a run
 // in a package never reaches them. A run without CASES runs every unit test of the runtime, which run-tests allows only in CI
@@ -22,21 +25,25 @@ import { isTestFile } from './check-commits.mts';
 import { ciRefusal } from './ci-only.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
+import { extensionNames, repositoryOf } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 
-/** A run of run-tests.mts: the folder, relative to the root, the tool and its arguments. */
-export type Run = { cwd: string; tool: string; args: string[] };
+/** A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool. */
+export type Run = { cwd: string; tool: string; options?: string[]; args: string[] };
 
 // The runtimes of a package and the suites of the root.
-export const RUNTIMES = ['go', 'js', 'php', 'python', 'rust', 'ts'] as const;
+export const RUNTIMES = ['go', 'js', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 export const SUITES = ['integration', 'conformance'] as const;
 const SCRIPT = /\.[cm]?[jt]sx?$/;
 
 /** The relative paths of the tracked test scripts of `folder` among `files`. */
 const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && isTestFile(file)).map(file => path.posix.relative(folder, file));
 
-/** The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest. */
-function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean): Run[] {
+/**
+ * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
+ * and `extension` is the built library of the PHP extension, which its tests load.
+ */
+function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string): Run[] {
   const filter = (flag: string) => (cases === undefined ? [] : [flag, cases]);
   switch (runtime) {
     case 'ts':
@@ -48,17 +55,23 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       return [{ cwd: folder, tool: 'cargo', args: cases === undefined ? [] : [cases] }];
     case 'php':
       return [{ cwd: folder, tool: 'phpunit', args: filter('--filter') }];
+    case 'php-ext':
+      if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
+      return [{ cwd: folder, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }];
     case 'python':
       return [{ cwd: folder, tool: 'python', args: filter('-k') }];
   }
   throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
 }
 
-/** The runs of the unit tests of the packages of `runtime` among the tracked `files`; throws when no package has it. */
-export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean): Run[] {
+/**
+ * The runs of the unit tests of the packages of `runtime` among the tracked `files`; throws when no package has it.
+ * `extension` is the built library of the PHP extension.
+ */
+export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string): Run[] {
   const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
   if (folders.length === 0) throw new Error(`no package of the runtime ${runtime}: packages/${runtime} or packages/<component>/${runtime}`);
-  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest));
+  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension));
 }
 
 /** A command of a build: its folder relative to the root, the command and its arguments. */
@@ -80,6 +93,8 @@ export function buildRuns(files: readonly string[], runtime: string): Build[] {
       return folders.filter(folder => has(folder, 'pyproject.toml')).map(folder => ({ cwd: folder, command: 'uv', args: ['build'] }));
     case 'php':
       return [];
+    case 'php-ext':
+      throw new Error('build-php-ext builds the extension with phpize (php-extension.mts)');
   }
   throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
 }
@@ -103,6 +118,15 @@ function usesVitest(root: string, folder: string): boolean {
     const manifest: unknown = JSON.parse(readFileSync(file, 'utf8'));
     return isJsonObject(manifest) && ['dependencies', 'devDependencies'].some(field => isJsonObject(manifest[field]) && 'vitest' in manifest[field]);
   });
+}
+
+/** The library of the PHP extension of `root` that build-php-ext publishes; throws when it is missing. */
+function builtExtension(root: string, files: readonly string[]): string {
+  const owner = repositoryOf(file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
+  if ('finding' in owner) throw new Error(owner.finding);
+  const library = path.join(root, 'var/php-ext', `${extensionNames(owner.repository).extension}.so`);
+  if (!existsSync(library)) throw new Error(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
+  return library;
 }
 
 if (isMain(import.meta.url)) {
@@ -140,7 +164,8 @@ if (isMain(import.meta.url)) {
   }
   let runs: Run[];
   try {
-    runs = suite ? suiteRuns(files, target, vitest) : runtimeRuns(files, target, process.env.CASES || undefined, vitest);
+    const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
+    runs = suite ? suiteRuns(files, target, vitest) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[runtime-targets] ${error.message}`);
@@ -152,7 +177,7 @@ if (isMain(import.meta.url)) {
   }
   let failed = 0;
   for (const run of runs) {
-    const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, '--', ...run.args], { cwd: root, stdio: 'inherit' });
+    const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], { cwd: root, stdio: 'inherit' });
     if (result.status !== 0) failed += 1;
   }
   process.exit(failed ? 1 : 0);

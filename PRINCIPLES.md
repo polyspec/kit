@@ -175,3 +175,11 @@ tool lands, a standard binds the work as written here.
   `erasableSyntaxOnly`. Exceptions: a harness that drives one language's implementation is a test of that language; a
   language-specific static check is a plugin of that ecosystem's analyzer; a symbol extractor runs that ecosystem's tool.
   Enforced by: `make layout-check`
+- S10 PHP extension: a PHP extension implements the PHP library of its repository, `packages/php` named
+  `polyspec/<repository>`, and registers its classes and functions under the same names and signatures. It lies in
+  `packages/php-ext/` with its sources in `src/` and one stub, `src/polyspec_<repository>.stub.php`; it is named
+  `polyspec/<repository>-php-ext` and `polyspec_<repository>`, a hyphen of the repository name an underscore. `make
+  build-php-ext` builds it with phpize after checking that the stub hash of its arginfo header, which `make
+  php-ext-arginfo` writes with the gen_stub.php of the PHP, is that of the stub; `make test-php-ext` compares by Reflection
+  what it registers with the PHP library before its unit tests.
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`

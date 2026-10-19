@@ -118,6 +118,8 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'management-files-at-root', files: { 'packages/go/CHANGELOG.md': '# Changelog\n' } },
   { rule: 'tests-folder', files: { 'packages/ts/test/a.test.ts': 'export {};\n' } },
   { rule: 'runtime-language', files: { 'packages/js/src/a.ts': 'export {};\n' } },
+  // S10: the one stub of the PHP extension lies in packages/php-ext/src/.
+  { rule: 'php-ext-stub-place', files: { 'packages/php-ext/stubs/polyspec_demo.stub.php': '<?php\n' } },
 ];
 
 /** Writes `files` below `root`. */
