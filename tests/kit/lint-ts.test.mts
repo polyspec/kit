@@ -66,10 +66,10 @@ test('oxlint leaves out no file in kit itself, the source of the copies (K157)',
   assert.equal(calls()[0], `${OXLINT} [root]`);
 });
 
-test('a consumer whose installed kit is not the version of package-lock.json, or that has no lock, fails as kit-check does (K157)', (t) => {
+test('a consumer without package-lock.json fails as kit-check does; another installed version passes (K157, K267)', (t) => {
   const { root } = checkout(t);
   writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: '0.0.1' } } }));
-  assert.throws(() => lintSteps(root), /node_modules\/@polyspec\/kit is 1\.2\.3, but package-lock\.json resolves 0\.0\.1/);
+  assert.doesNotThrow(() => lintSteps(root));
   assert.throws(() => lintSteps(checkout(t, { omit: 'package-lock.json' }).root), /package-lock\.json is missing; it locks @polyspec\/kit/);
 });
 

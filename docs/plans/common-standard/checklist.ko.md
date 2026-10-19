@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 00292052ac451834d22a4a5685b3e607964416d94d6d04df151774009513feec -->
+<!-- source-sha256: 00a177c4bd1c951637e80169d5918aebb83e2fb026048db57efa4bb27dddb35b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -63,3 +63,4 @@
 | K268-1 | language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽는다. 원인: 한 줄의 따옴표 string만 제거해, backquote Go string이나 raw Rust string 안의 한국어 데이터를 identifier로 보고했다. | `scripts/kit/language-check.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/language-check.test.mts` | [o] |
 | K269 | release는 tag와 함께 release workflow를 dispatch해서 시작한다. make release-tag가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 그 commit을 가리키면 다시 통과한다. 원인: release에 사람 손의 tag push가 필요했는데, tag push가 없는 환경에서는 그것을 할 수 없다. | `scripts/kit/release.mts`, `scripts/kit/kit.mk`, `workflows/release.yml` | `node scripts/kit/run-tests.mts node -- tests/kit/release-tag.test.mts` | [o] |
 | K270 | 모든 저장소는 vendor되는 workflow 하나로 kit의 gate를 CI에서 실행한다. 원인: PRINCIPLES.md의 규칙이 저장소 CI가 실행하지 않는 make target을 지명해, rules-check가 그 모두를 어디서도 강제되지 않는다고 보고했고, 저장소마다 CI를 손으로 연결했다. | `workflows/gates.yml`, `scripts/kit/kit.mk`, `package.json` | `node scripts/kit/run-tests.mts node -- tests/kit/gates-workflow.test.mts` | [o] |
+| K271 | kit 테스트가 K267, K268, K269를 따른다 | tests/kit, tests/source, scripts/kit/script-ast.mts | `node --test tests/kit/isolation.test.mts tests/kit/lint-ts.test.mts tests/kit/release.test.mts tests/kit/sandbox-repository.test.mts` | [o] |

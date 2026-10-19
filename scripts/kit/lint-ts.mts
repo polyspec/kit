@@ -122,7 +122,7 @@ export function knipArguments(root: string, knip: string): string[] {
  * The arguments of oxlint that leave out the copies of kit in `root`: one `--ignore-pattern` for each file of `kit.copies` of
  * the installed package, the record that kit-sync writes and kit-check compares; none in kit itself, which lints its sources.
  * A pattern of a configuration file is rooted at the directory of that file, so the copies, outside var/lint-ts, are given on
- * the command line. Throws when the installed package is not the version that package-lock.json resolves.
+ * the command line. Throws when package-lock.json or the installed package is missing.
  */
 export function kitCopyIgnores(root: string): string[] {
   if (isSource(root)) return [];

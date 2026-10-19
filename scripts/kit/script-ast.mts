@@ -37,7 +37,7 @@ export function calleeName(node: unknown): string {
   return '';
 }
 
-/** The text of a string literal or a template literal, or undefined for another node. */
+/** The text of a string literal or a backquoted literal, or undefined for another node. */
 export function stringText(node: unknown): string | undefined {
   if (!isNode(node)) return undefined;
   if (node.type === 'Literal' && typeof node.value === 'string') return node.value;

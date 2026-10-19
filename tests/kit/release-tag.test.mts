@@ -9,12 +9,13 @@ import test from 'node:test';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { git, releaseSandbox } from './release-sandbox.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 test('release-tag creates the annotated tag at origin/main and pushes it, passes again, and never moves a tag (K269)', (t) => {
   const box = releaseSandbox(t);
   const remote = mkdtempSync(path.join(tmpdir(), 'kit-release-tag-'));
   t.after(() => rmSync(remote, { recursive: true, force: true }));
-  git(remote, 'init', '--quiet', '--bare');
+  initRepository(remote, '--bare');
   git(box.root, 'remote', 'add', 'origin', remote);
   const ctx = release.context(box.root, { env: box.env });
   const main = git(box.root, 'rev-parse', 'origin/main');

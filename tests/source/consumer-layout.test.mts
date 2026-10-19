@@ -80,11 +80,11 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   assert.match(early.stderr, /node_modules\/@polyspec\/kit\/dist\/kit\.mk is missing; run make install-tools TOOLS=npm, then make install-packages/);
   // The steps of the copied release workflow before release-tools run in its order: the bootstrap, kit-check, which fails a
   // checkout that needs PHP without .php-version before any release step (K193), then release-prepare, which a consumer
-  // without a preparation of its own runs as no work (K132).
+  // without a preparation of its own runs as no work (K132); release-tag runs before it on a dispatch (K269).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   const steps = [...workflow.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1] ?? '');
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
-  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-prepare'], 'the release workflow bootstraps the package, checks the checkout and prepares the release before release-tools');
+  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-tag', 'make release-prepare'], 'the release workflow bootstraps the package, checks the checkout and prepares the release before release-tools');
   for (const command of bootstrap) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);

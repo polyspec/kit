@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ba0ced0b89a017f1f40b20271fefc1ccbecac258e592aab2ac60c3928a3c019a -->
+<!-- source-sha256: e7228039e37f17c453a97c67918ba86d400f3ef42425857cfa4665bbae18ce7f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,7 @@
 ## Unreleased
 
 - ID는 마지막 -<number> 앞부분이 그 저장소 pattern의 ID일 때만 sub-item이므로, S-01 같은 ID 체계는 부모 S를 요구하지 않는다 (K249-5).
+- kit 테스트가 installed version 규칙, TSX parser, release tag 단계를 따른다: 어떤 테스트도 version 비교를 기대하지 않고, 모든 sandbox 저장소는 initRepository로 만들며, 어떤 comment도 저장소를 이름 짓지 않는다 (K271).
 - kit은 gate workflow `workflows/gates.yml`을 모든 저장소의 `.github/workflows/gates.yml`로 vendor한다. 저장소를 설치하고 PRINCIPLES.md의 규칙을 강제하는 모든 check인 `make -k kit-gates`를 실행하므로, 어떤 저장소도 gate를 CI에 손으로 연결하지 않는다 (K270).
 - language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽으므로, 그 안의 한국어 데이터는 identifier가 아니다 (K268-1).
 - 저장소는 고정 작업이 아닌 suite target `check`를 유지하고, `make install`은 저장소가 더한 install 단계보다 먼저 kit의 bootstrap을 prerequisite `install-kit`으로 실행한다 (K246-2).

@@ -507,7 +507,7 @@ test('the command line refuses a missing mode, a missing tag and an extra argume
   for (const args of [[], ['verify'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts verify\|versions\|assets\|publish\|undraft\|go-tags TAG \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|versions\|assets\|publish\|undraft\|go-tags TAG \| coverage/);
   }
 });
 
