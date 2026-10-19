@@ -18,7 +18,7 @@ export function lintSteps(root: string): LintStep[] {
   return checkedFiles(root)
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
-    .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'], cwd: folder }));
+    .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', '-D', 'clippy::let_underscore_must_use'], cwd: folder }));
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */

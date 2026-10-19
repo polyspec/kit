@@ -40,6 +40,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'an unused function', files: { 'packages/python/src/polyspec/demo/__init__.py': `${GOOD['packages/python/src/polyspec/demo/__init__.py']}\n\ndef triple(value: int) -> int:\n    return value * 3\n` }, finding: /src\/polyspec\/demo\/__init__\.py:\d+: unused function 'triple' \(60% confidence\)/ },
   // A package cannot raise the confidence of vulture: the run names its own.
   { name: 'an unused function under a raised min_confidence', files: { 'packages/python/pyproject.toml': `${GOOD['packages/python/pyproject.toml']}\n[tool.vulture]\nmin_confidence = 100\n`, 'packages/python/src/polyspec/demo/__init__.py': `${GOOD['packages/python/src/polyspec/demo/__init__.py']}\n\ndef triple(value: int) -> int:\n    return value * 3\n` }, finding: /unused function 'triple' \(60% confidence\)/ },
+  // No swallowed error (K256): a blind except and an except that only passes.
+  { name: 'a blind except that passes', files: { 'packages/python/src/polyspec/demo/__init__.py': `${GOOD['packages/python/src/polyspec/demo/__init__.py']}\n\ndef safe() -> int:\n    try:\n        return double(1)\n    except Exception:\n        pass\n    return 0\n` }, finding: /BLE001[\s\S]*S110|S110[\s\S]*BLE001/ },
 ];
 
 /** Writes `files` below `root`. */

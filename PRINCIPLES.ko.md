@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: aa548113ea341e3ab75ff5d459581820980f7e3dc6957e809fd6c3a882775252 -->
+<!-- source-sha256: 8966c904820964b0ec69060c6a3e2697d59896bb28df110fb0e88ebed39543e1 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -38,7 +38,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `.claude/settings.json`
 - 오류는 숨기지 않습니다: 잘못된 입력을 그럴듯한 입력으로 바꾸는 fallback도, 입력이나 출력을 조용히 버리는 것도, 삼킨
   오류도 없습니다. fallback은 정말 필요한 곳에만 그 필요를 적고 둡니다.
-  Enforced by: planned K256
+  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`
 - 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
 - 작업은 main에서 바로 할 수 있습니다. agent나 상황에 따라 branch나 worktree가 필요하면

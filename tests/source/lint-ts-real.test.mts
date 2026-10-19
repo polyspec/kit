@@ -79,6 +79,9 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   // The false green of the verification: ae-undocumented fires only through the API report, which the base configuration enables.
   { name: 'an undocumented export', files: { [INDEX]: `${DOUBLE}\nexport function triple(value: number): number {\n  return value * 3;\n}\n` }, finding: /\(ae-undocumented\) Missing documentation for "triple"/ },
   { name: 'a forgotten export', files: { [INDEX]: `${DOUBLE}\ninterface Options {\n  factor: number;\n}\n\n/**\n * Scales a value.\n */\nexport function scale(value: number, options: Options): number {\n  return value * options.factor;\n}\n` }, finding: /\(ae-forgotten-export\) The symbol "Options" needs to be exported by the entry point index\.d\.ts/ },
+  // No swallowed error (K256).
+  { name: 'an empty catch', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {}\n}\n` }, finding: /eslint\(no-empty\)/ },
+  { name: 'a catch that only rethrows', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function rethrow(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw error;\n  }\n}\n` }, finding: /eslint\(no-useless-catch\)/ },
 ];
 
 // The package.json of this checkout: the version of kit that the lock of the repository resolves, and the copies of kit in

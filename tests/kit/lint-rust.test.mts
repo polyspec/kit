@@ -29,7 +29,7 @@ function checkout(t: TestContext): string {
   return root;
 }
 
-const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'];
+const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', '-D', 'clippy::let_underscore_must_use'];
 
 test('cargo clippy runs with -D warnings in each workspace folder, and not for a member or the kit fixture', (t) => {
   assert.deepEqual(lintSteps(checkout(t)), [

@@ -38,6 +38,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'spl_autoload_register', files: { 'packages/php/src/Loader.php': php('final class Loader\n{\n    public static function register(): void\n    {\n        spl_autoload_register(static fn (string $class) => null);\n    }\n}\n') }, finding: /Calling spl_autoload_register\(\) is forbidden, S2: classes load through the PSR-4 autoloader of Composer; never register an autoloader/ },
   { name: 'spl_autoload_register through a string variable', files: { 'packages/php/src/Loader.php': php("final class Loader\n{\n    public static function register(): void\n    {\n        $register = 'spl_autoload_register';\n        $register(static fn (string $class) => null);\n    }\n}\n") }, finding: /Calling spl_autoload_register\(\) is forbidden/ },
   { name: 'a ClassLoader changed at run time', files: { 'packages/php/src/Loader.php': php("final class Loader\n{\n    public static function register(\\Composer\\Autoload\\ClassLoader $loader): void\n    {\n        $loader->addPsr4('Generated\\\\', __DIR__);\n    }\n}\n") }, finding: /Calling Composer\\Autoload\\ClassLoader::addPsr4\(\) is forbidden, S2: classes load through the PSR-4 autoloader of Composer; never change a ClassLoader at run time/ },
+  // No swallowed error (K256): an empty catch.
+  { name: 'an empty catch', files: { [DEMO]: php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n        }\n        return 0;\n    }\n}\n') }, finding: /Generic\.CodeAnalysis\.EmptyStatement/ },
 ];
 
 /** Writes `files` below `root`. */

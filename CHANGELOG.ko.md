@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 37cc96b4ab62e9234bfcfa0c1b327d4afe38ab46032dfe41e5841c4cc5ba989d -->
+<!-- source-sha256: 2246961059ab5763cbc2b091d6bd7c57fbd991b1c92bd8697b9554cc6b3d0c39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 삼킨 오류는 그 언어의 lint에서 실패한다. oxlint `no-empty`와 `no-useless-catch`, ruff BLE001, S110, S112, phpcs `Generic.CodeAnalysis.EmptyStatement`, clippy `let_underscore_must_use`, golangci-lint의 errcheck이며, 각각 test에 실패하는 sample이 있다 (K256).
 - `make duplication-check`는 kit.mk의 도구(`duplication-check.mts`)이므로 모든 저장소가 실행한다. 이제 package의 dependency인 jscpd가 `config/duplication.json`이 이유와 함께 제외하는 folder 밖에서 checkout의 code를 runtime의 format으로 읽는다 (K248-3).
 - kit은 2026-10-19 review 시점의 최신 stable release인 knip 6.42.0, @decimalturn/toml-patch 3.3.1, ruff 0.17.1을 lock한다 (K261).
 - CI workflow test는 `.php-version`을 literal 8.5 대신 kit의 PHP pin과 비교한다 (K259-1).

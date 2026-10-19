@@ -38,7 +38,7 @@ in kit, with its grounding.
   Enforced by: `.claude/settings.json`
 - Errors are never hidden: no fallback that turns a wrong input into a plausible one, no silent drop of an input or an
   output, no swallowed error. A fallback stands only where it is truly needed, with that need stated.
-  Enforced by: planned K256
+  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`
 - Correct first; fast only when it stays correct.
   Enforced by: none, the order of correctness and speed is a judgement.
 - Work may go straight to main. A branch or worktree, when an agent or the situation needs one, is named

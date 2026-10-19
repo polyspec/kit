@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A swallowed error fails the lint of its language: oxlint `no-empty` and `no-useless-catch`, ruff BLE001, S110 and S112, phpcs `Generic.CodeAnalysis.EmptyStatement`, clippy `let_underscore_must_use`, and errcheck of golangci-lint, each with a failing sample in the tests (K256).
 - `make duplication-check` is a tool of kit.mk (`duplication-check.mts`), so every repository runs it: jscpd, now a dependency of the package, reads the code of the checkout in the formats of the runtimes outside the folders that `config/duplication.json` excludes with their reasons (K248-3).
 - kit locks knip 6.42.0, @decimalturn/toml-patch 3.3.1 and ruff 0.17.1, the latest stable releases at the review of 2026-10-19 (K261).
 - The CI workflow test compares `.php-version` with the PHP pin of kit instead of the literal 8.5 (K259-1).

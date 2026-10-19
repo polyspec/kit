@@ -40,6 +40,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'an unused function', files: { [DEMO]: `${GOOD[DEMO]}\nfunc triple(value int) int {\n\treturn value * 3\n}\n` }, finding: /demo\.go:\d+:\d+: func triple is unused \(unused\)/ },
   { name: 'a wrong format verb', files: { [DEMO]: `${GOOD[DEMO]}\n// Name names a value.\nfunc Name(value int) string {\n\treturn fmt.Sprintf("%s", value)\n}\n`.replace(`import "${CODEC}"`, `import (\n\t"fmt"\n\n\t"${CODEC}"\n)`) }, finding: /\(govet\)/ },
   { name: 'an exported function that no test reaches', files: { [DEMO]: `${GOOD[DEMO]}\n// Octuple octuples a value.\nfunc Octuple(value int) int {\n\treturn Quadruple(Quadruple(value)) / value\n}\n` }, finding: /demo\.go:\d+:\d+: unreachable func: Octuple/ },
+  // No swallowed error (K256): an unchecked error.
+  { name: 'an unchecked error', files: { [DEMO]: `${GOOD[DEMO]}\n// Save writes an empty file.\nfunc Save(path string) {\n\tos.WriteFile(path, nil, 0o600)\n}\n`.replace(`import "${CODEC}"`, `import (\n\t"os"\n\n\t"${CODEC}"\n)`) }, finding: /\(errcheck\)/ },
 ];
 
 /** Writes `files` below `root`. */
