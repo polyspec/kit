@@ -151,8 +151,10 @@ tool lands, a standard binds the work as written here.
   Enforced by: `make toolchain-check`, `make dependency-policy-check`
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
-  `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix.
-  `make layout-check` checks it with alint against `config/layout.yml`, the map of the repository over kit's common rules;
+  `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix. A
+  runtime folder names the language of its sources (TypeScript in `ts`), a folder of tests is `tests/`, AGENTS, CHANGELOG
+  and Makefile lie at the root, and `docs/` holds `spec/`, `operations/`, `plans/`, `rebuild/`, `features.md` and the files
+  of a VitePress site (K245). `make layout-check` checks it with alint against `config/layout.yml`, the map of the repository over kit's common rules;
   each exception there carries its reason.
   Enforced by: `make layout-check`
 - S6 Language parity: every implementation of a repository tests the same feature units, vectors and API at the same

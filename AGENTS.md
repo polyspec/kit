@@ -82,7 +82,7 @@ and states only its own rules. The rules below are kit's own.
   Enforced by: `make toolchain-check`, `make kit-check`
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
-  (docs/tool-inventory.md, Language parity).
+  (docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
@@ -93,7 +93,7 @@ and states only its own rules. The rules below are kit's own.
 - A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of
   `advisoryExceptions`
   in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
-  it is never hidden. kit reviews its own `package-lock.json` (docs/tool-inventory.md, Accepted advisories).
+  it is never hidden. kit reviews its own `package-lock.json` (docs/operations/tool-inventory.md, Accepted advisories).
   Enforced by: `make dependency-policy-check`
 - Do not keep backward compatibility: remove an old path instead of adding a compatibility layer, a fallback or a migration.
   Enforced by: none, a design judgement, which PRINCIPLES.md states; K243 removes this copy.

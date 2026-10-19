@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 127ad27cfa14f61c12cafa31874192f5227e25d5c9c3a36e78788bb3e725ef2c -->
+<!-- source-sha256: f7165531bdda762f7c0e09f92b58dcb0d86adb70c26f541112fc12f564626dbd -->
 # 개발
 
 [English](AGENTS.md)
@@ -72,7 +72,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   install-tools 앞의 setup-php 단계), `make toolchain-check`가 이를 검증합니다.
   Enforced by: `make toolchain-check`, `make kit-check`
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
-  target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/tool-inventory.md, Language parity).
+  target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`dependency-review`, `python-lock`,
@@ -81,7 +81,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `make kit-test`
 - dependency advisory는 갱신으로 고칩니다. 어떤 release도 고치지 않는 advisory는 `config/dependency-policy.json`의
   `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review와 gate가 받아들였다고 출력합니다. 숨기지
-  않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/tool-inventory.md, Accepted advisories).
+  않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/operations/tool-inventory.md, Accepted advisories).
   Enforced by: `make dependency-policy-check`
 - 하위 호환성은 유지하지 않습니다: 호환 layer, fallback, migration을 더하지 않고 옛 경로를 제거합니다.
   Enforced by: none, PRINCIPLES.md가 기술하는 설계 판단이며, K243이 이 사본을 제거합니다.

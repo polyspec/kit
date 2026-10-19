@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 4172e73b7ed55963f3c5a9e960df4d4c7846c22d6fc8c91054c3af9d9f37275b -->
+<!-- source-sha256: f4d61fa08e423499a40d189cc75ecc89112e37f95c121588bca1e8576f78bf6e -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -145,7 +145,9 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
-  않습니다. `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
+  않습니다. runtime 폴더는 source 언어를 이름으로 가지며(TypeScript는 `ts`), test 폴더는 `tests/`, AGENTS, CHANGELOG,
+  Makefile은 root에 두고, `docs/`는 `spec/`, `operations/`, `plans/`, `rebuild/`, `features.md`와 VitePress site의 파일을
+  가집니다(K245). `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
   그 안의 예외는 모두 이유를 가집니다.
   Enforced by: `make layout-check`
 - S6 언어 parity: repository의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test합니다. 영구 차이는 이유가

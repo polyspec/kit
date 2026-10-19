@@ -1,5 +1,5 @@
 <!-- doc-id: plan-tool-unification -->
-<!-- source-sha256: fcccdf8ea105fb747fd412626b59833a72a08bdbbc5a1058c7bdd4dc9549778e -->
+<!-- source-sha256: 174893a20fcfe9c7bec90e33854f8f37387972bff9da714568be5a325d9809e1 -->
 # 도구 통합
 
 [English](plan.md)
@@ -13,7 +13,7 @@ report, toolchain install, dependency review와 gate)은 kit에 한 번만 존�
 ## 원인
 
 각 저장소가 각 tool의 사본을 TypeScript나 Python으로 따로 가졌고, 사본들은 동작과 결함이 서로 달라졌다.
-[tool inventory](../../tool-inventory.ko.md)는 각 사본이 있던 곳, 크기, kit이 기반으로 삼은 구현을 기록한다.
+[tool inventory](../../operations/tool-inventory.ko.md)는 각 사본이 있던 곳, 크기, kit이 기반으로 삼은 구현을 기록한다.
 
 ## 결정
 

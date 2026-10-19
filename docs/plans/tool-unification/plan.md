@@ -12,7 +12,7 @@ from the package `@polyspec/kit`.
 ## Cause
 
 Each repository kept its own copy of each tool, in TypeScript or Python, and the copies diverged in behavior and in their
-defects. [The tool inventory](../../tool-inventory.md) records where each copy lived, its size and the implementation that
+defects. [The tool inventory](../../operations/tool-inventory.md) records where each copy lived, its size and the implementation that
 kit took as its base.
 
 ## Rulings

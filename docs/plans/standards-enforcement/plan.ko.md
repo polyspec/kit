@@ -1,5 +1,5 @@
 <!-- doc-id: plan-standards-enforcement -->
-<!-- source-sha256: 474710e8af5700d7cebcf39875bb534c295c495eb46d172c856815eb2c9a5a77 -->
+<!-- source-sha256: 21e09a51d96f3e3cfb56832fd856ba221ff17e424d278666b69a06e7e5a435cb -->
 # Standards enforcement 계획
 
 [English](plan.md)
@@ -280,7 +280,7 @@ flag만 지우는 것으로는 부족하다. 새는 `setInterval`이 있으면 �
      `packages/`만 검사한다.
    - 결정(K76): kit은 alint 0.18.2를 설정해 쓰고 layout 도구를 만들지 않는다. alint가 모든 항목을 설정만으로 표현하므로 S1에
      따라 재구현하지 않고 rebuild 기록도 없다. ls-lint는 이름만 검사하고 Repolinter는 archived다. 평가, 항목별 판정, 버전 절차는
-     `docs/tool-inventory.ko.md`(Layout 검사)에 있다.
+     `docs/operations/tool-inventory.ko.md`(Layout 검사)에 있다.
    - `make layout-check`는 `var/tools`의 alint(`install-tools`가 platform archive별 sha256으로 고정해 설치)를
      `config/layout.yml`에 돌린다. 이 파일은 vendored `config/layout.kit.yml`(공통 rule과 template)을 extends하고 레포의 map을
      더한다. S9 예외마다 이유를 주석으로 적고 owner가 review한다(S8).

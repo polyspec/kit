@@ -281,7 +281,7 @@ document lands.
      checks only `packages/`.
    - Decided (K76): kit configures alint 0.18.2 and writes no layout tool. alint expresses every item with configuration
      alone, so S1 forbids a rebuild and there is no rebuild record; ls-lint checks names only, and Repolinter is archived.
-     The evaluation, the verdict of each item and the version procedure are in `docs/tool-inventory.md` (Layout check).
+     The evaluation, the verdict of each item and the version procedure are in `docs/operations/tool-inventory.md` (Layout check).
    - `make layout-check` runs the alint of `var/tools` (`install-tools`, pinned with the sha256 of each platform archive) on
      `config/layout.yml`. That file extends the vendored `config/layout.kit.yml` (the common rules and templates) with the map of
      the repository; each S9 exception carries its reason in a comment, reviewed by the owner (S8).

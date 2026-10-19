@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 657e955d4134a4c06422275647a71451b086970b857782be26f83f40e9d03fb2 -->
+<!-- source-sha256: 7920b9e953b7a09b5d87de8f90acb051ca9a650ed2ba1d4c11fd3622abea74a8 -->
 # 릴리스
 
 [English](release.md)
@@ -12,7 +12,7 @@ package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make
 릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
 `CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 릴리스 commit은 소비자 lock도 담습니다: `make release-assets
 TAG=vX.Y.Z` 다음 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)를 실행하고, 그것이 `tests/release-consumer/*/`에 쓴 manifest와
-lock을 버전 변경과 함께, 또는 tag 전의 다음 commit으로 commit합니다(docs/tool-inventory.md, Consumer install of the release
+lock을 버전 변경과 함께, 또는 tag 전의 다음 commit으로 commit합니다(docs/operations/tool-inventory.md, Consumer install of the release
 archives, 1단계와 2단계). 버전 변경은 `package-lock.json`을 다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이
 그 lock에 대해 쓴 `config/dependency-review.json`도 담습니다. CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를
 실행합니다(K169). composer.json의 버전 변경도 마찬가지로 그 directory에서 `composer update --lock`으로 다시 lock합니다:
@@ -33,6 +33,6 @@ kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel
 config/toolchain.json의 `pythonBackend`가 정확한 requirement와 wheel의 sha256으로 고정합니다. `make install-tools`와 `make release-backend`는 그 wheel을 digest를 확인하며
 `var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. wheel의 `Requires-Dist`는 plain `name==version`, polyspec package의 release asset을 sha256 fragment와 함께 직접 참조하는 형식, 또는 같은 release의 sibling(같은 config/release.json의 다른 wheel package)을 hash 없이 직접 참조하는 형식입니다.
 앞의 두 형식은 wheel의 lock(`consumers.wheel.lock`)이 담으며, sibling은 lock이 담지 않습니다. 다른 형식(URL, git source, 범위, marker)은 거부합니다. 같은 형식의 npm 또는
-Composer manifest를 거부하는 것과 같습니다(docs/tool-inventory.ko.md, Sibling wheels). `release-consumer`는 깨끗한 virtual environment에 lock을 hash와 함께 설치하고, release의
+Composer manifest를 거부하는 것과 같습니다(docs/operations/tool-inventory.ko.md, Sibling wheels). `release-consumer`는 깨끗한 virtual environment에 lock을 hash와 함께 설치하고, release의
 wheel들을 `--no-deps`로 함께 설치한 뒤 `pip check`를 실행하고, 그다음 smoke command를 실행합니다.
 Python package는 git tag로 릴리스하지 않습니다.

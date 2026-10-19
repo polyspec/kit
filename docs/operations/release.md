@@ -13,7 +13,7 @@ A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` se
 `package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. The release commit also carries
 the consumer locks: `make release-assets TAG=vX.Y.Z`, then `make release-consumer-lock TAG=vX.Y.Z` (ONLINE), and the manifests
 and locks that it writes in `tests/release-consumer/*/` are committed with the version change, or in a following commit before
-the tag (docs/tool-inventory.md, Consumer install of the release archives, steps 1 and 2). The version change rewrites
+the tag (docs/operations/tool-inventory.md, Consumer install of the release archives, steps 1 and 2). The version change rewrites
 `package-lock.json`, so the release commit also carries `config/dependency-review.json` that `make dependency-review RECORD=1`
 (ONLINE) writes for it; CI runs `make dependency-policy-check`, which fails a lock that differs from the review (K169). A version
 change of a composer.json likewise re-locks it with `composer update --lock` in its directory, since the content-hash of
@@ -44,5 +44,5 @@ sha256 of its wheel; `make install-tools` and `make release-backend` download th
 wheel's `Requires-Dist` is a plain `name==version`, a direct reference to the release asset of a polyspec package with the sha256
 fragment, or a direct reference without a hash to a sibling (another wheel package of the same config/release.json) of the same
 release. The first two are held by the lock of the wheel (`consumers.wheel.lock`); a sibling never is. Any other form (a URL, a git
-source, a range or a marker) is refused, as an npm or Composer manifest with the same form is (docs/tool-inventory.md, Sibling wheels). `release-consumer` installs the lock with hashes, the
+source, a range or a marker) is refused, as an npm or Composer manifest with the same form is (docs/operations/tool-inventory.md, Sibling wheels). `release-consumer` installs the lock with hashes, the
 wheels of the release together with `--no-deps`, runs `pip check` and then the smoke command in a clean virtual environment. A Python package is not released as a git tag.

@@ -68,7 +68,8 @@ const GOOD: Record<string, string> = {
   'tests/kit/consumer/composer.json': JSON.stringify({ name: 'polyspec/demo-consumer', type: 'project', require: { 'polyspec/demo': '0.0.1' } }),
   'scripts/build.mts': '#!/usr/bin/env node\nconsole.log("build");\n',
   'tests/parity/run.mts': 'console.log("parity");\n',
-  'docs/a.md': '# a\n',
+  'docs/spec/a.md': '# a\n',
+  'docs/features.md': '# Features\n',
   'contracts/vectors.json': '{}\n',
 };
 
@@ -111,6 +112,12 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   // An override of the paths of layout-root-files replaces the list of kit and drops every root file that kit adds later, even
   // while the files of the tree still pass (K145); a repository adds its root files through vars.root_files.
   { rule: 'layout-root-files-additive', files: { 'config/layout.yml': `${LAYOUT}  - id: layout-root-files\n    paths: ["*", "!README.md", "!Makefile", "!.gitignore", "!go.work", "!Cargo.toml"]\n` } },
+  // K245: the docs layout, the management files at the root, the tests folder and the language of a runtime folder.
+  { rule: 'docs-folders', files: { 'docs/guides/a.md': '# a\n' } },
+  { rule: 'docs-files', files: { 'docs/a.md': '# a\n' } },
+  { rule: 'management-files-at-root', files: { 'packages/go/CHANGELOG.md': '# Changelog\n' } },
+  { rule: 'tests-folder', files: { 'packages/ts/test/a.test.ts': 'export {};\n' } },
+  { rule: 'runtime-language', files: { 'packages/js/src/a.ts': 'export {};\n' } },
 ];
 
 /** Writes `files` below `root`. */
