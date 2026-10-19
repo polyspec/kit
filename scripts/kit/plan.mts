@@ -15,6 +15,10 @@
 //   item-test  ID=<id>
 //              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
 //              fails or that the Claude Code hook refuses (verification.mts)
+//   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
+//              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
+//              paragraphs wrapped at the width of config/commits.json and its trailer lines kept; it refuses what the
+//              commit-msg hook would refuse, and git commit runs the hooks again
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
@@ -22,7 +26,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { fileAt, loadCommitRules, workingItemFindings } from './check-commits.mts';
+import { fileAt, indexItemFindings, loadCommitRules, messageFindings, workingItemFindings } from './check-commits.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
@@ -241,6 +245,52 @@ export function testItem(root: string, id: string, print: (text: string) => void
   return commands;
 }
 
+// A trailer line of a commit message, such as Co-Authored-By: Name <mail>, which git reads by its key and is never wrapped.
+const TRAILER = /^[A-Za-z][A-Za-z0-9-]*: \S/;
+
+/** `body` with each paragraph of prose joined and wrapped at `width`; a paragraph of trailer lines stays as written. */
+export function wrapBody(body: string, width: number): string {
+  return body.trim().split(/\n\s*\n/).map(paragraph => {
+    const lines = paragraph.split('\n');
+    if (lines.every(line => TRAILER.test(line))) return lines.join('\n');
+    const wrapped: string[] = [];
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (line && line.length + 1 + word.length > width) {
+        wrapped.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    }
+    if (line) wrapped.push(line);
+    return wrapped.join('\n');
+  }).join('\n\n');
+}
+
+/** The commit of an item: its ID, the type and scope of the subject, the subject and the file of the body. */
+export type ItemCommit = { id: string; type: string; scope: string; subject: string; bodyFile: string };
+
+/**
+ * Commits the index of `root` with the message of `commit` and returns the message. Throws, committing nothing, when nothing
+ * is staged, the body file is missing or empty, or the message or the change fails what the commit-msg hook checks
+ * (messageFindings and indexItemFindings of check-commits.mts). `env` adds to the environment of git commit.
+ */
+export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
+  if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
+  if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
+  const rules = loadCommitRules(root);
+  const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
+  if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
+  const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
+  const findings = [...messageFindings(message, rules), ...indexItemFindings(root, rules)];
+  if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
+  const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
+  if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`git commit ended with exit status ${result.status}: ${result.stdout}${result.stderr}`);
+  return message;
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [command] = process.argv.slice(2);
@@ -257,8 +307,11 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-test') {
       const id = required(env.ID, 'ID');
       console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
+    } else if (command === 'commit') {
+      const commit = { id: required(env.ID, 'ID'), type: required(env.TYPE, 'TYPE'), scope: required(env.SCOPE, 'SCOPE'), subject: required(env.SUBJECT, 'SUBJECT'), bodyFile: path.resolve(required(env.BODY_FILE, 'BODY_FILE')) };
+      console.log(`[plan] committed ${commitItem(root, commit).split('\n')[0] ?? ''}`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new, item-state or item-test`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new, item-state, item-test or commit`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

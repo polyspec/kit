@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { newItem, newPlan, setState, testItem } from '../../scripts/kit/plan.mts';
+import { commitItem, newItem, newPlan, setState, testItem } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { tree } from './tree.mts';
@@ -142,4 +142,40 @@ test('item-test runs the commands of the Verification cell in order and fails on
   assert.throws(() => testItem(root, 'T2', quiet), /`node -e "process.exit\(3\)"` of T2 ended with exit status 3/);
   assert.ok(!existsSync(path.join(root, 'three')), 'no command runs after the first that failed');
   assert.throws(() => testItem(root, 'T9', quiet), /T9 is no item/);
+});
+
+const log = (root: string) => spawnSync('git', ['log', '-1', '--format=%B'], { cwd: root, encoding: 'utf8' }).stdout;
+const stage = (root: string, ...files: string[]) => assert.equal(spawnSync('git', ['add', ...files], { cwd: root }).status, 0);
+const identity = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' };
+
+test('commit writes the message of an item: the subject, a blank line and the body wrapped, its trailers kept (K249-4)', (t) => {
+  const root = committed(t, 'T1');
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  stage(root, 'a.mts');
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, `${'word '.repeat(30).trim()}\n\nSecond paragraph.\n\nCo-Authored-By: Some One <some.one@example.com>\nRefs: T1\n`);
+  commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body }, identity);
+  const message = log(root);
+  const lines = message.trimEnd().split('\n');
+  assert.equal(lines[0], 'feat(parser): Parse the input (#T1)');
+  assert.equal(lines[1], '');
+  assert.ok(lines.every(line => line.length <= 72), message);
+  assert.match(message, /\n\nSecond paragraph\.\n\nCo-Authored-By: Some One <some\.one@example\.com>\nRefs: T1\n+$/);
+});
+
+test('commit refuses what the commit-msg hook refuses and an empty index, and commits nothing (K249-4)', (t) => {
+  const root = committed(t, 'T1', 'T2');
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, 'Why.\n');
+  const head = log(root);
+  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /nothing is staged/);
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  stage(root, 'a.mts');
+  assert.throws(() => commitItem(root, { id: 'T1', type: 'wip', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /expected "type\(scope\): Subject \(#id\)"/);
+  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'parse.', bodyFile: body }, identity), /does not start with a capital letter/);
+  setState(root, { id: 'T1', state: '[~]' });
+  writeFileSync(path.join(root, 'docs/plans/parser/checklist.md'), readFileSync(path.join(root, 'docs/plans/parser/checklist.md'), 'utf8').replace(/(\| T2 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
+  stage(root, '-A');
+  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /changes the state of 2 items/);
+  assert.equal(log(root), head);
 });
