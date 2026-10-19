@@ -90,6 +90,10 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that no standard is lowered while testing: no runner of kit refuses its own skip and focus markers, so kit reads them in the tracked tests (K255)"
     },
+    "scripts/kit/language-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that comments, identifiers, logs, error messages and test names are English: no lint of the runtimes reads the language of a comment, so kit reads them with the parser of each script (K252)"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

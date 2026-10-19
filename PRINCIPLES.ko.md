@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: d40ea03bd729412fe7daf1d3d4271d59dcad032fdcf0017f89486aa06ff8e1d5 -->
+<!-- source-sha256: 3f4dee82349634d0087d757de4f5fe08d5eeeb88083e7021bcacdf5083ad1d3f -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -48,7 +48,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `.githooks/pre-push`
 - code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
   영어로 쓰는 한국어 쌍을 가집니다.
-  Enforced by: `make commits-check`는 commit message에 대해, planned K252
+  Enforced by: `make commits-check`는 commit message에 대해, `make language-check`는 code에 대해
 
 ## 설계
 

@@ -48,7 +48,7 @@ in kit, with its grounding.
   Enforced by: `.githooks/pre-push`
 - Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
   English, each with a Korean twin that writes technical terms in English.
-  Enforced by: `make commits-check` for the commit messages, planned K252
+  Enforced by: `make commits-check` for the commit messages, `make language-check` for the code
 
 ## Design
 

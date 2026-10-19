@@ -108,6 +108,10 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
+.PHONY: language-check
+language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
+	$(NODE) $(KIT)/language-check.$(KIT_EXT)
+
 .PHONY: test-markers-check
 test-markers-check: ## Fail on a test that a marker skips or narrows: test.skip, it.only, t.Skip, unittest.skip, markTestSkipped, #[ignore] (K255); offline
 	$(NODE) $(KIT)/test-markers.$(KIT_EXT)

@@ -26,6 +26,7 @@ import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { git, gitResult } from './git.mts';
+import { HANGUL } from './language-check.mts';
 import { readConfig } from './schema-validate.mts';
 
 export const CONFIG = 'config/commits.json';
@@ -71,6 +72,8 @@ export function messageFindings(message: string, config: CommitRules) {
     if (description.length > config.subjectMax) found.push({ rule: 'commit-length', message: `the Subject has ${description.length} characters; expected at most ${config.subjectMax}` });
   }
   if (lines.length > 1 && lines[1] !== '') found.push({ rule: 'commit-blank', message: 'the line after the subject is not blank; leave a blank line before the body' });
+  const korean = lines.findIndex(line => HANGUL.test(line));
+  if (korean !== -1) found.push({ rule: 'commit-language', message: `line ${korean + 1} of the message holds Hangul; a commit message is English (K252)` });
   lines.slice(2).forEach((line, index) => {
     if (line.length > config.bodyMax && /\s/.test(line.trim())) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });

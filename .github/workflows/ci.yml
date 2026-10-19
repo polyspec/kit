@@ -114,6 +114,10 @@ jobs:
       - name: rules check
         if: ${{ !cancelled() }}
         run: make rules-check
+      # The comments, identifiers, messages and test names of the code are English (K252).
+      - name: language check
+        if: ${{ !cancelled() }}
+        run: make language-check
       # No test is skipped or narrowed by a marker (K255).
       - name: test markers check
         if: ${{ !cancelled() }}

@@ -31,20 +31,21 @@ export function languageLists(model: ParityModel, root: string) {
 // numerals.
 const NUMBERS: Record<string, number> = { one: 1, two: 2, both: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// The text between two items of one list: a comma, and, or, /, 및, or a Korean particle 와 or 과 after the item.
+// The text between two items of one list: a comma, and, or, /, the Korean conjunction for and, or a Korean particle for and
+// after the item.
 const JOIN = String.raw`\s*,\s*(?:(?:and|or)\s+)?|\s+(?:and|or|및)\s+|(?:와|과)\s+|\s*\/\s*`;
 const SEPARATOR = new RegExp(`^(?:${JOIN})$`, 'iu');
 // Another item before a run of names: an item, then a separator, up to the first name.
 const ITEM_BEFORE = new RegExp(`\\S(?:${JOIN})$`, 'iu');
 // Another item after a run of names: the words of the item of its last name, then a separator and an item.
 const ITEM_AFTER = new RegExp(`^([^,/]*?)(?:${JOIN})\\S`, 'iu');
-// A word that distributes the number after it over the items of its sentence: each, 각각.
+// A word that distributes the number after it over the items of its sentence: each, and its Korean word.
 const DISTRIBUTIVE = ['each', '각각'];
 
 /**
  * The counts of `text`: each number followed by one of `nouns` after a space, a hyphen (four-client) or a Korean counter
- * (6개 언어, 여섯 개 언어, 세 가지 언어), as `{ text, count, index }`. A number after a distributive word counts per item
- * ("are each one implementation", "각각 한 구현"), so it is no count of the implementations of its sentence.
+ * of NUMBERS and the Korean counters of the pattern, as `{ text, count, index }`. A number after a distributive word of
+ * DISTRIBUTIVE counts per item ("are each one implementation"), so it is no count of the implementations of its sentence.
  */
 function countsOf(text: string, nouns: string[]) {
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?<!(?<![\\p{L}\\p{N}])(?:${DISTRIBUTIVE.join('|')})\\s+)(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');

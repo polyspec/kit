@@ -37,6 +37,11 @@ test('commit-capital, commit-period and commit-length: the Subject', () => {
   assert.deepEqual(long.map(found => [found.rule, found.message]), [['commit-length', 'the Subject has 51 characters; expected at most 50']]);
 });
 
+test('commit-language: a message holds no Hangul (K252)', () => {
+  assert.deepEqual(rules('feat(core): Add the parser (#K1)\n\nThe body names 파서.\n'), ['commit-language']);
+  assert.deepEqual(rules('feat(core): Add the parser (#K1)\n\nThe body is English.\n'), []);
+});
+
 test('commit-blank and commit-width: the body', () => {
   assert.deepEqual(rules('feat(docs): Merge the checks (#K1)\nbody without a blank line'), ['commit-blank']);
   const wide = `feat(docs): Merge the checks (#K1)\n\n${'word '.repeat(15)}\nshort\n${'x'.repeat(100)}\n`;

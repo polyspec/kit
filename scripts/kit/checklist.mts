@@ -133,7 +133,7 @@ export const describeFinding = (finding: ChecklistFinding): string => (finding.l
  * The strict reading (`strict: true`) is the reading of the document check. It reports the same and also that a checklist
  * holds only tasks: a line that is not a heading, a task or a document marker; a state marker that is not the state of a
  * task; a state cell that holds more than its state (a state is alone in its cell, but `[!]` is followed by
- * `cause: <cause>; retry: <condition>` and `[-]` by `cause: <cause>`). The Korean labels 원인: and 재시도: are accepted. Each
+ * `cause: <cause>; retry: <condition>` and `[-]` by `cause: <cause>`). The Korean labels of the cause and the retry condition of TABLE_BYPASS and TABLE_IMPOSSIBLE are accepted. Each
  * finding has a line and a column.
  */
 export function readChecklist(text: string, tracker: Tracker, { strict = false }: { strict?: boolean } = {}): { items: ChecklistItem[]; findings: ChecklistFinding[] } {
