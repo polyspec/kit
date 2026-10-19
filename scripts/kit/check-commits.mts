@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { DONE, loadConfig, PLANS, readChecklist, trackersOf } from './checklist.mts';
+import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { git, gitResult } from './git.mts';
 import { readConfig } from './schema-validate.mts';
 
@@ -84,7 +84,7 @@ const plansAt = (root: string, rev: string) => (rev === '' ? git(root, 'ls-files
 
 // The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file. Whether it
 // has the file is read from git ls-tree (ls-files for the index); any failure of git show then throws.
-const fileAt = (root: string, rev: string, file: string) => {
+export const fileAt = (root: string, rev: string, file: string) => {
   const listed = rev === '' ? git(root, 'ls-files', '--cached', '--', file) : git(root, 'ls-tree', '--name-only', rev, '--', file);
   if (listed.trim() === '') return '';
   const shown = gitResult(root, 'show', `${rev}:${file}`);
@@ -138,6 +138,22 @@ export function indexItemFindings(root: string, config: CommitRules) {
     after: file => fileAt(root, '', file),
     changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
     plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
+  });
+}
+
+/**
+ * The item findings of a commit of the working tree with `files` ({ path: text }) written over it, against HEAD: what the
+ * commit-msg hook would refuse once these files and the other changes of the working tree are committed (K249-2).
+ */
+export function workingItemFindings(root: string, config: CommitRules, files: Record<string, string>) {
+  const head = gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status === 0;
+  const lines = (text: string) => text.split('\n').filter(Boolean);
+  const changed = new Set([...(head ? lines(git(root, 'diff', '--name-only', 'HEAD')) : []), ...lines(git(root, 'ls-files', '--others', '--exclude-standard')), ...Object.keys(files)]);
+  return itemFindings(root, config, {
+    before: file => (head ? fileAt(root, 'HEAD', file) : ''),
+    after: file => files[file] ?? (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : ''),
+    changed: [...changed],
+    plans: [...(head ? plansAt(root, 'HEAD') : []), ...workingPlanFiles(root)],
   });
 }
 

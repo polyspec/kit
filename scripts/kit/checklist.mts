@@ -26,7 +26,7 @@ const CHECKLIST_FILE = /^docs\/plans\/([^/]+)\/checklist\.md$/;
 export const WAITING = '[ ]';
 export const ACTIVE = '[~]';
 export const DONE = '[o]';
-const BYPASSED = '[!]';
+export const BYPASSED = '[!]';
 export const IMPOSSIBLE = '[-]';
 export const STATES = [WAITING, ACTIVE, DONE, BYPASSED, IMPOSSIBLE] as const;
 

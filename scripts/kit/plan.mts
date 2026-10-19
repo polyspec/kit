@@ -8,13 +8,18 @@
 //   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= VERIFICATION=
 //              adds the row of the item in the waiting state to the checklist of the plan and to its Korean twin: a sub-item
 //              (an ID that ends in -<n>) after the last sub-item of its parent, another item at the end of the last table
+//   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
+//              moves the item to STATE in both languages along an allowed transition; the done state needs a line with
+//              (<id>) that the working tree adds to each changelog of config/commits.json, the bypassed state a cause and a
+//              retry condition, the impossible state a cause; it refuses what the commit-msg hook would refuse
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { checklistsFindings, describeFinding, loadConfig, PLANS, planFindings, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { ACTIVE, BYPASSED, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { fileAt, loadCommitRules, workingItemFindings } from './check-commits.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
@@ -132,6 +137,76 @@ function refuseAdded(root: string, trackers: Tracker[], files: Record<string, st
   if (added.length) throw new Error(added.map(({ file, finding }) => `${file}: ${describeFinding(finding)}`).join('\n'));
 }
 
+// The states that an item in each state may move to: work starts, ends done, bypassed or impossible, or stops; a bypass
+// resumes. A done or an impossible item stays; a new finding on it is an item of its own (a derived ID).
+const TRANSITIONS: Record<string, readonly string[]> = {
+  [WAITING]: [ACTIVE, IMPOSSIBLE],
+  [ACTIVE]: [DONE, BYPASSED, IMPOSSIBLE, WAITING],
+  [BYPASSED]: [ACTIVE],
+  [DONE]: [],
+  [IMPOSSIBLE]: [],
+};
+
+/** The new state of an item, with the texts that its cell needs in the bypassed and the impossible state. */
+export type NewState = { id: string; state: string; cause?: string | undefined; retry?: string | undefined; causeKo?: string | undefined; retryKo?: string | undefined };
+
+/** The state cells of `change` in English and Korean. */
+function stateCells({ state, cause, retry, causeKo, retryKo }: NewState): [string, string] {
+  if (state === BYPASSED) return [`${state} cause: ${cell(cause, 'CAUSE')}; retry: ${cell(retry, 'RETRY')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}; 재시도: ${cell(retryKo, 'RETRY_KO')}`];
+  if (state === IMPOSSIBLE) return [`${state} cause: ${cell(cause, 'CAUSE')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}`];
+  return [state, state];
+}
+
+/** `text` with the last cell of the row of `id` replaced by `state`. */
+function withState(text: string, id: string, state: string): string {
+  const lines = text.split('\n');
+  const index = rowIds(text).find(entry => entry.id === id)?.index;
+  const block = index === undefined ? undefined : lineBlocks(text)[index];
+  if (index === undefined || block?.kind !== 'tableRow') throw new Error(`the checklist holds no row of ${id}`);
+  const last = present(block.cells.at(-1), 'block.cells.at(-1)');
+  lines[index] = `${present(lines[index], 'lines[index]').slice(0, last.start)} ${state} |`;
+  return lines.join('\n');
+}
+
+/**
+ * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
+ * { path: text }. Throws, writing nothing, on a state that is none of the five, a transition that TRANSITIONS does not allow,
+ * the done state without a line with (<id>) that the working tree adds to each changelog of config/commits.json, a missing
+ * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
+ */
+export function setState(root: string, change: NewState): Record<string, string> {
+  if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const found = trackers.flatMap(tracker => readChecklist(read(tracker.path), tracker).items.filter(item => item.id === change.id).map(item => ({ tracker, item })));
+  const [entry] = found;
+  if (!entry) throw new Error(`${change.id} is no item of a checklist of ${PLANS}`);
+  const allowed = present(TRANSITIONS[entry.item.state], 'TRANSITIONS[state]');
+  if (!allowed.includes(change.state)) {
+    const next = allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own';
+    throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
+  }
+  const rules = loadCommitRules(root);
+  if (change.state === DONE) {
+    const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
+    if (changelogs.length === 0) throw new Error('config/commits.json declares no changelog; the done state needs the entry of the item in it');
+    const count = (text: string) => text.split('\n').filter(line => line.includes(`(${change.id})`)).length;
+    for (const file of changelogs) {
+      if (count(existsSync(path.join(root, file)) ? read(file) : '') <= count(fileAt(root, 'HEAD', file))) throw new Error(`${file} adds no line with (${change.id}) to HEAD; record the item in the changelog of both languages first`);
+    }
+  }
+  const [english, korean] = stateCells(change);
+  const files = {
+    [entry.tracker.path]: withState(read(entry.tracker.path), change.id, english),
+    [entry.tracker.translation]: withState(read(entry.tracker.translation), change.id, korean),
+  };
+  refuseAdded(root, trackers, files);
+  const refused = workingItemFindings(root, rules, files);
+  if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
+  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
+  return files;
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [command] = process.argv.slice(2);
@@ -142,8 +217,11 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-new') {
       const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
+    } else if (command === 'item-state') {
+      const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
+      for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new or item-new`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new or item-state`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

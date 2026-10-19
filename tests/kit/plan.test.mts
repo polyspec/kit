@@ -1,10 +1,11 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and documents-check run on it (K249).
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { newItem, newPlan } from '../../scripts/kit/plan.mts';
+import { newItem, newPlan, setState } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { tree } from './tree.mts';
@@ -70,4 +71,56 @@ test('item-new refuses an ID of another checklist, a sub-item without its parent
   assert.throws(() => newItem(root, item('lexer', 'T2', { taskKo: ' ' })), /TASK_KO is empty/);
   assert.throws(() => newItem(root, item('nothing', 'T2')), /docs\/plans\/nothing\/checklist.md is no checklist/);
   assert.deepEqual(before(), kept);
+});
+
+const COMMITS = { 'config/commits.json': '{"schema":1,"types":["feat"],"subjectMax":50,"bodyMax":72,"changelog":{"path":"CHANGELOG.md","translation":"CHANGELOG.ko.md"}}\n' };
+const CHANGELOG = '# Changelog\n\n## Unreleased\n\n';
+
+/** A committed checkout with the plan parser and its items `ids`, each waiting. */
+function committed(t: Parameters<typeof tree>[0], ...ids: string[]) {
+  const root = plans(t, 'parser');
+  for (const id of ids) newItem(root, item('parser', id));
+  for (const [file, text] of Object.entries({ ...COMMITS, 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG })) writeFileSync(path.join(root, file), text);
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'base']]) {
+    const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+  }
+  return root;
+}
+
+const states = (root: string, file: string) => rows(root, file).map(row => row.split(' | ').at(-1));
+
+test('item-state performs an allowed transition in both languages and refuses another (K249-2)', (t) => {
+  const root = committed(t, 'T1');
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.deepEqual([states(root, 'docs/plans/parser/checklist.md'), states(root, 'docs/plans/parser/checklist.ko.md')], [['[~] |'], ['[~] |']]);
+  assert.throws(() => setState(root, { id: 'T1', state: '[~]' }), /T1 is \[~\]; from \[~\] an item moves to \[o\], \[!\], \[-\] or \[ \]/);
+  assert.throws(() => setState(root, { id: 'T9', state: '[~]' }), /T9 is no item of a checklist/);
+  assert.throws(() => setState(root, { id: 'T1', state: '[x]' }), /the state "\[x\]" is none of/);
+});
+
+test('item-state sets done only when the working tree adds the item to the changelog of both languages (K249-2)', (t) => {
+  const root = committed(t, 'T1');
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md adds no line with \(T1\)/);
+  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
+  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.ko.md adds no line with \(T1\)/);
+  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
+  setState(root, { id: 'T1', state: '[o]' });
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
+});
+
+test('item-state writes the cause and the retry condition of a bypass and the cause of an impossible item in both languages (K249-2)', (t) => {
+  const root = committed(t, 'T1', 'T2');
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause: 'no runner' }), /RETRY is empty/);
+  setState(root, { id: 'T1', state: '[!]', cause: 'no runner', retry: 'T2 done', causeKo: 'runner 없음', retryKo: 'T2 완료' });
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md')[0], '| T1 | Task T1 | `a.mts` | `node --test a.test.mts` | [!] cause: no runner; retry: T2 done |');
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [!] 원인: runner 없음; 재시도: T2 완료 |');
+});
+
+test('item-state refuses while another item has a state other than that of HEAD, as the commit check would (K249-2)', (t) => {
+  const root = committed(t, 'T1', 'T2');
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /the commit changes the state of 2 items/);
 });
