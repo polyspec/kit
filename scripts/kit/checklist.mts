@@ -256,6 +256,36 @@ export function twinFindings(english: ChecklistItem[], korean: ChecklistItem[], 
     : { rule: 'checklist-pair', message: `${item.id} is ${item.state} in ${tracker.path} and ${present(korean[index], 'korean[index]').state} in ${tracker.translation}` }]));  // korean[index] exists, as above.
 }
 
+/** A finding of one file of a checklist. */
+export type FileFinding = { file: string; finding: ChecklistFinding };
+
+/**
+ * The findings of the checklists of `trackers` as documents-check reads them: the strict reading of each checklist and of its
+ * translation that `read` gives (undefined for a missing file, which the pair check reports), the comparison of the twins
+ * and the cross check of the item IDs. The plan utilities check the files they would write with it too (K249).
+ */
+export function checklistsFindings(trackers: readonly Tracker[], read: (file: string) => string | undefined): FileFinding[] {
+  const found: FileFinding[] = [];
+  const checklists: { tracker: Tracker; items: ChecklistItem[] }[] = [];
+  const strictItems = (file: string) => {
+    const text = read(file);
+    if (text === undefined) return undefined;
+    const result = readChecklist(text, tracker(file), { strict: true });
+    for (const finding of result.findings) found.push({ file, finding });
+    return result.items;
+  };
+  const byFile = new Map(trackers.flatMap(entry => [[entry.path, entry], [entry.translation, entry]] as const));
+  const tracker = (file: string) => present(byFile.get(file), 'byFile.get(file)');
+  for (const entry of trackers) {
+    const english = strictItems(entry.path);
+    const korean = strictItems(entry.translation);
+    if (english) checklists.push({ tracker: entry, items: english });
+    if (english && korean) for (const finding of twinFindings(english, korean, entry, { strict: true })) found.push({ file: entry.translation, finding });
+  }
+  for (const entry of crossFindings(checklists)) found.push({ file: entry.file, finding: { line: entry.line, column: 1, rule: 'checklist-cross', message: entry.message } });
+  return found;
+}
+
 /** The differences between a document and its translation, read leniently; throws when either cannot be read. */
 export function compareTwin(english: string, korean: string, tracker: Tracker): string[] {
   const a = readChecklist(english, tracker);

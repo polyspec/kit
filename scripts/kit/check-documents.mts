@@ -22,7 +22,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
-import { CONFIG as CHECKLIST_CONFIG, crossFindings, loadConfig as loadChecklists, planFindings, readChecklist, trackersOf, twinFindings, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
+import { checklistsFindings, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, planFindings, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mts';
@@ -215,19 +215,9 @@ export function check(root: string, config: DocumentsConfig) {
       add(CHECKLIST_CONFIG, { rule: 'config', message: error.message });
     }
   }
-  const checklistItems: { tracker: Tracker; items: ReturnType<typeof readChecklist>['items'] }[] = [];
-  for (const list of checklists) {
-    const results: ReturnType<typeof readChecklist>['items'][] = [];
-    both([list.path, list.translation], 'docs/plans', (name, text) => {
-      const result = readChecklist(text, list, { strict: true });
-      for (const entry of result.findings) add(name, entry);
-      results.push(result.items);
-    });
-    if (results[0]) checklistItems.push({ tracker: list, items: results[0] });
-    // Two results are those of the tracker and of its translation.
-    if (results.length === 2) for (const entry of twinFindings(present(results[0], 'results[0]'), present(results[1], 'results[1]'), list, { strict: true })) add(present(list.translation, 'list.translation'), entry);
-  }
-  for (const entry of crossFindings(checklistItems)) add(entry.file, { line: entry.line, column: 1, rule: 'checklist-cross', message: entry.message });
+  const missing = checklists.flatMap(list => [list.path, list.translation]).filter(file => !existsSync(path.join(root, file)));
+  for (const file of missing) add(file, { rule: 'pair-missing', message: 'the file named in docs/plans does not exist' });
+  for (const { file, finding } of checklistsFindings(checklists, file => (missing.includes(file) ? undefined : read(file)))) add(file, finding);
   // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
   const prose = documents.filter(name => name.startsWith('docs/'));
   for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {
