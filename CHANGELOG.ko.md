@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6c2be4db545971ae617a504e3d4d5fa0215537a246076ffccec6c76df1d7cc29 -->
+<!-- source-sha256: 8b3c165a85638f3bbb0b6b7d4fe0ca5d93f8951f93cf632ed86506d4904197b9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- duplication check는 kit의 isolation test가 읽는, 실행하는 jscpd의 command를 명시한다 (K248-3-1).
 - `make test-markers-check`(`test-markers.mts`)는 marker가 건너뛰거나 좁히는 test에서 실패한다. parser로 읽는 node:test 또는 vitest의 `test.skip`, `it.only`, `skip`, `only`, `todo` option과, code 줄의 `t.Skip`, `unittest.skip`, `pytest.mark.skip`, `markTestSkipped`, `#[ignore]`이다. kit의 CI가 실행한다 (K255).
 - 삼킨 오류는 그 언어의 lint에서 실패한다. oxlint `no-empty`와 `no-useless-catch`, ruff BLE001, S110, S112, phpcs `Generic.CodeAnalysis.EmptyStatement`, clippy `let_underscore_must_use`, golangci-lint의 errcheck이며, 각각 test에 실패하는 sample이 있다 (K256).
 - `make duplication-check`는 kit.mk의 도구(`duplication-check.mts`)이므로 모든 저장소가 실행한다. 이제 package의 dependency인 jscpd가 `config/duplication.json`이 이유와 함께 제외하는 folder 밖에서 checkout의 code를 runtime의 format으로 읽는다 (K248-3).

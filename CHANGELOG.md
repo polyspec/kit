@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The duplication check names the command of jscpd that it runs, which the isolation test of kit reads (K248-3-1).
 - `make test-markers-check` (`test-markers.mts`) fails on a test that a marker skips or narrows: `test.skip`, `it.only`, a `skip`, `only` or `todo` option of node:test or vitest read with the parser, and `t.Skip`, `unittest.skip`, `pytest.mark.skip`, `markTestSkipped` and `#[ignore]` on a line of code; kit's CI runs it (K255).
 - A swallowed error fails the lint of its language: oxlint `no-empty` and `no-useless-catch`, ruff BLE001, S110 and S112, phpcs `Generic.CodeAnalysis.EmptyStatement`, clippy `let_underscore_must_use`, and errcheck of golangci-lint, each with a failing sample in the tests (K256).
 - `make duplication-check` is a tool of kit.mk (`duplication-check.mts`), so every repository runs it: jscpd, now a dependency of the package, reads the code of the checkout in the formats of the runtimes outside the folders that `config/duplication.json` excludes with their reasons (K248-3).

@@ -15,6 +15,8 @@ export const CONFIG = 'config/duplication.json';
 // The code formats of jscpd for the runtimes of kit (S5) and the C of the PHP extensions.
 const FORMATS = ['typescript', 'javascript', 'go', 'php', 'python', 'rust', 'c'];
 const MIN_LINES = '6';
+// The command of the package jscpd that the check runs.
+const COMMAND = 'jscpd';
 
 /** config/duplication.json as duplication.schema.json describes it. */
 type DuplicationConfig = { schema: 1; exclude: { glob: string; reason: string }[] };
@@ -24,8 +26,8 @@ function jscpd(): string {
   const manifest = createRequire(import.meta.url).resolve('jscpd/package.json');
   const parsed = readJson(manifest);
   const bin = isJsonObject(parsed) ? parsed.bin : undefined;
-  const relative = typeof bin === 'string' ? bin : isJsonObject(bin) ? bin.jscpd : undefined;
-  if (typeof relative !== 'string') throw new Error(`${manifest} names no bin jscpd`);
+  const relative = typeof bin === 'string' ? bin : isJsonObject(bin) ? bin[COMMAND] : undefined;
+  if (typeof relative !== 'string') throw new Error(`${manifest} names no bin ${COMMAND}`);
   return path.join(path.dirname(manifest), relative);
 }
 
