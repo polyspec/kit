@@ -292,6 +292,9 @@ another archive. To raise the version:
 
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
+K240 removed `full-run.mts`, its record `var/full-run.json` and the target `rerun-failed`: the full suite runs only in CI
+(`ci-only.mts`), and the table below records the merge of K6.1.
+
 Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`,
 `staged-generated-hook`, `push-gate-commit` and `rerun-failed` at the end of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
@@ -438,7 +441,7 @@ Merged behaviors:
   names, a package directory is one outside them (crudui assumed the directory `packages/`).
 - `variable` (template, hyper) passes the matched paths to the targets of a rule as a make variable.
 - Targets are ordered by `CHECK_TARGETS` (template, hyper); the other checks keep the order of the declaration (crudui).
-- The full-suite targets are those whose recipe starts `full-run.mts` and those named in `fullSuite`; template's fixed names
+- The full-suite targets are those whose recipe starts `ci-targets.mts` (`full-run.mts` before K240) and those named in `fullSuite`; template's fixed names
   `check`, `rerun-failed` and the clean release check become entries of `fullSuite`.
 - A rule that selects every target of `CHECK_TARGETS` fails (template). The `inputs` check is the crudui form; its
   declaration is a list of `{ check, paths }`.

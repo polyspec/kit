@@ -18,7 +18,7 @@
       "type": "string"
     },
     "fullSuite": {
-      "description": "Make targets that run the full suite besides the targets whose recipe starts full-run.mts; an owner rule never selects them.",
+      "description": "Make targets that run the full suite besides the targets whose recipe starts ci-targets.mts; an owner rule never selects them.",
       "type": "array",
       "items": { "type": "string" }
     },

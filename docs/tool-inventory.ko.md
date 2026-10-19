@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 890087eff2f4396b5c8fc701553da095f8b43c0ffb696e74fecff6c68b6d179d -->
+<!-- source-sha256: b816dd232f4842335d0006e9ae0594326a1c5c6bcece807191cd98288343ade6 -->
 
 # 도구 목록
 
@@ -261,6 +261,9 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
+K240은 `full-run.mts`, 그 record `var/full-run.json`, target `rerun-failed`를 제거했습니다. full suite는 CI에서만 실행되고
+(`ci-only.mts`), 아래 표는 K6.1의 병합을 기록합니다.
+
 파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,
 `staged-generated-hook`, `push-gate-commit`, `rerun-failed`입니다.
@@ -399,7 +402,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   것입니다(crudui는 directory `packages/`를 가정했습니다).
 - `variable`(template, hyper)은 rule의 target에 일치한 경로를 make 변수로 넘깁니다.
 - target은 `CHECK_TARGETS` 순서(template, hyper)로 정렬하고, 다른 check는 선언 순서(crudui)를 유지합니다.
-- full suite target은 recipe가 `full-run.mts`를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
+- full suite target은 recipe가 `ci-targets.mts`(K240 이전에는 `full-run.mts`)를 시작하는 target과 `fullSuite`에 적은 target입니다. template의 고정 이름 `check`,
   `rerun-failed`, clean release check는 `fullSuite`의 항목이 됩니다.
 - `CHECK_TARGETS`의 모든 target을 고르는 rule은 실패합니다(template). `inputs` 검사는 crudui 형식이고, 선언은
   `{ check, paths }`의 목록입니다.

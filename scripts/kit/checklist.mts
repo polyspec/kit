@@ -1,5 +1,5 @@
 // The checklists of a repository: the documents whose items carry a state, declared in config/checklist.json. The push gate
-// (push-gate.mts) and the guard of the full run (full-run.mts) read the items that are in the active state of each
+// (push-gate.mts) reads the items that are in the active state of each
 // checklist; the document check (check-documents.mts) reads the same checklists strictly. One function, readChecklist,
 // reads a checklist at both levels.
 //

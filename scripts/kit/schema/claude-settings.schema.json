@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": ".claude/settings.json",
+  "description": "The Claude Code settings that kit vendors from claude/settings.json: the PreToolUse hook that runs scripts/kit/claude-hook.mts before a Bash command.",
+  "type": "object",
+  "required": ["hooks"],
+  "additionalProperties": false,
+  "properties": {
+    "hooks": {
+      "type": "object",
+      "required": ["PreToolUse"],
+      "additionalProperties": false,
+      "properties": {
+        "PreToolUse": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["matcher", "hooks"],
+            "additionalProperties": false,
+            "properties": {
+              "matcher": { "description": "The tool whose calls the hooks receive.", "type": "string" },
+              "hooks": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["type", "command"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": { "type": "string", "const": "command" },
+                    "command": { "description": "The command that receives the hook input on stdin.", "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

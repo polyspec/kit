@@ -35,7 +35,7 @@ const PLACEHOLDER = new RegExp(String.raw`\$\{${PLACEHOLDER_NAME}(\d+)\}`, 'g');
  * shell-quote: a quoted string is one word with its quotes removed, and an operator or a blank inside quotes is text of the
  * word, so `echo "a|node"` is one command. Each reference of make, which the shell never sees, stays one word as written.
  */
-function commandParts(line: string): string[][] {
+export function commandParts(line: string): string[][] {
   // A placeholder of the line itself would be read as a reference of make: one beyond the references lost its word, one
   // within them took the word of another (K187).
   if (line.includes(PLACEHOLDER_NAME)) {

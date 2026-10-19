@@ -25,7 +25,7 @@
 // as the interpreter that the mise shim runs (K141). The runner stops the group with SIGTERM and, when the tool has not
 // closed after a grace period, with SIGKILL: at a test's timeout, and when the runner itself receives SIGINT, SIGTERM or
 // SIGHUP, after which it ends on that signal. Only a SIGKILL of the runner itself, which no process can handle, leaves the
-// group running. A run in which no test passed, failed or ran out of time fails, so a selection
+// group running. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -44,6 +44,8 @@ import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
+import { ciRefusal } from './ci-only.mts';
+import { isFile, selects } from './test-selection.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -194,12 +196,18 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
   signalGroup(pgid, 'SIGKILL', kill);
 }
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args } = toolCommand(options, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
+  // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
+  const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv);
+  if (unselected) {
+    write(`✖ ${label}: ${unselected}\n`);
+    return 1;
+  }
   const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
   if (unbuilt) {
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);

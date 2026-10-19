@@ -25,6 +25,7 @@ import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
+import { ciRefusal } from './ci-only.mts';
 import { git } from './git.mts';
 import { readConfig } from './schema-validate.mts';
 import { readNpmManifest } from './manifests.mts';
@@ -185,12 +186,12 @@ export function suiteTargets(make: MakeDatabase) {
 }
 
 /**
- * The targets that run the full suite: those the declaration names and those whose recipe starts full-run, by its path in
- * kit (`scripts/kit/full-run.mts`) or as kit.mk names it (`$(KIT)/full-run.$(KIT_EXT)`).
+ * The targets that run the full suite: those the declaration names and those whose recipe starts ci-targets, by its path
+ * in kit (`scripts/kit/ci-targets.mts`) or as kit.mk names it (`$(KIT)/ci-targets.$(KIT_EXT)`).
  */
 export function fullSuiteTargets(make: MakeDatabase, declared: string[] = []) {
   const result = new Set(declared);
-  for (const [name, { recipe }] of make.targets) if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)full-run\.(?:mts|\$\(KIT_EXT\))/.test(recipe)) result.add(name);
+  for (const [name, { recipe }] of make.targets) if (/(?:scripts\/(?:kit\/)?|\$\(KIT\)\/)ci-targets\.(?:mts|\$\(KIT_EXT\))/.test(recipe)) result.add(name);
   return result;
 }
 
@@ -410,6 +411,12 @@ if (isMain(import.meta.url)) {
   if (values.validate) {
     say(`${DECLARATION} owns every tracked path`);
     process.exit(0);
+  }
+  // Running the owners is a group of the suite and runs only in CI (ci-only.mts); --dry-run prints the selection.
+  const refused = values['dry-run'] ? null : ciRefusal('make owner-check');
+  if (refused) {
+    complain(refused);
+    process.exit(1);
   }
   const changed = changedPaths(root, values);
   const selection = select(declaration, changed, suiteTargets(project.make), exists, importers);

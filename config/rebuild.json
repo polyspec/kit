@@ -78,6 +78,10 @@
       "kind": "policy",
       "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
     },
+    "scripts/kit/ci-only.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that the full suite runs only in CI: the refusal of a suite command outside a GitHub Actions run"
+    },
     "scripts/kit/ci-passed.mts": {
       "kind": "policy",
       "reason": "the result of the last job of a polyspec CI workflow over the results of the other jobs"
@@ -85,6 +89,10 @@
     "scripts/kit/ci-targets.mts": {
       "kind": "policy",
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
+    },
+    "scripts/kit/claude-hook.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that only the unit tests that own a change run locally, as the Claude Code PreToolUse hook of a repository"
     },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",
@@ -105,10 +113,6 @@
     "scripts/kit/findings.mts": {
       "kind": "policy",
       "reason": "the finding shape of kit's document checks"
-    },
-    "scripts/kit/full-run.mts": {
-      "kind": "policy",
-      "reason": "the guard of polyspec's full suite: a holder lock and the record of the run"
     },
     "scripts/kit/generated-files.mts": {
       "kind": "policy",
@@ -369,6 +373,10 @@
     "scripts/kit/target-report.mts": {
       "kind": "policy",
       "reason": "the report of a run of make targets, polyspec's CI contract"
+    },
+    "scripts/kit/test-selection.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that a local test run selects its tests: which arguments of each test runner select a file, a name or an id"
     },
     "scripts/kit/test-exit-deadline.mts": {
       "kind": "ecosystem",

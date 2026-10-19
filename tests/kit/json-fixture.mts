@@ -23,7 +23,7 @@ const SCHEMAS: Record<string, string> = {
   'release.json': 'release.schema.json',
   'toolchain.json': 'toolchain.schema.json',
   'record.json': 'run-record.schema.json',
-  'full-run.json': 'full-run-record.schema.json',
+  'settings.json': 'claude-settings.schema.json',
 };
 
 /** The schema file of kit of the JSON file `file`; throws for a file that no schema describes. */

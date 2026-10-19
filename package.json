@@ -54,6 +54,7 @@
     "config/php-lint/composer.json",
     "config/php-lint/composer.lock",
     "workflows/release.yml",
+    "claude/settings.json",
     "PRINCIPLES.md",
     "PRINCIPLES.ko.md"
   ],
@@ -89,6 +90,7 @@
       "scripts/kit/bootstrap/tool-wrappers.mts": "scripts/kit/bootstrap/tool-wrappers.mts",
       "scripts/kit/bootstrap/toolchain-declared.mts": "scripts/kit/bootstrap/toolchain-declared.mts",
       ".github/workflows/release.yml": "workflows/release.yml",
+      ".claude/settings.json": "claude/settings.json",
       "PRINCIPLES.md": "PRINCIPLES.md",
       "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
       "config/layout.kit.yml": "config/layout.kit.yml",

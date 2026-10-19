@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: 13afb175cbaaf0b2d0c7ee14f8b8033701421c437bc1e4402de9a634f7b34a1d -->
+<!-- source-sha256: 001676cd134da7d2bcdb8af416ff75678af2b0345bfeba3c4c1ca7ad3480ec5e -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -14,7 +14,7 @@
 | Toolchain | bootstrap(`bootstrap/bootstrap.mts`: packageManager의 npm과 mise), `install-tools.mts`(`mise.toml`과 `mise.lock`의 `mise install --locked`, 이어서 wheel backend, Composer project, `install-rust.mts`의 Rust channel), `toolchain-lock.mts`, `mise-tools.mts`, `toolchain-mise.mts`, `check-toolchain.mts`, `check-cargo-downloads.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | 폴더 layout | `mise.toml`의 alint가 `config/layout.kit.yml`의 공통 rule 위에 `config/layout.yml`을 돌림 | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, 복사된 설정(docs/tool-inventory.md, Lint 설정)과 `mise.toml`의 ruff, vulture, golangci-lint, deadcode, `install-php-lint.mts`의 PHP lint | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
-| Gate | `push-gate.mts`, `full-run.mts`, `git-hooks.mts`, `generated-files.mts`, `holder-lock.mts`, `checklist.mts` | `hooks`, `hooks-check`, `staged-generated-hook`, `push-gate-commit`, `rerun-failed` |
+| Gate | `push-gate.mts`, `git-hooks.mts`, `generated-files.mts`, `holder-lock.mts`, `checklist.mts`, `ci-only.mts` (full suite는 CI에서만 실행), `claude-hook.mts` (vendor되는 Claude Code hook) | `hooks`, `hooks-check`, `staged-generated-hook`, `push-gate-commit` |
 | 문서와 commit | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `documents-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | 테스트와 CI | `run-tests.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
 | Release | `release.mts`, `release-consumer.mts`, `release-proof.mts`, `release-assets.mts` | `release-assets-fetch`, `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |

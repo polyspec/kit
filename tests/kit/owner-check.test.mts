@@ -26,7 +26,7 @@ build:
 lint:
 \t@echo lint
 check:
-\tnode scripts/kit/full-run.mts
+\tnode scripts/kit/ci-targets.mts var/report/ci docs-check unit-test lint
 `;
 const FILES = {
   Makefile: MAKEFILE,
@@ -95,9 +95,9 @@ test('a target that is not in the Makefile and a target that runs the full suite
   has(errorsOf(t, { ...DECLARATION, fullSuite: ['absent'] }), 'fullSuite names absent');
 });
 
-test('a target that runs full-run through $(KIT) of kit.mk is a full-suite target (K71-2)', (t) => {
+test('a target that runs ci-targets through $(KIT) of kit.mk is a full-suite target (K71-2)', (t) => {
   // kit.mk names its tools as $(KIT)/<tool>.$(KIT_EXT), so a repository writes the full run the same way.
-  const makefile = `${MAKEFILE}gate:\n\tnode $(KIT)/full-run.$(KIT_EXT) run docs-check lint\n`;
+  const makefile = `${MAKEFILE}gate:\n\tnode $(KIT)/ci-targets.$(KIT_EXT) var/report/ci docs-check lint\n`;
   const full = errorsOf(t, { ...DECLARATION, owners: [...DECLARATION.owners, { paths: ['src/**'], targets: ['gate'] }] }, { ...FILES, Makefile: makefile });
   has(full, 'the target gate of src/** runs the full suite');
 });
@@ -269,8 +269,9 @@ test('the tests run through run-tests.mts or through the declared test target', 
   assert.deepEqual(commandsOf({ checks: [], tests: [] }, {}), []);
 });
 
-function command(root: string, args: string[]) {
-  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/owner-check.mts')), ...args], { cwd: root, encoding: 'utf8' });
+// Running the owners is a group of the suite, which runs only in CI (ci-only.mts); `ci` marks the run as one.
+function command(root: string, args: string[], { ci = true }: { ci?: boolean } = {}) {
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/owner-check.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: ci ? 'true' : '' } });
 }
 
 function checkout(t: TestContext, declaration: OwnerDeclaration = DECLARATION, files: Record<string, string> = {}) {
@@ -318,4 +319,15 @@ test('the command fails with the fix when the declaration is missing', (t) => {
   const run = command(root, ['--validate']);
   assert.equal(run.status, 1);
   assert.match(run.stderr, /config\/owner-checks\.json does not exist; declare the owner of each path there/);
+});
+
+test('running the owners refuses outside CI and runs no check; --dry-run prints the selection', (t) => {
+  const makefile = 'CHECK_TARGETS := first second\nfirst:\n\t@echo ran-first\nsecond:\n\t@echo ran-second\n';
+  const root = tree(t, { Makefile: makefile, 'a.txt': 'x', 'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['a.txt'], targets: ['first'] }, { paths: ['Makefile', 'config/**'], targets: ['second'] }] }) });
+  const refused = command(root, ['--paths', 'a.txt'], { ci: false });
+  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+  assert.match(refused.stderr, /make owner-check runs only in CI/);
+  assert.doesNotMatch(refused.stdout, /ran-first/);
+  const dry = command(root, ['--paths', 'a.txt', '--dry-run'], { ci: false });
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
 });

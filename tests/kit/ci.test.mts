@@ -36,7 +36,7 @@ function setup(t: TestContext, files: Record<string, string> = {}) {
 async function run(root: string, targets: string[], extra: Partial<Parameters<typeof ciTargets>[0]> = {}) {
   const printed: string[] = [];
   const outputs: Array<[string, string]> = [];
-  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH }, print: (line: string) => printed.push(line), output: (text: string, stream: string) => outputs.push([stream, text]), ...extra });
+  const status = await ciTargets({ root, directory: 'var/report/ci', targets, environment: { node: 'v-test' }, env: { PATH: process.env.PATH, GITHUB_ACTIONS: 'true' }, print: (line: string) => printed.push(line), output: (text: string, stream: string) => outputs.push([stream, text]), ...extra });
   const read = (file: string) => readFileSync(path.join(root, 'var/report/ci', file), 'utf8');
   return { status, printed, outputs, read, record: () => readJsonFile<RunRecord>(path.join(root, 'var/report/ci/record.json'), 'run-record.schema.json') };
 }
@@ -85,7 +85,7 @@ test('the output of standard output and of standard error never joins on one lin
 test('a target does not inherit the flags of a calling make', async (t) => {
   const root = setup(t);
   // With MAKEFLAGS=-n the recipe would be printed and not run.
-  const result = await run(root, ['flags'], { env: { ...process.env, MAKEFLAGS: '-n', MAKELEVEL: '1' } });
+  const result = await run(root, ['flags'], { env: { ...process.env, GITHUB_ACTIONS: 'true', MAKEFLAGS: '-n', MAKELEVEL: '1' } });
   assert.equal(result.status, 0);
   assert.match(result.read('targets/flags.log'), /^flags-ran$/m);
   assert.doesNotMatch(result.read('targets/flags.log'), /echo flags-ran/);
@@ -102,7 +102,7 @@ test('a make that cannot start fails the target with the reason', async (t) => {
 
 test('a failed write of the report is recorded, every target still runs and the run fails', async (t) => {
   const root = setup(t, { blocker: 'file' });
-  const result = await run(root, ['good', 'flags'], { env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'blocker/summary.md') } });
+  const result = await run(root, ['good', 'flags'], { env: { ...process.env, GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: path.join(root, 'blocker/summary.md') } });
   assert.equal(result.status, 1);
   assert.deepEqual(result.record().targets.map((target: TargetRecord) => target.status), ['passed', 'passed']);
   const { reportErrors } = result.record();
@@ -114,7 +114,7 @@ test('a failed write of the report is recorded, every target still runs and the 
 test('the summary is appended to the job summary of GitHub Actions', async (t) => {
   const root = setup(t);
   const summary = path.join(root, 'job-summary.md');
-  await run(root, ['good'], { env: { ...process.env, GITHUB_STEP_SUMMARY: summary } });
+  await run(root, ['good'], { env: { ...process.env, GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: summary } });
   assert.match(readFileSync(summary, 'utf8'), /^# make ci-targets good\n/);
 });
 
@@ -195,7 +195,7 @@ test('the summary of a report is written again from its record, also for a run t
 });
 
 function command(root: string, args: string[], env: Record<string, string> = {}) {
-  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: 'true', ...env } });
 }
 
 test('the command runs the targets, exits with the result and refuses a bad usage', (t) => {

@@ -140,7 +140,7 @@ export function processStart(pid: number, host: Host = HOST): ProcessStart {
 }
 
 /**
- * Whether the process that wrote the record still runs; a reused process ID has another start time. The record of full-run.mts
+ * Whether the process that wrote the record still runs; a reused process ID has another start time. A lock record
  * holds the ProcessStart of its holder, which JSON drops when it is START_UNREADABLE.
  */
 export function holderRunning(record: Pick<LockRecord, 'pid'> & { processStart?: ProcessStart | undefined }, host: Host = HOST): boolean {

@@ -78,13 +78,12 @@ toolchain-check: ## Check that the running tools are the declared versions; TOOL
 layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml; offline
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
 	$(ALINT) check --config config/layout.yml --color never --compact .
-# ---- The gates: Git hooks, push gate and guard of the full run ------------------------------------------------------
-# scripts/kit/git-hooks.mts, push-gate.mts and full-run.mts read config/checklist.json. The target that runs the full suite
-# is the repository's own: it calls `node $(KIT)/full-run.$(KIT_EXT) run <target>...` with the targets of its suite.
+# ---- The gates: Git hooks and push gate --------------------------------------------------------------------------------
+# scripts/kit/git-hooks.mts and push-gate.mts read config/checklist.json. The full suite runs only in CI, as the targets of
+# `make ci-targets` (ci-only.mts); no target runs it locally.
 COMMIT ?= HEAD
-FULL_RUN_KEYS ?=
 
-.PHONY: hooks hooks-check staged-generated-hook push-gate-hook push-gate-commit rerun-failed
+.PHONY: hooks hooks-check staged-generated-hook push-gate-hook push-gate-commit
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-push),)
@@ -108,8 +107,6 @@ push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on s
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
-rerun-failed: ## Rerun the targets of the last full run of this tree that did not pass; FULL_RUN_KEYS repeats the keys of that run
-	$(NODE) $(KIT)/full-run.$(KIT_EXT) rerun-failed$(if $(FULL_RUN_KEYS), $(FULL_RUN_KEYS))
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
 .PHONY: documents-check
 
@@ -282,17 +279,17 @@ dependency-review: ## Ask the registries for newer stable releases and advisorie
 	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update)
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
-# Without UNITS the check is a full run: the gate of full-run refuses it while a checklist item is waiting or active. The
-# gate runs while make reads the makefiles, so no prerequisite that a repository adds to parity-check builds before it.
+# Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,
+# so no prerequisite that a repository adds to parity-check builds before it.
 ifneq ($(filter parity-check,$(MAKECMDGOALS)),)
 ifeq ($(UNITS),)
-ifneq ($(shell $(NODE) $(KIT)/full-run.$(KIT_EXT) gate >&2; echo $$?),0)
-$(error parity-check: the gate of full-run refuses the full run)
+ifneq ($(shell $(NODE) $(KIT)/ci-only.$(KIT_EXT) make parity-check >&2; echo $$?),0)
+$(error parity-check: a full parity check runs only in CI; name the units with UNITS="<id>...")
 endif
 endif
 endif
 .PHONY: parity-check parity-declarations-check
-parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; UNITS="<id>..." runs only the named units (their bindings), without the cross-unit rules; the full check runs only when no item is waiting or active; offline
+parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; UNITS="<id>..." runs only the named units (their bindings), without the cross-unit rules; the full check runs only in CI; offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit))
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; offline

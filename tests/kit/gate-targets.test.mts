@@ -35,8 +35,6 @@ test('each target runs the tool of its gate with the commit and the keys that th
   assert.deepEqual(commands(directory, 'hooks-check'), ['$(NODE) scripts/kit/git-hooks.mts check']);
   assert.deepEqual(commands(directory, 'push-gate-commit'), ['$(NODE) scripts/kit/push-gate.mts commit HEAD']);
   assert.deepEqual(commands(directory, 'push-gate-commit', 'COMMIT=abc123'), ['$(NODE) scripts/kit/push-gate.mts commit abc123']);
-  assert.deepEqual(commands(directory, 'rerun-failed'), ['$(NODE) scripts/kit/full-run.mts rerun-failed']);
-  assert.deepEqual(commands(directory, 'rerun-failed', 'FULL_RUN_KEYS=--key dep=c1'), ['$(NODE) scripts/kit/full-run.mts rerun-failed --key dep=c1']);
 });
 
 test('a make invocation sets core.hooksPath in a checkout that tracks the pre-push hook, and in no other', (t) => {

@@ -35,7 +35,9 @@ const RESULTS: JSONSchemaType<Results> = {
 const SPEC = "import test from 'node:test';\n";
 
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
-const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+// The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
+const CI = { GITHUB_ACTIONS: 'true' };
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI, ...env } });
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
 // The Python of a checkout is var/tools/mise/shims/python3, the shim of mise: a test writes its stub there.
 function pythonStub(root: string, script: string) {
@@ -391,7 +393,7 @@ async function inProcess(t: TestContext, args: string[], { path: extraPath, root
   const previous = process.env.PATH;
   if (extraPath !== undefined) process.env.PATH = extraPath;
   try {
-    return { status: await run(args, { root, write: (text: string) => lines.push(text) }), text: lines.join('') };
+    return { status: await run(args, { root, write: (text: string) => lines.push(text), callerEnv: CI }), text: lines.join('') };
   } finally {
     process.env.PATH = previous;
   }
@@ -520,7 +522,7 @@ const alive = (pid: number) => {
 
 test('a timeout stops the whole process group of the tool, with SIGKILL after the grace period (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t, { ignoreTerm: true });
-  const hung = await run(['python', '--timeout', '1', 'tests'], { root, write: () => {}, graceMs: 200 });
+  const hung = await run(['python', '--timeout', '1', 'tests'], { root, write: () => {}, graceMs: 200, callerEnv: CI });
   assert.equal(hung, 1);
   const started = recorded(pids);
   assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
@@ -529,7 +531,7 @@ test('a timeout stops the whole process group of the tool, with SIGKILL after th
 
 test('an interrupted runner stops the whole process group of the tool and ends on its signal (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t);
-  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, ...CI } });
   t.after(() => child.kill('SIGKILL'));
   // The runner prints the start of the test after the stub recorded its pids.
   child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });
@@ -685,4 +687,15 @@ process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70)
   assert.equal(colored.status, 0, output(colored));
   assert.match(colored.stdout, /✔ test_a \(t\.T\.test_a\)/);
   assert.match(colored.stdout, /1 passed, 0 failed/);
+});
+
+test('a run without a selection refuses outside CI and runs no tool; a run of a test file runs', async (t) => {
+  const root = tree(t, { 'tests/one.test.mjs': "import test from 'node:test';\ntest('one', () => {});\n" });
+  const lines: string[] = [];
+  const refused = await run(['node', '--', 'tests'], { root, write: (text: string) => lines.push(text), callerEnv: {} });
+  assert.equal(refused, 1);
+  assert.match(lines.join(''), /a node run without a selection runs only in CI/);
+  assert.doesNotMatch(lines.join(''), /✔ one/);
+  const selected = await run(['node', '--', 'tests/one.test.mjs'], { root, write: () => {}, callerEnv: {} });
+  assert.equal(selected, 0);
 });

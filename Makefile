@@ -5,13 +5,11 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages check
+.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages
 
-# The full suite of kit runs through the guard of full-run: once per tree, when no checklist item is waiting or active.
-# While an item is developed, only the tests that own its change run (node --test <file>).
+# The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
+# (node scripts/kit/run-tests.mts node -- <test file>).
 CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
-check: ## Run the full suite of kit (CHECK_TARGETS) through the guard of full-run: once per tree, when no item is waiting or active
-	$(NODE) $(KIT)/full-run.$(KIT_EXT) run $(CHECK_TARGETS)
 
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm, as in a
 # repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
