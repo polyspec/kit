@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-tool-unification -->
-<!-- source-sha256: ed0a3b3363ff4b9e09beb53f806b0f64856c4544bb30cfacaba2a7490800538b -->
+<!-- source-sha256: fed88867afa29583935636ee5ab5e31df56ecc495c9f350214632ce4e2ec3525 -->
 # 도구 통합 체크리스트
 
 | ID | Task | Deliverables | Verification | State |

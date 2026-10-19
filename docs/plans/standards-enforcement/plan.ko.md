@@ -1,5 +1,5 @@
 <!-- doc-id: plan-standards-enforcement -->
-<!-- source-sha256: 21e09a51d96f3e3cfb56832fd856ba221ff17e424d278666b69a06e7e5a435cb -->
+<!-- source-sha256: e136ee8af37c2be4d7f90285a6ee117476737946bfb4a0ebb0954104988ddfda -->
 # Standards enforcement 계획
 
 [English](plan.md)

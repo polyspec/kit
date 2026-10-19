@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-standards-enforcement -->
-<!-- source-sha256: 03908342353fa8ccef3500123762a34ebad57bb783489716ff03914ccae82aec -->
+<!-- source-sha256: 496106ad151bb872a537125fc913b5d9397a97d49bf3d0a0d2dac7f3b663458e -->
 # Standards enforcement 체크리스트
 
 | ID | Task | Deliverables | Verification | State |

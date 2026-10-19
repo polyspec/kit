@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7ce8bab2ec9dc647d82903e2c3838586f6f8cf775529677ef53d85996d24d8f2 -->
+<!-- source-sha256: 386006386da26d5f2c49e51aa26cbaa9fb1dbe76347851c9ad159a3bd56b6955 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -54,3 +54,4 @@
 | K262 | 없는 PHP lint 도구는 존재하는 설치를 안내한다. 원인: lint-php는 make install-tools TOOLS=phpLint를 실행하라고 하지만, install-tools는 도구 이름을 받지 않으므로 그것을 거부한다. | `scripts/kit/lint-php.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/lint-php.test.mts` | [o] |
 | K264 | commit message에 AI footer가 없다. 원인: owner는 git에 AI 도구의 co-author나 session trailer가 없어야 한다고 정했는데 이를 거부하는 check가 없어, K243~K262의 commit에 그것이 남았다. | `scripts/kit/check-commits.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
 | K265 | commit의 author나 committer는 AI 도구가 아니다. 원인: cloud 환경의 git identity가 Claude <noreply@anthropic.com>이어서 kit의 commit 95개가 그것을 가졌는데, owner는 모든 commit의 계정을 min-0-max로 정했다. | `scripts/kit/check-commits.mts`, `scripts/kit/plan.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
+| K266 | isolation test는 공통 단어를 저장소 이름으로 쓰지 않는다. 원인: history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 다른 저장소 목록이 그것을 모든 곳에서 거부한다. | `tests/kit/isolation.test.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/isolation.test.mts` | [o] |
