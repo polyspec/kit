@@ -53,6 +53,31 @@ function rulesOf(text: string): Rule[] {
   return rules;
 }
 
+/**
+ * The lines of the paragraphs of the document `text` that state a rule outside a list (K243-1): after the first section
+ * heading (##), a section opens with at most one paragraph, its introduction, and every other paragraph, a second one or one
+ * after a list, fails, since a rule in prose escapes the check of its `Enforced by:` line.
+ */
+function proseLines(text: string): number[] {
+  const lines = text.split('\n');
+  const blocks = lineBlocks(text);
+  const found: number[] = [];
+  let inSection = false;
+  let opened = false;
+  blocks.forEach((block, index) => {
+    if (block.kind === 'heading' && (lines[index] ?? '').startsWith('## ')) {
+      inSection = true;
+      opened = false;
+      return;
+    }
+    if (!inSection || block.kind === 'blank' || block.kind === 'heading' || block.kind === 'html' || block.kind === 'listContinuation') return;
+    const starts = block.kind !== 'other' || blocks[index - 1]?.kind !== 'other';
+    if (block.kind === 'other' && starts && opened) found.push(index + 1);
+    if (starts) opened = true;
+  });
+  return found;
+}
+
 /** The checks of an `Enforced by:` text: the text of each backtick span. */
 const checksOf = (enforced: string) => [...enforced.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? '');
 
@@ -153,7 +178,9 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
   const reach = reached(root, make);
   const states = itemStates(root);
   for (const document of documents) {
-    const rules = rulesOf(readFileSync(path.join(root, document), 'utf8'));
+    const text = readFileSync(path.join(root, document), 'utf8');
+    for (const line of proseLines(text)) findings.push(`${document}:${line}: a paragraph that introduces no section; a rule is an item of a top-level list with its Enforced by line, and a section opens with at most one paragraph`);
+    const rules = rulesOf(text);
     if (rules.length === 0) findings.push(`${document}: the document holds no rule; a rule is an item of a top-level list`);
     for (const rule of rules) {
       const where = `${document}:${rule.line}`;

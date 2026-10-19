@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: d670af7c1a4558ce7add952d93840097150143a526ff95ce06380dfe67e78d56 -->
+<!-- source-sha256: 127ad27cfa14f61c12cafa31874192f5227e25d5c9c3a36e78788bb3e725ef2c -->
 # 개발
 
 [English](AGENTS.md)
@@ -8,9 +8,7 @@
 
 kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, push-gate, 문서, 설치 도구입니다. 저장소는 `scripts/kit/`와
 `tests/kit/` 대신 package `@polyspec/kit`을 설치하고, 그 `package.json`의 `kit.copies`가 나열하는 파일의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
-`config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다.
-
-kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
+`config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다. kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
@@ -98,37 +96,22 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 
 ## 생성 파일
 
-생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`), 캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구 다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`, `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture. 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서 ignore 항목을 추가합니다.
+- 생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`),
+  캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구
+  다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`,
+  `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture. 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
+  ignore 항목을 추가합니다.
+  Enforced by: `.githooks/pre-commit`
 
 ## 릴리스
 
-kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y.Z`를 붙여 릴리스합니다. `package.json`이 tree의 버전을 가집니다. 저장소는
-package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make kit-sync`를 실행해 릴리스를 채택합니다.
+kit은 `main` commit의 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
+[docs/operations/release.ko.md](docs/operations/release.ko.md)이다.
 
-릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
-`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 릴리스 commit은 소비자 lock도 담습니다: `make release-assets
-TAG=vX.Y.Z` 다음 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)를 실행하고, 그것이 `tests/release-consumer/*/`에 쓴 manifest와
-lock을 버전 변경과 함께, 또는 tag 전의 다음 commit으로 commit합니다(docs/tool-inventory.md, Consumer install of the release
-archives, 1단계와 2단계). 버전 변경은 `package-lock.json`을 다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이
-그 lock에 대해 쓴 `config/dependency-review.json`도 담습니다. CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를
-실행합니다(K169). composer.json의 버전 변경도 마찬가지로 그 directory에서 `composer update --lock`으로 다시 lock합니다:
-`composer.lock`의 content-hash가 `version`을 포함하므로, 검사는 그 변경이 낡게 만든 lock을 실패시킵니다(`composerLock`, K180, K181). draft의 증명은 그 lock으로 archive를 설치하므로, lock이 없는 tag는 실패합니다. 이 commit은 `main`에
-들어가고 CI가 success로 끝납니다. tag는 CI가 success로 끝났고 그 lock을 담은 commit에만 붙입니다. (2) 그
-commit의 annotated tag `vX.Y.Z`를 push합니다. (3) push가 `.github/workflows/release.yml`을 실행합니다. 이 파일은 vendor되는
-`workflows/release.yml` 그대로이며, `config/release.json`이 선언한 `@polyspec/kit`의 npm archive를 만들어 GitHub Release에
-draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
-
-릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
-(`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
-이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
-
-kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-check`가 차이를 실패시킵니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-prepare`(저장소의 release가 Makefile의 `release-prepare::` 규칙으로 선언한 준비, 기본은 없음), `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`과 mise의 shim을 그 PATH에, mise의 환경을 그 환경에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 증명과 undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
-
-kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
-이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 그 유일한 선언인
-config/toolchain.json의 `pythonBackend`가 정확한 requirement와 wheel의 sha256으로 고정합니다. `make install-tools`와 `make release-backend`는 그 wheel을 digest를 확인하며
-`var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. wheel의 `Requires-Dist`는 plain `name==version`, polyspec package의 release asset을 sha256 fragment와 함께 직접 참조하는 형식, 또는 같은 release의 sibling(같은 config/release.json의 다른 wheel package)을 hash 없이 직접 참조하는 형식입니다.
-앞의 두 형식은 wheel의 lock(`consumers.wheel.lock`)이 담으며, sibling은 lock이 담지 않습니다. 다른 형식(URL, git source, 범위, marker)은 거부합니다. 같은 형식의 npm 또는
-Composer manifest를 거부하는 것과 같습니다(docs/tool-inventory.ko.md, Sibling wheels). `release-consumer`는 깨끗한 virtual environment에 lock을 hash와 함께 설치하고, release의
-wheel들을 `--no-deps`로 함께 설치한 뒤 `pip check`를 실행하고, 그다음 smoke command를 실행합니다.
-Python package는 git tag로 릴리스하지 않습니다.
+- 릴리스 tag는 annotated이고, CI가 성공으로 끝났으며 consumer lock과 그 lock의 review를 가진 `main` commit 위에 있고,
+  공개된 tag는 옮기지 않는다.
+  Enforced by: `make release-verify`, `make dependency-policy-check`
+- 릴리스는 그 proof가 consumer project에서 설치한 뒤에만 공개된다. 실패한 step은 draft로 남긴다.
+  Enforced by: `make release-proof`, `make release-undraft`
+- 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
+  Enforced by: `make kit-check`

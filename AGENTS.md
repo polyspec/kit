@@ -8,9 +8,7 @@
 kit holds the tools that every polyspec repository shares: the release, dependency, push-gate, document and install
 tools. A repository installs them as the package `@polyspec/kit` and holds byte-for-byte copies of the files that
 `kit.copies` of its `package.json` lists, written by `make kit-sync`; a repository differs from another only in
-`config/*.json`. kit depends on no repository.
-
-kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md) and its Korean twin,
+`config/*.json`. kit depends on no repository. kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md) and its Korean twin,
 and vendors them at the same paths, so every repository holds the same principles; each repository's AGENTS.md links to them
 and states only its own rules. The rules below are kit's own.
 
@@ -53,7 +51,8 @@ and states only its own rules. The rules below are kit's own.
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
-- Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails when its
+- Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails
+  when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
   A stub never runs a command that a stub or a mise shim provides (go, composer, npm, node, php, python, uv, mise), since a
   shim outside its checkout runs the next command of PATH; the archivers of the machine are allowed (`tests/kit/stubs.test.mts`).
@@ -91,7 +90,8 @@ and states only its own rules. The rules below are kit's own.
   `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
   Enforced by: `make kit-test`
-- A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of `advisoryExceptions`
+- A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of
+  `advisoryExceptions`
   in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
   it is never hidden. kit reviews its own `package-lock.json` (docs/tool-inventory.md, Accepted advisories).
   Enforced by: `make dependency-policy-check`
@@ -109,48 +109,24 @@ and states only its own rules. The rules below are kit's own.
 
 ## Generated files
 
-Generated files are never tracked in Git. This covers dependency installs (`node_modules/`, `vendor/`, virtual environments), build output (`dist/`, `target/`, `*.tsbuildinfo`), caches (`.cache/`, `__pycache__/`, `.pytest_cache/`), test run artifacts (`test-results/`, `playwright-report/`, PHPUnit caches) and tool downloads (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this file names, and test fixtures. Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same commit.
+- Generated files are never tracked in Git. This covers dependency installs (`node_modules/`, `vendor/`, virtual
+  environments), build output (`dist/`, `target/`, `*.tsbuildinfo`), caches (`.cache/`, `__pycache__/`,
+  `.pytest_cache/`), test run artifacts (`test-results/`, `playwright-report/`, PHPUnit caches) and tool downloads
+  (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files
+  (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this
+  file names, and test fixtures. Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
+  commit.
+  Enforced by: `.githooks/pre-commit`
 
 ## Release
 
-kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci` success. `package.json` holds the version of the
-tree. A repository adopts a release by updating `@polyspec/kit` in its package-lock and running `make install-packages` and
-`make kit-sync`.
+kit is released by the annotated tag `vX.Y.Z` of a commit of `main`; the procedure is
+[docs/operations/release.md](docs/operations/release.md).
 
-A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and
-`package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. The release commit also carries
-the consumer locks: `make release-assets TAG=vX.Y.Z`, then `make release-consumer-lock TAG=vX.Y.Z` (ONLINE), and the manifests
-and locks that it writes in `tests/release-consumer/*/` are committed with the version change, or in a following commit before
-the tag (docs/tool-inventory.md, Consumer install of the release archives, steps 1 and 2). The version change rewrites
-`package-lock.json`, so the release commit also carries `config/dependency-review.json` that `make dependency-review RECORD=1`
-(ONLINE) writes for it; CI runs `make dependency-policy-check`, which fails a lock that differs from the review (K169). A version
-change of a composer.json likewise re-locks it with `composer update --lock` in its directory, since the content-hash of
-`composer.lock` covers `version`; the check fails the lock that the change outdated (`composerLock`, K180, K181). The proof of the draft installs the
-archives from those locks, so a tag without them fails. The commit lands on `main` and its CI concludes success; the tag goes
-only on a commit whose CI concluded success and that holds those locks. (2) The annotated tag `vX.Y.Z` of that commit is pushed. (3) The push runs `.github/workflows/release.yml`,
-which is the vendored `workflows/release.yml` itself: it builds the npm archive of `@polyspec/kit` that `config/release.json`
-declares, publishes it on the GitHub Release as a draft, proves it from a consumer project and makes it public. A repository
-pins that asset's URL with its integrity.
-
-A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
-type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
-published tag is not moved; the check runs only on the tag being released.
-
-kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`kit.copies` of
-package.json). A repository never edits it, and `make kit-check` fails on a difference. The workflow sets up the PHP of `.php-version` when
-the repository declares one, runs `make release-prepare` (the preparation that the repository's release declares with a
-`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
-puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`), `make release-proof TAG=<tag>` (the proof of the draft)
-and `make release-undraft TAG=<tag>`, which makes the release public only after the proof passed. The proof and undraft read the
-draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a
-draft and fails the run, so a release that cannot be installed is never public.
-
-A package of kind `wheel` (a Python package with a `pyproject.toml`) is released as its PEP 427 wheel
-`<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with the
-build backend that `pythonBackend` of config/toolchain.json, its one declaration, pins by its exact requirement and by the
-sha256 of its wheel; `make install-tools` and `make release-backend` download that wheel into `var/tools/wheels` with the digest checked, and no build reads the network. A
-wheel's `Requires-Dist` is a plain `name==version`, a direct reference to the release asset of a polyspec package with the sha256
-fragment, or a direct reference without a hash to a sibling (another wheel package of the same config/release.json) of the same
-release. The first two are held by the lock of the wheel (`consumers.wheel.lock`); a sibling never is. Any other form (a URL, a git
-source, a range or a marker) is refused, as an npm or Composer manifest with the same form is (docs/tool-inventory.md, Sibling wheels). `release-consumer` installs the lock with hashes, the
-wheels of the release together with `--no-deps`, runs `pip check` and then the smoke command in a clean virtual environment. A Python package is not released as a git tag.
+- A release tag is annotated, lies on a commit of `main` whose CI concluded success and that carries the consumer locks and
+  the review of its lock, and a published tag is never moved.
+  Enforced by: `make release-verify`, `make dependency-policy-check`
+- A release is public only after its proof installs it from a consumer project; a failed step leaves it a draft.
+  Enforced by: `make release-proof`, `make release-undraft`
+- Every repository releases through the vendored `workflows/release.yml`, which it never edits.
+  Enforced by: `make kit-check`

@@ -113,3 +113,10 @@ test('a rule that a planned item will enforce names its open item; a closed or u
   ]);
   assert.deepEqual(planned.map(rule => `${rule.line} ${rule.item}`), ['3 K1', '9 K1']);
 });
+
+test('a section opens with at most one paragraph, and a rule in prose after it fails (K243-1)', (t) => {
+  const item = '- A rule.\n  Enforced by: `make docs-check`';
+  const document = `# Rules\n\nThe title paragraph.\n\n## Release\n\nThe introduction.\n\n${item}\n\nA rule in prose.\n\n## Other\n\nOne paragraph.\n\nA second paragraph.\n`;
+  const prose = checkRules(repository(t, document), ['AGENTS.md']).findings.filter(line => line.includes('paragraph'));
+  assert.deepEqual(prose.map(line => line.split(':').slice(0, 2).join(':')), ['AGENTS.md:12', 'AGENTS.md:18']);
+});
