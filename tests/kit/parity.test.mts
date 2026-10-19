@@ -14,6 +14,7 @@ import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
+import { initRepository } from './sandbox-repository.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
 
@@ -1696,7 +1697,9 @@ test('a tools root holds single-language tooling tests that R6 accepts and every
 
 test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', (t) => {
   const git = (root: string) => {
-    for (const args of [['init', '--quiet'], ['add', '-A']]) spawnSync('git', args, { cwd: root });
+    initRepository(root);
+    const added = spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8' });
+    assert.equal(added.status, 0, added.stderr);
   };
   const one = tree(t, { 'packages/ts/src/a.ts': '', 'scripts/b.mts': '' });
   git(one);
