@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit locks knip 6.42.0, @decimalturn/toml-patch 3.3.1 and ruff 0.17.1, the latest stable releases at the review of 2026-10-19 (K261).
 - The CI workflow test compares `.php-version` with the PHP pin of kit instead of the literal 8.5 (K259-1).
 - The commit check reads the type of a fix commit with `startsWith`, as oxlint requires (K257-1).
 - The push gate refuses a pushed branch other than main that is not named `{type}/{shortname}-{checklist id}`, a worktree folder not named `{project}-{shortname}-{checklist id}`, and a local branch that main has merged, naming the command that removes it (K253).

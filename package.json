@@ -110,7 +110,7 @@
     }
   },
   "dependencies": {
-    "@decimalturn/toml-patch": "3.3.0",
+    "@decimalturn/toml-patch": "3.3.1",
     "@mdit-vue/shared": "3.0.2",
     "@microsoft/api-extractor": "7.59.4",
     "@microsoft/api-extractor-model": "7.33.15",
@@ -121,7 +121,7 @@
     "amaro": "1.2.1",
     "eslint-scope": "9.1.2",
     "github-slugger": "2.0.0",
-    "knip": "6.41.0",
+    "knip": "6.42.0",
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-frontmatter": "2.0.1",
     "mdast-util-gfm": "3.1.0",
