@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 6f4edd772b6ab5c7aed02cfe45fde686f6e6b8abf7f6f0f7d206b8baa5ac2fb1 -->
+<!-- source-sha256: dfad6671d3e76358a3ec93502d20ebc369981200aa455320d42136ebd654cc62 -->
 # 개발
 
 [English](AGENTS.md)
@@ -43,7 +43,7 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
   테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
   sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).
-  Enforced by: planned K254
+  Enforced by: `make kit-check`
 - 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
   Enforced by: `make duplication-check`

@@ -23,6 +23,7 @@ import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declare
 import { MISE_LOCKS } from './toolchain-lock.mts';
 import { makeDatabase } from './owner-check.mts';
 import { bareToolFindings } from './recipe-tools.mts';
+import { git } from './git.mts';
 
 export const PACKAGE = '@polyspec/kit';
 export const INSTALLED = `node_modules/${PACKAGE}`;
@@ -159,9 +160,24 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
     .sort();
 }
 
-/** The findings of `root`: the configuration, the recipes, and the installed package and its copies; empty when they match. */
+// The mode of a symbolic link in the index of Git.
+const LINK_MODE = '120000';
+
+/** A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254). */
+export function symlinkFindings(root: string): string[] {
+  return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
+    const tab = entry.indexOf('\t');
+    const file = entry.slice(tab + 1);
+    return entry.startsWith(`${LINK_MODE} `) ? [`${file}: a tracked symbolic link; the repository creates no link. Fix: git rm --cached ${file} and track the file it names`] : [];
+  });
+}
+
+/**
+ * The findings of `root`: the configuration, the recipes, the tracked links, and the installed package and its copies; empty
+ * when they match.
+ */
 export function check(root: string): string[] {
-  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root))];
+  const config = [...checkConfig(root), ...bareToolFindings(makeDatabase(root)), ...symlinkFindings(root)];
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];

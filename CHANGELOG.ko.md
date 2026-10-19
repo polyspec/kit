@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1abbbb2a7c63de8be7401639c3245e6d308b7be6ab6ce5778079e06bd943f78e -->
+<!-- source-sha256: 2a6cb176693a35a51ea9d86b0ae24d8313ecbb8454064c8c5e2c2d51c5d9e69e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make kit-check`는 Git index의 symbolic link에서 실패하고 그것을 명시하므로, 어떤 저장소도 자신이 만든 link를 track하지 않는다 (K254).
 - push gate test의 편집은 text에 일치가 없으면 그대로 두는 대신 실패한다 (K260).
 - `make commit ID= TYPE= SCOPE= SUBJECT= BODY_FILE=`은 commit-msg hook의 check를 거친 뒤, body를 config/commits.json의 폭으로 감싸고 trailer를 그대로 둔 item의 message로 index를 commit한다 (K249-4).
 - 열린 checklist item은 자기를 검증하는 command를 명시하고, 그중 Claude Code hook이 거부하는 것은 없으므로, documents-check는 suite로 검증하는 item에서 실패한다(`verification.mts`). `make item-test ID=`가 그 command를 실행한다. checklist header는 ID, Task, Deliverables, Verification, State로 고정된다. hook은 make target을 그 prerequisite와 recipe를 따라 읽고 `run-tests.mts <runner> -- <args>`를 그 runner로 읽으므로, 저장소 자신의 suite target도 거부된다 (K249-3).

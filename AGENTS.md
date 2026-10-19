@@ -49,7 +49,7 @@ and states only its own rules. The rules below are kit's own.
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
-  Enforced by: planned K254
+  Enforced by: `make kit-check`
 - A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
