@@ -1,16 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 416b5358ea6d03e5ee3bd7162ee437cba8068b4fdecda576b9476a34c9d3f797 -->
+<!-- source-sha256: cb54826201ad47ec0b26198efcb49ae94927fe700722ed0fed5182e9bc4f86bb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.54
+
 - release는 tag와 함께 release workflow를 dispatch해서 시작한다. `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 그 commit을 가리키면 통과하므로, 어떤 machine도 tag를 push할 필요가 없다 (K269).
 - language check와 test-markers check는 JSX와 TSX를 읽는다. JSX를 읽지 못하는 Node.js의 type stripping과 acorn 대신, 이제 package의 의존성인 oxc-parser로 script를 해석하고 tree의 모든 node를 `script-ast.mts`에서 type으로 순회한다 (K268).
 - kit-sync, kit-check, lint-ts는 버전과 상관없이 설치된 @polyspec/kit을 읽는다. npm ci가 lock의 integrity로 설치할 때 강제하며, 개발 상태인 kit checkout의 local link를 더는 버전 때문에 거부하지 않는다 (K267).
-## 0.0.54
-
 - kit 0.0.54가 K243~K266의 공통 표준과 함께 release된다 (K263).
 - isolation test는 다른 polyspec 저장소 이름만 쓴다. history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 목록이 그것을 모든 곳에서 거부했다 (K266).
 - vendored knip.json은 어떤 binary도 허용하지 않는다. K247이 `ignoreBinaries` php를 넣었는데, php를 실행하지 않는 저장소의 knip이 configuration hint를 출력했다. PHP extension test는 도구처럼 process.mts의 `execute`로 php를 실행한다 (K247-1).

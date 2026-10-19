@@ -5,11 +5,11 @@
 
 ## Unreleased
 
+## 0.0.54
+
 - A release starts from a dispatch of the release workflow with its tag: `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the tag already names that commit, so no machine has to push a tag (K269).
 - The language check and the test-markers check read JSX and TSX: they parse a script with oxc-parser, now a dependency of the package, instead of the type stripping of Node.js and acorn, which read no JSX, and walk every node of the tree by its type in `script-ast.mts` (K268).
 - kit-sync, kit-check and lint-ts read the installed @polyspec/kit of any version: npm ci enforces the lock at install time by its integrity, and a local link of a kit checkout, the state of development, is no longer refused for its version (K267).
-## 0.0.54
-
 - kit 0.0.54 is released with the common standard of K243 to K266 (K263).
 - The isolation test names only the other polyspec repositories: the history rewrite replaced the name of an outside project with the common word consumer, which the list refused everywhere (K266).
 - The vendored knip.json allows no binary: K247 added `ignoreBinaries` php, on which knip of a repository that starts no php printed a configuration hint; the PHP extension test starts php through `execute` of process.mts, as the tool does (K247-1).
