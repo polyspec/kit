@@ -102,7 +102,7 @@ in kit, with its grounding.
 ## Repository standards
 
 The owner approved these standards on 2026-10-13. Each is enforced by a tool that fails on a violation; the tools, their
-order and the predicted failures are in [the standards enforcement plan](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement.md), which stays in kit. Until its
+order and the predicted failures are in [the standards enforcement plan](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement/plan.md), which stays in kit. Until its
 tool lands, a standard binds the work as written here.
 
 - S1 No rebuilds: follow each ecosystem's rules and use its tools and libraries as they are. Our own rules govern only

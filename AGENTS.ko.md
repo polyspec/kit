@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 49e0ec7f8e7730bc87f6a371bde735e22256a216a0d69a26f5d707401367f3f7 -->
+<!-- source-sha256: 6f4edd772b6ab5c7aed02cfe45fde686f6e6b8abf7f6f0f7d206b8baa5ac2fb1 -->
 # 개발
 
 [English](AGENTS.md)
@@ -34,7 +34,7 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
   Enforced by: `make rebuild-check`
 - 이 저장소는 symbolic link를 만들지 않습니다: 추적 파일, configuration, script, generated output 어디에도 두지 않습니다. 단 하나의
-  예외는 0.0.x 개발의 local link(`docs/plans/local-links.md`)입니다: polyspec root가 선언되면, 개발 checkout에 설치된 0.0.x
+  예외는 0.0.x 개발의 local link(`docs/operations/local-links.md`)입니다: polyspec root가 선언되면, 개발 checkout에 설치된 0.0.x
   polyspec package 폴더를 그 제공자 source로의 link로 바꿉니다. 이 link는 추적되지 않고 release output에 들어가지 않습니다. 이 저장소가
   쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
   머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. repository root는 working directory가 속한 Git work tree의
@@ -102,7 +102,8 @@ kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.
 
 ## 체크리스트
 
-`docs/plans/execution-checklist.ko.md`가 유일한 체크리스트입니다. 작업은 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!] cause: <cause>; retry: <condition>`
+plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이고, kit은 plan folder의 checklist를
+읽습니다(K241). 작업은 `[ ]` 대기, `[~]` 진행 중, `[o]` 완료, `[!] cause: <cause>; retry: <condition>`
 우회, `[-] cause: <cause>` 불가입니다. 작업은 그것을 끝내는 commit에서, 소유 명령이 통과한 뒤 `[o]`가 됩니다. commit message는 `type(scope): Subject (#task)`이며
 subject는 50자 이하, body는 72자로 줄바꿈하고, type은 `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`입니다.
 

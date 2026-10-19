@@ -216,7 +216,7 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	$(NODE) $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
-# --- link: the local links of 0.0.x development (docs/plans/local-links.md, K201, K205). CHECKOUTS names the main checkouts
+# --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205). CHECKOUTS names the main checkouts
 # that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
 # are linked, else the whole tree of the checkout. link points every installed polyspec package pinned at 0.0.x at its
 # provider's source and never builds; link-check lists each one as linked, NOT linked, STALE or own; unlink restores the

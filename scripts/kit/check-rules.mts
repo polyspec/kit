@@ -17,7 +17,7 @@ import { lineBlocks } from './markdown.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { commandParts, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { CONFIG, loadConfig, readChecklist } from './checklist.mts';
+import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
 type Rule = { line: number; enforced: string | null };
@@ -136,9 +136,9 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
 function itemStates(root: string): Map<string, { state: string; done: boolean }> {
   const states = new Map<string, { state: string; done: boolean }>();
   if (!existsSync(path.join(root, CONFIG))) return states;
-  for (const tracker of loadConfig(root).trackers) {
+  for (const tracker of trackersOf(loadConfig(root), workingPlanFiles(root))) {
     const { items } = readChecklist(readFileSync(path.join(root, tracker.path), 'utf8'), tracker);
-    for (const item of items) states.set(item.id, { state: item.state, done: item.state === (tracker.done ?? '[o]') || item.state === '[-]' });
+    for (const item of items) states.set(item.id, { state: item.state, done: item.state === DONE || item.state === IMPOSSIBLE });
   }
   return states;
 }
@@ -185,7 +185,7 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
       if (checks.length === 0 && items.length === 0) findings.push(`${where}: \`Enforced by:\` names no check in backticks and no planned item`);
       for (const item of items) {
         const state = states.get(item);
-        if (state === undefined) findings.push(`${where}: planned ${item} names no item of a checklist of ${CONFIG}`);
+        if (state === undefined) findings.push(`${where}: planned ${item} names no item of a checklist of docs/plans`);
         else if (state.done) findings.push(`${where}: planned ${item} is done; name the check that ${item} built`);
         else planned.push({ file: document, line: rule.line, item });
       }

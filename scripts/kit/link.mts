@@ -1,4 +1,4 @@
-// The local links of 0.0.x development (docs/plans/local-links.md, K201, K205). The checkouts that the arguments name are the
+// The local links of 0.0.x development (docs/operations/local-links.md, K201, K205). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed polyspec package of a consumer that is pinned at 0.0.x is pointed at the
 // source of the checkout that provides it. link only links; it never builds (link-build.mts rebuilds):
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
@@ -41,7 +41,7 @@ import { dependencyArrays, dependencyGroups, normalizeName } from './pyproject-d
 
 type Print = (text: string) => void;
 
-/** The pin rule of the links: only a package pinned at 0.0.x is linked (docs/plans/local-links.md). */
+/** The pin rule of the links: only a package pinned at 0.0.x is linked (docs/operations/local-links.md). */
 const ZERO = /^v?0\.0\./;
 
 /**

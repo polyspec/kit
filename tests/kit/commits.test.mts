@@ -119,7 +119,7 @@ test('the command checks a range or a message file and exits with the findings',
 test('the item rules need config/checklist.json: a range of a checkout without it fails and names the file', (t) => {
   const { root } = repository(t, ['feat(docs): Start (#K1)']);
   put(root, { 'config/checklist.json': null });
-  assert.throws(() => rangeFindings(root, 'HEAD', CONFIG), /config\/checklist\.json does not exist in .*; the repository declares its trackers and hooks there/);
+  assert.throws(() => rangeFindings(root, 'HEAD', CONFIG), /config\/checklist\.json does not exist in .*; the repository declares its hooks and the pattern of its item IDs there/);
 });
 
 test('config/commits.json is validated against its schema', () => {
@@ -132,7 +132,9 @@ test('config/commits.json is validated against its schema', () => {
 });
 
 const TRACKED = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72, changelog: { path: 'CHANGELOG.md', translation: 'CHANGELOG.ko.md' } };
-const CHECKLIST = { schema: 1, hooks: ['pre-push'], trackers: [{ path: 'plan.md', format: 'table', states: ['[ ]', '[~]', '[o]'], active: '[~]', done: '[o]' }] };
+const CHECKLIST = { schema: 1, hooks: ['pre-push'], idPattern: 'S[0-9]+(?:-[0-9]+)*' };
+// The checklist of the plan p, which kit finds by its folder (K241).
+const PLAN = 'docs/plans/p/checklist.md';
 const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;
 
 function tracked(t: TestContext, steps: Array<[string, Record<string, string | null>]>) {
@@ -149,22 +151,22 @@ function tracked(t: TestContext, steps: Array<[string, Record<string, string | n
 
 test('commit-changelog: a commit that moves an item to its done state also changes the changelog in both languages', (t) => {
   const { root } = tracked(t, [
-    ['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[~]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],
-    ['feat(core): Finish S1 (#S1)', { 'plan.md': plan([['S1', '[o]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n' }],
-    ['feat(core): Finish S2 (#S2)', { 'plan.md': plan([['S1', '[o]'], ['S2', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n- S2\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S2\n' }],
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],
+    ['feat(core): Finish S1 (#S1)', { [PLAN]: plan([['S1', '[o]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n' }],
+    ['feat(core): Finish S2 (#S2)', { [PLAN]: plan([['S1', '[o]'], ['S2', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n- S2\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S2\n' }],
   ]);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
   const first = findings[0];
   assert.ok(first !== undefined, 'rangeFindings found nothing');
-  assert.match(first, /: commit-changelog: the commit moves S1 to \[o\] in plan\.md but does not change CHANGELOG\.ko\.md; record the item in the changelog of both languages$/);
+  assert.match(first, /: commit-changelog: the commit moves S1 to \[o\] in docs\/plans\/p\/checklist\.md but does not change CHANGELOG\.ko\.md; record the item in the changelog of both languages$/);
 });
 
 test('commit-items: a commit changes the state of at most one item, and a row it adds is not a change', (t) => {
   const { root } = tracked(t, [
-    ['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[ ]'], ['S2', '[ ]']]) }],
-    ['docs(plan): Start two tasks (#S1)', { 'plan.md': plan([['S1', '[~]'], ['S2', '[~]'], ['S3', '[ ]'], ['S4', '[o]']]) }],
-    ['docs(plan): Add a sub-task (#S1)', { 'plan.md': plan([['S1', '[~]'], ['S2', '[~]'], ['S3', '[ ]'], ['S4', '[o]'], ['S1-1', '[o]']]) }],
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[ ]'], ['S2', '[ ]']]) }],
+    ['docs(plan): Start two tasks (#S1)', { [PLAN]: plan([['S1', '[~]'], ['S2', '[~]'], ['S3', '[ ]'], ['S4', '[o]']]) }],
+    ['docs(plan): Add a sub-task (#S1)', { [PLAN]: plan([['S1', '[~]'], ['S2', '[~]'], ['S3', '[ ]'], ['S4', '[o]'], ['S1-1', '[o]']]) }],
   ]);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
@@ -173,22 +175,22 @@ test('commit-items: a commit changes the state of at most one item, and a row it
   assert.match(first, /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
 });
 
-test('a tracker that a revision lacks reads as empty, and any other failure of git show names the revision and the file', (t) => {
+test('a checklist that a revision lacks reads as empty, and any other failure of git show names the revision and the file', (t) => {
   const { root, git } = tracked(t, [
     ['docs(core): Start (#S1)', { 'README.md': 'x\n' }],
-    ['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[ ]']]) }],
-    ['docs(plan): Start S1 (#S1)', { 'plan.md': plan([['S1', '[~]']]) }],
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[ ]']]) }],
+    ['docs(plan): Start S1 (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
   ]);
-  assert.deepEqual(rangeFindings(root, 'HEAD~2..HEAD', TRACKED), [], 'the parent of the second commit has no plan.md');
-  // The blob of plan.md at HEAD~1 is a loose object; without it, git show fails although the tree names the file.
-  const blob = git('rev-parse', 'HEAD~1:plan.md').stdout.trim();
+  assert.deepEqual(rangeFindings(root, 'HEAD~2..HEAD', TRACKED), [], 'the parent of the second commit has no checklist');
+  // The blob of the checklist at HEAD~1 is a loose object; without it, git show fails although the tree names the file.
+  const blob = git('rev-parse', `HEAD~1:${PLAN}`).stdout.trim();
   rmSync(path.join(root, '.git/objects', blob.slice(0, 2), blob.slice(2)));
-  assert.throws(() => rangeFindings(root, 'HEAD~1..HEAD', TRACKED), /git show [0-9a-f]+\^:plan\.md failed: .*/);
+  assert.throws(() => rangeFindings(root, 'HEAD~1..HEAD', TRACKED), /git show [0-9a-f]+\^:docs\/plans\/p\/checklist\.md failed: .*/);
 });
 
 test('the item rules of the commit-msg hook compare the index with HEAD', (t) => {
-  const { root, git } = tracked(t, [['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }]]);
-  put(root, { 'plan.md': plan([['S1', '[o]']]) });
+  const { root, git } = tracked(t, [['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }]]);
+  put(root, { [PLAN]: plan([['S1', '[o]']]) });
   git('add', '-A');
   assert.deepEqual(indexItemFindings(root, TRACKED).map(found => found.message.split(' does not change ')[1]), ['CHANGELOG.md; record the item in the changelog of both languages', 'CHANGELOG.ko.md; record the item in the changelog of both languages']);
   put(root, { 'CHANGELOG.md': '# Changelog\n\n- S1\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S1\n' });
@@ -198,8 +200,8 @@ test('the item rules of the commit-msg hook compare the index with HEAD', (t) =>
 
 test('a repository without a changelog keeps the one item rule', (t) => {
   const { root } = tracked(t, [
-    ['docs(plan): Add the tasks (#S1)', { 'plan.md': plan([['S1', '[~]']]) }],
-    ['feat(core): Finish S1 (#S1)', { 'plan.md': plan([['S1', '[o]']]) }],
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
+    ['feat(core): Finish S1 (#S1)', { [PLAN]: plan([['S1', '[o]']]) }],
   ]);
   assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), []);
 });

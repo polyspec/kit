@@ -1,4 +1,4 @@
-// The providers of the local links of 0.0.x development (docs/plans/local-links.md): the main checkouts that `link` is given
+// The providers of the local links of 0.0.x development (docs/operations/local-links.md): the main checkouts that `link` is given
 // as arguments, one per polyspec repository, and each tracked manifest of a package there names what it provides: package.json `name` (npm, private or not: "private" stops publishing, not linking), composer.json `name`,
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own

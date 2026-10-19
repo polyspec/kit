@@ -8,23 +8,23 @@
 //   commit-length    the Subject has at most `subjectMax` characters
 //   commit-blank     a body follows the subject after a blank line
 //   commit-width     a line of the body has at most `bodyMax` characters
-//   commit-items     the commit changes the state of at most one item of the trackers of config/checklist.json; a row
+//   commit-items     the commit changes the state of at most one item of the checklists of docs/plans; a row
 //                    that the commit adds is not a change, so a commit may add items and sub-items
-//   commit-changelog a commit that moves an item to the `done` state of its tracker also changes the `changelog` of the
+//   commit-changelog a commit that moves an item to the done state [o] also changes the `changelog` of the
 //                    configuration, its path and its translation (only when config/commits.json declares a changelog)
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
 //
 // A commit of a range is compared with its parent; the message being committed, with the index against HEAD. The item rules
-// read the trackers of config/checklist.json, which every repository declares. A merge commit keeps the message that Git writes and is not checked. Each finding is one line
+// read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
 // same findings of the commits that a push sends, through `logMessages` and `findingLines`.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { loadConfig, readChecklist } from './checklist.mts';
+import { DONE, loadConfig, PLANS, readChecklist, trackersOf } from './checklist.mts';
 import { git, gitResult } from './git.mts';
 import { readConfig } from './schema-validate.mts';
 
@@ -44,8 +44,11 @@ export type CommitFinding = { rule: string; message: string };
 /** A commit as `logMessages` reads it. */
 export type CommitMessage = { id: string; message: string };
 
-/** The two sides of a change: a reader of a tracker file before and after it, and the paths it touches. */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[] };
+/**
+ * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
+ * files at both sides.
+ */
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[] };
 
 /** The commit rules of the checkout `root`; throws when config/commits.json does not exist. */
 export function loadCommitRules(root: string): CommitRules {
@@ -76,6 +79,9 @@ export function messageFindings(message: string, config: CommitRules) {
   return found;
 }
 
+// The paths of the plan files at the revision `rev` (`''` is the index), from which trackersOf finds the checklists.
+const plansAt = (root: string, rev: string) => (rev === '' ? git(root, 'ls-files', '--cached', '--', PLANS) : git(root, 'ls-tree', '-r', '--name-only', rev, '--', PLANS)).split('\n').filter(Boolean);
+
 // The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file. Whether it
 // has the file is read from git ls-tree (ls-files for the index); any failure of git show then throws.
 const fileAt = (root: string, rev: string, file: string) => {
@@ -87,12 +93,12 @@ const fileAt = (root: string, rev: string, file: string) => {
 };
 
 /**
- * The item findings of one change as `{ rule, message }`: `before` and `after` read a tracker file at the two sides of the
+ * The item findings of one change as `{ rule, message }`: `before` and `after` read a checklist file at the two sides of the
  * change, `changed` holds the paths that the change touches.
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans }: Change) {
   const changes = [];
-  for (const tracker of loadConfig(root).trackers) {
+  for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
     const old = states(before(tracker.path));
     for (const [id, state] of states(after(tracker.path))) {
@@ -105,7 +111,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     found.push({ rule: 'commit-items', message: `the commit changes the state of ${changes.length} items (${listed}); change one item per commit` });
   }
   const changelog = config.changelog ? [config.changelog.path, ...(config.changelog.translation ? [config.changelog.translation] : [])] : [];
-  for (const change of changes.filter(entry => entry.tracker.done !== undefined && entry.to === entry.tracker.done)) {
+  for (const change of changes.filter(entry => entry.to === DONE)) {
     for (const file of changelog.filter(entry => !changed.includes(entry))) {
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
@@ -120,6 +126,7 @@ const commitItemFindings = (root: string, config: CommitRules, id: string) => {
     before: file => (parent ? fileAt(root, parent, file) : ''),
     after: file => fileAt(root, id, file),
     changed: git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--root', id).split('\n').filter(Boolean),
+    plans: [...(parent ? plansAt(root, parent) : []), ...plansAt(root, id)],
   });
 };
 
@@ -130,6 +137,7 @@ export function indexItemFindings(root: string, config: CommitRules) {
     before: file => (head ? fileAt(root, 'HEAD', file) : ''),
     after: file => fileAt(root, '', file),
     changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
+    plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
   });
 }
 

@@ -69,7 +69,7 @@ test('check fails while the pre-push hook is missing, not executable or changed;
 });
 
 test('the listed hooks of the repository are checked and made executable, and a missing one fails the check', (t) => {
-  const config = { schema: 1, hooks: ['pre-push', 'commit-msg'], trackers: [{ path: 'docs/plans/execution-checklist.md', format: 'table', active: '[~]' }] };
+  const config = { schema: 1, hooks: ['pre-push', 'commit-msg'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
   const { work } = checkout(t, { config });
   const failed = hooks(work);
   assert.equal(failed.status, 1);

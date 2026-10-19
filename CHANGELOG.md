@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A plan is a folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins, and kit finds the checklists by these folders (K241): `config/checklist.json` holds only the hooks and the ID pattern; a checklist is a table with the five states, so the list format and the declared states are removed; a folder with another file or without its plan, an item ID in two checklists and a sub-item without its parent fail with the file and line; the document check again fails a document under docs/ with checklist items outside a plan folder, the check of K235 that K240 had removed with full-run; kit's execution checklist is split into the plans tool-unification and standards-enforcement, and local-links moves to docs/operations/.
 - Every rule of PRINCIPLES.md and AGENTS.md ends with `Enforced by:`, and `make rules-check` (`check-rules.mts`) follows each named check from the CI workflows and the Git hooks through make, fails on a rule whose check no such point runs, and lists the rules that no tool enforces and those that a planned item will; the Claude Code hook also refuses `--no-verify`, a change of `core.hooksPath`, a loop that polls with a sleep and, in a consumer, an edit of a vendored file; kit's CI runs the PHP, Python and Go lints, the rules check and the parity declarations (K248).
 - A checkout with at most one implementation folder needs no `config/parity.json`; one with two or more fails without it (K248-2).
 - kit.mk defines `rebuild-check` and `rules-check`, so every repository runs them (K248-1).

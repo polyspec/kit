@@ -1,4 +1,4 @@
-// The build state of a provider of the local links (docs/plans/local-links.md). link never builds: a provider repository
+// The build state of a provider of the local links (docs/operations/local-links.md). link never builds: a provider repository
 // is built by `link.mjs rebuild <repository>` or its own target, with the targets of its own Makefile that its release
 // builds before packing (the prerequisites of release-assets), else its build target, else none (its packages ship their
 // sources), and a build never links. After a rebuild, the content digest of each npm

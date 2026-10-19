@@ -38,7 +38,7 @@ and states only its own rules. The rules below are kit's own.
   creates, is accepted; our rules govern what we create.
   Enforced by: `make rebuild-check`
 - This repository creates no symbolic link: not in its tracked files, configuration, scripts or generated output. The one
-  exception is the local link of 0.0.x development (`docs/plans/local-links.md`): when a polyspec root is declared, a
+  exception is the local link of 0.0.x development (`docs/operations/local-links.md`): when a polyspec root is declared, a
   development checkout's installed polyspec package folder pinned at 0.0.x is replaced by a link to its provider's source;
   such a link is never tracked and never part of released output. A path
   that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
@@ -113,7 +113,8 @@ Generated files are never tracked in Git. This covers dependency installs (`node
 
 ## Checklist
 
-`docs/plans/execution-checklist.md` is the only checklist. A task is `[ ]` waiting, `[~]` in progress, `[o]` done,
+A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins, and kit reads the checklists
+of the plan folders (K241). A task is `[ ]` waiting, `[~]` in progress, `[o]` done,
 `[!] cause: <cause>; retry: <condition>` bypassed or `[-] cause: <cause>` impossible. A task becomes `[o]` in the commit
 that completes it, after its owning command passes. A commit message is `type(scope): Subject (#task)`, with a subject of
 at most 50 characters, a body wrapped at 72 characters, and the types `feat`, `fix`, `docs`, `style`, `refactor`, `test`,

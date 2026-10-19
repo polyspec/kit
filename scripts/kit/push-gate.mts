@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// The push gate. A push happens only when no item of a tracker of config/checklist.json is in its active state (for a
-// checklist, `[~]`, in progress): work in progress does not reach the remote. Items in the other states (waiting, done,
-// bypassed) do not block a push.
+// The push gate. A push happens only when no item of a checklist (docs/plans/<plan>/checklist.md, checklist.mts) is in the
+// active state `[~]`: work in progress does not reach the remote. Items in the other states (waiting, done, bypassed,
+// impossible) do not block a push.
 //
 //   node scripts/kit/push-gate.mts hook          the pre-push hook .githooks/pre-push: reads the lines
 //                                                `<local ref> <local sha> <remote ref> <remote sha>` of Git on standard
-//                                                input and refuses the push while a tracker of a pushed commit or of the
+//                                                input and refuses the push while a checklist of a pushed commit or of the
 //                                                working tree has an item in the active state, or cannot be read, and refuses it while a commit that the push sends has a
 //                                                finding of the commit check (check-commits.mts, config/commits.json, as make commits-check)
 //   node scripts/kit/push-gate.mts commit <rev>  the check of a pushed commit, for a push from a checkout without the
@@ -14,10 +14,10 @@
 //                                                a GitHub annotation and appends it to $GITHUB_STEP_SUMMARY when it is set
 //
 // The refusal names each item with its file and ID and the place where it was found: the pushed ref and commit or the
-// working tree. A tracker whose translation lists other IDs or states than the document is unreadable for the gate.
+// working tree. A checklist whose translation lists other IDs or states than the document is unreadable for the gate.
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { blockingSentence, inspectTrackers, loadConfig } from './checklist.mts';
+import { BLOCKING, inspectTrackers, loadConfig, PLANS, trackersOf, workingPlanFiles } from './checklist.mts';
 import { HOOKS_PATH } from './git-hooks.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
@@ -28,35 +28,39 @@ const USAGE = 'Usage: node scripts/kit/push-gate.mts hook | commit <rev>';
 const NO_OBJECT = /^0+$/;
 const SHORT = 12;
 
-const RULE = 'A push happens only when no item of a tracker is in its active state; work in progress does not reach the remote.';
+const RULE = 'A push happens only when no item of a checklist is in its active state; work in progress does not reach the remote.';
 const COMMIT_FIX = 'Amend each listed commit that the remote does not hold yet, then push again; this gate does not rewrite a pushed commit.';
 // The configuration of config/checklist.json and the commit rules of config/commits.json, as their loaders read them.
 type ChecklistConfig = ReturnType<typeof loadConfig>;
 type CommitRules = ReturnType<typeof loadCommitRules>;
 
-/** A place whose trackers the gate reads: its name and the reader of its files. */
+/** A place whose checklists the gate reads: its name, the paths of its plan files and the reader of its files. */
 export interface Source {
   where: string;
+  files: string[];
   read: (file: string) => string;
 }
 
 const FIX = 'Finish each listed item in a commit with its documentation and tests, or move it to a state that does not block, such as bypassed with its cause and retry condition; then push again.';
 
 /**
- * Inspects the trackers of `sources`, each `{ where, read }` where `read(file)` returns the text of a file or throws why it
+ * Inspects the checklists of `sources`, each `{ where, files, read }` where `read(file)` returns the text of a file or throws why it
  * cannot. Returns the lines of the refusal, or an empty array when no item is in an active state.
  */
 export function inspect(config: ChecklistConfig, sources: Source[]): string[] {
   const active: string[] = [];
   const unreadable: string[] = [];
-  for (const { where, read } of sources) {
-    const found = inspectTrackers(config, read);
+  for (const { where, files, read } of sources) {
+    const trackers = trackersOf(config, files);
+    // A tree without a checklist holds no item to read, which the gate never takes for one without an active item.
+    if (trackers.length === 0) unreadable.push(`  ${where}: it holds no checklist; a plan is docs/plans/<plan>/ with plan.md, checklist.md and their Korean twins`);
+    const found = inspectTrackers(trackers, read);
     for (const item of found.active) active.push(`  ${where}: ${item.file} ${item.id} ${item.title}`);
     for (const problem of found.problems) unreadable.push(`  ${where}: ${problem}`);
   }
   const lines: string[] = [];
-  if (unreadable.length > 0) lines.push('push refused: the push gate cannot read the trackers (config/checklist.json)', ...unreadable, 'The gate refuses a push whose trackers it cannot read; fix the cause and push again.');
-  if (active.length > 0) lines.push(`push refused: ${active.length} item${active.length === 1 ? ' is' : 's are'} in the active state (${blockingSentence(config)})`, ...active, RULE, FIX);
+  if (unreadable.length > 0) lines.push('push refused: the push gate cannot read the checklists (docs/plans/<plan>/checklist.md)', ...unreadable, 'The gate refuses a push whose checklists it cannot read; fix the cause and push again.');
+  if (active.length > 0) lines.push(`push refused: ${active.length} item${active.length === 1 ? ' is' : 's are'} in the active state (${BLOCKING})`, ...active, RULE, FIX);
   return lines;
 }
 
@@ -67,6 +71,9 @@ const committed = (root: string, sha: string) => (file: string): string => {
   if (shown.status !== 0) throw new Error(`the commit has no ${file}: ${shown.stderr.trim()}`);
   return shown.stdout;
 };
+
+// The paths of the plan files of a commit.
+const committedFiles = (root: string, sha: string) => git(root, 'ls-tree', '-r', '--name-only', sha, '--', PLANS).split('\n').filter(Boolean);
 
 const working = (root: string) => (file: string): string => {
   if (!existsSync(path.join(root, file))) throw new Error(`${file} does not exist in the working tree`);
@@ -103,10 +110,10 @@ export function hook(root: string, input: string): string[] {
     const remoteSha = present(fields[3], 'the remote sha of a pre-push input line');
     // A deleted ref pushes no commit.
     if (NO_OBJECT.test(localSha)) continue;
-    sources.push({ where: `${localRef} ${localSha.slice(0, SHORT)}`, read: committed(root, localSha) });
+    sources.push({ where: `${localRef} ${localSha.slice(0, SHORT)}`, files: committedFiles(root, localSha), read: committed(root, localSha) });
     findings.push(...pushedFindings(root, localSha, remoteSha, rules));
   }
-  sources.push({ where: 'working tree', read: working(root) });
+  sources.push({ where: 'working tree', files: workingPlanFiles(root), read: working(root) });
   return [...inspect(config, sources), ...commitRefusal(findings)];
 }
 
@@ -116,7 +123,7 @@ export function commit(root: string, rev: string): { sha: string; lines: string[
   const resolved = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
   if (resolved.status !== 0) return { sha: rev, lines: [`push refused: ${rev} is not a commit of this repository`] };
   const sha = resolved.stdout.trim();
-  const lines = inspect(config, [{ where: `commit ${sha.slice(0, SHORT)}`, read: committed(root, sha) }]);
+  const lines = inspect(config, [{ where: `commit ${sha.slice(0, SHORT)}`, files: committedFiles(root, sha), read: committed(root, sha) }]);
   for (const name of config.hooks) {
     const file = `${HOOKS_PATH}/${name}`;
     const entry = git(root, 'ls-tree', sha, '--', file).trim();

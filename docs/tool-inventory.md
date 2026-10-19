@@ -316,17 +316,12 @@ record of a full run of the current tree exists. There is no pull request, merge
 {
   "schema": 1,
   "hooks": ["pre-push"],
-  "trackers": [
-    {
-      "path": "docs/plans/execution-checklist.md",
-      "translation": "docs/plans/execution-checklist.ko.md",
-      "format": "table",
-      "states": ["[ ]", "[~]", "[o]", "[!]"],
-      "active": "[~]"
-    }
-  ]
+  "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
 }
 ```
+
+K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
+with the five states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
 
 `hooks` lists the tracked hooks of `.githooks` and must include `pre-push`; `pre-commit` and `pre-push` are kit's own hooks, written by
 `make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output

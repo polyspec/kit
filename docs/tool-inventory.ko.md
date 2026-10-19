@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b816dd232f4842335d0006e9ae0594326a1c5c6bcece807191cd98288343ade6 -->
+<!-- source-sha256: 659c6ff2cbeacc3a23412bf3456c57e48e5232082d7e3c3b4e2122e53e8028f8 -->
 
 # 도구 목록
 
@@ -284,17 +284,12 @@ request, merge queue, ruleset이 없습니다.
 {
   "schema": 1,
   "hooks": ["pre-push"],
-  "trackers": [
-    {
-      "path": "docs/plans/execution-checklist.md",
-      "translation": "docs/plans/execution-checklist.ko.md",
-      "format": "table",
-      "states": ["[ ]", "[~]", "[o]", "[!]"],
-      "active": "[~]"
-    }
-  ]
+  "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
 }
 ```
+
+K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 kit의 state 5개를
+가진 table이며, `idPattern`이 checklist의 유일한 선언입니다. orm의 list format은 제거되었습니다.
 
 `hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. `pre-commit`과 `pre-push`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),

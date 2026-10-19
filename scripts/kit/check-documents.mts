@@ -9,8 +9,11 @@
 //   link            every relative link resolves to a file, a directory, an explicit anchor or a heading anchor
 //   private-path    no document holds a path into a user's home directory
 //   interpolation   no {{ outside a fenced code block in the documents that a site renderer evaluates
-//   checklist-*     the checklists of config/checklist.json hold only tasks, their markers and states are valid and equal in
-//                   both languages (the strict reading of scripts/kit/checklist.mts)
+//   plan-folder     docs/plans holds plan folders only, each with plan.md, checklist.md and their Korean twins (K241)
+//   checklist-*     the checklists of the plan folders hold only tasks, their markers and states are valid and equal in
+//                   both languages (the strict reading of scripts/kit/checklist.mts), an item ID is unique among them and a
+//                   sub-item has its parent in its checklist (checklist-cross), and no other document under docs/ holds
+//                   checklist items (checklist-place)
 //   status-table    the status tables have the declared cells and values, equal in both languages
 //   changelog       the changelogs start with ## Unreleased, then the versions newest first, equal in both languages
 //
@@ -19,7 +22,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
-import { CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, twinFindings } from './checklist.mts';
+import { CONFIG as CHECKLIST_CONFIG, crossFindings, loadConfig as loadChecklists, planFindings, readChecklist, trackersOf, twinFindings, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mts';
@@ -201,21 +204,34 @@ export function check(root: string, config: DocumentsConfig) {
   };
   let checklists: Tracker[] = [];
   if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
-    try { checklists = loadChecklists(root).trackers; } catch (error) {
+    try {
+      const plans = workingPlanFiles(root);
+      for (const entry of planFindings(plans)) add(entry.file, { rule: 'plan-folder', message: entry.message });
+      checklists = trackersOf(loadChecklists(root), plans);
+      if (checklists.length === 0) add(CHECKLIST_CONFIG, { rule: 'plan-folder', message: 'the repository holds no plan; a plan is docs/plans/<plan>/ with plan.md, checklist.md and their Korean twins' });
+    } catch (error) {
       if (!(error instanceof Error)) throw error;
       // loadConfig fails with an Error.
       add(CHECKLIST_CONFIG, { rule: 'config', message: error.message });
     }
   }
+  const checklistItems: { tracker: Tracker; items: ReturnType<typeof readChecklist>['items'] }[] = [];
   for (const list of checklists) {
     const results: ReturnType<typeof readChecklist>['items'][] = [];
-    both([list.path, ...(list.translation ? [list.translation] : [])], CHECKLIST_CONFIG, (name, text) => {
+    both([list.path, list.translation], 'docs/plans', (name, text) => {
       const result = readChecklist(text, list, { strict: true });
       for (const entry of result.findings) add(name, entry);
       results.push(result.items);
     });
+    if (results[0]) checklistItems.push({ tracker: list, items: results[0] });
     // Two results are those of the tracker and of its translation.
     if (results.length === 2) for (const entry of twinFindings(present(results[0], 'results[0]'), present(results[1], 'results[1]'), list, { strict: true })) add(present(list.translation, 'list.translation'), entry);
+  }
+  for (const entry of crossFindings(checklistItems)) add(entry.file, { line: entry.line, column: 1, rule: 'checklist-cross', message: entry.message });
+  // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
+  const prose = documents.filter(name => name.startsWith('docs/'));
+  for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {
+    add(name, { rule: 'checklist-place', message: 'the document holds checklist items but is no checklist of a plan folder; move the items into docs/plans/<plan>/checklist.md' });
   }
   for (const table of config.statusTables ?? []) {
     const results: [string, ReturnType<typeof readStatusTable>['rows']][] = [];

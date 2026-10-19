@@ -102,14 +102,14 @@ test('a rule that a planned item will enforce names its open item; a closed or u
   const root = tree(t, {
     Makefile: MAKEFILE,
     '.github/workflows/ci.yml': CI,
-    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], trackers: [{ path: 'docs/plans/x/checklist.md', format: 'table', idPattern: 'K[0-9]+', states: ['[ ]', '[~]', '[o]', '[!]', '[-]'], active: '[~]', done: '[o]' }] }),
+    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+' }),
     'docs/plans/x/checklist.md': checklist,
     'AGENTS.md': rules('- Open.\n  Enforced by: planned K1', '- Closed.\n  Enforced by: planned K2', '- Unknown.\n  Enforced by: planned K9', '- Both.\n  Enforced by: `make lint`, planned K1'),
   });
   const { findings, planned } = checkRules(root, ['AGENTS.md']);
   assert.deepEqual(findings, [
     'AGENTS.md:5: planned K2 is done; name the check that K2 built',
-    'AGENTS.md:7: planned K9 names no item of a checklist of config/checklist.json',
+    'AGENTS.md:7: planned K9 names no item of a checklist of docs/plans',
   ]);
   assert.deepEqual(planned.map(rule => `${rule.line} ${rule.item}`), ['3 K1', '9 K1']);
 });

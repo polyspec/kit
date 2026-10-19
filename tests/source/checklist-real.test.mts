@@ -1,25 +1,26 @@
-// kit's own execution checklist is a tracker of config/checklist.json, so the document check reads its items and states and
-// the commit rules (commit-items, the push gate) apply to kit's commits. Without the declaration the check read no
-// checklist, and a state could only be read by eye (K128).
+// kit's own plans are plan folders of docs/plans, so the document check reads the items and states of their checklists and
+// the commit rules (commit-items, the push gate) apply to kit's commits. Without a checklist the check read none, and a state
+// could only be read by eye (K128); since K241 kit finds the checklists by their folders.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '../../scripts/kit/checklist.mts';
+import { loadConfig, trackersOf, workingPlanFiles } from '../../scripts/kit/checklist.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('config/checklist.json declares the execution checklist of kit with its Korean twin', () => {
-  const tracker = loadConfig(ROOT).trackers.find(entry => entry.path === 'docs/plans/execution-checklist.md');
-  assert.ok(tracker, 'config/checklist.json declares docs/plans/execution-checklist.md');
-  assert.equal(tracker.translation, 'docs/plans/execution-checklist.ko.md');
-  assert.equal(tracker.active, '[~]');
-  assert.equal(tracker.done, '[o]');
+test('kit holds its plans as plan folders, each checklist with its Korean twin', () => {
+  const trackers = trackersOf(loadConfig(ROOT), workingPlanFiles(ROOT));
+  assert.deepEqual(trackers.map(tracker => [tracker.path, tracker.translation]), [
+    ['docs/plans/common-standard/checklist.md', 'docs/plans/common-standard/checklist.ko.md'],
+    ['docs/plans/standards-enforcement/checklist.md', 'docs/plans/standards-enforcement/checklist.ko.md'],
+    ['docs/plans/tool-unification/checklist.md', 'docs/plans/tool-unification/checklist.ko.md'],
+  ]);
 });
 
-test('the document check reads the execution checklist as a checklist', () => {
+test('the document check reads every checklist of the plan folders', () => {
   const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/check-documents.mts')], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /, 1 checklists?,/);
+  assert.match(result.stdout, /, 3 checklists,/);
 });
