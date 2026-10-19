@@ -147,7 +147,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check commits-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
@@ -364,8 +364,8 @@ dependency-review: ## Ask the registries for newer stable releases and advisorie
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,
-# so no prerequisite that a repository adds to parity-check builds before it.
-ifneq ($(filter parity-check,$(MAKECMDGOALS)),)
+# so no prerequisite that a repository adds to parity-check builds before it; kit-gates runs it in full, so kit-gates runs only in CI.
+ifneq ($(filter parity-check kit-gates,$(MAKECMDGOALS)),)
 ifeq ($(UNITS),)
 ifneq ($(shell $(NODE) $(KIT)/ci-only.$(KIT_EXT) make parity-check >&2; echo $$?),0)
 $(error parity-check: a full parity check runs only in CI; name the units with UNITS="<id>...")

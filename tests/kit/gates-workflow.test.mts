@@ -23,3 +23,9 @@ test('the gates workflow runs make -k kit-gates, which names every make target t
 test('kit vendors the gates workflow to .github/workflows/gates.yml of every repository (K270)', () => {
   assert.match(read('package.json'), /"\.github\/workflows\/gates\.yml": "workflows\/gates\.yml"/);
 });
+
+test('kit-gates runs the full parity check, which runs only in CI, so every implementation runs its bindings in the gates (S6, K272)', () => {
+  const kitMk = read('scripts/kit/kit.mk');
+  assert.match(kitMk, /^kit-gates:[^#\n]* parity-check /m);
+  assert.match(kitMk, /^ifneq \(\$\(filter parity-check kit-gates,\$\(MAKECMDGOALS\)\),\)$/m, 'the CI guard of parity-check covers kit-gates');
+});
