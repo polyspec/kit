@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.54
+
 - The isolation test names only the other polyspec repositories: the history rewrite replaced the name of an outside project with the common word consumer, which the list refused everywhere (K266).
 - The vendored knip.json allows no binary: K247 added `ignoreBinaries` php, on which knip of a repository that starts no php printed a configuration hint; the PHP extension test starts php through `execute` of process.mts, as the tool does (K247-1).
 - The package tests build kit with `make kit-build`, and the scripts build and prepack of package.json run it too: K246 made `make build` the aggregate of the runtimes, which a copy without Git and the node of var/tools cannot run; the tests of the runtime targets and of the PHP extension name no other repository, as the isolation test requires (K246-1).

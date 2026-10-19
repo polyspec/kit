@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e0511fcce34746f444945344b67197e51da46cbe1287429f31d555d23b133cc1 -->
+<!-- source-sha256: c3e034133e8b6e6dd1c357fe98f6de98857848129437dfc8b2d0f27525530ee4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.54
 
 - isolation test는 다른 polyspec 저장소 이름만 쓴다. history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 목록이 그것을 모든 곳에서 거부했다 (K266).
 - vendored knip.json은 어떤 binary도 허용하지 않는다. K247이 `ignoreBinaries` php를 넣었는데, php를 실행하지 않는 저장소의 knip이 configuration hint를 출력했다. PHP extension test는 도구처럼 process.mts의 `execute`로 php를 실행한다 (K247-1).

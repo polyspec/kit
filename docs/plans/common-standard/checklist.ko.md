@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 386006386da26d5f2c49e51aa26cbaa9fb1dbe76347851c9ad159a3bd56b6955 -->
+<!-- source-sha256: 56b1085c3f07808fbd4da56ef634610721464931a7b06ec749e3ab9d68f95918 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -55,3 +55,4 @@
 | K264 | commit message에 AI footer가 없다. 원인: owner는 git에 AI 도구의 co-author나 session trailer가 없어야 한다고 정했는데 이를 거부하는 check가 없어, K243~K262의 commit에 그것이 남았다. | `scripts/kit/check-commits.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
 | K265 | commit의 author나 committer는 AI 도구가 아니다. 원인: cloud 환경의 git identity가 Claude <noreply@anthropic.com>이어서 kit의 commit 95개가 그것을 가졌는데, owner는 모든 commit의 계정을 min-0-max로 정했다. | `scripts/kit/check-commits.mts`, `scripts/kit/plan.mts`, `PRINCIPLES.md(.ko)` | `node scripts/kit/run-tests.mts node -- tests/kit/commits.test.mts` | [o] |
 | K266 | isolation test는 공통 단어를 저장소 이름으로 쓰지 않는다. 원인: history 재작성이 외부 프로젝트 이름을 공통 단어 consumer로 바꿔, 다른 저장소 목록이 그것을 모든 곳에서 거부한다. | `tests/kit/isolation.test.mts` | `node scripts/kit/run-tests.mts node -- tests/kit/isolation.test.mts` | [o] |
+| K263 | kit 0.0.54가 공통 표준과 함께 release되어, 각 저장소가 자기 plan에서 그것을 채택한다. 원인: 저장소들은 K243~K266을 하나도 갖지 않은 0.0.53을 pin한다. | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)`, `tests/release-consumer/`, `config/dependency-review.json` | `make release-versions TAG=v0.0.54` | [~] |
