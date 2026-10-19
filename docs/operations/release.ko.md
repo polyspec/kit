@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 7920b9e953b7a09b5d87de8f90acb051ca9a650ed2ba1d4c11fd3622abea74a8 -->
+<!-- source-sha256: 73d462a75df3f013a149a4f87f67a74fbd7e5b505772493d3237a57c0bb6d3fd -->
 # 릴리스
 
 [English](release.md)
@@ -17,8 +17,9 @@ archives, 1단계와 2단계). 버전 변경은 `package-lock.json`을 다시 �
 그 lock에 대해 쓴 `config/dependency-review.json`도 담습니다. CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를
 실행합니다(K169). composer.json의 버전 변경도 마찬가지로 그 directory에서 `composer update --lock`으로 다시 lock합니다:
 `composer.lock`의 content-hash가 `version`을 포함하므로, 검사는 그 변경이 낡게 만든 lock을 실패시킵니다(`composerLock`, K180, K181). draft의 증명은 그 lock으로 archive를 설치하므로, lock이 없는 tag는 실패합니다. 이 commit은 `main`에
-들어가고 CI가 success로 끝납니다. tag는 CI가 success로 끝났고 그 lock을 담은 commit에만 붙입니다. (2) 그
-commit의 annotated tag `vX.Y.Z`를 push합니다. (3) push가 `.github/workflows/release.yml`을 실행합니다. 이 파일은 vendor되는
+들어가고 CI가 success로 끝납니다. tag는 CI가 success로 끝났고 그 lock을 담은 commit에만 붙입니다. (2) release workflow를 tag와 함께 dispatch합니다(`gh workflow run release.yml -f tag=vX.Y.Z`, 또는 GitHub API의
+workflow dispatch). 그 `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 있으면 통과합니다
+(K269). tag를 push해도 같은 workflow가 시작됩니다. (3) `.github/workflows/release.yml`이 실행됩니다. 이 파일은 vendor되는
 `workflows/release.yml` 그대로이며, `config/release.json`이 선언한 `@polyspec/kit`의 npm archive를 만들어 GitHub Release에
 draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
 

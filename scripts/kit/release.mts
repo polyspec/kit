@@ -267,6 +267,27 @@ export function goTagProblems(ctx: Context, tag: string): string[] {
 }
 
 /** The tagged commit is on main, its Go module tags exist and the latest run of every configured check concluded success: { commit, checks }. */
+/**
+ * Creates the annotated tag `tag` at origin/main and pushes it, the first step of a release that the release workflow starts from
+ * a dispatch (K269); returns what it did. A second run passes when the tag already names that commit; a tag at another commit
+ * stops, since a published tag is never moved. In GitHub Actions the tagger is the actor of the run.
+ */
+export function createTag(ctx: Context, tag: string): string {
+  parseTag(ctx.config, tag);
+  const main = run('git', ['rev-parse', '--verify', `${MAIN}^{commit}`], at(ctx)).trim();
+  const existing = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], at(ctx));
+  if (existing.status === 0) {
+    const commit = existing.stdout.trim();
+    if (commit !== main) throw new Stop(`the tag ${tag} is at ${commit}, not at ${MAIN} ${main}; a published tag is never moved`);
+    return `the tag ${tag} is at ${main} already`;
+  }
+  const actor = ctx.env.GITHUB_ACTOR;
+  const identity = actor ? ['-c', `user.name=${actor}`, '-c', `user.email=${actor}@users.noreply.github.com`] : [];
+  run('git', [...identity, 'tag', '-a', tag, '-m', tag, main], at(ctx));
+  run('git', ['push', 'origin', `refs/tags/${tag}`], at(ctx));
+  return `created the tag ${tag} at ${main} and pushed it`;
+}
+
 export function verify(ctx: Context, tag: string): { commit: string; checks: string[] } {
   parseTag(ctx.config, tag);
   const repository = ctx.repository ?? ctx.env.GITHUB_REPOSITORY;
@@ -701,13 +722,13 @@ function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: 
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts verify|versions|assets|publish|undraft|go-tags TAG | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts tag|verify|versions|assets|publish|undraft|go-tags TAG | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  const tagged = mode !== undefined && ['verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
+  const tagged = mode !== undefined && ['tag', 'verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
   if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
     return 2;
@@ -727,6 +748,8 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       print(`[release] coverage: every package file is classified in ${CONFIG}`);
     } else if (tag === undefined) {
       throw new Error(`[release] ${mode} has no TAG, which the usage check above requires`);
+    } else if (mode === 'tag') {
+      print(`[release] ${createTag(ctx, tag)}`);
     } else if (mode === 'verify') {
       const { commit, checks } = verify(ctx, tag);
       print(`[release] ${tag}: the commit ${commit} is on ${MAIN} and passed ${checks.join(', ')}`);

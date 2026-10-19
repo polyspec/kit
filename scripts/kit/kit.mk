@@ -220,7 +220,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
+.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
 
 # release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
 # release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
@@ -237,6 +237,10 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 	@echo "$$PWD/var/tools/mise/shims" >> "$$GITHUB_PATH"
 	@echo "$$PWD/var/tools/bin" >> "$$GITHUB_PATH"
 	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
+
+release-tag: ## Create the annotated tag TAG at origin/main and push it, or pass when it is there already; the release workflow runs it on a dispatch (K269)
+	@test -n "$$TAG" || { echo "release-tag: TAG is required, for example make release-tag TAG=v0.0.1"; exit 1; }
+	$(NODE) $(KIT)/release.$(KIT_EXT) tag "$$TAG"
 
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }

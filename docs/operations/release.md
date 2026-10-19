@@ -19,7 +19,9 @@ the tag (docs/operations/tool-inventory.md, Consumer install of the release arch
 change of a composer.json likewise re-locks it with `composer update --lock` in its directory, since the content-hash of
 `composer.lock` covers `version`; the check fails the lock that the change outdated (`composerLock`, K180, K181). The proof of the draft installs the
 archives from those locks, so a tag without them fails. The commit lands on `main` and its CI concludes success; the tag goes
-only on a commit whose CI concluded success and that holds those locks. (2) The annotated tag `vX.Y.Z` of that commit is pushed. (3) The push runs `.github/workflows/release.yml`,
+only on a commit whose CI concluded success and that holds those locks. (2) The release workflow is dispatched with the tag (`gh workflow run release.yml -f tag=vX.Y.Z`, or the workflow dispatch
+of the GitHub API); its `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the tag is
+there already (K269). A push of the tag starts the same workflow. (3) The run of `.github/workflows/release.yml`,
 which is the vendored `workflows/release.yml` itself: it builds the npm archive of `@polyspec/kit` that `config/release.json`
 declares, publishes it on the GitHub Release as a draft, proves it from a consumer project and makes it public. A repository
 pins that asset's URL with its integrity.

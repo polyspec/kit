@@ -68,7 +68,9 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
   // make kit-check fails a repository that needs PHP without .php-version, so no release runs the PHP of the runner (K193).
-  assert.deepEqual(runs.slice(0, 5).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-prepare', 'make release-tools']);
+  assert.deepEqual(runs.slice(0, 6).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-tag', 'make release-prepare', 'make release-tools']);
+  // A dispatch with a tag creates the tag at origin/main; a tag push already has it (K269).
+  assert.equal(lines[(runs[3]?.line ?? 0) - 2]?.trim(), "if: ${{ github.event_name == 'workflow_dispatch' }}");
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {

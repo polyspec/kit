@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0a8337a3bda652ea8f6f8d81606447fe9f6c7f09ccadbe401ebcddc5e9e269f6 -->
+<!-- source-sha256: 416b5358ea6d03e5ee3bd7162ee437cba8068b4fdecda576b9476a34c9d3f797 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- release는 tag와 함께 release workflow를 dispatch해서 시작한다. `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 그 commit을 가리키면 통과하므로, 어떤 machine도 tag를 push할 필요가 없다 (K269).
 - language check와 test-markers check는 JSX와 TSX를 읽는다. JSX를 읽지 못하는 Node.js의 type stripping과 acorn 대신, 이제 package의 의존성인 oxc-parser로 script를 해석하고 tree의 모든 node를 `script-ast.mts`에서 type으로 순회한다 (K268).
 - kit-sync, kit-check, lint-ts는 버전과 상관없이 설치된 @polyspec/kit을 읽는다. npm ci가 lock의 integrity로 설치할 때 강제하며, 개발 상태인 kit checkout의 local link를 더는 버전 때문에 거부하지 않는다 (K267).
 ## 0.0.54
