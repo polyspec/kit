@@ -11,10 +11,10 @@ const SPEC = {
   'docs/operations/x.md': '- **AB-8** outside the spec\n',
 };
 const read = (files: Record<string, string>) => (file: string) => files[file] ?? '';
-type Unit = { id: string; kind?: 'suite' | 'feature' | 'api'; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] };
+type Input = { id: string; kind?: 'suite' | 'feature' | 'api'; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] };
 const TESTS = { 'go/a_test.go': '// AB-1 AB-2 AB-3', 'ts/a.test.ts': "test('keeps the order (AB-1, AB-2, AB-3)')" };
-const bound = (unit: Unit): Unit => ({ kind: 'feature', bindings: [{ implementation: 'go', test: 'go/a_test.go' }, { implementation: 'ts', test: 'ts/a.test.ts' }], ...unit });
-const run = (units: Unit[], files: Record<string, string> = SPEC) => {
+const bound = (unit: Input) => ({ ...unit, kind: unit.kind ?? 'feature', bindings: unit.bindings ?? [{ implementation: 'go', test: 'go/a_test.go' }, { implementation: 'ts', test: 'ts/a.test.ts' }] });
+const run = (units: Input[], files: Record<string, string> = SPEC) => {
   const all = { ...TESTS, ...files };
   return requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) }, Object.keys(all), read(all)).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
 };

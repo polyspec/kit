@@ -348,8 +348,9 @@ const CONFIG = {
 };
 
 /** Each bound test of `config` names the requirements of its unit, as R15 asks (K273). */
-function named(all: Record<string, string | null>, config: { units: { bindings?: { test: string }[] | undefined }[] }) {
+function named(all: Record<string, string | null>, config: { units: { bindings?: Entry[] }[] }) {
   for (const unit of config.units) for (const entry of unit.bindings ?? []) {
+    if (typeof entry.test !== 'string') continue;
     const text = all[entry.test];
     const comment = entry.test.endsWith('.py') ? '# CX-1' : '// CX-1';
     if (typeof text === 'string' && !text.includes('CX-1')) all[entry.test] = `${text}${text.endsWith('\n') || text === '' ? '' : '\n'}${comment}\n`;
