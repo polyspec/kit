@@ -1,8 +1,9 @@
 // Installs a Composer project of kit (config/phpunit, config/php-lint) into its folder of var/tools, with the wrappers of
 // its commands in var/tools/bin. The composer.json and composer.lock of the project are copied into the temporary directory
 // of the install, and `composer install` with the Composer of mise.toml (its shim, mise-tools.mts; mise.lock pins its sha256),
-// run in that directory of the checkout, resolves the locked packages; Composer checks the digest of each archive against the
-// lock. Composer keeps its home and cache in var/tools/composer and writes no link, so the project holds no symbolic link. A project runs the Composer plugins that its composer.json allows only when `plugins` says so. An installed release
+// run in that directory of the checkout, resolves the locked packages. Each package is pinned by the commit reference of its
+// dist and source in the lock; the lock holds no digest of an archive (Packagist gives an empty shasum for a GitHub archive),
+// so Composer checks none (K258). Composer keeps its home and cache in var/tools/composer and writes no link, so the project holds no symbolic link. A project runs the Composer plugins that its composer.json allows only when `plugins` says so. An installed release
 // is kept, and the Composer of the machine is never used.
 import { copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';

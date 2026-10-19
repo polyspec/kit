@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The comment of the Composer installer states that the commit reference pins each package and that the lock holds no archive digest, instead of claiming that Composer checks one (K258).
 - A checklist row whose number of cells differs from the header of its table fails with the line and both counts, since the reading takes the state by position; the 31 such rows of kit's checklists are fixed (K242).
 - kit's `make install-symbols-php` installs the packages of the PHP symbol extractor for the PHPStan of lint-php, kit's CI runs it before the lint, and `make build` leaves its vendor/ out of dist/ (K248-4).
 - The export test of @polyspec/kit/test-output runs in tests/source on a built copy, so the vendored tests need no dist/ (K250-1).

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 74905179045aa909fa9f34ede0ef3584684dd7f5e7ee99285cddada67247b8db -->
+<!-- source-sha256: 0a64e8395ddbe4c94fda681b8cba39621209ca0674211a0de540d776a7639fa1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer installer의 comment는 Composer가 archive digest를 검사한다고 주장하는 대신, commit reference가 각 package를 고정하고 lock에 archive digest가 없음을 기술한다 (K258).
 - 읽기가 state를 위치로 가져오므로, cell 수가 그 table의 header와 다른 checklist row는 줄과 두 수를 알리며 실패한다. kit의 checklist에서 그런 row 31개를 고쳤다 (K242).
 - kit의 `make install-symbols-php`는 lint-php의 PHPStan을 위해 PHP symbol extractor의 package를 install하고, kit의 CI는 lint 전에 그것을 실행하며, `make build`는 그 vendor/를 dist/에서 뺀다 (K248-4).
 - @polyspec/kit/test-output의 export test는 tests/source에서 build된 copy로 실행되므로, vendor된 test에는 dist/가 필요 없다 (K250-1).
