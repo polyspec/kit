@@ -32,7 +32,7 @@ in kit, with its grounding.
 
 - A standard is never lowered because it is hard to meet; lowering it while testing is betrayal of the standard. A standard
   that is wrong is raised as a problem and corrected, with the reason.
-  Enforced by: planned K255
+  Enforced by: `make test-markers-check`
 - No tricks, in any case. A goal reached by an abnormal method is not reached. When a requirement can be met only by a
   trick, that is stated exactly instead of done.
   Enforced by: `.claude/settings.json`

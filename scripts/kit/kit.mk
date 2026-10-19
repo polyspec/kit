@@ -108,6 +108,10 @@ push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item i
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
+.PHONY: test-markers-check
+test-markers-check: ## Fail on a test that a marker skips or narrows: test.skip, it.only, t.Skip, unittest.skip, markTestSkipped, #[ignore] (K255); offline
+	$(NODE) $(KIT)/test-markers.$(KIT_EXT)
+
 .PHONY: duplication-check
 duplication-check: ## Fail while a piece of 6 lines or more of code exists twice outside the folders of config/duplication.json (jscpd, K248-3); offline
 	$(NODE) $(KIT)/duplication-check.$(KIT_EXT)

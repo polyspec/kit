@@ -18,10 +18,14 @@ const COMPILED: Record<string, string> = { '.js': '.ts', '.mjs': '.mts', '.cjs':
 /** An import of a module: its specifier, or null for a computed one. */
 export type Import = string | null;
 
-/** The program of the JavaScript or TypeScript `text` of `file`, as acorn parses it; a CommonJS file is a script. */
-export function parseModule(file: string, text: string): Program {
+/**
+ * The program of the JavaScript or TypeScript `text` of `file`, as acorn parses it; a CommonJS file is a script. The mode
+ * strip-only of amaro replaces the types with blanks, so a position of the program is that of `text`; it fails on the
+ * TypeScript that needs a transform, such as an enum.
+ */
+export function parseModule(file: string, text: string, mode: 'transform' | 'strip-only' = 'transform'): Program {
   try {
-    const code = TYPESCRIPT.test(file) ? transformSync(text, { mode: 'transform', filename: file }).code : text;
+    const code = TYPESCRIPT.test(file) ? transformSync(text, { mode, filename: file }).code : text;
     return parse(code, { ecmaVersion: 'latest', sourceType: COMMONJS.test(file) ? 'script' : 'module', ranges: true });
   } catch (error) {
     if (!(error instanceof Error)) throw error;

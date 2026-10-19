@@ -86,6 +86,10 @@
       "kind": "ecosystem",
       "tool": "jscpd finds the pieces of code that exist twice; the tool passes it the code formats of the runtimes and the excluded folders (K248-3)"
     },
+    "scripts/kit/test-markers.mts": {
+      "kind": "policy",
+      "reason": "the rule of PRINCIPLES.md that no standard is lowered while testing: no runner of kit refuses its own skip and focus markers, so kit reads them in the tracked tests (K255)"
+    },
     "scripts/kit/check-toolchain.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

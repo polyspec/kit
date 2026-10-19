@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 8966c904820964b0ec69060c6a3e2697d59896bb28df110fb0e88ebed39543e1 -->
+<!-- source-sha256: d40ea03bd729412fe7daf1d3d4271d59dcad032fdcf0017f89486aa06ff8e1d5 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -32,7 +32,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - 기준은 달성하기 어렵다고 낮추지 않습니다; test 중에 기준을 낮추는 것은 기준에 대한 배신입니다. 잘못된 기준은 문제로
   제기해 이유와 함께 바로잡습니다.
-  Enforced by: planned K255
+  Enforced by: `make test-markers-check`
 - 꼼수는 어떤 경우에도 허락하지 않습니다. 비정상적인 방법으로 이룬 목표는 이룬 것이 아닙니다. 요구를 꼼수로만 채울 수
   있다면 그렇게 하지 않고 그 사실을 정확히 적습니다.
   Enforced by: `.claude/settings.json`

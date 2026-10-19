@@ -114,6 +114,10 @@ jobs:
       - name: rules check
         if: ${{ !cancelled() }}
         run: make rules-check
+      # No test is skipped or narrowed by a marker (K255).
+      - name: test markers check
+        if: ${{ !cancelled() }}
+        run: make test-markers-check
       - name: parity declarations check
         if: ${{ !cancelled() }}
         run: make parity-declarations-check
