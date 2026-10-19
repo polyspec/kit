@@ -221,3 +221,10 @@ test('an item ID is unique among the checklists, and a sub-item has its parent i
     'docs/plans/b/checklist.md:3 the item K1 is also an item of docs/plans/a/checklist.md; an item ID is unique among the checklists of a repository',
   ]);
 });
+
+test('an ID is a sub-item only when the part before its last -<number> is an ID of the pattern (K249-5)', () => {
+  const s: Tracker = { path: 'docs/plans/s/checklist.md', translation: 'docs/plans/s/checklist.ko.md', idPattern: 'S-[0-9]+(?:-[0-9]+)*' };
+  const item = (id: string, line: number) => ({ id, title: id, state: '[ ]', line });
+  assert.deepEqual(crossFindings([{ tracker: s, items: [item('S-01', 3), item('S-02', 4)] }]), [], 'S is no ID, so S-01 is an item of its own');
+  assert.deepEqual(crossFindings([{ tracker: s, items: [item('S-44-1', 3)] }]).map(entry => entry.message), ['the sub-item S-44-1 has no parent S-44 in its checklist; a sub-item follows its item in one plan']);
+});

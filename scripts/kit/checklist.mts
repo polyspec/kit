@@ -218,19 +218,20 @@ export function readChecklist(text: string, tracker: Tracker, { strict = false }
 
 /**
  * The findings across the checklists of a repository, each `{ tracker, items }`: an item ID in two checklists, and a sub-item
- * (an ID that ends in -<number>) whose parent is no item of its checklist.
+ * (an ID that ends in -<number> after an ID of the pattern of its tracker, K249-5) whose parent is no item of its checklist.
  */
 export function crossFindings(checklists: { tracker: Tracker; items: ChecklistItem[] }[]): { file: string; line: number; message: string }[] {
   const findings: { file: string; line: number; message: string }[] = [];
   const owners = new Map<string, string>();
   for (const { tracker, items } of checklists) {
     const ids = new Set(items.map(item => item.id));
+    const isId = (id: string) => new RegExp(`^(?:${tracker.idPattern})$`).test(id);
     for (const item of items) {
       const owner = owners.get(item.id);
       if (owner !== undefined && owner !== tracker.path) findings.push({ file: tracker.path, line: item.line, message: `the item ${item.id} is also an item of ${owner}; an item ID is unique among the checklists of a repository` });
       else owners.set(item.id, tracker.path);
       const parent = /^(.+)-[0-9]+$/.exec(item.id)?.[1];
-      if (parent !== undefined && !ids.has(parent)) findings.push({ file: tracker.path, line: item.line, message: `the sub-item ${item.id} has no parent ${parent} in its checklist; a sub-item follows its item in one plan` });
+      if (parent !== undefined && isId(parent) && !ids.has(parent)) findings.push({ file: tracker.path, line: item.line, message: `the sub-item ${item.id} has no parent ${parent} in its checklist; a sub-item follows its item in one plan` });
     }
   }
   return findings;
