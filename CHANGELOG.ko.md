@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 71de45ceedb962118be3148524765fb0db55a952ec51df3ca2896e1cc9e7d500 -->
+<!-- source-sha256: 73b43070fe78a55441785ccff84afa85ce01177a48e00700362df5d8a4d5e064 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 gate workflow `workflows/gates.yml`을 모든 저장소의 `.github/workflows/gates.yml`로 vendor한다. 저장소를 설치하고 PRINCIPLES.md의 규칙을 강제하는 모든 check인 `make -k kit-gates`를 실행하므로, 어떤 저장소도 gate를 CI에 손으로 연결하지 않는다 (K270).
 - language check는 Go와 Rust의 raw string을 여러 줄에 걸쳐 데이터로 읽으므로, 그 안의 한국어 데이터는 identifier가 아니다 (K268-1).
 - 저장소는 고정 작업이 아닌 suite target `check`를 유지하고, `make install`은 저장소가 더한 install 단계보다 먼저 kit의 bootstrap을 prerequisite `install-kit`으로 실행한다 (K246-2).
 ## 0.0.54

@@ -54,6 +54,7 @@
     "config/php-lint/composer.json",
     "config/php-lint/composer.lock",
     "workflows/release.yml",
+    "workflows/gates.yml",
     "claude/settings.json",
     "PRINCIPLES.md",
     "PRINCIPLES.ko.md"
@@ -105,7 +106,8 @@
       "config/composer.schema.json": "config/composer.schema.json",
       "config/cargo.schema.json": "config/cargo.schema.json",
       "config/php-lint/composer.json": "config/php-lint/composer.json",
-      "config/php-lint/composer.lock": "config/php-lint/composer.lock"
+      "config/php-lint/composer.lock": "config/php-lint/composer.lock",
+      ".github/workflows/gates.yml": "workflows/gates.yml"
     }
   },
   "dependencies": {

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit vendors the gates workflow `workflows/gates.yml` to `.github/workflows/gates.yml` of every repository: it installs the repository and runs `make -k kit-gates`, every check that a rule of PRINCIPLES.md is enforced by, so no repository wires the gates into its CI by hand (K270).
 - The language check reads a raw string of Go or Rust as data over its lines, so Korean data in it is no identifier (K268-1).
 - A repository keeps its suite target `check`, which is no fixed task, and `make install` runs the bootstrap of kit as its prerequisite `install-kit` before the install steps that a repository adds (K246-2).
 ## 0.0.54

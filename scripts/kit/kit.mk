@@ -144,6 +144,11 @@ test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of
 test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root; only in CI
 	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
+.PHONY: kit-gates
+# The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
+# (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check commits-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
 	$(NODE) $(KIT)/language-check.$(KIT_EXT)
