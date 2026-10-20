@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make parity-declarations-check IDS="<requirement>..."` reports only the findings that name one of the requirement ids,
+  intersected with UNITS and RULES, with the findings of config/parity.json itself; an id that no unit cites fails the run,
+  so a row that moves the citations of a few requirements can prove its red (K414-1).
 - The link installs a Python provider from an editable wheel that kit writes itself into `var/link/python` of the consumer,
   with no build backend: the wheel holds the metadata of the provider's pyproject.toml and a .pth that names its import root,
   and no source, so the link writes nothing into a provider folder that a container mounts read-only; a provider whose

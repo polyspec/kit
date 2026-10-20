@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9b6e97c6f37703377e58b8150aa795a1e4ea0f02765c15b3b864caa96445eee8 -->
+<!-- source-sha256: 2e5677be679a332e63a5bc4a19b91542d6479b2a1e88cfed0e2c8931af668699 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make parity-declarations-check IDS="<requirement>..."`는 requirement id 중 하나를 가리키는 finding만 UNITS, RULES와의
+  교집합으로, config/parity.json 자체의 finding과 함께 보고한다. 어떤 unit도 인용하지 않는 id는 실행을 실패시키므로, 몇
+  requirement의 인용을 옮기는 행도 red를 증명할 수 있다(K414-1).
 - link는 kit이 build backend 없이 consumer의 `var/link/python`에 직접 쓰는 editable wheel로 Python provider를 설치한다.
   wheel은 provider pyproject.toml의 metadata와 import root를 가리키는 .pth만 담고 source는 담지 않으므로, link는 container가
   read-only로 mount한 provider 폴더에 아무것도 쓰지 않는다. metadata에 backend가 필요한 provider는 `uv pip install -e`로
