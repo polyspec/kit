@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make item-state` refuses a bypassed or impossible cause that names a release, a version tag, "not reproducible", a flake,
+  "transient", "unrelated" or "environment" unless it cites a kit row, and a commit that deletes a test needs a
+  `Replaced-By:` line naming the test that covers the same requirement (rule `commit-deleted-test`) (K339).
 - A worktree reads the installs of mise of the main checkout of its repository (`MISE_SHARED_INSTALL_DIRS`, set by `kit.mk`
   and `miseEnvironment`), so its `make install` installs only the tools that the main checkout lacks, about 0.7 GB less for
   each worktree; its data dir, state, shims and wrappers stay its own (K387).
