@@ -9,8 +9,11 @@
 //   node scripts/kit/generated-files.mts installs fail while an install directory of the checkout is not ignored by Git (K372): node_modules
 //                                                 beside each package.json, the vendor directory of each composer.json, .venv beside each
 //                                                 pyproject.toml and var at the root; `make layout-check` runs it
+//   node scripts/kit/generated-files.mts tracked  fail while a tracked file is generated, an executable object (K416) or a text file
+//                                                 whose first comment line among its first 5 lines is a generated-file header
+//                                                 (Code generated ... DO NOT EDIT), unless the config allows it (K426); `make layout-check` runs it
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
@@ -91,6 +94,52 @@ export function generatedFindings(changed: string[], config: GeneratedConfig, fi
   ];
 }
 
+// The tracked check reads at most this many bytes of a file: an executable header and a generated-file header both lie within them
+// A file whose head holds a NUL byte is binary, so it is never read for a generated-file header.
+const HEAD_BYTES = 64 * 1024;
+const HEADER_LINES = 5;
+const COMMENT = /^\s*(#|\/\/|\/\*|--|;|%|<!--)/;
+const GENERATED_HEADER = /Code generated .* DO NOT EDIT/;
+
+/** The first bytes of the file `file` of `root`, at most HEAD_BYTES. */
+function readHead(root: string, file: string): Buffer {
+  const fd = openSync(path.join(root, file), 'r');
+  try {
+    const buffer = Buffer.alloc(HEAD_BYTES);
+    return buffer.subarray(0, readSync(fd, buffer, 0, HEAD_BYTES, 0));
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Whether the file whose first bytes are `head` has a generated-file header: its first comment line among the first five lines matches it, and it is text. */
+function hasGeneratedHeader(head: Buffer): boolean {
+  if (head.includes(0)) return false;
+  const first = head.toString('utf8').split('\n', HEADER_LINES).find(line => COMMENT.test(line));
+  return first !== undefined && GENERATED_HEADER.test(first);
+}
+
+/**
+ * The findings of the tracked files of `root`: each tracked path with a generated segment or glob, each one whose first bytes are an
+ * executable object (K416) and each text file with a generated-file header, that no glob of `config.exceptions` allows, each naming the path.
+ */
+export function trackedFindings(root: string, config: GeneratedConfig): string[] {
+  const files = trackedFiles(root);
+  const heads = new Map<string, Buffer>();
+  const head = (file: string): Buffer => {
+    const known = heads.get(file);
+    if (known) return known;
+    const read = readHead(root, file);
+    heads.set(file, read);
+    return read;
+  };
+  return [
+    ...generatedOffenders(files, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); untrack it, or declare it in ${CONFIG}`),
+    ...executableOffenders(files, config, head).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
+    ...files.filter(file => !matchesAny(config.exceptions, file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
+  ];
+}
+
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema, and when it is missing. */
 export function loadGeneratedConfig(root: string): GeneratedConfig {
   if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its generated-file exceptions there`);
@@ -145,9 +194,15 @@ export function installFindings(root: string): string[] {
 
 if (isMain(import.meta.url)) {
   const [mode, ...rest] = process.argv.slice(2);
-  if ((mode !== 'staged' && mode !== 'installs') || rest.length > 0) {
-    console.error('Usage: node scripts/kit/generated-files.mts staged|installs');
+  if ((mode !== 'staged' && mode !== 'installs' && mode !== 'tracked') || rest.length > 0) {
+    console.error('Usage: node scripts/kit/generated-files.mts staged|installs|tracked');
     process.exitCode = 2;
+  } else if (mode === 'tracked') {
+    const root = repositoryRoot();
+    const found = trackedFindings(root, loadGeneratedConfig(root));
+    for (const line of found) console.error(`[generated-files] ${line}`);
+    if (found.length > 0) process.exitCode = 1;
+    else console.log('[generated-files] no tracked file is generated');
   } else if (mode === 'installs') {
     const found = installFindings(repositoryRoot());
     for (const line of found) console.error(`[generated-files] ${line}`);
