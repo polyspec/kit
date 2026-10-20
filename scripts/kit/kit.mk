@@ -92,6 +92,9 @@ $(shell git config core.hooksPath .githooks)
 endif
 endif
 
+twin-merge: ## The merge driver kit-twin of a Korean changelog or checklist, which make hooks declares (K354): git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
+	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
+
 hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push and commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 

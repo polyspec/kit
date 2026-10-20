@@ -3,12 +3,14 @@
 // not installed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from '../../scripts/kit/git-hooks.mts';
+import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, run } from './gates-checkout.mts';
-import { tool } from './kit-tools.mts';
+import { KIT_MAKEFILE, tool } from './kit-tools.mts';
+import { korean, put, tree } from './tree.mts';
 
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
@@ -18,7 +20,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=union, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=union, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -156,4 +158,49 @@ test('make hooks writes the commit-msg hook of kit, which refuses the footer of 
   assert.equal(amended.status, 1, 'the commit-msg hook refuses the amend');
   assert.match(amended.stderr, /commit-ai-footer/);
   assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
+});
+
+// K354: two branches that both add changelog lines and checklist rows rebase without a conflict, and each commit that the rebase
+// writes holds Korean twins whose marker is the sha256 of their English file.
+test('the merges that make hooks declares rebase two branches of changelog lines and checklist rows with current Korean twins (K354)', (t) => {
+  // The driver runs the make target of kit.mk, as in every repository that includes it.
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+    return { ...result, ok: result.status === 0 };
+  };
+  const english = { changelog: 'CHANGELOG.md', checklist: 'docs/plans/p/checklist.md' };
+  const head = { changelog: '<!-- doc-id: changelog -->\n# Changelog\n\n## Unreleased\n\n', checklist: '<!-- doc-id: checklist-p -->\n# P\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n' };
+  // A side writes its lines into both languages and the marker of its English files, as make commit leaves them.
+  const write = (lines: { changelog: string[]; checklist: string[] }) => {
+    for (const key of ['changelog', 'checklist'] as const) {
+      const en = `${head[key]}${lines[key].map(line => `${line}\n`).join('')}`;
+      const ko = korean(en, `${en.split('\n').slice(1).join('\n').replace('# Changelog', '# 변경 기록')}`);
+      put(root, { [english[key]]: en, [english[key].replace(/\.md$/, '.ko.md')]: ko });
+    }
+    assert.ok(git('add', '-A').ok);
+    assert.ok(git('commit', '--quiet', '-m', 'step').ok);
+  };
+  write({ changelog: ['- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |'] });
+  assert.ok(git('branch', '-M', 'main').ok);
+  assert.ok(git('checkout', '--quiet', '-b', 'row').ok);
+  write({ changelog: ['- b (T2).', '- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |', '| T2 | b | `b` | `b` | [o] |'] });
+  assert.ok(git('checkout', '--quiet', 'main').ok);
+  write({ changelog: ['- c (T3).', '- a (T1).'], checklist: ['| T1 | a | `a` | `a` | [o] |', '| T3 | c | `c` | `c` | [o] |'] });
+  assert.ok(git('checkout', '--quiet', 'row').ok);
+  const plain = git('rebase', 'main');
+  assert.notEqual(plain.status, 0, 'without the merges of make hooks the rebase conflicts');
+  assert.ok(git('rebase', '--abort').ok);
+  assert.notEqual(mergeIssue(root), null);
+  installMerges(root);
+  assert.equal(mergeIssue(root), null);
+  const rebase = git('rebase', 'main');
+  assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
+  for (const key of ['changelog', 'checklist'] as const) {
+    const en = readFileSync(path.join(root, english[key]), 'utf8');
+    const ko = readFileSync(path.join(root, english[key].replace(/\.md$/, '.ko.md')), 'utf8');
+    for (const id of ['T1', 'T2', 'T3']) assert.ok(en.includes(id) && ko.includes(id), `${english[key]} and its twin hold ${id}`);
+    assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), `the twin of ${english[key]} is current`);
+    assert.equal(ko.match(/source-sha256/g)?.length, 1, 'one marker');
+  }
 });

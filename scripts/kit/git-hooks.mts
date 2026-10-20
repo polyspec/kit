@@ -3,7 +3,8 @@
 // holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-push` and `commit-msg` belong to kit: `pre-commit`
 // refuses a staged generated path through `make staged-generated-hook`, `pre-push` runs the push gate through `make push-gate-hook`,
 // and `commit-msg` runs the message checks of make commit on every commit, an amend included, through `make commit-msg-hook`;
-// each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository.
+// each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
+// also declares the merges of the changelogs and checklists (K354): a union, and the driver kit-twin for their Korean twins.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
 //                                            executable, then check; a second run changes nothing
@@ -49,6 +50,56 @@ const KIT_HOOKS = [
   { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
 ];
 
+// The merges of the files that every row changes (K354): the lines of a changelog and the rows of a checklist are independent, so
+// their English files merge as the union of both sides and their Korean twins with the driver kit-twin of twin-merge.mts, which
+// writes the marker of the merged English file. .git/info/attributes holds the lines, so no tracked file of a repository changes.
+export const MERGE_ATTRIBUTES = ['CHANGELOG.md merge=union', 'CHANGELOG.ko.md merge=kit-twin', 'docs/plans/*/checklist.md merge=union', 'docs/plans/*/checklist.ko.md merge=kit-twin'];
+const DRIVER_NAME = 'kit: the union of a Korean twin with the marker of its merged English file (K354)';
+
+// The driver kit-twin as git runs it, in the top of the work tree: the make target of the driver, which stays across the versions of
+// kit as the hooks do, and runs twin-merge of the kit of the checkout.
+const DRIVER = 'make --no-print-directory twin-merge MERGE="%O %A %B %P"';
+
+/** The attributes file of the repository of `root`, which every worktree of it reads. */
+const attributesFile = (root: string) => path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'info/attributes').stdout.trim());
+
+/** The value of the git configuration `key` of `root`, or '' when it is not set. */
+function configValue(root: string, key: string) {
+  const run = gitResult(root, 'config', '--get', key);
+  if (run.error) throw run.error;
+  // git config exits with 1 when the key is not set.
+  return run.status === 0 ? run.stdout.trim() : '';
+}
+
+/** Why the merges of K354 are not declared in `root`, with the fix, or null. */
+export function mergeIssue(root: string) {
+  const file = attributesFile(root);
+  const lines = existsSync(file) ? readFileSync(file, 'utf8').split('\n') : [];
+  const absent = MERGE_ATTRIBUTES.filter(line => !lines.includes(line));
+  if (absent.length) return `${path.relative(root, file)} lacks ${absent.join(', ')}; run make hooks`;
+  if (configValue(root, 'merge.kit-twin.driver') !== DRIVER) return `the merge driver kit-twin is not ${DRIVER}; run make hooks`;
+  return null;
+}
+
+/** Declares the merges of K354 in `root`: the missing lines of .git/info/attributes and the driver kit-twin; returns what it changed. */
+export function installMerges(root: string): string[] {
+  const changes: string[] = [];
+  const file = attributesFile(root);
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const absent = MERGE_ATTRIBUTES.filter(line => !text.split('\n').includes(line));
+  if (absent.length) {
+    writeAtomic(file, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${absent.join('\n')}\n`);
+    changes.push(`${path.relative(root, file)}: ${absent.join(', ')} added`);
+  }
+  for (const [key, value] of [['merge.kit-twin.name', DRIVER_NAME], ['merge.kit-twin.driver', DRIVER]] as const) {
+    if (configValue(root, key) === value) continue;
+    const run = gitResult(root, 'config', key, value);
+    if (run.status !== 0) throw new Error(`git config ${key} failed in ${root}: ${run.stderr.trim()}`);
+    changes.push(`${key} set`);
+  }
+  return changes;
+}
+
 /** Why the pre-commit hook cannot run in the checkout `root`, with the fix, or null when config/generated.json exists (K362). */
 function configIssue(root: string) {
   if (existsSync(path.join(root, CONFIG))) return null;
@@ -81,7 +132,7 @@ export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hook
       return `${file} differs from the hook of scripts/kit/git-hooks.mts; run make hooks and commit the file`;
     }
   }
-  return null;
+  return mergeIssue(root);
 }
 
 /**
@@ -112,6 +163,7 @@ export function installHooks(root: string, hooks: string[] = loadConfig(root).ho
       changes.push(`${HOOKS_PATH}/${name} made executable`);
     }
   }
+  changes.push(...installMerges(root));
   return changes;
 }
 
