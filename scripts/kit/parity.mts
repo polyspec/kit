@@ -34,6 +34,7 @@
 //   R11 undeclared-public      a public symbol that no API unit declares
 //   R13 untraced-requirement  a requirement that docs/spec defines (a list item **<id>** or a heading <id>) and no unit cites
 //   R14 unknown-requirement   a unit cites an id that docs/spec does not define (parity-requirements.mts, K273)
+//   R19 spec-without-requirement  a Markdown document of docs/spec defines no requirement id, so no check sees it (K337)
 //   R16 internal-contract      an internal test of an implementation (its internal globs) names a requirement of the spec (K313)
 //   R17 leaked-internal        a public signature, parent or interface names an internal symbol: @internal (PHP), a _-private name (Python), a type the entry point does not export (TypeScript) (K307-1)
 //   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)

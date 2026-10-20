@@ -23,18 +23,22 @@ export function requirementFindings(config: { requirements: { pattern: string };
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
   const defined = new Map<string, string>();
+  const definers = new Set<string>();
   const findings: Finding[] = [];
   for (const file of [...listed].filter(name => SPEC.test(name)).sort()) {
     for (const line of read(file).split('\n')) {
       const match = definition.exec(line);
       const id = match?.[1] ?? match?.[2];
       if (id === undefined) continue;
+      definers.add(file);
       const first = defined.get(id);
       if (first !== undefined) findings.push(finding('declaration', `${id} is defined in ${first} and ${file}; a requirement has one definition`));
       else defined.set(id, file);
     }
   }
   if (defined.size === 0) return [finding('declaration', `requirements.pattern ${pattern} matches no requirement of docs/spec; the spec defines each requirement as a list item **<id>** or a heading <id>`)];
+  // R19: a document of docs/spec that defines no requirement is a finding that names it, so a tooling document cannot sit in the spec unchecked (K337).
+  for (const file of [...listed].filter(name => SPEC.test(name)).sort()) if (!definers.has(file)) findings.push(finding('R19', `${file} defines no requirement; a document of docs/spec defines at least one requirement, as a list item **<id>** or a heading <id>`, { place: file }));
   const cited = new Set<string>();
   const texts = new Map<string, string>();
   // A suite file may be a directory of case directories, which holds no text: it is read through the case.json of its cases.

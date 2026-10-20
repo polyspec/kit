@@ -1630,6 +1630,14 @@ test('parity-declarations-check UNITS reports the findings of the named units an
   assert.match(declaration.stderr, /R12 .* size go config\/parity\.json: .*names go twice/);
 });
 
+// K337: a document of docs/spec that defines no requirement is a finding that names it; the fixture's own spec document defines CX-1.
+test('a document of docs/spec that defines no requirement is a finding that names it (K337)', TIMEOUT, (t) => {
+  const root = repository(t, { files: { 'docs/spec/tooling.md': '# Tooling\n\nThe tooling runs the checks; it defines no requirement.\n' } });
+  const { findings } = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  assert.deepEqual(keys(findings), ['R19 - -']);
+  assert.equal(findings[0]?.place, 'docs/spec/tooling.md');
+});
+
 test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a class is a group, a method a case (K47)', TIMEOUT, (t) => {
   // The messages of PHPUnit 11 for a class with a passing and a failing test method, as the php runner reads them.
   const teamcity = [
