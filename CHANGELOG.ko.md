@@ -1,11 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c028ed1894aaa52ff99e44885d5209607f3b414e4104fd2f6f196f3f94e68fd7 -->
+<!-- source-sha256: 906762730b58f14ecdc01cb3a90793344f8b2b84f21c39e5a6855a60be3d35f9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make hooks`는 `.git/info/attributes`에 `CHANGELOG.md`와 영어 checklist의 git union merge와 그 한국어 문서의 merge
+  driver `kit-twin`(`make twin-merge`)을 선언한다. driver는 양쪽의 union과 rebase가 merge한 영어 파일의 revision
+  marker를 쓰므로, changelog 줄과 checklist row를 더하는 두 branch의 rebase에 손 편집이나 script가 필요 없고 rebase가 쓰는
+  각 commit은 최신 한국어 문서를 가진다. driver는 git이 적용하는 commit을 알려 주는 rebase에서 작동하고 그 밖에서는
+  rebase를 말하며 실패한다. 선언이 없으면 `make hooks-check`가 실패한다. red: 그런 rebase가 두 한국어 문서에서 충돌했다.
+  green: `node --test --test-name-pattern=K354 tests/kit/git-hooks.test.mts`가 통과한다 (K354).
 - Claude Code hook은 `pgrep`, `pidof`, `ls`, `test`, `[`를 상태를 기다릴 수 있는 `while`이나 `until` loop의 조건이나
   본문에서만 poll로 읽는다. 목록을 도는 `for` loop는 목록과 함께 끝나므로 그것들을 실행해도 되고, `sleep`은 모든 loop에서
   계속 거부된다. red: hook이 이름 붙인 두 파일을 `test -f`로 도는 `for` loop(orm의 recipe)를 거부해 그것에 의존하는

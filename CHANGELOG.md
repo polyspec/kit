@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+- `make hooks` declares in `.git/info/attributes` the union merge of git for `CHANGELOG.md` and the English checklists
+  and the merge driver `kit-twin` for their Korean twins (`make twin-merge`), which writes the union of both sides and
+  the revision marker of the English file as the rebase merges it, so a rebase of two branches that add changelog
+  lines and checklist rows needs no hand edit or script, and each commit it writes holds current twins; the driver
+  works in a rebase, where git names the commit it applies, and fails elsewhere naming the rebase. `make hooks-check`
+  fails while the declarations are missing. Red: such a rebase conflicted in both Korean twins; green: `node --test
+  --test-name-pattern=K354 tests/kit/git-hooks.test.mts` passes (K354).
 - The Claude Code hook reads `pgrep`, `pidof`, `ls`, `test` and `[` as a poll only in the condition or body of a
   `while` or `until` loop, which can wait on a state; a `for` loop over a list ends with its list, so it may run them,
   and a `sleep` stays refused in every loop. Red: the hook refused a `for` loop over two named files with `test -f`
