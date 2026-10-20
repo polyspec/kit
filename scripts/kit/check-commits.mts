@@ -351,7 +351,7 @@ export function logMessages(root: string, args: string[], label: string): Commit
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // git fails with a Stop, which is an Error.
-    throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`);
+    throw new Error(`the range ${label} does not resolve in this checkout: ${error.message.split('\n')[0]}; fetch its commits or give a range of commits that this checkout holds`, { cause: error });
   }
   return output.split('\x1e').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map((entry) => {
     const [id = '', author = '', committer = '', ...message] = entry.split('\x1f');

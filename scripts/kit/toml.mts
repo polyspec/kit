@@ -12,7 +12,7 @@ export function readToml(text: string, file: string): TomlTable {
     return parse(text);
   } catch (error) {
     if (!(error instanceof TomlError)) throw error;
-    throw new Error(`${file} line ${error.line} column ${error.column}: ${error.message.split('\n')[0]}`);
+    throw new Error(`${file} line ${error.line} column ${error.column}: ${error.message.split('\n')[0]}`, { cause: error });
   }
 }
 

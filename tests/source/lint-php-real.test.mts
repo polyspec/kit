@@ -40,6 +40,14 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a ClassLoader changed at run time', files: { 'packages/php/src/Loader.php': php("final class Loader\n{\n    public static function register(\\Composer\\Autoload\\ClassLoader $loader): void\n    {\n        $loader->addPsr4('Generated\\\\', __DIR__);\n    }\n}\n") }, finding: /Calling Composer\\Autoload\\ClassLoader::addPsr4\(\) is forbidden, S2: classes load through the PSR-4 autoloader of Composer; never change a ClassLoader at run time/ },
   // No swallowed error (K256): an empty catch.
   { name: 'an empty catch', files: { [DEMO]: php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n        }\n        return 0;\n    }\n}\n') }, finding: /Generic\.CodeAnalysis\.EmptyStatement/ },
+  // P8 (K334): an error suppressed with @, and a catch that holds only a comment.
+  { name: 'an error suppression with @', files: { [DEMO]: php('final class Demo\n{\n    public function double(int $value): int\n    {\n        return (int) @file_get_contents(__FILE__) * $value;\n    }\n}\n') }, finding: /Generic\.PHP\.NoSilencedErrors/ },
+  { name: 'a catch that holds only a comment', files: { [DEMO]: php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            // nothing\n        }\n        return 0;\n    }\n}\n') }, finding: /Generic\.CodeAnalysis\.EmptyStatement/ },
+];
+
+// The variants that state their need pass (P8): phpcs:ignore with the sniff and its reason.
+const STATED: { name: string; files: Record<string, string> }[] = [
+  { name: 'an error suppression with its reason', files: { [DEMO]: php('final class Demo\n{\n    public function double(int $value): int\n    {\n        // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged -- the read fails on a missing file, which the next line checks\n        $text = @file_get_contents(__FILE__);\n        return $text === false ? 0 : $value * 2;\n    }\n}\n') } },
 ];
 
 /** Writes `files` below `root`. */
@@ -121,4 +129,11 @@ test('composer dump-autoload --strict-psr passes the extra class that the PHP li
   const strict = composer(path.join(root, 'packages/php'), 'dump-autoload', '--optimize', '--strict-psr');
   assert.equal(strict.status, 0, `${strict.stdout}${strict.stderr}`);
   assert.deepEqual(lintOf(root).failed, ['phpcs']);
+});
+
+test('a variant that states its need passes the PHP lint', (t) => {
+  for (const { name, files } of STATED) {
+    const { failed, output } = lintOf(repository(t, files));
+    assert.deepEqual(failed, [], `${name}: ${output}`);
+  }
 });

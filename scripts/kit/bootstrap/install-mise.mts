@@ -213,7 +213,7 @@ export function installNode({ root, print = () => {} }: { root: string; print?: 
     run(mise, ['install', '--locked', 'node'], { cwd: root, env: bootstrapEnvironment(root) }, print);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`${error.message}; mise.toml must declare node, the Node.js release of the checkout, and mise.lock must pin it (make toolchain-lock)`);
+    throw new Error(`${error.message}; mise.toml must declare node, the Node.js release of the checkout, and mise.lock must pin it (make toolchain-lock)`, { cause: error });
   }
   const directory = miseWhere(root, 'node');
   writeWrapper(root, NODE_WRAPPER, wrapperText('the Node.js of mise.toml of this checkout', `exec ${quote(path.join(directory, 'bin', 'node'))} "$@"`), print);

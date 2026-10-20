@@ -81,6 +81,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a forgotten export', files: { [INDEX]: `${DOUBLE}\ninterface Options {\n  factor: number;\n}\n\n/**\n * Scales a value.\n */\nexport function scale(value: number, options: Options): number {\n  return value * options.factor;\n}\n` }, finding: /\(ae-forgotten-export\) The symbol "Options" needs to be exported by the entry point index\.d\.ts/ },
   // No swallowed error (K256).
   { name: 'an empty catch', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {}\n}\n` }, finding: /eslint\(no-empty\)/ },
+  // P8 (K334): an error thrown from a catch carries the caught one as its cause.
+  { name: 'a thrown error that drops its cause', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed');\n  }\n}\n` }, finding: /eslint\(preserve-caught-error\)/ },
   { name: 'a catch that only rethrows', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function rethrow(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw error;\n  }\n}\n` }, finding: /eslint\(no-useless-catch\)/ },
 ];
 
@@ -159,6 +161,13 @@ test('the TypeScript lint fails on each planted violation with the rule or the m
     assert.notDeepEqual(failed, [], `${name}: the violation passed:\n${output}`);
     assert.match(output, finding, `${name} is not named:\n${output}`);
   }
+});
+
+// P8 (K334): a catch states its need in a comment, and a wrapped error carries its cause; both pass.
+test('the TypeScript lint passes on a catch with a stated need and on an error that keeps its cause', (t) => {
+  const stated = `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {\n    // the doubling is optional here, and its failure is reported by the caller\n  }\n}\n\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed', { cause: error });\n  }\n}\n`;
+  const { failed, output } = lintOf(repository(t, { [INDEX]: stated, 'tests/index.test.ts': `${TESTS.replace('{ double }', '{ double, tryDouble, wrap }')}\ntest('wrap', () => {\n  tryDouble();\n  assert.equal(wrap(), 2);\n});\n` }));
+  assert.deepEqual(failed, [], output);
 });
 
 // ES2018 raised the limit of the fraction digits of toExponential and toFixed, and of the precision of toPrecision, to 100

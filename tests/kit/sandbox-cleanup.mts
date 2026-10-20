@@ -43,7 +43,7 @@ export function removeSandbox(directory: string, { remove = rmSync }: { remove?:
     const processes = groupProcesses();
     throw new Error(
       `cannot remove ${directory} (${errorCode(error)}: ${error.message}); still in it: ${still.join('; ') || 'nothing listed'}; live processes of this process group: ${processes.join(' | ') || 'none'}`,
-      { cause: error },
+      { cause: caught },
     );
   }
 }

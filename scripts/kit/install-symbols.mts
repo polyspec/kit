@@ -52,7 +52,7 @@ function installedRelease(directory: string): string | undefined {
     if (!(error instanceof Error)) throw error;
     // Only a missing file means that nothing is installed; any other error is a broken installation.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw new Error(`${file} cannot be read: ${error.message}`);
+    throw new Error(`${file} cannot be read: ${error.message}`, { cause: error });
   }
 }
 
@@ -65,7 +65,7 @@ function goCommand(root: string): string {
     directory = miseWhere(root, MISE_TOOLS.go.key);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`${GO_MISSING}: ${error.message}`);
+    throw new Error(`${GO_MISSING}: ${error.message}`, { cause: error });
   }
   const go = path.join(directory, 'bin', MISE_TOOLS.go.command);
   if (!existsSync(go)) throw new Error(`${GO_MISSING}: ${go} does not exist`);

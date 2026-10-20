@@ -68,7 +68,7 @@ function parseLine(text: string, where: string): PipRequirement | null {
     return parsePipRequirementsLine(text);
   } catch (error) {
     if (!(error instanceof RequirementsSyntaxError)) throw error;
-    throw new Error(`${where}: ${text} is not read: ${error.message}`);
+    throw new Error(`${where}: ${text} is not read: ${error.message}`, { cause: error });
   }
 }
 // The entries of a requirements or constraints file as pip reads it (comments and blank lines skipped), each with its text and
@@ -79,7 +79,7 @@ function entriesOf(text: string, file: string) {
     located = parsePipRequirementsFile(text, { includeLocations: true });
   } catch (error) {
     if (!(error instanceof RequirementsSyntaxError)) throw error;
-    throw new Error(`${file}: ${error.message}`);
+    throw new Error(`${file}: ${error.message}`, { cause: error });
   }
   return located.map(({ location }) => {
     const line = text.slice(location.startIdx, location.endIdx);

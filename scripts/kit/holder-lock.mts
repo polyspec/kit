@@ -170,7 +170,7 @@ function parseLockRecord(lock: string, text: string): LockRecord {
     return parseJson<LockRecord>(text, 'holder-lock.schema.json', lock);
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
-    throw new Error(`${lock} holds no lock record: ${JSON.stringify(text.trim())}: ${error.message}`);
+    throw new Error(`${lock} holds no lock record: ${JSON.stringify(text.trim())}: ${error.message}`, { cause: error });
   }
 }
 

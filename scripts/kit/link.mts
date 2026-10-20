@@ -68,14 +68,14 @@ function real(file: string): string | undefined {
 /** The JSON of the file `file`, an error naming the file when it is malformed. */
 function readJsonOf(file: string): unknown {
   try { return JSON.parse(readFileSync(file, 'utf8')) as unknown; } catch (error) {
-    throw new Error(`${file} holds no valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${file} holds no valid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 }
 
 /** The JSON that a command prints, an error naming the command when it is malformed. */
 function parseOutput(text: string, what: string): unknown {
   try { return JSON.parse(text) as unknown; } catch (error) {
-    throw new Error(`${what} printed no valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${what} printed no valid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 }
 
