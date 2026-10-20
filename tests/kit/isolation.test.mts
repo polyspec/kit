@@ -12,7 +12,11 @@ import { known } from './known.mts';
 import { moduleImports, parseModule } from '../../scripts/kit/module-imports.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const REPOSITORY_NAMES = /\b(template|crudui|hyper|ordered-json|orm|fsm|flowmark)\b/i;
+// A repository is named as a package (polyspec/<name>, also @polyspec/<name>-workspace or github.com/polyspec/<name>) or as a
+// path segment (../<name>/ or '<name>/); a bare word such as template names no repository (K361).
+const REPOSITORY_NAMES = /\bpolyspec\/(template|crudui|hyper|ordered-json|orm|fsm|flowmark)\b|(?:\.\.\/|['"`])(template|crudui|hyper|ordered-json|orm|fsm|flowmark)\//i;
+/** The first name of another repository that a line of kit names, or null. */
+const namedRepository = (line: string) => REPOSITORY_NAMES.exec(line.replaceAll('github.com/polyspec/kit', ''));
 
 const files = (directory: string): string[] => readdirSync(path.join(ROOT, directory)).sort().flatMap((entry) => {
   const relative = `${directory}/${entry}`;
@@ -94,8 +98,16 @@ test('no tool or test of kit names another repository', () => {
   for (const file of sources) {
     const lines = readFileSync(path.join(ROOT, file), 'utf8').split('\n');
     lines.forEach((line, index) => {
-      const hit = REPOSITORY_NAMES.exec(line.replaceAll('github.com/polyspec/kit', ''));
+      const hit = namedRepository(line);
       assert.equal(hit, null, `${file}:${index + 1} names the repository ${hit?.[0]}: ${line.trim()}`);
     });
+  }
+});
+
+test('a repository is named by its package, path or URL, not by the same English word (K361)', () => {
+  for (const line of ['let template: string | undefined;', 'the hyper link of a word']) assert.equal(namedRepository(line), null, line);
+  for (const [line, name] of [["'@polyspec/template-workspace'", 'template'], ['github.com/polyspec/orm', 'orm'], ["path.join(root, '../template/packages')", 'template'], ['polyspec/hyper', 'hyper']] as const) {
+    const hit = namedRepository(line);
+    assert.ok(hit?.[0].includes(name), `${line} names the repository ${name}`);
   }
 });
