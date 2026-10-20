@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d82566fdd99ebfea4f34268b45254892c44206fa150eb38057757c8d50d96aa -->
+<!-- source-sha256: f10c2a76d16d1751ed617792db14345d41593e6093875448236b4ebaad4c7df3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 실제 layout 테스트가 `make layout-check`의 install 폴더 검사와 함께 다시 통과한다. 그 fixture는 kit의 도구를 그 node로
+  실행하고 install 폴더를 무시한다(K372-1).
 - TypeScript 실제 lint 테스트 K170과 K172가 다시 통과한다. 그 fixture는 각 테스트가 증명하는 규칙 옆에서 더는 tsc에 실패하지
   않는다. 타입 없는 매개변수와, fixture의 tsconfig가 이제 빼는 일부러 깨진 입력 때문이었다(K417).
 - `make unlink`은 `pylock.toml`로 lock한 Python project를 복원한다. 링크된 package의 lock된 release를 pylock에서 환경에 다시

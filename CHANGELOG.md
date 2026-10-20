@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The real layout tests pass again with the check of the install directories in `make layout-check`: their fixture runs
+  the tools of kit with its node and ignores its install directories (K372-1).
 - The real TypeScript lint tests K170 and K172 pass again: their fixtures no longer fail tsc beside the rule that each test
   proves, an untyped parameter and a broken input that the tsconfig of the fixture now leaves out (K417).
 - `make unlink` restores a Python project locked with `pylock.toml`: it reinstalls the locked releases of the linked packages
