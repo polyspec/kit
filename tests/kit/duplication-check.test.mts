@@ -26,3 +26,31 @@ test('a folder that config/duplication.json excludes with its reason is not read
   put(root, { 'config/duplication.json': JSON.stringify({ schema: 1, exclude: [{ glob: 'tests/**', reason: '' }] }) });
   assert.throws(() => duplicationCheck(root, () => {}), /reason/);
 });
+
+// Lines that carry no logic, the file header of each format (K287): the declarations and imports that jscpd's own ignore-pattern
+// skips. Each case: two files that share only a header pass, and two files that share a 6-line body still fail, so a pattern
+// that matched more than the header would show here.
+const COUNT = 60;
+const lines = (count: number, line: (index: number) => string) => Array.from({ length: count }, (_, index) => line(index));
+const HEADERS: Record<string, { extension: string; header: string[]; statement: (prefix: string, index: number) => string }> = {
+  php: { extension: 'php', header: ['<?php', 'declare(strict_types=1);', 'namespace Acme\\Rules;', ...lines(COUNT, i => `use Acme\\Expr\\Field${i};`)], statement: (p, i) => `$${p}${i} = compute(${i}, 'name${i}', [${i}, ${i + 1}]);` },
+  ts: { extension: 'ts', header: [...lines(COUNT, i => `import { member${i} } from './module${i}.ts';`), "import {", '  first,', '  second,', "} from './many.ts';", "import './effect.ts';"], statement: (p, i) => `export const ${p}${i} = compute(${i}, 'name${i}', [${i}, ${i + 1}]);` },
+  go: { extension: 'go', header: ['package acme', '', 'import (', ...lines(COUNT, i => `\t"example.com/acme/pkg${i}"`), ')'], statement: (p, i) => `${p}${i} := compute(${i}, "name${i}", []int{${i}, ${i + 1}})` },
+  'go-single': { extension: 'go', header: ['package acme', '', ...lines(COUNT, i => `import "example.com/acme/pkg${i}"`)], statement: (p, i) => `${p}${i} := compute(${i}, "name${i}", []int{${i}, ${i + 1}})` },
+  python: { extension: 'py', header: [...lines(COUNT, i => `import acme.module${i}`), 'from acme.names import (', '    first,', '    second,', ')', 'from acme.other import third'], statement: (p, i) => `${p}${i} = compute(${i}, 'name${i}', [${i}, ${i + 1}])` },
+  rust: { extension: 'rs', header: [...lines(COUNT, i => `use acme::module${i}::Member${i};`), 'use acme::{', '    first,', '    second,', '};'], statement: (p, i) => `let ${p}${i} = compute(${i}, "name${i}", [${i}, ${i + 1}]);` },
+  c: { extension: 'c', header: lines(COUNT, i => `#include <acme/header${i}.h>`), statement: (p, i) => `int ${p}${i} = compute(${i}, "name${i}", ${i + 1});` },
+};
+for (const [name, { extension, header, statement }] of Object.entries(HEADERS)) {
+  test(`${name}: two files that share only a header pass, two that share a 6-line body fail (K287)`, (t) => {
+    const file = (body: string) => `${header.join('\n')}\n${body}\n`;
+    const own = (prefix: string) => lines(8, i => statement(prefix, i)).join('\n');
+    const root = tree(t, { [`src/a.${extension}`]: file(own('alpha')), [`src/b.${extension}`]: file(own('beta')) });
+    const headerOnly = duplicationCheck(root, () => {});
+    assert.equal(headerOnly.status, 0, headerOnly.output);
+    put(root, { [`src/c.${extension}`]: file(own('alpha')) });
+    const body = duplicationCheck(root, () => {});
+    assert.equal(body.status, 1, body.output);
+    assert.match(body.output, new RegExp(`src/a\\.${extension}`));
+  });
+}

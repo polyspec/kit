@@ -15,6 +15,27 @@ export const CONFIG = 'config/duplication.json';
 // The code formats of jscpd for the runtimes of kit (S5) and the C of the PHP extensions.
 const FORMATS = ['typescript', 'javascript', 'go', 'php', 'python', 'rust', 'c'];
 const MIN_LINES = '6';
+// The lines that carry no logic, the file header of each format (K287): jscpd's own ignore-pattern skips the tokens that overlap
+// a match, so two files that share only their declarations and imports are no clone. (?m) lets ^ and $ match at a line, and a
+// pattern holds no comma, which separates the patterns on the command line. Nothing else is skipped: no docblock, no signature.
+const HEADER_PATTERNS = [
+  // PHP: declare, namespace and use at the start of a line
+  String.raw`(?m)^(declare\([^)]*\)|namespace [^;]+|use [^;]+);$`,
+  // TypeScript and JavaScript: import, single-line or a block over lines, and a bare import of a module
+  String.raw`(?m)^import\s[^;'"]*['"][^'"\n]*['"];?$`,
+  // Go: package, and import, single or a block
+  String.raw`(?m)^package \w+$`,
+  String.raw`(?m)^import (\w+ )?"[^"\n]*"$`,
+  String.raw`(?m)^import \([^)]*\)$`,
+  // Python: import and from-import, single-line or parenthesized over lines
+  String.raw`(?m)^import [^\n]+$`,
+  String.raw`(?m)^from [\w.]+ import [^\n(]+$`,
+  String.raw`(?m)^from [\w.]+ import \([^)]*\)$`,
+  // Rust: use, single or braced over lines
+  String.raw`(?m)^(pub )?use [^;]+;$`,
+  // C: include
+  String.raw`(?m)^#include [<"][^>"\n]*[>"]$`,
+];
 // The command of the package jscpd that the check runs.
 const COMMAND = 'jscpd';
 
@@ -34,7 +55,7 @@ function jscpd(): string {
 /** Runs jscpd over `root` and returns its status and output, which `print` receives; throws when jscpd cannot start. */
 export function duplicationCheck(root: string, print: (text: string) => void = text => process.stdout.write(text)): { status: number; output: string } {
   const excluded = existsSync(path.join(root, CONFIG)) ? readConfig<DuplicationConfig>(root, CONFIG, 'duplication.schema.json').exclude : [];
-  const args = ['--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', ...(excluded.length ? ['--ignore', excluded.map(entry => entry.glob).join(',')] : []), root];
+  const args = ['--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', '--ignore-pattern', HEADER_PATTERNS.join(','), ...(excluded.length ? ['--ignore', excluded.map(entry => entry.glob).join(',')] : []), root];
   const result = spawnSync(jscpd(), args, { cwd: root, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
   if (result.error) throw new Error(`jscpd could not start: ${result.error.message}`);
   const output = `${result.stdout}${result.stderr}`;

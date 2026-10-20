@@ -752,6 +752,14 @@ K248-3 the check is a tool of kit, `duplication-check.mts` in kit.mk, so every r
 package, reads the code of the checkout that .gitignore leaves, in the formats of the runtimes, outside the folders that
 `config/duplication.json` excludes, each with its reason; kit excludes `tests/`, since a test states its case in full.
 
+The check passes jscpd's own `--ignore-pattern` (K287), a constant of `duplication-check.mts`, so that the tokens of the lines
+that carry no logic are skipped: imports and declarations are imposed by what the code uses, not written twice by choice. It
+matches only the file header of each format: PHP `declare`, `namespace` and `use`; TypeScript and JavaScript `import`, single
+line or a block; Go `package` and `import`, single or a block; Python `import` and `from ... import`, also parenthesized; Rust
+`use`, also braced; C `#include`. A docblock, a signature, the mode and the minimum of tokens are not changed, so a repeated
+body or signature stays a clone. `tests/kit/duplication-check.test.mts` holds a case per format: two files that share only a
+header pass and two that share a 6-line body fail.
+
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |

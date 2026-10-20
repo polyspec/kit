@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 80f4fe74d448a8053cbeff4e1b7f5bf724ecef4662fd10326262d8291de43e08 -->
+<!-- source-sha256: 728ad67c7cbe21a00428ecae92fd22861f0319df7d9bdf93424ad9b0ef7fd899 -->
 
 # 도구 목록
 
@@ -684,6 +684,14 @@ finding 하나입니다.
 `duplication-check.mts`이므로 모든 저장소가 실행합니다. package의 dependency인 jscpd가 .gitignore가 남기는 checkout의 code를
 runtime의 format으로, `config/duplication.json`이 각자의 이유와 함께 제외하는 folder 밖에서 읽습니다. kit은 test가 자기 case를
 온전히 기술하므로 `tests/`를 제외합니다.
+
+check는 jscpd 자체의 `--ignore-pattern`(K287)을 `duplication-check.mts`의 상수로 넘겨, logic을 담지 않는 줄의 token을 건너뜁니다.
+import와 선언은 code가 쓰는 것에 따라 정해지는 것이지 선택으로 두 번 쓴 것이 아니기 때문입니다(ecosystem의 option). 각 format의
+file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 JavaScript의 `import`(한 줄 또는 여러 줄 block); Go의
+`package`와 `import`(단일 또는 block); Python의 `import`와 `from ... import`(괄호 포함); Rust의 `use`(중괄호 포함); C의
+`#include`. docblock, signature, mode, 최소 token 수는 바꾸지 않으므로 반복된 body나 signature는 계속 clone입니다.
+`tests/kit/duplication-check.test.mts`에 format마다 case가 있습니다: header만 같은 두 file은 통과하고 6줄 body가 같은 두 file은
+실패합니다.
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|
