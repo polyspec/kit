@@ -49,6 +49,7 @@ The links are the kit tool `scripts/kit/link.mts` (K201, K201-1, K205), which us
 ## Worktrees
 
 - A row that needs a worktree gets it from `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]` in the main checkout (K348): the worktree `../<repository>-<name>-<id>` on the branch `<type>/<name>-<id>` from `main` (P10), installed from its own sources with `make install` (the tools and the packages, the steps of the repository, then the links) and checked with `make link-state-check`. A second run on the same worktree installs and checks it again, so a run leaves the same state.
+- In a checkout beside the kit checkout `../kit`, the bootstrap takes `../kit/dist` as `KIT` from the first make on, the provider that the link installs, so a fresh worktree reads `kit.mk` before `npm ci` and installs with the tools of the kit it develops against; a kit checkout that is not built fails with `make build in ../kit` (K348-1). Without it, as in CI, `KIT` is the installed package.
 - No worktree is made while the free disk is under 30 GB (`WORKTREE_DISK_FLOOR` of `scripts/kit/worktree-setup.mts`).
 - An install directory of a worktree (`node_modules`, `vendor`, `.venv`, `target`, `var`) is its own, never a symbolic link to another checkout, so its tests run its own sources (K375). Until the tools of mise are shared by every checkout (K387), each worktree installs its tools too.
 - A worktree and its branch are removed as soon as the branch is merged into `main`.

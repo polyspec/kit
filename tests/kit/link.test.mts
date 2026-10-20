@@ -204,25 +204,23 @@ test('K205: link links the checkouts that it is given with no environment variab
   assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
 });
 
-test('install-link of a consumer runs the link of the sibling kit checkout, and fails when it is not built (K360)', (t) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k360-')));
+// K348-1: beside a kit checkout, KIT is its dist from the first make on; without it, as in CI, the installed package.
+test('the bootstrap takes the dist of the kit checkout beside the repository as KIT, fails when it is not built, and takes the installed package without it (K348-1)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k348-1-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const cwd = path.join(root, 'ws/cons');
   const kit = path.join(root, 'ws/kit');
-  const link = path.join(kit, 'dist/link.mjs');
   mkdirSync(cwd, { recursive: true });
   mkdirSync(path.join(kit, '.git'), { recursive: true });
-  writeFileSync(path.join(kit, '.git/HEAD'), 'ref: refs/heads/main\n');
   mkdirSync(path.join(kit, 'dist'), { recursive: true });
-  writeFileSync(link, '');
+  writeFileSync(path.join(kit, 'dist/kit.mk'), '# the kit.mk of the kit checkout\n');
   const makefile = path.join(KIT, 'scripts/kit/kit-bootstrap.mk');
-  const dry = () => spawnSync('make', ['-n', '-f', makefile, 'install-link', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
+  const dry = () => spawnSync('make', ['-n', '-f', makefile, 'install-link', 'KIT_EXT=mjs', 'NODE=node'], { cwd, encoding: 'utf8' });
   assert.match(dry().stdout, /node \.\.\/kit\/dist\/link\.mjs link --siblings/);
-  rmSync(link);
-  // install-link runs no npm; the recipe fails at the missing sibling link, before any link runs.
-  const missing = spawnSync('make', ['-f', makefile, 'install-link', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=true', 'ONLINE='], { cwd, encoding: 'utf8' });
-  assert.notEqual(missing.status, 0);
-  assert.match(missing.stderr, /install-link: \.\.\/kit\/dist\/link\.mjs is missing; run make build in \.\.\/kit/);
+  rmSync(path.join(kit, 'dist/kit.mk'));
+  const unbuilt = dry();
+  assert.notEqual(unbuilt.status, 0);
+  assert.match(unbuilt.stderr, /\.\.\/kit\/dist\/kit\.mk is missing: the kit checkout beside the repository is not built; run make build in \.\.\/kit/);
   rmSync(kit, { recursive: true, force: true });
   assert.match(dry().stdout, /node node_modules\/@polyspec\/kit\/dist\/link\.mjs link --siblings/);
 });

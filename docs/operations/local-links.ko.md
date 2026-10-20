@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: efb3c293b550f7a447ce83d4dbad445e676953a58a0f8eb8eb3c7ded057b4c82 -->
+<!-- source-sha256: 6dbae00ebab9f809389e4a55c88f9809b6a0d573ec0b28f0760c1d1401316323 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -50,6 +50,7 @@
 ## Worktree
 
 - worktree가 필요한 row는 main checkout에서 `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`로 그것을 얻는다(K348). `main`에서 branch `<type>/<name>-<id>`의 worktree `../<repository>-<name>-<id>`를 만들고(P10), 자기 source로 `make install`(도구와 패키지, 저장소의 단계, 그다음 링크)을 실행해 설치하고, `make link-state-check`로 검사한다. 같은 worktree에서 다시 실행하면 다시 설치하고 검사하므로 실행 결과는 같은 상태이다.
+- kit checkout `../kit` 옆의 checkout에서는 bootstrap이 첫 make부터 link가 설치하는 provider인 `../kit/dist`를 `KIT`로 쓰므로 새 worktree는 `npm ci` 전에 `kit.mk`를 읽고 자신이 개발하는 kit의 도구로 설치한다. build되지 않은 kit checkout이면 `make build in ../kit`과 함께 실패한다(K348-1). 없으면 CI처럼 `KIT`는 설치된 package이다.
 - 여유 disk가 30 GB 미만이면 worktree를 만들지 않는다(`scripts/kit/worktree-setup.mts`의 `WORKTREE_DISK_FLOOR`).
 - worktree의 install directory(`node_modules`, `vendor`, `.venv`, `target`, `var`)는 자기 것이며 다른 checkout으로의 symbolic link가 아니므로 그 test는 자기 source를 실행한다(K375). mise의 도구를 모든 checkout이 공유하기 전까지(K387) 각 worktree는 도구도 설치한다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지운다.
