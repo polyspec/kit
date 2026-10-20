@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 947aca4b51b87119096cffbaeb9859a375038a661e12df0d4b1059964bc82d83 -->
+<!-- source-sha256: ccfae8f4924cb402235399c5032cc6bbecf01fd1d17ece48b254f6ae62cfaf77 -->
 # 개발
 
 [English](AGENTS.md)
@@ -85,14 +85,6 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review와 gate가 받아들였다고 출력합니다. 숨기지
   않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/operations/tool-inventory.md, Accepted advisories).
   Enforced by: `make dependency-policy-check`
-- 하위 호환성은 유지하지 않습니다: 호환 layer, fallback, migration을 더하지 않고 옛 경로를 제거합니다.
-  Enforced by: none, PRINCIPLES.md가 기술하는 설계 판단이며, K243이 이 사본을 제거합니다.
-- 현재 요구를 완전히 충족하는 가장 단순한 구현을 씁니다. 불확실한 미래를 위한 추상화, 설정, 간접 계층을 두지 않습니다.
-  Enforced by: `make lint-ts`
-- 각 관심사를 자기 module에 분명히 분리한 modular component로 만듭니다.
-  Enforced by: `make duplication-check`
-- architecture는 장기적으로 정합니다: 지금은 동작하지만 나중에 교체해야 하는 임시방편은 받아들이지 않습니다.
-  Enforced by: none, PRINCIPLES.md가 기술하는 설계 판단이며, K243이 이 사본을 제거합니다.
 - 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인 표현으로 씁니다.
   Enforced by: none, 직접적인 문장은 review의 판단입니다.
 

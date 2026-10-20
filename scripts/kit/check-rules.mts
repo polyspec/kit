@@ -20,7 +20,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
-type Rule = { line: number; enforced: string | null };
+type Rule = { line: number; enforced: string | null; text: string };
 
 /** A rule that no tool enforces, with the reason that its document gives. */
 export type Unenforced = { file: string; line: number; reason: string };
@@ -42,13 +42,15 @@ function rulesOf(text: string): Rule[] {
     const line = lines[index] ?? '';
     if (block.kind !== 'listItem' || !/^[-*+] /.test(line)) return;
     let enforced: string | null = null;
+    const text: string[] = [];
     for (let next = index; next < lines.length; next += 1) {
       const kind = blocks[next]?.kind;
       if (next > index && kind !== 'listContinuation' && kind !== 'blank') break;
       const match = ENFORCED.exec(lines[next] ?? '');
       if (match) enforced = match[1] ?? '';
+      else text.push(lines[next] ?? '');
     }
-    rules.push({ line: index + 1, enforced });
+    rules.push({ line: index + 1, enforced, text: text.join(' ') });
   });
   return rules;
 }
@@ -76,6 +78,18 @@ function proseLines(text: string): number[] {
     if (starts) opened = true;
   });
   return found;
+}
+
+// An AGENTS rule restates a PRINCIPLES rule when this share of its 4-word sequences lies in that rule (K279). Measured on the
+// AGENTS.md of kit, hyper, fsm, orm, crudui, template and ordered-json against PRINCIPLES.md: the restated rules share 0.29, 0.71
+// and 0.82, every other rule 0.15 or less.
+const RESTATED = 0.25;
+const SEQUENCE = 4;
+
+/** The sequences of SEQUENCE words of `text`, lower case. */
+function sequences(text: string): Set<string> {
+  const words = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return new Set(Array.from({ length: Math.max(0, words.length - SEQUENCE + 1) }, (_, index) => words.slice(index, index + SEQUENCE).join(' ')));
 }
 
 /** The checks of an `Enforced by:` text: the text of each backtick span. */
@@ -207,6 +221,14 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
       for (const check of checks) {
         const finding = checkFinding(root, check, make, reach, where);
         if (finding) findings.push(finding);
+      }
+    }
+    if (document === 'AGENTS.md' && documents.includes('PRINCIPLES.md')) {
+      const common = rulesOf(readFileSync(path.join(root, 'PRINCIPLES.md'), 'utf8')).map(rule => ({ rule, words: sequences(rule.text) }));
+      for (const rule of rules) {
+        const own = sequences(rule.text);
+        const same = common.find(({ words }) => own.size > 0 && [...own].filter(item => words.has(item)).length / own.size > RESTATED);
+        if (same) findings.push(`${document}:${rule.line}: restates the rule of PRINCIPLES.md:${same.rule.line} (more than a quarter of its wording is the same); ${document} states only the rules of its own repository. Remove it`);
       }
     }
     const twin = document.replace(/\.md$/, '.ko.md');

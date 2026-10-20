@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 61aa21bec65109d967512c4b86182bb109bc8b6a805b05a58b3c6c970b944230 -->
+<!-- source-sha256: 511559ad6fe7e00f19ba5f946ef9613e5ba338a482b98704b52bb0c3dc79bafb -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -79,3 +79,4 @@
 | K288 | kit의 typecheck가 green이다. 원인: npx tsc --noEmit -p .(make typecheck)가 tests/kit/link.test.mts(string \| undefined message 인자)와 tests/kit/parity-requirements.test.mts(exactOptionalPropertyTypes에서 optional caseFile에 undefined 지정)에서 오류 3건을 보고했다. 인수 조건: make typecheck가 통과한다. | tests/kit/link.test.mts, tests/kit/parity-requirements.test.mts | `node_modules/.bin/tsc -p tsconfig.json` `node --test tests/kit/parity-requirements.test.mts` | [o] |
 | K287 | duplication check는 logic이 없는 줄을 건너뛴다. 원인: file header의 declare, namespace, use, import 줄이 clone으로 셌다(crudui packages/validator/php: clone 32개 중 15개가 1행에서 시작). 인수 조건: duplication-check가 jscpd 자체의 --ignore-pattern을 kit 상수로 넘기고 PHP, TS/JS, Go, Python, Rust, C의 file header만 맞춘다. format마다 header만 같은 두 file은 통과하고 6줄 body가 같은 두 file은 계속 실패하며, docblock, signature, mode, min-tokens는 바꾸지 않는다. | scripts/kit/duplication-check.mts, tests/kit/duplication-check.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test tests/kit/duplication-check.test.mts` | [o] |
 | K289 | kit-check는 저장소의 suite가 kit-gates의 모든 gate를 실행하도록 요구한다. 원인: language-check, test-markers-check, duplication-check, rebuild-check, rules-check와 언어별 lint가 consumer의 CHECK_TARGETS에 없어서 kit-check가 통과하는데도 make check와 CI group이 이를 강제하지 않았다. 인수 조건: CHECK_TARGETS가 kit-gates의 prerequisite에 닿지 않으면 kit-check가 실패한다(언어 lint와 PHP extension gate는 그 code를 가진 저장소에서만). | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test tests/kit/kit-check.test.mts` | [o] |
+| K279 | rules-check는 PRINCIPLES 규칙을 되풀이한 AGENTS 규칙을 실패시킨다. 원인: kit의 AGENTS.md에 PRINCIPLES 규칙 네 개(하위 호환성, 가장 단순한 구현, 장기 architecture, modular component)의 사본이 남아 있었고 K243이 제거하려던 것이다. 인수 조건: AGENTS 규칙의 4단어 연속 중 4분의 1을 넘는 부분이 한 PRINCIPLES 규칙에 있으면 rules-check가 실패한다(일곱 저장소의 AGENTS에서 측정: 되풀이한 규칙은 0.29~0.82, 나머지는 0.15 이하). 네 사본은 AGENTS.md와 한국어 쌍에서 제거한다. | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, AGENTS.md(.ko.md) | `node --test tests/kit/check-rules.test.mts` | [o] |

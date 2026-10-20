@@ -120,3 +120,21 @@ test('a section opens with at most one paragraph, and a rule in prose after it f
   const prose = checkRules(repository(t, document), ['AGENTS.md']).findings.filter(line => line.includes('paragraph'));
   assert.deepEqual(prose.map(line => line.split(':').slice(0, 2).join(':')), ['AGENTS.md:12', 'AGENTS.md:18']);
 });
+
+test('an AGENTS rule that restates a PRINCIPLES rule fails, and one of its own passes (K279)', (t) => {
+  const root = tree(t, {
+    Makefile: MAKEFILE,
+    '.github/workflows/ci.yml': CI,
+    'PRINCIPLES.md': rules(
+      '- The simplest implementation that fully meets the current requirements: no abstraction, setting or indirection for an\n  uncertain future.\n  Enforced by: `make lint`',
+      '- Documents are checked.\n  Enforced by: `make docs-check`',
+    ),
+    'AGENTS.md': rules(
+      '- Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection\n  for an uncertain future.\n  Enforced by: `make lint`',
+      '- The documents of this repository are checked on every change by the documents gate.\n  Enforced by: `make docs-check`',
+    ),
+  });
+  assert.deepEqual(checkRules(root, ['PRINCIPLES.md', 'AGENTS.md']).findings, [
+    'AGENTS.md:3: restates the rule of PRINCIPLES.md:3 (more than a quarter of its wording is the same); AGENTS.md states only the rules of its own repository. Remove it',
+  ]);
+});

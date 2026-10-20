@@ -97,15 +97,6 @@ and states only its own rules. The rules below are kit's own.
   in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
   it is never hidden. kit reviews its own `package-lock.json` (docs/operations/tool-inventory.md, Accepted advisories).
   Enforced by: `make dependency-policy-check`
-- Do not keep backward compatibility: remove an old path instead of adding a compatibility layer, a fallback or a migration.
-  Enforced by: none, a design judgement, which PRINCIPLES.md states; K243 removes this copy.
-- Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection for
-  an uncertain future.
-  Enforced by: `make lint-ts`
-- Build modular components, each concern clearly separated in its own module.
-  Enforced by: `make duplication-check`
-- Decide the architecture for the long term: a stopgap that works now and must be replaced later is not accepted.
-  Enforced by: none, a design judgement, which PRINCIPLES.md states; K243 removes this copy.
 - Write comments, documents and commit messages in direct language: name the action and its object.
   Enforced by: none, direct wording is a judgement of review.
 
