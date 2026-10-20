@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make hooks` writes a commit-msg hook of kit, `.githooks/commit-msg`, which runs the message checks of `make commit`
+  (`make commit-msg-hook`, check-commits `--message`) on every commit, so a commit made outside `make commit`, an amend
+  with the footer of an AI tool included, is refused when it is made; `make hooks-check` fails when the hook is
+  missing or changed. Red: an amend with a `Co-Authored-By` trailer of an AI tool succeeded after `make hooks`; green:
+  `node --test --test-name-pattern=K380 tests/kit/git-hooks.test.mts` passes (K380).
 - The library run of `make test-php-ext` finds PHPUnit in the vendor directory that Composer gives the library, its
   own or that of the root project that installs it through a path repository and its `vendor-dir`, as `run-tests`
   does for `phpunit --cwd` (K186). Red: a library installed by a root project with `vendor-dir` failed with

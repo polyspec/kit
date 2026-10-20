@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b3c5700b5fd91df0fc25804546ca2ebb31eac2b3915216a465156faa387ec436 -->
+<!-- source-sha256: 08e037e75f20e8281b7fd1c15470b224569b156078a1af4b74134bc762df58b8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make hooks`는 kit의 commit-msg hook `.githooks/commit-msg`를 쓰고, 이 hook은 모든 commit에 `make commit`의 message
+  검사(`make commit-msg-hook`, check-commits `--message`)를 실행하므로 AI 도구의 footer를 가진 amend를 포함해 `make
+  commit` 밖에서 만든 commit은 만들 때 거부된다. hook이 없거나 바뀌면 `make hooks-check`가 실패한다. red: `make hooks`
+  뒤 AI 도구의 `Co-Authored-By` trailer를 가진 amend가 성공했다. green: `node --test --test-name-pattern=K380
+  tests/kit/git-hooks.test.mts`가 통과한다 (K380).
 - `make test-php-ext`의 library run은 Composer가 library에 주는 vendor 디렉터리, 즉 library 자신의 것이나 path
   repository와 `vendor-dir`로 library를 설치하는 root project의 것에서 `run-tests`가 `phpunit --cwd`에 하듯이(K186)
   PHPUnit을 찾는다. red: `vendor-dir`을 가진 root project가 설치한 library가 `packages/php/vendor/phpunit/phpunit/phpunit
