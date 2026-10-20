@@ -15,7 +15,8 @@ import { tool } from './kit-tools.mts';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
-import { readNpmManifest } from '../../scripts/kit/manifests.mts';
+import { readNpmLockFile, readNpmManifest } from '../../scripts/kit/manifests.mts';
+import type { NpmLockEntry } from '../../scripts/kit/manifests.mts';
 import { satisfies } from '../../scripts/kit/composer-constraint.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
 import { sharedPinFindings } from '../../scripts/kit/check-dependency-policy.mts';
@@ -484,4 +485,38 @@ test('a PHP library of S10 that requires an application framework in require fai
   mkdirSync(path.join(root, 'packages/cli'), { recursive: true });
   writeFileSync(path.join(root, 'packages/cli/composer.json'), manifest('polyspec/kit-cli', { 'polyspec/kit-fixture': '*', 'symfony/console': '^7.0' }));
   assert.doesNotMatch(gate(root).stderr, rule, 'an application package beside the library is no finding');
+});
+
+// K427: allow-remote=root takes only the URLs that a package.json of the lock root names, so a remote tarball that the lock resolves
+// for a package reached only through another package fails the gate, and the root that names its URL passes.
+test('a remote tarball that a lock resolves for a package the root does not name fails, and a root that names its URL passes (K427)', (t) => {
+  const root = fixture(t);
+  const url = 'https://github.com/polyspec/ordered-json/releases/download/v0.0.9/polyspec-ordered-json-0.0.9.tgz';
+  const lockFile = path.join(root, 'package-lock.json');
+  // Changes the packages of the lock of the fixture, which keeps the other fields of the lock.
+  const editLock = (change: (packages: Record<string, NpmLockEntry>) => void) => {
+    const lock = readNpmLockFile(lockFile);
+    const packages = lock.packages ?? {};
+    change(packages);
+    writeFileSync(lockFile, `${JSON.stringify({ ...lock, packages }, null, 2)}\n`);
+  };
+  // @polyspec/consumer is a registry package that requires @polyspec/ordered-json by its URL; the root package.json names neither.
+  editLock((packages) => {
+    packages['node_modules/@polyspec/ordered-json'] = { version: '0.0.9', resolved: url };
+    packages['node_modules/@polyspec/consumer'] = { version: '1.0.0', resolved: 'https://registry.npmjs.org/@polyspec/consumer/-/consumer-1.0.0.tgz', dependencies: { '@polyspec/ordered-json': url } };
+  });
+  const remote = (result: { stderr: string }) => findings(result).filter(line => line.includes('resolves @polyspec/ordered-json from'));
+  const reached = gate(root);
+  assert.equal(remote(reached).length, 1, reached.stderr);
+  assert.match(remote(reached)[0] ?? '', new RegExp(`^\\[dependency-policy\\] package-lock\\.json @polyspec/ordered-json: package-lock\\.json:\\d+ resolves @polyspec/ordered-json from ${url.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}, which no package\\.json of the lock names\\. Rule: each remote tarball that an npm lock resolves is named .+ Fix: declare @polyspec/ordered-json with this URL in the root package\\.json`));
+  assert.equal(findings(reached).some(line => line.includes('@polyspec/consumer')), false, 'a registry entry is no finding');
+
+  // The root names the package by its URL, in dependencies of its package.json and of the lock root.
+  const manifest = readNpmManifest(root, 'package.json');
+  manifest.dependencies = { '@polyspec/ordered-json': url };
+  writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  editLock((packages) => {
+    packages[''] = { ...packages[''], dependencies: { '@polyspec/ordered-json': url } };
+  });
+  assert.deepEqual(remote(gate(root)), [], 'a remote tarball that the root names by its URL is no finding');
 });

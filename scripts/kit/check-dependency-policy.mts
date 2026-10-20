@@ -38,6 +38,7 @@ export const RULES = {
   tagged: 'a polyspec package taken from a GitHub tag is linked to the checkout of its tag, has the version of that tag and is locked at it',
   pythonLock: 'each Python lock that the policy names is a PEP 751 pylock.toml with lock-version 1.0 and created-by, every registry file has a sha256, every git package is pinned by a full commit and no package is a local directory',
   npmLock: 'each npm lock that the policy names records the dependencies of every npm manifest that it resolves',
+  rootRemote: 'each remote tarball that an npm lock resolves is named by its URL in a package.json of that lock, the root or a workspace, since allow-remote=root takes only the URLs that a package.json names',
   record: 'every registry dependency and every lock has an entry in the review record that matches the committed manifests and locks',
   latest: 'a registry dependency is locked at the latest stable release known at its review, unless the policy holds an exception for it',
   stale: 'an exception names a dependency that its review found at the latest stable release',
@@ -84,6 +85,18 @@ const PHP_VERSION = '.php-version';
 const APPLICATION_FRAMEWORKS = ['symfony/console', 'symfony/framework-bundle', 'symfony/http-kernel', 'laravel/framework', 'laminas/laminas-mvc'];
 
 const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
+
+// A remote tarball of an npm lock: an http(s) URL of a .tgz that is not on registry.npmjs.org, the registry of npm. No helper
+// of kit names the registry of a lock, so the host is the only test.
+const isRemoteTarball = (resolved: string) => {
+  let url: URL;
+  try {
+    url = new URL(resolved);
+  } catch {
+    return false;
+  }
+  return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'registry.npmjs.org' && url.pathname.endsWith('.tgz');
+};
 
 // The files that a link run writes beside a Composer project (link.mts, K304-1).
 const LINK_MANIFEST = 'composer.link.json';
@@ -303,6 +316,24 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       for (const name of new Set([...Object.keys(inManifest), ...Object.keys(inLock)])) {
         if (inManifest[name] !== inLock[name]) add('npmLock', `${lock} ${directory} ${kind} ${name}`, `the lock records ${inLock[name] ?? 'nothing'}, ${manifestPath} declares ${inManifest[name] ?? 'nothing'}`, 'run npm install');
       }
+    }
+  }
+
+  // A remote tarball that an npm lock resolves is installed only when a package.json of the lock names its URL, since allow-remote=root
+  // takes only those URLs (K427). The registry of the lock is registry.npmjs.org, so any other http(s) URL of a .tgz is remote.
+  for (const [lock, npmLock] of state.npmLocks) {
+    const named = new Set<string>();
+    for (const { manifest: manifestPath } of state.manifests.filter(item => item.lock === lock)) {
+      const json = readNpmManifest(root, manifestPath);
+      for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies, json.peerDependencies]) for (const spec of Object.values(field ?? {})) named.add(spec);
+    }
+    const text = readFileSync(path.join(root, lock), 'utf8').split('\n');
+    for (const [key, locked] of Object.entries(npmLock.packages ?? {})) {
+      const resolved = locked.resolved;
+      if (key === '' || locked.link === true || typeof resolved !== 'string' || !isRemoteTarball(resolved) || named.has(resolved)) continue;
+      const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
+      const line = text.findIndex(item => item.includes(`"${key}": {`)) + 1;
+      add('rootRemote', `${lock} ${name}`, `${lock}:${line} resolves ${name} from ${resolved}, which no package.json of the lock names`, `declare ${name} with this URL in the root package.json, which allow-remote=root (K189) takes`);
     }
   }
 
