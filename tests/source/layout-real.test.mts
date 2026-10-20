@@ -47,7 +47,8 @@ const WORKSPACE_LINTS = '[workspace.lints.rust]\nunsafe_code = "deny"\n\n[worksp
 const GOOD: Record<string, string> = {
   'README.md': '# demo\n',
   'Makefile': 'KIT := scripts/kit\nKIT_EXT := mts\ninclude scripts/kit/kit.mk\n',
-  '.gitignore': 'var/\n',
+  // A repository that follows the layout ignores its install directories (K372).
+  '.gitignore': 'var/\nnode_modules/\nvendor/\n.venv/\n',
   'config/layout.yml': LAYOUT,
   'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
   // The modules of the repository resolve each other through its go.work, never a replace (.golangci.yml, gomoddirectives).
@@ -151,7 +152,8 @@ function repository(t: { after: (fn: () => void) => void }, files: Record<string
   return root;
 }
 
-const layoutCheck = (root: string) => spawnSync('make', ['--no-print-directory', 'layout-check'], { cwd: root, encoding: 'utf8' });
+// The layout-check of the fixture runs the tools of this checkout with its node, as the check of the install directories needs (K372-1).
+const layoutCheck = (root: string) => spawnSync('make', ['--no-print-directory', 'layout-check', `KIT=${path.join(ROOT, 'scripts/kit')}`, `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
 
 test('make layout-check passes on a repository that follows the layout', (t) => {
   assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
