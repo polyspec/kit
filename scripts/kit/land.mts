@@ -2,8 +2,12 @@
 // Lands a branch on main (K394): `make land BRANCH=<branch>`, run in the main checkout. It refuses unless the main checkout is on
 // main and clean, the branch exists and is rebased on main, and a worktree has the branch checked out (its gates run on its own
 // tree and install). It runs the static gates of kit-gates that the changed paths of the branch select through
-// config/owner-checks.json, always with docs-check and commits-check (commits-check over main..<branch>); no test runs. On the
-// first failure it prints the gate and its output and merges nothing. Then it merges fast-forward, removes the worktree when it
+// config/owner-checks.json, always with docs-check and commits-check (commits-check over main..<branch>). No test runs (K394-1): parity-check
+// and every test- target that the owners select are printed as not run. A gate that fails in the worktree is refused only when its
+// output has a line that main does not have: the same gate runs in the main checkout, and a line of the branch output that occurs
+// more often there than in the output on main is a new finding. A gate that fails on main too, with no new finding, goes on;
+// commits-check refuses on any failure. On a refusal it prints the gate and its output and merges nothing. Then it merges
+// fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
 // skips the gates and the merge, and only what is left is removed.
 //
@@ -30,11 +34,39 @@ function worktreeOf(root: string, branch: string): string | undefined {
     .find(entry => entry.branch === branch)?.folder;
 }
 
+// A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
+const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
+
+/**
+ * The lines of `output`, a gate's stdout and stderr run in `folder`, each with its key: every occurrence of the folder of the
+ * worktree replaced by `root`, every run of digits by #; blank lines are dropped.
+ */
+function linesOf(output: string, folder: string, root: string): { line: string; key: string }[] {
+  return output
+    .split('\n')
+    .map(line => ({ line, key: line.split(folder).join(root).replace(/\d+/g, '#') }))
+    .filter(({ key }) => key.trim() !== '');
+}
+
+/** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */
+function newLines(branch: { line: string; key: string }[], main: { key: string }[]): string[] {
+  const left = new Map<string, number>();
+  for (const { key } of main) left.set(key, (left.get(key) ?? 0) + 1);
+  return branch
+    .filter(({ key }) => {
+      const count = left.get(key) ?? 0;
+      if (count > 0) left.set(key, count - 1);
+      return count === 0;
+    })
+    .map(({ line }) => line);
+}
+
 /**
  * The gates of kit-gates that the owners of `changed` select in the worktree `folder`, in the order of kit-gates, with the
- * ALWAYS_GATES; only gates are returned, so no test target runs. Throws on a changed path that no owner declares.
+ * ALWAYS_GATES. The test gates are not returned but in `excluded`, so no test target runs. Throws on a changed path that no
+ * owner declares.
  */
-function gatesOf(folder: string, changed: string[]): { gates: string[]; reasons: string[] } {
+function gatesOf(folder: string, changed: string[]): { gates: string[]; excluded: string[]; reasons: string[] } {
   const declaration = readConfig<OwnerDeclaration>(folder, DECLARATION, 'owner-checks.schema.json');
   const exists = (file: string) => existsSync(path.join(folder, file));
   const selection = select(declaration, changed, [], exists, importGraph(folder, trackedFiles(folder)));
@@ -42,7 +74,8 @@ function gatesOf(folder: string, changed: string[]): { gates: string[]; reasons:
   const kit = kitGates(folder);
   const wanted = new Set<string | undefined>([...selection.checks.map(check => check.target), ...ALWAYS_GATES]);
   for (const gate of ALWAYS_GATES) if (!kit.has(gate)) throw new Error(`${gate} is no gate of kit-gates in ${folder}`);
-  return { gates: [...kit].filter(gate => wanted.has(gate)), reasons: selection.reasons };
+  const selected = [...kit].filter(gate => wanted.has(gate));
+  return { gates: selected.filter(gate => !isTestGate(gate)), excluded: selected.filter(isTestGate), reasons: selection.reasons };
 }
 
 /**
@@ -63,14 +96,28 @@ export function land(root: string, branch: string, { print = (text: string) => c
     if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) throw new Error(`${branch} is not rebased on main; rebase it on main first`);
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
     const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
-    const { gates, reasons } = gatesOf(folder, changed);
+    const { gates, excluded, reasons } = gatesOf(folder, changed);
     for (const reason of reasons) print(reason);
+    for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
     print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
     for (const gate of gates) {
       const args = gate === 'commits-check' ? ['--no-print-directory', gate, `RANGE=main..${branch}`] : ['--no-print-directory', gate];
       print(`${gate} in ${folder}`);
       const result = spawnSync('make', args, { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
       if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
+      if (result.status !== 0 && gate !== 'commits-check') {
+        const onMain = spawnSync('make', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+        if (onMain.error) throw new Error(`make ${gate} could not start in ${root}: ${onMain.error.message}`);
+        if (onMain.status !== 0) {
+          const added = newLines(linesOf(`${result.stdout}${result.stderr}`, folder, root), linesOf(`${onMain.stdout}${onMain.stderr}`, folder, root));
+          if (added.length === 0) {
+            print(`${gate} fails on main too, with no finding that main does not have`);
+            continue;
+          }
+          print(`${gate} has findings that main does not have:\n${added.join('\n')}`);
+          throw new Error(`${branch} is refused: the gate ${gate} has ${added.length} findings that main does not have; nothing is merged`);
+        }
+      }
       if (result.status !== 0) {
         print(`${gate} failed in ${folder}:\n${result.stdout}${result.stderr}`);
         throw new Error(`${branch} is refused: the gate ${gate} ${result.status === null ? `ended with the signal ${result.signal}` : `exited ${result.status}`}; nothing is merged`);

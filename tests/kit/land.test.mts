@@ -64,3 +64,80 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   assert.throws(() => land(main, 'feat/c', quiet), /rebased/);
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged after the refusal of a branch not rebased');
 });
+
+test('land refuses a gate that fails only on a finding that main does not have (K394-1)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // findings-x prints one finding line per line of findings.txt and fails while that file is not empty; main is red with src/a.txt.
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+    'findings.txt': 'src/a.txt\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const printed: string[] = [];
+  const print = (text: string) => printed.push(text);
+  // A branch of the given name, from main in its own worktree, with `files` committed on it.
+  const branch = (name: string, files: Record<string, string>) => {
+    const folder = path.join(parent, `repo-${name}`);
+    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
+    put(folder, files);
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', name);
+  };
+
+  // A branch that adds nothing to the findings: findings-x fails on main too with the same finding, so the branch lands.
+  branch('feat-a', { 'src/b.txt': 'b\n' });
+  const branchA = git(main, 'rev-parse', 'feat-a');
+  land(main, 'feat-a', { print });
+  assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
+  assert.ok(printed.includes('findings-x fails on main too, with no finding that main does not have'));
+
+  // A branch that adds the finding src/c.txt: it is a finding that main does not have, so the branch is refused and names it.
+  branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
+  const mainB = git(main, 'rev-parse', 'main');
+  assert.throws(() => land(main, 'feat-b', { print }), /feat-b is refused: the gate findings-x has 1 findings that main does not have; nothing is merged/);
+  assert.ok(printed.some(text => text.includes('finding: src/c.txt')), 'the output names the new finding');
+  assert.equal(git(main, 'rev-parse', 'main'), mainB, 'main is unchanged after the refusal');
+
+  // main turns green; a branch that makes findings-x red is refused as before, since main passes the gate.
+  put(main, { 'findings.txt': '' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'clear findings');
+  branch('feat-c', { 'findings.txt': 'src/d.txt\n' });
+  const mainC = git(main, 'rev-parse', 'main');
+  assert.throws(() => land(main, 'feat-c', { print }), /feat-c is refused: the gate findings-x exited 2; nothing is merged/);
+  assert.equal(git(main, 'rev-parse', 'main'), mainC, 'main is unchanged after the refusal of a gate green on main');
+});
+
+test('land selects no gate that runs tests (K394-1)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // parity-check and test-x fail when run; the owner map selects both for src, so land must run neither.
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check parity-check test-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'parity-check:', '\tfalse', 'test-x:', '\tfalse'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['parity-check', 'test-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-a');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-a', 'main');
+  put(folder, { 'src/a.txt': 'a\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'a');
+  const branchA = git(main, 'rev-parse', 'feat-a');
+  const printed: string[] = [];
+  land(main, 'feat-a', { print: text => printed.push(text) });
+  assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
+  assert.ok(printed.includes('parity-check runs tests, which the Verification of the rows runs; land does not run it'));
+  assert.ok(printed.includes('test-x runs tests, which the Verification of the rows runs; land does not run it'));
+});
