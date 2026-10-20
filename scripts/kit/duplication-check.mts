@@ -16,6 +16,7 @@ export const CONFIG = 'config/duplication.json';
 // The code formats of jscpd for the runtimes of kit (S5) and the C of the PHP extensions.
 const FORMATS = ['typescript', 'javascript', 'go', 'php', 'python', 'rust', 'c'];
 const MIN_LINES = '6';
+const STUB_GLOB = 'packages/php-ext/src/polyspec_*.stub.php';
 // The lines that carry no logic, the file header of each format (K287): jscpd's own ignore-pattern skips the tokens that overlap
 // a match, so two files that share only their declarations and imports are no clone. (?m) lets ^ and $ match at a line, and a
 // pattern holds no comma, which separates the patterns on the command line. Nothing else is skipped: no docblock, no signature.
@@ -59,7 +60,8 @@ export function duplicationCheck(root: string, print: (text: string) => void = t
   // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
   const config = path.join(folder, 'jscpd.json');
-  writeFileSync(config, JSON.stringify({ ignore: excluded.map(entry => entry.glob) }));
+  // The S10 stub of a PHP extension declares the library under the same names and signatures, so it is left out by its path (S10, K366).
+  writeFileSync(config, JSON.stringify({ ignore: [...excluded.map(entry => entry.glob), STUB_GLOB] }));
   const args = ['--config', config, '--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', '--ignore-pattern', HEADER_PATTERNS.join(','), root];
   const result = spawnSync(jscpd(), args, { cwd: root, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
   rmSync(folder, { recursive: true, force: true });

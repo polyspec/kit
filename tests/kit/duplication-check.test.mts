@@ -66,3 +66,24 @@ for (const [name, { extension, header, statement }] of Object.entries(HEADERS)) 
     assert.match(body.output, new RegExp(`src/a\\.${extension}`));
   });
 }
+
+// K366: the stub of a PHP extension declares the classes of the PHP library under the same names and signatures (S10), so the check
+// leaves out the stub by its path, and a clone inside the library still fails.
+test('the S10 stub of a PHP extension is left out of the duplication check, and a clone inside the library is not (K366)', (t) => {
+  const greeter = [
+    '<?php',
+    'final class Greeter',
+    '{',
+    ...Array.from({ length: 8 }, (_, index) => `    public const NAME${index} = 'name${index}';`),
+    '}',
+    '',
+  ].join('\n');
+  const root = tree(t, { 'packages/php/src/Greeter.php': greeter, 'packages/php-ext/src/polyspec_fixture.stub.php': greeter });
+  assert.equal(duplicationCheck(root, () => {}).status, 0, 'a stub that mirrors a library class is no finding');
+  put(root, { 'packages/php/src/Other.php': greeter });
+  const found = duplicationCheck(root, () => {});
+  assert.equal(found.status, 1, found.output);
+  assert.match(found.output, /packages\/php\/src\/Greeter\.php/);
+  assert.match(found.output, /packages\/php\/src\/Other\.php/);
+  assert.doesNotMatch(found.output, /polyspec_fixture/);
+});

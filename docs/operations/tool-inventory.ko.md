@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bfcbf331195fbaf5d968e9602006ba694c1c4c65ce03dbe9ca5bd7a3ff31f6e9 -->
+<!-- source-sha256: d10d4adade529183a09343d700a0d632e2398d9463d71c27334162e49d0010f0 -->
 
 # 도구 목록
 
@@ -713,6 +713,8 @@ file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 Ja
 `#include`. docblock, signature, mode, 최소 token 수는 바꾸지 않으므로 반복된 body나 signature는 계속 clone입니다.
 `tests/kit/duplication-check.test.mts`에 format마다 case가 있습니다: header만 같은 두 file은 통과하고 6줄 body가 같은 두 file은
 실패합니다.
+
+check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`를 경로로 제외합니다: S10이 stub에 library의 class와 함수를 같은 이름과 signature로 선언하게 하므로 jscpd가 이것을 library의 clone으로 보고하기 때문입니다. library 안의 clone은 계속 셉니다(K366).
 
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|

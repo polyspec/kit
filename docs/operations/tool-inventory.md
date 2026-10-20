@@ -785,6 +785,8 @@ line or a block; Go `package` and `import`, single or a block; Python `import` a
 body or signature stays a clone. `tests/kit/duplication-check.test.mts` holds a case per format: two files that share only a
 header pass and two that share a 6-line body fail.
 
+The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src/polyspec_*.stub.php`, by its path: S10 makes the stub declare the classes and functions of the library under the same names and signatures, so jscpd would report it as a clone of the library. Clones inside the library itself stay counted (K366).
+
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
