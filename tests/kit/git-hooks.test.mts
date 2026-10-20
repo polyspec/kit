@@ -160,6 +160,30 @@ test('make hooks writes the commit-msg hook of kit, which refuses the footer of 
   assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
 });
 
+// K404: a row is committed on its own branch and reaches main only through the fast-forward of make land, so the hook refuses a
+// commit while HEAD is main, and a commit on any other branch passes. The first commit of a repository creates main, which no
+// branch can land on, so it is the one commit on main that passes.
+test('the commit-msg hook refuses a commit while HEAD is main, and passes one on another branch (K404)', (t) => {
+  const { work } = checkout(t);
+  assert.equal(hooks(work).status, 0);
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  const message = 'feat(hooks): Refuse a commit on main (#T1-1)\n\nThe body names the change.\n';
+  git(work, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  git(work, 'add', '-A');
+  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
+  assert.equal(first.status, 0, `the first commit creates main: ${first.stderr}`);
+  writeFileSync(path.join(work, 'a.txt'), 'a\n');
+  git(work, 'add', 'a.txt');
+  const head = git(work, 'rev-parse', 'HEAD');
+  const onMain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
+  assert.equal(onMain.status, 1, 'the commit on main is refused');
+  assert.match(onMain.stderr, /commit-on-main: HEAD is main; .*make land.*make worktree-setup/);
+  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused commit changes nothing');
+  git(work, 'checkout', '--quiet', '-b', 'fix/name-T1-1');
+  const onBranch = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
+  assert.equal(onBranch.status, 0, onBranch.stderr);
+});
+
 // K354: two branches that both add changelog lines and checklist rows rebase without a conflict, and each commit that the rebase
 // writes holds Korean twins whose marker is the sha256 of their English file.
 test('the merges that make hooks declares rebase two branches of changelog lines and checklist rows with current Korean twins (K354)', (t) => {

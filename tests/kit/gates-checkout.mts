@@ -26,9 +26,12 @@ export function git(cwd: string, ...args: string[]) {
   return result.stdout.trim();
 }
 
-/** Commits the index as it is and returns the commit. */
+/**
+ * Commits the index as it is and returns the commit. The fixture builds the history of main itself, which the commit hooks refuse
+ * since K404, and its tests check the push gate, so the commit skips the commit hooks.
+ */
 export function commitIndex(cwd: string, message: string) {
-  git(cwd, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', message);
+  git(cwd, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message);
   return git(cwd, 'rev-parse', 'HEAD');
 }
 

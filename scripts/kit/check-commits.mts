@@ -13,6 +13,7 @@
 //                    that the commit adds is not a change, so a commit may add items and sub-items
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
+//   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -79,6 +80,17 @@ export function identityFindings(ident: string, role: 'author' | 'committer'): C
 export function nextIdentityFindings(root: string): CommitFinding[] {
   const ident = (name: string) => git(root, 'var', name).replace(/ [0-9]+ [+-][0-9]{4}\n?$/, '').trim();
   return [...identityFindings(ident('GIT_AUTHOR_IDENT'), 'author'), ...identityFindings(ident('GIT_COMMITTER_IDENT'), 'committer')];
+}
+
+/**
+ * The finding of the next commit of `root` while HEAD is the branch main and main has a commit (K404): a row is committed on its own
+ * branch, which make land merges into main by fast-forward, so no commit is made on main; the first commit of a repository creates
+ * main, which no branch can land on, and passes.
+ */
+export function branchFindings(root: string): CommitFinding[] {
+  const branch = gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD');
+  if (branch.status !== 0 || branch.stdout.trim() !== 'main' || gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status !== 0) return [];
+  return [{ rule: 'commit-on-main', message: 'HEAD is main; a row is committed on its own branch, and make land merges it into main by fast-forward (P10). Fix: make worktree-setup NAME=<name> ID=<id>, and commit in that worktree' }];
 }
 
 /** The findings of a commit `message` as `{ rule, message }`. */
@@ -352,7 +364,7 @@ if (isMain(import.meta.url)) {
     if (values.message !== undefined) {
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : [...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...branchFindings(root), ...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);
