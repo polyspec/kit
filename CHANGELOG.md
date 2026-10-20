@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make item-new`, `make item-edit` and `make docs-check` refuse a Verification command that holds a pipe outside
+  quotes, since a pipeline hides the exit status of its first command; a quoted pattern such as `-run 'A|B'` stays
+  allowed. Red: item-edit accepted `go test -run A|B ./...`, which ran as a pipeline; green: `node --test
+  --test-name-pattern=K376 tests/kit/plan.test.mts` passes (K376).
 - `make link-state-check` fails an install directory of a checkout (`node_modules`, `vendor`, `.venv`, `target`, `var`)
   that is a symbolic link, and a link of a workspace package in `node_modules` that resolves outside the checkout,
   since a worktree that links them to the main checkout runs the sources of the main checkout; a link to a polyspec

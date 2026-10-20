@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a11306d2f01ad7b577b738a4a8293952292fadf3c50cfa9a5a488be76ffc9046 -->
+<!-- source-sha256: 84330b7cc4e343a7417cb9c4748234acd0bc89963b2f76d7822dc04a8d87b8f4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-new`, `make item-edit`, `make docs-check`는 따옴표 밖의 pipe를 가진 Verification 명령을 거부한다.
+  pipeline은 첫 명령의 exit status를 숨기기 때문이다. `-run 'A|B'`처럼 따옴표 안의 pattern은 계속 허용된다. red:
+  item-edit이 pipeline으로 실행되는 `go test -run A|B ./...`를 받았다. green: `node --test --test-name-pattern=K376
+  tests/kit/plan.test.mts`가 통과한다 (K376).
 - `make link-state-check`는 checkout의 install directory(`node_modules`, `vendor`, `.venv`, `target`, `var`)가 symbolic
   link이거나 `node_modules` 안의 workspace package link가 checkout 밖으로 resolve되면 실패한다. 그것들을 main
   checkout에 link한 worktree는 main checkout의 source를 실행하기 때문이다. polyspec provider로의 link는 계속 허용된다.
