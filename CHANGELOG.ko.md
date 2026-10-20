@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 99796ce9066db2d4b0eb91a534650b4f6d34878c3527a5a8c033ec97f183c583 -->
+<!-- source-sha256: 6bc65dfc8db73814077ad23bd583abc2d377b4116c2d7c78b6a4f016051930b1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- install-tools는 php, php-config, phpize 옆에 `.php-version`의 PHP의 `sbin`에 있는 `php-fpm`을 감싸고, toolchain-check는
+  `php-fpm`이나 `php-cgi`를 PATH에서 bare name으로 시작하는 recipe나 script를 거부한다(K341).
 - `make item-state`는 kit row를 인용하지 않는 한 release, version tag, "not reproducible", flake, "transient",
   "unrelated", "environment"를 적은 bypassed나 impossible의 사유를 거부하고, 테스트를 지우는 commit은 같은 요구를 다루는
   테스트를 적은 `Replaced-By:` 줄이 있어야 한다(규칙 `commit-deleted-test`)(K339).

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- install-tools wraps `php-fpm` of the `sbin` of the PHP of `.php-version` beside php, php-config and phpize, and
+  toolchain-check refuses a recipe or script that starts `php-fpm` or `php-cgi` by its bare name from PATH (K341).
 - `make item-state` refuses a bypassed or impossible cause that names a release, a version tag, "not reproducible", a flake,
   "transient", "unrelated" or "environment" unless it cites a kit row, and a commit that deletes a test needs a
   `Replaced-By:` line naming the test that covers the same requirement (rule `commit-deleted-test`) (K339).
