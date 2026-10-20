@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `make land BRANCH=<branch>` lands a branch on main: it refuses a branch that is not rebased on main or has no
+  worktree, runs in that worktree the static gates of kit-gates that the changed paths select through
+  `config/owner-checks.json`, always with docs-check and commits-check (over `main..<branch>`) and never a test,
+  refuses with the output of a failing gate, merges `--ff-only`, and removes the clean worktree and the branch; a
+  branch that main already contains only has what is left removed. Red: no utility landed a branch through its
+  gates; green: `node --test --test-name-pattern=K394 tests/kit/land.test.mts` passes (K394).
 - `make link-state-check` asks a recipe that installs from a lock to link right after it only for an ecosystem in
   which the repository declares a polyspec dependency, and not for a recipe that `make install` reaches by a
   prerequisite or a `$(MAKE)` call, since install links last (K360-2); local-links.md states both. Red: the

@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7955faf13bd588d59c815f9b4298ed2e5a2b8c70b9ac8133552c943b84ab9e7a -->
+<!-- source-sha256: f3616cbef8f377a41951f3d1ba7194c15b4de7ff98ce871ed3631e22cf3e0afc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land BRANCH=<branch>`는 branch를 main에 합친다. main에 rebase되지 않았거나 worktree가 없는 branch를 거부하고,
+  그 worktree에서 바뀐 경로가 `config/owner-checks.json`으로 고르는 kit-gates의 정적 gate를 docs-check와 commits-check
+  (`main..<branch>`)와 함께 실행하며 test는 실행하지 않는다. 실패한 gate의 출력과 함께 거부하고 `--ff-only`로 합친 뒤
+  깨끗한 worktree와 branch를 지운다. main이 이미 가진 branch는 남은 것만 지운다. red: gate를 거쳐 branch를 합치는 utility가
+  없었다. green: `node --test --test-name-pattern=K394 tests/kit/land.test.mts`가 통과한다 (K394).
 - `make link-state-check`는 저장소가 polyspec 의존성을 선언하는 ecosystem에서만, 그리고 install이 마지막에 link하므로(K360-2)
   `make install`이 prerequisite나 `$(MAKE)` 호출로 이르지 않는 recipe에만 lock에서 설치한 직후 link하라고 요구한다.
   local-links.md가 둘 다 말한다. red: link할 것이 없는 kit의 `install-packages` recipe가 검사에 실패해 kit의 모든 worktree가
