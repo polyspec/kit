@@ -23,6 +23,16 @@ test('every requirement that the spec defines is cited by a unit: no finding', (
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }, { id: 'decode', requirements: ['AB-2'] }]), []);
 });
 
+test('a requirement defined as a numbered list item is a requirement like a bulleted one (K299)', () => {
+  const numbered = { ...SPEC, 'docs/spec/steps.md': '## Steps\n\n1. **AB-4** First step.\n2) **AB-5** Second step.\n10. **AB-6** Tenth step.\n+ **AB-7** A plus bullet.\n' };
+  assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-2', 'AB-3'] }], numbered), [
+    'R13 -: docs/spec/steps.md defines AB-4, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/steps.md defines AB-5, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/steps.md defines AB-6, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/steps.md defines AB-7, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+  ]);
+});
+
 test('a requirement that no unit cites is untraced (R13), and the Korean twin and other folders define none', () => {
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }]), [
     'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
@@ -31,7 +41,7 @@ test('a requirement that no unit cites is untraced (R13), and the Korean twin an
 
 test('a unit that cites a requirement the spec does not define fails (R14)', () => {
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-2', 'AB-3', 'AB-8'] }]), [
-    'R14 codec: cites AB-8, which no file of docs/spec defines as a requirement (a bullet **AB-8** or a heading AB-8)',
+    'R14 codec: cites AB-8, which no file of docs/spec defines as a requirement (a list item **AB-8** or a heading AB-8)',
   ]);
 });
 
@@ -41,7 +51,7 @@ test('a requirement defined twice, and a pattern that the spec never matches, fa
     'declaration -: AB-2 is defined in docs/spec/api.md and docs/spec/more.md; a requirement has one definition',
   ]);
   assert.deepEqual(run([], { 'docs/spec/api.md': '# nothing\n' }), [
-    'declaration -: requirements.pattern AB-[0-9]+ matches no requirement of docs/spec; the spec defines each requirement as a bullet **<id>** or a heading <id>',
+    'declaration -: requirements.pattern AB-[0-9]+ matches no requirement of docs/spec; the spec defines each requirement as a list item **<id>** or a heading <id>',
   ]);
 });
 
@@ -93,7 +103,7 @@ test('a case.json that is missing, not JSON or without a requirements array of s
 test('an id of a case.json that the spec does not define is one R14 although two units share the directory (K277)', () => {
   const files = { ...DIRECTORY, 'tests/cases/a/one/case.json': CASE(['AB-1', 'AB-9']), 'tests/cases/a/one/out.html': 'x', 'tests/cases/a/one/out.txt': 'x' };
   assert.deepEqual(directoryRun([suite('html', ['AB-1'], 'out.html'), suite('text', ['AB-1'], 'out.txt'), { id: 'rest', requirements: ['AB-2', 'AB-3'] }], files, { html: ['a/one'], text: ['a/one'] }), [
-    'R14 -: tests/cases/a/one/case.json lists AB-9, which no file of docs/spec defines as a requirement (a bullet **AB-9** or a heading AB-9)',
+    'R14 -: tests/cases/a/one/case.json lists AB-9, which no file of docs/spec defines as a requirement (a list item **AB-9** or a heading AB-9)',
   ]);
 });
 

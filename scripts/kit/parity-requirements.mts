@@ -1,4 +1,4 @@
-// The requirement trace of the parity check (S6, K273): docs/spec defines each requirement once, as a bullet **<id>** or a
+// The requirement trace of the parity check (S6, K273): docs/spec defines each requirement once, as a list item (bulleted or numbered) **<id>** or a
 // heading <id>, its id matching requirements.pattern of config/parity.json; every unit cites the requirements it tests, so
 // the bindings of every implementation of its profile test each requirement of the spec. The Korean twins (*.ko.md) define
 // nothing: they translate the English definitions.
@@ -18,7 +18,7 @@ const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 /** The findings of the trace of `config` against the spec among the checked `files`, read with `read`. */
 export function requirementFindings(config: { requirements: { pattern: string }; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
   const { pattern } = config.requirements;
-  const definition = new RegExp(`^\\s*(?:[-*]\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
+  const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
   const defined = new Map<string, string>();
   const findings: Finding[] = [];
@@ -32,7 +32,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
       else defined.set(id, file);
     }
   }
-  if (defined.size === 0) return [finding('declaration', `requirements.pattern ${pattern} matches no requirement of docs/spec; the spec defines each requirement as a bullet **<id>** or a heading <id>`)];
+  if (defined.size === 0) return [finding('declaration', `requirements.pattern ${pattern} matches no requirement of docs/spec; the spec defines each requirement as a list item **<id>** or a heading <id>`)];
   const cited = new Set<string>();
   const texts = new Map<string, string>();
   // A suite file may be a directory of case directories, which holds no text: it is read through the case.json of its cases.
@@ -53,7 +53,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
         const listing = typeof parsed === 'object' && parsed !== null && 'requirements' in parsed ? parsed.requirements : undefined;
         if (Array.isArray(listing) && listing.every((entry): entry is string => typeof entry === 'string')) {
           ids = listing;
-          for (const id of ids) if (!defined.has(id)) findings.push(finding('R14', `${file} lists ${id}, which no file of docs/spec defines as a requirement (a bullet **${id}** or a heading ${id})`));
+          for (const id of ids) if (!defined.has(id)) findings.push(finding('R14', `${file} lists ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`));
         } else findings.push(finding('declaration', `${file}: requirements is no array of strings`));
       }
     }
@@ -77,7 +77,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
           if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, implementation: binding.implementation }));
         }
       }
-      if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a bullet **${id}** or a heading ${id})`, { unit: unit.id }));
+      if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id }));
     }
   }
   for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`));

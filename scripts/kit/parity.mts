@@ -31,7 +31,7 @@
 //   R10 docs-count             a document counts a number of implementations that is not the number of the
 //                              implementations, or lists implementations in a sentence that names not all of them
 //   R11 undeclared-public      a public symbol that no API unit declares
-//   R13 untraced-requirement  a requirement that docs/spec defines (a bullet **<id>** or a heading <id>) and no unit cites
+//   R13 untraced-requirement  a requirement that docs/spec defines (a list item **<id>** or a heading <id>) and no unit cites
 //   R14 unknown-requirement   a unit cites an id that docs/spec does not define (parity-requirements.mts, K273)
 //   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.

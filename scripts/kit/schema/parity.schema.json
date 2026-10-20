@@ -89,7 +89,7 @@
       }
     },
     "requirements": {
-      "description": "The requirement ids of the spec (K273): docs/spec/**/*.md, not the Korean twins, defines each as a bullet **<id>** or a heading <id> whose id matches pattern.",
+      "description": "The requirement ids of the spec (K273): docs/spec/**/*.md, not the Korean twins, defines each as a list item **<id>** or a heading <id> whose id matches pattern.",
       "type": "object",
       "required": ["pattern"],
       "additionalProperties": false,
@@ -104,7 +104,7 @@
         "properties": {
           "id": { "description": "The name of the unit; the findings name a case of a suite as <id>/<case>.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
           "kind": { "description": "suite: the shared cases of a vector file, run by a binding of each implementation; feature: one native test of each implementation, named by its id; api: an exported symbol of each implementation.", "type": "string", "enum": ["suite", "feature", "api"] },
-          "requirements": { "description": "The ids of the spec requirements that the unit tests (K273): each is defined in docs/spec as a bullet **<id>** or a heading <id>; every requirement is cited by a unit (R13), and a unit cites only defined ones (R14).", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+          "requirements": { "description": "The ids of the spec requirements that the unit tests (K273): each is defined in docs/spec as a list item **<id>** or a heading <id>; every requirement is cited by a unit (R13), and a unit cites only defined ones (R14).", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
           "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), whose case.json lists in requirements the ids that the case tests (K277). A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
           "caseFile": { "description": "suite whose file is a directory: the file name that a case directory holds to be a case of this unit, so units that share one directory each take the cases that hold the output they compare (K277).", "type": "string", "pattern": "^(?!\\.\\.$)[^/\\s]+$" },
