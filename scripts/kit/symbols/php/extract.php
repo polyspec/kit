@@ -9,8 +9,8 @@
 // nothing is loaded or run. Names are resolved to their fully qualified form. The ids are Ns\Class for a class,
 // interface, trait or enum, Ns\Class::method for a public method, Ns\Class::CONST for a public constant or enum case,
 // Ns\Class::$property for a public property (a promoted constructor parameter included), Ns\function for a function and
-// Ns\CONST for a constant. With --leaks it prints instead the public symbols whose signature, parent or interface names a class that
-// carries @internal, as "Ns\Class::method names the internal Ns\Hidden" (K307-1).
+// Ns\CONST for a constant. With --leaks it prints instead the public symbols whose signature, parent or interface names
+// a class that carries @internal, as "Ns\Class::method names the internal Ns\Hidden" (K307-1).
 
 declare(strict_types=1);
 

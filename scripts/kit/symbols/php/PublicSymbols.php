@@ -10,8 +10,8 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects the public symbol ids of the nodes that it visits. A class, function, constant, method or property whose docblock
- * carries @internal is no public API (K307), and a class that carries it hides its members.
+ * Collects the public symbol ids of the nodes that it visits. A class, function, constant, method or property whose
+ * docblock carries @internal is no public API (K307), and a class that carries it hides its members.
  */
 final class PublicSymbols extends NodeVisitorAbstract
 {
@@ -91,8 +91,8 @@ final class PublicSymbols extends NodeVisitorAbstract
     }
 
     /**
-     * The public symbols whose signature, parent or interface names a class that carries @internal (K307-1): the symbol and the
-     * internal class, as "A::m names the internal B". Known after every file was visited.
+     * The public symbols whose signature, parent or interface names a class that carries @internal (K307-1): the
+     * symbol and the internal class, as "A::m names the internal B". Known after every file was visited.
      *
      * @return list<string>
      */
@@ -118,7 +118,11 @@ final class PublicSymbols extends NodeVisitorAbstract
         if ($node instanceof Node\Stmt\Class_ && $node->extends !== null) {
             $names[] = $node->extends->toString();
         }
-        $list = $node instanceof Node\Stmt\Interface_ ? $node->extends : ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Enum_ ? $node->implements : []);
+        $list = match (true) {
+            $node instanceof Node\Stmt\Interface_ => $node->extends,
+            $node instanceof Node\Stmt\Class_, $node instanceof Node\Stmt\Enum_ => $node->implements,
+            default => [],
+        };
         foreach ($list as $name) {
             $names[] = $name->toString();
         }
@@ -126,8 +130,9 @@ final class PublicSymbols extends NodeVisitorAbstract
     }
 
     /**
-     * Records the classes that the parameter types and the return type of `$function` name. They are read when the leaks are
-     * asked for, since the NameResolver resolves a type after this visitor has seen the declaration that holds it.
+     * Records the classes that the parameter types and the return type of `$function` name. They are read when the
+     * leaks are asked for, since the NameResolver resolves a type after this visitor has seen the declaration that
+     * holds it.
      */
     private function signature(string $symbol, Node\FunctionLike $function): void
     {

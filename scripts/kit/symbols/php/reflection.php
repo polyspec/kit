@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 // The declarations that Reflection reads at run time, as JSON on standard output, for the declaration test of a
-// PHP extension (php-extension.mts, S10): the classes, functions and constants that a loaded extension registers, or the
-// same names as the PHP library declares them through its Composer autoloader. A constant lists its value, or null when
-// the library defines none; the names of the constants are compared, not their values (K338). A class lists its kind, modifiers, parent,
-// interfaces, constants, public and protected properties and methods; a method or function its modifiers, return
-// type and parameters. A union type lists its members sorted, since the order of a declaration is no part of the type.
+// PHP extension (php-extension.mts, S10): the classes, functions and constants that a loaded extension registers, or
+// the same names as the PHP library declares them through its Composer autoloader. A constant lists its value, or null
+// when the library defines none; the names of the constants are compared, not their values (K338). A class lists its
+// kind, modifiers, parent, interfaces, constants, public and protected properties and methods; a method or function
+// its modifiers, return type and parameters. A union type lists its members sorted, since the order of a declaration
+// is no part of the type.
 //
 //   php reflection.php extension <extension name>
 //   php reflection.php library <autoload.php> <file of the JSON names>
