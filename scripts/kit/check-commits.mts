@@ -39,7 +39,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { provesRed } from './gate-red.mts';
+import { gitIsAncestor, provesRed } from './gate-red.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
@@ -273,7 +273,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
     const done = changes.find(change => change.id === id && change.to === DONE);
     const commands = () => (done ? itemCommands(after(done.tracker.path), done.tracker, done.id) : []);
-    const proven = parent !== undefined && provesRed(message, commands, parent);
+    const proven = parent !== undefined && provesRed(message, commands, parent, gitIsAncestor(root));
     if (done !== undefined && !proven) {
       found.push({ rule: 'commit-fix-test', message: `the fix commit moves ${done.id} to done without a Red-Gate or Red-Test line of a command of its Verification on the parent; the red is the failing run of the Verification before the fix: make item-red ID=${done.id} records it after the test is written, and make commit writes it` });
     } else if (done === undefined && !changed.some(file => changesATest(file, after, changedLines))) {

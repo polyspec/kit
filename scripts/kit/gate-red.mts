@@ -8,7 +8,7 @@
 // a command of the row, a status other than 0 and the parent of the commit; the done state of item-state needs such a record too
 // (K335).
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, jsonText, readJson, writeAtomic } from './bootstrap/files.mts';
 import { git } from './git.mts';
@@ -52,12 +52,11 @@ export function gateCommands(commands: readonly string[], gates: ReadonlySet<str
 /**
  * Runs the gate commands of `commands`, the Verification of the item `id`, on the tree of `root` and records their exit statuses
  * with HEAD; returns the record, or undefined when the Verification runs no gate. A tree that differs from HEAD outside
- * docs/plans is no tree of the parent, so it records nothing and says so; the record of an earlier activation is removed first.
+ * docs/plans is no tree of the parent, so it records nothing and says so. The tests of a record on the same HEAD stay (K357).
  */
 export function recordRed(root: string, id: string, commands: readonly string[], print: (text: string) => void): GateRecord | undefined {
   // The gates are read only for a command that runs one make target, which a gate command is.
   const targets = commands.filter(command => MAKE_TARGET.test(command.trim()));
-  rmSync(recordFile(root, id), { force: true });
   if (targets.length === 0) return undefined;
   const gates = gateCommands(targets, kitGates(root));
   if (gates.length === 0) return undefined;
@@ -75,6 +74,8 @@ export function recordRed(root: string, id: string, commands: readonly string[],
     print(`[plan] ${id}: ${command} exit ${result.status}${result.status === 0 ? '; the gate passes on HEAD, so it records no red' : ''}`);
     record.gates.push({ command, status: result.status });
   }
+  const previous = readRecord(root, id);
+  if (previous?.head === record.head && previous.tests) record.tests = previous.tests;
   writeRecord(root, id, record);
   return record;
 }
@@ -131,7 +132,7 @@ export function fixProvesRed(root: string, id: string, commands: readonly string
     if (sha === '' || !(message.split('\n')[0] ?? '').endsWith(`(#${id})`)) continue;
     const parent = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${sha}^`], { cwd: root, encoding: 'utf8' });
     if (parent.status !== 0) continue;
-    if (provesRed(message, () => commands, parent.stdout.trim())) return true;
+    if (provesRed(message, () => commands, parent.stdout.trim(), gitIsAncestor(root))) return true;
   }
   return false;
 }
@@ -148,9 +149,15 @@ export function redLines(root: string, id: string): string[] {
  * Whether `message` holds a Red-Gate or Red-Test line that names a command of `commandsOfRow`, the commands of the row, and a prefix of
  * the commit `parent`; the commands are read only for a message with such a line.
  */
-export function provesRed(message: string, commandsOfRow: () => readonly string[], parent: string): boolean {
+export function provesRed(message: string, commandsOfRow: () => readonly string[], parent: string, isAncestor: (sha: string, of: string) => boolean = () => false): boolean {
   const lines = [...message.matchAll(RED_LINE)];
   if (lines.length === 0) return false;
   const commands = commandsOfRow();
-  return lines.some(match => commands.includes(match[1] ?? '') && parent.startsWith(match[3] ?? '-'));
+  // The red holds on the parent, or on an ancestor of it when the branch was rebased after the red was taken.
+  return lines.some(match => commands.includes(match[1] ?? '') && (parent.startsWith(match[3] ?? '-') || isAncestor(match[3] ?? '-', parent)));
+}
+
+/** The ancestry test of a repository: whether the commit `sha` is an ancestor of `of`, which provesRed takes for a rebased branch. */
+export function gitIsAncestor(root: string): (sha: string, of: string) => boolean {
+  return (sha, of) => spawnSync('git', ['merge-base', '--is-ancestor', sha, of], { cwd: root }).status === 0;
 }

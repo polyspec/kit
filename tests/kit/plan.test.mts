@@ -555,6 +555,98 @@ test('make item-red records a failing Verification, and done requires the record
   assert.doesNotMatch(fix4, /^Red-(?:Gate|Test): /m, 'no red was recorded for T4');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(later, file), `${CHANGELOG}- Fix (T4).\n`);
   assert.throws(() => setState(later, { id: 'T4', state: '[o]' }, quiet), /make item-red ID=T4/, 'a fix without a Red line does not close');
+
+  // Each row below has its own repository: its commit history is the one that the case names.
+  const PLAN_SCRIPT = fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url));
+  const FAILS = 'node -e "process.exit(1)"';
+  const PASSES = 'node -e "process.exit(0)"';
+  const LACKS_B = 'node -e "process.exit(require(\'fs\').existsSync(\'b.mts\') ? 0 : 1)"';
+  const repo = (rows: Record<string, string>) => {
+    const root = plans(t, 'parser');
+    put(root, { '.gitignore': 'var/\n' });
+    for (const [id, verification] of Object.entries(rows)) newItem(root, item('parser', id, { verification: `\`${verification}\`` }));
+    for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+    gitCommit(root, 'base');
+    return root;
+  };
+  const gitCommit = (root: string, message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    }
+  };
+  const revParse = (root: string, rev: string) => spawnSync('git', ['rev-parse', rev], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const redCli = (root: string, id: string, before?: string) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, ID: id };
+    delete env.BEFORE;
+    if (before !== undefined) env.BEFORE = before;
+    return spawnSync(process.execPath, [PLAN_SCRIPT, 'item-red'], { cwd: root, env, encoding: 'utf8' });
+  };
+
+  // A feat commit made with make commit carries the red of its row, and its later close reads it.
+  const feat = repo({ T8: FAILS });
+  setState(feat, { id: 'T8', state: '[~]' }, quiet);
+  gitCommit(feat, 'start T8');
+  assert.equal(redCli(feat, 'T8').status, 0, 'item-red on the active row');
+  put(feat, { 'c.mts': 'export {};\n' });
+  stage(feat, 'c.mts');
+  const bodyFeat = path.join(feat, 'var/body.txt');
+  writeFileSync(bodyFeat, 'The feature is recorded.\n');
+  const featMessage = commitItem(feat, { id: 'T8', type: 'feat', scope: 'parser', subject: 'Add the feature', bodyFile: bodyFeat }, identity);
+  assert.match(featMessage, /^Red-Test: node -e "process\.exit\(1\)" exit 1 at [0-9a-f]{12}$/m, 'a feat commit carries the red of its row');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(feat, file), `${CHANGELOG}- Add (T8).\n`);
+  setState(feat, { id: 'T8', state: '[o]' }, quiet);
+  assert.equal(rows(feat, 'docs/plans/parser/checklist.md').find(row => row.startsWith('| T8 |'))?.endsWith('[o] |'), true, 'the later close reads the feat commit');
+
+  // After a rebase the red may name an ancestor of the parent, which proves it; a commit that is no ancestor proves nothing.
+  const closed = (redOf: (root: string) => string) => {
+    const root = repo({ T9: FAILS });
+    setState(root, { id: 'T9', state: '[~]' }, quiet);
+    gitCommit(root, 'start T9');
+    assert.equal(redCli(root, 'T9').status, 0, 'item-red on the branch');
+    const sha = redOf(root);
+    for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix (T9).\n`);
+    setState(root, { id: 'T9', state: '[o]' }, quiet);
+    gitCommit(root, `fix(parser): Fix it (#T9)\n\nThe test reproduces it.\n\nRed-Test: ${FAILS} exit 1 at ${sha.slice(0, 12)}`);
+    return root;
+  };
+  const rebased = closed(root => revParse(root, 'HEAD~1'));
+  assert.deepEqual(rangeFindings(rebased, 'HEAD~1..HEAD', COMMIT_RULES), [], 'a Red line on an ancestor of the parent proves the red');
+  const unrelated = closed(root => {
+    const empty = spawnSync('git', ['mktree'], { cwd: root, input: '', encoding: 'utf8' }).stdout.trim();
+    return spawnSync('git', ['commit-tree', empty, '-m', 'unrelated'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...identity } }).stdout.trim();
+  });
+  assert.match(rangeFindings(unrelated, 'HEAD~1..HEAD', COMMIT_RULES).join('\n'), /commit-fix-test/, 'a Red line on an unrelated commit proves nothing');
+
+  // A row committed without a record: BEFORE= runs its Verification on the commit before the fix, and HEAD is restored exactly.
+  const before = repo({ T10: LACKS_B });
+  setState(before, { id: 'T10', state: '[~]' }, quiet);
+  gitCommit(before, 'start T10');
+  put(before, { 'b.mts': 'export {};\n', 'tests/c.test.mts': 'test\n' });
+  gitCommit(before, 'fix(parser): Fix it (#T10)\n\nThe test names it.');
+  assert.equal(redCli(before, 'T10', 'HEAD~1').status, 0, 'the Verification fails before the fix');
+  assert.equal(readRecord(before, 'T10')?.head, revParse(before, 'HEAD'), 'the record has HEAD');
+  assert.deepEqual(readRecord(before, 'T10')?.tests?.commands, [{ command: LACKS_B, status: 1 }]);
+  assert.equal(readFileSync(path.join(before, 'b.mts'), 'utf8'), 'export {};\n', 'HEAD is restored');
+  // The record of the row stays when the row is activated again on the same HEAD (K357).
+  setState(before, { id: 'T10', state: '[ ]' }, quiet);
+  setState(before, { id: 'T10', state: '[~]' }, quiet);
+  assert.ok(readRecord(before, 'T10')?.tests, 'the test record stays');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(before, file), `${CHANGELOG}- Fix (T10).\n`);
+  setState(before, { id: 'T10', state: '[o]' }, quiet);
+
+  // A Verification that passes before the fix is refused, and the tree is restored exactly.
+  const passing = repo({ T11: PASSES });
+  setState(passing, { id: 'T11', state: '[~]' }, quiet);
+  gitCommit(passing, 'start T11');
+  put(passing, { 'b.mts': 'export {};\n', 'tests/d.test.mts': 'test\n' });
+  gitCommit(passing, 'fix(parser): Fix it (#T11)\n\nThe test names it.');
+  const snapshot = readFileSync(path.join(passing, 'b.mts'), 'utf8');
+  const refused = redCli(passing, 'T11', 'HEAD~1');
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /T11: the Verification passes before the fix, so it proves no red/);
+  assert.equal(spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: passing, encoding: 'utf8' }).stdout, '', 'git status is clean');
+  assert.equal(readFileSync(path.join(passing, 'b.mts'), 'utf8'), snapshot, 'the file content is the same');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.

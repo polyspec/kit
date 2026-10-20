@@ -235,7 +235,7 @@ item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, it
 item-state: ## Move the item ID to STATE in both languages along an allowed transition; done needs its changelog line, bypassed CAUSE, RETRY, CAUSE_KO and RETRY_KO, impossible CAUSE and CAUSE_KO; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-state
 
-item-red: ## Run the commands of the Verification cell of the active item ID after its test is written and before its fix: they must fail, and the failure is recorded for make commit and item-state done (K389); offline
+item-red: ## Run the commands of the Verification cell of the active item ID after its test is written and before its fix: they must fail, and the failure is recorded for make commit and item-state done (K389); BEFORE=<rev> runs them on the content of a commit before the fix for a row committed without a record, and restores HEAD; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-red
 
 item-test: ## Run the commands of the Verification cell of the item ID in order; each must be a run of its own unit tests that the Claude Code hook allows; offline

@@ -18,7 +18,8 @@
 //   item-red   ID=<id>
 //              runs each command of the Verification cell of an active item after its test is written and before its fix,
 //              and records the commands that fail with HEAD and the hash of the test files in var/plan/<id>.json; a
-//              Verification that passes proves no red and is refused (K389)
+//              Verification that passes proves no red and is refused; BEFORE=<rev> runs it on the content of a commit before
+//              the fix, for a row committed without a record (K389)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
 //              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
@@ -348,7 +349,7 @@ export function setState(root: string, change: NewState, print: (text: string) =
   // The done state needs the red of the item on its parent: a gate or a test that item-state or item-red recorded on HEAD, or a fix
   // commit of the item in the history of HEAD that carries it (K357).
   const commands = itemCommands(read(entry.tracker.path), entry.tracker, change.id);
-  if (change.state === DONE && !hasRed(root, change.id) && !fixProvesRed(root, change.id, commands)) throw new Error(`${change.id}: the red of its Verification is not recorded, so the Verification proves no red; make item-red ID=${change.id} runs it after the test is written and before the fix, and records its failure; a fix commit of the row with its Red-Test line also proves it`);
+  if (change.state === DONE && !hasRed(root, change.id) && !fixProvesRed(root, change.id, commands)) throw new Error(`${change.id}: the red of its Verification is not recorded, so the Verification proves no red; make item-red ID=${change.id} runs it after the test is written and before the fix, and records its failure; a fix commit of the row with its Red-Test line also proves it; for a row committed without a record, make item-red ID=${change.id} BEFORE=<rev> runs it on a commit before the fix`);
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
     if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');
@@ -412,21 +413,8 @@ function testTree(root: string): string {
   return sha256(files.map(file => `${file}\0${existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : ''}\0`).join(''));
 }
 
-/**
- * Runs each command of the Verification cell of the active item `id` in `root` after its test is written and before its fix, and
- * records the commands that fail in var/plan/<id>.json with HEAD and the hash of the test files: the red that a fix commit
- * proves (Red-Test, check-commits). Throws, recording nothing, when the item is not active or the Verification passes, since it
- * then proves no red.
- */
-export function itemRed(root: string, id: string, print: (text: string) => void = text => console.log(text)): GateRecord {
-  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
-  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
-  const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
-  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
-  const state = readChecklist(read(tracker.path), tracker).items.find(item => item.id === id)?.state ?? '';
-  if (state !== ACTIVE) throw new Error(`${id} is ${state}; make item-red runs the Verification of an active item, after its test is written and before its fix`);
-  const commands = itemCommands(read(tracker.path), tracker, id);
-  refuseCommands(root, id, commands);
+/** Runs each command of `commands` in `root` in order, with its output on this process, and returns each with its exit status. */
+function runCommands(root: string, id: string, commands: readonly string[], print: (text: string) => void): Run[] {
   const runs: Run[] = [];
   for (const command of commands) {
     print(`[plan] ${id}: ${command}`);
@@ -436,6 +424,26 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
     print(`[plan] ${id}: ${command} exit ${result.status}`);
     runs.push({ command, status: result.status });
   }
+  return runs;
+}
+
+/**
+ * Runs each command of the Verification cell of the active item `id` in `root` after its test is written and before its fix, and
+ * records the commands that fail in var/plan/<id>.json with HEAD and the hash of the test files: the red that a fix commit
+ * proves (Red-Test, check-commits). With `before`, a row committed without a record: the non-test files that differ between that
+ * commit and HEAD take their content of `before` while the commands run, and HEAD is restored exactly afterwards. Throws, recording
+ * nothing, when the item is not active or the Verification passes, since it then proves no red.
+ */
+export function itemRed(root: string, id: string, print: (text: string) => void = text => console.log(text), before?: string): GateRecord {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
+  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  const state = readChecklist(read(tracker.path), tracker).items.find(item => item.id === id)?.state ?? '';
+  if (state !== ACTIVE) throw new Error(`${id} is ${state}; make item-red runs the Verification of an active item, after its test is written and before its fix`);
+  const commands = itemCommands(read(tracker.path), tracker, id);
+  refuseCommands(root, id, commands);
+  const runs = before === undefined ? runCommands(root, id, commands, print) : runBefore(root, id, before, commands, print);
   if (runs.every(run => run.status === 0)) throw new Error(`${id}: the Verification passes before the fix, so it proves no red; write the test that reproduces the defect first`);
   const head = git(root, 'rev-parse', 'HEAD').trim();
   // The gates of an earlier run on the same HEAD stay; the tests are recorded with the tree of the test files.
@@ -444,6 +452,42 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   writeRecord(root, id, record);
   print(`[plan] ${id}: the Verification fails before the fix on ${head.slice(0, 12)}, so it proves the red; make commit writes it`);
   return record;
+}
+
+/**
+ * Runs `commands` with the non-test files that differ between `before` and HEAD at their content of `before` (a file that `before`
+ * lacks is removed), and restores each of them to HEAD in a finally, so the tree is exactly as it was. The tree must be clean.
+ */
+function runBefore(root: string, id: string, before: string, commands: readonly string[], print: (text: string) => void): Run[] {
+  const rev = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${before}^{commit}`], { cwd: root, encoding: 'utf8' });
+  if (rev.status !== 0) throw new Error(`BEFORE=${before} is no commit`);
+  const sha = rev.stdout.trim();
+  if (spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout.trim() !== '') throw new Error(`${id}: the tree has changes to tracked files; commit or stash them before make item-red BEFORE=${before}`);
+  const changed = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '' && !isTestFile(file));
+  const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;
+  let runs: Run[] = [];
+  const unrestored: string[] = [];
+  try {
+    for (const file of changed) {
+      if (present(sha, file)) {
+        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        writeFileSync(path.join(root, file), spawnSync('git', ['show', `${sha}:${file}`], { cwd: root }).stdout);
+      } else {
+        rmSync(path.join(root, file), { force: true });
+      }
+    }
+    runs = runCommands(root, id, commands, print);
+  } finally {
+    for (const file of changed) {
+      if (present('HEAD', file)) {
+        if (spawnSync('git', ['checkout', 'HEAD', '--', file], { cwd: root }).status !== 0) unrestored.push(file);
+      } else {
+        rmSync(path.join(root, file), { force: true });
+      }
+    }
+  }
+  if (unrestored.length > 0) throw new Error(`${id}: could not restore these files to HEAD: ${unrestored.join(', ')}`);
+  return runs;
 }
 
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
@@ -513,8 +557,8 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
-  // A fix carries the red that item-state and item-red recorded on HEAD: a gate of its row (K357) or a test before its fix.
-  const red = commit.type === 'fix' ? redLines(root, commit.id) : [];
+  // A commit of the row carries the red that item-state and item-red recorded on HEAD: a gate of its row (K357) or a test.
+  const red = redLines(root, commit.id);
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n${red.length ? `\n${red.join('\n')}\n` : ''}`;
   // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
   const twins = stagedTwinFindings(root);
@@ -554,7 +598,7 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(splitPlan(root, split))) console.log(`[plan] moved ${split.ids.join(' ')} in ${file}`);
     } else if (command === 'item-red') {
       const id = required(env.ID, 'ID');
-      itemRed(root, id);
+      itemRed(root, id, undefined, env.BEFORE || undefined);
     } else if (command === 'item-test') {
       const id = required(env.ID, 'ID');
       console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
