@@ -25,7 +25,12 @@ export const execute = (command: string, args: readonly string[], { cwd, env }: 
 export function run(command: string, args: readonly string[], { cwd, env, statuses = [0] }: RunPlace & { statuses?: readonly number[] | undefined } = {}): string {
   const result = execute(command, args, { cwd, env });
   if (result.error) throw new Stop(`${[command, ...args].join(' ')} could not start: ${result.error.message}`);
-  const output = (result.stderr || result.stdout).trim();
+  // Both streams, each named and kept when not empty (K352): an error may come on stdout after progress on stderr.
+  const output = [['stderr', result.stderr], ['stdout', result.stdout]]
+    .map(([name, text]) => [name, (text ?? '').trim()] as const)
+    .filter(([, text]) => text !== '')
+    .map(([name, text]) => `${name}: ${text}`)
+    .join('\n');
   if (result.signal) throw new Stop(`${[command, ...args].join(' ')} ended by signal ${result.signal}: ${output}`);
   if (result.status === null || !statuses.includes(result.status)) throw new Stop(`${[command, ...args].join(' ')} exited with ${result.status}: ${output}`);
   return result.stdout;
