@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2f068f08b4d0c3ae890d22a3c8f6fcbd88aa6607b1a5b806ca9f9063818fab8b -->
+<!-- source-sha256: 17b0f644a6c6c4b96623c63b380d89bfec38e9a25019baea6980ae554451ff07 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make parity-declarations-check`는 새 rule R18 duplicate-suite로 다른 case 집합에서 같은 requirement id를 인용하는 두
+  directory suite를 두 unit과 id를 말하며 보고한다. 기능은 모든 구현이 test하는 하나의 unit이기 때문이다. red: 한
+  기능의 두 suite가 통과했다. green: `node --test --test-name-pattern=K350 tests/kit/parity.test.mts`가 통과한다 (K350).
 - `make item-edit ID= DELIVERABLES=`는 done이 아닌 모든 상태의 item에 대해 item-new의 검사를 거쳐 두 언어의 Deliverables
   cell을 바꾼다. red: item-edit이 DELIVERABLES를 받지 않았다. green: `node --test --test-name-pattern=K388
   tests/kit/plan.test.mts`가 통과한다 (K388).

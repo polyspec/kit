@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make parity-declarations-check` reports, by the new rule R18 duplicate-suite, two directory suites that cite the
+  same requirement ids from different case sets, naming both units and the ids, since a feature is one unit that
+  every implementation tests. Red: two suites of one feature passed; green: `node --test --test-name-pattern=K350
+  tests/kit/parity.test.mts` passes (K350).
 - `make item-edit ID= DELIVERABLES=` replaces the Deliverables cell of a row in both languages through the checks of
   item-new, for an item in any state but done. Red: item-edit took no DELIVERABLES; green: `node --test
   --test-name-pattern=K388 tests/kit/plan.test.mts` passes (K388).
