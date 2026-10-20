@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The fix check of `make commit` and check-commits takes a Rust unit test as the test of a fix: a changed `tests.rs`,
+  or a changed line inside a `#[cfg(test)]` item or a `#[test]` function of a `.rs` file, read on the side of the
+  commit. Red: a fix whose test was `src/tests.rs` was refused as changing no test file; green: `node --test
+  --test-name-pattern=K370 tests/kit/commits.test.mts` passes (K370).
 - The pre-commit hook of kit and `make commit` refuse a commit after which a Korean twin carries a revision marker
   that is not the sha256 of its English document, read on the staged tree, naming the twin and `make
   documents-stamp`. Red: a staged change of `CHANGELOG.md` without the new marker of its twin committed; green: `node

@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4ed8895a64cf50b0de011d494588e6b63b2c117dd1908927031dd462242232c9 -->
+<!-- source-sha256: f7fb979e574e477cd7e0f8847bd09f393394f513dd10655c7f58cd5558df1cf4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make commit`과 check-commits의 fix 검사는 Rust unit test를 fix의 test로 받는다. commit 쪽에서 읽은 `.rs` 파일의 바뀐
+  `tests.rs`, 또는 `#[cfg(test)]` item이나 `#[test]` 함수 안의 바뀐 줄이다. red: test가 `src/tests.rs`인 fix가 test
+  파일을 바꾸지 않는다고 거부되었다. green: `node --test --test-name-pattern=K370 tests/kit/commits.test.mts`가 통과한다
+  (K370).
 - kit의 pre-commit hook과 `make commit`은 staged tree에서 읽어 commit 뒤 한국어 문서의 revision marker가 영어 문서의
   sha256이 아니게 되는 commit을 그 문서와 `make documents-stamp`를 말하며 거부한다. red: 한국어 문서의 새 marker 없이
   stage된 `CHANGELOG.md` 변경이 commit되었다. green: `node --test --test-name-pattern=K382 tests/kit/documents.test.mts`가
