@@ -1,11 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 81ba3f5bd0e3ced485f7a5c0cdb240cb0110f2b41f6f130fcc3f87e48ae5b1b5 -->
+<!-- source-sha256: b58995ff1a0aec875239061a98cc42604baf5a65b7722b2d868aaa574aa6634b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`은 row의 worktree, 즉 `main`에서 `<type>/<name>-<id>`의
+  `../<repository>-<name>-<id>`를 만들고, 자기 source로 `make install`(도구, package, link, 그다음 저장소의 단계)을 실행해
+  설치하고 `make link-state-check`로 검사한다. 여유 disk가 30 GB 미만이면 거부하고, 다시 실행하면 같은 worktree를 다시
+  설치하고 검사한다. docs/operations/local-links.md는 worktree와 K360-1의 설치 순서를 말한다. red: worktree를 만드는
+  target이 없어 손 작업이 필요했다. green: `node --test --test-name-pattern=K348 tests/kit/worktree-setup.test.mts`가
+  통과한다 (K348).
 - `link`는 소비자 자신의 저장소 package를 그것을 실행하는 work tree(main checkout이나 worktree)에서 받고, 인자 가운데
   같은 저장소의 checkout에서는 받지 않으므로 worktree는 다른 저장소만 link하고 main checkout의 source를 받지 않으며 자기
   저장소의 checkout을 밝히지 않는다. 자기 package는 `own (this repository)`로 보고된다. red: worktree의 자기 package를 main

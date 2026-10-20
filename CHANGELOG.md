@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]` makes the worktree of a row, `../<repository>-<name>-<id>`
+  on `<type>/<name>-<id>` from `main`, installs it from its own sources with `make install` (tools, packages and links,
+  then the steps of the repository) and checks it with `make link-state-check`; it refuses while the free disk is under
+  30 GB, and a second run installs and checks the same worktree again. docs/operations/local-links.md states the
+  worktrees and the install order of K360-1. Red: no target made a worktree, which needed hand steps; green: `node
+  --test --test-name-pattern=K348 tests/kit/worktree-setup.test.mts` passes (K348).
 - `link` takes the packages of the consumer's own repository from the work tree that runs it, a main checkout or a
   worktree, and never from a checkout of the same repository among its arguments, so a worktree links the other
   repositories only, never takes the sources of its main checkout and names no checkout of its own; its own packages
