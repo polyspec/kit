@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1f418063217e26f7a2330143b3ac2944c1ee531c90560ee8638f06324a1777ff -->
+<!-- source-sha256: 0e5fa3515a7e8133605b7ab132709f4fd3e04b02ec28b171e747165dac862621 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make kit-check`는 저장소의 CHECK_TARGETS가 kit-gates의 모든 prerequisite에 단어나 prerequisite로 닿을 것을 요구하며, 언어의 lint와 PHP extension gate는 그 code를 가진 저장소에서만 요구한다(K289). Red: suite를 읽는 check가 없어서 language-check, rebuild-check, duplication-check가 없는 저장소도 kit-check를 통과했다(case가 없던 `gateFindings`를 import한다). Green: `node --test tests/kit/kit-check.test.mts`가 통과하고 kit-check가 hyper, fsm, ordered-json, crudui에서 빠진 gate를 지목한다.
 - `make duplication-check`는 jscpd 자체의 `--ignore-pattern`으로 logic이 없는 줄의 token을 건너뜁니다(K287): PHP의 declare, namespace, use, TypeScript와 JavaScript의 import(한 줄과 block), Go의 package와 import(단일과 block), Python의 import와 from-import, Rust의 use(단일과 중괄호), C의 #include. docblock, signature, mode, 최소 token 수는 그대로입니다. Red: `node --test --test-name-pattern=K287 tests/kit/duplication-check.test.mts`가 header만 같은 두 file이 보고되어(`1 !== 0`) 7개 case 모두 실패했습니다. Green: 7개 모두 통과하며 6줄 body가 같은 두 file은 여전히 실패합니다.
 - kit의 typecheck가 통과한다(K288): `tests/kit/link.test.mts`의 두 assertion은 문자열 message를 넘기고 `tests/kit/parity-requirements.test.mts`는 `caseFile`을 주어졌을 때만 지정한다. Red: `npx tsc --noEmit -p .`가 link.test.mts(384,125)와 (387,134)의 TS2769, parity-requirements.test.mts(65,106)의 TS2375를 나열했다. Green: 출력이 없다.
 - `make rebuild-check`는 저장소의 layout(`scripts/`, package의 `scripts|tools|bin`, generator, benchmark, example, fixture generator)으로 tool source를 찾고 `config/rebuild.json`은 분류만 한다: `paths`를 없앴으므로 저장소는 gate가 보는 범위를 좁힐 수 없다(K286). 좁은 `paths`가 가리던 `install-php.mts`와 PHP·Python symbol extractor의 class를 kit 자신의 config에 추가했다. Red: `node --test tests/kit/rebuild-check.test.mts`가 선언한 path 밖 tool의 case에서 실패했다(benchmarks/run.js와 packages/codec/tools/make.mjs가 통과). Green: 통과하며, `node scripts/kit/rebuild-check.mts`는 처음에 kit의 미분류 tool 다섯을 지목한 뒤 통과한다.

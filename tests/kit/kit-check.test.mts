@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
+import { gateFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
 import { tree } from './tree.mts';
 
 test('a tracked symbolic link fails with its path, and a tree without one passes (K254)', (t) => {
@@ -41,4 +41,18 @@ test('a runtime of packages/ without its build, test or lint target fails (K246)
   const files = ['packages/ts/src/a.ts', 'packages/php-ext/src/a.c', 'packages/codec/ts/b.ts', 'docs/a.md'];
   assert.deepEqual(runtimeTargetFindings(files, make), ['test-php-ext', 'lint-php-ext'].map(target => `packages/: the runtime php-ext has no target ${target}; kit.mk defines the targets of each runtime`));
   assert.deepEqual(runtimeTargetFindings(['docs/a.md'], make), []);
+});
+
+test('a repository whose check suite lacks a gate of kit-gates fails, and a gate of a language it has not is not required (K289)', () => {
+  const target = (name: string, prerequisites: string[] = []) => [name, { prerequisites, recipe: '' }] as const;
+  const targets = new Map([target('kit-gates', ['kit-check', 'language-check', 'lint-php', 'lint-python']), target('kit-check'), target('language-check'), target('lint-php'), target('lint-python'), target('check-more', ['language-check'])]);
+  const make = (suite: string) => ({ targets, variables: new Map([['CHECK_TARGETS', suite]]) });
+  // A gate is run when the suite names it or a target that has it as a prerequisite.
+  assert.deepEqual(gateFindings(['src/a.php'], make('kit-check check-more')), ['Makefile: CHECK_TARGETS runs no lint-php, a gate of kit-gates for the PHP of this repository; add it to CHECK_TARGETS']);
+  assert.deepEqual(gateFindings(['src/a.php', 'src/b.py'], make('kit-check')), [
+    'Makefile: CHECK_TARGETS runs no language-check, a gate of kit-gates; add it to CHECK_TARGETS',
+    'Makefile: CHECK_TARGETS runs no lint-php, a gate of kit-gates for the PHP of this repository; add it to CHECK_TARGETS',
+    'Makefile: CHECK_TARGETS runs no lint-python, a gate of kit-gates for the Python of this repository; add it to CHECK_TARGETS',
+  ]);
+  assert.deepEqual(gateFindings(['docs/a.md'], make('kit-check language-check')), []);
 });

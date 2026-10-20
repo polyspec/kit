@@ -811,6 +811,10 @@ Left as it is, with the reason:
   the purpose of the file; the three sentences differ.
 - `kit-check` reads only the copies that `kit.copies` of the installed package names, from the disk; `trackedFiles` reads the
   Git view.
+- `kit-check` also requires (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
+  prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
+  the suite. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds
+  code of it. kit's own checkout is not checked, since it is the source of the gates.
 - The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
 
 ## Python lint (K8.4)

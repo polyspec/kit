@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 728ad67c7cbe21a00428ecae92fd22861f0319df7d9bdf93424ad9b0ef7fd899 -->
+<!-- source-sha256: 135912d454bf808336e6df9a7c14850a1fa76f4cdc659f4316282d351e7ee6e3 -->
 
 # 도구 목록
 
@@ -740,6 +740,9 @@ file header만 맞춥니다: PHP `declare`, `namespace`, `use`; TypeScript와 Ja
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
 - `kit-check`는 설치된 package의 `kit.copies`가 이름을 대는 사본만 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
+- `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
+  prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 언어의 lint와 PHP extension의
+  lint·test는 그 code를 가진 저장소에서만 요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.
 
 ## Python lint (K8.4)

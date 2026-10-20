@@ -202,6 +202,36 @@ export function runtimeTargetFindings(files: readonly string[], make: MakeDataba
   return runtimes.flatMap(runtime => ['build', 'test', 'lint'].map(task => `${task}-${runtime}`).filter(target => !make.targets.has(target)).map(target => `packages/: the runtime ${runtime} has no target ${target}; kit.mk defines the targets of each runtime`));
 }
 
+// The gates of kit-gates that apply to a repository only when it holds code of the language: the lint of that language, and the
+// lint and test of a PHP extension.
+const LANGUAGE_GATES: Record<string, { name: string; code: RegExp }> = {
+  'lint-php': { name: 'PHP', code: /\.php$/ },
+  'lint-python': { name: 'Python', code: /\.py$/ },
+  'lint-ts': { name: 'TypeScript', code: /\.[cm]?[jt]sx?$/ },
+  'lint-go': { name: 'Go', code: /\.go$/ },
+  'lint-php-ext': { name: 'PHP extension', code: /^packages\/php-ext\// },
+  'test-php-ext': { name: 'PHP extension', code: /^packages\/php-ext\// },
+};
+
+/**
+ * The findings of the suite CHECK_TARGETS of `make` against kit-gates (K289): each prerequisite of kit-gates, the lint of a
+ * language only for a repository that holds code of it, is run by the suite, as a word of CHECK_TARGETS or a prerequisite of one.
+ */
+export function gateFindings(files: readonly string[], make: MakeDatabase): string[] {
+  const gates = make.targets.get('kit-gates')?.prerequisites ?? [];
+  const reached = new Set<string>();
+  const visit = (name: string) => {
+    if (reached.has(name)) return;
+    reached.add(name);
+    for (const next of make.targets.get(name)?.prerequisites ?? []) visit(next);
+  };
+  (make.variables.get('CHECK_TARGETS') ?? '').split(/\s+/).filter(Boolean).forEach(visit);
+  return gates.filter(gate => !reached.has(gate) && (LANGUAGE_GATES[gate] === undefined || files.some(file => LANGUAGE_GATES[gate]?.code.test(file) && !file.startsWith('scripts/kit/')))).map((gate) => {
+    const language = LANGUAGE_GATES[gate];
+    return `Makefile: CHECK_TARGETS runs no ${gate}, a gate of kit-gates${language ? ` for the ${language.name} of this repository` : ''}; add it to CHECK_TARGETS`;
+  });
+}
+
 /** The targets that kit defines: those of the kit.mk beside this module and of the kit-bootstrap.mk of `root`. */
 function kitTargets(root: string): Set<string> {
   const files = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit.mk'), path.join(root, 'scripts/kit/kit-bootstrap.mk')];
@@ -212,7 +242,8 @@ function kitTargets(root: string): Set<string> {
 function targetFindings(root: string, make: MakeDatabase): string[] {
   const makefile = path.join(root, 'Makefile');
   const names = existsSync(makefile) ? taskNameFindings(readFileSync(makefile, 'utf8'), kitTargets(root)) : [];
-  return [...names, ...runtimeTargetFindings(trackedFiles(root), make)];
+  const files = trackedFiles(root);
+  return [...names, ...runtimeTargetFindings(files, make), ...(isSource(root) ? [] : gateFindings(files, make))];
 }
 
 /**
