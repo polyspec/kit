@@ -89,14 +89,15 @@ final class Counter
 }
 `;
 
-test('the build publishes the extension, whose declarations Reflection compares with those of the library (S10)', (t) => {
-  const root = tree(t, { ...good(), 'packages/php/src/Demo.php': library('int'), 'packages/php/autoload.php': "<?php\n\nrequire __DIR__ . '/src/Demo.php';\n" });
+test('the build publishes the extension, which reports the version of its composer.json, and whose declarations Reflection compares with those of the library (S10)', (t) => {
+  const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php/autoload.php': "<?php\n\nrequire __DIR__ . '/src/Demo.php';\n" });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   const extension = path.join(root, 'var/php-ext/polyspec_demo.so');
   assert.ok(existsSync(extension), 'the library is published');
+  assert.equal(execute('php', ['-d', `extension=${extension}`, '-r', 'echo phpversion("polyspec_demo");'], { cwd: root }).stdout, '1.2.3', 'the version of composer.json');
   const script = path.join(ROOT, 'scripts/kit/symbols/php/reflection.php');
   const read = (args: string[]) => {
     const result = execute('php', args, { cwd: root });

@@ -64,7 +64,7 @@ zend_module_entry polyspec_demo_module_entry = {
 	NULL,
 	NULL,
 	NULL,
-	"0.0.0",
+	PHP_POLYSPEC_DEMO_VERSION,
 	STANDARD_MODULE_PROPERTIES
 };
 

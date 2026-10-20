@@ -123,34 +123,40 @@ function checked(root: string): ReturnType<typeof extensionNames> {
   return extensionNames(owner.repository);
 }
 
-/** A copy of the sources of the extension in a new directory under var/php-ext, prepared by phpize; returns its path. */
-function phpized(root: string, label: string): string {
+/**
+ * A copy of the package of the extension in a new directory under var/php-ext: its composer.json beside src/, as in the package,
+ * so that config.m4 reads the version of the package from ../composer.json (K295). src/ is prepared by phpize; returns the
+ * copy (`work`, to remove) and its src/ (`source`, where the build runs).
+ */
+function phpized(root: string, label: string): { work: string; source: string } {
   const work = path.join(root, OUTPUT, `${label}.${process.pid}`);
+  const source = path.join(work, 'src');
   rmSync(work, { recursive: true, force: true });
-  mkdirSync(path.dirname(work), { recursive: true });
-  cpSync(path.join(root, EXTENSION, 'src'), work, { recursive: true });
+  mkdirSync(work, { recursive: true });
+  cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
+  cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true });
   console.log(`[php-extension] phpize (${run('php-config', ['--version']).trim()})`);
-  run('phpize', [], { cwd: work });
-  return work;
+  run('phpize', [], { cwd: source });
+  return { work, source };
 }
 
 /** Builds the extension of `root` into var/php-ext/<extension>.so; returns its path. */
 export function build(root: string): string {
   const names = checked(root);
-  const work = phpized(root, 'build');
+  const { work, source } = phpized(root, 'build');
   try {
     // The copy gives every file a new time, so make could find the stub newer than its header and run gen_stub.php, which
     // downloads; the check above proved the header current, so it is given the time of the stub.
-    const stub = statSync(path.join(work, path.basename(names.stub)));
-    utimesSync(path.join(work, path.basename(names.arginfo)), stub.atime, stub.mtime);
+    const stub = statSync(path.join(source, path.basename(names.stub)));
+    utimesSync(path.join(source, path.basename(names.arginfo)), stub.atime, stub.mtime);
     console.log('[php-extension] configure');
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: work });
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source });
     console.log('[php-extension] make');
-    const made = run('make', [], { cwd: work });
+    const made = run('make', [], { cwd: source });
     const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
     if (warnings.length) throw new Stop(`the build of ${names.extension} has compiler warnings:\n${warnings.join('\n')}`);
     const library = path.join(root, OUTPUT, `${names.extension}.so`);
-    renameSync(path.join(work, 'modules', `${names.extension}.so`), library);
+    renameSync(path.join(source, 'modules', `${names.extension}.so`), library);
     console.log(`[php-extension] built ${path.relative(root, library)}`);
     return library;
   } finally {
@@ -164,14 +170,14 @@ export function arginfo(root: string): void {
   const owner = repositoryOf(reader(root, files));
   if ('finding' in owner) throw new Stop(owner.finding);
   const names = extensionNames(owner.repository);
-  const work = phpized(root, 'arginfo');
+  const { work, source } = phpized(root, 'arginfo');
   try {
     const header = path.basename(names.arginfo);
     // The rule of the header lies in the Makefile that ./configure writes, so configure runs first.
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: work });
-    rmSync(path.join(work, header), { force: true });
-    run('make', [header], { cwd: work });
-    writeFileSync(path.join(root, names.arginfo), readFileSync(path.join(work, header)));
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source });
+    rmSync(path.join(source, header), { force: true });
+    run('make', [header], { cwd: source });
+    writeFileSync(path.join(root, names.arginfo), readFileSync(path.join(source, header)));
     console.log(`[php-extension] wrote ${names.arginfo}`);
   } finally {
     rmSync(work, { recursive: true, force: true });

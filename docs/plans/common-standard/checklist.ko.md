@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 06937b3f8944e10795a49da876c074d2e6e83ec86d31b324a4209fa205c065c9 -->
+<!-- source-sha256: 625bf86d88f83f723d5b83381f8631f73f11d55f7f700de27e73e27248743e09 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -84,3 +84,4 @@
 | K282 | 저장소의 PHP platform은 하나다. 원인: composerPlatforms가 manifest마다 다른 PHP를 받아들여 hyper, fsm, orm, template은 8.4.0으로, crudui와 ordered-json은 PHPUnit 13이 요구하는 8.4.1로 resolve했다. 인수 조건: dependency-policy-check는 다른 항목과 다른 composerPlatforms 항목이나 config.platform.php를 실패시키고, .php-version이 있으면 그 minor에 patch 1을 붙인 값이 아닌 것도 실패시킨다. | scripts/kit/check-dependency-policy.mts, tests/kit/dependency-policy.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test tests/kit/dependency-policy.test.mts` | [o] |
 | K294 | rebuild-check는 설치된 kit의 vendored 사본을 제외한다. 원인: toolSources가 kit.copies를 consumer의 package.json에서 읽었는데 거기에는 없어서, vendored scripts/kit 파일이 모두 class 없는 tool로 보고되었다. kit-check는 사본을 설치된 package에서 읽는다. 인수 조건: node_modules/@polyspec/kit/package.json의 사본은 kit이 아닌 저장소의 tool source가 아니다. | scripts/kit/rebuild-check.mts, tests/kit/rebuild-check.test.mts | `node --test tests/kit/rebuild-check.test.mts` | [o] |
 | K290 | make php-ext-arginfo는 header를 만들기 전에 사본을 configure한다. 원인: arginfo가 phpize 뒤에 ./configure 없이 make <header>를 실행했는데 Makefile은 configure가 쓰므로 make가 "No rule to make target polyspec_ordered_json_arginfo.h"로 실패했다. 인수 조건: arginfo는 make 전에 extension의 --enable flag로 ./configure를 실행한다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/php-ext.test.mts` | [o] |
+| K295 | PHP extension의 version의 source는 package의 composer.json 하나다. 원인: build-php-ext가 packages/php-ext/src만 복사해서 PIE가 package에서 build할 때 읽는 package version을 config.m4가 읽을 수 없었다. 인수 조건: build는 사본에서 composer.json을 src/ 옆에 두어 config.m4가 ../composer.json에서 version을 정의하게 하며, build한 fixture의 phpversion()은 그 composer.json의 version과 같다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts, tests/kit/php-ext-fixture/, PRINCIPLES.md(.ko) | `node --test tests/kit/php-ext.test.mts` | [o] |

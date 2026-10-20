@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 8764a04e5f0e32ad92cf2b1e3a936d15a518c15d36c70c31421effdc1d82fa7c -->
+<!-- source-sha256: b743ce68c25f31b72630dc681a87513263454f19eed9f36d489cfd153f555853 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -169,7 +169,8 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   구현하고, 그 class와 function을 같은 이름과 signature로 등록한다. `packages/php-ext/`에 두며 source는 `src/`에, stub은 하나,
   `src/polyspec_<repository>.stub.php`이다. 이름은 `polyspec/<repository>-php-ext`와 `polyspec_<repository>`이고, 저장소
   이름의 hyphen은 underscore가 된다. `make build-php-ext`는 `make php-ext-arginfo`가 PHP의 gen_stub.php로 쓰는 arginfo
-  header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build한다. `make test-php-ext`는 unit test 전에 등록한 것을
+  header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build하며, `composer.json`을 `src/` 옆에 둔 사본에서 build하므로 `config.m4`가 extension의
+  version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
   Reflection으로 PHP library와 비교하며, unit test는 extension을 load해 실행하는 `packages/php`의 PHPUnit 파일과 (있다면)
   `packages/php-ext`의 것이다. parity implementation은 이 layout으로 `packages/php`의 test를 공유하며, 설정에 상대 경로를 두지 않는다.
   Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`
