@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e59474a72182934b20cceece9f46f182b372888c0cd7b23171fccdf7fb700c47 -->
+<!-- source-sha256: 57ffda7c2ff46a6f90817b2cb0ca5425d18d5e83869f94a675f99aa644f96f39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make test-php-ext CASES=<pattern>`은 PHPUnit이 `--filter`를 `Class::method`에 맞추듯 `*Test.php` 파일의 `test…`
+  method에서 읽어 filter가 test를 고르는 PHP library마다 실행하고, 다른 library마다 `<library>: no case selected by
+  CASES`를 출력하며, 어느 library에서도 test를 고르지 못하면 실패한다. red: 한 library의 test를 가리키는 filter가 다른
+  library를 실패시켰다. green: `node --test --test-name-pattern=K390 tests/kit/runtime-targets.test.mts`가 통과한다
+  (K390).
 - kit은 `make hooks`가 쓰는 commit-msg hook(K380)을 추적하므로 kit 자신의 commit도 만들 때 검사되고 kit에서 `make
   hooks-check`가 통과한다. red: kit에서 `make hooks-check`가 `.githooks/commit-msg`를 말하며 실패했다. green: `make
   hooks-check`가 통과한다 (K391).

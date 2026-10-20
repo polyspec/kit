@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make test-php-ext CASES=<pattern>` runs each PHP library where the filter selects a test, read from the `test…`
+  methods of its `*Test.php` files as PHPUnit matches `--filter` against `Class::method`, prints `<library>: no case
+  selected by CASES` for each other library, and fails when the filter selects no test in any library. Red: a filter
+  that named a test of one library failed the other library; green: `node --test --test-name-pattern=K390
+  tests/kit/runtime-targets.test.mts` passes (K390).
 - kit tracks the commit-msg hook that `make hooks` writes (K380), so its own commits are checked when they are made,
   and `make hooks-check` passes in kit. Red: `make hooks-check` failed in kit, naming `.githooks/commit-msg`; green:
   `make hooks-check` passes (K391).
