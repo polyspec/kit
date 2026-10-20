@@ -10,6 +10,7 @@ import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
+import { tree } from './tree.mts';
 
 const FILES: Record<string, string> = {
   'phpcs.xml.dist': '<ruleset/>\n',
@@ -95,4 +96,8 @@ test('COMPOSER_VENDOR_DIR names the vendor directory of each project, as for run
   process.env.COMPOSER_VENDOR_DIR = 'var/vendor';
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), [ALL[0], known(ALL[1], 'ALL[1]').replace('--autoload-file=vendor/autoload.php', '--autoload-file=../../var/vendor/autoload.php')]);
+});
+
+test('a repository without PHP sources lints nothing, with no tool and no configuration installed (K319)', (t) => {
+  assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
 });

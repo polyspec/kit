@@ -22,11 +22,12 @@ import { present } from './present.mts';
 
 /** The steps of the lint of `root`; throws when a tool, a configuration or the autoloader of a package is missing. */
 export function lintSteps(root: string): LintStep[] {
-  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
-  requireConfigurations(root, [['phpcs.xml.dist', 'PHP lint'], ['phpstan.dist.neon', 'PHP lint']]);
+  // A repository without PHP sources has nothing to lint: no tool and no configuration is needed (K319).
   const files = checkedFiles(root);
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
   if (sources.length === 0) return [];
+  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
+  requireConfigurations(root, [['phpcs.xml.dist', 'PHP lint'], ['phpstan.dist.neon', 'PHP lint']]);
   const packages = foldersOf(root, 'composer.json');
   const owner = packageOwner(packages);
   const steps: LintStep[] = [{ label: 'phpcs', command: present(tools.phpcs, 'tools.phpcs'), args: ['-q', '-s', '--report=emacs', '--standard=phpcs.xml.dist', ...sources], cwd: '.' }];

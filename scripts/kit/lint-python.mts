@@ -23,9 +23,11 @@ export const VULTURE_CONFIDENCE = '60';
 
 /** The steps of the lint of `root`; throws when the checkout has no ruff or vulture of mise.toml installed, or no ruff.toml. */
 export function lintSteps(root: string): LintStep[] {
+  // A repository without Python sources has nothing to lint: no tool and no configuration is needed (K319).
+  const files = checkedFiles(root);
+  if (!files.some(file => file.endsWith('.py'))) return [];
   const tools = lintCommands(root, SHIMS, ['ruff', 'vulture'], 'declare ruff and pypi:vulture in mise.toml and run make install-tools');
   requireConfigurations(root, [['ruff.toml', 'ruff']]);
-  const files = checkedFiles(root);
   const packages = foldersOf(root, 'pyproject.toml');
   const owner = packageOwner(packages);
   return [

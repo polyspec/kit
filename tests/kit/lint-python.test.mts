@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { tree } from './tree.mts';
 
 const FILES: Record<string, string> = {
   'ruff.toml': '[lint]\nselect = ["F"]\n',
@@ -68,4 +69,8 @@ test('a missing tool and a missing ruff.toml fail with their fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['vulture'] }).root), /var\/tools\/mise\/shims\/ruff is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { installed: ['ruff'] }).root), /var\/tools\/mise\/shims\/vulture is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'ruff.toml' }).root), /ruff\.toml is missing; it is the ruff configuration that kit copies into every repository \(make kit-sync\)/);
+});
+
+test('a repository without Python sources lints nothing, with no tool and no configuration installed (K319)', (t) => {
+  assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
 });
