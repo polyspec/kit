@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make commit` and the commit-msg hook refuse a Subject that already holds ` (#<id>)` before the id that make
+  commit adds (rule commit-subject-id). Red: the subject `Fix it (#T1) (#T1)` passed; green: `node --test
+  --test-name-pattern=K380-1 tests/kit/commits.test.mts` passes (K380-1).
 - `make link-state-check` reads an install from a lock that a recipe runs through the make variable of its tool,
   `$(COMPOSER) install`, `$(COMPOSER_BIN) install`, `$(NPM) ci` or `$(UV) sync`, and fails it without the kit link
   step after it. Red: a recipe with `$(COMPOSER) install` and no link step passed; green: `node --test

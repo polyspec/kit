@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a6a7b1db32047ebc4e78b4e5194c4ddd7eb67f53aea7d9b7142e466836a5dee0 -->
+<!-- source-sha256: 3d9d1131971d6cbc926e17ab2b2f4d5252d5444fddf4ba3e279cf0a00d8367dc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make commit`과 commit-msg hook은 make commit이 붙이는 id 앞에 이미 ` (#<id>)`를 가진 Subject를 거부한다(rule
+  commit-subject-id). red: subject `Fix it (#T1) (#T1)`이 통과했다. green: `node --test --test-name-pattern=K380-1
+  tests/kit/commits.test.mts`가 통과한다 (K380-1).
 - `make link-state-check`는 recipe가 도구의 make 변수로 실행하는 lock 설치, 즉 `$(COMPOSER) install`,
   `$(COMPOSER_BIN) install`, `$(NPM) ci`, `$(UV) sync`도 읽고, 그 뒤에 kit link 단계가 없으면 실패시킨다. red: link 단계
   없이 `$(COMPOSER) install`을 가진 recipe가 통과했다. green: `node --test --test-name-pattern=K349-1
