@@ -325,6 +325,10 @@ link: ## Link every installed polyspec package pinned at 0.0.x to its source in 
 link-check: ## List every installed polyspec package pinned at 0.0.x as linked, NOT linked or STALE against CHECKOUTS, else the checkouts beside the repository; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
+.PHONY: worktree-setup
+worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main, install it from its own sources with make install and check it with link-state-check; refuses under 30 GB of free disk; a second run installs it again (K348); ONLINE
+	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
