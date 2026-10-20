@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `run-tests` starts the php of a phpunit run with a PHP extension or a library run, the go of a Go run and the python
+  of a Python run from the checkout (`var/tools/bin/php`, the shims of mise) and fails with `<path> does not exist;
+  run make install` when it is missing, never taking the tool of PATH. Red: the run took the php of PATH, another PHP
+  than the pin in a worktree without make install; green: `node --test --test-name-pattern=K393
+  tests/kit/run-tests.test.mts` passes (K393).
 - `link` writes `composer.link.lock` from the tracked `composer.lock` only when the link lock is missing, and keeps it
   afterwards, so the versions that `make dependency-review UPDATE=1` applied to the link lock survive a relink and the
   partial update changes only the linked packages. Red: a second link copied the tracked lock back over an updated

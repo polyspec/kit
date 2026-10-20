@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b297212930d9f674af39ab282d17f85aebdf79341696407bff84dc85556981b8 -->
+<!-- source-sha256: bc89c7a3995e296fd576b051c1d3773b35fa2648261fe849c4d4477918fa6154 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `run-tests`는 PHP extension을 쓰는 phpunit run이나 library run의 php, Go run의 go, Python run의 python을
+  checkout(`var/tools/bin/php`, mise의 shim)에서 시작하고, 없으면 `<path> does not exist; run make install`과 함께
+  실패하며 PATH의 도구를 쓰지 않는다. red: run이 PATH의 php, 즉 make install 없는 worktree에서 pin이 아닌 PHP를 썼다.
+  green: `node --test --test-name-pattern=K393 tests/kit/run-tests.test.mts`가 통과한다 (K393).
 - `link`는 link lock이 없을 때만 tracked `composer.lock`에서 `composer.link.lock`을 쓰고 그 뒤에는 유지하므로, `make
   dependency-review UPDATE=1`이 link lock에 적용한 version이 다시 link해도 남고 부분 update는 linked package만 바꾼다.
   red: 두 번째 link가 갱신된 link lock 위에 tracked lock을 다시 복사했다. green: `node --test --test-name-pattern=K392
