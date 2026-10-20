@@ -424,7 +424,7 @@ function workspaceFolders(root: string, pattern: string): string[] {
 }
 
 /**
- * The names that the manifests of `directories` require directly (K378): the require and require-dev of each composer.json, and
+ * The names that the manifests of `directories` require directly: the require and require-dev of each composer.json, and
  * the dependencies, devDependencies and optionalDependencies of each package.json with those of its workspaces. A requirement
  * that only a lock holds is transitive and is no direct name.
  */
@@ -456,7 +456,7 @@ function directNames(root: string, directories: readonly string[]): { composer: 
 }
 
 /**
- * The locks that install reads at the root of a checkout (K378): the composer.lock and package-lock.json of each folder of
+ * The locks that install reads at the root of a checkout: the composer.lock and package-lock.json of each folder of
  * installDirectories that is tracked. A lock under tests/ or a fixtures/ folder is no lock of the checkout.
  */
 function installLocks(root: string, directories: readonly string[]): string[] {
@@ -465,7 +465,7 @@ function installLocks(root: string, directories: readonly string[]): string[] {
 }
 
 /**
- * The packages that the install locks of `root` lock for a name that the checkout requires directly (K378). A polyspec package is
+ * The packages that the install locks of `root` lock for a name that the checkout requires directly. A polyspec package is
  * linked, not pinned across the checkouts. An npm package is taken at the top level of node_modules, the place of a direct requirement.
  */
 function directPins(root: string): Pin[] {
@@ -473,20 +473,26 @@ function directPins(root: string): Pin[] {
   const direct = directNames(root, directories);
   const pins: Pin[] = [];
   for (const lock of installLocks(root, directories)) {
-    const lines = readFileSync(path.join(root, lock), 'utf8').split('\n');
-    const lineOf = (needle: string) => lines.findIndex(line => line.includes(needle)) + 1;
-    if (path.posix.basename(lock) === 'composer.lock') {
+    const isComposer = path.posix.basename(lock) === 'composer.lock';
+    // The line of the first entry of each name, found in one pass over the lines of the lock.
+    const entryLine = new Map<string, number>();
+    const entry = isComposer ? /^\s*"name": "([^"]*)"/ : /^\s*"([^"]*)": \{$/;
+    readFileSync(path.join(root, lock), 'utf8').split('\n').forEach((text, index) => {
+      const found = entry.exec(text)?.[1];
+      if (found !== undefined && !entryLine.has(found)) entryLine.set(found, index + 1);
+    });
+    if (isComposer) {
       const locked = readComposerLock(root, lock);
       const items: SourcedPackage[] = [...(locked.packages ?? []), ...(locked['packages-dev'] ?? [])];
       for (const item of items.filter(item => direct.composer.has(item.name) && !item.name.startsWith('polyspec/'))) {
         const source = item.source ? `${item.source.url}@${item.source.reference}` : item.dist?.url ?? 'no source';
-        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock, line: lineOf(`"name": ${JSON.stringify(item.name)}`) });
+        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock, line: entryLine.get(item.name) ?? 0 });
       }
     } else {
-      for (const [key, entry] of Object.entries(readNpmLock(root, lock).packages ?? {})) {
+      for (const [key, locked] of Object.entries(readNpmLock(root, lock).packages ?? {})) {
         const name = key.slice('node_modules/'.length);
-        if (!key.startsWith('node_modules/') || name.includes('node_modules/') || !direct.npm.has(name) || entry.link === true || name.startsWith('@polyspec/')) continue;
-        pins.push({ ecosystem: 'npm', name: key, version: entry.version ?? '', source: entry.resolved ?? 'no resolved URL', root, lock, line: lineOf(`${JSON.stringify(key)}:`) });
+        if (!key.startsWith('node_modules/') || name.includes('node_modules/') || !direct.npm.has(name) || locked.link === true || name.startsWith('@polyspec/')) continue;
+        pins.push({ ecosystem: 'npm', name: key, version: locked.version ?? '', source: locked.resolved ?? 'no resolved URL', root, lock, line: entryLine.get(key) ?? 0 });
       }
     }
   }
@@ -500,13 +506,15 @@ function directPins(root: string): Pin[] {
  * their entries, the version and the source.
  */
 export function sharedPinFindings(root: string, siblings: readonly string[]): Finding[] {
-  const own = directPins(root);
+  // The pins of the repository by ecosystem and name, so that each pin of a sibling finds its own pins at once.
+  const own = new Map<string, Pin[]>();
+  for (const pin of directPins(root)) own.set(`${pin.ecosystem} ${pin.name}`, [...(own.get(`${pin.ecosystem} ${pin.name}`) ?? []), pin]);
   const findings: Finding[] = [];
   const label = (pin: Pin) => `${path.basename(pin.root)}/${pin.lock}:${pin.line}`;
   for (const sibling of siblings) {
-    for (const a of own) {
-      for (const b of directPins(sibling)) {
-        if (a.ecosystem !== b.ecosystem || a.name !== b.name || (a.version === b.version && a.source === b.source)) continue;
+    for (const b of directPins(sibling)) {
+      for (const a of own.get(`${b.ecosystem} ${b.name}`) ?? []) {
+        if (a.version === b.version && a.source === b.source) continue;
         findings.push({ rule: 'sharedPin', subject: a.name, problem: `both checkouts require it directly and lock it from different sources or at different versions: ${label(a)} locks ${a.version} from ${a.source}, and ${label(b)} locks ${b.version} from ${b.source}`, fix: 'lock the package at one version from one source in both checkouts' });
       }
     }
