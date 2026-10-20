@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The link installs a Python provider from an editable wheel that kit writes itself into `var/link/python` of the consumer,
+  with no build backend: the wheel holds the metadata of the provider's pyproject.toml and a .pth that names its import root,
+  and no source, so the link writes nothing into a provider folder that a container mounts read-only; a provider whose
+  metadata needs its backend is refused, with no fallback to `uv pip install -e` (K398).
 - Every tool of kit that starts php, node, npm, composer, go, python or uv takes it from the checkout through one helper
   (`toolCommand` of mise-tools.mts: `var/tools/bin`, then the shim of mise of the checkout) and fails with run make install
   when it is missing, never falling back to PATH; the bootstrap npm installer keeps the node of the machine, and cargo stays

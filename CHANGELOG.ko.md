@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 662210391d483cebd16f8a602ebc5ae86b66322073fcc7b80508e6741950ebf6 -->
+<!-- source-sha256: 9b6e97c6f37703377e58b8150aa795a1e4ea0f02765c15b3b864caa96445eee8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 kit이 build backend 없이 consumer의 `var/link/python`에 직접 쓰는 editable wheel로 Python provider를 설치한다.
+  wheel은 provider pyproject.toml의 metadata와 import root를 가리키는 .pth만 담고 source는 담지 않으므로, link는 container가
+  read-only로 mount한 provider 폴더에 아무것도 쓰지 않는다. metadata에 backend가 필요한 provider는 `uv pip install -e`로
+  대체하지 않고 거부한다(K398).
 - php, node, npm, composer, go, python, uv를 실행하는 kit의 모든 도구는 하나의 helper(mise-tools.mts의 `toolCommand`:
   `var/tools/bin`, 다음 checkout의 mise shim)로 checkout에서 그 도구를 가져오며, 없으면 PATH로 대체하지 않고 run make
   install과 함께 실패한다. bootstrap npm installer는 machine의 node를 쓰고, cargo는 PATH에 남는다(K393-1).
