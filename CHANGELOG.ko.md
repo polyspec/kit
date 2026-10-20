@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a8fc1149c3dd7d6ec3b24660f27355202b2bbd6c8c746785bbf06a161652a5e8 -->
+<!-- source-sha256: afa86dadb68d5c23915d25c732126b6b3e26b956780796b6d1bfa84437099010 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `kit.mk`와 `miseEnvironment`는 `MISE_GLOBAL_CONFIG_ROOT`를 checkout으로 설정한다. `MISE_GLOBAL_CONFIG_FILE`이 설정되어
+  있으면 `mise install`은 global config의 root(기본값은 home 디렉터리)의 trust를 기록하므로, `make install-tools`가 K397이
+  지운 home 항목을 곧바로 다시 썼다(K397-1).
 
 - `make worktree-prune`은 자기 commit(reflog가 기록한 생성 지점 이후의 commit)이 모두 main에 있는 branch를 모두 지우고,
   그 worktree에 commit하지 않은 변경이 없으면 worktree도 지운다. 새 branch, merge되지 않은 branch, 변경이 있는 branch는

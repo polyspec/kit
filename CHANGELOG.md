@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `kit.mk` and `miseEnvironment` set `MISE_GLOBAL_CONFIG_ROOT` to the checkout: with `MISE_GLOBAL_CONFIG_FILE` set,
+  `mise install` records the trust of the root of the global config, the home directory by default, so `make install-tools`
+  wrote the home entry again right after K397 removed it (K397-1).
+
 - `make worktree-prune` removes every branch whose own commits (those after the creation point that its reflog records)
   are all in main, with its worktree when that has no uncommitted change, and lists a fresh, unmerged or dirty one with
   its reason; `make link-state-check` fails while a merged branch is left (K381).
