@@ -148,8 +148,9 @@ export function messageFindings(message: string, config: CommitRules) {
   if (korean !== -1) found.push({ rule: 'commit-language', message: `line ${korean + 1} of the message holds Hangul; a commit message is English (K252)` });
   const footer = lines.findIndex(line => AI_FOOTER.test(line));
   if (footer !== -1) found.push({ rule: 'commit-ai-footer', message: `line ${footer + 1} of the message is the footer of an AI tool; git holds no co-author or session trailer of one (K264). Fix: remove the line` });
+  // A Red-Gate or Red-Test line holds a whole command of the Verification, which no wrap may split (K389).
   lines.slice(2).forEach((line, index) => {
-    if (line.length > config.bodyMax && /\s/.test(line.trim())) {
+    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !/^Red-(?:Gate|Test): /.test(line)) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });
     }
   });

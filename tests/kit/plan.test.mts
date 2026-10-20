@@ -654,6 +654,20 @@ test('make item-red records a failing Verification, and done requires the record
   assert.match(refused.stderr, /T11: the Verification passes before the fix, so it proves no red/);
   assert.equal(spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: passing, encoding: 'utf8' }).stdout, '', 'git status is clean');
   assert.equal(readFileSync(path.join(passing, 'b.mts'), 'utf8'), snapshot, 'the file content is the same');
+
+  // A Red-Test line holds the whole command, wider than the body, and the width of the body does not apply to it.
+  const LONG = `node -e "process.exit(1)" ${'--test-name-pattern=a-long-pattern '.repeat(2).trim()}`;
+  const wide = repo({ T12: LONG });
+  setState(wide, { id: 'T12', state: '[~]' }, quiet);
+  gitCommit(wide, 'start T12');
+  assert.equal(redCli(wide, 'T12').status, 0, 'item-red on the active row');
+  put(wide, { 'e.mts': 'export {};\n', 'tests/e.test.mts': 'test\n' });
+  stage(wide, 'e.mts', 'tests/e.test.mts');
+  const bodyWide = path.join(wide, 'var/body.txt');
+  writeFileSync(bodyWide, 'The test reproduces it.\n');
+  const wideMessage = commitItem(wide, { id: 'T12', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: bodyWide }, identity);
+  assert.ok((wideMessage.split('\n').find(line => line.startsWith('Red-Test: ')) ?? '').length > COMMIT_RULES.bodyMax, 'the Red-Test line is wider than the body');
+  assert.deepEqual(rangeFindings(wide, 'HEAD~1..HEAD', COMMIT_RULES), [], 'the commit check takes the wide Red-Test line');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
