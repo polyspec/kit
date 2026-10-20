@@ -1,5 +1,6 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 481bc31fdf9a5363ec7f363ad2eda7e259f8e93e254e2951f4b24b7213ae86d4 -->
+<!-- source-sha256: 5c461c176b859409c0dc078dc0a858252a3a3c7c31c4bae2d2410fb072d5c44f -->
+<!-- source-sha256: a7515d3be1d4923e2216a756b5b35ec81e233d27a0240888770006dc1fbf7a10 -->
 <!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
 # 변경 기록
 
@@ -10,6 +11,7 @@
 - `make parity-declarations-check`는 root에 ecosystem의 manifest(`package.json`, `composer.json`, `pyproject.toml`,
   `go.mod`, `Cargo.toml`)가 없는 `config/parity.json`의 implementation과 다른 implementation의 root를 그대로 가진 implementation을
   실패시킨다. implementation은 source root이지 test glob만이 아니기 때문이다 (K336).
+- `make lint-go`는 P8 은폐도 실패시킨다: `check-blank`와 `check-type-assertions`를 켠 errcheck(`_`에 대입한 error, 확인하지 않은 assertion), nilerr, errorlint, nolintlint(`//nolint`는 linter와 reason이 필요하다). Red: 심은 pattern 7개가 통과했다. green: 각각 해당 linter로 실패하고 need를 밝힌 variant는 통과한다 (`tests/source/lint-go-real.test.mts`). symbol extractor `symbols/go/main.go`는 marshal error를 보고한다 (K334).
 - `make item-state`는 item의 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 done으로 표시한다. 산출 파일은 stage되었거나 commit되어 있어야
   하고, 실패한 명령은 그 상태를 거부한다 (K335).
 - 의존성 policy는 일반 Composer release를 version으로 비교하므로, registry의 latest release보다 높은 locked version(예: 0.0.6에 대한 미공개

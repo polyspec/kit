@@ -53,7 +53,11 @@ func main() {
 		}
 	}
 	sort.Strings(symbols)
-	out, _ := json.Marshal(symbols)
+	out, err := json.Marshal(symbols)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	fmt.Println(string(out))
 }
 

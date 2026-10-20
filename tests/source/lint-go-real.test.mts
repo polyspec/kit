@@ -42,7 +42,28 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'an exported function that no test reaches', files: { [DEMO]: `${GOOD[DEMO]}\n// Octuple octuples a value.\nfunc Octuple(value int) int {\n\treturn Quadruple(Quadruple(value)) / value\n}\n` }, finding: /demo\.go:\d+:\d+: unreachable func: Octuple/ },
   // No swallowed error (K256): an unchecked error.
   { name: 'an unchecked error', files: { [DEMO]: `${GOOD[DEMO]}\n// Save writes an empty file.\nfunc Save(path string) {\n\tos.WriteFile(path, nil, 0o600)\n}\n`.replace(`import "${CODEC}"`, `import (\n\t"os"\n\n\t"${CODEC}"\n)`) }, finding: /\(errcheck\)/ },
+  // P8 (K334): an error assigned to the blank identifier, an unchecked type assertion, a nil return in the branch of a non-nil
+  // error, and a comparison and a wrap that lose the error chain.
+  { name: 'an error assigned to the blank identifier', files: { [DEMO]: quadruple(['os'], '\t_ = os.Remove("demo.tmp")\n') }, finding: /\(errcheck\)/ },
+  { name: 'an error dropped by a blank in a multiple assignment', files: { [DEMO]: quadruple(['strconv'], '\tcount, _ := strconv.Atoi("1")\n\t_ = count\n') }, finding: /\(errcheck\)/ },
+  { name: 'an unchecked type assertion', files: { [DEMO]: quadruple([], '\tvar any interface{} = value\n\t_ = any.(int)\n') }, finding: /\(errcheck\)/ },
+  { name: 'a nil return in the branch of a non-nil error', files: { [DEMO]: quadruple(['os'], '') + '\n// Remove removes a file.\nfunc Remove(path string) error {\n\tif err := os.Remove(path); err != nil {\n\t\treturn nil\n\t}\n\treturn nil\n}\n' }, finding: /\(nilerr\)/ },
+  { name: 'a comparison with a sentinel error', files: { [DEMO]: quadruple(['io'], '\tif err := io.EOF; err == io.EOF {\n\t\treturn 0\n\t}\n') }, finding: /\(errorlint\)/ },
+  { name: 'an error wrapped with %v', files: { [DEMO]: quadruple(['fmt', 'io'], '\tif err := fmt.Errorf("read: %v", io.EOF); err != nil {\n\t\treturn 0\n\t}\n') }, finding: /\(errorlint\)/ },
+  { name: 'a nolint without its reason', files: { [DEMO]: quadruple(['os'], '\t_ = os.Remove("demo.tmp") //nolint:errcheck\n') }, finding: /\(nolintlint\)/ },
 ];
+
+// The variants that state their need or handle the error pass (P8).
+const STATED: { name: string; files: Record<string, string> }[] = [
+  { name: 'a nolint with its linter and its reason', files: { [DEMO]: quadruple(['os'], '\t_ = os.Remove("demo.tmp") //nolint:errcheck // the temporary file may be gone already\n') } },
+  { name: 'an error that is wrapped with %w and compared with errors.Is', files: { [DEMO]: quadruple(['errors', 'fmt', 'io'], '\tif err := fmt.Errorf("read: %w", io.EOF); errors.Is(err, io.EOF) {\n\t\treturn value * 4\n\t}\n') } },
+];
+
+/** The demo module whose function Quadruple runs `statements` first and imports `imports`. */
+function quadruple(imports: string[], statements: string): string {
+  const names = imports.map(name => `\t"${name}"\n`).join('');
+  return `// Package demo quadruples values.\npackage demo\n\nimport (\n${names}\n\t"${CODEC}"\n)\n\n// Quadruple quadruples a value.\nfunc Quadruple(value int) int {\n${statements}\treturn codec.Double(codec.Double(value))\n}\n`;
+}
 
 /** Writes `files` below `root`. */
 function write(root: string, files: Record<string, string>) {
@@ -77,13 +98,14 @@ test('the Go lint passes on modules that resolve each other through go.work and 
   assert.deepEqual(failed, [], output);
 });
 
-test('the Go lint fails on each planted violation with the linter or the finding that names it', (t) => {
-  for (const { name, files, finding } of VIOLATIONS) {
+// One test for each planted violation: every case runs golangci-lint, which takes seconds, so a case has its own time limit.
+for (const { name, files, finding } of VIOLATIONS) {
+  test(`the Go lint fails on ${name} with the linter or the finding that names it`, (t) => {
     const { failed, output } = lintOf(repository(t, files));
     assert.notDeepEqual(failed, [], `${name}: the violation passed:\n${output}`);
     assert.match(output, finding, `${name} is not named:\n${output}`);
-  }
-});
+  });
+}
 
 // The error strings of polyspec are the cross-port messages of each repository's spec, which every port returns byte for
 // byte, so they keep the spec's capitalization: staticcheck ST1005 is off (K164).
@@ -104,3 +126,10 @@ test('the Go lint reports every finding of the same text', (t) => {
   assert.notDeepEqual(failed, [], output);
   assert.equal(output.match(/demo\.go:\d+:\d+: Error return value is not checked \(errcheck\)/g)?.length, 4, output);
 });
+
+for (const { name, files } of STATED) {
+  test(`the Go lint passes on ${name}`, (t) => {
+    const { failed, output } = lintOf(repository(t, files));
+    assert.deepEqual(failed, [], `${name}: ${output}`);
+  });
+}

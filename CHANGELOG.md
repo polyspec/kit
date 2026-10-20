@@ -8,6 +8,7 @@
 - `make parity-declarations-check` fails an implementation of `config/parity.json` whose roots hold no manifest of its
   ecosystem (`package.json`, `composer.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`) and one that has the roots of
   another, since an implementation is a source root, never only test globs (K336).
+- `make lint-go` also fails P8 hiding: errcheck with `check-blank` and `check-type-assertions` (an error assigned to `_`, an unchecked assertion), nilerr, errorlint, and nolintlint (a `//nolint` needs its linter and a reason). Red: seven planted patterns passed; green: each fails with its linter, and variants that state their need pass (`tests/source/lint-go-real.test.mts`). The symbol extractor `symbols/go/main.go` reports a marshal error (K334).
 - `make item-state` marks an item done only after the commands of its Verification cell pass on the tree that the
   commit holds: the files it delivers must be staged or committed, and a failing command refuses the state (K335).
 - The dependency policy compares plain Composer releases as versions, so a locked version above the latest release of
