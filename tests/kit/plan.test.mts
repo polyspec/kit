@@ -126,6 +126,24 @@ test('item-state refuses while another item has a state other than that of HEAD,
   assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /the commit changes the state of 2 items/);
 });
 
+test('item-new, item-edit and item-state write the marker of the new English text into a current Korean twin, and keep a stale one stale (K368)', (t) => {
+  const root = committed(t, 'T1');
+  const english = 'docs/plans/parser/checklist.md';
+  const twin = 'docs/plans/parser/checklist.ko.md';
+  const text = (file: string) => readFileSync(path.join(root, file), 'utf8');
+  const marker = () => /<!-- source-sha256: ([^>]*?) -->/.exec(text(twin))?.[1];
+  newItem(root, item('parser', 'T2'));
+  assert.equal(marker(), sha256(text(english)));
+  editItem(root, { id: 'T1', verification: '`node --test b.test.mts`' });
+  assert.equal(marker(), sha256(text(english)));
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.equal(marker(), sha256(text(english)));
+  const wrong = '0'.repeat(64);
+  writeFileSync(path.join(root, twin), text(twin).replace(/<!-- source-sha256: [^>]*? -->/, `<!-- source-sha256: ${wrong} -->`));
+  newItem(root, item('parser', 'T3'));
+  assert.equal(marker(), wrong);
+});
+
 test('item-new refuses an open item whose Verification cell runs a suite or names no command (K249-3)', (t) => {
   const root = plans(t, 'parser');
   assert.throws(() => newItem(root, item('parser', 'T1', { verification: '`node scripts/kit/run-tests.mts node -- tests`' })), /runs a whole runtime without a selection/);

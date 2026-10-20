@@ -51,6 +51,24 @@ const SLUG = /^[a-z][a-z0-9-]*$/;
 /** The text of a Korean twin of `english`: `korean` with the revision marker of `english` after its doc-id. */
 const twin = (english: string, korean: string) => present(stamped(korean, sha256(english)), 'stamped(korean)');
 
+/**
+ * `files` ({ path: text }) with the revision marker of each Korean twin in it set to the sha256 of the new English text, but only
+ * when the twin was current: its marker on disk was the sha256 of the English text before the change (K368). A stale twin stays
+ * stale, since its translation was never reviewed.
+ */
+function restamped(root: string, files: Record<string, string>): Record<string, string> {
+  const disk = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const result = { ...files };
+  for (const [korean, text] of Object.entries(files)) {
+    const english = korean.replace(/\.ko\.md$/, '.md');
+    if (english === korean || !(english in files)) continue;
+    const marker = /<!-- source-sha256: ([^>]*?) -->/.exec(disk(korean))?.[1];
+    if (marker !== sha256(disk(english))) continue;
+    result[korean] = present(stamped(text, sha256(present(files[english], 'files[english]'))), 'stamped(text)');
+  }
+  return result;
+}
+
 /** A required text value; `name` is the variable that gives it. */
 function required(value: string | undefined, name: string): string {
   const text = value?.trim() ?? '';
@@ -132,10 +150,10 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
   const english = `| ${item.id} | ${cell(item.task, 'TASK')}${tail}`;
   const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')}${tail}`;
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
-  const files: Record<string, string> = {
+  const files = restamped(root, {
     [tracker.path]: inserted(read(tracker.path), item.id, english),
     [tracker.translation]: inserted(read(tracker.translation), item.id, korean),
-  };
+  });
   refuseAdded(root, trackers, files);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
@@ -161,7 +179,7 @@ export function editItem(root: string, { id, verification }: { id: string; verif
     lines[index] = `| ${cells.join(' | ')} |`;
     return lines.join('\n');
   };
-  const files = { [tracker.path]: replaced(read(tracker.path)), [tracker.translation]: replaced(read(tracker.translation)) };
+  const files = restamped(root, { [tracker.path]: replaced(read(tracker.path)), [tracker.translation]: replaced(read(tracker.translation)) });
   refuseAdded(root, trackers, files);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
@@ -229,12 +247,13 @@ export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanS
     const trackers = trackersOf(config, workingPlanFiles(root));
     const destination = trackers.find(entry => entry.path === target);
     if (!destination) throw new Error(`${target} is no checklist`);
-    const files: Record<string, string> = {};
+    const changed: Record<string, string> = {};
     for (const [origin, goal] of [[source.path, destination.path], [source.translation, destination.translation]] as const) {
       const { text, moved } = withoutRows(read(origin), chosen);
-      files[origin] = text;
-      files[goal] = moved.reduce((result, entry) => inserted(result, entry.id, entry.row), read(goal));
+      changed[origin] = text;
+      changed[goal] = moved.reduce((result, entry) => inserted(result, entry.id, entry.row), read(goal));
     }
+    const files = restamped(root, changed);
     refuseAdded(root, trackers, files);
     for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
     return files;
@@ -311,10 +330,10 @@ export function setState(root: string, change: NewState, print: (text: string) =
     }
   }
   const [english, korean] = stateCells(change);
-  const files = {
+  const files = restamped(root, {
     [entry.tracker.path]: withState(read(entry.tracker.path), change.id, english),
     [entry.tracker.translation]: withState(read(entry.tracker.translation), change.id, korean),
-  };
+  });
   refuseAdded(root, trackers, files);
   const refused = workingItemFindings(root, rules, files);
   if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
