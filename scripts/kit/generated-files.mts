@@ -13,7 +13,7 @@
 //                                                 whose first comment line among its first 5 lines is a generated-file header
 //                                                 (Code generated ... DO NOT EDIT), unless the config allows it (K426); `make layout-check` runs it
 import { spawnSync } from 'node:child_process';
-import { closeSync, existsSync, openSync, readSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, openSync, readSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
@@ -101,8 +101,10 @@ const HEADER_LINES = 5;
 const COMMENT = /^\s*(#|\/\/|\/\*|--|;|%|<!--)/;
 const GENERATED_HEADER = /Code generated .* DO NOT EDIT/;
 
-/** The first bytes of the file `file` of `root`, at most HEAD_BYTES. */
+/** The first bytes of the file `file` of `root`, at most HEAD_BYTES; none for a symbolic link or a file that the work tree lacks. */
 function readHead(root: string, file: string): Buffer {
+  const stat = lstatSync(path.join(root, file), { throwIfNoEntry: false });
+  if (!stat?.isFile()) return Buffer.alloc(0);
   const fd = openSync(path.join(root, file), 'r');
   try {
     const buffer = Buffer.alloc(HEAD_BYTES);
@@ -112,10 +114,13 @@ function readHead(root: string, file: string): Buffer {
   }
 }
 
-/** Whether the file whose first bytes are `head` has a generated-file header: its first comment line among the first five lines matches it, and it is text. */
+/**
+ * Whether the file whose first bytes are `head` has a generated-file header: its first comment line among the first five lines, a
+ * shebang left out, matches it, and it is text.
+ */
 function hasGeneratedHeader(head: Buffer): boolean {
   if (head.includes(0)) return false;
-  const first = head.toString('utf8').split('\n', HEADER_LINES).find(line => COMMENT.test(line));
+  const first = head.toString('utf8').split('\n', HEADER_LINES).find(line => COMMENT.test(line) && !line.startsWith('#!'));
   return first !== undefined && GENERATED_HEADER.test(first);
 }
 
