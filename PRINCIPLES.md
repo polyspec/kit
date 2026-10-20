@@ -113,7 +113,7 @@ repository.
   sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them, and `make plan-split` moves items to another plan.
   A change starts from its registered row: `make item-new` registers the row before any work, and its commit names the row
   (P28).
-  Enforced by: `make docs-check`, planned K424
+  Enforced by: `make docs-check`, `make commits-check`
 - P25 An item is `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item
   is a sub-item of its own; the done item keeps its state.
@@ -226,4 +226,4 @@ tool lands, a standard binds the work as written here.
   parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration.
   The PHP library is library code only: an application on a userland framework, such as a Symfony Console CLI, is its own
   Composer package that requires the library, since an internal class cannot extend a userland class.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, planned K425
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, `make dependency-policy-check`

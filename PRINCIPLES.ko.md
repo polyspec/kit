@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: e361a90260a7e008082ff9c71a7a7ce45b4b73501a02ba2f76d1bc68bd7b9da6 -->
+<!-- source-sha256: 5d2aaf43086c4db13e19bcb80e1dbc11dc2290c1b27c82d4d1718e28e1e0dcaa -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -107,7 +107,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓰고, `make plan-split`이 item을 다른 plan으로 옮긴다.
   변경은 등록된 행에서 시작한다: `make item-new`가 어떤 작업보다 먼저 행을 등록하며, commit은 그 행을 이름으로 적는다
   (P28).
-  Enforced by: `make docs-check`, planned K424
+  Enforced by: `make docs-check`, `make commits-check`
 - P25 item은 `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
   `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. done item에 대한 새 발견은 그 자신의
   sub-item이 되고, done item은 state를 유지한다.
@@ -209,4 +209,4 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   library의 PHPUnit 파일과 (있다면) `packages/php-ext`의 것이다. parity implementation은 이 layout으로 library의 test를 공유하며,
   설정에 상대 경로를 두지 않는다. PHP library는 library code뿐이다: Symfony Console CLI처럼 userland framework 위의
   application은 그 library를 require하는 자기 Composer package이다. 내부 class는 userland class를 확장할 수 없기 때문이다.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, planned K425
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, `make dependency-policy-check`

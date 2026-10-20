@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import type { TestContext } from 'node:test';
 import { checkRules } from '../../scripts/kit/check-rules.mts';
 import { tree } from './tree.mts';
@@ -218,4 +219,13 @@ test('the working guidelines are stated in PRINCIPLES.md, each in its own rule w
     assert.match(rule, /^  Enforced by: /m, `${id} has its Enforced by line`);
   }
   assert.deepEqual(ruleIds(korean), ruleIds(principles));
+});
+
+// K359-1: a rule names the check that a done item built, not the item: P24 names the commit-row rule of commits-check (K424) and
+// S10 the check of dependency-policy-check (K425), so the principles of kit pass the check of the rules.
+test('the principles of kit name the checks that their done items built, and pass the check of the rules (K359-1)', () => {
+  const rules = ruleTexts(readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8'));
+  assert.match(rules.get('P24') ?? '', /^  Enforced by: .*`make commits-check`/m);
+  assert.match(rules.get('S10') ?? '', /^  Enforced by: .*`make dependency-policy-check`/m);
+  assert.deepEqual(checkRules(fileURLToPath(new URL('../..', import.meta.url)), ['PRINCIPLES.md']).findings, []);
 });
