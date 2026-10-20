@@ -6,7 +6,7 @@
 // breaks and its fix, one line each, and fails when there is one.
 //
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, isVersionText, older } from './version.mts';
@@ -21,7 +21,7 @@ import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
 import { siblingCheckouts, trackedManifests } from './link-providers.mts';
-import { KIT_FIXTURE, checkedFiles } from './tracked-files.mts';
+import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { CONFIG as RELEASE_CONFIG } from './release.mts';
@@ -42,7 +42,7 @@ export const RULES = {
   stale: 'an exception names a dependency that its review found at the latest stable release',
   advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package), unless advisoryExceptions of the policy accepts it with its reason and removal condition',
   staleAdvisory: 'an advisory exception names an advisory that the review of its lock found',
-  sharedPin: 'a package that two checkouts of the polyspec checkouts (the repository and its siblings) lock from different sources or at different versions is locked at one version from one source (S4)',
+  sharedPin: 'a package that the repository and a sibling checkout both require directly is locked at one version from one source in both (S4)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
@@ -404,30 +404,89 @@ export function acceptedAdvisories(root: string): string[] {
 
 // A Composer package of a lock with the source and the dist that Composer records for it.
 type SourcedPackage = ComposerPackage & { source?: { type: string; url: string; reference: string }; dist?: { type: string; url: string; reference?: string } };
-// A package that a tracked lock locks: its ecosystem, its name (an npm lock key), its version and source, and its lock.
-type Pin = { ecosystem: 'composer' | 'npm'; name: string; version: string; source: string; root: string; lock: string };
+// A package that a lock of a checkout locks for a name the checkout requires directly: its ecosystem, its name (an npm lock key),
+// its version and source, and the lock and line of its entry.
+type Pin = { ecosystem: 'composer' | 'npm'; name: string; version: string; source: string; root: string; lock: string; line: number };
+
+// The folders of the manifests that install reads: the root, and the folder of each Composer manifest that the policy names.
+function installDirectories(root: string): string[] {
+  const policy = existsSync(path.join(root, POLICY)) ? readConfigFindings<Policy>(root, POLICY, 'dependency-policy.schema.json').value : undefined;
+  const folders = (policy?.composerPlatforms ?? []).map(platform => path.posix.dirname(platform.manifest));
+  return [...new Set(['.', ...folders].map(folder => path.posix.normalize(folder)))];
+}
+
+// The folders of a workspace pattern of package.json: a folder, or the folders directly under one that ends in /*.
+function workspaceFolders(root: string, pattern: string): string[] {
+  if (!pattern.endsWith('/*')) return [pattern];
+  const parent = pattern.slice(0, -'/*'.length);
+  if (!existsSync(path.join(root, parent))) return [];
+  return readdirSync(path.join(root, parent), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => path.posix.join(parent, entry.name));
+}
 
 /**
- * The Composer and npm packages that the tracked locks of `root` lock. A polyspec package is linked, not pinned across
- * the checkouts, and the lock of the kit fixture belongs to no checkout. An npm package is named by its lock key, which holds
- * its path, so a package nested under another one is compared with the package at the same path.
+ * The names that the manifests of `directories` require directly (K378): the require and require-dev of each composer.json, and
+ * the dependencies, devDependencies and optionalDependencies of each package.json with those of its workspaces. A requirement
+ * that only a lock holds is transitive and is no direct name.
  */
-function lockedPins(root: string): Pin[] {
+function directNames(root: string, directories: readonly string[]): { composer: Set<string>; npm: Set<string> } {
+  const composer = new Set<string>();
+  const npm = new Set<string>();
+  const addNpm = (file: string) => {
+    const json = readNpmManifest(root, file);
+    for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies]) for (const name of Object.keys(field ?? {})) npm.add(name);
+  };
+  for (const directory of directories) {
+    const composerFile = path.posix.join(directory, 'composer.json');
+    if (existsSync(path.join(root, composerFile))) {
+      const json = readComposerManifest(root, composerFile);
+      for (const name of [...Object.keys(json.require ?? {}), ...Object.keys(json['require-dev'] ?? {})]) if (name.includes('/')) composer.add(name);
+    }
+    const npmFile = path.posix.join(directory, 'package.json');
+    if (existsSync(path.join(root, npmFile))) {
+      addNpm(npmFile);
+      for (const workspace of readNpmManifest(root, npmFile).workspaces ?? []) {
+        for (const member of workspaceFolders(root, path.posix.join(directory, workspace))) {
+          const memberFile = path.posix.join(member, 'package.json');
+          if (existsSync(path.join(root, memberFile))) addNpm(memberFile);
+        }
+      }
+    }
+  }
+  return { composer, npm };
+}
+
+/**
+ * The locks that install reads at the root of a checkout (K378): the composer.lock and package-lock.json of each folder of
+ * installDirectories that is tracked. A lock under tests/ or a fixtures/ folder is no lock of the checkout.
+ */
+function installLocks(root: string, directories: readonly string[]): string[] {
+  const wanted = new Set(directories.flatMap(directory => ['composer.lock', 'package-lock.json'].map(name => path.posix.join(directory, name))));
+  return trackedManifests(root, ['composer.lock', 'package-lock.json']).filter(file => wanted.has(file) && !/(^|\/)(tests|fixtures)\//.test(file));
+}
+
+/**
+ * The packages that the install locks of `root` lock for a name that the checkout requires directly (K378). A polyspec package is
+ * linked, not pinned across the checkouts. An npm package is taken at the top level of node_modules, the place of a direct requirement.
+ */
+function directPins(root: string): Pin[] {
+  const directories = installDirectories(root);
+  const direct = directNames(root, directories);
   const pins: Pin[] = [];
-  for (const lock of trackedManifests(root, ['composer.lock', 'package-lock.json']).filter(file => !file.startsWith(KIT_FIXTURE))) {
+  for (const lock of installLocks(root, directories)) {
+    const lines = readFileSync(path.join(root, lock), 'utf8').split('\n');
+    const lineOf = (needle: string) => lines.findIndex(line => line.includes(needle)) + 1;
     if (path.posix.basename(lock) === 'composer.lock') {
       const locked = readComposerLock(root, lock);
       const items: SourcedPackage[] = [...(locked.packages ?? []), ...(locked['packages-dev'] ?? [])];
-      for (const item of items.filter(item => !item.name.startsWith('polyspec/'))) {
+      for (const item of items.filter(item => direct.composer.has(item.name) && !item.name.startsWith('polyspec/'))) {
         const source = item.source ? `${item.source.url}@${item.source.reference}` : item.dist?.url ?? 'no source';
-        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock });
+        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock, line: lineOf(`"name": ${JSON.stringify(item.name)}`) });
       }
     } else {
       for (const [key, entry] of Object.entries(readNpmLock(root, lock).packages ?? {})) {
-        // The root of the lock and the workspace folders hold no package of node_modules; a linked package is a symbolic link.
-        const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
-        if (!key.includes('node_modules/') || entry.link === true || name.startsWith('@polyspec/')) continue;
-        pins.push({ ecosystem: 'npm', name: key, version: entry.version ?? '', source: entry.resolved ?? 'no resolved URL', root, lock });
+        const name = key.slice('node_modules/'.length);
+        if (!key.startsWith('node_modules/') || name.includes('node_modules/') || !direct.npm.has(name) || entry.link === true || name.startsWith('@polyspec/')) continue;
+        pins.push({ ecosystem: 'npm', name: key, version: entry.version ?? '', source: entry.resolved ?? 'no resolved URL', root, lock, line: lineOf(`${JSON.stringify(key)}:`) });
       }
     }
   }
@@ -435,21 +494,22 @@ function lockedPins(root: string): Pin[] {
 }
 
 /**
- * The findings of the packages that two of the checkouts `roots` lock from different sources or at different versions (K378).
- * Each lock of such a package is named with its version and source; a package that one checkout alone locks is no finding.
+ * The findings of the packages that `root` and one of its `siblings` both require directly and lock at another version or from
+ * another source (K378). Only the lock of `root` is compared with the lock of each sibling; a package that one of them alone
+ * locks, or that only a lock holds as a transitive requirement, is no finding. Each finding names both locks with the line of
+ * their entries, the version and the source.
  */
-export function sharedPinFindings(roots: readonly string[]): Finding[] {
-  const byPackage = new Map<string, Pin[]>();
-  for (const root of roots) {
-    for (const pin of lockedPins(root)) byPackage.set(`${pin.ecosystem} ${pin.name}`, [...(byPackage.get(`${pin.ecosystem} ${pin.name}`) ?? []), pin]);
-  }
+export function sharedPinFindings(root: string, siblings: readonly string[]): Finding[] {
+  const own = directPins(root);
   const findings: Finding[] = [];
-  for (const pins of byPackage.values()) {
-    const differs = pins.some(a => pins.some(b => a.root !== b.root && (a.version !== b.version || a.source !== b.source)));
-    const [first] = pins;
-    if (!differs || first === undefined) continue;
-    const locks = pins.map(pin => `${path.basename(pin.root)}/${pin.lock} locks ${pin.version} from ${pin.source}`).join('; ');
-    findings.push({ rule: 'sharedPin', subject: first.name, problem: `two checkouts lock it from different sources or at different versions: ${locks}`, fix: 'lock the package at one version from one source in every checkout that locks it' });
+  const label = (pin: Pin) => `${path.basename(pin.root)}/${pin.lock}:${pin.line}`;
+  for (const sibling of siblings) {
+    for (const a of own) {
+      for (const b of directPins(sibling)) {
+        if (a.ecosystem !== b.ecosystem || a.name !== b.name || (a.version === b.version && a.source === b.source)) continue;
+        findings.push({ rule: 'sharedPin', subject: a.name, problem: `both checkouts require it directly and lock it from different sources or at different versions: ${label(a)} locks ${a.version} from ${a.source}, and ${label(b)} locks ${b.version} from ${b.source}`, fix: 'lock the package at one version from one source in both checkouts' });
+      }
+    }
   }
   return findings;
 }
@@ -467,11 +527,11 @@ function main(): void {
   const root = args.length ? path.resolve(present(args[1], 'args[1]')) : repositoryRoot();
   // The locks of the sibling checkouts beside the repository are compared with its own; without a sibling, as in CI, nothing is compared.
   const siblings = siblingCheckouts(root).checkouts;
-  const findings = [...check(root), ...sharedPinFindings([root, ...siblings])];
+  const findings = [...check(root), ...sharedPinFindings(root, siblings)];
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);
   if (siblings.length === 0) process.stdout.write(`[dependency-policy] no sibling checkout beside ${root}: compared no lock across checkouts\n`);
-  else process.stdout.write(`[dependency-policy] compared the Composer and npm locks of ${siblings.length + 1} checkouts: ${[root, ...siblings].map(checkout => path.basename(checkout)).join(', ')}\n`);
+  else process.stdout.write(`[dependency-policy] compared the direct pins of the install locks of this checkout with ${siblings.length} sibling ${siblings.length === 1 ? 'checkout' : 'checkouts'}: ${siblings.map(checkout => path.basename(checkout)).join(', ')}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);

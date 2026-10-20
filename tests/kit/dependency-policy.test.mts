@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
 
@@ -17,6 +18,7 @@ import { readConfig } from '../../scripts/kit/schema-validate.mts';
 import { readNpmManifest } from '../../scripts/kit/manifests.mts';
 import { satisfies } from '../../scripts/kit/composer-constraint.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
+import { sharedPinFindings } from '../../scripts/kit/check-dependency-policy.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import { known } from './known.mts';
 import { tree } from './tree.mts';
@@ -418,38 +420,44 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
 });
 
 test('a package that two sibling checkouts lock from different sources or versions is a finding (K378)', (t) => {
-  const root = fixture(t);
-  const git = (directory: string, ...args: string[]) => {
-    const result = spawnSync('git', ['-C', directory, ...args], { encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-  };
-  // A sibling is a main checkout beside the repository whose origin is github.com/polyspec/<its folder name> (K363).
-  const sibling = (name: string) => {
-    const directory = mkdtempSync(path.join(path.dirname(root), `${name}-`));
+  // A repository of a temporary directory with the files of `files`, all tracked.
+  const checkout = (name: string, files: Record<string, string>) => {
+    const directory = mkdtempSync(path.join(tmpdir(), `${name}-`));
     t.after(() => removeSandbox(directory));
     initRepository(directory);
-    git(directory, 'remote', 'add', 'origin', `https://github.com/polyspec/${path.basename(directory)}.git`);
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+      writeFileSync(path.join(directory, file), text);
+    }
+    const added = spawnSync('git', ['-C', directory, 'add', '.'], { encoding: 'utf8' });
+    assert.equal(added.status, 0, added.stderr);
     return directory;
   };
-  const lock = (directory: string, version: string, url: string) => {
-    const reference = 'a'.repeat(40);
-    writeFileSync(path.join(directory, 'composer.lock'), JSON.stringify({ packages: [{ name: 'opis/json-schema', version, source: { type: 'git', url, reference }, dist: { type: 'zip', url: `${url}/zipball/${reference}`, reference } }], 'packages-dev': [] }));
-    git(directory, 'add', 'composer.lock');
-  };
-  const orm = sibling('kit-sibling-orm');
-  const template = sibling('kit-sibling-template');
-  const stub = stubRegistries(t);
-  lock(orm, 'v2.6.0-p1', 'https://github.com/example-orm/json-schema.git');
-  lock(template, '2.6.0', 'https://github.com/opis/json-schema.git');
-  const result = gate(root, stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.stderr, new RegExp(`\\[dependency-policy\\] opis/json-schema: .*${path.basename(orm)}/composer\\.lock locks v2\\.6\\.0-p1 from https://github\\.com/example-orm/json-schema\\.git`));
-  assert.match(result.stderr, new RegExp(`${path.basename(template)}/composer\\.lock locks 2\\.6\\.0 from https://github\\.com/opis/json-schema\\.git`));
+  const reference = 'a'.repeat(40);
+  const pinned = (name: string, version: string, url: string) => ({ name, version, source: { type: 'git', url, reference }, dist: { type: 'zip', url: `${url}/zipball/${reference}`, reference } });
+  const lock = (...packages: object[]) => `${JSON.stringify({ packages, 'packages-dev': [] }, null, 4)}\n`;
+  const requiring = JSON.stringify({ name: 'example/orm', require: { 'opis/json-schema': '^2.6' } });
+  const fork = 'https://github.com/example-orm/json-schema.git';
+  const upstream = 'https://github.com/opis/json-schema.git';
+  const base = (directory: string) => path.basename(directory);
 
-  lock(template, 'v2.6.0-p1', 'https://github.com/example-orm/json-schema.git');
-  const same = gate(root, stub.env);
-  assert.equal(same.status, 0, same.stdout + same.stderr);
-  assert.equal(stub.calls().filter(call => !call.startsWith('composer validate ')).length, 0, stub.calls().join('\n'));
+  // Both checkouts require opis/json-schema directly: the fork at v2.6.0-p1 and the upstream at 2.6.0 are a finding that names both locks.
+  const orm = checkout('kit-sibling-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)) });
+  const template = checkout('kit-sibling-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
+  const red = sharedPinFindings(orm, [template]);
+  assert.equal(red.length, 1, JSON.stringify(red));
+  assert.match(red[0]?.problem ?? '', new RegExp(`${base(orm)}/composer\\.lock:\\d+ locks v2\\.6\\.0-p1 from ${fork}@`));
+  assert.match(red[0]?.problem ?? '', new RegExp(`${base(template)}/composer\\.lock:\\d+ locks 2\\.6\\.0 from ${upstream}@`));
+
+  // The same version from the same source is no finding.
+  const same = checkout('kit-sibling-same', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)) });
+  assert.deepEqual(sharedPinFindings(orm, [same]), []);
+
+  // A package that neither checkout requires directly is transitive, so its difference is no finding; and a lock under tests/
+  // or fixtures/ is no lock of the checkout, so a fixture that pins another version is no finding either.
+  const transitiveOrm = checkout('kit-transitive-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '1.0.0', fork)) });
+  const transitiveTemplate = checkout('kit-transitive-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '2.0.0', upstream)), 'tests/fixtures/release/composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
+  assert.deepEqual(sharedPinFindings(transitiveOrm, [transitiveTemplate]), []);
 });
 
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.
