@@ -16,6 +16,26 @@ export function commandsOf(cell: string): string[] {
   return [...cell.matchAll(/`([^`]+)`/g)].flatMap(match => (match[1] ? [match[1].trim()] : []));
 }
 
+/**
+ * Whether a command holds an unquoted single pipe, not the operator `||` (K376): a pipeline hides the exit status of its first
+ * command, so the pattern of `go test -run A|B` is quoted. A backslash escapes the next character outside single quotes.
+ */
+function hasPipe(command: string): boolean {
+  let quote: '"' | "'" | undefined;
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index];
+    if (quote !== "'" && char === '\\') index++;
+    else if (quote === "'" || quote === '"') {
+      if (char === quote) quote = undefined;
+    } else if (char === "'" || char === '"') quote = char;
+    else if (char === '|') {
+      if (command[index + 1] === '|') index++;
+      else return true;
+    }
+  }
+  return false;
+}
+
 /** The Verification cell of each item row of `text`, by its line (1-based). */
 function verificationCells(text: string): Map<number, string> {
   const cells = new Map<number, string>();
@@ -53,6 +73,7 @@ export function verificationFindings(trackers: readonly Tracker[], read: (file: 
         const commands = commandsOf(cells.get(item.line) ?? '');
         if (commands.length === 0) add(`the open item ${item.id} names no command in backticks in its Verification cell; name the unit tests that verify it`);
         for (const command of commands) {
+          if (hasPipe(command)) add(`the command \`${command}\` of the open item ${item.id} is a pipeline; quote the pattern (e.g. -run 'A|B'), since a pipeline hides the exit status of its first command`);
           const refused = refusal(command, word => /\.[A-Za-z0-9]+$/.test(path.basename(word)), make);
           if (refused) add(`the command \`${command}\` of the open item ${item.id} is refused by the Claude Code hook: ${refused}`);
         }

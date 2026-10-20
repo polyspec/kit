@@ -251,6 +251,16 @@ test('item-edit replaces the Verification cell in both languages, through the ch
   assert.throws(() => editItem(root, { id: 'T9', verification: '`node -e "1"`' }), /T9 is no item/);
 });
 
+// K376: an escaped pipe of a cell is read unescaped, so `A\|B` is the pipeline `go test -run A | B`, which hides the exit status of `go test`.
+test('item-new and item-edit refuse a Verification command that is a pipeline, and accept a quoted pipe (K376)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`go test -run A|B ./...`' }), /pipeline/);
+  assert.throws(() => newItem(root, item('parser', 'T2', { verification: '`node --test a.test.mts | tee out.txt`' })), /pipeline/);
+  editItem(root, { id: 'T1', verification: "`go test -run 'A|B' ./...`" });
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ["| T1 | Task T1 | `a.mts` | `go test -run 'A\\|B' ./...` | [ ] |"]);
+});
+
 test('the type check builds the workspace package that tsc cannot find, once, and then passes (K353)', (t) => {
   const root = typed(t);
   put(root, {
