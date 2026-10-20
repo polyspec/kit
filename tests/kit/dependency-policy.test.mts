@@ -63,6 +63,38 @@ test('the gate fails on a Composer platform that differs from the others or from
   assert.match(pinned.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.json: the PHP platform is 8\.2\.0, the one platform of this repository is 8\.2\.1: the minor of \.php-version with the patch 1, which PHPUnit 13 needs/m);
 });
 
+// K326: while a project is linked the local checkouts are canonical, so the platform and the dist of the Composer packages are judged on
+// the link lock that Composer resolved from the path packages, and the tracked lock waits for the batch release.
+test('while a project is linked the gate judges the link lock, not the tracked lock (K326)', (t) => {
+  const root = fixture(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { 'platform-overrides': { php: string }; packages: { name: string; dist?: { type: string } }[] };
+  const manifest = readFileSync(path.join(directory, 'composer.json'), 'utf8');
+  // The tracked lock was resolved for another PHP than the policy declares; the link lock, resolved from the path packages, for the declared one.
+  writeFileSync(path.join(directory, 'composer.lock'), JSON.stringify({ ...lock, 'platform-overrides': { php: '8.5.0' } }));
+  const plain = gate(root);
+  assert.match(plain.stderr, /composer\.lock: the lock was resolved for PHP 8\.5\.0/, 'without a link the tracked lock is judged');
+  writeFileSync(path.join(directory, 'composer.link.json'), manifest);
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify(lock));
+  const linked = gate(root);
+  assert.doesNotMatch(linked.stderr, /the lock was resolved for PHP/, linked.stderr);
+  assert.doesNotMatch(linked.stderr, /composer\.lock: the lock changed after the review/, 'the review hash of the tracked lock waits for the batch release');
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, 'platform-overrides': { php: '8.5.0' } }));
+  assert.match(gate(root).stderr, /composer\.link\.lock: the lock was resolved for PHP 8\.5\.0, the policy declares/, 'a link lock of another platform fails');
+});
+
+test('a package of a path repository of the link manifest that the link lock holds from another dist fails (K326)', (t) => {
+  const root = fixture(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { packages: { name: string; dist?: { type: string } }[] };
+  const manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8')) as Record<string, unknown>;
+  mkdirSync(path.join(root, 'provider'), { recursive: true });
+  writeFileSync(path.join(root, 'provider/composer.json'), '{ "name": "psr/log" }\n');
+  writeFileSync(path.join(directory, 'composer.link.json'), JSON.stringify({ ...manifest, repositories: [{ type: 'path', url: '../../provider', options: { symlink: true } }] }));
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify(lock));
+  assert.match(gate(root).stderr, /composer\.link\.lock: psr\/log is linked but locked from a zip dist, not from its path/);
+});
+
 // K181: a Composer manifest that composerPlatforms does not name escaped composer validate --strict, so its lock went stale
 // unnoticed; the fixture holds the Composer consumer project of its release, which is not checked here.
 test('the gate fails on a Composer manifest that no Composer platform covers; a manifest that kit writes passes', (t) => {

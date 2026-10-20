@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 052f2c4416dabeb0d22fe3bb996442a233bcafbf869c896ef925e85c17e1b40a -->
+<!-- source-sha256: 3694288be2448eef0272f8ac2dec75d7822f67f5cfdf54f808573e97be0b961c -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -122,7 +122,8 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
   Enforced by: `make kit-check`
 - P30 0.0.x 개발 중 저장소는 다른 저장소의 package를 link로만 쓴다. 설치된 polyspec package 폴더는 제공자 폴더를 가리키는
-  심볼릭 링크이며 사본이 아니고, link는 설치된 릴리스 버전으로 간주한다. 버전은 설치할 때만 검사한다 (K305-1).
+  심볼릭 링크이며 사본이 아니고, link는 설치된 릴리스 버전으로 간주한다. 버전은 설치할 때만 검사한다 (K305-1). project가 link된 동안 dependency policy의 platform과
+  `composer validate` 규칙은 그 project의 link lock을 판단하고, 추적되는 lock은 일괄 release의 검사를 기다린다 (K326).
   Enforced by: `make link-state-check`
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
   `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).

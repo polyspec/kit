@@ -129,7 +129,8 @@ repository.
   Enforced by: `make kit-check`
 - P30 During 0.0.x development a repository consumes the packages of the others only through links: the installed folder of a
   polyspec package is a symbolic link to the folder of its provider, never a copy, and the link counts as the installed released
-  version; versions are checked at install only (K305-1).
+  version; versions are checked at install only (K305-1). While a project is linked, the platform and `composer validate` rules of
+  the dependency policy judge its link lock, and the tracked lock waits for the check of the batch release (K326).
   Enforced by: `make link-state-check`
 - P31 No gate is bypassed: a test, script or Makefile never sets the CI identity (`GITHUB_ACTIONS`, `CI`) outside a workflow, never
   names a gate of kit-gates in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).

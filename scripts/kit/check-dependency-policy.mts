@@ -14,7 +14,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { ConfigError, readConfig, readConfigFindings } from './schema-validate.mts';
-import { readComposerLock, readComposerManifest, readNpmManifest } from './manifests.mts';
+import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -75,9 +75,27 @@ const PHP_VERSION = '.php-version';
 
 const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
+// The files that a link run writes beside a Composer project (link.mts, K304-1).
+const LINK_MANIFEST = 'composer.link.json';
+const LINK_LOCK = 'composer.link.lock';
+
+/** The findings of the link lock of the project `directory`: a package of a path repository of the link manifest is locked from its path. */
+function linkFindings(root: string, directory: string, lock: ReturnType<typeof readComposerLock>, add: (rule: Rule, subject: string, problem: string, fix: string) => void) {
+  const manifest = readComposerManifest(root, path.posix.join(directory, LINK_MANIFEST));
+  const names = new Set<string>();
+  for (const repository of manifest.repositories ?? []) {
+    const file = repository.type === 'path' && repository.url !== undefined ? path.resolve(root, directory, repository.url, 'composer.json') : undefined;
+    const name = file !== undefined && existsSync(file) ? readComposerManifestFile(file).name : undefined;
+    if (name !== undefined) names.add(name);
+  }
+  for (const item of [...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])]) {
+    if (names.has(item.name) && item.dist?.type !== 'path') add('platform', path.posix.join(directory, LINK_LOCK), `${item.name} is linked but locked from a ${item.dist?.type ?? 'missing'} dist, not from its path`, 'run kit link');
+  }
+}
+
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
-function composerValidation(composer: string, args: string[], cwd: string) {
-  const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' } });
+function composerValidation(composer: string, args: string[], cwd: string, manifest?: string) {
+  const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1', ...(manifest === undefined ? {} : { COMPOSER: manifest }) } });
   if (!validate.error && validate.status === 0) return null;
   return `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
 }
@@ -124,14 +142,18 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     }
     const directory = path.posix.dirname(manifestPath);
     const composerManifest = readComposerManifest(root, manifestPath);
-    const lockPath = path.posix.join(directory, 'composer.lock');
+    // While the project is linked (K326), the local checkouts are canonical: the rules of the platform and of composer validate judge the
+    // link lock that Composer resolved from the path packages, and the tracked lock is judged by the check of the batch release.
+    const linked = existsSync(path.join(root, directory, LINK_LOCK));
+    const lockPath = path.posix.join(directory, linked ? LINK_LOCK : 'composer.lock');
     const composerLock = readComposerLock(root, lockPath);
+    if (linked) linkFindings(root, directory, composerLock, add);
     if (composerManifest.config?.platform?.php !== platform.php) add('platform', manifestPath, `config.platform.php is ${String(composerManifest.config?.platform?.php ?? 'absent')}, the policy declares ${platform.php}`, `set config.platform.php to ${platform.php} and run composer update --lock in ${directory}`);
     if (composerLock['platform-overrides']?.php !== platform.php) add('platform', lockPath, `the lock was resolved for PHP ${composerLock['platform-overrides']?.php ?? 'without a platform override'}, the policy declares ${platform.php}`, `run composer update --lock in ${directory}`);
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published
     // composer.json declares its version, which the artifact repository of its release zip reads, so the warning on a
     // version field is not reported.
-    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory));
+    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory), linked ? LINK_MANIFEST : undefined);
     if (failure) add('composerLock', manifestPath, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
   }
 
@@ -241,6 +263,8 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   };
   const recordedLocks = new Map(record.locks.map(entry => [entry.lock, entry]));
   for (const lock of state.locks) {
+    // The review record holds the tracked Composer lock; while its project is linked, that lock waits for the batch release (K326).
+    if (lockEcosystem(lock) === 'composer' && existsSync(path.join(root, path.posix.dirname(lock), LINK_LOCK))) continue;
     const entry = recordedLocks.get(lock);
     if (!entry) {
       add('record', lock, 'the lock has no entry in the review record', REVIEW);

@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: b10ba52309f9cab9e8612e15e05bef4656512992394f0ceea1e11f143994d349 -->
+<!-- source-sha256: a976aa0963a9596b790fbc027dc12cc28167f8eba407b5700d86bd0e05dcbc4d -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -20,7 +20,7 @@
 
 ## 검증
 
-`make link-state-check`(K305-1, P30)는 모든 저장소의 gate이다. link가 설치된 릴리스 버전으로 간주되고 버전은 설치할 때만 검사하므로 version도 요구사항도 비교하지 않는다. link가 있는 동안 0.0.x에 고정된 설치된 polyspec 패키지가 link들 사이의 사본이거나, link가 그 이름의 패키지(npm `package.json`, Composer `composer.json`)로 풀리지 않거나, Composer 패키지가 릴리스 archive 설치 위의 link이거나(`installed.json`의 기록이 `dist` type `path`가 아님), `go.work`의 `use` 폴더에 `go.mod`가 없으면 ecosystem과 패키지를 적어 실패한다. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다.
+`make link-state-check`(K305-1, P30)는 모든 저장소의 gate이다. link가 설치된 릴리스 버전으로 간주되고 버전은 설치할 때만 검사하므로 version도 요구사항도 비교하지 않는다. link가 있는 동안 0.0.x에 고정된 설치된 polyspec 패키지가 link들 사이의 사본이거나, link가 그 이름의 패키지(npm `package.json`, Composer `composer.json`)로 풀리지 않거나, Composer 패키지가 릴리스 archive 설치 위의 link이거나(`installed.json`의 기록이 `dist` type `path`가 아님), `go.work`의 `use` 폴더에 `go.mod`가 없으면 ecosystem과 패키지를 적어 실패한다. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다. Composer project가 link된 동안(`composer.link.lock`이 있는 동안) `make dependency-policy-check`는 그 project의 platform과 `composer validate`를 `composer.link.json`과 `composer.link.lock`에서 판단하고, link lock이 다른 dist로 가진 path repository의 polyspec 패키지는 실패시키며, 추적되는 `composer.lock`의 review hash는 일괄 release의 검사에 맡긴다(K326).
 
 ## 방식
 
