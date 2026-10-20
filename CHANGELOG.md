@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make land` refuses a branch while a process runs from its worktree, a process whose command line names a path in it (such
+  as the --datadir of a test database server) or whose working directory lies in it, naming each pid and command, before any
+  gate runs; nothing is merged, removed or deleted then (K429).
 - `make land` counts no progress line of a kit tool as a finding of a gate that fails on main too: it compares every stderr
   line and the stdout lines but those that start with the name of a kit tool in brackets (`[parity] tools root ...`), so a
   linter's findings on stdout still count (K394-3).

@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ecc209301b655fabc52774388a307e31a085de05dda3e879bd001ebca97d23f1 -->
+<!-- source-sha256: 2a60c04d0f38a415cfca4c56220a9de9a5a046af45fed8a40cb87c718142cb07 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`는 worktree에서 실행 중인 프로세스, 즉 command line이 그 안의 경로를 가리키거나(테스트 database server의
+  --datadir 같은) 작업 폴더가 그 안에 있는 프로세스가 있으면, 어떤 gate도 돌기 전에 각 pid와 command를 적어 branch를
+  거부한다. 그때는 아무것도 merge, 삭제되지 않는다(K429).
 - `make land`는 main에서도 실패하는 gate에서 kit 도구의 진행 줄을 finding으로 세지 않는다. stderr의 모든 줄과, kit 도구 이름을
   대괄호로 시작하는 줄(`[parity] tools root ...`)을 뺀 stdout 줄을 비교하므로, linter가 stdout에 낸 finding은 여전히 센다
   (K394-3).
