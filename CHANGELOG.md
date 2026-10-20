@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- The Claude Code hook of kit refuses a Bash command that waits: a `sleep`, and a `for`, `while` or `until` loop whose
+  body sleeps or polls (`pgrep`, `pidof`, `ls`, `test -e`/`-f`/`-d`, `[ -e`), with one message that names the
+  alternatives, a foreground command bounded by its own work and timeout or a background run that notifies at its end.
+  Red: the hook accepted `sleep 280; echo waited`; green: `node --test --test-name-pattern=K386
+  tests/kit/claude-hook.test.mts` passes (K386).
 - `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]` makes the worktree of a row, `../<repository>-<name>-<id>`
   on `<type>/<name>-<id>` from `main`, installs it from its own sources with `make install` (tools, packages and links,
   then the steps of the repository) and checks it with `make link-state-check`; it refuses while the free disk is under

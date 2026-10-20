@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b58995ff1a0aec875239061a98cc42604baf5a65b7722b2d868aaa574aa6634b -->
+<!-- source-sha256: 5b8722b6dc09e17f4cf2e841394244e117747692078292fc002b6d44f7983f6d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 Claude Code hook은 기다리는 Bash 명령, 즉 `sleep`과 본문이 sleep하거나 poll하는(`pgrep`, `pidof`, `ls`, `test
+  -e`/`-f`/`-d`, `[ -e`) `for`, `while`, `until` loop를 거부하고, 대안인 자기 작업과 timeout으로 끝나는 foreground 명령
+  또는 끝날 때 알리는 background 실행을 한 message로 말한다. red: hook이 `sleep 280; echo waited`를 받았다. green: `node
+  --test --test-name-pattern=K386 tests/kit/claude-hook.test.mts`가 통과한다 (K386).
 - `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`은 row의 worktree, 즉 `main`에서 `<type>/<name>-<id>`의
   `../<repository>-<name>-<id>`를 만들고, 자기 source로 `make install`(도구, package, link, 그다음 저장소의 단계)을 실행해
   설치하고 `make link-state-check`로 검사한다. 여유 disk가 30 GB 미만이면 거부하고, 다시 실행하면 같은 worktree를 다시
