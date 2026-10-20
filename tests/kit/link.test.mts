@@ -179,7 +179,7 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
-test('K205: link links the checkouts that it is given with no environment variable, install-packages only installs, and install-kit runs install-link last, after the full install-tools (K360)', (t) => {
+test('K205: link links the checkouts that it is given with no environment variable, install-packages only installs, and install links last (K360-1, K360-2)', (t) => {
   const { provider, kit, consumer, env } = workspace(t);
   const lines: string[] = [];
   const ok = link({ checkouts: [provider, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
@@ -198,11 +198,9 @@ test('K205: link links the checkouts that it is given with no environment variab
   const packages = recipeOf('install-packages').join('\n');
   assert.match(packages, /\$\(NPM\) ci/);
   assert.doesNotMatch(packages, /link/);
-  // install-kit runs the full install-tools, without TOOLS, and then install-link as its last line.
-  const kitLines = recipeOf('install-kit');
-  const linkLine = kitLines.findIndex(line => /install-link\s*$/.test(line));
-  assert.equal(linkLine, 3, kitLines.join('\n'));
-  assert.ok(kitLines.findIndex(line => /install-tools\s*$/.test(line)) < linkLine, kitLines.join('\n'));
+  // install-kit installs only; the recipe of install links, after all its prerequisites, the steps of the repository included.
+  assert.doesNotMatch(recipeOf('install-kit').join('\n'), /link/);
+  assert.deepEqual(recipeOf('install'), ['\t$(MAKE) --no-print-directory install-link']);
   assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
 });
 
@@ -227,6 +225,19 @@ test('install-link of a consumer runs the link of the sibling kit checkout, and 
   assert.match(missing.stderr, /install-link: \.\.\/kit\/dist\/link\.mjs is missing; run make build in \.\.\/kit/);
   rmSync(kit, { recursive: true, force: true });
   assert.match(dry().stdout, /node node_modules\/@polyspec\/kit\/dist\/link\.mjs link --siblings/);
+});
+
+// K360-2: a step of the repository, which installs an environment that the link reads, runs before the link.
+test('make install runs the steps of the repository before the link (K360-2)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k360-2-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const cwd = path.join(root, 'cons');
+  mkdirSync(cwd, { recursive: true });
+  writeFileSync(path.join(cwd, 'Makefile'), `include ${path.join(KIT, 'scripts/kit/kit-bootstrap.mk')}\ninstall: cons-install\ncons-install: install-kit\n\t@echo the step of the repository\n`);
+  const run = spawnSync('make', ['-n', 'install', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
+  const step = run.stdout.indexOf('the step of the repository');
+  const linked = run.stdout.indexOf('link --siblings');
+  assert.ok(step >= 0 && linked > step, `the step of the repository runs before the link:\n${run.stdout}${run.stderr}`);
 });
 
 test('the npm copies that npm query lists, kit installed as its released package among them, become links to the providers', (t) => {

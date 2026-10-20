@@ -38,8 +38,8 @@ install-packages dependency-review: export npm_config_allow_remote := root
 install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools; only installs, never links or builds; ONLINE
 	$(ONLINE) $(NPM) ci
 
-# The link of install-link (K360, K360-1): it needs the Go of var/tools, which the full install-tools installs, so it runs after
-# that, not after npm ci. Right after npm ci, $(KIT) of a consumer is the released kit that npm ci installed, whose link may
+# The link of install-link (K360, K360-1, K360-2): it needs the Go of var/tools, which the full install-tools installs, and the
+# environments that the steps of the repository install, so make install runs it after all of them, not after npm ci. Right after npm ci, $(KIT) of a consumer is the released kit that npm ci installed, whose link may
 # predate that of the kit checkout beside the repository; the link of that checkout runs when there is one.
 SIBLING_KIT_LINK := $(if $(filter mjs,$(KIT_EXT)),$(if $(wildcard ../kit/.git),../kit/dist/link.mjs))
 .PHONY: install-link
@@ -49,9 +49,9 @@ install-link: ## Link the packages to the polyspec checkouts beside the reposito
 .PHONY: install install-kit
 # install runs the bootstrap of kit as its first prerequisite; a repository adds its install steps as later prerequisites
 # that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2).
-install: install-kit ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the links, then the steps of the repository; ONLINE
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json, the tools and the links, in that order; ONLINE
+install: install-kit ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository, then the links (K360-2); ONLINE
+	$(MAKE) --no-print-directory install-link
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools
-	$(MAKE) --no-print-directory install-link
