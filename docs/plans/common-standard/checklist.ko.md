@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5d047a077bfa44e6fa63e40923ff4c11e833cd242edced97e1a939bf05551cbe -->
+<!-- source-sha256: f405b282bea00ce9fa6c24221761fd09a4ff85ddcf8c564f3d0725181a038e06 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -73,3 +73,4 @@
 | K283 | make install-tools는 .php-version의 PHP를 탐색하고 var/tools/bin의 wrapper로 제공한다 | scripts/kit/install-php.mts, scripts/kit/install-tools.mts, scripts/kit/check-toolchain.mts, tests/kit/install-php.test.mts, AGENTS.md, docs/operations/tool-inventory.md | `node --test tests/kit/install-php.test.mts` | [o] |
 | K277 | R15는 directory suite의 case file을 suite의 vector file처럼 읽는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts` | [o] |
 | K280 | link는 연결된 각 provider package의 dependency를 설치하지만 consumer 자신의 environment의 각 project는 --no-deps로 설치한다 | scripts/kit/link.mts, tests/kit/link.test.mts, docs/operations/local-links.md, docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [o] |
+| K284 | var/tools의 Composer project 설치는 lock이 project lock과 같고 wrapped PHP에서 platform 요구가 충족될 때만 최신이다 | scripts/kit/install-composer-project.mts, tests/kit/install-composer-project.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` | [o] |

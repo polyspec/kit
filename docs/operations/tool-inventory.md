@@ -109,6 +109,11 @@ would walk it whatever the working directory.
 | vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`, a sidecar folder that the repository tracks with mise.lock, as mise's documentation says; `make toolchain-check` fails when Git does not track it or a tracked file of it is missing, since `mise install --locked` of a checkout fails with "dependency sidecar … No such file or directory" (K192) | install with mise |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the Composer of `mise.toml` |
 
+A Composer project of `var/tools` (PHPUnit, the PHP lint) counts as installed only while it is current (K284): its `composer.lock` equals the
+`composer.lock` of the project byte for byte, and Composer's own `composer check-platform-reqs --lock` passes in it under the PHP of
+`var/tools/bin`. Otherwise `make install-tools` installs it again through the temporary directory and the rename, so an installation
+made under another PHP is replaced, not run.
+
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `mise` (`version`, `sha256` of each platform's archive), `pythonBackend`, `phpunit` (`version`),
 `symbolExtractors` and `exceptions` (below). A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each

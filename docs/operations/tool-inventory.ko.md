@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 70ae06b839e12fb23b0e5931ac7afebb354ff1144ad16c2cb988578f3dfaf49e -->
+<!-- source-sha256: fd9f9fd5b6327df73fbe50148e904e383eab44630b8d667dfa9dc1151087fc8f -->
 
 # 도구 목록
 
@@ -105,6 +105,11 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 | govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 `GOFLAGS=-mod=readonly`로 모든 module을 `GOSUMDB`에 비추어 확인함(선언된 예외) | mise로 설치 |
 | vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track하며, Git이 track하지 않거나 track한 파일이 없으면 `make toolchain-check`가 실패합니다. checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하기 때문입니다 (K192) | mise로 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
+
+`var/tools`의 Composer project(PHPUnit, PHP lint)는 최신일 때만 설치된 것으로 칩니다(K284). 설치의 `composer.lock`이 project의
+`composer.lock`과 byte 단위로 같고, Composer 자체의 `composer check-platform-reqs --lock`이 `var/tools/bin`의 PHP 아래에서 그 설치에서
+통과해야 합니다. 아니면 `make install-tools`가 임시 디렉터리와 rename을 거쳐 다시 설치하므로, 다른 PHP로 만든 설치는 실행되지 않고
+교체됩니다.
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
 목록), `mise`(`version`, platform별 archive의 `sha256`), `pythonBackend`, `phpunit`(`version`), `symbolExtractors`,

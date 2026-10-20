@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A Composer project installation of var/tools (PHPUnit, the PHP lint) is kept only while it is current: its composer.lock equals the lock of the project byte for byte and Composer's own `composer check-platform-reqs --lock` passes in it under the wrapped PHP; otherwise `make install-tools` installs it again, so an installation made under PHP 8.5 no longer fails with `Composer dependencies require a PHP version >= 8.5.0` under PHP 8.4. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` 0 passed, 3 failed; green: 3 passed (K284).
 - `make install-tools` provides the PHP of `.php-version` by discovery: a `php` on PATH of that minor, else `php<minor>` of apt, else the `opt/php@<minor>` keg of Homebrew. It writes exec wrappers for php, php-config and phpize in var/tools/bin before the Composer installs, so every repository runs the pinned PHP whatever PHP the machine puts first on PATH, and it fails with the attempts when none matches. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
 - link installs each project of the consumer's own environment with `--no-deps` and each linked provider with its dependencies, in two installs: the lock sync of the consumer provides the dependencies of its own projects, so a project whose path dependency is provided another way no longer fails the install (K280).
 
