@@ -19,10 +19,10 @@ const FILES: Record<string, string> = {
 };
 
 // Each tool is a stub that logs its call; `stub` is "<tool> <shell line>", which that tool runs after it logs.
-function checkout(t: TestContext, { installed = ['golangci-lint', 'deadcode'], omit = '', stub = '' }: { installed?: string[]; omit?: string; stub?: string } = {}) {
+function checkout(t: TestContext, { installed = ['golangci-lint', 'deadcode'], omit = '', stub = '', extra = {} }: { installed?: string[]; omit?: string; stub?: string; extra?: Record<string, string> } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-go-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const [file, text] of Object.entries(FILES)) {
+  for (const [file, text] of Object.entries({ ...FILES, ...extra })) {
     if (file === omit) continue;
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
@@ -46,6 +46,24 @@ test('golangci-lint and deadcode -test run in each Go module folder, and not in 
     'deadcode -test ./... [codec]',
     'golangci-lint run --config=.golangci.yml ./... [packages]',
     'deadcode -test ./... [packages]',
+  ]);
+});
+
+test('lint-go lints the files behind each build tag that the module declares (K406)', (t) => {
+  const { root, calls } = checkout(t, {
+    extra: {
+      'packages/go/extra.go': '//go:build extra\n\npackage demo\n',
+      'packages/go/linux.go': '//go:build linux && !cgo\n\npackage demo\n',
+    },
+  });
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(calls(), [
+    'golangci-lint run --config=.golangci.yml ./... [codec]',
+    'deadcode -test ./... [codec]',
+    'golangci-lint run --config=.golangci.yml ./... [packages]',
+    'deadcode -test ./... [packages]',
+    'golangci-lint run --config=.golangci.yml --build-tags=extra ./... [packages]',
+    'deadcode -test -tags=extra ./... [packages]',
   ]);
 });
 
