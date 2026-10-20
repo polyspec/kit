@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `commits-check` runs the generated-file and the Korean twin checks of the pre-commit hook on every commit of its range,
+  besides the message and identity checks, so a commit made with `--no-verify` fails the gate and the pre-push (K351).
 - `make parity-declarations-check RULES="<rule> ..."` reports only the findings of the named rules, by id or name, and those
   of `config/parity.json` itself; with UNITS too, the findings that both select (K414).
 - A gate command of a Verification takes the make variables after its target, as `make parity-declarations-check RULES=R9`,

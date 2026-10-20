@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 93ef4fdd4ec8df8e9d981bc38ef3fc37ea27738fd561553db18e587d8bda060d -->
+<!-- source-sha256: f7f560a7a8447a4bed7d94146650652c2f5338fbdd867d9bb4c00502b0951cd5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `commits-check`는 메시지와 identity 검사 외에 pre-commit hook의 generated file 검사와 한국어 쌍둥이 검사도 범위의 모든
+  commit에 실행하므로, `--no-verify`로 만든 commit은 gate와 pre-push에서 실패한다(K351).
 - `make parity-declarations-check RULES="<rule> ..."`는 id나 이름으로 지정한 rule의 finding과 `config/parity.json` 자체의
   finding만 보고한다. UNITS도 주면 둘이 모두 고르는 finding을 보고한다(K414).
 - Verification의 gate 명령은 `make parity-declarations-check RULES=R9`처럼 target 뒤의 make 변수를 받으므로, UNITS나
