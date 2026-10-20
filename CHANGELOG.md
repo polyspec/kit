@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `link` writes `composer.link.lock` from the tracked `composer.lock` only when the link lock is missing, and keeps it
+  afterwards, so the versions that `make dependency-review UPDATE=1` applied to the link lock survive a relink and the
+  partial update changes only the linked packages. Red: a second link copied the tracked lock back over an updated
+  link lock; green: `node --test --test-name-pattern=K392 tests/kit/link.test.mts` passes (K392).
 - The message of a failed command holds both of its streams, stderr and then stdout, each when it is not empty, so an
   error that a tool writes on stdout after progress on stderr is kept; a command with one stream keeps its message.
   Red: the error of gen_stub.php on stdout was dropped behind the download progress on stderr; green: `node --test

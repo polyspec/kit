@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9f594a36cbe2b714d921622644d679bfc2c01e0a1fb5d908fc7bf4a53b568b9e -->
+<!-- source-sha256: b297212930d9f674af39ab282d17f85aebdf79341696407bff84dc85556981b8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link`는 link lock이 없을 때만 tracked `composer.lock`에서 `composer.link.lock`을 쓰고 그 뒤에는 유지하므로, `make
+  dependency-review UPDATE=1`이 link lock에 적용한 version이 다시 link해도 남고 부분 update는 linked package만 바꾼다.
+  red: 두 번째 link가 갱신된 link lock 위에 tracked lock을 다시 복사했다. green: `node --test --test-name-pattern=K392
+  tests/kit/link.test.mts`가 통과한다 (K392).
 - 실패한 명령의 message는 비어 있지 않은 두 stream을 stderr, stdout 순서로 모두 가지므로 도구가 stderr의 진행 뒤
   stdout에 쓴 오류가 남는다. stream이 하나인 명령은 message가 그대로이다. red: stdout의 gen_stub.php 오류가 stderr의
   download 진행 뒤에서 사라졌다. green: `node --test --test-name-pattern=K352 tests/kit/process.test.mts`가 통과한다
