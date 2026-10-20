@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `link check` reads the modules that the go.work of a consumer module uses from that go.work, so a module of a tracked
+  workspace that does not require another module of it no longer fails the check with not a known dependency (K399-1).
 - The commit-msg check of an amend compares the index with the parent of the amended commit: `make hooks` writes a
   `prepare-commit-msg` hook that records the amend, so an amend that restages a document of a fix commit with its test
   passes; git gives `-C HEAD` the same arguments, so it is checked the same way (K380-2).

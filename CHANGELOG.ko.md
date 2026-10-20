@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b6f17eba3b4be80b3fabc2a1c00860c8a3fffb1306e791d8ded2ec9a4ba64541 -->
+<!-- source-sha256: c832c24db45c32c7e7fe960ca85d1bc26ea241bd2d7fb351010723bf04e5c1ba -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link check`는 consumer module의 go.work가 쓰는 module을 그 go.work에서 읽으므로, tracked workspace의 다른 module을
+  요구하지 않는 module이 더는 not a known dependency로 검사에 실패하지 않는다(K399-1).
 - amend의 commit-msg 검사는 index를 amend되는 commit의 parent와 비교한다. `make hooks`가 amend를 기록하는
   `prepare-commit-msg` hook을 쓰므로, 테스트를 가진 fix commit의 문서를 다시 stage하는 amend가 통과한다. git은 `-C HEAD`에
   같은 인자를 주므로 그것도 같게 검사된다(K380-2).
