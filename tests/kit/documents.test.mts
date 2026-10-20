@@ -251,6 +251,30 @@ test('a checklist row that names an unregistered kit item is a finding with its 
   assert.deepEqual(found.filter(line => line.includes('checklist-kit') && !/K99999|K12345/.test(line)), [], found.join('\n'));
 });
 
+// K374-1: a row names the item of a sibling repository with its name, and a repository whose own ids are K-ids names kit with kit.
+test('a K-id after the name of a sibling repository, or the own K-id of a repository, is no kit item (K374-1)', (t) => {
+  const kit = tree(t, {
+    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
+    'docs/plans/kit/checklist.md': '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n',
+  });
+  const header = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |'];
+  const consumer = (rows: string[], idPattern: string) => {
+    const files = pair(CHECKLIST, 'checklist', `${[...header, ...rows].join('\n')}\n`);
+    const parent = tree(t, { 'template-benchmark/.git/HEAD': 'ref: refs/heads/main\n' });
+    const root = path.join(parent, 'repo');
+    put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern }) });
+    return check(root, CONFIG, kit).findings.filter(line => line.includes('checklist-kit') && line.startsWith(`${CHECKLIST}:`));
+  };
+  // A repository of T-ids: the item of the sibling template-benchmark is its own; a bare unregistered K-id is a kit item.
+  const sibling = consumer(['| T1 | as template-benchmark K79-3 does | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'], ID_PATTERN);
+  assert.equal(sibling.length, 1, sibling.join('\n'));
+  assert.match(sibling[0] ?? '', /K99999/);
+  // A repository of K-ids: its own K-id is no kit item, and kit K99999 is one.
+  const own = consumer(['| K1 | follows K2 and kit K365 | `a.mts` | `node --test a.test.mts` | [ ] |', '| K2 | waits on kit K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'], 'K[0-9]+(?:[.-][0-9]+)*');
+  assert.equal(own.length, 1, own.join('\n'));
+  assert.match(own[0] ?? '', /kit item K99999/);
+});
+
 const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, columns: [{ index: 1, enum: ['planned', 'implemented'] }, { index: 3, pattern: '\\]\\([^)]+\\)' }] };
 const table = (rows: string) => `| ID | Status | Note | Evidence |\n| --- | --- | --- | --- |\n${rows}\n`;
 const withTable = (t: TestContext, en: string, ko = en) => tree(t, pair('features.md', 'features', en, ko));

@@ -22,7 +22,7 @@
 //
 // Each finding is one line `<file>:<line>:<column>: <rule>: <message>` (line and column are left out where the finding
 // has none). The command prints its findings and exits with status 1, or prints the count of what it checked.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
@@ -229,11 +229,26 @@ function kitItemIds(kit: string): Set<string> {
   return ids;
 }
 
+/** The word right before `index` of `text`, as the name of a repository stands before its item: template-benchmark K79-3. */
+const wordBefore = (text: string, index: number): string | undefined => /([A-Za-z0-9][A-Za-z0-9._-]*)\s+$/.exec(text.slice(0, index))?.[1];
+
+/** The folders beside `root` that hold a Git checkout, the repositories whose name may stand before their own items (K374-1). */
+function siblingRepositories(root: string): Set<string> {
+  const parent = path.dirname(path.resolve(root));
+  return new Set(readdirSync(parent).filter(name => existsSync(path.join(parent, name, '.git'))));
+}
+
+/**
+ * Which K-ids of a row are kit items (K374-1): a K-id right after the name of a sibling repository other than kit is the item of
+ * that repository; in a repository whose own ids are K-ids, a K-id is its own unless kit stands right before it.
+ */
+type KitIdReader = { siblings: ReadonlySet<string>; ownKitIds: boolean };
+
 /**
  * The findings of the task rows of the checklists that name a kit item id which `ids` does not hold: the Task, the
  * Verification and the state cell of each row, English and Korean alike, each with its line and column.
  */
-function kitRowFindings(checklists: readonly Tracker[], available: (file: string) => string | undefined, ids: Set<string>): [string, DocumentFinding][] {
+function kitRowFindings(checklists: readonly Tracker[], available: (file: string) => string | undefined, ids: Set<string>, reader: KitIdReader): [string, DocumentFinding][] {
   const found: [string, DocumentFinding][] = [];
   const task = CHECKLIST_COLUMNS.indexOf('Task');
   const verification = CHECKLIST_COLUMNS.indexOf('Verification');
@@ -251,6 +266,9 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
           const cell = block.cells[index];
           if (cell === undefined) continue;
           for (const match of cell.text.matchAll(KIT_ID)) {
+            const before = wordBefore(cell.text, match.index);
+            if (before !== undefined && before !== 'kit' && reader.siblings.has(before)) continue;
+            if (reader.ownKitIds && before !== 'kit') continue;
             if (ids.has(match[0])) continue;
             found.push([file, { line: item.line, column: cell.start + match.index + 1, rule: 'checklist-kit', message: `the row of ${item.id} names the kit item ${match[0]} in its ${label}, which no checklist of kit holds; a row waits only on a kit item that a kit checklist holds` }]);
           }
@@ -305,7 +323,10 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
     if (kitRoot === undefined) notes.push(`no checkout of the kit at ${path.resolve(root, '..', 'kit')}: the rows that name kit items are not checked`);
     else {
       try {
-        for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot))) add(file, entry);
+        // A repository other than kit whose ids are K-ids names kit as kit K<n>; a sibling repository names its own items (K374-1).
+        const ownKitIds = path.resolve(kitRoot) !== path.resolve(root) && checklists.some(tracker => new RegExp(`^(?:${tracker.idPattern})$`).test('K1'));
+        const reader = { siblings: siblingRepositories(root), ownKitIds };
+        for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot), reader)) add(file, entry);
       } catch (error) {
         if (!(error instanceof Error)) throw error;
         notes.push(`the checklists of the kit at ${kitRoot} cannot be read (${error.message}): the rows that name kit items are not checked`);
