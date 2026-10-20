@@ -162,9 +162,9 @@ test('a commit and an item test refuse a changed TypeScript file with a type err
   const body = path.join(root, 'body.txt');
   writeFileSync(body, 'Why.\n');
   const commit = { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body };
-  assert.throws(() => commitItem(root, commit, identity), /tsc --noEmit -p tsconfig\.json failed:[\s\S]*TS2322/);
+  assert.throws(() => commitItem(root, commit, identity), /the type check of \. failed:[\s\S]*TS2322/);
   newItem(root, item('parser', 'T2', { verification: '`node -e "process.exit(0)"`' }));
-  assert.throws(() => testItem(root, 'T2', () => {}), /T2: tsc --noEmit -p tsconfig\.json failed:[\s\S]*TS2322/);
+  assert.throws(() => testItem(root, 'T2', () => {}), /T2: the type check of \. failed:[\s\S]*TS2322/);
   writeFileSync(path.join(root, 'a.mts'), 'export const n: number = 1;\n');
   stage(root, 'a.mts');
   commitItem(root, commit, identity);
@@ -197,6 +197,17 @@ test('verifyDone refuses a waiting row for its transition before it looks at the
   newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\]/);
+});
+
+// K355: the checker of the package is its typecheck script when it has one (svelte-check for a package with .svelte files), tsc otherwise.
+test('the type check runs the typecheck script of the package when it has one, and tsc otherwise (K355)', (t) => {
+  const root = typed(t);
+  put(root, { 'a.mts': "export const n: number = 'text';\n" });
+  assert.match(typeErrors(root, ['.'])[0]?.output ?? '', /TS2322/, 'without a script tsc judges the folder');
+  put(root, { 'package.json': JSON.stringify({ name: 'pkg', scripts: { typecheck: 'node -e "process.exit(0)"' } }) });
+  assert.deepEqual(typeErrors(root, ['.']), [], 'the checker of the package judges it, and it passes');
+  put(root, { 'package.json': JSON.stringify({ name: 'pkg', scripts: { typecheck: 'node -e \\"console.error(1);process.exit(2)\\"' } }) });
+  assert.equal(typeErrors(root, ['.']).length, 1, 'a failing script refuses');
 });
 
 // K353: a Verification cell is edited by a utility, and the type check builds the workspace package it cannot find.

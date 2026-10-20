@@ -46,6 +46,20 @@ export function foldersOfChanged(root: string, changed: readonly string[]): stri
 }
 
 /**
+ * The command that type-checks the project of `folder` (K355): the typecheck script of its package.json when it has one, the checker of
+ * its ecosystem (svelte-check for a package with .svelte files), else tsc --noEmit -p tsconfig.json.
+ */
+export function checkerOf(root: string, folder: string): { command: string; args: string[]; label: string } {
+  const manifest = path.join(root, folder, 'package.json');
+  const scripts = existsSync(manifest) ? readJsonObject(manifest).scripts : undefined;
+  if (isJsonObject(scripts) && typeof scripts.typecheck === 'string') {
+    const npm = path.join(root, 'var/tools/bin/npm');
+    return { command: existsSync(npm) ? npm : 'npm', args: ['run', 'typecheck'], label: 'npm run typecheck' };
+  }
+  return { command: tscOf(root), args: ['--noEmit', '-p', 'tsconfig.json'], label: 'tsc --noEmit -p tsconfig.json' };
+}
+
+/**
  * Builds the workspace packages that the tsc output says it cannot find (TS2307 Cannot find module '<name>'): a name that
  * node_modules resolves to a folder with a package.json that has a build script is built there with npm run build. Returns the number
  * of packages built; throws when a build fails, naming it.
@@ -67,14 +81,15 @@ function builtFor(root: string, output: string, env: NodeJS.ProcessEnv): number 
 
 /** Runs `tsc --noEmit -p` in each of `folders` and returns the failures with the output of tsc. */
 export function typeErrors(root: string, folders: readonly string[]): { folder: string; output: string }[] {
-  if (folders.length === 0) return [];
-  const tsc = tscOf(root);
   const failures: { folder: string; output: string }[] = [];
   const env = toolsEnvironment(root);
-  const compile = (folder: string) => execute(tsc, ['--noEmit', '-p', 'tsconfig.json'], { cwd: path.join(root, folder), env });
+  const compile = (folder: string) => {
+    const checker = checkerOf(root, folder);
+    return execute(checker.command, checker.args, { cwd: path.join(root, folder), env });
+  };
   for (const folder of folders) {
     let result = compile(folder);
-    if (result.error) throw new Error(`tsc could not start in ${folder}: ${result.error.message}`);
+    if (result.error) throw new Error(`the type check could not start in ${folder}: ${result.error.message}`);
     // A workspace package that is not built has no declarations yet (K353): build the ones tsc cannot find, once each, and compile again.
     const missing = builtFor(root, `${result.stdout}${result.stderr}`, env);
     if (result.status !== 0 && missing > 0) result = compile(folder);
@@ -85,4 +100,4 @@ export function typeErrors(root: string, folders: readonly string[]): { folder: 
 
 /** The message that refuses a commit or an item test for `failures`, or undefined when there are none. */
 export const typeErrorMessage = (failures: readonly { folder: string; output: string }[]): string | undefined =>
-  failures.length === 0 ? undefined : failures.map(({ folder, output }) => `tsc --noEmit -p ${path.posix.join(folder, 'tsconfig.json')} failed:\n${output}`).join('\n');
+  failures.length === 0 ? undefined : failures.map(({ folder, output }) => `the type check of ${folder} failed:\n${output}`).join('\n');

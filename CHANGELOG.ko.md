@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0d3b450726add87e6684d3f369811cadc507ad60fe2adab21892525fde34d464 -->
+<!-- source-sha256: 1a89e1fdcddfd8900d4d0d2f5cb091ea4b148172744e8a99597fe434ac5a9cb6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make lint-ts`, `make commit`, `make item-test`의 type 검사는 package의 `package.json`에 `typecheck` script가 있으면
+  그것(`.svelte` 파일이 있는 package는 svelte-check)을 실행하고, 없을 때만 `tsc --noEmit`을 실행한다 (K355).
 - Composer project가 linked인 동안 의존성 review와 policy는 locked version을 `composer.link.lock`에서 읽으므로, review record는 relock할
   수 없는 tracked lock이 아니라 Composer가 resolve하고 vendor가 가진 것과 비교된다 (K326-1).
 - `make install-packages`는 설치한 패키지를 저장소 옆의 polyspec checkout에 링크하고(`link --siblings`), `CHECKOUTS` 없는 `make link`는

@@ -37,7 +37,7 @@ import { siblingTool } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
-import { tscOf, tsconfigFolders } from './ts-typecheck.mts';
+import { checkerOf, tsconfigFolders } from './ts-typecheck.mts';
 
 /**
  * The entries that a repository adds to the layout entries of knip.json, the binaries to its ignoreBinaries, the root
@@ -153,7 +153,10 @@ export function lintSteps(root: string): LintStep[] {
     { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root), ...declaredIgnores(root)], cwd: '.' },
     { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root, present(tools.knip, 'tools.knip')), cwd: '.' },
     // The types of each project (K309): the tests transpile without checking them.
-    ...tsconfigFolders(checkedFiles(root)).map(folder => ({ label: `tsc ${folder}`, command: tscOf(root), args: ['--noEmit', '-p', 'tsconfig.json'], cwd: folder })),
+    ...tsconfigFolders(checkedFiles(root)).map((folder) => {
+      const checker = checkerOf(root, folder);
+      return { label: `${checker.command === 'tsc' || checker.args[0] !== 'run' ? 'tsc' : 'typecheck'} ${folder}`, command: checker.command, args: checker.args, cwd: folder };
+    }),
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: present(tools['api-extractor'], 'tools[\'api-extractor\']'), args: ['run'], cwd: folder })),
   ];
 }
