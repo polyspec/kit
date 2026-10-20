@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- PRINCIPLES.md states the working guidelines of the owner with their checks: work reaches main only by `make land` (P10,
+  P38), a worktree per row made over 30 GB of free disk and removed after the merge (P10), the full suite only on the order
+  of the conductor (P20), subagents on Haiku 5.5 with one row each and their results verified (P22), rows before work (P24,
+  planned K424), no deferral (P36), results only after their check (P37), and the PHP library of S10 as library code only
+  (planned K425) (K359).
 - `make item-red ID=` runs the Verification of an active row after its test is written and before its fix, requires a failure and
   records it; `make commit` writes it as a Red-Test line into each commit of the row, and the done state of `make item-state`
   requires the record or such a line in the history, which holds on an ancestor of the parent after a rebase.

@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d430c7ecb04f3d507820f5b0eb85ee65f3bf594e7f6a0dd3b62c140b1460ca0d -->
+<!-- source-sha256: a8dba48cd9048d44001d653912c381b37295886c8001885a440444226a94fff7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PRINCIPLES.md는 owner의 작업 지침을 그 검사와 함께 적는다: 작업은 `make land`로만 main에 들어가고(P10, P38), 행마다
+  자유 디스크 30 GB 이상에서 만든 worktree를 merge 뒤 지우며(P10), 전체 suite는 conductor의 지시로만 돌고(P20),
+  subagent는 Haiku 5.5에서 행 하나씩 맡고 결과를 검증받으며(P22), 행이 작업보다 먼저이고(P24, planned K424), 미루지 않으며
+  (P36), 결과는 검사 뒤에만 보고하고(P37), S10의 PHP library는 library code뿐이다(planned K425)(K359).
 - `make item-red ID=`는 active 행의 Verification을 test 작성 뒤, fix 전에 실행해 실패를 요구하고 기록한다. `make commit`은
   그 기록을 행의 각 커밋에 Red-Test 줄로 쓰고, `make item-state`의 done 상태는 그 기록이나 history의 그런 줄을 요구하며,
   그 줄은 rebase 뒤 parent의 조상에서도 성립한다. `make item-red ID= BEFORE=<rev>`는 기록 없이 커밋된 행의 red를 `<rev>`의
