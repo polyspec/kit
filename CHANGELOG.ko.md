@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4128a5d35e6fd3c87a1f10efc6a7d4661fcb58d9470ff23d0859eed94047a5ee -->
+<!-- source-sha256: 6d94b112a3930b7593126fd683ef9fae229628c4522f53a6b428e126024e6787 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,7 @@
 
 - plan utility는 home directory 안의 경로를 더하는 checklist를 docs-check의 private-path 함수로 거부하고, `make
   item-edit ID= TASK= TASK_KO=`는 done row를 포함해 row의 Task cell을 두 언어로 바꾼다. kit의 docs-check를 실패시킨
-  home 경로 없이 row K358과 K363을 다시 썼다. red: item-new가 row에 `/Users/someone/x.txt`를 썼고 item-edit은 TASK를
+  home 경로 없이 row K358과 K363을 다시 썼다. red: item-new가 row에 home directory 안의 경로를 썼고 item-edit은 TASK를
   받지 않았다. green: `node --test --test-name-pattern=K373 tests/kit/plan.test.mts`가 통과하고 kit의 docs-check가
   통과한다 (K373).
 - `make item-new`, `make item-edit`, `make item-state`, `make plan-split`은 자신이 바꾸는 한국어 문서가 최신이었으면

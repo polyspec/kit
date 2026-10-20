@@ -8,7 +8,7 @@
 - The plan utilities refuse a checklist that would add a path into a home directory, through the private-path
   function of docs-check, and `make item-edit ID= TASK= TASK_KO=` replaces the Task cells of a row in both languages,
   also of a done row; the rows K358 and K363 are rewritten without the home paths that failed docs-check of kit. Red:
-  item-new wrote `/Users/someone/x.txt` into a row and item-edit took no TASK; green: `node --test
+  item-new wrote a path into a home directory into a row and item-edit took no TASK; green: `node --test
   --test-name-pattern=K373 tests/kit/plan.test.mts` passes, and docs-check of kit passes (K373).
 - `make item-new`, `make item-edit`, `make item-state` and `make plan-split` write the revision marker of the new
   English text into each Korean twin that they change when the twin was current, and keep a stale twin stale, so
