@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
+import { sharedInstalls } from './bootstrap/install-mise.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { present } from './present.mts';
@@ -29,8 +30,8 @@ function inside(file: string, directory: string): boolean {
 
 /**
  * Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may: its pyvenv.cfg names as
- * its home a directory of var/tools/mise, where mise installs the Python of mise.toml. Its symbolic links are not
- * checked: they are the behavior of the tool that made it.
+ * its home a directory of var/tools/mise, where mise installs the Python of mise.toml, or of the installs of the main checkout that
+ * the mise of a worktree reads (K387, K387-1). Its symbolic links are not checked: they are the behavior of the tool that made it.
  */
 export function venvProblem(venv: string, root: string = repositoryRoot()): string | undefined {
   const config = path.join(venv, 'pyvenv.cfg');
@@ -40,7 +41,8 @@ export function venvProblem(venv: string, root: string = repositoryRoot()): stri
   // The group takes part in every match.
   const home = present(/^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1], '/^home\\s*=\\s*(.+)$/m.exec(readFileSync(config, \'utf8\'))?.[1]').trim();
   const installs = toolsPath(root, 'mise');
-  if (!home || !inside(home, installs)) {
+  const shared = sharedInstalls(root);
+  if (!home || !(inside(home, installs) || (shared !== undefined && inside(home, shared)))) {
     return `${relative} was made from ${home ?? 'no home'}, not from a Python of this checkout (${path.relative(root, installs)}); ${make}`;
   }
   return undefined;

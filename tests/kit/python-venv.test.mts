@@ -3,11 +3,13 @@
 // refuses any other; makeVenv names the missing uv or Python, and refuses an existing directory that is not a venv of the
 // checkout Python without changing it. The trees are fixtures in a temporary directory; no Python or uv runs.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
 import { tree } from './tree.mts';
+import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
 
 // A venv tree as `uv venv` writes it: bin/python links to the interpreter of var/tools/mise/installs, bin/python3 links to python,
@@ -29,6 +31,22 @@ test('a venv from the Python of mise in var/tools/mise is accepted with its link
   const { root, venv } = venvTree(t);
   assert.equal(venvProblem(venv, root), undefined);
   assert.equal(readlinkSync(path.join(venv, 'bin/python3')), 'python', 'the link is kept as uv made it');
+});
+
+// K387-1: a worktree runs the Python that the main checkout installed (K387), so its venv names that Python as its home.
+test('a venv of a worktree from the Python of the shared installs of the main checkout is accepted (K387-1)', (t) => {
+  const { root: main } = venvTree(t);
+  initRepository(main, '--initial-branch=main');
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: main });
+  const worktree = `${main}-row`;
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  assert.equal(spawnSync('git', ['worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree], { cwd: main }).status, 0);
+  const venv = path.join(worktree, 'pkg/.venv');
+  mkdirSync(venv, { recursive: true });
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${path.join(main, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion_info = 3.14.8\n`);
+  assert.equal(venvProblem(venv, worktree), undefined);
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), 'home = /usr/bin\nversion_info = 3.14.8\n');
+  assert.match(venvProblem(venv, worktree) ?? '', /was made from \/usr\/bin, not from a Python of this checkout/);
 });
 
 test('a directory without pyvenv.cfg or a venv of another Python is refused with the fix', (t) => {
