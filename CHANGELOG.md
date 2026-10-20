@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `link --siblings` links the main checkouts in the folder `forks/` beside the checkouts as providers of the packages that their
+  manifests name, whatever their origin, and a fork is linked at its own pin (such as 2.6.0-p1), which the 0.0.x rule of polyspec
+  packages does not cover (K379).
 - The layout of kit declares the files that kit link writes at the root of a linked checkout (`composer.link.json`,
   `composer.link.lock`), so a linked worktree passes `make layout-check` as its main checkout does (K423).
 - The real layout tests pass again with the check of the install directories in `make layout-check`: their fixture runs

@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d25ce7324d33009d7dbee4ea2c886511f1a9dfce9b12540df68daf3d83d00a70 -->
+<!-- source-sha256: b74f9b3fa666c40a5009e04343bfbe2f532459c71f7455f185d7256954b40392 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link --siblings`는 checkout 옆 `forks/` 폴더의 main checkout을 origin과 상관없이 그 manifest가 이름 붙인 패키지의
+  provider로 링크하며, fork는 polyspec 패키지의 0.0.x 규칙이 다루지 않는 자기 핀(예: 2.6.0-p1)으로 링크된다(K379).
 - kit의 layout은 kit link가 링크된 checkout의 root에 쓰는 파일(`composer.link.json`, `composer.link.lock`)을 선언하므로,
   링크된 worktree도 main checkout처럼 `make layout-check`를 통과한다(K423).
 - 실제 layout 테스트가 `make layout-check`의 install 폴더 검사와 함께 다시 통과한다. 그 fixture는 kit의 도구를 그 node로
