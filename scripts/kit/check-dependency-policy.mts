@@ -9,7 +9,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
-import { isPrerelease, older } from './version.mts';
+import { isPrerelease, isVersionText, older } from './version.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -268,7 +268,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     // Composer chose the latest release under the declared minimum-stability of the manifest, so kit judges no Composer stability.
-    if (!nonEmpty(entry.latest) || (dependency.ecosystem !== 'composer' && isPrerelease(dependency.ecosystem, entry.latest))) {
+    if (!nonEmpty(entry.latest) || !isVersionText(entry.latest) || (dependency.ecosystem !== 'composer' && isPrerelease(dependency.ecosystem, entry.latest))) {
       add('record', subject, `the review recorded ${entry.latest} as the latest stable release`, REVIEW);
       continue;
     }

@@ -36,6 +36,20 @@ test('the gate fails on a lock changed without a review and names the file, the 
   assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: the lock changed after the review of .+: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
 });
 
+// K281: the answer "[none matched]" of composer outdated is no version, so a review record that holds it as the latest fails.
+test('the gate fails on a review record that holds the none-matched sentinel as a latest version (K281)', (t) => {
+  const root = fixture(t);
+  const file = path.join(root, RECORD);
+  const record: ReviewRecord = JSON.parse(readFileSync(file, 'utf8'));
+  const entry = record.dependencies.find(item => item.ecosystem === 'composer');
+  assert.ok(entry, 'the fixture record holds a Composer dependency');
+  entry.latest = '[none matched]';
+  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`);
+  const result = gate(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /the review recorded \[none matched\] as the latest stable release/);
+});
+
 // K181: a Composer manifest that composerPlatforms does not name escaped composer validate --strict, so its lock went stale
 // unnoticed; the fixture holds the Composer consumer project of its release, which is not checked here.
 test('the gate fails on a Composer manifest that no Composer platform covers; a manifest that kit writes passes', (t) => {

@@ -31,7 +31,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { isPrerelease, older, stableDescending } from './version.mts';
+import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { present } from './present.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
@@ -232,7 +232,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
       continue;
     }
     const entry = (answer.value.locked ?? []).find(item => item.name === dependency.package);
-    if (!entry?.latest || !entry['latest-status']) latest.set(key, { error: `composer outdated in ${directory} reported no release of ${dependency.package}` });
+    if (!entry?.latest || !isVersionText(entry.latest) || !entry['latest-status']) latest.set(key, { error: `composer outdated in ${directory} reported no release of ${dependency.package}` });
     else latest.set(key, { latest: entry.latest, upToDate: entry['latest-status'] === 'up-to-date' });
   }
   return latest;

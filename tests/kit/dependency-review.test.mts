@@ -94,3 +94,20 @@ test('a newer release of a requirement of a dependency group is a finding (K177)
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-python\/pyproject\.toml pytest 8\.0\.0 < 8\.1\.0: a newer stable release exists\./m);
   assert.equal(result.stdout.match(/pytest 8\.0\.0 < 8\.1\.0/g)?.length, 1, result.stdout);
 });
+
+test('the none-matched answer of composer outdated is no release, and is never recorded as a version (K281)', (t) => {
+  const root = fixture(t);
+  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
+  writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } }));
+  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify(MONOREPO_LOCK));
+  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const at = path.basename(root);
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '[none matched]', 'example/framework': '1.0.0', 'example/helper': '2.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  const result = review(root, [], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /composer outdated in \. reported no release of psr\/log/);
+  assert.doesNotMatch(result.stdout + result.stderr, /3\.0\.2 < \[none matched\]/);
+});

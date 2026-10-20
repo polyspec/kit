@@ -21,6 +21,12 @@ function pep440Of(version: string): string {
   return version;
 }
 
+/**
+ * Whether `text` names a release version: a number, with a leading v of Composer allowed. composer outdated answers a package
+ * that no repository releases (a path repository) with the sentinel "[none matched]", which is no version (K281).
+ */
+export const isVersionText = (text: string): boolean => /^v?\d/.test(text);
+
 /** Whether `version` is a prerelease: a semver prerelease (a Go pseudo-version too), or a PEP 440 pre-release or dev release. */
 export function isPrerelease(ecosystem: Exclude<Ecosystem, 'composer'>, version: string): boolean {
   if (ecosystem === 'pypi') return present(explain(pep440Of(version)), 'explain(pep440Of(version))').is_prerelease; // pep440Of checked that the version reads.
