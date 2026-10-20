@@ -3,6 +3,7 @@
 //
 //   commit-subject   the first line is `type(scope): Subject (#id)` with a type of the rules, a scope of lower case
 //                    letters, digits and hyphens, and an id of letters, digits, dots and hyphens
+//   commit-subject-id the Subject holds no id ` (#…)` before the final id, which make commit adds (K380-1)
 //   commit-capital   the Subject starts with a capital letter
 //   commit-period    the Subject does not end with a period
 //   commit-length    the Subject has at most `subjectMax` characters
@@ -90,6 +91,8 @@ export function messageFindings(message: string, config: CommitRules) {
   if (description === undefined) {
     found.push({ rule: 'commit-subject', message: `the subject is ${JSON.stringify(subject)}; expected "type(scope): Subject (#id)" with a type of ${config.types.join(', ')}` });
   } else {
+    // make commit adds the id after the Subject, so a Subject that holds an id before it doubles the id (K380-1).
+    if (/ \(#[^)]+\)/.test(description)) found.push({ rule: 'commit-subject-id', message: `the Subject ${JSON.stringify(description)} holds an id (#…); make commit adds the id of the item after the Subject, so remove the id from the Subject` });
     if (!/^[A-Z]/.test(description)) found.push({ rule: 'commit-capital', message: `the Subject ${JSON.stringify(description)} does not start with a capital letter` });
     if (description.endsWith('.')) found.push({ rule: 'commit-period', message: `the Subject ${JSON.stringify(description)} ends with a period; remove it` });
     if (description.length > config.subjectMax) found.push({ rule: 'commit-length', message: `the Subject has ${description.length} characters; expected at most ${config.subjectMax}` });

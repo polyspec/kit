@@ -28,6 +28,13 @@ test('commit-subject: the type, the scope and the id are required', () => {
   assert.equal(found.message, 'the subject is "chore(docs): Merge the checks (#K1)"; expected "type(scope): Subject (#id)" with a type of feat, fix, docs');
 });
 
+test('a Subject that already holds the id of its item is a finding, since make commit adds it (K380-1)', () => {
+  assert.deepEqual(rules('fix(core): Fix it (#T1) (#T1)'), ['commit-subject-id']);
+  assert.deepEqual(rules('fix(core): Fix it (#T2) (#T1)'), ['commit-subject-id']);
+  assert.deepEqual(rules('fix(core): Fix it (#T1)'), []);
+  assert.deepEqual(rules('fix(core): Fix the parser (with tests) (#T1)'), []);
+});
+
 test('commit-capital, commit-period and commit-length: the Subject', () => {
   assert.deepEqual(rules('feat(docs): merge the checks (#K1)'), ['commit-capital']);
   assert.deepEqual(rules('feat(docs): Merge the checks. (#K1)'), ['commit-period']);
