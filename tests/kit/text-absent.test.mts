@@ -2,7 +2,7 @@
 // tracked file holds the stale text, passes once it is gone, and is a Verification command that the Claude Code hook allows.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { refusal } from '../../scripts/kit/claude-hook.mts';
@@ -65,5 +65,16 @@ test('kit.mk declares the text-absent target as a tool with a help line that end
   const kitMk = readFileSync(path.join(KIT, 'kit.mk'), 'utf8');
   assert.match(kitMk, /^\.PHONY: .*\btext-absent\b/m, 'declared .PHONY');
   assert.match(kitMk, /^text-absent: .*## .*K431\)?.*; offline$/m, 'a help line that ends in offline');
-  assert.match(kitMk, /^\t\$\(NODE\) \$\(KIT\)\/text-absent\.\$\(KIT_EXT\) "\$\(FILE\)" "\$\(TEXT\)"$/m, 'runs the tool with FILE and TEXT');
+  assert.match(kitMk, /^\t\$\(NODE\) \$\(KIT\)\/text-absent\.\$\(KIT_EXT\)$/m, 'runs the tool, which reads FILE and TEXT from its environment');
+});
+
+// A stale text may hold a backquote, a $( ) or a quote: make text-absent compares it as written, and neither make nor the shell runs it.
+test('make text-absent takes a stale text with a backquote, a $( ) and quotes as a literal, and runs none of it (K431)', (t) => {
+  const stale = '`touch pwned` and $(shell touch pwned2) $HOME "q"';
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE, 'src/db.c': `int a;\n// ${stale}\n` });
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const red = spawnSync('make', ['--no-print-directory', 'text-absent', 'FILE=src/db.c', `TEXT=${stale}`], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(red.status, 0, red.stdout + red.stderr);
+  assert.match(red.stderr, /\[text-absent\] src\/db\.c:2: holds the stale text/);
+  for (const file of ['pwned', 'pwned2']) assert.equal(existsSync(path.join(root, file)), false, `${file} was not created`);
 });

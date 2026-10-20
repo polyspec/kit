@@ -185,8 +185,13 @@ bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI ide
 
 # The red of a row whose whole change is text (K431): the Verification of P19's sub-item. It is no gate of kit-gates.
 .PHONY: text-absent
+# FILE and TEXT reach the tool through its environment, unexpanded: a stale text may hold a backquote, a $ or a quote, which neither
+# make nor the shell of the recipe may read. make exports a variable of its command line expanded, so TEXT is not exported.
+unexport TEXT
+text-absent: export KIT_TEXT_ABSENT_FILE = $(value FILE)
+text-absent: export KIT_TEXT_ABSENT_TEXT = $(value TEXT)
 text-absent: ## Fail while the tracked file FILE holds the stale text TEXT, naming each line: the red of a row whose whole change is text (K431); offline
-	$(NODE) $(KIT)/text-absent.$(KIT_EXT) "$(FILE)" "$(TEXT)"
+	$(NODE) $(KIT)/text-absent.$(KIT_EXT)
 
 .PHONY: divergence-check
 divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315); offline

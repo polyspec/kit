@@ -26,8 +26,9 @@ function fail(reason: string): never {
 }
 
 if (isMain(import.meta.url)) {
-  const [file, text] = process.argv.slice(2);
-  if (process.argv.length !== 4 || file === undefined || text === undefined) fail('usage: text-absent <file> <text>');
+  // make text-absent passes FILE and TEXT in the environment, so no shell reads the text; a direct run passes them as arguments.
+  const [file, text] = process.argv.length === 4 ? process.argv.slice(2) : [process.env.KIT_TEXT_ABSENT_FILE, process.env.KIT_TEXT_ABSENT_TEXT];
+  if (file === undefined || file === '' || text === undefined) fail('usage: text-absent <file> <text>, or make text-absent FILE=<path> TEXT=<text>');
   if (text === '') fail('TEXT is empty; name the stale text');
   const root = repositoryRoot();
   const relative = path.relative(root, path.resolve(root, file)).split(path.sep).join('/');
