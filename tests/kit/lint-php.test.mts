@@ -48,7 +48,7 @@ ${failing ? `case "${tool}" in "${failing}") echo "found a problem" >&2; exit 1;
 
 const ALL = [
   'phpcs -q -s --report=emacs --standard=phpcs.xml.dist packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]',
-  'phpstan analyse --no-progress --error-format=raw --configuration=phpstan.dist.neon --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]',
+  'phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --configuration=phpstan.dist.neon --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]',
 ];
 
 test('phpcs runs on the PHP files without the stubs, and PHPStan on each package with PHP files from its folder', (t) => {
@@ -100,4 +100,11 @@ test('COMPOSER_VENDOR_DIR names the vendor directory of each project, as for run
 
 test('a repository without PHP sources lints nothing, with no tool and no configuration installed (K319)', (t) => {
   assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
+});
+
+// K346: the memory that PHPStan needs grows with the package, and php.ini stops it at 128M; a limit only stops the analysis.
+test('phpstan runs with no memory limit, so a large package is analysed (K346)', (t) => {
+  const steps = lintSteps(checkout(t).root).filter(step => step.label.startsWith('phpstan'));
+  assert.equal(steps.length, 1);
+  assert.ok(steps[0]!.args.includes('--memory-limit=-1'), steps[0]!.args.join(' '));
 });
