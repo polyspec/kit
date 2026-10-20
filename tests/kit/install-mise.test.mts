@@ -15,7 +15,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
 
@@ -83,6 +83,7 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_STATE_DIR: path.join(tools, 'mise/state'),
     MISE_CONFIG_DIR: path.join(tools, 'mise/config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
+    MISE_GLOBAL_CONFIG_ROOT: root,
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
@@ -162,6 +163,16 @@ test('a checkout whose mise.lock pins no node bootstraps in the documented order
   assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'install --locked node']);
   assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
   assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the bootstrap downloaded mise again');
+});
+
+// K397-1: with MISE_GLOBAL_CONFIG_FILE set, mise install records the trust of the root of the global config, the home directory
+// unless MISE_GLOBAL_CONFIG_ROOT names another; the checkout is that root, so the trust that mise records is its own.
+test('the mise of a checkout takes the checkout as the root of its global config (K397-1)', () => {
+  const root = '/work/checkout';
+  assert.equal(miseEnvironment(root).MISE_GLOBAL_CONFIG_ROOT, root);
+  const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
+  assert.match(make, /^export MISE_GLOBAL_CONFIG_ROOT := \$\(CURDIR\)$/m);
+  assert.match(make, /^MISE_ENVIRONMENT := .*\bMISE_GLOBAL_CONFIG_ROOT\b/m);
 });
 
 test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {

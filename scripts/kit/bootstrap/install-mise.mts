@@ -79,6 +79,8 @@ export function miseEnvironment(root: string): Record<string, string> {
     MISE_STATE_DIR: toolsPath(root, 'mise', 'state'),
     MISE_CONFIG_DIR: toolsPath(root, 'mise', 'config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
+    // mise install records the trust of the root of the global config, the home directory unless this names the checkout (K397-1).
+    MISE_GLOBAL_CONFIG_ROOT: root,
     MISE_LOCKED: '1',
     MISE_AUTO_INSTALL: '0',
     UV_PYTHON_DOWNLOADS: 'never',
