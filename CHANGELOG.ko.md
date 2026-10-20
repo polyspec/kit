@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a57cf3375137150fe6cb5e654ec5ad029925e58a861d322b81304d9a62a2d14b -->
+<!-- source-sha256: 4f46deb5f78e454cb701b5a87dd57a0f44c83c3bc8d0a6a0447db176fe9ced75 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP symbol extractor는 docblock에 `@internal`을 가진 class, function, constant, method, property를 public API로 보지 않으며(phpstan과 psalm의 의미), 그 tag를 가진 class는 member를 숨긴다(K307). Red: `node --test tests/source/symbols-php-real.test.mts`가 `A\\Hidden`, `A\\Open::secret` 등 internal symbol을 나열했다. Green: public인 것만 나열한다.
 - `parity.mts`는 extractor와 runner를 `toolsEnvironment(root)`로 실행하므로, mise shim이 consumer에서 "mise.toml not trusted"로 실패하지 않고 checkout의 mise 환경을 찾는다(K306). Red: `MISE_GLOBAL_CONFIG_FILE`이 필요한 python shim으로 `node --test --test-name-pattern=K306 tests/kit/parity.test.mts`가 실패했다. Green: 통과한다.
 - `make link-metadata-check`(K305)는 모든 저장소의 gate이다. link가 있는 동안 연결된 npm 패키지가 그 이름의 패키지로 풀리지 않거나, installed.json의 Composer 기록이 install-path의 composer.json과 다르거나, editable Python 설치의 Version 또는 Requires-Python이 pyproject.toml과 다르거나, go.work의 use 폴더에 go.mod가 없으면 패키지와 field를 적어 실패하고, link가 없는 checkout은 통과한다. Red: gate가 없어서 hyper의 낡은 기록이 모든 gate를 통과했다(case가 `linkFindings`를 import한다). Green: `node --test tests/kit/link-check.test.mts`가 통과하고 gate가 `hyper/examples/board`의 낡은 기록을 보고한다.
 - Composer link는 `composer dump-autoload` 전에, 링크된 package와 프로젝트의 path package에 대해 연결된 source의 composer.json의 `require`, `autoload`, `replace`, `provide`, `conflict`, `version`을 installed.json에 가져오므로 platform check와 autoload 규칙이 source 그대로를 따른다(K304). Red: `node --test --test-name-pattern=K304 tests/kit/link.test.mts`에서 기록이 릴리스된 `php >=8.5`를 그대로 요구했다. Green: source의 `>=8.4`를 기록한다.

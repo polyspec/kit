@@ -9,7 +9,10 @@ namespace Polyspec\Kit\Symbols;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/** Collects the public symbol ids of the nodes that it visits. */
+/**
+ * Collects the public symbol ids of the nodes that it visits. A class, function, constant, method or property whose docblock
+ * carries @internal is no public API (K307), and a class that carries it hides its members.
+ */
 final class PublicSymbols extends NodeVisitorAbstract
 {
     /** @var list<string> */
@@ -17,6 +20,9 @@ final class PublicSymbols extends NodeVisitorAbstract
 
     public function enterNode(Node $node): null
     {
+        if ($this->internal($node)) {
+            return null;
+        }
         if ($node instanceof Node\Stmt\ClassLike && $node->namespacedName !== null) {
             $class = $node->namespacedName->toString();
             $this->symbols[] = $class;
@@ -33,9 +39,19 @@ final class PublicSymbols extends NodeVisitorAbstract
         return null;
     }
 
+    /** Whether the docblock of `$node` carries an @internal tag, as phpstan and psalm read it: the tag opens a docblock line. */
+    private function internal(Node $node): bool
+    {
+        $doc = $node->getDocComment();
+        return $doc !== null && preg_match('/^[ \t]*(?:\/\*\*|\*)?[ \t]*@internal(?:\s|$)/m', $doc->getText()) === 1;
+    }
+
     /** Adds the public member `$member` of the class `$class`; every member of an interface is public. */
     private function member(string $class, Node $member, bool $interface): void
     {
+        if ($this->internal($member)) {
+            return;
+        }
         if ($member instanceof Node\Stmt\ClassMethod && ($interface || $member->isPublic())) {
             $this->symbols[] = "{$class}::{$member->name}";
             if ($member->name->toLowerString() === '__construct') {
