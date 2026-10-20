@@ -314,9 +314,14 @@ export function logMessages(root: string, args: string[], label: string): Commit
   });
 }
 
+// A side of a range is a ref: no space, no '..', and no dot at its start or its end, as git check-ref-format holds; a dot inside
+// it belongs to the ref, as in the branch fix/name-T2.60 of a row id (K402).
+const RANGE_SIDE = /^(?!\.)(?!.*\.\.)\S*[^\s.]$/;
+
 /** The commits of `range` (`<base>..<head>`, or `HEAD` alone) in `root`, without merge commits, as `{ id, message }`. */
 export function rangeMessages(root: string, range: string) {
-  if (range !== 'HEAD' && !/^[^\s.]+\.\.[^\s.]+$/.test(range)) {
+  const sides = range.split('..');
+  if (range !== 'HEAD' && !(sides.length === 2 && sides.every(side => RANGE_SIDE.test(side)))) {
     throw new Error(`the range "${range}" is not <base>..<head>; give the two commits of the range, such as origin/main..HEAD`);
   }
   return logMessages(root, range === 'HEAD' ? ['--max-count=1', 'HEAD'] : [range], range);

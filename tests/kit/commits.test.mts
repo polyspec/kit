@@ -110,6 +110,17 @@ test('the commits of a range are checked and each finding names the commit', (t)
   assert.throws(() => rangeFindings(root, 'nothere..HEAD', CONFIG), /the range nothere\.\.HEAD does not resolve in this checkout: .*; fetch its commits/);
 });
 
+// K402: make land checks RANGE=main..<branch>, and the branch of a row whose id holds a dot (P10), such as fix/name-T2.60, holds one.
+test('a range whose refs hold a dot is a range, and three dots, an empty side or a side that starts or ends with a dot is not (K402)', (t) => {
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'feat(ci): Fine (#T2.60)']);
+  git('branch', '-q', 'base.1', 'HEAD~1');
+  git('branch', '-q', 'fix/name-T2.60');
+  assert.deepEqual(rangeFindings(root, 'base.1..fix/name-T2.60', CONFIG), []);
+  for (const range of ['base.1...fix/name-T2.60', '..fix/name-T2.60', 'base.1..', 'base.1..fix/name-T2.60.', '.base..HEAD', 'base 1..HEAD']) {
+    assert.throws(() => rangeFindings(root, range, CONFIG), /is not <base>\.\.<head>/, range);
+  }
+});
+
 test('a merge commit in the range is not checked', (t) => {
   const { root, git } = repository(t, ['feat(docs): Start (#K1)']);
   git('checkout', '-q', '-b', 'side');
