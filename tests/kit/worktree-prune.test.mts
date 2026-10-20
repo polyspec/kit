@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
-import { prune } from '../../scripts/kit/worktree-prune.mts';
+import { branchStates, prune } from '../../scripts/kit/worktree-prune.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -88,4 +88,28 @@ test('link-state-check fails while a merged branch is left (K381)', (t) => {
   assert.match(left[0] ?? '', /make worktree-prune/, 'the finding names the fix');
   assert.equal(existsSync(dirty), true);
   assert.equal(findings.some(finding => /fix\/fresh-K3|fix\/open-K4|fix\/noreflog-K5/.test(finding)), false, 'the other branches are no finding');
+});
+
+// K381-1: a fresh branch that a rebase moved onto a newer main holds commits of main after its creation point, none of its own; a
+// branch is merged when its reflog records a commit made on it and main contains its tip.
+test('a fresh branch rebased onto a newer main is fresh, and a rebased branch with a commit of its own is merged once main has it (K381-1)', (t) => {
+  const { main } = fixture(t);
+  const fresh = path.join(path.dirname(main), 'repo-rebased');
+  git(main, 'worktree', 'add', '--quiet', fresh, '-b', 'fix/rebased-K6', 'main~1');
+  git(fresh, 'rebase', '--quiet', 'main');
+  const row = path.join(path.dirname(main), 'repo-row');
+  git(main, 'worktree', 'add', '--quiet', row, '-b', 'fix/row-K7', 'main~1');
+  put(row, { 'row.txt': 'row\n' });
+  git(row, 'add', '-A');
+  git(row, 'commit', '--quiet', '-m', 'row');
+  git(row, 'rebase', '--quiet', 'main');
+  git(main, 'merge', '--quiet', '--ff-only', 'fix/row-K7');
+  const states = new Map(branchStates(main).map(state => [state.branch, state]));
+  assert.equal(states.get('fix/rebased-K6')?.merged, false, 'the fresh branch that a rebase moved');
+  assert.match(states.get('fix/rebased-K6')?.reason ?? '', /^fresh/);
+  assert.equal(states.get('fix/row-K7')?.merged, true, 'the rebased branch with a commit of its own, which main fast-forwarded to');
+  const lines: string[] = [];
+  prune(main, { print: text => lines.push(text) });
+  assert.ok(exists(main, 'fix/rebased-K6'), `the fresh branch is kept: ${lines.join('\n')}`);
+  assert.ok(!exists(main, 'fix/row-K7'), 'the merged branch is deleted');
 });

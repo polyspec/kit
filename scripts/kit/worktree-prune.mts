@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Prunes the merged branches and their worktrees (K381): `make worktree-prune`, run in a checkout. A local branch other than main is
-// merged when it has commits of its own and all of them are in main; its own commits are those after its creation point, the oldest
-// entry of its reflog (`git rev-list <creation>..<branch>`), so a fresh branch with no commit of its own is never merged, though main
-// contains it. For each merged branch, the worktree that has it checked out is removed when it has no uncommitted change (an ignored
-// install does not count), then the branch is deleted with `git branch -d`. A dirty worktree, an unmerged, a fresh or a reflog-less
+// merged when it has commits of its own and all of them are in main; its own commits are those that its reflog records as made on
+// it (commit, cherry-pick, revert), so a fresh branch with no commit of its own is never merged, though main contains it, also after a
+// rebase moved it onto a newer main (K381-1). For each merged branch, the worktree that has it checked out is removed when it
+// has no uncommitted change (an ignored install does not count), then the branch is deleted with `git branch -d`. A dirty worktree, an unmerged, a fresh or a reflog-less
 // branch is listed with its reason and left, so a second run leaves the same state. It is a module of its own beside land.mts, which
 // removes one branch and its worktree after a merge; link-state-check reads its branchStates to find a merged branch that is left.
 //
@@ -24,14 +24,19 @@ function worktreeFolders(root: string): Map<string, string> {
   return folders;
 }
 
-/** Whether `branch` is merged into main, with the reason: its own commits after its creation point must all be in main (K381). */
+// A reflog entry of a commit made on the branch: a rebase (rebase (finish)) or a fast-forward moves the branch onto commits of main
+// and makes none of its own (K381-1).
+const OWN_COMMIT = /^(?:commit|cherry-pick|revert)\b/;
+
+/**
+ * Whether `branch` is merged into main, with the reason (K381): it has commits of its own, which its reflog records as commits made
+ * on it, and main contains its tip. A fresh branch, which a rebase onto a newer main moves past commits of main, has none (K381-1).
+ */
 function mergedReason(root: string, branch: string): { merged: boolean; reason: string } {
-  const entries = git(root, 'reflog', 'show', '--format=%H', `refs/heads/${branch}`).split('\n').filter(line => line !== '');
+  const entries = git(root, 'reflog', 'show', '--format=%gs', `refs/heads/${branch}`).split('\n').filter(line => line !== '');
   if (entries.length === 0) return { merged: false, reason: 'no reflog entry, so its creation point is unknown' };
-  const creation = entries[entries.length - 1];
-  const own = git(root, 'rev-list', `${creation}..${branch}`).split('\n').filter(line => line !== '');
-  if (own.length === 0) return { merged: false, reason: 'fresh: no commit of its own since its creation' };
-  const outside = git(root, 'rev-list', `${creation}..${branch}`, '^main').split('\n').filter(line => line !== '');
+  if (!entries.some(entry => OWN_COMMIT.test(entry))) return { merged: false, reason: 'fresh: no commit of its own since its creation' };
+  const outside = git(root, 'rev-list', branch, '^main').split('\n').filter(line => line !== '');
   if (outside.length > 0) return { merged: false, reason: `${outside.length} of its commits are not in main` };
   return { merged: true, reason: 'merged: all of its commits are in main' };
 }
