@@ -21,7 +21,6 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -460,11 +459,12 @@ function lockedConstraints(consumer: Consumer, uv: Tool, workspace: string, venv
 }
 
 /**
- * The overrides of an install of the linked packages (K237): each linked package is the folder of its checkout, also where another
- * package requires it by its release URL, which would conflict with the folder named on the command line.
+ * The overrides of an install of the linked packages (K237, K316-1): each linked package is the editable install of the folder of its
+ * checkout, also where another package requires it by its release URL. The line `-e <folder>` is the form that keeps the install
+ * editable; the line `name @ file://<folder>` makes uv take a non-editable requirement that beats the `-e` of the command line.
  */
 function linkedOverrides(consumer: Consumer, venv: string, ready: readonly Provider[]): string {
-  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(provider => `${provider.name} @ ${pathToFileURL(provider.folder).href}`));
+  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(provider => `-e ${provider.folder}`));
 }
 
 /**
@@ -528,7 +528,8 @@ function installedFiles(venv: string, names: readonly string[], env: NodeJS.Proc
  * link is reported only when the environment itself holds that editable install.
  */
 function editableProblem(provider: Provider, state: Installed | undefined, venv: string): string | undefined {
-  if (state === undefined || state.path === 'none' || state.path === 'absent') return `not installed from a folder in ${venv}`;
+  if (state === undefined || state.path === 'absent') return `not installed in ${venv}`;
+  if (state.path === 'none') return `not installed from the folder of the checkout in ${venv}: a registry or archive install`;
   if (real(state.path) !== real(provider.folder)) return `installed from ${state.path}, not the editable install of ${provider.folder} in ${venv}`;
   return state.editable ? undefined : `installed from its folder without the editable install in ${venv}`;
 }

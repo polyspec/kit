@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a81a09bc89f8cdd03bca90e19515515d70be618333da5ffa32bd72af7feb7ca5 -->
+<!-- source-sha256: 283d6e2cfbe94f02f960f0574f3d39570acfc90342fa9202fe7a55cffd21589a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- provider 폴더의 non-editable 설치나 릴리스 wheel 위의 link는 editable install이 된다(K316-1): 설치의 overrides 파일은 연결된 package마다 `-e <폴더>` 줄 하나를 담는다. `name @ file://<폴더>` 줄은 uv가 non-editable 요구로 보게 해서 명령줄의 `-e`보다 우선하고 package를 non-editable로 남겼기 때문이다(이 checkout의 uv로 확인: URL 줄이면 `dir_info`가 비고 `-e` 줄이면 `{"editable":true}`이며, 다른 package를 릴리스 URL로 요구하는 package도 마찬가지이다). registry나 archive 설치의 메시지는 그렇게 말한다. Red: `node --test --test-name-pattern=K316-1 tests/kit/link.test.mts`가 `name @ file://` 줄을 찾았다. Green: `-e` 줄을 찾는다.
 - linked 패키지의 `composer.link.json` path repository는 `symlink`와, lock이 기록한 릴리스(없으면 project가 요구하는 정확한 릴리스)로 정한 `versions`를 가지고 다른 repository보다 앞에 오므로, Composer가 그 릴리스를 폴더로 취하고 같은 version의 archive를 택하지 않는다(K304-2). orm, hyper(root와 `examples/board`), crudui의 link lock은 연결된 모든 polyspec 패키지를 dist type `path`로 가지며 `platform_check.php`가 폴더에서 나온 PHP 8.4.1 또는 8.4.0이다. Red: lock에 없는 패키지는 `versions`를 받지 못했다. Green: `node --test --test-name-pattern=K304-2 tests/kit/link.test.mts`가 통과한다.
 - Composer project가 link된 동안(`composer.link.lock`이 있는 동안) `make dependency-policy-check`는 그 project의 platform과 `composer validate`를 `composer.link.json`과 `composer.link.lock`에서 판단하고, link manifest의 path repository의 패키지를 link lock이 다른 dist로 가지면 실패시키며, 추적되는 lock의 review hash는 일괄 release의 검사에 맡긴다(K326). Red: `node --test --test-name-pattern=K326 tests/kit/dependency-policy.test.mts`가 PHP 8.5.0으로 resolve된 추적되는 lock에서 실패했다. Green: link lock에서는 통과하고 다른 platform이나 dist의 link lock은 여전히 실패시킨다.
 - `config/parity.json`의 구현은 이유를 단 `internal` glob을 선언한다(K313). 맞는 test는 parity unit이 아니므로 R5가 binding을 요구하지 않고 어떤 binding도 부를 수 없으며, spec의 requirement를 부르지 않으므로(R16) contract test가 거기 숨을 수 없고, test를 고르지 않는 glob은 선언을 실패시킨다. 기존 `tools`가 contract를 구현하지 않는 단일 언어 package를 이미 덮으므로 `outside` 선언은 더하지 않는다. Red: schema가 선언을 거부했고 R5가 internal 파일을 지적했다. Green: `node --test --test-name-pattern=K313 tests/kit/parity.test.mts`가 통과한다.
