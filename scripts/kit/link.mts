@@ -278,18 +278,28 @@ function declaredComposer(file: string): string[] {
 }
 
 /**
+ * Whether the Composer project at `project` installs the folder `folder` through one of its path repositories.
+ */
+function installsFolder(project: string, folder: string): boolean {
+  return (readComposerManifestFile(path.join(project, MANIFESTS.composer)).repositories ?? []).some(repository => repository.type === 'path' && repository.url !== undefined && path.resolve(project, repository.url) === folder);
+}
+
+/**
  * The Composer projects of the consumer, by vendor: the project of each composer.json (the nearest at or above it whose vendor
  * holds installed.json, else its own folder), the polyspec names that its composer.json files declare, and whether the vendor
  * holds installed.json. A vendor without installed.json is reported by linkComposer, never skipped. With --project the project
- * is the named folder itself, never a folder above it (K201-3).
+ * is the named folder itself (K201-3), except that a folder above it whose path repository installs the named folder is its
+ * project too, as the root project installs a package folder without a vendor of its own (K396).
  */
 function composerProjects(consumer: Consumer, composer: Tool): { project: string; vendor: string; installed: boolean; declared: string[] }[] {
   const found = new Map<string, { project: string; installed: boolean; declared: Set<string> }>();
   const highest = consumer.project ? consumer.scope : consumer.top;
   for (const file of consumer.manifests('composer')) {
     let chosen: { project: string; vendor: string; installed: boolean } | undefined;
-    for (let project = path.dirname(file); `${project}/`.startsWith(`${highest}/`) && !chosen?.installed; project = path.dirname(project)) {
+    const folder = path.dirname(file);
+    for (let project = folder; `${project}/`.startsWith(`${consumer.top}/`) && !chosen?.installed; project = path.dirname(project)) {
       if (!existsSync(path.join(project, MANIFESTS.composer))) continue;
+      if (!`${project}/`.startsWith(`${highest}/`) && !installsFolder(project, folder)) continue;
       const vendor = composerVendor(project, composer);
       const installed = existsSync(path.join(vendor, 'composer/installed.json'));
       if (!chosen || installed) chosen = { project, vendor, installed };

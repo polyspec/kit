@@ -982,6 +982,33 @@ test('the go.work that link writes for a module of a tracked workspace uses ever
   // The folders are the module itself, then the modules of the tracked workspace, then the provider (relative to the module).
   assert.match(log(), /go work init \. \.\.\/b \.\.\/\.\.\/\.\.\/prov\/go\n/);
 });
+test('a path package installed by the root project is linked in the vendor of the root project (K396)', (t) => {
+  const { root, provider, env, log } = workspace(t);
+  // The root project installs packages/php through a path repository into vendor-php; packages/php has no vendor of its own.
+  const app = repository(root, 'app', {
+    '.gitignore': 'vendor-php/\n',
+    'composer-vendor-dir': 'vendor-php',
+    'composer.json': JSON.stringify({ name: 'app/root', require: { 'polyspec/ordered-json': '0.0.1' }, repositories: [{ type: 'path', url: 'packages/php' }] }),
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/ordered-json', version: '0.0.1' }, { name: 'polyspec/y', version: '0.0.1' }] }),
+    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/ordered-json', require: { 'polyspec/y': '0.0.1' } }),
+  });
+  // The vendor of the root project is git-ignored, as an installed vendor is.
+  put(app, {
+    'vendor-php/composer/installed.json': JSON.stringify({ packages: [
+      { name: 'polyspec/ordered-json', version: 'dev-main', dist: { type: 'path', url: '../../packages/php' }, 'install-path': '../../packages/php' },
+      { name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' },
+    ] }),
+    'vendor-php/polyspec/y/composer.json': '{"name":"polyspec/y"}',
+  });
+  const lines: string[] = [];
+  // Under --project the named folder is the consumer: its own composer.json has no vendor, and the root project installs it.
+  const ok = link({ checkouts: current, directories: [path.join(app, 'packages/php')], project: true, check: false, print: text => lines.push(text), env });
+  const text = lines.join('\n');
+  assert.equal(ok, true, text);
+  assert.doesNotMatch(text, /NOT linked/);
+  assert.equal(realpathSync(path.join(app, 'vendor-php/polyspec/y')), path.join(provider, 'packages/php'));
+  assert.match(log(), new RegExp(`composer update polyspec/y [^\n]*--working-dir ${app}\n`));
+});
 test('Composer under --project: a named project with its own composer.json and no installed vendor never takes the vendor of an ancestor project', (t) => {
   const { consumer, env, log } = workspace(t);
   put(consumer, { 'sub/composer.json': JSON.stringify({ name: 'cons/sub', require: { 'polyspec/y': '0.0.1' } }) });
