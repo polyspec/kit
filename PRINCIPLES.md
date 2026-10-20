@@ -110,9 +110,10 @@ repository.
 
 - P24 A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins. A checklist is one table
   with the columns ID, Task, Deliverables, Verification and State; an item ID is unique among the checklists, and a
-  sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them, and `make plan-split` moves items to another plan. A change starts from its registered row: `make item-new` registers the row
-  before any work, and its commit names the row (P28).
-  Enforced by: `make docs-check`
+  sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them, and `make plan-split` moves items to another plan.
+  A change starts from its registered row: `make item-new` registers the row before any work, and its commit names the row
+  (P28).
+  Enforced by: `make docs-check`, planned K424
 - P25 An item is `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item
   is a sub-item of its own; the done item keeps its state.
@@ -222,7 +223,7 @@ tool lands, a standard binds the work as written here.
   Reflection what it registers with the libraries, each name with the library that declares it, before its unit tests, which
   are the PHPUnit files of every library run with the extension loaded and none of the sources of the library (its dependencies and
   autoload-dev are loaded, its own autoload is not, so the library has no guard against the extension), and those of `packages/php-ext` when it holds any; its
-  parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration. The PHP library is library code only: an application on a userland framework,
-  such as a Symfony Console CLI, is its own Composer package that requires the library, since an internal class cannot extend
-  a userland class.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`
+  parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration.
+  The PHP library is library code only: an application on a userland framework, such as a Symfony Console CLI, is its own
+  Composer package that requires the library, since an internal class cannot extend a userland class.
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, planned K425
