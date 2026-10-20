@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The pre-commit hook of kit and `make commit` refuse a commit after which a Korean twin carries a revision marker
+  that is not the sha256 of its English document, read on the staged tree, naming the twin and `make
+  documents-stamp`. Red: a staged change of `CHANGELOG.md` without the new marker of its twin committed; green: `node
+  --test --test-name-pattern=K382 tests/kit/documents.test.mts` passes (K382).
 - `make hooks` writes a commit-msg hook of kit, `.githooks/commit-msg`, which runs the message checks of `make commit`
   (`make commit-msg-hook`, check-commits `--message`) on every commit, so a commit made outside `make commit`, an amend
   with the footer of an AI tool included, is refused when it is made; `make hooks-check` fails when the hook is

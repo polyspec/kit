@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 08e037e75f20e8281b7fd1c15470b224569b156078a1af4b74134bc762df58b8 -->
+<!-- source-sha256: 4ed8895a64cf50b0de011d494588e6b63b2c117dd1908927031dd462242232c9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 pre-commit hook과 `make commit`은 staged tree에서 읽어 commit 뒤 한국어 문서의 revision marker가 영어 문서의
+  sha256이 아니게 되는 commit을 그 문서와 `make documents-stamp`를 말하며 거부한다. red: 한국어 문서의 새 marker 없이
+  stage된 `CHANGELOG.md` 변경이 commit되었다. green: `node --test --test-name-pattern=K382 tests/kit/documents.test.mts`가
+  통과한다 (K382).
 - `make hooks`는 kit의 commit-msg hook `.githooks/commit-msg`를 쓰고, 이 hook은 모든 commit에 `make commit`의 message
   검사(`make commit-msg-hook`, check-commits `--message`)를 실행하므로 AI 도구의 footer를 가진 amend를 포함해 `make
   commit` 밖에서 만든 commit은 만들 때 거부된다. hook이 없거나 바뀌면 `make hooks-check`가 실패한다. red: `make hooks`
