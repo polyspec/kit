@@ -371,3 +371,11 @@ test('a rebase merges checklist rows by id, so a row that main closes is kept on
   const ko = readFileSync(path.join(root, english.replace(/\.md$/, '.ko.md')), 'utf8');
   assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
 });
+
+// K380-3: the prepare-commit-msg hook only records an amend, so a plain commit prints nothing of it.
+test('the prepare-commit-msg hook prints nothing on a plain commit (K380-3)', (t) => {
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
+  const prepared = spawnSync('make', ['--no-print-directory', 'prepare-commit-msg-hook', 'SOURCE=message', 'SHA='], { cwd: root, encoding: 'utf8' });
+  assert.equal(prepared.status, 0, prepared.stderr);
+  assert.equal(prepared.stdout, '', 'the hook prints nothing');
+});
