@@ -32,7 +32,7 @@
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
@@ -470,8 +470,9 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
   const differs = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '');
   const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => !isTestFile(file));
   const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;
-  // The bytes of each file as the tree holds them now, so that the swap leaves the tree exactly as it was.
-  const saved = new Map(changed.map(file => [file, existsSync(path.join(root, file)) ? readFileSync(path.join(root, file)) : null] as const));
+  // The bytes and the mode of each file as the tree holds them now, so that the swap leaves the tree exactly as it was: a file
+  // removed for the run comes back with its mode, such as an executable hook (K389-1).
+  const saved = new Map(changed.map(file => [file, existsSync(path.join(root, file)) ? { bytes: readFileSync(path.join(root, file)), mode: statSync(path.join(root, file)).mode } : null] as const));
   try {
     for (const file of changed) {
       if (present(sha, file)) {
@@ -483,9 +484,12 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
     }
     return runCommands(root, id, commands, print);
   } finally {
-    for (const [file, bytes] of saved) {
-      if (bytes === null) rmSync(path.join(root, file), { force: true });
-      else writeFileSync(path.join(root, file), bytes);
+    for (const [file, kept] of saved) {
+      if (kept === null) rmSync(path.join(root, file), { force: true });
+      else {
+        writeFileSync(path.join(root, file), kept.bytes);
+        chmodSync(path.join(root, file), kept.mode & 0o7777);
+      }
     }
   }
 }

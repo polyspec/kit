@@ -1,7 +1,7 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -673,6 +673,31 @@ test('make item-red records a failing Verification, and done requires the record
   const wideMessage = commitItem(wide, { id: 'T12', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: bodyWide }, identity);
   assert.ok((wideMessage.split('\n').find(line => line.startsWith('Red-Test: ')) ?? '').length > COMMIT_RULES.bodyMax, 'the Red-Test line is wider than the body');
   assert.deepEqual(rangeFindings(wide, 'HEAD~1..HEAD', COMMIT_RULES), [], 'the commit check takes the wide Red-Test line');
+});
+
+// K389-1: item-red BEFORE= leaves the tree exactly as it was, modes included: an executable file that BEFORE lacks is removed
+// while the Verification runs and comes back executable.
+test('make item-red BEFORE= restores the mode of each file that it swaps (K389-1)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { '.gitignore': 'var/\n' });
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').existsSync(\'hook.sh\') ? 0 : 1)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const gitCommit = (message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    }
+  };
+  gitCommit('base');
+  put(root, { 'hook.sh': '#!/bin/sh\n', 'tests/hook.test.mts': 'test\n' });
+  chmodSync(path.join(root, 'hook.sh'), 0o755);
+  gitCommit('fix(parser): Add the hook (#T1)\n\nThe hook is added.');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
+  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(red.status, 0, red.stderr);
+  assert.equal(statSync(path.join(root, 'hook.sh')).mode & 0o777, 0o755, 'the executable file comes back executable');
+  assert.equal(spawnSync('git', ['diff', '--summary', '--', 'hook.sh'], { cwd: root, encoding: 'utf8' }).stdout, '', 'git sees no mode change');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
