@@ -332,6 +332,10 @@ link-check: ## List every installed polyspec package pinned at 0.0.x as linked, 
 worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main, install it from its own sources with make install and check it with link-state-check; refuses under 30 GB of free disk; a second run installs it again (K348); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
+.PHONY: land
+land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test); merges fast-forward, then removes the worktree and the branch; offline
+	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
