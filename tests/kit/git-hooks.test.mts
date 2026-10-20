@@ -225,6 +225,38 @@ test('a rebase puts the changelog entry of the branch first, in a tight and in a
   }
 });
 
+// K354-2: a checkout whose hooks predate K354-1 merges CHANGELOG.md with merge=union while its kit-twin is the driver of the kit it
+// reads, so the twin takes the marker of the English file as git merges it, by the attribute of that file.
+test('the twin of a changelog that still merges with union holds the marker of the English file that the rebase writes (K354-2)', (t) => {
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+    return { ...result, ok: result.status === 0 };
+  };
+  const head = '<!-- doc-id: changelog -->\n# Changelog\n\n## Unreleased\n\n';
+  const write = (lines: string[]) => {
+    const en = `${head}${lines.map(line => `${line}\n`).join('')}`;
+    put(root, { 'CHANGELOG.md': en, 'CHANGELOG.ko.md': korean(en, en.split('\n').slice(1).join('\n').replace('# Changelog', '# 변경 기록')) });
+    assert.ok(git('add', '-A').ok);
+    assert.ok(git('commit', '--quiet', '-m', 'step').ok);
+  };
+  write(['- a (T1).']);
+  assert.ok(git('branch', '-M', 'main').ok);
+  assert.ok(git('checkout', '--quiet', '-b', 'row').ok);
+  write(['- b (T2).', '- a (T1).']);
+  assert.ok(git('checkout', '--quiet', 'main').ok);
+  write(['- c (T3).', '- a (T1).']);
+  assert.ok(git('checkout', '--quiet', 'row').ok);
+  installMerges(root);
+  const attributes = path.join(root, '.git/info/attributes');
+  writeFileSync(attributes, readFileSync(attributes, 'utf8').replace('CHANGELOG.md merge=kit-changelog', 'CHANGELOG.md merge=union'));
+  const rebase = git('rebase', 'main');
+  assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
+  const en = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const ko = readFileSync(path.join(root, 'CHANGELOG.ko.md'), 'utf8');
+  assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), 'the twin is current');
+});
+
 // K354: two branches that both add changelog lines and checklist rows rebase without a conflict, and each commit that the rebase
 // writes holds Korean twins whose marker is the sha256 of their English file.
 test('the merges that make hooks declares rebase two branches of changelog lines and checklist rows with current Korean twins (K354)', (t) => {

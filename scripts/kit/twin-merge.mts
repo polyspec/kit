@@ -112,6 +112,13 @@ export function orderUnreleased(merged: string, ours: string, theirs: string): s
 /** Whether `file` is a changelog, whose Unreleased entries the drivers order (K354-1). */
 const isChangelog = (file: string) => /^CHANGELOG(\.ko)?\.md$/.test(path.basename(file));
 
+/** The merge attribute that git gives `file` in the work tree `root` (git check-attr), such as union or kit-changelog. */
+function mergeAttribute(root: string, file: string): string {
+  const read = gitResult(root, 'check-attr', 'merge', '--', file);
+  if (read.error || read.status !== 0) throw new Error(`git check-attr merge -- ${file} failed: ${read.error?.message ?? read.stderr.trim()}`);
+  return /: merge: (.*)$/m.exec(read.stdout)?.[1]?.trim() ?? 'unspecified';
+}
+
 /** The merged changelog `file` of the work tree `root` from its three sides: the union, with the Unreleased entries ordered. */
 export function mergeChangelog(root: string, texts: { base: string; ours: string; theirs: string }): string {
   return orderUnreleased(union(root, texts.base, texts.ours, texts.theirs), texts.ours, texts.theirs);
@@ -142,9 +149,12 @@ function sides(root: string): { base: string; theirs: string } {
 /** The merged twin of `twin` (a path of the work tree `root`) from its three sides: the union, with the marker of the merged English. */
 export function mergeTwin(root: string, twin: string, texts: { base: string; ours: string; theirs: string }): string {
   const plain = { base: texts.base.replace(MARKER, ''), ours: texts.ours.replace(MARKER, ''), theirs: texts.theirs.replace(MARKER, '') };
-  const merge = isChangelog(twin) ? (sides: typeof plain) => mergeChangelog(root, sides) : (sides: typeof plain) => union(root, sides.base, sides.ours, sides.theirs);
-  const body = merge(plain);
   const english = twin.replace(/\.ko\.md$/, '.md');
+  // The twin merges as git merges its English file, by the attribute of that file: a checkout whose hooks predate K354-1 merges
+  // CHANGELOG.md with merge=union, and its marker is the sha256 of that union (K354-2).
+  const ordered = isChangelog(twin) && mergeAttribute(root, english) === 'kit-changelog';
+  const merge = ordered ? (sides: typeof plain) => mergeChangelog(root, sides) : (sides: typeof plain) => union(root, sides.base, sides.ours, sides.theirs);
+  const body = merge(plain);
   const { base, theirs } = sides(root);
   // The English file merges as its own driver merges it, so the marker is the sha256 of the English file that the rebase writes.
   const merged = merge({ base: textAt(root, base, english), ours: textAt(root, 'HEAD', english), theirs: textAt(root, theirs, english) });
