@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The commit-msg check of an amend compares the index with the parent of the amended commit: `make hooks` writes a
+  `prepare-commit-msg` hook that records the amend, so an amend that restages a document of a fix commit with its test
+  passes; git gives `-C HEAD` the same arguments, so it is checked the same way (K380-2).
 - The checklists merge row by row, by the id of each row: `make hooks` declares the driver `kit-checklist` for
   `docs/plans/*/checklist.md`, and `kit-twin` merges its twin alike, so a row that main closes is kept once beside the rows
   that a branch appends after it, and a row that both sides changed differently is a conflict that names it (K354-3).

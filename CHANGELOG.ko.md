@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0fa199ab5dd9bfb2a27315446264029224d8e0573923e3172e7e12e97bd6c0b6 -->
+<!-- source-sha256: b6f17eba3b4be80b3fabc2a1c00860c8a3fffb1306e791d8ded2ec9a4ba64541 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- amend의 commit-msg 검사는 index를 amend되는 commit의 parent와 비교한다. `make hooks`가 amend를 기록하는
+  `prepare-commit-msg` hook을 쓰므로, 테스트를 가진 fix commit의 문서를 다시 stage하는 amend가 통과한다. git은 `-C HEAD`에
+  같은 인자를 주므로 그것도 같게 검사된다(K380-2).
 - checklist는 각 row의 id로 row마다 merge된다. `make hooks`는 `docs/plans/*/checklist.md`에 driver `kit-checklist`를
   선언하고 `kit-twin`은 그 쌍둥이를 같게 merge하므로, main이 닫은 row는 branch가 그 뒤에 덧붙인 row 옆에 한 번만 남고,
   양쪽이 다르게 바꾼 row는 그 id를 적은 conflict이다(K354-3).
