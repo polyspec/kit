@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { commitItem, newItem, newPlan, setState, testItem } from '../../scripts/kit/plan.mts';
+import { commitItem, newItem, newPlan, setState, splitPlan, testItem } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { tree } from './tree.mts';
@@ -177,4 +177,30 @@ test('commit refuses what the commit-msg hook refuses and an empty index, and co
   stage(root, '-A');
   assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /changes the state of 2 items/);
   assert.equal(log(root), head);
+});
+
+test('plan-split moves rows with their sub-items from a plan to another plan, in both languages (K292)', (t) => {
+  const root = plans(t, 'all');
+  for (const id of ['T1', 'T1-1', 'T2', 'T3', 'T3-1']) newItem(root, item('all', id));
+  splitPlan(root, { from: 'all', to: 'parser', ids: ['T1', 'T1-1'], title: 'Parser', titleKo: '파서' });
+  const ids = (file: string) => rows(root, file).map(row => row.split(' | ')[0]);
+  assert.deepEqual(ids('docs/plans/all/checklist.md'), ['| T2', '| T3', '| T3-1']);
+  assert.deepEqual(ids('docs/plans/parser/checklist.md'), ['| T1', '| T1-1']);
+  assert.deepEqual(ids('docs/plans/parser/checklist.ko.md'), ['| T1', '| T1-1']);
+  assert.equal(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [ ] |');
+  // The target exists now: more rows move into it without titles.
+  splitPlan(root, { from: 'all', to: 'parser', ids: ['T2'], title: undefined, titleKo: undefined });
+  assert.deepEqual(ids('docs/plans/parser/checklist.md'), ['| T1', '| T1-1', '| T2']);
+});
+
+test('plan-split refuses an unknown item, a sub-item apart from its parent and a new plan without titles, and writes nothing (K292)', (t) => {
+  const root = plans(t, 'all');
+  for (const id of ['T1', 'T1-1', 'T2']) newItem(root, item('all', id));
+  const before = readFileSync(path.join(root, 'docs/plans/all/checklist.md'), 'utf8');
+  assert.throws(() => splitPlan(root, { from: 'all', to: 'parser', ids: ['T9'], title: 'P', titleKo: 'P' }), /T9 is no item of docs\/plans\/all/);
+  assert.throws(() => splitPlan(root, { from: 'all', to: 'parser', ids: ['T1'], title: 'P', titleKo: 'P' }), /T1-1, a sub-item of T1, stays/);
+  assert.throws(() => splitPlan(root, { from: 'all', to: 'parser', ids: ['T1-1'], title: 'P', titleKo: 'P' }), /T1-1 moves without its parent T1/);
+  assert.throws(() => splitPlan(root, { from: 'all', to: 'parser', ids: ['T2'], title: undefined, titleKo: undefined }), /TITLE is empty/);
+  assert.equal(readFileSync(path.join(root, 'docs/plans/all/checklist.md'), 'utf8'), before);
+  assert.equal(existsSync(path.join(root, 'docs/plans/parser')), false);
 });

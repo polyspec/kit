@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 43116355f63802d2005d1ce9f606c26e54eabad0fdb568542ed770a5afe042eb -->
+<!-- source-sha256: 21504e3e274feb5443aadca60798822561189d274d9c286d2cc637e97c22b5dd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -88,3 +88,4 @@
 | K296 | pyproject의 dependency array에 [build-system] requires가 포함된다. 원인: dependencyArrays가 이를 빠뜨려서 make dependency-review UPDATE=1에서 pin-python-dependency가 "no exact pin of setuptools"로 실패했다. 인수 조건: build-system.requires의 pin이 project의 pin처럼 설정된다. | scripts/kit/pyproject-dependencies.mts, tests/kit/pin-python-dependency.test.mts | `node --test tests/kit/pin-python-dependency.test.mts` | [o] |
 | K291 | 문서는 존재하는 규칙을 적는다. 원인: local-links.md가 "그 사이에 릴리스하지 않는다"고만 적어 kit의 릴리스나 tag를 허용하는 듯했고, tool-inventory의 language parity 절은 S6이 선언에서 없앤 profile, admit 목록, exclusion(R8), nativeOnly 항목, spec anchor를 아직 기술했다. 인수 조건: local-links는 모든 개발이 끝나기 전에는 아무것도 릴리스하지 않고 push는 아무것도 게시하지 않는다고 적고, tool-inventory는 parity 선언을 schema대로 profile, admit, exclusion, nativeOnly 없이 기술한다. | docs/operations/local-links.md(.ko.md), docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/check-documents.mts` | [o] |
 | K297 | extension 검사는 packages/php-ext의 working tree를 읽는다. 원인: lint-php-ext와 build-php-ext가 config.m4, stub, arginfo header를 tracked 파일에서만 읽어서, php-ext/src를 생성하고 Git이 무시하는 저장소(fsm)가 "the stub of the extension is missing"으로 실패했다. 인수 조건: tracked 파일과 함께 disk의 packages/php-ext 파일을 읽는다. 무시된 생성 source가 있는 fixture는 검사를 통과하고 그 안의 두 번째 stub은 finding이다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/php-ext.test.mts` | [o] |
+| K292 | make plan-split은 catch-all plan의 행을 plan folder로 옮긴다. 원인: K241이 catch-all plan을 금지하지만 checklist 사이에 행을 옮기는 utility가 없어서, 저장소가 plan을 손으로 나누며 행을 잃거나 번역을 깨뜨릴 위험이 있었다. 인수 조건: make plan-split FROM= TO= IDS=가 행을 sub-item과 함께 text를 바꾸지 않고 FROM의 checklist에서 TO의 checklist로, 한국어 쌍에서도 옮기고, TO가 없으면 TITLE과 TITLE_KO로 만들며, 모르는 item이나 부모와 떨어진 sub-item은 거부하고, 거부하면 아무것도 쓰지 않는다. | scripts/kit/plan.mts, scripts/kit/kit.mk, tests/kit/plan.test.mts, PRINCIPLES.md(.ko) | `node --test tests/kit/plan.test.mts` | [o] |

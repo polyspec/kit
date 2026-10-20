@@ -175,11 +175,14 @@ rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a che
 docs-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json; offline
 	$(NODE) $(KIT)/check-documents.$(KIT_EXT)
 
-.PHONY: plan-new item-new item-state item-test commit
+.PHONY: plan-new plan-split item-new item-state item-test commit
 
 # The plan utilities (plan.mts, K249) read their values from the environment, where make puts its command-line variables.
 plan-new: ## Write the plan NAME=<slug> into docs/plans/<slug>/ with TITLE and TITLE_KO: plan.md, checklist.md and their Korean twins; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) plan-new
+
+plan-split: ## Move the items IDS="<id> <id>" with their sub-items from the checklist of the plan FROM to the plan TO (made with TITLE and TITLE_KO when it does not exist), in both languages; offline
+	$(NODE) $(KIT)/plan.$(KIT_EXT) plan-split
 
 item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the waiting state, with TASK, TASK_KO, DELIVERABLES and VERIFICATION; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-new

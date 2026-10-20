@@ -106,7 +106,7 @@ repository.
 
 - A plan is the folder `docs/plans/<plan>/` with `plan.md`, `checklist.md` and their Korean twins. A checklist is one table
   with the columns ID, Task, Deliverables, Verification and State; an item ID is unique among the checklists, and a
-  sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them.
+  sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them, and `make plan-split` moves items to another plan.
   Enforced by: `make docs-check`
 - An item is `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item

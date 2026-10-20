@@ -20,9 +20,14 @@
 //              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
 //              commit-msg hook would refuse, and git commit runs the hooks again
 //
+//   plan-split FROM=<slug> TO=<slug> IDS="<id> <id>" [TITLE= TITLE_KO=]
+//              moves the rows of the items, with their text unchanged, from the checklist of FROM to the checklist of TO and
+//              in the Korean twins; TO is made with plan-new when it does not exist, and then needs TITLE and TITLE_KO. A
+//              sub-item moves with its parent. K241 forbids a catch-all plan, and this splits one
+//
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
@@ -147,6 +152,67 @@ function refuseAdded(root: string, trackers: Tracker[], files: Record<string, st
   const before = new Set(findings(current).map(key));
   const added = findings(name => files[name] ?? current(name)).filter(entry => !before.has(key(entry)));
   if (added.length) throw new Error(added.map(({ file, finding }) => `${file}: ${describeFinding(finding)}`).join('\n'));
+}
+
+/** The plan, the target and the items of a split. */
+export type PlanSplit = { from: string; to: string; ids: string[]; title: string | undefined; titleKo: string | undefined };
+
+/** `text` without the rows of the items `ids`, and those rows, in the order of the file. */
+function withoutRows(text: string, ids: ReadonlySet<string>): { text: string; moved: { id: string; row: string }[] } {
+  const lines = text.split('\n');
+  const taken = rowIds(text).filter(entry => ids.has(entry.id));
+  const moved = taken.map(entry => ({ id: entry.id, row: lines[entry.index] ?? '' }));
+  const indexes = new Set(taken.map(entry => entry.index));
+  return { text: lines.filter((_, index) => !indexes.has(index)).join('\n'), moved };
+}
+
+/**
+ * Moves the rows of the items `ids` from the checklist of the plan `from` to that of the plan `to`, and in the Korean twins, and
+ * returns the four files as { path: text }. Throws, writing nothing, when `from` is no plan, an item is not in it, a sub-item
+ * would be apart from its parent, `to` is `from`, a new `to` has no titles, or the checklists would fail the checks of docs-check.
+ */
+export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanSplit): Record<string, string> {
+  const config = loadConfig(root);
+  const source = trackersOf(config, workingPlanFiles(root)).find(entry => entry.path === `${PLANS}/${from}/checklist.md`);
+  if (!source) throw new Error(`${PLANS}/${from}/checklist.md is no checklist`);
+  if (from === to) throw new Error('FROM and TO name one plan; a split moves rows to another plan');
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const chosen = new Set(ids);
+  if (chosen.size === 0) throw new Error('IDS is empty; name the items to move, such as make plan-split IDS="K1 K2"');
+  const present = rowIds(read(source.path)).map(entry => entry.id);
+  for (const id of chosen) if (!present.includes(id)) throw new Error(`${id} is no item of ${PLANS}/${from}`);
+  for (const id of chosen) {
+    const parent = /^(.*)-[0-9]+$/.exec(id)?.[1];
+    if (parent !== undefined && present.includes(parent) && !chosen.has(parent)) throw new Error(`${id} moves without its parent ${parent}; name ${parent} too`);
+  }
+  for (const id of present) {
+    const parent = /^(.*)-[0-9]+$/.exec(id)?.[1];
+    if (parent !== undefined && chosen.has(parent) && !chosen.has(id)) throw new Error(`${id}, a sub-item of ${parent}, stays; a sub-item moves with its parent`);
+  }
+  const target = `${PLANS}/${to}/checklist.md`;
+  const created = !existsSync(path.join(root, PLANS, to));
+  if (created) {
+    required(title, 'TITLE');
+    required(titleKo, 'TITLE_KO');
+    newPlan(root, { name: to, title, titleKo });
+  }
+  try {
+    const trackers = trackersOf(config, workingPlanFiles(root));
+    const destination = trackers.find(entry => entry.path === target);
+    if (!destination) throw new Error(`${target} is no checklist`);
+    const files: Record<string, string> = {};
+    for (const [origin, goal] of [[source.path, destination.path], [source.translation, destination.translation]] as const) {
+      const { text, moved } = withoutRows(read(origin), chosen);
+      files[origin] = text;
+      files[goal] = moved.reduce((result, entry) => inserted(result, entry.id, entry.row), read(goal));
+    }
+    refuseAdded(root, trackers, files);
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
+    return files;
+  } catch (error) {
+    if (created) rmSync(path.join(root, PLANS, to), { recursive: true, force: true });
+    throw error;
+  }
 }
 
 // The states that an item in each state may move to: work starts, ends done, bypassed or impossible, or stops; a bypass
@@ -304,6 +370,9 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
+    } else if (command === 'plan-split') {
+      const split = { from: required(env.FROM, 'FROM'), to: required(env.TO, 'TO'), ids: required(env.IDS, 'IDS').split(/\s+/), title: env.TITLE, titleKo: env.TITLE_KO };
+      for (const file of Object.keys(splitPlan(root, split))) console.log(`[plan] moved ${split.ids.join(' ')} in ${file}`);
     } else if (command === 'item-test') {
       const id = required(env.ID, 'ID');
       console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
@@ -311,7 +380,7 @@ if (isMain(import.meta.url)) {
       const commit = { id: required(env.ID, 'ID'), type: required(env.TYPE, 'TYPE'), scope: required(env.SCOPE, 'SCOPE'), subject: required(env.SUBJECT, 'SUBJECT'), bodyFile: path.resolve(required(env.BODY_FILE, 'BODY_FILE')) };
       console.log(`[plan] committed ${commitItem(root, commit).split('\n')[0] ?? ''}`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, item-new, item-state, item-test or commit`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, plan-split, item-new, item-state, item-test or commit`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

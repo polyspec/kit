@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: b743ce68c25f31b72630dc681a87513263454f19eed9f36d489cfd153f555853 -->
+<!-- source-sha256: e074222b025008370de7f1631d581c30d924e99618e195efaa11883a632923c1 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -101,7 +101,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - plan은 `plan.md`, `checklist.md`와 그 한국어 짝을 가진 folder `docs/plans/<plan>/`이다. checklist는 ID, Task,
   Deliverables, Verification, State column을 가진 table 하나이다. item ID는 checklist 사이에서 유일하고, sub-item
-  `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓴다.
+  `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓰고, `make plan-split`이 item을 다른 plan으로 옮긴다.
   Enforced by: `make docs-check`
 - item은 `[ ]` waiting, `[~]` active, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
   `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. done item에 대한 새 발견은 그 자신의

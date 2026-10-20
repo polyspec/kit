@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3a844161cc63235441cec53631b34a6b8137495bb0952b6577f38b33c853d091 -->
+<!-- source-sha256: a442a8940a4920213e12a157df0fbe1476e39dc9619a245fd48fc0506298974f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make plan-split FROM= TO= IDS=`는 item의 행을 sub-item과 함께 text를 바꾸지 않고 한 plan의 checklist에서 다른 plan의 checklist로, 한국어 쌍에서도 옮기고, 대상 plan이 없으면 만들며, 거부하면 아무것도 쓰지 않는다(K292). Red: `splitPlan`이 없어서 `node --test tests/kit/plan.test.mts`가 실패했다. Green: 통과한다.
 - `make lint-php-ext`, `make build-php-ext`, `make php-ext-arginfo`는 tracked 파일과 함께 disk의 `packages/php-ext` 파일을 읽으므로, `src/`를 생성하고 Git이 무시하는 extension도 tracked와 똑같이 통과한다(K297). Red: `node --test --test-name-pattern=K297 tests/kit/php-ext.test.mts`가 `the stub of the extension is missing`으로 실패했다. Green: 통과한다.
 - 문서는 존재하는 규칙을 적는다(K291): local-links는 모든 개발이 끝나기 전에는 kit을 포함해 어떤 저장소에서도 릴리스, tag, 버전 올림을 하지 않으며 push는 아무것도 게시하지 않는다고 적고, tool-inventory의 language parity 절은 S6이 선언에서 없앤 profile, admit 목록, exclusion(R8), nativeOnly 항목, spec anchor를 더는 기술하지 않는다. Red: 본문이 이들을 기술했다. Green: `node scripts/kit/check-documents.mts`가 통과하고 절이 `parity.schema.json`을 따른다.
 - pyproject의 dependency array에 `[build-system] requires`가 포함되므로 `make dependency-review UPDATE=1`이 setuptools 같은 build requirement를 project의 것처럼 pin한다(K296). Red: `node --test --test-name-pattern=K296 tests/kit/pin-python-dependency.test.mts`가 setuptools의 exact pin이 없다며 실패했다. Green: 통과한다.
