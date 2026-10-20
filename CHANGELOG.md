@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- A worktree reads the installs of mise of the main checkout of its repository (`MISE_SHARED_INSTALL_DIRS`, set by `kit.mk`
+  and `miseEnvironment`), so its `make install` installs only the tools that the main checkout lacks, about 0.7 GB less for
+  each worktree; its data dir, state, shims and wrappers stay its own (K387).
 - The Python link takes the constraints of its install from the PEP 751 lock (`pylock.toml`) of a workspace that has no
   `uv.lock`, so a project locked that way, as orm is, is linked into the environment that its install made (K401).
 - The Unreleased entries of a changelog stay newest first through a rebase: `CHANGELOG.md` merges with the driver

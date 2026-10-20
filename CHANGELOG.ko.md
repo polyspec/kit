@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9ddcc8e2d5951f82017d3ffa39b26cdaf01a0e406e934c684b5baf980f24a2ba -->
+<!-- source-sha256: 466ff20506266b76729cd028bb304b756ebe226e66380cf9ffb5857a8f4f4323 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree는 그 저장소의 main checkout이 설치한 mise의 도구를 읽으므로(`kit.mk`와 `miseEnvironment`가 설정하는
+  `MISE_SHARED_INSTALL_DIRS`) `make install`은 main checkout에 없는 도구만 설치하고, worktree마다 약 0.7 GB를 덜 쓴다.
+  data dir, state, shim, wrapper는 자기 것으로 남는다(K387).
 - Python link는 `uv.lock`이 없는 workspace에서 PEP 751 lock(`pylock.toml`)으로 설치의 constraint를 얻으므로, orm처럼
   그렇게 lock한 project도 그 설치가 만든 환경에 링크된다(K401).
 - 변경 기록의 Unreleased 항목은 rebase 뒤에도 최신순으로 남는다. `CHANGELOG.md`는 driver `kit-changelog`로, 그 한국어
