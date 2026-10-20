@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 128d45624028cee0220e07b58c3fcc62c611ed26f02b76db512ebfe985b8ddee -->
+<!-- source-sha256: 4278884e9483ed23a9c87214cb973adbbc3339c1d1e88baf05a156d15fad9f0c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 저장소는 kit-sync가 복사하는 `config/commit-identity.json`에 commit identity를 선언하고, commit-msg 검사와
+  `commits-check`는 그와 다른 author나 committer를 거부하며(규칙 `commit-identity`) clone의 `git config user.name`과
+  `user.email`을 고칠 곳으로 적는다. AI identity 규칙(K265)은 남는다(K405).
 
 - `make land`는 branch와 main에서 실행한 gate의 출력을 비교하기 전에 시스템 임시 폴더 안의 모든 경로를 하나의 자리표시자로
   읽는다. 그래서 duplication-check가 실행마다 새 임시 폴더에 쓰는 jscpd 설정을 더는 새 finding으로 보지 않는다(K394-2).

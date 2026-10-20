@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The repository declares its commit identity in `config/commit-identity.json`, which kit-sync copies, and the commit-msg
+  check and `commits-check` refuse an author or committer other than it (rule `commit-identity`), naming
+  `git config user.name` and `user.email` of the clone as the fix; the rule of an AI identity (K265) stays (K405).
+
 - `make land` reads every path inside the temporary folder of the system as one placeholder before it compares the output
   of a gate on the branch and on main, so the jscpd configuration that duplication-check writes into a fresh temporary
   folder on each run is no longer taken for a new finding (K394-2).
