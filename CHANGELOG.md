@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The isolation test of kit reads the name of another repository only where it names the repository, as a package
+  (`polyspec/<name>`, `@polyspec/<name>`, `github.com/polyspec/<name>`) or a path segment (`../<name>/`), so the same
+  English word, such as the variable `template` of a link test, is no finding. Red: the test failed on kit main for
+  that variable; green: `node --test tests/kit/isolation.test.mts` passes (K361).
 - `make test-markers-check` leaves the skip of a fixture of one convention, a file in a folder `fixtures` or
   `testdata` or named `*_fixture_test.go`, `*.fixture.test.*`, `test_*_fixture.py` or `*FixtureTest.php`, since the
   skip of such a fixture is the behaviour that its test checks; a skip anywhere else, and any other marker of a

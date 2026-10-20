@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fea642f90cb4b3a48c2b31bfe3c4d235421cdf8421b6e4e4bd37409194a93063 -->
+<!-- source-sha256: feeba478cdc01ff6217cefd420d4f1c3d733f86532c497dbe96623d5cca2bb4d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 isolation test는 다른 저장소의 이름을 그 저장소를 가리키는 곳, 즉 package(`polyspec/<name>`,
+  `@polyspec/<name>`, `github.com/polyspec/<name>`)나 경로 segment(`../<name>/`)에서만 읽으므로 link test의 변수
+  `template` 같은 같은 영어 단어는 finding이 아니다. red: 그 변수 때문에 kit main에서 test가 실패했다. green: `node
+  --test tests/kit/isolation.test.mts`가 통과한다 (K361).
 - `make test-markers-check`는 하나의 규약을 따르는 fixture, 즉 `fixtures`나 `testdata` 폴더 안의 파일이나
   `*_fixture_test.go`, `*.fixture.test.*`, `test_*_fixture.py`, `*FixtureTest.php`라는 이름의 파일의 skip을 finding으로
   보지 않는다. 그런 fixture의 skip은 그 test가 검사하는 동작이기 때문이다. 그 밖의 skip과 fixture의 다른 marker는
