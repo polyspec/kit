@@ -95,8 +95,8 @@ export function extensionFindings(files: readonly string[], read: (file: string)
   return found;
 }
 
-/** A declaration that Reflection reads: a class or a function, a JSON value. */
-export type Declarations = { classes: Record<string, unknown>; functions: Record<string, unknown> };
+/** A declaration that Reflection reads: a class, a function or a constant, a JSON value. */
+export type Declarations = { classes: Record<string, unknown>; functions: Record<string, unknown>; constants: Record<string, unknown> };
 
 /** The differences of `extension` against `library` under the path `at`, each as `<path>: extension <a>, library <b>`. */
 function differences(at: string, extension: unknown, library: unknown): string[] {
@@ -112,18 +112,22 @@ function differences(at: string, extension: unknown, library: unknown): string[]
 /** The declarations of the JSON text `text` that reflection.php prints; throws on another value. */
 export function declarationsOf(text: string): Declarations {
   const value: unknown = JSON.parse(text);
-  if (!isJsonObject(value) || !isJsonObject(value.classes) || !isJsonObject(value.functions)) throw new Stop(`reflection.php printed no declarations: ${text.slice(0, 200)}`);
-  return { classes: value.classes, functions: value.functions };
+  if (!isJsonObject(value) || !isJsonObject(value.classes) || !isJsonObject(value.functions) || !isJsonObject(value.constants)) throw new Stop(`reflection.php printed no declarations: ${text.slice(0, 200)}`);
+  return { classes: value.classes, functions: value.functions, constants: value.constants };
 }
 
-/** The findings of the declarations of the extension against those that the library gives for the same names (S10). */
+/**
+ * The findings of the declarations of the extension against those that the library gives for the same names (S10). A constant
+ * is a finding when the library defines none of that name; its value is no part of the comparison (K338).
+ */
 export function declarationFindings(extension: Declarations, library: Declarations): string[] {
   const of = (kind: 'classes' | 'functions', label: string) => Object.entries(extension[kind]).flatMap(([name, declared]) => {
     const own = library[kind][name];
     if (own === null || own === undefined) return [`${label} ${name}: the extension registers it, and the PHP library declares none`];
     return differences(`${label} ${name}`, declared, own);
   });
-  return [...of('classes', 'class'), ...of('functions', 'function')];
+  const constants = Object.keys(extension.constants).flatMap(name => ((library.constants[name] ?? null) === null ? [`constant ${name}: the extension registers it, and the PHP library declares none`] : []));
+  return [...of('classes', 'class'), ...of('functions', 'function'), ...constants];
 }
 
 /**
@@ -242,14 +246,14 @@ export function declarations(root: string): string[] {
   const script = path.join(SYMBOLS, 'php', 'reflection.php');
   const extension = declarationsOf(run('php', ['-d', `extension=${library}`, script, 'extension', names.extension]));
   const request = path.join(root, OUTPUT, `names.${process.pid}.json`);
-  writeFileSync(request, JSON.stringify({ classes: Object.keys(extension.classes), functions: Object.keys(extension.functions) }));
+  writeFileSync(request, JSON.stringify({ classes: Object.keys(extension.classes), functions: Object.keys(extension.functions), constants: Object.keys(extension.constants) }));
   try {
-    const own: Declarations = { classes: {}, functions: {} };
+    const own: Declarations = { classes: {}, functions: {}, constants: {} };
     for (const folder of names.libraries) {
       const autoloader = packageVendorFile(root, folder, 'autoload.php');
       if (!autoloader) throw new Stop(`${folder} has no Composer autoloader, which the declarations of the library are read through: run composer install in ${folder}, or in the project that requires it`);
       const found = declarationsOf(run('php', [script, 'library', path.join(root, autoloader), request]));
-      for (const kind of ['classes', 'functions'] as const) {
+      for (const kind of ['classes', 'functions', 'constants'] as const) {
         for (const [name, declared] of Object.entries(found[kind])) if (declared !== null && declared !== undefined) own[kind][name] = declared;
       }
     }

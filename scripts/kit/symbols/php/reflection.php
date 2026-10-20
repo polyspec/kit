@@ -3,13 +3,14 @@
 declare(strict_types=1);
 
 // The declarations that Reflection reads at run time, as JSON on standard output, for the declaration test of a
-// PHP extension (php-extension.mts, S10): the classes and functions that a loaded extension registers, or the same
-// names as the PHP library declares them through its Composer autoloader. A class lists its kind, modifiers, parent,
+// PHP extension (php-extension.mts, S10): the classes, functions and constants that a loaded extension registers, or the
+// same names as the PHP library declares them through its Composer autoloader. A constant lists its value, or null when
+// the library defines none; the names of the constants are compared, not their values (K338). A class lists its kind, modifiers, parent,
 // interfaces, constants, public and protected properties and methods; a method or function its modifiers, return
 // type and parameters. A union type lists its members sorted, since the order of a declaration is no part of the type.
 //
 //   php reflection.php extension <extension name>
-//   php reflection.php library <autoload.php> <file of the JSON names {"classes": [...], "functions": [...]}>
+//   php reflection.php library <autoload.php> <file of the JSON names {"classes": [...], "functions": [...], "constants": [...]}>
 //
 // The file declares no symbol, so it is a script with side effects only (PSR-1).
 
@@ -110,7 +111,8 @@ $class = static function (ReflectionClass $class) use ($type, $callable): array 
     ];
 };
 
-$declarations = ['classes' => [], 'functions' => []];
+// The constants of the extension and of the library are read by name (K338): a constant that the library defines is declared.
+$declarations = ['classes' => [], 'functions' => [], 'constants' => []];
 $mode = $argv[1] ?? '';
 if ($mode === 'extension' && isset($argv[2])) {
     $extension = new ReflectionExtension($argv[2]);
@@ -119,6 +121,9 @@ if ($mode === 'extension' && isset($argv[2])) {
     }
     foreach ($extension->getFunctions() as $reflection) {
         $declarations['functions'][$reflection->getName()] = $callable($reflection);
+    }
+    foreach ($extension->getConstants() as $name => $value) {
+        $declarations['constants'][$name] = var_export($value, true);
     }
 } elseif ($mode === 'library' && isset($argv[2], $argv[3])) {
     require $argv[2];
@@ -130,12 +135,20 @@ if ($mode === 'extension' && isset($argv[2])) {
     foreach ($names['functions'] as $name) {
         $declarations['functions'][$name] = function_exists($name) ? $callable(new ReflectionFunction($name)) : null;
     }
+    foreach ($names['constants'] as $name) {
+        $declarations['constants'][$name] = defined($name) ? var_export(constant($name), true) : null;
+    }
 } else {
     fwrite(STDERR, "usage: php reflection.php extension <extension name> | library <autoload.php> <names.json>\n");
     exit(2);
 }
 ksort($declarations['classes']);
 ksort($declarations['functions']);
+ksort($declarations['constants']);
 // A map is an object in JSON also when it is empty, so an empty map never compares as a list.
-$declarations = ['classes' => (object) $declarations['classes'], 'functions' => (object) $declarations['functions']];
+$declarations = [
+    'classes' => (object) $declarations['classes'],
+    'functions' => (object) $declarations['functions'],
+    'constants' => (object) $declarations['constants'],
+];
 echo json_encode($declarations, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), "\n";

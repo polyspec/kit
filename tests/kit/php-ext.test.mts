@@ -68,9 +68,9 @@ test('an extension of a repository with libraries per component follows S10 when
 
 test('a declaration that differs from the library, or that the library lacks, is a finding', () => {
   const method = (returnType: string) => ({ static: false, returnType, parameters: [{ name: 'a', type: 'int' }] });
-  const extension = { classes: { 'A\\B': { kind: 'class', methods: { run: method('int') } } }, functions: { 'A\\f': method('int') } };
+  const extension = { classes: { 'A\\B': { kind: 'class', methods: { run: method('int') } } }, functions: { 'A\\f': method('int') }, constants: {} };
   assert.deepEqual(declarationFindings(extension, extension), []);
-  const library = { classes: { 'A\\B': { kind: 'class', methods: { run: method('string') } } }, functions: { 'A\\f': null } };
+  const library = { classes: { 'A\\B': { kind: 'class', methods: { run: method('string') } } }, functions: { 'A\\f': null }, constants: {} };
   assert.deepEqual(declarationFindings(extension, library), ['class A\\B methods run returnType: extension "int", library "string"', 'function A\\f: the extension registers it, and the PHP library declares none']);
 });
 
@@ -121,7 +121,7 @@ test('the build publishes the extension, which reports the version of its compos
   assert.deepEqual(Object.keys(registered.classes), ['Polyspec\\Demo\\Counter']);
   assert.deepEqual(Object.keys(registered.functions), ['Polyspec\\Demo\\add']);
   const names = path.join(root, 'var/names.json');
-  writeFileSync(names, JSON.stringify({ classes: Object.keys(registered.classes), functions: Object.keys(registered.functions) }));
+  writeFileSync(names, JSON.stringify({ classes: Object.keys(registered.classes), functions: Object.keys(registered.functions), constants: Object.keys(registered.constants) }));
   const declared = () => read([script, 'library', path.join(root, 'packages/php/autoload.php'), names]);
   assert.deepEqual(declarationFindings(registered, declared()), []);
   put(root, { 'packages/php/src/Demo.php': library('string') });
@@ -210,3 +210,16 @@ test('a repository without an extension passes the check, the build and the test
     assert.match(result.stdout, /the repository has no PHP extension/);
   }
 });
+
+test('the compare of test-php-ext fails on a class, function or constant that the extension registers outside the library (K338)', (t) => {
+  // The fixture registers one more class and one more constant in its MINIT, in the namespace Polyspec\Native, which the library does not have.
+  const extra = readFileSync(path.join(FIXTURE, 'polyspec_demo.c'), 'utf8').replace(
+    'counter_entry = register_class_Polyspec_Demo_Counter();',
+    'counter_entry = register_class_Polyspec_Demo_Counter();\n\t{ zend_class_entry extra; INIT_NS_CLASS_ENTRY(extra, "Polyspec\\\\Native", "Extra", NULL); zend_register_internal_class(&extra); }\n\tREGISTER_NS_LONG_CONSTANT("Polyspec\\\\Native", "EXTRA", 1, CONST_CS | CONST_PERSISTENT);',
+  );
+  const autoload = "<?php\n\nrequire __DIR__ . '/../src/Demo.php';\n";
+  const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php/vendor/autoload.php': autoload, 'packages/php-ext/src/polyspec_demo.c': extra });
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, built.stderr);
+  assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
