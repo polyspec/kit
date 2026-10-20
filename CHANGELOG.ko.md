@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f669fe458cbb0a6ee0cc2a0196d94658ee24d4f31c092e677227d3d903536654 -->
+<!-- source-sha256: 3e52dc1adde4a3e5b2d1df4693ddc4b8c6017b7e428bb38000763a3f88d541dd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer project가 linked인 동안 link lock이 checkout의 절대 폴더를 가진 path dist로 기록한 provider는 저장소의
+  path package가 아니라 review record와 비교되고 link로 판단되는(K328) linked 의존성이다. 상대 url의 path dist만
+  저장소의 package이다. red: fsm에서 `make link` 뒤처럼 `make dependency-policy-check`가
+  `packages/fixture-php/<절대 폴더>/composer.json is missing`으로 실패했다. green: `node --test
+  --test-name-pattern=K358 tests/kit/dependency-policy.test.mts`가 통과한다 (K358).
 - 결함이 lint finding 같은 kit-gates gate의 finding인 fix commit은 test 파일 대신 parent에서 그 gate의 red로
   증명된다. `make item-state`는 row가 `docs/plans` 밖에서 HEAD와 같은 tree에서 active가 될 때 Verification의 gate
   명령을 실행해 exit status를 `var/plan/<id>.json`에 기록하고, `make commit`은 실패한 gate마다

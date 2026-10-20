@@ -24,7 +24,7 @@ import picomatch from 'picomatch';
 import semver from 'semver';
 
 import { checkedFiles } from './tracked-files.mts';
-import { readComposerLock, readComposerManifest, readNpmLock, readNpmManifest, type NpmLock, type NpmLockEntry } from './manifests.mts';
+import { readComposerLock, readComposerManifest, readNpmLock, readNpmManifest, type ComposerPackage, type NpmLock, type NpmLockEntry } from './manifests.mts';
 import { readConfig } from './schema-validate.mts';
 import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
@@ -339,11 +339,14 @@ export function readState(root: string, policy: DependencyPolicy) {
     const linkLock = path.posix.join(path.posix.dirname(manifestPath), 'composer.link.lock');
     const composerLock = readComposerLock(root, existsSync(path.join(root, linkLock)) ? linkLock : lockPath);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
+    // A path dist of the repository has a url relative to the project; the link lock records a provider that the link installs with
+    // the absolute folder of its checkout, which is a linked dependency, judged by its link (K358).
+    const own = (entry: ComposerPackage | undefined): entry is Required<ComposerPackage> => entry?.dist?.type === 'path' && !path.isAbsolute(entry.dist.url);
     for (const kind of ['require', 'require-dev'] as const) {
       for (const [name, spec] of Object.entries(composer[kind] ?? {})) {
         if (PLATFORM_REQUIREMENT.test(name)) continue;
         const entry = locked.get(name);
-        if (entry?.dist?.type === 'path') {
+        if (own(entry)) {
           local.push({ ecosystem: 'composer', manifest: manifestPath, package: name, spec, kind, directory: entry.dist.url, lockVersion: entry.version, version: spec, name });
           continue;
         }
@@ -353,10 +356,10 @@ export function readState(root: string, policy: DependencyPolicy) {
     // The packages that a path repository of the root provides, which the lock records as path dist entries, are published
     // with their own requirements: those are first-party requirements of the root too, at the versions of the root lock
     // (K168). The package commits no lock; a requirement that is itself a path package is a package of this repository.
-    for (const item of [...locked.values()].filter(entry => entry.dist?.type === 'path')) {
+    for (const item of [...locked.values()].filter(entry => own(entry))) {
       const packageManifest = path.posix.join(path.posix.dirname(manifestPath), present(item.dist?.url, `the path of ${item.name}`), 'composer.json');
       for (const [name, spec] of Object.entries(readComposerManifest(root, packageManifest).require ?? {})) {
-        if (PLATFORM_REQUIREMENT.test(name) || locked.get(name)?.dist?.type === 'path') continue;
+        if (PLATFORM_REQUIREMENT.test(name) || own(locked.get(name))) continue;
         dependencies.push({ ecosystem: 'composer', manifest: packageManifest, package: name, kind: 'require', spec, version: locked.get(name)?.version ?? null, lock: lockPath });
       }
     }

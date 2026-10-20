@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- While a Composer project is linked, a provider that the link lock records as a path dist with the absolute folder of
+  its checkout is a linked dependency, compared with the review record and judged by its link (K328), not a path
+  package of the repository; only a path dist with a relative url is one. Red: `make dependency-policy-check` failed
+  with `packages/fixture-php/<absolute folder>/composer.json is missing`, as in fsm after `make link`; green: `node
+  --test --test-name-pattern=K358 tests/kit/dependency-policy.test.mts` passes (K358).
 - A fix commit whose defect is a finding of a gate of kit-gates, such as a lint finding, is proved by the red of the
   gate on its parent instead of a test file: `make item-state` runs the gate commands of the Verification of a row as
   it becomes active on a tree that equals HEAD outside `docs/plans` and records their exit statuses in

@@ -16,6 +16,7 @@ import { readNpmManifest } from '../../scripts/kit/manifests.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import { known } from './known.mts';
+import { tree } from './tree.mts';
 
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
@@ -127,6 +128,22 @@ test('while a project is linked the review record is compared with the versions 
   writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
   writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, packages: lock.packages.map(item => (item.name === first.package ? { ...item, version: '9.9.9' } : item)) }));
   assert.doesNotMatch(gate(root).stderr, /the lock holds/, 'with a link the link lock is compared');
+});
+
+// K358: the link lock records a provider that the link installs as a path dist with the absolute folder of its checkout: a linked
+// dependency, judged by its link and the record, never a path package of this repository.
+test('while a project is linked a provider path dist of the link lock is a linked dependency, not a package of this repository (K358)', (t) => {
+  const root = fixture(t);
+  const stub = stubRegistries(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = readConfig<{ packages: { name: string; version: string; dist?: unknown }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
+  const provider = tree(t, { 'packages/php/composer.json': JSON.stringify({ name: 'psr/log' }) });
+  writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
+  const linked = lock.packages.map(item => (item.name === 'psr/log' ? { ...item, dist: { type: 'path', url: path.join(provider, 'packages/php'), reference: 'abc' } } : item));
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, packages: linked }));
+  const result = gate(root, stub.env);
+  assert.doesNotMatch(result.stderr, /composer\.json is missing|packages\/fixture-php psr\/log/, 'the provider is no path package of the repository');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
 // K328: while a project is linked, a linked package is judged by its link; the registry comparison belongs to the batch release.
