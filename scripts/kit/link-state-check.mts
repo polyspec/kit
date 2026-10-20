@@ -116,7 +116,8 @@ function platformFindings(root: string, installed: readonly Installed[]): string
   return found;
 }
 
-const INSTALL = /\b(?:composer\s+install|npm\s+ci|uv\s+sync)\b/;
+// The tool named literally, or through its make variable such as $(COMPOSER) install (K349-1).
+const INSTALL = /\b(?:composer\s+install|npm\s+ci|uv\s+sync)\b|\$(?:\(COMPOSER(?:_BIN)?\)\s+install|\{COMPOSER(?:_BIN)?\}\s+install|\(NPM\)\s+ci|\{NPM\}\s+ci|\(UV\)\s+sync|\{UV\}\s+sync)\b/;
 const LINKS = /\blink\b/;
 // An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;

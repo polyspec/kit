@@ -94,6 +94,22 @@ test('a recipe that installs from a lock without the kit link step after it is a
   ]);
 });
 
+test('a recipe that installs through a make variable without the link step after it is a finding (K349-1)', () => {
+  const makefile = [
+    'a-install:', '\t$(COMPOSER) install', '',
+    'b-install:', '\t$(NPM) ci', '',
+    'c-install:', '\t${UV} sync --frozen', '',
+    'd-install:', '\t$(COMPOSER) install', '\t$(MAKE) link', '',
+    'e-install:', '\t$(NPM) ci', '\tnode kit link --siblings', '',
+    'f-install:', '\t${UV} sync --frozen', '\tnode kit link --siblings', '',
+  ].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile'], () => makefile), [
+    'Makefile:2: the recipe a-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:5: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:8: the recipe c-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+  ]);
+});
+
 // K375: a worktree that links its install directories to the main checkout runs the sources of the main checkout.
 test('an install directory that is a symbolic link, and a workspace package that resolves outside the checkout, are findings (K375)', (t) => {
   const other = tree(t, {});
