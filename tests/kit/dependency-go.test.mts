@@ -2,7 +2,7 @@
 // module proxy, the vulnerabilities that the code calls from govulncheck, and the install of govulncheck into var/tools.
 // go, govulncheck and the proxy are stubs.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -148,4 +148,34 @@ test('govulncheck scans the packages of each tracked Go module and never the tre
     { cwd: '', args: ['-format', 'sarif', '.'] },
     { cwd: 'packages/fixture-go', args: ['-format', 'sarif', '.'] },
   ]);
+});
+
+test('the advisory scan of a linked Go module runs with its go.work and a failed scan names its cause (K365)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  // A linked checkout: its module at the root holds a go.work beside its go.mod, which the go stub answers from its records.
+  writeFileSync(path.join(root, 'go.mod'), 'module example.com/kit-root\n\ngo 1.21\n\nrequire github.com/google/uuid v1.6.0\n');
+  cpSync(path.join(root, 'packages/fixture-go/go.sum'), path.join(root, 'go.sum'));
+  writeFileSync(path.join(root, 'main.go'), 'package main\n\nfunc main() {}\n');
+  writeFileSync(path.join(root, 'go.work'), 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
+  mkdirSync(path.join(root, 'packages/sibling'), { recursive: true });
+  writeFileSync(path.join(root, 'packages/sibling/go.mod'), 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
+  const stub = stubRegistries(t);
+  stub.registry(FIXTURE_REGISTRY);
+  const result = review(root, [], stub.env);
+  assert.doesNotMatch(result.stdout, /advisory query failed/);
+  const calls = govulncheckCalls(root);
+  assert.ok(calls.length > 0, result.stdout + result.stderr);
+  const log = readFileSync(path.join(root, 'var/tools/govulncheck-calls.log'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { cwd: string; gowork?: string });
+  assert.equal(log.find(call => call.cwd === realpathSync(root))?.gowork, path.join(realpathSync(root), 'go.work'));
+  // govulncheck of a module that does not compile prints the compiler's errors on stderr and exits 1.
+  writeFileSync(path.join(root, 'var/tools/mise/shims/govulncheck'), `#!/usr/bin/env node
+process.stderr.write('packages/fixture-go/main.go:3:2: undefined: uuid.Foo\\n');
+process.exit(1);
+`);
+  const failed = review(root, [], stub.env);
+  assert.equal(failed.status, 1, failed.stdout + failed.stderr);
+  assert.match(failed.stdout, /^\[dependency-review\] go\.sum: the advisory query failed: .*undefined: uuid\.Foo.*Fix: correct the cause that the output of the scan names \(a module that does not compile is fixed in its code or its link\), then run make dependency-review again\.$/m);
+  assert.doesNotMatch(failed.stdout, /when the advisory database answers/);
 });

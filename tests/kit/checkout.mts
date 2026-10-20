@@ -62,7 +62,7 @@ const { appendFileSync } = require('node:fs');
 const report = ${JSON.stringify(report)};
 if (process.argv.includes('-version')) console.log('Go: go1.27.0\\nScanner: govulncheck@v1.1.4\\nDB: https://vuln.go.dev');
 else {
-  appendFileSync(${JSON.stringify(path.join(root, 'var/tools/govulncheck-calls.log'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');
+  appendFileSync(${JSON.stringify(path.join(root, 'var/tools/govulncheck-calls.log'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2), gowork: process.env.GOWORK }) + '\\n');
   console.log(JSON.stringify(report, null, 2));
 }
 `);

@@ -91,7 +91,8 @@ type Answer<T> = { value: T; error?: undefined } | { error: string; value?: unde
 // `upToDate` is the judgement of composer outdated (its latest-status); kit compares the versions of the other ecosystems.
 type Latest = { latest: string | null; upToDate?: boolean; error?: undefined } | { error: string; latest?: undefined; upToDate?: undefined };
 // The advisories of a lock, or the message of the failure of its query; a message is never empty.
-type Audit = { advisories: Advisory[]; error?: undefined } | { error: string; advisories?: undefined };
+// A failed Go scan carries the fix of its own cause, when it has one (K365).
+type Audit = { advisories: Advisory[]; error?: undefined } | { error: string; fix?: string; advisories?: undefined };
 
 // The JSON of npm view, npm audit, go list -m, PyPI, composer outdated, cargo audit and composer audit, with the fields
 // that the review reads.
@@ -258,12 +259,22 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
  * goPackagePatterns that have a buildable file, by `go list -e`. A directory whose every file a build constraint excludes
  * is no package for `./...`, and govulncheck refuses it as a pattern, so it is dropped here.
  */
-export function goPackages(root: string, lock: string): { list: string[]; error?: undefined } | { error: string; list?: undefined } {
+export function goPackages(root: string, lock: string, env?: NodeJS.ProcessEnv): { list: string[]; error?: undefined } | { error: string; list?: undefined } {
   const patterns = goPackagePatterns(root, lock);
   if (patterns.length === 0) return { list: [] };
-  const answer = run('go', ['list', '-e', '-f', '{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', ...patterns], path.join(root, path.posix.dirname(lock)));
+  const answer = run('go', ['list', '-e', '-f', '{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', ...patterns], path.join(root, path.posix.dirname(lock)), undefined, env);
   return answer.error !== undefined ? answer : { list: answer.stdout.split('\n').filter(Boolean) };
 }
+
+// The environment of a Go scan of `lock` (K365): GOWORK names the go.work beside its go.mod, which the link writes, so the
+// scan compiles the linked modules; without a go.work the environment is the default.
+function goScanEnvironment(root: string, lock: string): NodeJS.ProcessEnv | undefined {
+  const work = path.join(root, path.posix.dirname(lock), 'go.work');
+  return existsSync(work) ? { ...process.env, GOWORK: work } : undefined;
+}
+
+// The fix of a failed Go scan: the output of the scan names the cause, which a module that does not compile has in its code or link.
+const GO_SCAN_FIX = 'correct the cause that the output of the scan names (a module that does not compile is fixed in its code or its link), then run make dependency-review again';
 
 /** The advisories of every lock: lock -> { advisories } or { error }. Each npm lock is audited in the directory it lies in. */
 function advisories(root: string, state: ReviewState): Map<string, Audit> {
@@ -336,9 +347,10 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       result.set(lock, { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.govulncheck.key} in mise.toml and run make install-tools` });
       continue;
     }
-    const packages = goPackages(root, lock);
+    const env = goScanEnvironment(root, lock);
+    const packages = goPackages(root, lock, env);
     if (packages.error !== undefined) {
-      result.set(lock, { error: packages.error });
+      result.set(lock, { error: packages.error, fix: GO_SCAN_FIX });
       continue;
     }
     const list = packages.list;
@@ -347,16 +359,16 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       result.set(lock, { advisories: [] });
       continue;
     }
-    const answer = run(command, ['-format', 'sarif', ...list], path.join(root, path.posix.dirname(lock)));
+    const answer = run(command, ['-format', 'sarif', ...list], path.join(root, path.posix.dirname(lock)), undefined, env);
     if (answer.error !== undefined) {
-      result.set(lock, { error: answer.error });
+      result.set(lock, { error: answer.error, fix: GO_SCAN_FIX });
       continue;
     }
     try {
       result.set(lock, { advisories: goAdvisories(parseJson<GovulncheckSarif>(answer.stdout, 'govulncheck-sarif.schema.json', `${command} -format sarif`)) });
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
-      result.set(lock, { error: error.message });
+      result.set(lock, { error: error.message, fix: GO_SCAN_FIX });
     }
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'composer')) {
@@ -419,7 +431,7 @@ export function review(root: string) {
     // advisories answers every lock of the state.
     const answer = present(audits.get(lock), 'audits.get(lock)');
     if (answer.error !== undefined) {
-      lines.push(`${lock}: the advisory query failed: ${answer.error}. Fix: run make dependency-review again when the advisory database answers`);
+      lines.push(`${lock}: the advisory query failed: ${answer.error}. Fix: ${answer.fix ?? 'run make dependency-review again when the advisory database answers'}`);
       for (const key of accepted.keys()) if (key.startsWith(`${lock} `)) used.add(key);
       continue;
     }
