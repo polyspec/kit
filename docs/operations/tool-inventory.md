@@ -550,6 +550,13 @@ Merged behaviors:
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
   and result lines reads both. `ok` passes, `expected failure` is a todo (no pass), `skipped` is skipped, `FAIL`, `ERROR` and `unexpected
   success` fail; a docstring line after the description keeps the id of the description. The runner applies the timeout.
+- Timeout and elapsed time per test, by language (K371): node --test has its own `--test-timeout` per test; go test's `-timeout` is
+  per test binary, so the runner applies the limit per test; cargo has no per-test timeout, so the runner applies it; PHPUnit's
+  `enforceTimeLimit` needs the pcntl extension and per-test attributes, so the runner applies it. python runs `runners/python.py`
+  (standard library only, no package in any environment): it runs unittest as `-m unittest -v` does, arms a signal timer per test
+  (`signal.setitimer`, started in `startTest`, cleared in `stopTest`) that fails a test with `the test outlived its timeout of <seconds>s`,
+  and prints the elapsed time of each test on its line (`ok (0.012s)`), which the parser reads with or without it. A `--module`
+  harness keeps `-m <module>`.
 - `--results <file>` (K18) writes the record of a run, passed or not, through a temporary file and a rename: the counts, every
   test as `{id, status, elapsedMs}` (`pass`, `fail`, `timeout` or `skip`), the tool, the elapsed time of the run and `inputs`,
   the `inputsDigest` of the `--inputs` paths (the `--cwd` directory by default) over the tracked and non-ignored files. The
@@ -558,8 +565,8 @@ Merged behaviors:
 
 Dropped behaviors:
 
-- Python `unittest` runs with signal timeouts (`test.py`): the `python` tool runs `python3 -m unittest` with the timeout of
-  the runner instead (K17).
+- Python `unittest` runs with signal timeouts in each test file (`test.py`): the `python` tool runs `runners/python.py` with the
+  timeout of each test (K17, K371), so the signal timer is kept in one runner and no test file sets it.
 - crudui's `recordSuiteRun` of a conformance record and its start of cargo through `run-rust-command.mjs`, template's
   `tools.mjs` entry of vitest, and hyper's `toolPath`: repository specific. The runner starts `cargo` and `go` from `PATH`
   (the Makefile puts `var/tools` first) and vitest from `node_modules/vitest/vitest.mjs`.

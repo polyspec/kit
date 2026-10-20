@@ -44,7 +44,7 @@ build: kit-build
 test: kit-test source-test
 lint: lint-ts lint-php lint-python lint-go
 
-kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the schemas and the symbol extractors without the vendor/ of kit-install-symbols-php; offline after npm ci
+kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist: the tools of scripts/kit as JavaScript (tsconfig.build.json), kit.mk, the runner of the python tests (K371), the schemas and the symbol extractors without the vendor/ of kit-install-symbols-php; offline after npm ci
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
 	cp scripts/kit/kit.mk dist.next/kit.mk
@@ -52,6 +52,7 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 	cp -R scripts/kit/php-library dist.next/php-library
 	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
 	cp -R scripts/kit/markers dist.next/markers
+	cp -R scripts/kit/runners dist.next/runners
 	if [ -d dist ]; then mv dist dist.old; fi
 	if mv dist.next dist; then rm -rf dist.old; else if [ -d dist.old ]; then mv dist.old dist; fi; exit 1; fi
 

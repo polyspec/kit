@@ -194,7 +194,8 @@ export function pythonEvents(sink: Sink): (data: string) => void {
   // The description line of a test with a docstring, which names the test whose outcome follows.
   let described: string | undefined;
   return startResultLines(sink, {
-    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*|expected failure|unexpected success)$/,
+    // The elapsed time that runners/python.py prints after the outcome (K371) is optional: a line with or without it reads the same.
+    result: /^(.+?) \.\.\. (ok|FAIL|ERROR|skipped\b.*?|expected failure|unexpected success)(?: \(\d+\.\d+s\))?$/,
     pending: /^(.+?) \.\.\. $/,
     // The words of the object are two of those that `result` matches; any other word is looked up as undefined.
     outcome: word => ({ ok: 'pass', 'expected failure': 'todo' } as Record<string, Outcome>)[word] ?? (word.startsWith('skipped') ? 'skip' : 'fail'),

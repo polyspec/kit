@@ -11,6 +11,7 @@
     { "paths": ["scripts/kit/toolchain-pins.json"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/toolchain-pins.mts"] },
     { "paths": ["scripts/kit/symbols/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/install-symbols.mts", "scripts/kit/php-extension.mts"] },
     { "paths": ["scripts/kit/markers/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/test-markers.mts"] },
+    { "paths": ["scripts/kit/runners/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/run-tests.mts"] },
     { "paths": ["scripts/kit/php-library/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/php-library-autoload.mts"] },
     { "paths": ["scripts/kit/twin-merge.mts"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/git-hooks.mts"] },
     { "paths": ["tests/kit/php-ext-fixture/**"], "tests": ["tests/kit/php-ext.test.mts"] },

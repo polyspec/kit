@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ee8dca35efcca6e12f5faa612edf8f659652378384a914c95a09dd204f894b33 -->
+<!-- source-sha256: ffd955127e4e69c8bb1ad500886cf5ec722440b0eb9b650a20cb2b684da72ed6 -->
 
 # 도구 목록
 
@@ -502,6 +502,12 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
   끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는
   pass, `expected failure`는 todo(통과가 아님), `skipped`는 skip, `FAIL`, `ERROR`, `unexpected success`는 fail입니다. description 뒤의 docstring 줄은
   description의 id를 유지합니다. timeout은 실행기가 적용합니다.
+- test별 timeout과 경과 시간(K371): node --test는 test별 `--test-timeout`을 가집니다. go test의 `-timeout`은 test binary별이라 실행기가
+  test별로 적용합니다. cargo는 test별 timeout이 없어 실행기가 적용합니다. PHPUnit의 `enforceTimeLimit`은 pcntl extension과 test별
+  attribute가 필요해 실행기가 적용합니다. python은 `runners/python.py`를 실행합니다(표준 라이브러리만 사용, 어떤 환경에도 package 불필요):
+  `-m unittest -v`와 같이 unittest를 실행하고, test마다 signal timer(`signal.setitimer`, `startTest`에서 시작하고 `stopTest`에서 해제)를
+  걸어 `the test outlived its timeout of <seconds>s`로 실패시키며, 각 test의 줄에 경과 시간(`ok (0.012s)`)을 씁니다. parser는 경과 시간이
+  있든 없든 읽습니다. `--module` harness는 `-m <module>`을 유지합니다.
 - `--results <file>`(K18)은 성공 여부와 관계없이 실행 기록을 임시 파일과 rename으로 씁니다. 기록은 count, 각 test의
   `{id, status, elapsedMs}`(`pass`, `fail`, `timeout`, `skip`), tool, 실행 경과 시간, 그리고 `--inputs` 경로(기본은 `--cwd`
   directory)의 추적 파일과 무시되지 않은 파일에 대한 `inputsDigest`인 `inputs`입니다. test 기록은 progress module이 하므로
@@ -509,8 +515,8 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 
 버린 동작:
 
-- signal timeout을 쓰는 Python `unittest` 실행(`test.py`): 대신 `python` tool이 실행기의 timeout으로 `python3 -m unittest`를
-  실행합니다(K17).
+- test 파일마다 signal timeout을 거는 Python `unittest` 실행(`test.py`): 대신 `python` tool이 test별 timeout으로
+  `runners/python.py`를 실행하여 signal timer가 실행기 한 곳에만 있습니다(K17, K371).
 - crudui의 conformance record를 쓰는 `recordSuiteRun`과 `run-rust-command.mjs`를 통한 cargo 시작, template의 `tools.mjs`
   vitest 진입점, hyper의 `toolPath`는 저장소 전용입니다. 실행기는 `cargo`와 `go`를 `PATH`에서 시작하고(Makefile이 `var/tools`를
   앞에 둠) vitest는 `node_modules/vitest/vitest.mjs`로 시작합니다.

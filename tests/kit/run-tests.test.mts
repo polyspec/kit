@@ -2,7 +2,7 @@
 // without a test, the file that registers no test or registers it late, and the parsers of the output of go, cargo and
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -171,7 +171,7 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
   assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: [tool(import.meta.resolve('../../scripts/kit/runners/python.py')), '--timeout', '7', 'discover', '-s', 'tests', '-v'] });
 });
 
 // Composer gives the vendor directory of the PHPUnit (K184): its folder `vendor`, COMPOSER_VENDOR_DIR, or config.vendor-dir.
@@ -513,12 +513,33 @@ test('python tests run through var/tools/mise/shims/python3, pass, fail and stop
   const hanging = pythonRoot(t, `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
   const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { root: hanging });
   assert.equal(hung.status, 1, hung.text);
-  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/python3 -m unittest`/);
+  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/python3 [^`]*runners\/python\.py --timeout`/);
 
   const empty = pythonRoot(t, `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
   const none = await inProcess(t, ['python', 'tests'], { root: empty });
   assert.equal(none.status, 1, none.text);
   assert.match(none.text, /no test ran/);
+});
+
+// The timeout of a unittest test is the runner's own (runners/python.py, K371): the slow test fails with its timeout well before its
+// sleep ends, the test that passes prints its elapsed time, and the run counts one failure and one pass. The stub is the python3
+// of the checkout; it runs the real interpreter of PATH, so the fixture is a real unittest run.
+test('a python test that outlives its timeout fails with its timeout, and each test prints its elapsed time (K371)', { timeout: 60_000 }, async (t) => {
+  const root = checkout(t, { 'tests/__init__.py': '', 'tests/test_clock.py': 'import time\nimport unittest\n\n\nclass Clock(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(5)\n\n    def test_fast(self):\n        pass\n' });
+  const python = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+  const stub = path.join(root, 'var/tools/mise/shims/python3');
+  mkdirSync(path.dirname(stub), { recursive: true });
+  writeFileSync(stub, `#!/bin/sh\nexec '${python}' "$@"\n`);
+  chmodSync(stub, 0o755);
+  const began = Date.now();
+  const result = await inProcess(t, ['python', '--timeout', '1', 'discover'], { root });
+  const elapsed = Date.now() - began;
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /✖ test_slow \(tests\.test_clock\.Clock\.test_slow\)/);
+  assert.match(result.text, /the test outlived its timeout of 1s/);
+  assert.match(result.text, /✔ test_fast \(tests\.test_clock\.Clock\.test_fast\) \(\d+\.\d+s\)/);
+  assert.match(result.text, /✖ python \. discover: 1 passed, 1 failed/);
+  assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
 });
 
 // A stopped tool leaves no process (K141): the runner starts the tool in its own process group and stops the whole group, at a

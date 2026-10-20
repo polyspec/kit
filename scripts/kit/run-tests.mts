@@ -16,7 +16,8 @@
 // symbolic links are accepted as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mts) makes such
 // an environment with `uv venv`.
 //
-// Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest). node and
+// Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest, through
+// runners/python.py, which gives each test its own timeout, K371). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
 // outlives it. No tool has a time
 // limit on a package, a file or a whole run.
@@ -32,7 +33,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
@@ -52,6 +53,8 @@ import { isFile, runnerWords, selects } from './test-selection.mts';
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
+// The runner of the python tests (K371): unittest with the timeout of each test and the elapsed time of each, standard library only.
+const PYTHON_RUNNER = fileURLToPath(new URL('./runners/python.py', import.meta.url));
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
 const ERROR_LINE = /^(?:error(?:\[\w+\])?:|fatal error:|panic:|PHP Fatal error:)/i;
@@ -182,8 +185,11 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
     }
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
-      // `discover` argument unittest would read `discover` as a test name.
-      return { command: venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3')), args: ['-m', module ?? 'unittest', ...args, '-v'] };
+      // `discover` argument unittest would read `discover` as a test name. The runner gives each test its own timeout (K371);
+      // a --module harness keeps `-m <module>`, whose tests run with the timeout of the runner of this script.
+      const interpreter = venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3'));
+      if (module !== undefined) return { command: interpreter, args: ['-m', module, ...args, '-v'] };
+      return { command: interpreter, args: [PYTHON_RUNNER, '--timeout', String(timeoutSeconds), ...args, '-v'] };
   }
   throw new Error(USAGE);
 }
