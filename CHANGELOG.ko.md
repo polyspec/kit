@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3dfae0a0f4002e53f9e6ca004b1c7c78248ab138019b9d05dbc4695dbfd563a2 -->
+<!-- source-sha256: 753a9e6cc69ece3e4c73fd3e0708031f7aeb44ec6febe77fffc4864e27a05264 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make build-php-ext`와 `make php-ext-arginfo`의 build 사본은 extension의 source(stub, config.h를 뺀 C와 header 파일, config.m4, config.w32, src/ 옆의 composer.json)만 담고 build folder나 산출물은 담지 않으므로, 무시된 src/에 남은 낡은 object나 module이 build되거나 게시될 수 없다(K302). Red: `node --test --test-name-pattern=K302 tests/kit/php-ext.test.mts`가 C가 compile되지 않는데도 extension을 built로 보고했다. Green: build가 실패하고 아무것도 게시하지 않는다.
 - `make rules-check`는 AGENTS.md를 구조로 읽는다(K300): PRINCIPLES.md의 각 규칙에는 id(P<n>, S<n>)가 있고, AGENTS.md의 각 규칙은 `Own:` 또는 `Refines <id>:`로 시작하며, 다듬는 규칙은 PRINCIPLES.md에 없는 기존 경로나 make target을 backtick으로 적는다. K279의 4단어 유사도는 제거했다. kit의 AGENTS.md와 한국어 쌍이 이를 따른다. Red: `node --test --test-name-pattern=K300 tests/kit/check-rules.test.mts`에서 짧은 되풀이 "Build modular components"에 finding이 없었다. Green: 통과한다.
 - spec의 requirement는 `**<id>**`로 시작하는 list item, 곧 글머리 기호(`-`, `*`, `+`)나 번호(`1.`, `1)`) 항목, 또는 heading으로 정의한다(K299). S6과 schema는 list item이라고 적는다. Red: `node --test --test-name-pattern=K299 tests/kit/parity-requirements.test.mts`가 `1. **AB-4**`에 R13을 찾지 못했다. Green: 통과한다.
 - `make test-python`은 `test_*.py`를 담고 `__init__.py`가 없는 Python package의 test directory를 더할 파일을 적어 거부한다. unittest는 directory를 package로만 discover하므로 그렇지 않으면 아무 test도 실행하지 않았다("no test ran")(K298). orm, template, crudui, hyper는 이미 test directory를 package로 만들었고 ordered-json이 파일을 더한다. Red: 바뀌지 않은 runner가 실행을 돌려주어 `node --test --test-name-pattern=K298 tests/kit/runtime-targets.test.mts`가 실패했다. Green: 통과한다.

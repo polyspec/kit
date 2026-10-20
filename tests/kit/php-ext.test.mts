@@ -4,7 +4,7 @@
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -145,6 +145,26 @@ test('the declarations of the extension are compared with the library that decla
   assert.deepEqual(declarations(root), []);
   put(root, { 'packages/generator/php/src/Adder.php': adder('string') });
   assert.deepEqual(declarations(root), ['function Polyspec\\Demo\\add returnType: extension "int", library "string"']);
+});
+
+test('the build copy holds the sources of the extension only, so a stale build product of src/ is never built (K302)', (t) => {
+  const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int') });
+  const source = path.join(root, 'packages/php-ext/src');
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(source, 'polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  // An in-place build of src/ leaves objects, a libtool library and modules/polyspec_demo.so, as a repository that builds there does.
+  for (const [command, args] of [['phpize', []], ['./configure', ['--enable-polyspec-demo']], ['make', []]] as const) {
+    const made = spawnSync(command, args, { cwd: source, encoding: 'utf8' });
+    assert.equal(made.status, 0, `${command}: ${made.stderr}`);
+  }
+  assert.ok(existsSync(path.join(source, 'modules/polyspec_demo.so')), 'the stale module');
+  // The C no longer compiles, and is older than the objects, so make would find them current.
+  const broken = path.join(source, 'polyspec_demo.c');
+  writeFileSync(broken, 'this is not C\n');
+  utimesSync(broken, new Date(0), new Date(0));
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 1, built.stdout);
+  assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'nothing is published');
 });
 
 test('arginfo configures the copy before it makes the header, so make has its Makefile (K290)', (t) => {

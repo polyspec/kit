@@ -156,6 +156,20 @@ function checked(root: string): ReturnType<typeof extensionNames> & { libraries:
   return { ...extensionNames(owner.repository), libraries: owner.libraries };
 }
 
+// What phpize, configure and make write into a folder that is built in place: a stale one in src/ must never reach a build (K302).
+const BUILD_FOLDERS = new Set(['modules', '.libs', 'build', 'autom4te.cache']);
+
+/**
+ * Whether the copy takes the file or folder `entry` of src/: the sources of the extension, which are its stub, its C and header
+ * files, config.m4 and config.w32; no folder of build products and no product (objects, libtool files, the module, Makefile,
+ * configure, config.h).
+ */
+function isSource(entry: string): boolean {
+  const name = path.basename(entry);
+  if (statSync(entry).isDirectory()) return !BUILD_FOLDERS.has(name);
+  return name === 'config.m4' || name === 'config.w32' || name.endsWith('.stub.php') || (/\.[ch]$/.test(name) && name !== 'config.h');
+}
+
 /**
  * A copy of the package of the extension in a new directory under var/php-ext: its composer.json beside src/, as in the package,
  * so that config.m4 reads the version of the package from ../composer.json (K295). src/ is prepared by phpize; returns the
@@ -167,7 +181,7 @@ function phpized(root: string, label: string): { work: string; source: string } 
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
   cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
-  cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true });
+  cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
   console.log(`[php-extension] phpize (${run('php-config', ['--version']).trim()})`);
   run('phpize', [], { cwd: source });
   return { work, source };
