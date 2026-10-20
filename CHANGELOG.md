@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- The mise state of a checkout trusts only its own `mise.toml`: `trustConfig` and `make install-tools` remove every other
+  entry of `var/tools/mise/state/trusted-configs` (a link to the home directory, to another checkout or to a removed
+  worktree), and `make link-state-check` names such an entry. A `mise trust` run with `MISE_GLOBAL_CONFIG_FILE` set trusts
+  the home directory, which then trusted every `mise.toml` under it (K397).
+
 - While a Composer project is linked, `make dependency-review UPDATE=1` writes each new range into the tracked
   `composer.json` too (`composer require --no-update` with the tracked manifest), as it writes it into
   `composer.link.json`; the tracked lock waits for the check of the release. Red: the range went only into the link

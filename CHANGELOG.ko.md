@@ -1,10 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7e718157d0d300c4f85214651dc1f012718ffc6cf5fa469a3cb2f648bb0da2f0 -->
+<!-- source-sha256: e5078c5eaea2c01d3419ac69aa4ac899fc828f8f07d2cd91c32d40b8200215b6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- checkout의 mise 상태는 자기 `mise.toml`만 신뢰한다. `trustConfig`와 `make install-tools`는
+  `var/tools/mise/state/trusted-configs`의 다른 항목(home 디렉터리, 다른 checkout, 지운 worktree로의 링크)을 모두 지우고,
+  `make link-state-check`는 그런 항목을 적어 실패한다. `MISE_GLOBAL_CONFIG_FILE`이 설정된 채 실행한 `mise trust`는 home
+  디렉터리를 신뢰해 그 아래의 모든 `mise.toml`을 신뢰하게 했다(K397).
 
 - Composer project가 linked인 동안 `make dependency-review UPDATE=1`은 `composer.link.json`에 쓰는 새 범위를 tracked
   `composer.json`에도 쓴다(tracked manifest로 `composer require --no-update`). tracked lock은 release 검사를 기다린다.
