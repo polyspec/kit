@@ -181,3 +181,29 @@ test('while linked UPDATE also declares the new range in the tracked composer.js
   assert.ok(calls.includes('composer require --no-update --no-interaction example/framework:^1.1.0'), calls.join('\n'));
   assert.equal(readFileSync(path.join(root, 'composer.lock'), 'utf8'), lockBefore, 'the tracked lock is untouched');
 });
+
+// K392-2: while linked, UPDATE also updates the tracked composer.lock of a package that is no polyspec package, lock only (no install);
+// a polyspec package keeps its tracked lock for the release check (K326).
+test('while linked UPDATE also updates the tracked lock of a package that is no polyspec package, lock only (K392-2)', (t) => {
+  const root = fixture(t);
+  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
+  const manifest = JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'polyspec/template': '^0.0.11', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } });
+  const lock = JSON.stringify({ ...MONOREPO_LOCK, packages: [...MONOREPO_LOCK.packages, { name: 'polyspec/template', version: '0.0.11', dist: { type: 'zip', url: 'https://example.com/template.zip' } }] });
+  writeFileSync(path.join(root, 'composer.json'), manifest);
+  writeFileSync(path.join(root, 'composer.lock'), lock);
+  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
+  writeFileSync(path.join(root, 'composer.link.json'), manifest);
+  writeFileSync(path.join(root, 'composer.link.lock'), lock);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const at = path.basename(root);
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'polyspec/template': '0.0.12', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  review(root, ['--update'], stub.env);
+  const calls = stub.calls();
+  const declared = calls.indexOf('composer require --no-update --no-interaction example/framework:^1.1.0');
+  assert.ok(declared >= 0, calls.join('\n'));
+  assert.ok(calls.indexOf('composer update --with-dependencies --no-install --no-interaction example/framework') > declared, calls.join('\n'));
+  assert.ok(calls.includes('composer require --no-update --no-interaction polyspec/template:^0.0.12'), calls.join('\n'));
+  assert.deepEqual(calls.filter(call => call.includes('--no-install') && call.includes('polyspec/')), [], calls.join('\n'));
+});

@@ -506,9 +506,13 @@ export function updatePlan({ newer, advisories: found, linked = () => false }: {
       const dev = dependency.kind === 'require-dev' ? ['--dev'] : [];
       if (directory === base) {
         plan.push({ command: 'composer', args: ['require', ...dev, '--update-with-dependencies', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
-        // While the project is linked, that step writes composer.link.json alone (K392-1): the tracked manifest declares the range too,
-        // and the tracked lock waits for the release check (K326).
-        if (linked(directory)) plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory, tracked: true });
+        // While the project is linked, that step writes composer.link.json alone (K392-1): the tracked manifest declares the range too.
+        // The next step moves the tracked lock of a package that is no polyspec package, lock only (K392-2); the tracked lock of a
+        // polyspec package waits for the release check (K326).
+        if (linked(directory)) {
+          plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory, tracked: true });
+          if (!dependency.package.startsWith('polyspec/')) plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-interaction', dependency.package], cwd: directory, tracked: true });
+        }
       } else {
         // A published package of a path repository has no lock: its manifest is changed alone, and its root updates the lock.
         plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
@@ -531,7 +535,12 @@ export function updatePlan({ newer, advisories: found, linked = () => false }: {
     if (lockEcosystem(lock) === 'go') plan.push({ command: 'go', args: ['get', ...[...packages].map(name => `${name}@latest`)], cwd: directory });
     else if (lockEcosystem(lock) === 'cargo') plan.push({ command: 'cargo', args: ['update', ...[...packages].flatMap(name => ['-p', name])], cwd: directory });
     else if (lockEcosystem(lock) === 'pypi') continue;
-    else plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', ...packages], cwd: directory });
+    else {
+      plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', ...packages], cwd: directory });
+      // A linked project also moves the tracked lock of each package that is no polyspec package, lock only, and the others wait.
+      const nonPolyspec = [...packages].filter(name => !name.startsWith('polyspec/'));
+      if (linked(directory) && nonPolyspec.length) plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-interaction', ...nonPolyspec], cwd: directory, tracked: true });
+    }
   }
   for (const directory of new Set(plan.filter(step => step.command === 'go').map(step => step.cwd))) plan.push({ command: 'go', args: ['mod', 'tidy'], cwd: directory });
   return plan;
