@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
+import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
@@ -978,9 +979,10 @@ function kitSandbox(t: TestContext): string {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-make-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   copyFileSync(path.join(KIT, 'Makefile'), path.join(dir, 'Makefile'));
-  mkdirSync(path.join(dir, 'scripts/kit/schema'), { recursive: true });
-  mkdirSync(path.join(dir, 'scripts/kit/symbols'), { recursive: true });
-  mkdirSync(path.join(dir, 'scripts/kit/php-library'), { recursive: true });
+  // Every folder that the build ships, as the Makefile names it (K421), so a folder that a later row adds to the build is there too.
+  for (const asset of shippedAssets(readFileSync(path.join(KIT, 'Makefile'), 'utf8'))) {
+    if (asset !== 'kit.mk') mkdirSync(path.join(dir, 'scripts/kit', asset), { recursive: true });
+  }
   copyFileSync(path.join(KIT, 'scripts/kit/kit.mk'), path.join(dir, 'scripts/kit/kit.mk'));
   return dir;
 }
