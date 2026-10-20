@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f342271d768458b0a8a81fbba762872bcc7e15250b4e7c8e93186a54e0048262 -->
+<!-- source-sha256: ac4628c1f1899d4b0aea6d5e11198b5fe1722d7fac0e41130a14c85345b1c4ea -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make lint-php`는 `autoload.files` 항목의 각 파일을 PHP parser로 읽고, S2가 요구하듯 namespace의 함수와 상수가 아닌
+  것이 있으면 파일과 줄을 적어 실패한다(K377).
 - docs-check는 kit 자신이나 consumer 옆의 kit checkout에서 읽은 kit의 checklist에 없는 kit item을 적은 checklist row를
   그 파일과 줄을 적어 실패시킨다(K374).
 - `make layout-check`는 Git이 무시하지 않는 install 폴더(`package.json` 옆의 `node_modules`, Composer project의 vendor, `var`,

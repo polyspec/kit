@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make lint-php` reads each file of an `autoload.files` entry with the PHP parser and fails, with file and line, on
+  anything but namespaced functions and constants, as S2 asks (K377).
 - docs-check fails, with its file and line, a checklist row that names a kit item that the checklists of kit do not hold,
   read from kit itself or from the kit checkout beside a consumer (K374).
 - `make layout-check` fails on an install directory that Git does not ignore (`node_modules` beside a `package.json`, the vendor
