@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d8a186a3ac860d64940a5abd702259326879fe50ba9bdca39ae759f28766d4d1 -->
+<!-- source-sha256: 2c626dd40d55d5435aaff5971219430d2fc171cc581a8869e2c9db896446fe5a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit이 쓰는 Composer project(`config/php-lint`, `config/phpunit`, symbol extractor)는 `composer.json`과 lock의 `platform-overrides`에서 `.php-version`의 minor에 patch 1을 붙인 PHP 8.4.1로 resolve한다(K322). Red: `node --test tests/kit/php-platform.test.mts`가 config/php-lint와 extractor project에서 `8.4`를 찾았다. Green: `8.4.1`을 찾는다.
 - suite `CHECK_TARGETS`는 `suiteTargets`가 `$(VAR)` 단어를 펼쳐서 읽으며, `kit-check`의 gate 검사와 owner 검사가 이를 쓴다(K321). Red: `node --test --test-name-pattern=K321 tests/kit/kit-check.test.mts`가 `$(MORE)`가 `docs-check`를 담는데도 빠졌다고 보고했다. Green: 아무것도 찾지 않는다.
 - `make link-state-check`는 kit이 쓰는 Composer project(`kit.copies`의 사본, `config/php-lint`, `config/phpunit`)를 제외하므로 그런 것만 가진 저장소는 Composer가 필요 없다(K320). Red: `node --test --test-name-pattern=K320 tests/kit/link-state-check.test.mts`가 없는 Composer 때문에 throw했다. Green: 아무것도 찾지 않는다.
 - `make lint-php`와 `make lint-python`은 PHP나 Python source가 없는 저장소에서 통과한다. 도구나 설정을 찾기 전에 step이 비어 있다(K319). Red: 문서만 있는 tree에서 `node --test tests/kit/lint-php.test.mts tests/kit/lint-python.test.mts`가 없는 도구 때문에 throw했다. Green: 둘 다 step 없이 돌아온다.

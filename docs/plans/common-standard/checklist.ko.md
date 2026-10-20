@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 20c6606a5d88567d490079c2a070ae8597e61fd3c3ef7998515ba2a86475d5e7 -->
+<!-- source-sha256: cf9bc177e657d38e372a4cc2729db8c55d5923268302cfb330e79844bd772080 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -106,3 +106,4 @@
 | K319 | PHP나 Python source가 없는 저장소는 lint-php와 lint-python을 통과한다. 원인: lintSteps가 source를 확인하기 전에 도구와 설정을 찾아서 PHP도 Python도 없는 ssr에서 kit-gates의 gate가 실패했다. 인수 조건: 추적되는 .php(stub 제외)나 .py 파일이 없으면 step은 비고 도구와 설정이 필요 없으며, K289는 이미 언어의 lint를 그 code를 가진 저장소에만 요구한다. | scripts/kit/lint-php.mts, scripts/kit/lint-python.mts, tests/kit/lint-php.test.mts, tests/kit/lint-python.test.mts | `node --test tests/kit/lint-php.test.mts tests/kit/lint-python.test.mts` | [o] |
 | K320 | link-state-check는 consumer의 Composer project만 읽는다. 원인: kit이 쓰는 config/php-lint와 config/phpunit project를 consumer project로 보고 Composer가 없으면 throw했다(ssr). 인수 조건: kit이 쓰는 composer.json은 consumer project가 아니며 그런 것만 가진 저장소는 Composer가 필요 없다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K321 | suite CHECK_TARGETS는  단어를 펼쳐서 읽는다. 원인: kit-check와 owner-check가 make -p가 출력한 원래 값을 나눠서  같은 단어가 target 이름이 되었고 그 뒤의 gate가 없다고 보고되었다(ssr). 인수 조건: suiteTargets가 database의 변수로 make 참조를 펼치고 kit-check가 그것으로 suite를 읽는다. | scripts/kit/owner-check.mts, scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
+| K322 | kit이 쓰는 Composer project는 하나의 PHP platform으로 resolve한다. 원인: config/php-lint와 symbol extractor project가 composer.json과 lock에 platform 8.4를 썼는데 K282는 다른 모든 곳에서 .php-version의 minor에 patch 1을 붙인 값(8.4.1)을 요구한다. 인수 조건: config/php-lint, config/phpunit, scripts/kit/symbols/php의 composer.json과 lock의 platform-overrides가 platform 8.4.1이다. | config/php-lint/composer.json, config/php-lint/composer.lock, scripts/kit/symbols/php/composer.json, scripts/kit/symbols/php/composer.lock, tests/kit/php-platform.test.mts | `node --test tests/kit/php-platform.test.mts` | [o] |

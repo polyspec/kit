@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The Composer projects that kit writes (`config/php-lint`, `config/phpunit`, the symbol extractor) resolve for PHP 8.4.1, the minor of `.php-version` with the patch 1, in `composer.json` and in the `platform-overrides` of the lock (K322). Red: `node --test tests/kit/php-platform.test.mts` found `8.4` in config/php-lint and in the extractor project; Green: it finds `8.4.1`.
 - The suite `CHECK_TARGETS` is read with its `$(VAR)` words expanded by `suiteTargets`, for the gate check of `kit-check` and for the owner check (K321). Red: `node --test --test-name-pattern=K321 tests/kit/kit-check.test.mts` reported `docs-check` missing although `$(MORE)` carried it; Green: it finds nothing.
 - `make link-state-check` leaves out the Composer projects that kit writes (the copies of `kit.copies`, `config/php-lint`, `config/phpunit`), so a repository with only those needs no Composer (K320). Red: `node --test --test-name-pattern=K320 tests/kit/link-state-check.test.mts` threw for the missing Composer; Green: it finds nothing.
 - `make lint-php` and `make lint-python` pass in a repository without PHP or Python sources: the steps are empty before any tool or configuration is looked up (K319). Red: `node --test tests/kit/lint-php.test.mts tests/kit/lint-python.test.mts` threw for the missing tools in a tree with documents only; Green: both return no step.
