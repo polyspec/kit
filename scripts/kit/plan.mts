@@ -42,6 +42,7 @@ import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
+import { privatePaths } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -160,26 +161,33 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 }
 
 /**
- * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), through the checks of
- * newItem; returns the two files as { path: text }. Throws, writing nothing, for an item that is no row, a done item (an item that is
- * done stays) and a cell that fails the checks of docs-check.
+ * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), or its Task cells, the
+ * English `task` and the Korean `taskKo` together (K373), through the checks of newItem; returns the two files as { path: text }.
+ * Throws, writing nothing, for an item that is no row, the Verification of a done item (an item that is done stays), a Task without
+ * its Korean twin and a cell that fails the checks of docs-check. The Task of a done item is corrected, since its words are no state.
  */
-export function editItem(root: string, { id, verification }: { id: string; verification: string | undefined }): Record<string, string> {
+export function editItem(root: string, { id, verification, task, taskKo }: { id: string; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined }): Record<string, string> {
+  if ((task === undefined) !== (taskKo === undefined)) throw new Error('item-edit takes TASK and TASK_KO together: the Korean twin holds the same information');
+  // Without a Task the Verification is edited, and an empty one is refused by its cell.
+  const editsVerification = verification !== undefined || task === undefined;
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
-  const replaced = (text: string) => {
+  const replaced = (text: string, taskText: string | undefined, taskName: string) => {
     const lines = text.split('\n');
     const index = lines.findIndex(line => line.startsWith(`| ${id} |`));
     const cells = (lines[index] ?? '').replace(/^\| /, '').replace(/ \|$/, '').split(' | ');
     if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
-    if (cells[4]?.startsWith(DONE)) throw new Error(`${id} is ${DONE}; from ${DONE} an item stays; a new finding is an item of its own`);
-    cells[3] = cell(verification, 'VERIFICATION');
+    if (editsVerification) {
+      if (cells[4]?.startsWith(DONE)) throw new Error(`${id} is ${DONE}; from ${DONE} an item stays; a new finding is an item of its own`);
+      cells[3] = cell(verification, 'VERIFICATION');
+    }
+    if (taskText !== undefined) cells[1] = cell(taskText, taskName);
     lines[index] = `| ${cells.join(' | ')} |`;
     return lines.join('\n');
   };
-  const files = restamped(root, { [tracker.path]: replaced(read(tracker.path)), [tracker.translation]: replaced(read(tracker.translation)) });
+  const files = restamped(root, { [tracker.path]: replaced(read(tracker.path), task, 'TASK'), [tracker.translation]: replaced(read(tracker.translation), taskKo, 'TASK_KO') });
   refuseAdded(root, trackers, files);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
@@ -195,7 +203,12 @@ function refuseAdded(root: string, trackers: Tracker[], files: Record<string, st
   const key = ({ file, finding }: FileFinding) => `${file}\0${finding.rule}\0${finding.message}`;
   let database: MakeDatabase | undefined;
   const make = () => (database ??= makeDatabase(root));
-  const findings = (read: (name: string) => string | undefined) => [...checklistsFindings(trackers, read), ...verificationFindings(trackers, read, make)];
+  // A path into a home directory is refused as docs-check refuses it (K373).
+  const privates = (read: (name: string) => string | undefined): FileFinding[] => trackers.flatMap(tracker => [tracker.path, tracker.translation]).flatMap((file) => {
+    const text = read(file);
+    return text === undefined ? [] : privatePaths(text).map(finding => ({ file, finding }));
+  });
+  const findings = (read: (name: string) => string | undefined) => [...checklistsFindings(trackers, read), ...verificationFindings(trackers, read, make), ...privates(read)];
   const before = new Set(findings(current).map(key));
   const added = findings(name => files[name] ?? current(name)).filter(entry => !before.has(key(entry)));
   if (added.length) throw new Error(added.map(({ file, finding }) => `${file}: ${describeFinding(finding)}`).join('\n'));
@@ -468,7 +481,7 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-edit') {
       const id = required(env.ID, 'ID');
-      for (const file of Object.keys(editItem(root, { id, verification: env.VERIFICATION }))) console.log(`[plan] edited the Verification of ${id} in ${file}`);
+      for (const file of Object.keys(editItem(root, { id, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO }))) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       // The done state needs the verification of the row to pass on the tree of the commit (K335).

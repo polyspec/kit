@@ -69,6 +69,11 @@ const position = (text: string, offset: number) => {
   return { line: before.length, column: present(before[before.length - 1], 'before[before.length - 1]').length + 1 };
 };
 
+/** The private-path findings of the document `text`: each path into a home directory, which the plan utilities refuse too (K373). */
+export function privatePaths(text: string): { line: number; column: number; rule: string; message: string }[] {
+  return [...text.matchAll(PRIVATE_PATH)].map(match => ({ ...position(text, match.index), rule: 'private-path', message: `the document holds the path ${match[0]} into a home directory; write a repository-relative path` }));
+}
+
 /** A finding of `file` as the line the command prints. */
 export const format = (file: string, found: DocumentFinding) => `${file}${found.line ? `:${found.line}${found.column ? `:${found.column}` : ''}` : ''}: ${found.rule}: ${found.message}`;
 
@@ -168,9 +173,7 @@ function pairFindings(root: string, config: DocumentsConfig, english: string, id
     const read1 = links(present(texts[file], 'texts[file]')); // The texts and the lists hold each file of the pair.
     for (const problem of read1.problems) add(file, { ...problem, rule: 'link' });
     for (const link of read1.links) for (const entry of linkFindings(root, config, file, link, read)) add(file, entry);
-    for (const match of present(texts[file], 'texts[file]').matchAll(PRIVATE_PATH)) { // The texts and the lists hold each file of the pair.
-      add(file, { ...position(present(texts[file], 'texts[file]'), match.index), rule: 'private-path', message: `the document holds the path ${match[0]} into a home directory; write a repository-relative path` }); // The texts and the lists hold each file of the pair.
-    }
+    for (const finding of privatePaths(present(texts[file], 'texts[file]'))) add(file, finding); // The texts and the lists hold each file of the pair.
     if (matchesAny(config.interpolation ?? [], english)) {
       const { fenced } = present(fences[files.indexOf(file)], 'fences[files.indexOf(file)]'); // The texts and the lists hold each file of the pair.
       present(texts[file], 'texts[file]').split('\n').forEach((line, index) => { // The texts and the lists hold each file of the pair.

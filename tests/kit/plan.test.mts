@@ -408,3 +408,23 @@ test('item-state fails naming kit-gates when a Verification runs make <target> a
   assert.throws(() => setState(root, { id: 'T1', state: '[~]' }, () => {}), /declares no kit-gates/);
   setState(root, { id: 'T2', state: '[~]' }, () => {});
 });
+
+// K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
+test('item-new refuses a private path, and item-edit replaces the Task cells of a row in any state (K373)', (t) => {
+  const root = committed(t, 'T1');
+  const english = 'docs/plans/parser/checklist.md';
+  const korean = 'docs/plans/parser/checklist.ko.md';
+  const kept = rows(root, english);
+  assert.throws(() => newItem(root, item('parser', 'T2', { task: 'Read /Users/someone/x.txt' })), /the path \/Users\/someone\/ into a home directory/);
+  assert.deepEqual(rows(root, english), kept, 'nothing is written');
+  assert.throws(() => editItem(root, { id: 'T1', task: 'New task' }), /TASK and TASK_KO together/);
+  editItem(root, { id: 'T1', task: 'New task', taskKo: '새 작업' });
+  assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | New task | `a.mts` | `node --test a.test.mts` | [ ] |', '| T1 | 새 작업 | `a.mts` | `node --test a.test.mts` | [ ] |']);
+  assert.throws(() => editItem(root, { id: 'T1', task: 'See /home/someone/y', taskKo: '보기' }), /the path \/home\/someone\/ into a home directory/);
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Task (T1).\n`);
+  setState(root, { id: 'T1', state: '[o]' }, () => {});
+  editItem(root, { id: 'T1', task: 'Done task', taskKo: '끝난 작업' });
+  assert.equal(rows(root, english)[0], '| T1 | Done task | `a.mts` | `node --test a.test.mts` | [o] |', 'the Task of a done item is corrected');
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`' }), /T1 is \[o\]/, 'the Verification of a done item stays');
+});
