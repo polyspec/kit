@@ -346,6 +346,24 @@ test('a relink keeps the versions that the link lock holds for the packages that
   assert.equal(versionOf('psr/log'), '3.0.1', 'the relink keeps the link lock, not the tracked composer.lock');
 });
 
+// K392-3: link finds a Composer project linked from its installed vendor and runs no update, so it writes the link files that it lacks.
+test('a Composer project that link finds linked from its installed vendor gets its link manifest and lock (K392-3)', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }, { name: 'psr/log', version: '3.0.0' }] }) });
+  linkLines([consumer], env);
+  // The vendor holds the provider as a link to its checkout, and the project has no link files: the state before link wrote them.
+  rmSync(path.join(consumer, 'composer.link.json'));
+  rmSync(path.join(consumer, 'composer.link.lock'));
+  const relinked = linkLines([consumer], env);
+  assert.equal(relinked.ok, true, relinked.text);
+  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), true, 'the link manifest is written');
+  assert.equal(readFileSync(path.join(consumer, 'composer.link.lock'), 'utf8'), readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), 'the link lock is the tracked lock');
+  rmSync(path.join(consumer, 'composer.link.lock'));
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, false, checked.text);
+  assert.match(checked.text, /NOT linked composer polyspec\/y \(no composer\.link\.lock in /);
+});
+
 // K330: Composer reads repositories only from the root manifest, so the link writes those of a linked package into composer.link.json.
 test('the repositories that a linked package declares are written into composer.link.json (K330)', (t) => {
   const { provider, consumer, env } = workspace(t);

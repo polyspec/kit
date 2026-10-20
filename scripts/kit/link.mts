@@ -382,6 +382,21 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
   return { ...manifest, repositories };
 }
 
+/**
+ * K392-3: writes the link files that a linked project lacks, as the link run writes them: the manifest of its linked folders
+ * (linkManifest), and the link lock as a copy of the tracked lock. A file that exists is kept. Without a tracked lock nothing is
+ * written, and the project is reported NOT linked.
+ */
+function writeMissingLinkFiles(work: Run, top: string, project: string, linked: { name: string; folder: string }[], lock: string) {
+  const missing = COMPOSER_LINK_FILES.filter(name => !existsSync(path.join(project, name)));
+  const [first] = linked;
+  if (missing.length === 0 || first === undefined) return;
+  if (!existsSync(lock)) { unlinkable(work, 'composer', first.name, `no composer.lock in ${project}`); return; }
+  excludeComposerLinkFiles(top);
+  if (missing.includes(COMPOSER_LINK_FILES[0])) writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, linked, lockedVersions(lock)), null, 4)}\n`);
+  if (missing.includes(COMPOSER_LINK_FILES[1])) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
+}
+
 function linkComposer(work: Run, consumer: Consumer) {
   if (!consumer.manifests('composer').length) return;
   const composer = consumerTool(consumer.top, 'composer', work.env);
@@ -423,7 +438,12 @@ function linkComposer(work: Run, consumer: Consumer) {
     for (const item of existsSync(folder) ? readdirSync(folder) : []) {
       if (!recorded.has(path.join(folder, item))) unlinkable(work, 'composer', `polyspec/${item}`, `a plain copy that Composer does not record: ${path.join(folder, item)}`);
     }
-    if (work.check) continue;
+    if (work.check) {
+      // A project linked from its vendor that lacks a link file is reported, as the next link run writes the file (K392-3).
+      const [first] = linkedNow;
+      for (const name of COMPOSER_LINK_FILES) if (first !== undefined && !existsSync(path.join(project, name))) unlinkable(work, 'composer', first.name, `no ${name} in ${project}`);
+      continue;
+    }
     // Composer installs the linked folders itself (K304-1): a path repository with `symlink` in a git-ignored composer.link.json,
     // a copy of the lock beside it, and a partial update of the polyspec packages and the project's own path packages only, so
     // the record, the autoload rules and the platform check come from the composer.json of each folder, the versions are
@@ -432,7 +452,11 @@ function linkComposer(work: Run, consumer: Consumer) {
     // Composer resolves the whole partial update at once, so the folders that are already linked stay in it: a package of the project
     // that requires one of them is resolved against the folder, not against the release that the lock recorded.
     const ownTargets = ownPathPackages(project).filter(name => names.has(name) && !toLink.some(item => item.name === name) && !linkedNow.some(item => item.name === name));
-    if (toLink.length === 0 && ownTargets.length === 0) continue;
+    // A project that link finds linked from its vendor runs no composer update, so the link files that it lacks are written here (K392-3).
+    if (toLink.length === 0 && ownTargets.length === 0) {
+      if (linkedNow.length > 0) writeMissingLinkFiles(work, consumer.top, project, linkedNow, lock);
+      continue;
+    }
     if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
     const all = [...toLink.map(item => ({ name: item.name, folder: item.folder })), ...linkedNow];
     const targets = [...all.map(item => item.name), ...ownTargets];
