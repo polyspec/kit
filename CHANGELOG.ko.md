@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a245e3cfd4119889e67177ec50a87a1c08c8a723cc0bced24fd903a75081f91d -->
+<!-- source-sha256: a110d2c0a49d94f5c749e8a727a382d76c55cfe1d832766b8e046d620e15d905 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 linked로 보고하는 모든 Composer project의 link manifest와 lock을 쓰며, 설치된 vendor로 linked인 project도 그렇다.
+  링크된 project에 그것이 없는 동안 `link check`는 실패하므로, dependency-review는 링크된 project를 링크되지 않은 것으로
+  보지 않는다(K392-3).
 - `dependency-policy-check`는 tracked Composer lock의 각 package를 그 `composer.json`의 `config.platform`의 `php`와
   `ext-*`로 검사하고, platform이 요구를 채우지 못하는 package를 적는다(K415).
 - `link check`는 consumer module의 go.work가 쓰는 module을 그 go.work에서 읽으므로, tracked workspace의 다른 module을

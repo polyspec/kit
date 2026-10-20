@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The link writes the link manifest and lock of every Composer project that it reports linked, also of one that it finds
+  linked from its installed vendor, and `link check` fails while a linked project lacks them, so dependency-review never
+  takes a linked project for unlinked (K392-3).
 - `dependency-policy-check` checks each package of a tracked Composer lock against the `php` and `ext-*` of the
   `config.platform` of its `composer.json`, and names a package whose requirement the platform does not meet (K415).
 - `link check` reads the modules that the go.work of a consumer module uses from that go.work, so a module of a tracked
