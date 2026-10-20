@@ -13,6 +13,8 @@
 //                    that the commit adds is not a change, so a commit may add items and sub-items
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
+//   commit-deleted-test a commit that deletes a test file has a line `Replaced-By: <path>` that names a tracked test file
+//                    of its tree, the test that covers the same requirement (K339)
 //   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
 //   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
 //                    declares (K405)
@@ -65,7 +67,7 @@ export type CommitMessage = { id: string; message: string; author?: string; comm
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
  * files at both sides.
  */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined; changedLines?: (file: string) => number[] };
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined; changedLines?: (file: string) => number[]; deleted?: string[]; tracked?: (file: string) => boolean };
 
 
 // A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
@@ -244,7 +246,7 @@ export function changesATest(file: string, after: (file: string) => string, chan
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [] }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
   const changes = [];
   for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
@@ -273,8 +275,15 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates that the Verification of its row runs, with the red of the gate on the parent: make item-state records it as the item becomes active on a clean tree, and make commit writes it as a Red-Gate line of the commit that moves the item to done (K357)` });
     }
   }
+  // A commit that deletes a test file names the test that replaces it, one that covers the same requirement (K339).
+  if (message !== undefined && deleted.length > 0 && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
+    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement; add a line Replaced-By: <path of a tracked test file that covers the same requirement> (${TEST_FILES})` });
+  }
   return found;
 }
+
+// Whether `file` is a tracked file of the revision `rev` (`''` is the index): the exact path, not a pattern that the path names.
+const trackedAt = (root: string, rev: string, file: string) => (rev === '' ? git(root, 'ls-files', '--cached') : git(root, 'ls-tree', '-r', '--name-only', rev)).split('\n').includes(file);
 
 // The empty tree of git, the parent of a root commit (K370).
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
@@ -290,6 +299,8 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
     message,
     parent: parent ? git(root, 'rev-parse', parent).trim() : undefined,
     changedLines: file => changedLineNumbers(git(root, 'diff', '-U0', parent ?? EMPTY_TREE, id, '--', file)),
+    deleted: git(root, 'diff-tree', '--no-commit-id', '--name-only', '--no-renames', '--diff-filter=D', '-r', id).split('\n').filter(isTestFile),
+    tracked: file => trackedAt(root, id, file),
   });
 };
 
@@ -304,6 +315,8 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     message,
     parent: head ? git(root, 'rev-parse', 'HEAD').trim() : undefined,
     changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', '--', file)),
+    deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D').split('\n').filter(isTestFile),
+    tracked: file => trackedAt(root, '', file),
   });
 }
 

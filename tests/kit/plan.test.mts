@@ -1,7 +1,7 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
@@ -344,6 +344,43 @@ test('item-state refuses a bypassed or impossible state whose cause cites a rele
     assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
   }
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
+});
+
+test('blocked and dropped refuse an excuse that cites no kit row, and a deleted test needs Replaced-By (K339)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  newItem(root, item('parser', 'T2'));
+  setState(root, { id: 'T1', state: '[~]' });
+  setState(root, { id: 'T2', state: '[~]' });
+  for (const cause of ['waits for the next release', 'the version tag v1.2.0', 'not reproducible here', 'a flaky test', 'a transient network failure', 'unrelated to this item', 'the environment of the runner']) {
+    assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
+    assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause, causeKo: '원인' }), /no cause that closes an item/, cause);
+  }
+  assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'the version tag v1.2.0', causeKo: '원인' }), /cites "version tag"/);
+  setState(root, { id: 'T1', state: '[!]', cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '나중' });
+  setState(root, { id: 'T2', state: '[-]', cause: 'unrelated to K392-2', causeKo: '원인' });
+
+  const repo = committed(t, 'T1');
+  const runGit = (...args: string[]) => {
+    const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: repo, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout;
+  };
+  put(repo, { 'tests/a.test.mts': 'test;\n', 'tests/b.test.mts': 'test;\n', 'tests/c.test.mts': 'test;\n' });
+  runGit('add', '-A');
+  runGit('commit', '--quiet', '--no-verify', '-m', 'Add the tests');
+  const message = 'refactor(parser): Drop the old test (#T1)\n\nThe test of a is covered elsewhere.\n';
+  rmSync(path.join(repo, 'tests/a.test.mts'));
+  stage(repo, '-A');
+  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, message).map(found => found.rule), ['commit-deleted-test']);
+  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, `${message}Replaced-By: tests/missing.test.mts\n`).map(found => found.rule), ['commit-deleted-test']);
+  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, `${message}Replaced-By: tests/b.test.mts\n`), []);
+  runGit('commit', '--quiet', '--no-verify', '-m', message);
+  rmSync(path.join(repo, 'tests/b.test.mts'));
+  stage(repo, '-A');
+  runGit('commit', '--quiet', '--no-verify', '-m', 'refactor(parser): Drop the other test (#T1)\n\nThe test of b is covered elsewhere.\nReplaced-By: tests/c.test.mts\n');
+  assert.deepEqual(rangeFindings(repo, 'HEAD~1..HEAD', COMMIT_RULES), [], 'a deletion that names a tracked test passes');
+  assert.match(rangeFindings(repo, 'HEAD~2..HEAD~1', COMMIT_RULES).join('\n'), /: commit-deleted-test: /, 'a range refuses a deletion without Replaced-By');
 });
 
 // The kit.mk of the installed kit in a consumer, which its Makefile includes (K357-1).
