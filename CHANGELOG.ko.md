@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: afa86dadb68d5c23915d25c732126b6b3e26b956780796b6d1bfa84437099010 -->
+<!-- source-sha256: de695b7d7b75cc28fbf570e17848b92e3a029be9c38fbf39cec79f374bdc3154 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `commits-check`는 ref에 점이 있는 범위를 받으므로, `make land`는 `chore/kitsync-T2.60`처럼 점이 있는 row id의 branch를
+  land한다. 점 세 개, 빈 쪽, 점으로 시작하거나 끝나는 쪽은 계속 거부한다(K402).
 
 - `kit.mk`와 `miseEnvironment`는 `MISE_GLOBAL_CONFIG_ROOT`를 checkout으로 설정한다. `MISE_GLOBAL_CONFIG_FILE`이 설정되어
   있으면 `mise install`은 global config의 root(기본값은 home 디렉터리)의 trust를 기록하므로, `make install-tools`가 K397이

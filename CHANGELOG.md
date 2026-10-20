@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `commits-check` takes a range whose refs hold a dot, so `make land` lands the branch of a row id with a dot, such as
+  `chore/kitsync-T2.60`; three dots, an empty side and a side that starts or ends with a dot stay refused (K402).
+
 - `kit.mk` and `miseEnvironment` set `MISE_GLOBAL_CONFIG_ROOT` to the checkout: with `MISE_GLOBAL_CONFIG_FILE` set,
   `mise install` records the trust of the root of the global config, the home directory by default, so `make install-tools`
   wrote the home entry again right after K397 removed it (K397-1).
