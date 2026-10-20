@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The dependency arrays of a pyproject include `[build-system] requires`, so `make dependency-review UPDATE=1` pins a build requirement such as setuptools like a project one (K296). Red: `node --test --test-name-pattern=K296 tests/kit/pin-python-dependency.test.mts` failed with no exact pin of setuptools; Green: it passes.
 - `make build-php-ext` and `make php-ext-arginfo` work in a copy that keeps `composer.json` beside `src/`, so `config.m4` reads the version of the package from `../composer.json`, the one source of the version (K295) in S10. Red: `node --test tests/kit/php-ext.test.mts` failed because `phpversion()` of the built fixture was empty, not the 1.2.3 of its composer.json; Green: it passes.
 - `make php-ext-arginfo` runs ./configure in the copy before it makes the header, since the rule of the header lies in the Makefile that configure writes (K290). Red: `node --test --test-name-pattern=K290 tests/kit/php-ext.test.mts` failed with `make: *** No rule to make target polyspec_demo_arginfo.h`; Green: it passes.
 - `make rebuild-check` excludes the vendored copies that the installed kit lists (`node_modules/@polyspec/kit/package.json` kit.copies, as kit-check reads them), not the kit.copies of the consumer's own package.json, which has none (K294). Red: `node --test --test-name-pattern=K294 tests/kit/rebuild-check.test.mts` failed with the copies listed as tool sources; Green: it passes.

@@ -5,7 +5,7 @@
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 
 /** The kind of a dependency array: `dependencies` of [project], an extra or a dependency group. */
-export type DependencyArrayKind = 'dependencies' | `optional:${string}` | `group:${string}`;
+export type DependencyArrayKind = 'dependencies' | 'build-system' | `optional:${string}` | `group:${string}`;
 
 /** A dependency array of a pyproject.toml: its kind, its TOML key and its items, as the document holds them. */
 export type DependencyArray = { kind: DependencyArrayKind; where: string; list: unknown[] };
@@ -30,6 +30,12 @@ function array(value: unknown, where: string, manifest: string): unknown[] {
 export function dependencyArrays(document: Record<string, unknown>, manifest: string): DependencyArray[] {
   const project = table(document['project'], 'project', manifest);
   const arrays: DependencyArray[] = [];
+  // The requirements of the build backend are pinned and updated like the others (K296).
+  const build = document['build-system'];
+  if (build !== undefined) {
+    const requires = table(build, 'build-system', manifest)['requires'];
+    if (requires !== undefined) arrays.push({ kind: 'build-system', where: 'build-system.requires', list: array(requires, 'build-system.requires', manifest) });
+  }
   if (project['dependencies'] !== undefined) arrays.push({ kind: 'dependencies', where: 'project.dependencies', list: array(project['dependencies'], 'project.dependencies', manifest) });
   for (const [extra, list] of Object.entries(table(project['optional-dependencies'], 'project.optional-dependencies', manifest))) {
     const where = `project.optional-dependencies.${extra}`;

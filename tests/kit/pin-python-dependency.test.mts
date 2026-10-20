@@ -46,3 +46,10 @@ test('a package that no dependency array pins exactly fails', () => {
   assert.throws(() => pinPythonRequirement(PYPROJECT, 'urllib3', '2.0'), /no exact pin of urllib3 in the dependency arrays/);
   assert.throws(() => pinPythonRequirement('[project]\ndependencies = ["idna>=3"]\n', 'idna', '3.20'), /no exact pin of idna in the dependency arrays/);
 });
+
+test('an exact pin in [build-system] requires is set like one of the project (K296)', () => {
+  const text = '[build-system]\nrequires = ["setuptools==84.0.0", "wheel"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "app"\nversion = "0.0.0"\ndependencies = []\n';
+  const pinned = pinPythonRequirement(text, 'setuptools', '84.1.0');
+  assert.equal(pinned.count, 1);
+  assert.equal(pinned.text, text.replace('setuptools==84.0.0', 'setuptools==84.1.0'));
+});
