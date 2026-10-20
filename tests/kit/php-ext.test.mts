@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
-import { declarationFindings, declarationsOf, extensionFindings, extensionNames, stubHash } from '../../scripts/kit/php-extension.mts';
+import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash } from '../../scripts/kit/php-extension.mts';
 import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -51,6 +51,19 @@ test('a wrong name, a second stub, a stale header and a library of another name 
   const changed = `${STUB}\nfunction more(): void {}\n`;
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: make php-ext-arginfo`]);
   assert.deepEqual(findings({ ...good(), 'packages/php/composer.json': '{"name": "other/demo"}' }), ['packages/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not other/demo']);
+});
+
+// A repository with two PHP libraries, packages/<component>/php, and one extension (S10, K293).
+const components = (): Record<string, string> => {
+  const { 'packages/php/composer.json': _, ...rest } = good();
+  return { ...rest, 'packages/validator/php/composer.json': '{"name": "polyspec/demo-validator"}', 'packages/generator/php/composer.json': '{"name": "polyspec/demo-generator"}' };
+};
+
+test('an extension of a repository with libraries per component follows S10 when each library is named after its component (K293)', () => {
+  assert.deepEqual(findings(components()), []);
+  assert.deepEqual(findings({ ...components(), 'packages/generator/php/composer.json': '{"name": "polyspec/demo-codec"}' }), ['packages/generator/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>-generator, not polyspec/demo-codec']);
+  assert.deepEqual(findings({ ...components(), 'packages/generator/php/composer.json': '{"name": "polyspec/other-generator"}' }), ['packages/validator/php/composer.json: the PHP libraries name two repositories, other and demo; the repository has one extension']);
+  assert.deepEqual(findings({ ...components(), 'packages/php/composer.json': '{"name": "polyspec/demo"}' }), []);
 });
 
 test('a declaration that differs from the library, or that the library lacks, is a finding', () => {
@@ -113,6 +126,25 @@ test('the build publishes the extension, which reports the version of its compos
   assert.deepEqual(declarationFindings(registered, declared()), []);
   put(root, { 'packages/php/src/Demo.php': library('string') });
   assert.deepEqual(declarationFindings(registered, declared()), ['class Polyspec\\Demo\\Counter methods next returnType: extension "int", library "string"']);
+});
+
+test('the declarations of the extension are compared with the library that declares each name (K293)', (t) => {
+  const counter = library('int').replace(/function add[\s\S]*?\n}\n\n/, '');
+  const adder = (type: string) => `<?php\n\ndeclare(strict_types=1);\n\nnamespace Polyspec\\Demo;\n\nfunction add(int $a, int $b = 1): ${type}\n{\n    return $a + $b;\n}\n`;
+  const autoload = (name: string) => `<?php\n\nrequire __DIR__ . '/src/${name}.php';\n`;
+  const root = tree(t, {
+    ...components(),
+    'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}',
+    'packages/validator/php/src/Counter.php': counter, 'packages/validator/php/vendor/autoload.php': autoload('Counter').replace('/src/', '/../src/'),
+    'packages/generator/php/src/Adder.php': adder('int'), 'packages/generator/php/vendor/autoload.php': autoload('Adder').replace('/src/', '/../src/'),
+  });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, built.stderr);
+  assert.deepEqual(declarations(root), []);
+  put(root, { 'packages/generator/php/src/Adder.php': adder('string') });
+  assert.deepEqual(declarations(root), ['function Polyspec\\Demo\\add returnType: extension "int", library "string"']);
 });
 
 test('arginfo configures the copy before it makes the header, so make has its Makefile (K290)', (t) => {

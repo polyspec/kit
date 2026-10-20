@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: e074222b025008370de7f1631d581c30d924e99618e195efaa11883a632923c1 -->
+<!-- source-sha256: 426892c1fd090e2f4882c454607f2b04636a21e518033370f60262ce72ef7833 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -165,12 +165,14 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   언어의 구현을 구동하는 harness는 그 언어의 test이고, 언어별 정적 check는 그 생태계 analyzer의 plugin이며, symbol
   추출기는 그 생태계의 tool을 돌립니다.
   Enforced by: `make layout-check`
-- S10 PHP extension: PHP extension은 자기 저장소의 PHP library, 즉 `polyspec/<repository>`라는 이름의 `packages/php`를
-  구현하고, 그 class와 function을 같은 이름과 signature로 등록한다. `packages/php-ext/`에 두며 source는 `src/`에, stub은 하나,
+- S10 PHP extension: PHP extension은 자기 저장소의 모든 PHP library를 구현하고, 그 class와 function을 같은 이름과 signature로
+  등록한다. library는 `polyspec/<repository>`라는 이름의 `packages/php`이거나, component마다 `polyspec/<repository>-<component>`라는
+  이름의 `packages/<component>/php`이며, 저장소에는 extension이 하나다. `packages/php-ext/`에 두며 source는 `src/`에, stub은 하나,
   `src/polyspec_<repository>.stub.php`이다. 이름은 `polyspec/<repository>-php-ext`와 `polyspec_<repository>`이고, 저장소
   이름의 hyphen은 underscore가 된다. `make build-php-ext`는 `make php-ext-arginfo`가 PHP의 gen_stub.php로 쓰는 arginfo
-  header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build하며, `composer.json`을 `src/` 옆에 둔 사본에서 build하므로 `config.m4`가 extension의
-  version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
-  Reflection으로 PHP library와 비교하며, unit test는 extension을 load해 실행하는 `packages/php`의 PHPUnit 파일과 (있다면)
-  `packages/php-ext`의 것이다. parity implementation은 이 layout으로 `packages/php`의 test를 공유하며, 설정에 상대 경로를 두지 않는다.
+  header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build하며, `composer.json`을 `src/` 옆에 둔 사본에서 build하므로
+  `config.m4`가 extension의 version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
+  Reflection으로 library와 비교하되 이름마다 그것을 선언한 library와 비교하며, unit test는 extension을 load해 실행하는 모든
+  library의 PHPUnit 파일과 (있다면) `packages/php-ext`의 것이다. parity implementation은 이 layout으로 library의 test를 공유하며,
+  설정에 상대 경로를 두지 않는다.
   Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`

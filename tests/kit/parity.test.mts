@@ -1149,6 +1149,21 @@ test('R6: the tests of the PHP extension are those of packages/php, with no shar
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
+test('R6: the tests of the PHP extension are those of every PHP library, packages/<component>/php too (K293)', () => {
+  const implementations: ParityImplementation[] = [
+    { name: 'validator', runner: 'php', roots: ['packages/validator/php'] },
+    { name: 'generator', runner: 'php', roots: ['packages/generator/php'] },
+    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] },
+  ];
+  const tests = ['packages/validator/php/tests/AT.php', 'packages/generator/php/tests/BT.php'];
+  const config: ParityConfig = {
+    schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
+    units: tests.map((test, index) => ({ id: `unit${index}`, kind: 'feature' as const, requirements: [], bindings: [{ implementation: 'php-ext', test }] })),
+  };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map() };
+  assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
+});
+
 test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {
   const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
     .filter(finding => finding.rule === 'declaration').map(finding => finding.message);

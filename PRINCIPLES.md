@@ -176,14 +176,15 @@ tool lands, a standard binds the work as written here.
   `erasableSyntaxOnly`. Exceptions: a harness that drives one language's implementation is a test of that language; a
   language-specific static check is a plugin of that ecosystem's analyzer; a symbol extractor runs that ecosystem's tool.
   Enforced by: `make layout-check`
-- S10 PHP extension: a PHP extension implements the PHP library of its repository, `packages/php` named
-  `polyspec/<repository>`, and registers its classes and functions under the same names and signatures. It lies in
+- S10 PHP extension: a PHP extension implements every PHP library of its repository and registers their classes and functions
+  under the same names and signatures. A library is `packages/php` named `polyspec/<repository>`, or `packages/<component>/php`
+  named `polyspec/<repository>-<component>` for each component; the repository has one extension. It lies in
   `packages/php-ext/` with its sources in `src/` and one stub, `src/polyspec_<repository>.stub.php`; it is named
   `polyspec/<repository>-php-ext` and `polyspec_<repository>`, a hyphen of the repository name an underscore. `make
   build-php-ext` builds it with phpize after checking that the stub hash of its arginfo header, which `make
-  php-ext-arginfo` writes with the gen_stub.php of the PHP, is that of the stub, in a copy that keeps `composer.json` beside `src/`, so that `config.m4` takes the version of the
-  extension from `../composer.json`; `make test-php-ext` compares by Reflection
-  what it registers with the PHP library before its unit tests, which are the PHPUnit files of `packages/php` run with the extension
-  loaded, and those of `packages/php-ext` when it holds any; its parity implementation shares the tests of `packages/php` by
-  this layout, with no relative path in a configuration.
+  php-ext-arginfo` writes with the gen_stub.php of the PHP, is that of the stub, in a copy that keeps `composer.json` beside
+  `src/`, so that `config.m4` takes the version of the extension from `../composer.json`; `make test-php-ext` compares by
+  Reflection what it registers with the libraries, each name with the library that declares it, before its unit tests, which
+  are the PHPUnit files of every library run with the extension loaded, and those of `packages/php-ext` when it holds any; its
+  parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration.
   Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`

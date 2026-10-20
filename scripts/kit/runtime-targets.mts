@@ -40,13 +40,14 @@ const SCRIPT = /\.[cm]?[jt]sx?$/;
 const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && isTestFile(file)).map(file => path.posix.relative(folder, file));
 
 /**
- * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): the PHP library beside it, named `php`, and the
- * extension itself when it holds tests of its own; the extension alone when no library lies beside it.
+ * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): every PHP library of the repository,
+ * packages/php or packages/<component>/php, and the extension itself when it holds tests of its own; the extension alone when
+ * no library holds a test.
  */
 export function phpExtensionFolders(files: readonly string[], folder: string): string[] {
-  const library = path.posix.join(path.posix.dirname(folder), 'php');
+  const libraries = [...new Set(files.flatMap(file => /^(packages\/(?:[^/]+\/)?php)\//.exec(file)?.[1] ?? []))].sort();
   const holds = (place: string) => files.some(file => file.startsWith(`${place}/`) && isTestFile(file));
-  const places = [library, folder].filter(place => holds(place));
+  const places = [...libraries, folder].filter(place => holds(place));
   return places.length ? places : [folder];
 }
 
@@ -133,7 +134,7 @@ function usesVitest(root: string, folder: string): boolean {
 
 /** The library of the PHP extension of `root` that build-php-ext publishes; throws when it is missing. */
 function builtExtension(root: string, files: readonly string[]): string {
-  const owner = repositoryOf(file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
+  const owner = repositoryOf(files, file => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined));
   if ('finding' in owner) throw new Error(owner.finding);
   const library = path.join(root, 'var/php-ext', `${extensionNames(owner.repository).extension}.so`);
   if (!existsSync(library)) throw new Error(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);

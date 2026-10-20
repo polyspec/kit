@@ -45,21 +45,38 @@ function composerName(text: string | undefined): string | undefined {
   return isJsonObject(manifest) && typeof manifest.name === 'string' ? manifest.name : undefined;
 }
 
+/** The folders of the PHP libraries among `files` (S10): packages/php, and packages/<component>/php for each component. */
+export function libraryFolders(files: readonly string[]): string[] {
+  return files.flatMap(file => (/^packages\/(?:[^/]+\/)?php\/composer\.json$/.test(file) ? [path.posix.dirname(file)] : [])).sort();
+}
+
 /**
- * The repository name of the PHP library, `polyspec/<repository>` in packages/php/composer.json, or a finding; `read` gives
- * the text of a file or undefined.
+ * The repository name of the PHP libraries among `files`, and their folders, or a finding: `polyspec/<repository>` in
+ * packages/php/composer.json, `polyspec/<repository>-<component>` in packages/<component>/php/composer.json, all of one
+ * repository; `read` gives the text of a file or undefined.
  */
-export function repositoryOf(read: (file: string) => string | undefined): { repository: string } | { finding: string } {
-  const name = composerName(read(`${LIBRARY}/composer.json`));
-  const match = name === undefined ? null : /^polyspec\/([a-z0-9][a-z0-9-]*)$/.exec(name);
-  if (!match) return { finding: `${LIBRARY}/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not ${name ?? 'nothing'}` };
-  return { repository: match[1] ?? '' };
+export function repositoryOf(files: readonly string[], read: (file: string) => string | undefined): { repository: string; libraries: string[] } | { finding: string } {
+  const libraries = libraryFolders(files);
+  if (libraries.length === 0) return { finding: `${LIBRARY}/composer.json: the extension implements the PHP libraries of the repository, packages/php or packages/<component>/php, and the repository has none` };
+  const repositories = new Map<string, string>();
+  for (const folder of libraries) {
+    const component = folder === LIBRARY ? undefined : folder.split('/')[1];
+    const name = composerName(read(`${folder}/composer.json`));
+    const match = name === undefined ? null : /^polyspec\/([a-z0-9][a-z0-9-]*)$/.exec(name);
+    const repository = component === undefined ? match?.[1] : match?.[1]?.endsWith(`-${component}`) ? match[1].slice(0, -(component.length + 1)) : undefined;
+    if (!repository) return { finding: `${folder}/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>${component === undefined ? '' : `-${component}`}, not ${name ?? 'nothing'}` };
+    repositories.set(folder, repository);
+  }
+  const names = [...new Set(repositories.values())];
+  const odd = [...repositories].find(([, repository]) => repository !== names[0]);
+  if (odd) return { finding: `${odd[0]}/composer.json: the PHP libraries name two repositories, ${names[0]} and ${odd[1]}; the repository has one extension` };
+  return { repository: names[0] ?? '', libraries };
 }
 
 /** The findings of the extension among the `files`; none when the repository has no packages/php-ext. */
 export function extensionFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
   if (!files.some(file => file.startsWith(`${EXTENSION}/`))) return [];
-  const owner = repositoryOf(read);
+  const owner = repositoryOf(files, read);
   if ('finding' in owner) return [owner.finding];
   const names = extensionNames(owner.repository);
   const found: string[] = [];
@@ -129,14 +146,14 @@ export function extensionFiles(root: string): string[] {
 const reader = (root: string) => (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
 
 /** The names of the extension of `root`, after its check; throws with the findings. */
-function checked(root: string): ReturnType<typeof extensionNames> {
+function checked(root: string): ReturnType<typeof extensionNames> & { libraries: string[] } {
   const files = extensionFiles(root);
   if (!files.some(file => file.startsWith(`${EXTENSION}/`))) throw new Stop(`${EXTENSION} holds no file; the repository has no PHP extension`);
   const found = extensionFindings(files, reader(root));
   if (found.length) throw new Stop(found.join('\n'));
-  const owner = repositoryOf(reader(root));
+  const owner = repositoryOf(files, reader(root));
   if ('finding' in owner) throw new Stop(owner.finding);
-  return extensionNames(owner.repository);
+  return { ...extensionNames(owner.repository), libraries: owner.libraries };
 }
 
 /**
@@ -183,7 +200,7 @@ export function build(root: string): string {
 /** Writes the arginfo header of the extension of `root` with the rule of phpize, which runs gen_stub.php. */
 export function arginfo(root: string): void {
   const files = extensionFiles(root);
-  const owner = repositoryOf(reader(root));
+  const owner = repositoryOf(files, reader(root));
   if ('finding' in owner) throw new Stop(owner.finding);
   const names = extensionNames(owner.repository);
   const { work, source } = phpized(root, 'arginfo');
@@ -200,19 +217,28 @@ export function arginfo(root: string): void {
   }
 }
 
-/** The findings of the declarations of the built extension of `root` against the PHP library. */
+/**
+ * The findings of the declarations of the built extension of `root` against the PHP libraries: each name that the extension
+ * registers is compared with the library that declares it (S10).
+ */
 export function declarations(root: string): string[] {
   const names = checked(root);
   const library = path.join(root, OUTPUT, `${names.extension}.so`);
   if (!existsSync(library)) throw new Stop(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
-  const autoloader = packageVendorFile(root, LIBRARY, 'autoload.php');
-  if (!autoloader) throw new Stop(`${LIBRARY} has no Composer autoloader, which the declarations of the library are read through: run composer install in ${LIBRARY}, or in the project that requires it`);
   const script = path.join(SYMBOLS, 'php', 'reflection.php');
   const extension = declarationsOf(run('php', ['-d', `extension=${library}`, script, 'extension', names.extension]));
   const request = path.join(root, OUTPUT, `names.${process.pid}.json`);
   writeFileSync(request, JSON.stringify({ classes: Object.keys(extension.classes), functions: Object.keys(extension.functions) }));
   try {
-    const own = declarationsOf(run('php', [script, 'library', path.join(root, autoloader), request]));
+    const own: Declarations = { classes: {}, functions: {} };
+    for (const folder of names.libraries) {
+      const autoloader = packageVendorFile(root, folder, 'autoload.php');
+      if (!autoloader) throw new Stop(`${folder} has no Composer autoloader, which the declarations of the library are read through: run composer install in ${folder}, or in the project that requires it`);
+      const found = declarationsOf(run('php', [script, 'library', path.join(root, autoloader), request]));
+      for (const kind of ['classes', 'functions'] as const) {
+        for (const [name, declared] of Object.entries(found[kind])) if (declared !== null && declared !== undefined) own[kind][name] = declared;
+      }
+    }
     return declarationFindings(extension, own);
   } finally {
     rmSync(request, { force: true });
