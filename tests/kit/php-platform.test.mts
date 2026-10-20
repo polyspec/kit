@@ -5,14 +5,15 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PLATFORM = `${readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim().split('.').slice(0, 2).join('.')}.1`;
 
 for (const project of ['config/php-lint', 'config/phpunit', 'scripts/kit/symbols/php']) {
   test(`${project} resolves for PHP ${PLATFORM}, in its composer.json and in its lock (K322)`, () => {
-    const manifest = JSON.parse(readFileSync(path.join(ROOT, project, 'composer.json'), 'utf8')) as { config?: { platform?: { php?: string } } };
-    const lock = JSON.parse(readFileSync(path.join(ROOT, project, 'composer.lock'), 'utf8')) as { 'platform-overrides'?: { php?: string } };
+    const manifest = readJsonFile<{ config?: { platform?: { php?: string } } }>(path.join(ROOT, project, 'composer.json'), 'composer-manifest.schema.json');
+    const lock = readJsonFile<{ 'platform-overrides'?: { php?: string } }>(path.join(ROOT, project, 'composer.lock'), 'composer-lock.schema.json');
     assert.equal(manifest.config?.platform?.php, PLATFORM, `${project}/composer.json`);
     assert.equal(lock['platform-overrides']?.php, PLATFORM, `${project}/composer.lock`);
   });

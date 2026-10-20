@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ab4ee0fdb12b8d3ec919030fc95ed79117a3b3d089ed8fbd82ffc79799f65b1 -->
+<!-- source-sha256: a84bfe2e7ca859193a4493734caf0ef7a9ad7036926942a46a309b408b822af1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit에서 `make lint-ts`가 통과한다. link, divergence check, PHP library autoload의 test와 tool은 JSON을 schema나 guard로 읽고,
+  real-tool test의 `php` binary는 `config/knip-entries.json`에 선언한다 (K333).
 - `make lint-ts`는 TypeScript가 있는 각 `tsconfig.json`의 폴더에서 `tsc --noEmit -p tsconfig.json`을 실행하고, vitest와 node는 type 검사
   없이 transpile하므로 `make commit`과 `make item-test`는 변경된 각 TypeScript 파일이 속한 `tsconfig.json`으로 이를 실행해 type error면 거부한다
   (K309).

@@ -12,6 +12,7 @@ import { link } from '../../scripts/kit/link.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { put } from '../kit/tree.mts';
 import { installedBinary } from './real-tools.mts';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
 /** Runs `command` in `directory` and fails with its output. */
 function run(directory: string, command: string, ...args: string[]) {
@@ -60,7 +61,7 @@ test('a package whose released archive requires a newer PHP is installed from it
   assert.equal(link({ checkouts: [provider, consumer], directories: [consumer], check: false, print: text => lines.push(text), env: { ...process.env, COMPOSER_BIN: composer } }), true, lines.join('\n'));
   assert.equal(lstatSync(path.join(consumer, 'vendor/polyspec/y')).isSymbolicLink(), true, 'the installed folder is a link');
   assert.equal(realpathSync(path.join(consumer, 'vendor/polyspec/y')), path.join(provider, 'packages/php'));
-  const record: { packages: { name: string; dist?: { type: string } }[] } = JSON.parse(readFileSync(path.join(consumer, 'vendor/composer/installed.json'), 'utf8'));
+  const record = readJsonFile<{ packages: { name: string; dist?: { type: string } }[] }>(path.join(consumer, 'vendor/composer/installed.json'), 'composer-lock.schema.json');
   assert.equal(record.packages.find(item => item.name === 'polyspec/y')?.dist?.type, 'path', 'Composer installed the package from its path repository, not from the archive');
   assert.doesNotMatch(readFileSync(path.join(consumer, 'vendor/composer/platform_check.php'), 'utf8'), /99/, 'the platform check follows the composer.json of the folder');
   const autoload = spawnSync('php', ['-r', "require 'vendor/autoload.php'; echo class_exists('Y\\\\Hello') ? 'loaded' : 'missing';"], { cwd: consumer, encoding: 'utf8' });
@@ -99,7 +100,7 @@ test('the dependency that a linked package raises is resolved by the link, an un
   mkdirSync(path.join(consumer, 'var'), { recursive: true });
   const lines: string[] = [];
   assert.equal(link({ checkouts: [provider, consumer], directories: [consumer], check: false, print: text => lines.push(text), env: { ...process.env, COMPOSER_BIN: composer } }), true, lines.join('\n'));
-  const locked = (name: string) => (JSON.parse(readFileSync(path.join(consumer, 'composer.link.lock'), 'utf8')) as { packages: { name: string; version: string }[] }).packages.find(item => item.name === name)?.version;
+  const locked = (name: string) => readJsonFile<{ packages: { name: string; version: string }[] }>(path.join(consumer, 'composer.link.lock'), 'composer-lock.schema.json').packages.find(item => item.name === name)?.version;
   assert.equal(locked('dep/a'), '1.1.0', 'the dependency of the linked package is resolved');
   assert.equal(locked('dep/b'), '1.0.0', 'a package that the linked one does not need stays locked');
 });

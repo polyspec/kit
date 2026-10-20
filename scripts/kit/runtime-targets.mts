@@ -94,7 +94,8 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
     case 'python':
       pythonPackages(files, folder);
       // The tests run in the environment of the package (K324): the mise python alone holds none of its dependencies.
-      return [{ cwd: folder, tool: 'python', ...(venv?.(folder) === undefined ? {} : { options: ['--venv', venv(folder) as string] }), args: filter('-k') }];
+      const environment = venv?.(folder);
+      return [{ cwd: folder, tool: 'python', ...(environment === undefined ? {} : { options: ['--venv', environment] }), args: filter('-k') }];
   }
   throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
 }

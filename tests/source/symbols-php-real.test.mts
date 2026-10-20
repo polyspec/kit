@@ -7,6 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { tree } from '../kit/tree.mts';
+import { parseJson } from '../../scripts/kit/schema-validate.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const AUTOLOAD = path.join(ROOT, 'var/tools/symbols-php/vendor/autoload.php');
@@ -17,7 +18,7 @@ function symbolsOf(t: Parameters<typeof tree>[0], files: Record<string, string>)
   const root = tree(t, files);
   const run = spawnSync('php', [path.join(ROOT, 'scripts/kit/symbols/php/extract.php'), AUTOLOAD, root], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  return JSON.parse(run.stdout) as string[];
+  return parseJson<string[]>(run.stdout, 'symbol-ids.schema.json', 'extract.php');
 }
 
 test('a class, method, constant, property and function whose docblock carries @internal is no public symbol (K307)', (t) => {

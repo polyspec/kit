@@ -18,6 +18,7 @@ import path from 'node:path';
 import { isTestFile } from './check-commits.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { isJsonObject } from './bootstrap/files.mts';
 import { trackedFiles } from './tracked-files.mts';
 
 /** The kinds of reason that kit defines for an exception of a configuration: the reason begins with the kind and a colon. */
@@ -64,7 +65,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
         else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
       }
     }
-    if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || /^\.githooks\//.test(file)) {
+    if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || file.startsWith('.githooks/')) {
       for (const { number, code } of lines(text)) if (/--exclude-group\b/.test(code)) found.push(`${file}:${number}: --exclude-group narrows the run of an implementation`);
     }
     if (file.endsWith('contracts/features.json')) {
@@ -72,15 +73,31 @@ export function divergenceFindings(files: readonly string[], read: (file: string
         text.split('\n').forEach((line, index) => { if (new RegExp(`"${state}"`).test(line)) found.push(`${file}:${index + 1}: the feature file declares an implementation ${state}; every implementation holds every unit (S6)`); });
       }
     }
-    if (file === 'config/duplication.json') found.push(...reasonFindings(file, text, (JSON.parse(text) as { exclude?: { glob: string; reason: string }[] }).exclude ?? []));
+    if (file === 'config/duplication.json') found.push(...reasonFindings(file, text, reasoned(rootOf(text).exclude, 'glob')));
     if (file === 'config/parity.json') {
-      const parsed = JSON.parse(text) as { tools?: { root: string; reason: string }[]; implementations?: { name: string; internal?: { glob: string; reason: string }[] }[] };
-      found.push(...reasonFindings(file, text, (parsed.tools ?? []).map(entry => ({ glob: entry.root, reason: entry.reason }))));
-      found.push(...reasonFindings(file, text, (parsed.implementations ?? []).flatMap(entry => entry.internal ?? [])));
+      const parsed = rootOf(text);
+      found.push(...reasonFindings(file, text, reasoned(parsed.tools, 'root')));
+      found.push(...reasonFindings(file, text, objects(parsed.implementations).flatMap(entry => reasoned(entry.internal, 'glob'))));
     }
   }
   return found.sort();
 }
+
+/** The JSON object of a configuration file, or an empty one for any other JSON. */
+function rootOf(text: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(text);
+  return isJsonObject(parsed) ? parsed : {};
+}
+
+/** The objects of a list in a configuration, else none. */
+function objects(value: unknown): Record<string, unknown>[] {
+  const list: unknown[] = Array.isArray(value) ? value : [];
+  return list.filter(isJsonObject);
+}
+
+/** The exceptions of a list in a configuration: the value of `key` as the glob, and the reason. */
+const reasoned = (value: unknown, key: string): { glob: string; reason: string }[] =>
+  objects(value).map(entry => ({ glob: typeof entry[key] === 'string' ? entry[key] : '', reason: typeof entry.reason === 'string' ? entry.reason : '' }));
 
 /** A finding for each entry of `entries` whose reason names no kind of REASON_KINDS. */
 function reasonFindings(file: string, text: string, entries: readonly { glob: string; reason: string }[]): string[] {

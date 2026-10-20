@@ -40,7 +40,7 @@ test('the gate fails on a lock changed without a review and names the file, the 
 test('the gate fails on a review record that holds the none-matched sentinel as a latest version (K281)', (t) => {
   const root = fixture(t);
   const file = path.join(root, RECORD);
-  const record: ReviewRecord = JSON.parse(readFileSync(file, 'utf8'));
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
   const entry = record.dependencies.find(item => item.ecosystem === 'composer');
   assert.ok(entry, 'the fixture record holds a Composer dependency');
   entry.latest = '[none matched]';
@@ -68,7 +68,7 @@ test('the gate fails on a Composer platform that differs from the others or from
 test('while a project is linked the gate judges the link lock, not the tracked lock (K326)', (t) => {
   const root = fixture(t);
   const directory = path.join(root, 'packages/fixture-php');
-  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { 'platform-overrides': { php: string }; packages: { name: string; dist?: { type: string } }[] };
+  const lock = readConfig<{ 'platform-overrides': { php: string }; packages: { name: string; dist?: { type: string } }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
   const manifest = readFileSync(path.join(directory, 'composer.json'), 'utf8');
   // The tracked lock was resolved for another PHP than the policy declares; the link lock, resolved from the path packages, for the declared one.
   writeFileSync(path.join(directory, 'composer.lock'), JSON.stringify({ ...lock, 'platform-overrides': { php: '8.5.0' } }));
@@ -86,8 +86,8 @@ test('while a project is linked the gate judges the link lock, not the tracked l
 test('a package of a path repository of the link manifest that the link lock holds from another dist fails (K326)', (t) => {
   const root = fixture(t);
   const directory = path.join(root, 'packages/fixture-php');
-  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { packages: { name: string; dist?: { type: string } }[] };
-  const manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8')) as Record<string, unknown>;
+  const lock = readConfig<{ packages: { name: string; dist?: { type: string } }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
+  const manifest = readConfig<Record<string, unknown>>(root, 'packages/fixture-php/composer.json', 'composer-manifest.schema.json');
   mkdirSync(path.join(root, 'provider'), { recursive: true });
   writeFileSync(path.join(root, 'provider/composer.json'), '{ "name": "psr/log" }\n');
   writeFileSync(path.join(directory, 'composer.link.json'), JSON.stringify({ ...manifest, repositories: [{ type: 'path', url: '../../provider', options: { symlink: true } }] }));
@@ -101,7 +101,7 @@ test('a root composer.json that requires a polyspec package lacks a repository t
   const root = fixture(t);
   const directory = path.join(root, 'packages/fixture-php');
   const fork = { type: 'vcs', url: 'https://github.com/min-0-max/yaml', 'no-api': true };
-  const manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8')) as { require?: Record<string, string>; repositories?: unknown[] };
+  const manifest = readConfig<{ require?: Record<string, string>; repositories?: unknown[] }>(root, 'packages/fixture-php/composer.json', 'composer-manifest.schema.json');
   mkdirSync(path.join(directory, 'vendor/polyspec/provider'), { recursive: true });
   writeFileSync(path.join(directory, 'vendor/polyspec/provider/composer.json'), JSON.stringify({ name: 'polyspec/provider', repositories: [fork] }));
   const required = { ...manifest, require: { ...manifest.require, 'polyspec/provider': '0.0.1' } };
@@ -115,9 +115,9 @@ test('a root composer.json that requires a polyspec package lacks a repository t
 test('a linked package is not compared with the latest release of the registry, and a third-party package still is (K328)', (t) => {
   const root = fixture(t);
   const directory = path.join(root, 'packages/fixture-php');
-  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { packages: { name: string; version: string; dist?: { type: string } }[] };
+  const lock = readConfig<{ packages: { name: string; version: string; dist?: { type: string } }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
   const recordFile = path.join(root, RECORD);
-  const record: ReviewRecord = JSON.parse(readFileSync(recordFile, 'utf8'));
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
   const composer = record.dependencies.filter(item => item.ecosystem === 'composer');
   assert.ok(composer.length >= 1, 'the fixture record holds a Composer dependency');
   const [first] = composer;

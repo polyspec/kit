@@ -338,6 +338,12 @@ function lockedVersions(lock: string): Map<string, string> {
  * symbolic link, and `versions` gives the package the version that the lock recorded, so the link counts as the installed
  * released version.
  */
+/** The items of a list that a manifest declares, else none. */
+function declaredList(value: unknown): unknown[] {
+  const list: unknown[] = Array.isArray(value) ? value : [];
+  return list;
+}
+
 function linkManifest(project: string, links: readonly { name: string; folder: string }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
   const manifest = readJsonOf(path.join(project, MANIFESTS.composer));
   if (!isJsonObject(manifest)) throw new Error(`${project}/${MANIFESTS.composer} is no object`);
@@ -360,7 +366,7 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
     }
   }
   const added = [...paths, ...provided];
-  const repositories = Array.isArray(existing) || existing === undefined ? [...added, ...(existing ?? [])] : { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing };
+  const repositories = isJsonObject(existing) ? { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing } : [...added, ...declaredList(existing)];
   return { ...manifest, repositories };
 }
 

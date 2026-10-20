@@ -14,6 +14,18 @@ import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scr
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
+
+/** What the Composer stub saw in its last update: the file it read, the packages it was given and the repositories of that file. */
+function seenUpdate(consumer: string): { file: string; targets: unknown[]; repositories: unknown[] } {
+  const value: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  if (!isJsonObject(value) || typeof value.file !== 'string' || !isJsonObject(value.manifest)) throw new Error('composer-update.seen.json holds no file and manifest');
+  const targets: unknown[] = Array.isArray(value.targets) ? value.targets : [];
+  const repositories: unknown[] = Array.isArray(value.manifest.repositories) ? value.manifest.repositories : [];
+  return { file: value.file, targets, repositories };
+}
+
 
 /** The checkout of kit. */
 const KIT = fileURLToPath(new URL('../../', import.meta.url));
@@ -194,9 +206,9 @@ test('Composer links the packages of the vendor that composer config vendor-dir 
   assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')), path.join(provider, 'packages/php'));
   assert.equal(lstatSync(path.join(consumer, 'tests/release-consumer/composer/vendor/polyspec/y')).isSymbolicLink(), false);
   assert.match(log(), new RegExp(`composer update polyspec/y --with-dependencies --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
-  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  const seen = seenUpdate(consumer);
   assert.equal(seen.file, 'composer.link.json', 'Composer reads the link manifest, never the tracked composer.json');
-  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
+  assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
 });
 
 test('a linked package and an own path package are updated by Composer through the path repositories of composer.link.json, with the released version of the lock (K304-1)', (t) => {
@@ -211,14 +223,14 @@ test('a linked package and an own path package are updated by Composer through t
     'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, repositories: [{ type: 'artifact', url: 'var/composer-artifacts' }, { type: 'path', url: 'packages/own-php' }] }),
   });
   linkLines([consumer], env);
-  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  const seen = seenUpdate(consumer);
   assert.deepEqual(seen.targets, ['polyspec/y', 'polyspec/own-php']);
-  assert.deepEqual(seen.manifest.repositories, [
+  assert.deepEqual(seen.repositories, [
     { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } },
     { type: 'artifact', url: 'var/composer-artifacts' },
     { type: 'path', url: 'packages/own-php' },
   ]);
-  assert.equal(JSON.parse(readFileSync(path.join(consumer, 'composer.json'), 'utf8')).repositories.length, 2, 'the tracked composer.json is unchanged');
+  assert.equal(readJsonFile<{ repositories: unknown[] }>(path.join(consumer, 'composer.json'), 'composer-manifest.schema.json').repositories.length, 2, 'the tracked composer.json is unchanged');
 });
 
 // K330: Composer reads repositories only from the root manifest, so the link writes those of a linked package into composer.link.json.
@@ -227,9 +239,9 @@ test('the repositories that a linked package declares are written into composer.
   const fork = { type: 'vcs', url: 'https://github.com/min-0-max/yaml', 'no-api': true };
   put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', repositories: [fork, { type: 'path', url: '../other' }] }) });
   linkLines([consumer], env);
-  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
-  assert.deepEqual(seen.manifest.repositories.filter((entry: { type: string }) => entry.type === 'vcs'), [fork]);
-  assert.equal(seen.manifest.repositories.filter((entry: { url: string }) => entry.url === '../other').length, 0, 'a path repository of the provider is relative to the provider and is not copied');
+  const seen = seenUpdate(consumer);
+  assert.deepEqual(seen.repositories.filter(entry => isJsonObject(entry) && entry.type === 'vcs'), [fork]);
+  assert.equal(seen.repositories.filter(entry => isJsonObject(entry) && entry.url === '../other').length, 0, 'a path repository of the provider is relative to the provider and is not copied');
 });
 
 test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {
@@ -945,8 +957,8 @@ test('a linked package that the lock does not hold takes the exact release that 
     'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.9' } }),
   });
   linkLines([consumer], env);
-  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
-  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.9' } } });
+  const seen = seenUpdate(consumer);
+  assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.9' } } });
 });
 
 test('K316-1: the overrides of an install name each linked package as an editable install of its folder, so a package installed non-editable is installed again as editable', (t) => {

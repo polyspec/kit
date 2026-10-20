@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make lint-ts` passes in kit: the JSON of the tests and tools of the link, the divergence check and the PHP library
+  autoload is read through a schema or a guard, and the `php` binary of the real-tool tests is declared in
+  `config/knip-entries.json` (K333).
 - `make lint-ts` runs `tsc --noEmit -p tsconfig.json` in the folder of each `tsconfig.json` that has TypeScript below
   it, and `make commit` and `make item-test` run it for the owning `tsconfig.json` of each changed TypeScript file and
   refuse on a type error, since vitest and node transpile without checking the types (K309).

@@ -19,7 +19,7 @@ import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { readJsonObject } from './bootstrap/files.mts';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 
 // Only a package pinned at 0.0.x is linked (docs/operations/local-links.md).
 const ZERO = /^v?0\.0\./;
@@ -58,7 +58,7 @@ function composerInstalled(root: string, env: NodeJS.ProcessEnv): Installed[] {
     seen.add(record);
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/') || typeof entry['install-path'] !== 'string') continue;
-      const dist = typeof entry.dist === 'object' && entry.dist !== null ? (entry.dist as Record<string, unknown>).type : undefined;
+      const dist = isJsonObject(entry.dist) ? entry.dist.type : undefined;
       found.push({ ecosystem: 'composer', name: entry.name, folder: path.resolve(path.dirname(record), entry['install-path']), version: typeof entry.version === 'string' ? entry.version : undefined, dist: typeof dist === 'string' ? dist : 'none' });
     }
   }

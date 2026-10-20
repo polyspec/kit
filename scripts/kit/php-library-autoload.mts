@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { toolsEnvironment } from './mise-tools.mts';
-import { readJsonObject } from './bootstrap/files.mts';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { run } from './process.mts';
 
 /** What a run needs: the PHPUnit script, the file to prepend and the environment that tells it the autoloader and the library sources. */
@@ -16,16 +16,22 @@ export type LibraryRun = { phpunit: string; prepend: string; env: Record<string,
 
 type Autoload = Record<string, unknown>;
 
+/** The items of a list as unknown values, else none. */
+const listOf = (value: unknown): unknown[] => {
+  const list: unknown[] = Array.isArray(value) ? value : [];
+  return list;
+};
+
 /** The paths of an autoload section as absolute paths below `folder`: the directories of psr-4 and psr-0, the classmap and the files. */
 function absolute(section: unknown, folder: string): Autoload {
   const result: Autoload = {};
-  if (typeof section !== 'object' || section === null) return result;
-  for (const [kind, value] of Object.entries(section as Autoload)) {
-    const resolve = (item: unknown) => path.resolve(folder, String(item));
+  if (!isJsonObject(section)) return result;
+  const resolve = (item: unknown) => path.resolve(folder, String(item));
+  for (const [kind, value] of Object.entries(section)) {
     if (kind === 'psr-4' || kind === 'psr-0') {
-      result[kind] = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([prefix, target]) => [prefix, Array.isArray(target) ? target.map(resolve) : resolve(target)]));
+      result[kind] = isJsonObject(value) ? Object.fromEntries(Object.entries(value).map(([prefix, target]) => [prefix, Array.isArray(target) ? listOf(target).map(resolve) : resolve(target)])) : {};
     } else if (kind === 'classmap' || kind === 'files' || kind === 'exclude-from-classmap') {
-      result[kind] = (value as unknown[]).map(resolve);
+      result[kind] = listOf(value).map(resolve);
     }
   }
   return result;
@@ -34,8 +40,8 @@ function absolute(section: unknown, folder: string): Autoload {
 /** The directories and files of an autoload section, absolute. */
 function pathsOf(section: Autoload): string[] {
   return Object.entries(section).flatMap(([kind, value]) => (kind === 'psr-4' || kind === 'psr-0'
-    ? Object.values(value as Record<string, unknown>).flatMap(target => (Array.isArray(target) ? target : [target]).map(String))
-    : kind === 'classmap' || kind === 'files' ? (value as unknown[]).map(String) : []));
+    ? (isJsonObject(value) ? Object.values(value) : []).flatMap(target => (Array.isArray(target) ? listOf(target) : [target]).map(String))
+    : kind === 'classmap' || kind === 'files' ? listOf(value).map(String) : []));
 }
 
 /**
