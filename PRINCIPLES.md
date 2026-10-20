@@ -78,6 +78,8 @@ in kit, with its grounding.
 
 - P19 A defect starts as a test that reproduces it and fails for the intended reason; the fix follows; the same test passes.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
+  A comment or document that a change makes stale is corrected in the commit of that change; one found after its row is done
+  is a sub-item whose Verification is `make text-absent FILE=<path> TEXT=<stale text>`, which fails while the stale text is there.
   Enforced by: `make commits-check`
 - P20 An item is completed by its own unit tests: red, implementation, green. Only the checks that own what changed run; the
   full suite is not run, neither per fix, per item nor at the end. The full suite runs only on the order of the conductor,

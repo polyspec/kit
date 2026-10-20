@@ -183,6 +183,11 @@ suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-di
 bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI identity, assumes a gate of kit-gates up to date with make -o, or skips a Git hook with --no-verify (K308); offline
 	$(NODE) $(KIT)/bypass-check.$(KIT_EXT)
 
+# The red of a row whose whole change is text (K431): the Verification of P19's sub-item. It is no gate of kit-gates.
+.PHONY: text-absent
+text-absent: ## Fail while the tracked file FILE holds the stale text TEXT, naming each line: the red of a row whose whole change is text (K431); offline
+	$(NODE) $(KIT)/text-absent.$(KIT_EXT) "$(FILE)" "$(TEXT)"
+
 .PHONY: divergence-check
 divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315); offline
 	$(NODE) $(KIT)/divergence-check.$(KIT_EXT)
