@@ -157,3 +157,27 @@ test('the review never proposes a release older than the locked version of a Com
   assert.match(result.stdout, /example\/framework 1\.0\.0 < 1\.1\.0: a newer stable release exists/);
   assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0'), calls.join('\n'));
 });
+
+// K392-1: while a Composer project is linked, UPDATE moves the new range in composer.link.json only; the tracked composer.json declares
+// it too, and the tracked composer.lock waits for the release check (K326).
+test('while linked UPDATE also declares the new range in the tracked composer.json, and leaves the tracked lock (K392-1)', (t) => {
+  const root = fixture(t);
+  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
+  const manifest = JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } });
+  writeFileSync(path.join(root, 'composer.json'), manifest);
+  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify(MONOREPO_LOCK));
+  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
+  writeFileSync(path.join(root, 'composer.link.json'), manifest);
+  writeFileSync(path.join(root, 'composer.link.lock'), JSON.stringify(MONOREPO_LOCK));
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const at = path.basename(root);
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  const lockBefore = readFileSync(path.join(root, 'composer.lock'), 'utf8');
+  review(root, ['--update'], stub.env);
+  const calls = stub.calls();
+  assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0 [COMPOSER=composer.link.json]'), calls.join('\n'));
+  assert.ok(calls.includes('composer require --no-update --no-interaction example/framework:^1.1.0'), calls.join('\n'));
+  assert.equal(readFileSync(path.join(root, 'composer.lock'), 'utf8'), lockBefore, 'the tracked lock is untouched');
+});

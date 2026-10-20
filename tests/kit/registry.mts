@@ -66,7 +66,7 @@ ${TOOL_ANSWER}
 const path = require('node:path');
 const args = process.argv.slice(2);
 const directory = path.basename(process.cwd());
-appendFileSync(process.env.STUB_LOG, 'composer ' + args.join(' ') + '\\n');
+appendFileSync(process.env.STUB_LOG, 'composer ' + args.join(' ') + (process.env.COMPOSER ? ' [COMPOSER=' + process.env.COMPOSER + ']' : '') + '\\n');
 const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
 if (args[0] === 'outdated') {
   const manifest = JSON.parse(readFileSync('composer.json', 'utf8'));
