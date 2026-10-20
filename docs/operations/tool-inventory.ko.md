@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9a7d496392656989f42ea9c95718db5460240a53f7de0e68d5ab4867731659f2 -->
+<!-- source-sha256: c8ee2ad5caa764c173a31a0ef4dcfeae192af97c75120e3ce5fe11f900a81e9c -->
 
 # 도구 목록
 
@@ -65,6 +65,12 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 하며, `packages/php-ext`가 있는 저장소는 이들이 없으면 실패합니다(`php<minor>-dev` 또는 `brew reinstall php@<minor>`).
 일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
 함께 실패합니다.
+
+`packages/php-ext`가 있는 저장소는 `make php-ext-arginfo`를 위해 `curl` 또는 `wget`과 `tar`도 필요합니다(K303). PHP의 `gen_stub.php`가
+PHP-Parser를 wget, 없으면 curl로 사본의 build folder에 내려받고 tar로 풉니다. 이들은 mise의 도구가 아니므로 machine과 CI image가
+제공하고, `make toolchain-check`가 빠진 것을 이름으로 알립니다. 근거: PHP 8.5.10 `gen_stub.php`의 `installPhpParser`. kit의 고정된
+Composer dependency는 택하지 않았습니다. gen_stub.php는 자기 PHP와 맞는 PHP-Parser release를 하나로 정하는데, kit은 고정된 minor마다
+그것을 알 수 없기 때문입니다.
 
 ### Go 취약점 (K53)
 

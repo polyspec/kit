@@ -67,6 +67,12 @@ match; `php-config --version` must have the same minor, and a repository with `p
 (`php<minor>-dev` or `brew reinstall php@<minor>`). No match fails with the attempts in order, `.php-version` and the install
 command (`brew install php@<minor>` or `apt install php<minor>-cli`).
 
+A repository with `packages/php-ext` also needs `curl` or `wget`, and `tar`, for `make php-ext-arginfo` (K303): the `gen_stub.php`
+of the PHP downloads its PHP-Parser into the build folder of the copy with wget, else curl, and unpacks it with tar. They are no
+tool of mise, so the machine and the CI image provide them, and `make toolchain-check` names the missing one. Evidence: the
+`installPhpParser` of `gen_stub.php` of PHP 8.5.10. A pinned Composer dependency of kit was not chosen, since gen_stub.php
+names the one PHP-Parser release that works with its own PHP, which kit cannot know for each pinned minor.
+
 ### Go advisories (K53)
 
 `make dependency-review` asks govulncheck for the advisories of each Go lock (a `go.sum`, beside its `go.mod`), run in the

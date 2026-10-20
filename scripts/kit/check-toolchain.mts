@@ -17,6 +17,7 @@
 // (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings, and so
 // is a key of an .npmrc that keeps npm from linking.
 import { phpInstall } from './install-php.mts';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -155,6 +156,20 @@ export function toolchainMismatches(tools: string[], { root = repositoryRoot(), 
   return mismatches;
 }
 
+/**
+ * The findings of the system commands that `make php-ext-arginfo` needs in a repository with packages/php-ext (K303): the
+ * gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and unpacks it with tar (build/gen_stub.php of PHP
+ * 8.5.10, installPhpParser). They are no tool of mise, so the machine and the CI image provide them.
+ */
+export function arginfoToolFindings(root: string, run: Run = defaultRun(root, toolchainEnvironment(root))): string[] {
+  if (!existsSync(path.join(root, 'packages/php-ext'))) return [];
+  const has = (command: string) => { const result = run(command, ['--version']); return !result.error && result.status === 0; };
+  const found: string[] = [];
+  if (!has('wget') && !has('curl')) found.push('make php-ext-arginfo: gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and neither is installed; fix: install curl or wget');
+  if (!has('tar')) found.push('make php-ext-arginfo: gen_stub.php of the PHP unpacks its PHP-Parser with tar, which is not installed; fix: install tar');
+  return found;
+}
+
 const expectation = (entry: DeclaredTool) => (entry.minors ?? [entry.version]).join(' or ');
 
 if (isMain(import.meta.url)) {
@@ -173,15 +188,16 @@ if (isMain(import.meta.url)) {
     const excepted = [...malformed, ...pinning.stale()];
     const links = npmrcFindings(repositoryRoot(), env);
     const locked = [...miseLockFindings(repositoryRoot()), ...miseLockSidecarFindings(repositoryRoot())];
+    const system = arginfoToolFindings(repositoryRoot());
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked]) console.error(`[check-toolchain] ${line}`);
+    for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
     if (pins.length > 0) console.error(`[check-toolchain] ${pins.length} declarations differ from the pins of kit`);
     if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
     if (excepted.length > 0) console.error(`[check-toolchain] ${excepted.length} findings of the exceptions of config/toolchain.json`);
     if (links.length > 0) console.error(`[check-toolchain] ${links.length} keys of .npmrc keep npm from linking`);
     if (locked.length > 0) console.error(`[check-toolchain] ${locked.length} findings of the pins of mise.lock`);
-    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0 || locked.length > 0) process.exitCode = 1;
+    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0 || locked.length > 0 || system.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;

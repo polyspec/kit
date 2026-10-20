@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
+import { arginfoToolFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
 import { LOCK_PLATFORMS } from '../../scripts/kit/toolchain-mise.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
@@ -15,6 +15,7 @@ import { miseStub, versionStubs } from './toolchain-stubs.mts';
 import { tool } from './kit-tools.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { known } from './known.mts';
+import { tree } from './tree.mts';
 
 // The tools of this checkout run with the pins of kit, so the declarations are the pins. The node of mise.toml runs from its
 // wrapper var/tools/bin/node (K171), which runs the Node.js of the test, the pin of the checkout.
@@ -351,4 +352,16 @@ test('a malformed or stale exception fails the check, and a used one passes it',
   const used = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml({ ...MISE, node: '99.0.0' }), 'mise.lock': miseLock({ ...MISE, node: '99.0.0' }), 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=99.0.0" } }', 'config/toolchain.json': config([other]) });
   const passed = check(used.root, used.stubs.env, 'npm');
   assert.equal(passed.status, 0, passed.stderr);
+});
+
+test('a repository with a PHP extension needs curl or wget and tar for the arginfo of gen_stub.php, and toolchain-check names the missing one (K303)', (t) => {
+  const root = tree(t, { 'packages/php-ext/src/config.m4': '', 'docs/a.md': '' });
+  const without = (...missing: string[]) => (command: string) => ({ status: missing.includes(command) ? 127 : 0, stdout: '', error: missing.includes(command) ? new Error(`spawn ${command} ENOENT`) : undefined });
+  assert.deepEqual(arginfoToolFindings(root, without()), []);
+  assert.deepEqual(arginfoToolFindings(root, without('wget')), [], 'gen_stub.php falls back to curl');
+  assert.deepEqual(arginfoToolFindings(root, without('curl')), [], 'and uses wget first');
+  assert.deepEqual(arginfoToolFindings(root, without('curl', 'wget')), ['make php-ext-arginfo: gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and neither is installed; fix: install curl or wget']);
+  assert.deepEqual(arginfoToolFindings(root, without('tar')), ['make php-ext-arginfo: gen_stub.php of the PHP unpacks its PHP-Parser with tar, which is not installed; fix: install tar']);
+  const none = tree(t, { 'docs/a.md': '' });
+  assert.deepEqual(arginfoToolFindings(none, without('curl', 'wget', 'tar')), []);
 });
