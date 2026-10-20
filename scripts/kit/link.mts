@@ -28,7 +28,7 @@ import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
 import {
-  assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider,
+  assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider,
   providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workTreeOf,
 } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
@@ -139,7 +139,8 @@ function unlinkable(work: Run, ecosystem: Ecosystem, name: string, reason: strin
 }
 
 /** The reason that the pin `version` is not linked, or undefined for a 0.0.x pin. */
-const pinProblem = (version: string): string | undefined => (ZERO.test(version) ? undefined : `pinned ${version}, not 0.0.x`);
+// A fork's pin is a version of the fork (K379), which the install records and checks, so the rule does not apply to a fork.
+const pinProblem = (version: string, provider: Provider): string | undefined => (isForkCheckout(provider.checkout) || ZERO.test(version) ? undefined : `pinned ${version}, not 0.0.x`);
 
 /** Reports the state of the link `installed` of `provider`: linked, or STALE when its npm build is behind its sources. */
 function reportLink(work: Run, ecosystem: Ecosystem, name: string, provider: Provider) {
@@ -155,7 +156,7 @@ function reportLink(work: Run, ecosystem: Ecosystem, name: string, provider: Pro
  */
 function linkCopy(work: Run, ecosystem: Ecosystem, name: string, installed: string, version: string, provider: Provider): boolean {
   if (real(installed) === realpathSync(provider.folder)) { reportLink(work, ecosystem, name, provider); return false; }
-  const problem = pinProblem(version);
+  const problem = pinProblem(version, provider);
   if (problem) { unlinkable(work, ecosystem, name, `${problem}: ${installed}`); return false; }
   if (work.check) { unlinkable(work, ecosystem, name, installed); return false; }
   assertIgnored(installed);
@@ -430,7 +431,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       // archive install, which the earlier mechanism made, is installed anew (K318).
       const installedFromPath = isJsonObject(entry.dist) && entry.dist.type === 'path';
       if (real(copy) === realpathSync(provider.folder) && installedFromPath) { reportLink(work, 'composer', entry.name, provider); linkedNow.push({ name: entry.name, folder: provider.folder }); continue; }
-      const problem = pinProblem(version);
+      const problem = pinProblem(version, provider);
       if (problem) unlinkable(work, 'composer', entry.name, `${problem}: ${copy}`);
       else if (work.check) unlinkable(work, 'composer', entry.name, real(copy) === realpathSync(provider.folder) ? `${copy} is a link over a ${isJsonObject(entry.dist) ? String(entry.dist.type) : 'copy'} install, not Composer's path install` : copy);
       else toLink.push({ name: entry.name, folder: provider.folder, copy, provider });
@@ -730,7 +731,7 @@ function linkPython(work: Run, consumer: Consumer) {
         const found = installed.get(provider.name);
         const version = found?.version ?? projectVersion(path.join(provider.folder, MANIFESTS.python));
         if (version === undefined) { unlinkable(work, 'python', provider.name, `not installed in ${venv}, and ${path.join(provider.folder, MANIFESTS.python)} declares no version`); return false; }
-        const problem = pinProblem(version);
+        const problem = pinProblem(version, provider);
         if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
         return !problem;
       }),
@@ -825,7 +826,7 @@ function linkGo(work: Run, consumer: Consumer) {
     const requires = new Map<string, Provider>();
     for (const requirement of goModule(go, module, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
       const provider = providerFor(work, consumer, 'go', requirement.path);
-      const problem = typeof provider === 'string' ? provider : pinProblem(requirement.version);
+      const problem = typeof provider === 'string' ? provider : pinProblem(requirement.version, provider);
       if (problem) unlinkable(work, 'go', requirement.path, problem);
       else if (typeof provider !== 'string') requires.set(requirement.path, provider);
     }

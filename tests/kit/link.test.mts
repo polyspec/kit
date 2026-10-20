@@ -409,14 +409,21 @@ test('link --siblings links a fork checkout of forks/ beside the checkouts as th
   });
   git(fork, 'remote', 'add', 'origin', 'https://github.com/min-median-max/json-schema.git');
   put(consumer, {
-    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '0.0.1' } }),
-    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '0.0.1', 'install-path': '../opis/json-schema' }] }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '2.6.0-p1' } }),
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0-p1', 'install-path': '../opis/json-schema' }] }),
     'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
   });
   const checkouts = siblingCheckouts(consumer).checkouts;
   assert.deepEqual(checkouts, [fork, kit, provider].sort());
   assert.equal(link({ checkouts, directories: [consumer], check: false, print: () => {}, env }), true);
   assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/opis/json-schema')), fork);
+  // The 0.0.x rule still holds for a polyspec package: polyspec/y pinned 1.0.0 is NOT linked in the same run.
+  const lines: string[] = [];
+  put(consumer, {
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '1.0.0', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0-p1', 'install-path': '../opis/json-schema' }] }),
+  });
+  link({ checkouts, directories: [consumer], check: false, print: text => lines.push(text), env });
+  assert.match(lines.join('\n'), /NOT linked +composer +polyspec\/y .*pinned 1\.0\.0, not 0\.0\.x/);
 });
 
 // K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.

@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: dd5aa6e3264c30cf0ebd177211c3ef8a8b58763f24ad2212b1c1b3ae237701ec -->
+<!-- source-sha256: 84826104a89784a1db1a965781e46415a5fc88ebaa8edc57a5235bafc409b4ab -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -36,7 +36,7 @@
 
 - 선언: 변수가 아니라 인자로 준다. `link`와 `check`는 패키지를 제공하는 각 polyspec 저장소의 main checkout을 받는다(`kit link <checkout>...`). `--project <dir>`는 소비자를 밝히고, 없으면 작업 디렉터리 전체 트리가 소비자다. checkout이 없으면 아무것도 링크하지 않고 설치는 lock된 릴리스 그대로다. 어떤 변수도 모드를 고르지 않으므로 빌드와 검사는 링크 여부와 같다.
 - 제공자: 인자로 준 main checkout에 있는 패키지의 각 추적 manifest가 제공하는 것을 밝힌다(private 여부와 관계없는 패키지의 `package.json` `name`(private는 게시만 막고 링크는 막지 않는다), `composer.json` `name`, `pyproject.toml` `project.name`, `go.mod` `module`). 연결된 worktree는 다른 저장소의 제공자가 아니고, 공통 Git 디렉터리로 식별한 소비자 자신의 저장소의 패키지는 그 worktree에서도 링크하지 않는다. link를 실행하는 work tree(main checkout이나 worktree)가 자기 저장소의 패키지를 own으로 제공하고, 인자 가운데 그 저장소의 checkout은 아무것도 제공하지 않으므로 worktree는 main checkout의 source를 받지 않고 자기 저장소의 checkout을 밝히지 않는다(K385). 한 이름을 제공하는 패키지 폴더가 둘이면 둘 다 밝히며 실패한다. 서로 다른 checkout의 저장소 root가 둘이어도 마찬가지다. 패키지 폴더 옆의 저장소 root는 개발 프로젝트이므로 양보한다. tests, examples, benchmarks, 문서, config/, .mise, fixture는 아무것도 제공하지 않고 링크하지 않는다. release-consumer 프로젝트는 test다.
-- 포크(K379): workspace 폴더 안, polyspec checkout들 옆의 `forks/` 아래 각 하위 폴더(`polyspec/kit` 옆의 `forks/json-schema`)가 main checkout(`.git` 디렉터리와 `HEAD`가 있는 것)이면 제공자이며, `link --siblings`가 main checkout과 함께 받는다. 폴더 이름은 패키지 이름이 아니고 origin은 검사하지 않는다. 포크의 origin은 그 포크의 저장소이므로 어떤 URL이어도 되며, `forks/json-schema`는 manifest가 밝힌 패키지(예: `composer.json` `name`인 `opis/json-schema`)를 제공하고 다른 제공자와 같은 manifest를 읽는다. 포크도 다른 제공자처럼 링크하며, 소비자의 고정(pin)은 바꾸지 않는다. 링크는 설치가 기록한 소비자의 버전을 그대로 두고 설치가 그 버전을 검사하며, 위의 0.0.x 고정 규칙은 포크에도 적용된다.
+- 포크(K379): workspace 폴더 안, polyspec checkout들 옆의 `forks/` 아래 각 하위 폴더(`polyspec/kit` 옆의 `forks/json-schema`)가 main checkout(`.git` 디렉터리와 `HEAD`가 있는 것)이면 제공자이며, `link --siblings`가 main checkout과 함께 받는다. 폴더 이름은 패키지 이름이 아니고 origin은 검사하지 않는다. 포크의 origin은 그 포크의 저장소이므로 어떤 URL이어도 되며, `forks/json-schema`는 manifest가 밝힌 패키지(예: `composer.json` `name`인 `opis/json-schema`)를 제공하고 다른 제공자와 같은 manifest를 읽는다. 포크도 다른 제공자처럼 링크하며, 소비자의 고정(pin)은 바꾸지 않는다. 링크는 설치가 기록한 소비자의 버전을 그대로 두고 설치가 그 버전을 검사하며, 위의 0.0.x 고정 규칙은 포크에는 적용되지 않는다. 포크의 고정은 포크 자신의 버전(예: 2.6.0-p1)이며, 설치가 그것을 기록하고 검사하기 때문이다.
 - 사본 없음: 제공자를 복사하지 않는다. `node_modules`나 vendor에서 도구의 기록이 나열하지 않는 polyspec 폴더는 plain copy이며 그 경로와 함께 `NOT linked`로 보고한다. `file:` tarball로 설치한 패키지도 다른 설치처럼 링크한다.
 - 빌드 없음: `link`는 링크만 한다. 제공자는 `link.mjs rebuild <repository>...`나 그 자신의 target으로, 그 Makefile에서 릴리스가 빌드하는 target(`release-assets`의 prerequisite. 없는 prerequisite이면 make의 오류와 함께 실패한다), 없으면 `build`로 빌드한다. 링크된 npm 제공자는 그 `package.json`이 가리키는 출력이 없거나, 입력이 가장 오래된 출력보다 새롭고 입력이 마지막 rebuild 뒤 기록한 digest(제공자의 `var/link/built/`)와 다르면 STALE이고, `check`는 실패한다.
 - 쓰기: 도구가 저장소에 쓰는 각 파일(소비자의 `var/link`, 제공자의 `var/link/built`, 각 Go 모듈의 `go.work`와 `go.work.sum`, Cargo lock 사본)과 설치 폴더를 대신하는 각 링크는 그곳에서 git이 무시하는 것이다(`git check-ignore`). 소비자는 `var/link`, `go.work`, `go.work.sum`을 무시해야 한다. git이 무시하지 않는 경로는 이름과 함께 실패하며, 소비자 밖의 공유 폴더는 없다(K205가 K203의 대체 폴더를 없앴다).
