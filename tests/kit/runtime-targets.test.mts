@@ -8,7 +8,7 @@ import { buildRuns, runtimeRuns, suiteRuns, taskTargets } from '../../scripts/ki
 const FILES = [
   'packages/ts/src/a.ts', 'packages/ts/tests/a.test.ts', 'packages/ts/package.json',
   'packages/validator/go/go.mod', 'packages/validator/go/a.go', 'packages/validator/go/a_test.go',
-  'packages/php/tests/ATest.php', 'packages/python/tests/test_a.py', 'packages/rust/Cargo.toml',
+  'packages/php/tests/ATest.php', 'packages/python/tests/__init__.py', 'packages/python/tests/test_a.py', 'packages/rust/Cargo.toml',
   'tests/integration/go/go.mod', 'tests/integration/go/a_test.go', 'tests/conformance/ts/a.test.ts',
 ];
 const node = () => false;
@@ -40,6 +40,16 @@ test('the extension with no tests of its own runs the PHPUnit files of packages/
 test('the extension of a repository with libraries per component runs the PHPUnit files of every library (K293)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/validator/php/tests/ATest.php', 'packages/generator/php/tests/BTest.php', 'packages/codec/php/src/c.php'];
   assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so').map(run => run.cwd), ['packages/generator/php', 'packages/validator/php']);
+});
+
+test('the test directories of a Python package are packages, which unittest discovers only as such (K298)', () => {
+  const ok = ['packages/python/pyproject.toml', 'packages/python/tests/__init__.py', 'packages/python/tests/test_a.py', 'packages/python/tests/sub/__init__.py', 'packages/python/tests/sub/test_b.py'];
+  assert.deepEqual(runtimeRuns(ok, 'python', 'parses', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'parses'] }]);
+  const flat = ['packages/python/pyproject.toml', 'packages/python/tests/test_a.py'];
+  assert.throws(() => runtimeRuns(flat, 'python', 'parses', node), /packages\/python\/tests: unittest discovers a directory only as a package; add packages\/python\/tests\/__init__\.py/);
+  const nested = ['packages/python/tests/__init__.py', 'packages/python/tests/sub/test_b.py'];
+  assert.throws(() => runtimeRuns(nested, 'python', undefined, node), /add packages\/python\/tests\/sub\/__init__\.py/);
+  assert.deepEqual(runtimeRuns(['packages/python/pyproject.toml'], 'python', undefined, node), [{ cwd: 'packages/python', tool: 'python', args: [] }]);
 });
 
 test('a suite runs the folder of each runtime under tests/<suite>/ of the root (K244)', () => {

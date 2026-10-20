@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 78fcc9650aa93cd0c705e76e65646c9daffba81e3421aba3df1faf09fed24b44 -->
+<!-- source-sha256: 9f3e27be8f4f53a910349ebda324fcb00be12c88c4983ec04c84a337d8a4ccca -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make test-python`은 `test_*.py`를 담고 `__init__.py`가 없는 Python package의 test directory를 더할 파일을 적어 거부한다. unittest는 directory를 package로만 discover하므로 그렇지 않으면 아무 test도 실행하지 않았다("no test ran")(K298). orm, template, crudui, hyper는 이미 test directory를 package로 만들었고 ordered-json이 파일을 더한다. Red: 바뀌지 않은 runner가 실행을 돌려주어 `node --test --test-name-pattern=K298 tests/kit/runtime-targets.test.mts`가 실패했다. Green: 통과한다.
 - S10은 PHP library가 둘 이상인 저장소에도 성립한다(K293): extension 하나가 모든 library를 구현하며, library는 `polyspec/<repository>`라는 이름의 `packages/php`이거나 `polyspec/<repository>-<component>`라는 이름의 `packages/<component>/php`이다. `make lint-php-ext`가 그 이름을 확인하고, `make test-php-ext`가 등록한 이름마다 그것을 선언한 library와 비교하며 모든 library의 PHPUnit 파일을 실행하고, parity extension이 모든 library의 implementation을 공유한다. Red: `packages/php` 하나를 가정해서 `tests/kit/php-ext.test.mts`, `runtime-targets.test.mts`, `parity.test.mts`의 K293 case가 실패했다. Green: 통과한다.
 - `make plan-split FROM= TO= IDS=`는 item의 행을 sub-item과 함께 text를 바꾸지 않고 한 plan의 checklist에서 다른 plan의 checklist로, 한국어 쌍에서도 옮기고, 대상 plan이 없으면 만들며, 거부하면 아무것도 쓰지 않는다(K292). Red: `splitPlan`이 없어서 `node --test tests/kit/plan.test.mts`가 실패했다. Green: 통과한다.
 - `make lint-php-ext`, `make build-php-ext`, `make php-ext-arginfo`는 tracked 파일과 함께 disk의 `packages/php-ext` 파일을 읽으므로, `src/`를 생성하고 Git이 무시하는 extension도 tracked와 똑같이 통과한다(K297). Red: `node --test --test-name-pattern=K297 tests/kit/php-ext.test.mts`가 `the stub of the extension is missing`으로 실패했다. Green: 통과한다.

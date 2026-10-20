@@ -52,6 +52,22 @@ export function phpExtensionFolders(files: readonly string[], folder: string): s
 }
 
 /**
+ * Throws when a test directory of the Python package `folder` is no package: unittest discovers a directory only as a package,
+ * so `make test-python` over a tests/ without __init__.py finds no test and ends with "no test ran" (K298).
+ */
+function pythonPackages(files: readonly string[], folder: string): void {
+  const depth = folder.split('/').length;
+  const tests = files.filter(file => file.startsWith(`${folder}/tests/`) && /(?:^|\/)test_[^/]*\.py$/.test(file));
+  const directories = new Set(tests.flatMap((file) => {
+    const parts = path.posix.dirname(file).split('/');
+    return parts.slice(depth).map((_, index) => parts.slice(0, depth + index + 1).join('/'));
+  }));
+  for (const directory of [...directories].sort()) {
+    if (!files.includes(`${directory}/__init__.py`)) throw new Error(`${directory}: unittest discovers a directory only as a package; add ${directory}/__init__.py`);
+  }
+}
+
+/**
  * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
  * and `extension` is the built library of the PHP extension, which its tests load.
  */
@@ -71,6 +87,7 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
       return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }));
     case 'python':
+      pythonPackages(files, folder);
       return [{ cwd: folder, tool: 'python', args: filter('-k') }];
   }
   throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
