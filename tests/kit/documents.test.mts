@@ -7,11 +7,12 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { check } from '../../scripts/kit/check-documents.mts';
+import { check, stagedTwinFindings } from '../../scripts/kit/check-documents.mts';
+import { commitItem } from '../../scripts/kit/plan.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
-import { pair, put, tree } from './tree.mts';
+import { korean, pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
@@ -318,4 +319,25 @@ test('link: a site reads the VitePress slug and the {#id} of a heading, a reposi
   }))], ['#_1-5-restore', '#external-docs', '#query-plan-more']);
   const site = run(root, { ...CONFIG, siteLinks: true }).filter(line => line.includes('does not define'));
   assert.deepEqual(site, [], site.join('\n'));
+});
+
+test('a commit that leaves a Korean twin with a stale marker is refused by the pre-commit check and by make commit (K382)', (t) => {
+  const root = tree(t, { ...pair('CHANGELOG.md', 'changelog', '## Unreleased\n'), 'config/documents.json': JSON.stringify(CONFIG) });
+  const git = (...args: string[]) => {
+    const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+  };
+  git('add', '-A');
+  git('commit', '--quiet', '--no-verify', '-m', 'base');
+  const changed = '<!-- doc-id: changelog -->\n# Title\n\n## Unreleased\n\nnew entry\n';
+  put(root, { 'CHANGELOG.md': changed, 'body.txt': 'The English changelog gained an entry, and its twin kept the old marker.\n' });
+  git('add', 'CHANGELOG.md');
+  const bodyFile = path.join(root, 'body.txt');
+  const commit = { id: 'K382', type: 'docs', scope: 'documents', subject: 'Refuse a stale Korean marker', bodyFile };
+  assert.throws(() => commitItem(root, commit), /CHANGELOG\.ko\.md: revision: .*make documents-stamp/);
+  const found = stagedTwinFindings(root);
+  hasPart(found, 'CHANGELOG.ko.md:', 'revision', 'make documents-stamp');
+  put(root, { 'CHANGELOG.ko.md': korean(changed) });
+  git('add', 'CHANGELOG.ko.md');
+  assert.deepEqual(stagedTwinFindings(root), []);
 });

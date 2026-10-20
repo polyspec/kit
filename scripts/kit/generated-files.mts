@@ -3,13 +3,15 @@
 // venv, __pycache__, target, dist or *.egg-info) is refused, naming the path, unless config/generated.json declares it an
 // exception. The pre-commit hook that `git-hooks install` writes runs `staged` through `make staged-generated-hook`.
 //
-//   node scripts/kit/generated-files.mts staged   fail while a staged path is generated and no exception of the config allows it
+//   node scripts/kit/generated-files.mts staged   fail while a staged path is generated and no exception of the config allows it,
+//                                                 or a staged Korean twin holds a stale source-sha256 (K382)
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { matchesAny } from './glob.mts';
 import { readConfigFindings } from './schema-validate.mts';
+import { stagedTwinFindings } from './check-documents.mts';
 
 export const CONFIG = 'config/generated.json';
 export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '__pycache__', 'target', 'dist'];
@@ -52,8 +54,10 @@ if (isMain(import.meta.url)) {
   } else {
     const root = repositoryRoot();
     const offenders = generatedOffenders(stagedPaths(root), loadGeneratedConfig(root));
+    const twins = stagedTwinFindings(root);
     for (const file of offenders) console.error(`[generated-files] ${file} is a generated file (AGENTS.md "Generated files"); unstage it, or declare it in ${CONFIG}`);
-    if (offenders.length > 0) process.exitCode = 1;
+    for (const line of twins) console.error(`[generated-files] ${line}`);
+    if (offenders.length > 0 || twins.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');
   }
 }

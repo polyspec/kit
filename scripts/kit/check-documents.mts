@@ -31,6 +31,8 @@ import { anchors, headingAnchors, links, proseLines, scanFences } from './markdo
 import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { git } from './git.mts';
+import { fileAt } from './check-commits.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { sha256 } from './bootstrap/digest.mts';
 import { readConfig } from './schema-validate.mts';
@@ -63,6 +65,10 @@ type Pair<T> = [T, T];
 
 const koreanOf = (file: string) => file.replace(/\.md$/, '.ko.md');
 const englishOf = (file: string) => file.replace(/\.ko\.md$/, '.md');
+// The text of a document with its code and its comments left out, one line per line of the document (K382 reads its markers here).
+const proseOf = (text: string) => proseLines(text).map((entry: { text: string }) => entry.text).join('\n');
+// The values of the source-sha256 markers of the Korean text, which a marker written in code or in a comment does not give (K382).
+const revisionsOf = (text: string) => [...proseOf(text).matchAll(REVISION)].map(match => match[1]);
 const position = (text: string, offset: number) => {
   const before = text.slice(0, offset).split('\n');
   // split returns at least one string.
@@ -130,7 +136,7 @@ function pairFindings(root: string, config: DocumentsConfig, english: string, id
   // its index; present below reads them by a file or an index of files.
 
   // A marker written inside inline code or a fenced block describes the marker and is not one.
-  const prose = Object.fromEntries(files.map(file => [file, proseLines(present(texts[file], 'texts[file]')).map((entry: { text: string }) => entry.text).join('\n')]));
+  const prose = Object.fromEntries(files.map(file => [file, proseOf(present(texts[file], 'texts[file]'))]));
   // DOC_ID has one group that is not optional, so every match holds it.
   const identifiers = files.map(file => [...present(prose[file], 'prose[file]').matchAll(DOC_ID)].map(match => present(match[1], 'match[1]')));
   files.forEach((file, index) => {
@@ -145,7 +151,7 @@ function pairFindings(root: string, config: DocumentsConfig, english: string, id
     else ids.set(present(present(identifiers[0], 'identifiers[0]')[0], 'identifiers[0][0]'), english); // The texts and the lists hold each file of the pair.
   }
 
-  const revisions = [...present(prose[korean], 'prose[korean]').matchAll(REVISION)].map(match => match[1]); // The texts and the lists hold each file of the pair.
+  const revisions = revisionsOf(present(texts[korean], 'texts[korean]'));
   const expected = sha256(bytes);
   if (revisions.length !== 1) add(korean, { rule: 'revision', message: `the file has ${revisions.length} source-sha256 markers; expected exactly 1 <!-- source-sha256: ${expected} -->` });
   else if (revisions[0] !== expected) add(korean, { rule: 'revision', message: `the source-sha256 is ${revisions[0]}; the sha256 of ${english} is ${expected}; review the translation and update the marker` });
@@ -257,6 +263,37 @@ export function check(root: string, config: DocumentsConfig) {
   const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
   return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
+}
+
+/** Whether the index holds `file` (K382: a staged check reads the index, not the working tree). */
+const indexed = (root: string, file: string) => git(root, 'ls-files', '--cached', '--', file).split('\n').includes(file);
+
+/**
+ * The findings of the staged twins (K382): for each English document of the staged tree whose pair is staged or tracked
+ * and that the commit touches, the Korean twin must hold the sha256 of the staged English text. A pair the commit does not
+ * touch is not read; its stale marker is the finding of docs-check.
+ */
+export function stagedTwinFindings(root: string): string[] {
+  // Without config/documents.json docs-check selects no document, so no twin is read here either.
+  if (!existsSync(path.join(root, CONFIG))) return [];
+  const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
+  const staged = git(root, 'diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').split('\0').filter(Boolean);
+  const englishes = new Set(staged.filter(file => file.endsWith('.md')).map(englishOf));
+  const found: string[] = [];
+  for (const english of [...englishes].sort()) {
+    if (!matchesAny(config.include, english) || matchesAny(config.exclude ?? [], english)) continue;
+    const korean = koreanOf(english);
+    // A side missing from the index is the pair-missing finding of docs-check.
+    if (!indexed(root, english) || !indexed(root, korean)) continue;
+    const expected = sha256(fileAt(root, '', english));
+    const revisions = revisionsOf(fileAt(root, '', korean));
+    if (revisions.length === 1 && revisions[0] === expected) continue;
+    const message = revisions.length === 1
+      ? `the staged source-sha256 is ${revisions[0]}; the sha256 of the staged ${english} is ${expected}; review the translation, then run make documents-stamp`
+      : `the staged file has ${revisions.length} source-sha256 markers; expected exactly 1 <!-- source-sha256: ${expected} -->, the sha256 of the staged ${english}; review the translation, then run make documents-stamp`;
+    found.push(format(korean, { rule: 'revision', message }));
+  }
+  return found;
 }
 
 if (isMain(import.meta.url)) {

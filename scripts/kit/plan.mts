@@ -42,7 +42,7 @@ import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
-import { privatePaths } from './check-documents.mts';
+import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -457,6 +457,9 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const tested = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').some(isTestFile);
   const red = commit.type === 'fix' && !tested ? redGateLines(root, commit.id) : [];
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n${red.length ? `\n${red.join('\n')}\n` : ''}`;
+  // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
+  const twins = stagedTwinFindings(root);
+  if (twins.length) throw new Error(twins.join('\n'));
   const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   // The types of the TypeScript that the commit changes (K309): vitest and node transpile without checking them, so tsc runs here.
