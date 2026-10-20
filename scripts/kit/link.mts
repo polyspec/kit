@@ -309,6 +309,42 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
 // autoload rules, the platform check and InstalledVersions (K304).
 const RECORDED_FIELDS = ['require', 'autoload', 'replace', 'provide', 'conflict'] as const;
 
+/** A package of installed.json that is a link to a provider, or a path package of the project, with the composer.json it stands for. */
+type RecordedSource = { name: string; entry: Record<string, unknown>; source: Record<string, unknown> };
+
+/** The packages of the record `record` that are links or path packages and whose install-path holds a composer.json. */
+function recordedSources(record: string): { parsed: unknown; sources: RecordedSource[] } {
+  const parsed = readJsonOf(record);
+  const list = isJsonObject(parsed) ? parsed.packages : parsed;
+  if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);
+  const sources: RecordedSource[] = [];
+  for (const entry of list) {
+    if (!isJsonObject(entry) || typeof entry['install-path'] !== 'string') continue;
+    const folder = path.resolve(path.dirname(record), entry['install-path']);
+    const linked = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+    const pathPackage = isJsonObject(entry.dist) && entry.dist.type === 'path';
+    const manifest = path.join(folder, MANIFESTS.composer);
+    if (!(linked || pathPackage) || !existsSync(manifest)) continue;
+    const source = readJsonOf(manifest);
+    if (isJsonObject(source)) sources.push({ name: String(entry.name), entry, source });
+  }
+  return { parsed, sources };
+}
+
+/** One field of a recorded package that differs from the composer.json at its install-path (K305). */
+export type RecordDifference = { name: string; field: string; installed: unknown; source: unknown };
+
+/**
+ * The fields of the linked and path packages of installed.json `record` that differ from their composer.json: the fields of
+ * RECORDED_FIELDS, and the version when the composer.json declares one.
+ */
+export function recordDifferences(record: string): RecordDifference[] {
+  return recordedSources(record).sources.flatMap(({ name, entry, source }) => [
+    ...RECORDED_FIELDS.filter(field => JSON.stringify(entry[field]) !== JSON.stringify(source[field])).map(field => ({ name, field, installed: entry[field], source: source[field] })),
+    ...(typeof source.version === 'string' && entry.version !== source.version ? [{ name, field: 'version', installed: entry.version, source: source.version }] : []),
+  ]);
+}
+
 /**
  * K304: a package of installed.json that is a link to a provider, or a path package of the project itself, takes the metadata of
  * the composer.json at its install-path, as Composer records a path package it installs: the platform check that dump-autoload
@@ -317,28 +353,15 @@ const RECORDED_FIELDS = ['require', 'autoload', 'replace', 'provide', 'conflict'
  * Returns whether the record changed.
  */
 function recordLinkedMetadata(record: string): boolean {
-  const parsed = readJsonOf(record);
-  const list = isJsonObject(parsed) ? parsed.packages : parsed;
-  if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);
-  let changed = false;
-  for (const entry of list) {
-    if (!isJsonObject(entry) || typeof entry['install-path'] !== 'string') continue;
-    const folder = path.resolve(path.dirname(record), entry['install-path']);
-    const linked = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
-    const path_ = isJsonObject(entry.dist) && entry.dist.type === 'path';
-    const manifest = path.join(folder, MANIFESTS.composer);
-    if (!(linked || path_) || !existsSync(manifest)) continue;
-    const source = readJsonOf(manifest);
-    if (!isJsonObject(source)) continue;
-    for (const field of RECORDED_FIELDS) {
-      if (JSON.stringify(entry[field]) === JSON.stringify(source[field])) continue;
-      if (source[field] === undefined) delete entry[field]; else entry[field] = source[field];
-      changed = true;
-    }
-    if (typeof source.version === 'string' && entry.version !== source.version) { entry.version = source.version; changed = true; }
+  const { parsed, sources } = recordedSources(record);
+  const differences = recordDifferences(record);
+  for (const { name, field, source } of differences) {
+    const found = sources.find(item => item.name === name);
+    if (!found) continue;
+    if (source === undefined) delete found.entry[field]; else found.entry[field] = source;
   }
-  if (changed) writeAtomic(record, `${JSON.stringify(parsed, null, 4)}\n`);
-  return changed;
+  if (differences.length) writeAtomic(record, `${JSON.stringify(parsed, null, 4)}\n`);
+  return differences.length > 0;
 }
 
 function linkComposer(work: Run, consumer: Consumer) {

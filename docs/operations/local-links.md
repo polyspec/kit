@@ -17,6 +17,10 @@ Development is completed against the latest source of each polyspec repository. 
 
 Why: development stalled because each repository waited for another repository's release, which waited for a third. With every package linked to its source, a change is visible at once in every consumer.
 
+## Verification
+
+`make link-metadata-check` (K305, P30) is a gate of every repository. While a link exists it fails when an installed polyspec package does not carry the metadata of its source, and names the package and the field: an npm link that resolves to no package of that name; a Composer record of `vendor/composer/installed.json` whose `version`, `require`, `autoload`, `replace`, `provide` or `conflict` differs from the `composer.json` at its `install-path`; an editable Python install whose `Version` or `Requires-Python` differs from its `pyproject.toml`; a `go.work` `use` folder without a `go.mod`. A checkout without a link passes, so CI, which installs the released packages, is unaffected. The pre-push gate keeps refusing a link record.
+
 ## Mechanism
 
 The links are the kit tool `scripts/kit/link.mts` (K201, K201-1, K205), which uses the simplest mechanism that each ecosystem allows. Only a package pinned at 0.0.x is linked: the version comes from each tool's own record (npm query, Composer's `installed.json`, `uv pip list`, the requirement of `go mod edit -json`), and any other pin is reported `NOT linked (pinned <version>, not 0.0.x)` and fails.

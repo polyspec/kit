@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: a1115897d635edc10a182e6e1bf3411f4cbe6b7318067718c4a5ebee59f76f8c -->
+<!-- source-sha256: 05536c060ec8df8fc7cdbe0e8be5175757422bed2e90deec89f44f6463475bce -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -17,6 +17,10 @@
 - 빌드, CI, 일괄 릴리스는 릴리스된 버전을 쓴다. 링크는 로컬 checkout에만 있고 커밋하지 않는다.
 
 이유: 각 저장소가 다른 저장소의 릴리스를 기다리고, 그 저장소가 또 다른 저장소의 릴리스를 기다리면서 개발이 멈췄다. 모든 패키지를 소스에 링크하면 한 변경이 모든 소비자에게 바로 보인다.
+
+## 검증
+
+`make link-metadata-check`(K305, P30)는 모든 저장소의 gate이다. link가 있는 동안 설치된 polyspec 패키지가 source의 metadata를 담지 않으면 패키지와 field를 적어 실패한다: 그 이름의 패키지로 풀리지 않는 npm link, `vendor/composer/installed.json`의 기록의 `version`, `require`, `autoload`, `replace`, `provide`, `conflict`가 `install-path`의 `composer.json`과 다른 경우, `Version`이나 `Requires-Python`이 `pyproject.toml`과 다른 editable Python 설치, `go.mod`가 없는 `go.work`의 `use` 폴더. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다.
 
 ## 방식
 

@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 91b88fa596381bf7a93ed9162d83e1cc6ecc361668ef7aaaf53cf44346ebb6a6 -->
+<!-- source-sha256: 6a890712fc686c138f671d256dbafd8d6fd2b034bd8c633e90ce059ce044d8b8 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -121,6 +121,9 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
   prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
   Enforced by: `make kit-check`
+- P30 0.0.x 개발 중 저장소는 다른 저장소의 package를 link로만 쓰고, 연결된 package의 설치된 metadata(version, 요구사항,
+  platform)는 연결된 source와 같다. 기록이 아직 릴리스된 package를 기술하는 link는 그것을 읽는 모든 도구를 오도한다 (K305).
+  Enforced by: `make link-metadata-check`
 
 ## Repository 기준
 

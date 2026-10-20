@@ -147,7 +147,12 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-metadata-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+
+
+.PHONY: link-metadata-check
+link-metadata-check: ## Fail while the installed metadata of a linked polyspec package differs from the source it is linked to: npm, Composer, Python editable installs and go.work (K305, P30); offline
+	$(NODE) $(KIT)/link-metadata-check.$(KIT_EXT)
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
