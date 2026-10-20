@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- A Red-Gate or Red-Test line names the merge-base of HEAD and main, which the rebase of a row branch on main keeps as an
+  ancestor of the fix, so a row whose red was recorded on its branch closes after the rebase that `make land` needs; and
+  `make item-red BEFORE=` takes a tree whose changelogs the close of the row has changed (K389-2).
 - `make item-red BEFORE=` restores the mode of each file that it swaps with its bytes, so an executable file that BEFORE lacks,
   such as a Git hook, comes back executable (K389-1).
 - P24 names `make commits-check` and S10 `make dependency-policy-check`, the checks that K424 and K425 built, in place of their

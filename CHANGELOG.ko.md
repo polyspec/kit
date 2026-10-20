@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4a8db01cf935caf29487b18a149a69a5b6ff665bb4fcd46affc99744d2ee7b86 -->
+<!-- source-sha256: 85522d3db79a6cb3009350ce28e99fa1a4a703d886bf9fc21b96fa15dbb7ae19 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Red-Gate나 Red-Test 줄은 HEAD와 main의 merge-base를 적는다. 행 branch를 main 위로 rebase해도 그 커밋은 fix의 조상으로
+  남으므로, branch에서 red를 기록한 행도 `make land`가 요구하는 rebase 뒤에 닫힌다. 또 `make item-red BEFORE=`는 행을 닫으며
+  바뀐 changelog를 가진 tree를 받는다(K389-2).
 - `make item-red BEFORE=`는 바꾸는 각 파일의 바이트와 함께 mode를 복구하므로, BEFORE에 없는 Git hook 같은 실행 파일이 실행
   가능한 채로 돌아온다(K389-1).
 - P24는 `make commits-check`를, S10은 `make dependency-policy-check`를, 즉 K424와 K425가 만든 검사를 planned 항목 대신
