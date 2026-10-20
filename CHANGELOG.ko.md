@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9d038e5d33852d5db4f36e6b0abcdacd79d5e12a02be2e5260f7eff585310236 -->
+<!-- source-sha256: f342271d768458b0a8a81fbba762872bcc7e15250b4e7c8e93186a54e0048262 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- docs-check는 kit 자신이나 consumer 옆의 kit checkout에서 읽은 kit의 checklist에 없는 kit item을 적은 checklist row를
+  그 파일과 줄을 적어 실패시킨다(K374).
 - `make layout-check`는 Git이 무시하지 않는 install 폴더(`package.json` 옆의 `node_modules`, Composer project의 vendor, `var`,
   `pyproject.toml` 옆의 `.venv`)에서 그 폴더와 고칠 `.gitignore`를 적어 실패한다. Go vendor 폴더는 정당하다(K372).
 - kit main에서 `make layout-check`가 다시 통과한다. `config/layout.yml`은 marker 검사의 Python helper와 PHPUnit이 앞에
