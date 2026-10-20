@@ -21,6 +21,14 @@ export MISE_AUTO_INSTALL := 0
 export UV_PYTHON_DOWNLOADS := never
 export UV_NO_CONFIG := 1
 export UV_CACHE_DIR := $(CURDIR)/var/tools/mise/cache/uv
+# A worktree reads the tools that the main checkout of its repository installed (K387, sharedInstalls of install-mise.mts): mise
+# looks in MISE_SHARED_INSTALL_DIRS too, so a worktree installs only the tools that the main checkout lacks.
+KIT_MAIN_CHECKOUT := $(patsubst %/.git,%,$(abspath $(shell git rev-parse --git-common-dir 2>/dev/null)))
+ifneq ($(KIT_MAIN_CHECKOUT),$(CURDIR))
+ifneq ($(wildcard $(KIT_MAIN_CHECKOUT)/var/tools/mise/installs),)
+export MISE_SHARED_INSTALL_DIRS := $(KIT_MAIN_CHECKOUT)/var/tools/mise/installs
+endif
+endif
 MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
 export PATH := $(CURDIR)/var/tools/bin:$(CURDIR)/var/tools/mise/shims:$(PATH)
 

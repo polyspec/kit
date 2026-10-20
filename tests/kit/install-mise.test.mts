@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -18,6 +18,7 @@ import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const VERSION = '2026.10.8';
 const KEY = `${process.platform}-${process.arch}`;
@@ -173,6 +174,22 @@ test('the mise of a checkout takes the checkout as the root of its global config
   const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
   assert.match(make, /^export MISE_GLOBAL_CONFIG_ROOT := \$\(CURDIR\)$/m);
   assert.match(make, /^MISE_ENVIRONMENT := .*\bMISE_GLOBAL_CONFIG_ROOT\b/m);
+});
+
+// K387: a worktree reads the tools that the main checkout of its repository installed, so its install downloads none of them again;
+// the main checkout keeps its own store, and the data dir, the state and the shims stay those of each checkout.
+test('the mise of a worktree reads the installs of the main checkout, and the main checkout its own (K387)', (t) => {
+  const main = realpathSync(tree(t, { 'mise.toml': '[tools]\n', 'var/tools/mise/installs/node/26.12.0/bin/node': '' }));
+  initRepository(main, '--initial-branch=main');
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: main });
+  const worktree = `${main}-row`;
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  assert.equal(spawnSync('git', ['worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree], { cwd: main }).status, 0);
+  assert.equal(miseEnvironment(worktree).MISE_SHARED_INSTALL_DIRS, path.join(main, 'var/tools/mise/installs'));
+  assert.equal(miseEnvironment(worktree).MISE_DATA_DIR, path.join(worktree, 'var/tools/mise'), 'the data dir stays that of the worktree');
+  assert.equal(miseEnvironment(main).MISE_SHARED_INSTALL_DIRS, undefined, 'the main checkout is the store');
+  const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
+  assert.match(make, /^export MISE_SHARED_INSTALL_DIRS := \$\(KIT_MAIN_CHECKOUT\)\/var\/tools\/mise\/installs$/m);
 });
 
 test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {
