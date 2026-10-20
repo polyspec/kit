@@ -10,7 +10,9 @@
 // check of a rule, which the check lists until the item is done and then fails. A check is reached when a point that cannot be skipped runs it:
 // a step of a workflow of .github/workflows or a Git hook of .githooks starts make with it, it is a prerequisite of a reached
 // target, a reached recipe names it after the expansion of its variables, or a reached recipe names the test file or a folder
-// of it. The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
+// of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
+// refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
+// restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
@@ -80,16 +82,45 @@ function proseLines(text: string): number[] {
   return found;
 }
 
-// An AGENTS rule restates a PRINCIPLES rule when this share of its 4-word sequences lies in that rule (K279). Measured on the
-// AGENTS.md of kit, hyper, fsm, orm, crudui, template and ordered-json against PRINCIPLES.md: the restated rules share 0.29, 0.71
-// and 0.82, every other rule 0.15 or less.
-const RESTATED = 0.25;
-const SEQUENCE = 4;
+// The id of a rule of PRINCIPLES.md: P<n> or S<n> at the start of its text (K300).
+const RULE_ID = /^\s*(?:[-*+]\s+)?([PS]\d+)\b/;
+// An AGENTS rule begins with `Own:` or with `Refines <id>:` (K300).
+const OWN = /^\s*[-*+]\s+Own:\s/;
+const REFINES = /^\s*[-*+]\s+Refines\s+([PS]\d+):\s/;
 
-/** The sequences of SEQUENCE words of `text`, lower case. */
-function sequences(text: string): Set<string> {
-  const words = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-  return new Set(Array.from({ length: Math.max(0, words.length - SEQUENCE + 1) }, (_, index) => words.slice(index, index + SEQUENCE).join(' ')));
+/** Whether the backtick span `term` names something of the repository `root`: an existing path or a make target. */
+function ownTerm(root: string, make: MakeDatabase, term: string): boolean {
+  const target = /^make (\S+)$/.exec(term)?.[1];
+  if (target !== undefined) return make.targets.has(target);
+  return !term.includes(' ') && !/[*<>{}]/.test(term) && existsSync(path.join(root, term));
+}
+
+/**
+ * The findings of the rules of AGENTS.md against those of PRINCIPLES.md (K300): each rule of PRINCIPLES.md has an id, and each
+ * rule of AGENTS.md is Own or Refines a rule by its id and then names a term of the repository that PRINCIPLES.md does not
+ * contain, an existing path, a make target or a configuration file in backticks; a rule without one restates the principle.
+ */
+function refinementFindings(root: string, make: MakeDatabase, agents: string, principles: string): string[] {
+  const found: string[] = [];
+  const ids = new Set<string>();
+  for (const rule of rulesOf(principles)) {
+    const id = RULE_ID.exec(rule.text)?.[1];
+    if (id === undefined) found.push(`PRINCIPLES.md:${rule.line}: the rule has no id; a rule of PRINCIPLES.md begins with P<n> or S<n>`);
+    else ids.add(id);
+  }
+  for (const rule of rulesOf(agents)) {
+    const where = `AGENTS.md:${rule.line}`;
+    const refined = REFINES.exec(rule.text)?.[1];
+    if (OWN.test(rule.text)) continue;
+    if (refined === undefined) {
+      found.push(`${where}: the rule begins with neither \`Own:\` nor \`Refines <id>:\`; a rule of this repository is Own, or refines a rule of PRINCIPLES.md by its id`);
+    } else if (!ids.has(refined)) {
+      found.push(`${where}: Refines ${refined} names no rule of PRINCIPLES.md`);
+    } else if (!checksOf(rule.text).some(term => !principles.includes(`\`${term}\``) && ownTerm(root, make, term))) {
+      found.push(`${where}: Refines ${refined} names no term of this repository that PRINCIPLES.md lacks (an existing path, a make target or a configuration file in backticks); a rule without one restates the principle`);
+    }
+  }
+  return found;
 }
 
 /** The checks of an `Enforced by:` text: the text of each backtick span. */
@@ -223,14 +254,7 @@ export function checkRules(root: string, documents: readonly string[] = DEFAULT_
         if (finding) findings.push(finding);
       }
     }
-    if (document === 'AGENTS.md' && documents.includes('PRINCIPLES.md')) {
-      const common = rulesOf(readFileSync(path.join(root, 'PRINCIPLES.md'), 'utf8')).map(rule => ({ rule, words: sequences(rule.text) }));
-      for (const rule of rules) {
-        const own = sequences(rule.text);
-        const same = common.find(({ words }) => own.size > 0 && [...own].filter(item => words.has(item)).length / own.size > RESTATED);
-        if (same) findings.push(`${document}:${rule.line}: restates the rule of PRINCIPLES.md:${same.rule.line} (more than a quarter of its wording is the same); ${document} states only the rules of its own repository. Remove it`);
-      }
-    }
+    if (document === 'AGENTS.md' && documents.includes('PRINCIPLES.md')) findings.push(...refinementFindings(root, make, text, readFileSync(path.join(root, 'PRINCIPLES.md'), 'utf8')));
     const twin = document.replace(/\.md$/, '.ko.md');
     if (!existsSync(path.join(root, twin))) continue;
     const twinRules = rulesOf(readFileSync(path.join(root, twin), 'utf8'));

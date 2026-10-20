@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e00218eb5e4b6d2209141db12fc15b0a21f1512da59d122f02aebf38f035471c -->
+<!-- source-sha256: 3dfae0a0f4002e53f9e6ca004b1c7c78248ab138019b9d05dbc4695dbfd563a2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make rules-check`는 AGENTS.md를 구조로 읽는다(K300): PRINCIPLES.md의 각 규칙에는 id(P<n>, S<n>)가 있고, AGENTS.md의 각 규칙은 `Own:` 또는 `Refines <id>:`로 시작하며, 다듬는 규칙은 PRINCIPLES.md에 없는 기존 경로나 make target을 backtick으로 적는다. K279의 4단어 유사도는 제거했다. kit의 AGENTS.md와 한국어 쌍이 이를 따른다. Red: `node --test --test-name-pattern=K300 tests/kit/check-rules.test.mts`에서 짧은 되풀이 "Build modular components"에 finding이 없었다. Green: 통과한다.
 - spec의 requirement는 `**<id>**`로 시작하는 list item, 곧 글머리 기호(`-`, `*`, `+`)나 번호(`1.`, `1)`) 항목, 또는 heading으로 정의한다(K299). S6과 schema는 list item이라고 적는다. Red: `node --test --test-name-pattern=K299 tests/kit/parity-requirements.test.mts`가 `1. **AB-4**`에 R13을 찾지 못했다. Green: 통과한다.
 - `make test-python`은 `test_*.py`를 담고 `__init__.py`가 없는 Python package의 test directory를 더할 파일을 적어 거부한다. unittest는 directory를 package로만 discover하므로 그렇지 않으면 아무 test도 실행하지 않았다("no test ran")(K298). orm, template, crudui, hyper는 이미 test directory를 package로 만들었고 ordered-json이 파일을 더한다. Red: 바뀌지 않은 runner가 실행을 돌려주어 `node --test --test-name-pattern=K298 tests/kit/runtime-targets.test.mts`가 실패했다. Green: 통과한다.
 - S10은 PHP library가 둘 이상인 저장소에도 성립한다(K293): extension 하나가 모든 library를 구현하며, library는 `polyspec/<repository>`라는 이름의 `packages/php`이거나 `polyspec/<repository>-<component>`라는 이름의 `packages/<component>/php`이다. `make lint-php-ext`가 그 이름을 확인하고, `make test-php-ext`가 등록한 이름마다 그것을 선언한 library와 비교하며 모든 library의 PHPUnit 파일을 실행하고, parity extension이 모든 library의 implementation을 공유한다. Red: `packages/php` 하나를 가정해서 `tests/kit/php-ext.test.mts`, `runtime-targets.test.mts`, `parity.test.mts`의 K293 case가 실패했다. Green: 통과한다.

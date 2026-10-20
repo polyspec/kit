@@ -121,20 +121,44 @@ test('a section opens with at most one paragraph, and a rule in prose after it f
   assert.deepEqual(prose.map(line => line.split(':').slice(0, 2).join(':')), ['AGENTS.md:12', 'AGENTS.md:18']);
 });
 
-test('an AGENTS rule that restates a PRINCIPLES rule fails, and one of its own passes (K279)', (t) => {
-  const root = tree(t, {
+// K300: an AGENTS rule is Own, or Refines a PRINCIPLES rule by its id and names a term of the repository that PRINCIPLES.md does
+// not contain (a tracked path, a make target or a configuration file), so a restatement of any length is a finding.
+function principled(t: TestContext, agents: string[], principles = ['- P1 Components are modular, each concern clearly separated.\n  Enforced by: `make lint`', '- S1 No rebuilds.\n  Enforced by: `make docs-check`']) {
+  return tree(t, {
     Makefile: MAKEFILE,
     '.github/workflows/ci.yml': CI,
-    'PRINCIPLES.md': rules(
-      '- The simplest implementation that fully meets the current requirements: no abstraction, setting or indirection for an\n  uncertain future.\n  Enforced by: `make lint`',
-      '- Documents are checked.\n  Enforced by: `make docs-check`',
-    ),
-    'AGENTS.md': rules(
-      '- Use the simplest implementation that fully meets the current requirements, with no abstraction, setting or indirection\n  for an uncertain future.\n  Enforced by: `make lint`',
-      '- The documents of this repository are checked on every change by the documents gate.\n  Enforced by: `make docs-check`',
-    ),
+    'PRINCIPLES.md': rules(...principles),
+    'AGENTS.md': rules(...agents),
+    'config/own.json': '{}\n',
   });
-  assert.deepEqual(checkRules(root, ['PRINCIPLES.md', 'AGENTS.md']).findings, [
-    'AGENTS.md:3: restates the rule of PRINCIPLES.md:3 (more than a quarter of its wording is the same); AGENTS.md states only the rules of its own repository. Remove it',
+}
+const both = ['PRINCIPLES.md', 'AGENTS.md'];
+
+test('an AGENTS rule that is Own, or that Refines a rule by id with a term of the repository, passes (K300)', (t) => {
+  const root = principled(t, [
+    '- Own: Documents are checked on every change.\n  Enforced by: `make docs-check`',
+    '- Refines P1: The modules of `config/own.json` stay apart.\n  Enforced by: `make lint`',
+    '- Refines S1: Run `make unit-test` before a tool is added.\n  Enforced by: `make docs-check`',
   ]);
+  assert.deepEqual(checkRules(root, both).findings, []);
+});
+
+test('an AGENTS rule that names neither Own nor a rule it refines, a rule that does not exist, or no term of the repository fails (K300)', (t) => {
+  const root = principled(t, [
+    '- Build modular components.\n  Enforced by: `make lint`',
+    '- Refines P9: The `config/own.json` is a rule.\n  Enforced by: `make lint`',
+    '- Refines P1: Build modular components, each concern separated.\n  Enforced by: `make lint`',
+    '- Refines P1: Keep the `make lint` target of the principle.\n  Enforced by: `make lint`',
+  ]);
+  assert.deepEqual(checkRules(root, both).findings, [
+    'AGENTS.md:3: the rule begins with neither `Own:` nor `Refines <id>:`; a rule of this repository is Own, or refines a rule of PRINCIPLES.md by its id',
+    'AGENTS.md:5: Refines P9 names no rule of PRINCIPLES.md',
+    'AGENTS.md:7: Refines P1 names no term of this repository that PRINCIPLES.md lacks (an existing path, a make target or a configuration file in backticks); a rule without one restates the principle',
+    'AGENTS.md:9: Refines P1 names no term of this repository that PRINCIPLES.md lacks (an existing path, a make target or a configuration file in backticks); a rule without one restates the principle',
+  ]);
+});
+
+test('a rule of PRINCIPLES.md without an id fails when AGENTS.md is read with it (K300)', (t) => {
+  const root = principled(t, ['- Own: A rule.\n  Enforced by: `make docs-check`'], ['- Components are modular.\n  Enforced by: `make lint`']);
+  assert.deepEqual(checkRules(root, both).findings, ['PRINCIPLES.md:3: the rule has no id; a rule of PRINCIPLES.md begins with P<n> or S<n>']);
 });
