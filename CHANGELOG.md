@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make land` refuses a gate that fails on the branch only when its output has a line that the same gate run on main does
+  not have (the worktree folder read as the main checkout, numbers ignored, repeats counted), and names those lines; a gate
+  red on main with no new finding no longer refuses every branch. It never runs `parity-check` or a `test-` target, which
+  the Verification of the rows runs (K394-1).
+
 - The link takes a package folder that a path repository of an enclosing Composer project installs as part of that
   project, so it links the polyspec requirements of the folder in the vendor of that project, and names that vendor while
   it is not installed yet (K396).

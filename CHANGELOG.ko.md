@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3a5bb49496a2aff267a2aa873f25eb60201641cd8c5584710e1cb3226d3a76e2 -->
+<!-- source-sha256: 88f8decedba677986e5202efd253e68fa5d272e1d048394483fb7d26613baae1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make land`는 branch에서 실패한 gate를 main에서 실행한 같은 gate의 출력에 없는 줄이 있을 때만 거부하고 그 줄을 적는다
+  (worktree 폴더는 main checkout으로 읽고 숫자는 무시하며 반복 수를 센다). 새 finding이 없으면 main에서 red인 gate가 더는
+  모든 branch를 거부하지 않는다. row의 Verification이 실행하는 `parity-check`와 `test-` target은 실행하지 않는다(K394-1).
 
 - link는 바깥 Composer project의 path repository가 설치하는 package 폴더를 그 project의 일부로 보므로, 그 폴더의
   polyspec 요구를 그 project의 vendor에 링크하고, 아직 설치되지 않은 동안에는 그 vendor를 적는다(K396).
