@@ -141,7 +141,11 @@ export function fixProvesRed(root: string, id: string, commands: readonly string
 export function redLines(root: string, id: string): string[] {
   const failed = failedRuns(root, id);
   if (!failed) return [];
-  const line = (kind: string, run: Run) => `${kind}: ${run.command} exit ${run.status} at ${failed.head.slice(0, 12)}`;
+  // The line names the merge-base of HEAD and main: a row branch is rebased on main before it lands, which rewrites the commits
+  // of the branch and keeps that commit as an ancestor of the fix (K389-2). On main, or without a main, it is HEAD itself.
+  const base = spawnSync('git', ['merge-base', failed.head, 'main'], { cwd: root, encoding: 'utf8' });
+  const at = base.status === 0 && base.stdout.trim() !== '' ? base.stdout.trim() : failed.head;
+  const line = (kind: string, run: Run) => `${kind}: ${run.command} exit ${run.status} at ${at.slice(0, 12)}`;
   return [...failed.gates.map(run => line('Red-Gate', run)), ...failed.tests.map(run => line('Red-Test', run))];
 }
 

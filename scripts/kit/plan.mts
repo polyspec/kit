@@ -464,9 +464,10 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
   if (rev.status !== 0) throw new Error(`BEFORE=${before} is no commit`);
   const sha = rev.stdout.trim();
   const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(line => line !== '').map(line => line.slice(3));
-  const outside = dirty.filter(file => !file.startsWith('docs/plans/'));
-  if (outside.length > 0) throw new Error(`${id}: the tree has changes to tracked files outside docs/plans, ${outside.join(', ')}; commit or stash them before make item-red BEFORE=${before}`);
   const changelogs = COMMIT_RULES.changelog ? [COMMIT_RULES.changelog.path, ...(COMMIT_RULES.changelog.translation ? [COMMIT_RULES.changelog.translation] : [])] : [];
+  // The close of a row changes its plans and the changelogs, which the run swaps and restores as the other files (K389-2).
+  const outside = dirty.filter(file => !file.startsWith('docs/plans/') && !changelogs.includes(file));
+  if (outside.length > 0) throw new Error(`${id}: the tree has changes to tracked files outside docs/plans and the changelogs, ${outside.join(', ')}; commit or stash them before make item-red BEFORE=${before}`);
   const differs = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '');
   const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => !isTestFile(file));
   const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;

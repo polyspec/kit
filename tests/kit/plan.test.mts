@@ -632,7 +632,7 @@ test('make item-red records a failing Verification, and done requires the record
   writeFileSync(path.join(before, '.gitignore'), 'var/\nnode_modules/\n');
   const outsideRefused = redCli(before, 'T10', 'HEAD~1');
   assert.notEqual(outsideRefused.status, 0);
-  assert.match(outsideRefused.stderr, /changes to tracked files outside docs\/plans, \.gitignore/);
+  assert.match(outsideRefused.stderr, /changes to tracked files outside docs\/plans and the changelogs, \.gitignore/);
   writeFileSync(path.join(before, '.gitignore'), 'var/\n');
   assert.equal(redCli(before, 'T10', 'HEAD~1').status, 0, 'the Verification fails before the fix');
   assert.equal(readRecord(before, 'T10')?.head, revParse(before, 'HEAD'), 'the record has HEAD');
@@ -698,6 +698,54 @@ test('make item-red BEFORE= restores the mode of each file that it swaps (K389-1
   assert.equal(red.status, 0, red.stderr);
   assert.equal(statSync(path.join(root, 'hook.sh')).mode & 0o777, 0o755, 'the executable file comes back executable');
   assert.equal(spawnSync('git', ['diff', '--summary', '--', 'hook.sh'], { cwd: root, encoding: 'utf8' }).stdout, '', 'git sees no mode change');
+});
+
+// K389-2: the red of a row is recorded on a commit of its branch, which the rebase before make land rewrites; the Red-Test line
+// names the merge-base of HEAD and main, which the rebase keeps as an ancestor, so the row closes after the rebase. BEFORE= takes
+// a tree whose changelogs the close has changed.
+test('the red of a row survives the rebase of its branch on a newer main (K389-2)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { '.gitignore': 'var/\n' });
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').existsSync(\'b.mts\') ? 0 : 1)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const run = (...args: string[]) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const commitAll = (message: string) => { run('add', '-A'); run('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message); };
+  const cli = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
+  commitAll('base');
+  run('branch', '-M', 'main');
+  const base = run('rev-parse', 'HEAD');
+  run('switch', '--quiet', '-c', 'fix/parser-T1');
+  put(root, { 'notes.md': 'a commit of the branch\n' });
+  commitAll('docs(plan): Register T1 (#T1)');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const red = cli({ ID: 'T1' });
+  assert.equal(red.status, 0, red.stderr);
+  put(root, { 'b.mts': 'export {};\n', 'tests/b.test.mts': 'test\n' });
+  stage(root, 'b.mts', 'tests/b.test.mts');
+  const body = path.join(root, 'var/body.txt');
+  writeFileSync(body, 'The test reproduces it.\n');
+  const message = commitItem(root, { id: 'T1', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body }, identity);
+  assert.match(message, new RegExp(`^Red-Test: .* exit 1 at ${base.slice(0, 12)}$`, 'm'), 'the line names the merge-base with main');
+  run('checkout', '--', 'docs/plans');
+  // main moves on, and the branch is rebased on it, as make land needs.
+  run('switch', '--quiet', 'main');
+  put(root, { 'other.md': 'another row\n' });
+  commitAll('docs(plan): Another row (#T1)');
+  run('switch', '--quiet', 'fix/parser-T1');
+  run('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'rebase', '--quiet', 'main');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix (T1).\n`);
+  // BEFORE= runs on a tree whose changelogs the close has changed, and leaves them as the close wrote them.
+  const before = cli({ ID: 'T1', BEFORE: 'main' });
+  assert.equal(before.status, 0, before.stderr);
+  assert.equal(readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8'), `${CHANGELOG}- Fix (T1).\n`, 'the changelog stays as the close wrote it');
+  rmSync(path.join(root, 'var/plan/T1.json'));
+  setState(root, { id: 'T1', state: '[o]' }, () => {});
+  assert.equal(rows(root, 'docs/plans/parser/checklist.md')[0]?.endsWith('[o] |'), true, 'the row closes after the rebase, from the line of its fix commit');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
