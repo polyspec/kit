@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cf20f3871ac76851fddca086ca7b9ec6f229bea97670c2fe96ec49626a03cdf3 -->
+<!-- source-sha256: e72360e2ae4c2d03f88ece6d3b54f07a214117a64063b70199e7666a4cdd99a1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- P10은 `.githooks/pre-push`로만 강제되고, PRINCIPLES.md의 어떤 Enforced by 줄도 PRINCIPLES.md를 kit의 복사본으로 받는
+  consumer에 없는 tests/나 scripts/ 아래 경로를 적지 않으므로, kit-sync 뒤에도 `make rules-check`가 통과한다(K359-2).
 - `make land`는 자기를 실행한 make와 shell 같은 자기 조상을 worktree의 프로세스에서 빼므로, make land 전에 worktree로
   이동한 shell이 branch를 거부하지 않는다(K429-1).
 - `make land`는 worktree에서 실행 중인 프로세스, 즉 command line이 그 안의 경로를 가리키거나(테스트 database server의

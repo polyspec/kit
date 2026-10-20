@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- P10 is enforced by `.githooks/pre-push` only, and no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/,
+  which a consumer that takes PRINCIPLES.md as a copy of kit lacks, so `make rules-check` passes after a kit-sync (K359-2).
 - `make land` leaves its own ancestors, such as the make and the shell that run it, out of the processes of the worktree,
   so a shell that changed into the worktree before it ran make land does not refuse the branch (K429-1).
 - `make land` refuses a branch while a process runs from its worktree, a process whose command line names a path in it (such
