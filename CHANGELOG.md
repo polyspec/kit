@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make install-tools` provides the PHP of `.php-version` by discovery: a `php` on PATH of that minor, else `php<minor>` of apt, else the `opt/php@<minor>` keg of Homebrew. It writes exec wrappers for php, php-config and phpize in var/tools/bin before the Composer installs, so every repository runs the pinned PHP whatever PHP the machine puts first on PATH, and it fails with the attempts when none matches. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
+
 ## 0.0.54
 
 - An ID is a sub-item only when the part before its last -<number> is an ID of the pattern of its repository, so an ID scheme such as S-01 needs no parent S (K249-5).

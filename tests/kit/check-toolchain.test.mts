@@ -83,7 +83,7 @@ test('every tool that differs is named with the declaring file, the expected and
   assert.deepEqual(result.stderr.trim().split('\n'), [
     '[check-toolchain] npm: 12.1.0 runs here and packageManager of package.json declares 12.2.0; fix: make install-tools TOOLS=npm',
     `[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares ${RUST}; fix: make install-tools`,
-    `[check-toolchain] php: 8.3.9 runs here and config/toolchain.json php declares ${PHP}; fix: install PHP ${PHP}`,
+    `[check-toolchain] php: 8.3.9 runs here and config/toolchain.json php declares ${PHP}; fix: make install-tools finds the PHP of .php-version; install it first with brew install php@${PHP} or apt install php${PHP}-cli`,
     `[check-toolchain] go: 1.26.0 runs here and mise.toml tools.go declares ${GO}; fix: make install-tools`,
     `[check-toolchain] python: 3.13.2 runs here and mise.toml tools.python declares ${PYTHON}; fix: make install-tools`,
     '[check-toolchain] ruff: 0.15.0 runs here and mise.toml tools.ruff declares 0.16.10; fix: make install-tools',
@@ -235,7 +235,7 @@ test('a tool that cannot run names the declared release in its fix: the minors o
   const result = check(root, stubs.env, 'php');
   assert.equal(result.status, 1);
   const pin = PHP.replaceAll('.', '\\.');
-  assert.match(result.stderr, new RegExp(`php: \`php -n -r .*\` failed .*; config/toolchain\\.json php declares 8\\.2 or ${pin}; fix: install PHP 8\\.2 or ${pin}\\n`));
+  assert.match(result.stderr, new RegExp(`php: \`php -n -r .*\` failed .*; config/toolchain\\.json php declares 8\\.2 or ${pin}; fix: make install-tools finds the PHP of \\.php-version; install it first with brew install php@8\\.2 or apt install php8\\.2-cli or brew install php@${pin} or apt install php${pin}-cli\\n`));
 });
 
 test('the tools to check come from the arguments; an undeclared tool, an unknown tool or no declaration fails', (t) => {

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0e2ef5f4d1a2be90dfe9c600ac9c1c13cf35cecc6d73e35975d9382aca99acb4 -->
+<!-- source-sha256: 806931d2bb34299f91399d19f3f00a4fc6260e3664c5c390f219f00b774777ee -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -70,3 +70,4 @@
 | K275 | test는 자신의 unit이 인용하는 각 requirement를 이름으로 적는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts` | [o] |
 | K276 | 모든 unit은 모든 구현이 가진다: 선언에 profile, exclusion, native-only symbol이 없고, 하나라도 있으면 schema가 실패시킨다 (S6) | scripts/kit/parity.mts, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, scripts/kit/parity-text.mts, scripts/kit/parity-errors.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity.test.mts, tests/source/parity-real.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | `node --test tests/kit/parity.test.mts` | [o] |
 | K276-1 | suite가 admit list를 선언하지 않는다: 모든 구현이 모든 suite의 모든 case를 실행한다 (S6) | scripts/kit/parity-declaration.mts, scripts/kit/parity-ledger.mts, scripts/kit/parity.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity.test.mts | `node --test tests/kit/parity.test.mts` | [o] |
+| K283 | make install-tools는 .php-version의 PHP를 탐색하고 var/tools/bin의 wrapper로 제공한다 | scripts/kit/install-php.mts, scripts/kit/install-tools.mts, scripts/kit/check-toolchain.mts, tests/kit/install-php.test.mts, AGENTS.md, docs/operations/tool-inventory.md | `node --test tests/kit/install-php.test.mts` | [o] |

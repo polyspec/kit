@@ -36,7 +36,7 @@ repositories (lines).
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
 its sha256 for linux-x64, linux-arm64, macos-arm64 and macos-x64, the platforms of the bootstrap of mise; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
-not: the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
+not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
 `exceptions`, and the symbol extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
@@ -46,7 +46,7 @@ its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/m
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
 kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
 `var/tools/bin` holds only the wrappers that kit writes for the declarations of the checkout: mise, npm and npx of the
-bootstrap, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
+bootstrap, php, php-config and phpize of the declared PHP, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
 before it installs, such as a wrapper of an older kit for a tool that now comes from mise, which would shadow its shim (K149).
 `scripts/kit/check-toolchain.mts` compares the running tools with the declarations: `scripts/kit/bootstrap/toolchain-declared.mts`
 reads those of the bootstrap and of the tools that mise does not install, `scripts/kit/toolchain-mise.mts` the tools of
@@ -55,6 +55,17 @@ their ecosystems. Make targets: `install-tools` and `toolchain-lock` (online thr
 `TOOLS` limits the tools). Rust stays with rustup: `rust-toolchain.toml` with rustup is the Rust ecosystem's own toolchain
 mechanism, and the rust backend of mise drives rustup itself, so a second layer would add nothing. The decision of each gap
 of mise is in docs/rebuild/toolchain.md.
+
+PHP is discovered and wrapped, not installed (K283). The minor comes from `.php-version` only; a repository whose PHP is listed
+only in `config/toolchain.json` fails and must add `.php-version`. `install-php.mts` searches with the PATH of the bootstrap
+(without `var/tools/bin`, so it never finds its own wrapper) and the first match wins: (1) `php` on PATH whose
+`PHP_MAJOR_VERSION.PHP_MINOR_VERSION` is the minor (CI's setup-php); (2) `php<minor>` on PATH with `phpize<minor>` and
+`php-config<minor>` beside it (Debian, Ubuntu); (3) `$(brew --prefix)/opt/php@<minor>/bin/php`, the stable `opt/` path of the keg,
+skipped without brew. It writes `var/tools/bin/php` as an exec wrapper with the absolute path of the match, never a link, before
+the Composer installs, so Composer runs on the pinned PHP. `php-config` and `phpize` are wrapped when they exist beside the
+match; `php-config --version` must have the same minor, and a repository with `packages/php-ext` fails when they are missing
+(`php<minor>-dev` or `brew reinstall php@<minor>`). No match fails with the attempts in order, `.php-version` and the install
+command (`brew install php@<minor>` or `apt install php<minor>-cli`).
 
 ### Go advisories (K53)
 
@@ -85,7 +96,7 @@ would walk it whatever the working directory.
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
-| PHP | `config/toolchain.json` `php` (minor releases), else `.php-version` | verify |
+| PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools provides the PHP of `.php-version` only | discover and wrap (K283), verify |
 | Python | `python` of `mise.toml` (exact), whose minor is the kit pin; `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
 | mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
 | uv, ruff, golangci-lint | `uv`, `ruff`, `golangci-lint` of `mise.toml` (the aqua backend; `mise.lock` holds the sha256 of each archive) | install with mise |

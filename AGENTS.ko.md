@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: ca9ec127b8b50e6eeb7924130381eb23e7829c0a3ea2b23ef2cf41d53be218be -->
+<!-- source-sha256: 947aca4b51b87119096cffbaeb9859a375038a661e12df0d4b1059964bc82d83 -->
 # 개발
 
 [English](AGENTS.md)
@@ -68,8 +68,10 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;
   rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
   설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, `make toolchain-check`는 설치되지 않은 toolchain을 이름으로
-  알립니다. PHP는 `.php-version`의 release이며(CI에서는
-  install-tools 앞의 setup-php 단계), `make toolchain-check`가 이를 검증합니다.
+  알립니다. PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283):
+  `make install-tools`가 `.php-version`의 release를 찾아(PATH의 해당 minor `php`, CI에서는 setup-php 단계; 없으면 apt의
+  `php<minor>`; 없으면 Homebrew의 `opt/php@<minor>` keg) php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰고,
+  못 찾으면 시도한 목록과 함께 실패합니다. `make toolchain-check`가 이를 검증합니다.
   Enforced by: `make toolchain-check`, `make kit-check`
 - 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).

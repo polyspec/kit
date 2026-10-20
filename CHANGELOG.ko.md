@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 11b9178c05dce014250e5fb239a2319369aea4149bf20c415702fa229932a626 -->
+<!-- source-sha256: 8f233e6cf02185bd93788147b81434532397a85b2c78af3dbc7051814948cb1e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make install-tools`는 `.php-version`의 PHP를 탐색해서 제공한다: PATH의 해당 minor `php`, 없으면 apt의 `php<minor>`, 없으면 Homebrew의 `opt/php@<minor>` keg. Composer 설치 전에 php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰므로, machine이 어떤 PHP를 PATH 앞에 두어도 모든 저장소가 고정된 PHP로 실행되고, 일치하는 것이 없으면 시도한 목록과 함께 실패한다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
 
 ## 0.0.54
 

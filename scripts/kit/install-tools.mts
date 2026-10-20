@@ -11,7 +11,7 @@
 // with rustup, which stays the toolchain manager of Rust) and the symbol extractors of symbolExtractors, which build with the Go
 // and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
-// the bootstrap installs first (K171); PHP is verified by check-toolchain.mts, not installed. The command takes no tool names: mise.lock is one set of tools. It prints a line for each
+// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). The command takes no tool names: mise.lock is one set of tools. It prints a line for each
 // step and has no time limit.
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -19,6 +19,7 @@ import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { installPhp, PHP_WRAPPERS } from './install-php.mts';
 import { installPhpLint, PHP_LINT_WRAPPERS } from './install-php-lint.mts';
 import { installPhpunit, PHPUNIT_WRAPPERS } from './install-phpunit.mts';
 import { installRustChannels, installRustToolchain } from './install-rust.mts';
@@ -37,13 +38,15 @@ export function installTools({ root = repositoryRoot(), print = () => {} }: { ro
   const exceptions = readExceptions(root);
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
   const rustChannels = [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))];
-  const { pythonBackend, phpunit, symbolExtractors } = declaredToolchain(root);
+  const { pythonBackend, phpunit, php, symbolExtractors } = declaredToolchain(root);
   const { phpLint } = declaredLintTools(root);
   // var/tools/bin comes first on PATH, so a wrapper that kit no longer writes would shadow the shims of mise in this run too.
-  removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
+  removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(php ? PHP_WRAPPERS : []), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
   run(mise, ['install', '--locked'], { cwd: root, env: process.env }, print);
   const env = toolsEnvironment(root);
+  // The wrappers of php come before the installs that run Composer, so that Composer runs on the pinned PHP.
+  if (php) installPhp({ root, print });
   if (pythonBackend) installBackend({ root, env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print });
   if (phpunit) installPhpunit({ root, declared: phpunit, print });
   if (phpLint) installPhpLint({ root, declared: phpLint, print });

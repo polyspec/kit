@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5ae3e168a06115a5280d8c67109fe1ae7046704a56ac3c55e270191e457e3b51 -->
+<!-- source-sha256: cca5d78459385493053cc4255f1a596fbd1e9483429dc613fe5e247532a95b8e -->
 
 # 도구 목록
 
@@ -37,7 +37,7 @@
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
 mise bootstrap의 플랫폼인 linux-x64, linux-arm64, macos-arm64, macos-x64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
 lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
-것을 설치합니다. wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
+것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 탐색해 wrapper로 제공하고(K283, 아래), wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
 Rust channel, symbol extractor입니다.
@@ -47,13 +47,24 @@ bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)
 `var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
 shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit.mk는 checkout의 mise 환경을 모든 recipe에 export하고 `var/tools/bin`과 shim을
 PATH 맨 앞에 둡니다. `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
-선언된 Composer project의 phpunit, phpcs, phpstan입니다. `make install-tools`는 설치 전에 그 밖의 file을 모두 지웁니다. 예를
+선언된 PHP의 php, php-config, phpize, 선언된 Composer project의 phpunit, phpcs, phpstan입니다. `make install-tools`는 설치 전에 그 밖의 file을 모두 지웁니다. 예를
 들어 이제 mise에서 오는 도구에 대해 이전 kit이 쓴 wrapper는 그 shim을 가립니다(K149). `scripts/kit/check-toolchain.mts`는 실행 중인 도구를 선언과 대조합니다. bootstrap과 mise가 설치하지 않는
 도구의 선언은 `scripts/kit/bootstrap/toolchain-declared.mts`가, `mise.toml`의 도구와 `mise.lock`의 digest는
 `scripts/kit/toolchain-mise.mts`가, Rust와 go.mod 파일은 `scripts/kit/toolchain-files.mts`가 각 ecosystem의 도구로 읽습니다. Make
 target은 `install-tools`와 `toolchain-lock`(`ONLINE`을 통한 online), `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
 Rust는 rustup에 남습니다. rustup과 `rust-toolchain.toml`은 Rust 생태계 자체의 toolchain 방식이고, mise의 rust backend도 결국
 rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니다. mise의 빈틈마다 내린 결정은 docs/rebuild/toolchain.md에 있습니다.
+
+PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor는 `.php-version`에서만 읽으며, PHP를 `config/toolchain.json`
+목록에만 둔 저장소는 실패하므로 `.php-version`을 추가해야 합니다. `install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외,
+자기 wrapper를 찾지 않기 위해)로 찾으며 처음 일치한 것을 씁니다: (1) `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`이 해당 minor인 PATH의
+`php`(CI의 setup-php); (2) PATH의 `php<minor>`와 그 옆의 `phpize<minor>`, `php-config<minor>`(Debian, Ubuntu);
+(3) `$(brew --prefix)/opt/php@<minor>/bin/php`, keg의 안정된 `opt/` 경로이며 brew가 없으면 건너뜁니다. 일치한 것의 절대
+경로를 담은 exec wrapper로 `var/tools/bin/php`를 쓰며 link는 만들지 않고, Composer 설치보다 먼저 써서 Composer가 고정된 PHP로
+실행되게 합니다. `php-config`와 `phpize`는 일치한 php 옆에 있으면 wrapper로 쓰고, `php-config --version`은 같은 minor여야
+하며, `packages/php-ext`가 있는 저장소는 이들이 없으면 실패합니다(`php<minor>-dev` 또는 `brew reinstall php@<minor>`).
+일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
+함께 실패합니다.
 
 ### Go 취약점 (K53)
 
@@ -82,7 +93,7 @@ rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니�
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
 | Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
 | Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
-| PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version` | 검증 |
+| PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 `.php-version`의 PHP만 제공 | 탐색 후 wrapper(K283), 검증 |
 | Python | `mise.toml`의 `python`(정확한 version), 그 minor는 kit pin; `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
 | mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
 | uv, ruff, golangci-lint | `mise.toml`의 `uv`, `ruff`, `golangci-lint`(aqua backend; `mise.lock`이 archive별 sha256을 가짐) | mise로 설치 |

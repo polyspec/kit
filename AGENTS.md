@@ -77,8 +77,10 @@ and states only its own rules. The rules below are kit's own.
   that mise does not install. `make install-tools` installs, with rustup, the toolchain of `rust-toolchain.toml` with its
   components (`rustup toolchain install` in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
-  install, and `make toolchain-check` names a toolchain that is not installed. PHP is the
-  release of `.php-version` (in CI, the setup-php step before install-tools), which `make toolchain-check` verifies.
+  install, and `make toolchain-check` names a toolchain that is not installed. PHP is discovered and wrapped, not
+  installed (K283): `make install-tools` finds the release of `.php-version` (a `php` on PATH of that minor, which is the
+  setup-php step in CI; else `php<minor>` of apt; else the `opt/php@<minor>` keg of Homebrew) and writes exec wrappers for
+  php, php-config and phpize in var/tools/bin, or fails with the attempts; `make toolchain-check` verifies it.
   Enforced by: `make toolchain-check`, `make kit-check`
 - A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands

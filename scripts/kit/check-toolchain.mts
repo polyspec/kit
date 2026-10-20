@@ -16,6 +16,7 @@
 // (toolchain-floors.mts), or the channel of an exception of config/toolchain.json whose scope holds the file
 // (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings, and so
 // is a key of an .npmrc that keeps npm from linking.
+import { phpInstall } from './install-php.mts';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -62,7 +63,7 @@ const probes: Record<string, Probe> = {
   mise: { command: root => toolsPath(root, 'bin', 'mise'), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
   // rustup installs the toolchain of rust-toolchain.toml through make install-tools (install-rust.mts); its proxy names a missing one.
   rust: { command: () => 'rustc', args: ['--version'], pattern: /^rustc (\d+\.\d+\.\d+) /m, absent: /toolchain '([^']+)' is not installed/, fix: () => INSTALL },
-  php: { command: () => 'php', args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `install PHP ${v}` },
+  php: { command: () => 'php', args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `make install-tools finds the PHP of .php-version; install it first with ${present(v, 'the declared PHP minors').split(' or ').map(phpInstall).join(' or ')}` },
   phpunit: { command: () => 'phpunit', ...RELEASE_OUTPUT.phpunit, fix: () => INSTALL },
   phpcs: { command: () => 'phpcs', ...RELEASE_OUTPUT.phpcs, fix: () => INSTALL },
   phpstan: { command: () => 'phpstan', ...RELEASE_OUTPUT.phpstan, fix: () => INSTALL },
