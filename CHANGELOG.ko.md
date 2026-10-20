@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fcd53c7e19ebe9cd20433bb78fa95bfdd41211143d5051b5ea6f9f07e640bcec -->
+<!-- source-sha256: fea642f90cb4b3a48c2b31bfe3c4d235421cdf8421b6e4e4bd37409194a93063 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make test-markers-check`는 하나의 규약을 따르는 fixture, 즉 `fixtures`나 `testdata` 폴더 안의 파일이나
+  `*_fixture_test.go`, `*.fixture.test.*`, `test_*_fixture.py`, `*FixtureTest.php`라는 이름의 파일의 skip을 finding으로
+  보지 않는다. 그런 fixture의 skip은 그 test가 검사하는 동작이기 때문이다. 그 밖의 skip과 fixture의 다른 marker는
+  계속 finding이다. red: `*_fixture_test.go` 파일의 TestFixtureSkip이 finding이었다. green: `node --test
+  --test-name-pattern=K344 tests/kit/test-markers.test.mts`가 통과한다 (K344).
 - consumer의 `make install-packages`는 옆의 kit checkout의 link(`../kit/dist/link.mjs`)를 실행하고, `npm ci`가 방금
   설치한 released kit에는 `--siblings`가 없으므로 그 checkout이 build되지 않았으면 `npm ci` 전에 해결 방법과 함께
   실패한다. CI처럼 sibling kit이 없으면 설치된 kit의 link를 실행한다. K205 test는 K349가 사실로 만든 대로 recipe가

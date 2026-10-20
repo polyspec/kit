@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make test-markers-check` leaves the skip of a fixture of one convention, a file in a folder `fixtures` or
+  `testdata` or named `*_fixture_test.go`, `*.fixture.test.*`, `test_*_fixture.py` or `*FixtureTest.php`, since the
+  skip of such a fixture is the behaviour that its test checks; a skip anywhere else, and any other marker of a
+  fixture, stays a finding. Red: TestFixtureSkip of a `*_fixture_test.go` file was a finding; green: `node --test
+  --test-name-pattern=K344 tests/kit/test-markers.test.mts` passes (K344).
 - `make install-packages` of a consumer runs the link of the kit checkout beside it (`../kit/dist/link.mjs`), and fails
   before `npm ci` with the fix when that checkout is not built, since the released kit that `npm ci` just installed
   has no `--siblings`; without a sibling kit, as in CI, it runs the link of the installed kit. The K205 test states
