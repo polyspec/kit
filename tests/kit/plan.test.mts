@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { commitItem, newItem, newPlan, setState, splitPlan, testItem } from '../../scripts/kit/plan.mts';
+import { commitItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { tree } from './tree.mts';
@@ -168,6 +168,22 @@ test('a commit and an item test refuse a changed TypeScript file with a type err
   stage(root, 'a.mts');
   commitItem(root, commit, identity);
   assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
+});
+
+// K335: the done state is no word of the agent: the verification of the row runs on the tree that the commit holds, and a failing one refuses.
+test('verifyDone runs the Verification of the row and refuses a failing command and a deliverable that is neither staged nor committed (K335)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
+  newItem(root, item('parser', 'T2', { deliverables: '`a.mts`', verification: '`node -e "process.exit(3)"`' }));
+  const quiet = () => {};
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  assert.throws(() => verifyDone(root, 'T1', quiet), /T1: the verification must run on the tree that the commit holds[\s\S]*\?\? a\.mts/, 'an untracked deliverable');
+  stage(root, 'a.mts');
+  verifyDone(root, 'T1', quiet);
+  assert.throws(() => verifyDone(root, 'T2', quiet), /exit status 3/, 'a failing command refuses');
+  writeFileSync(path.join(root, 'a.mts'), 'export const changed = 1;\n');
+  assert.throws(() => verifyDone(root, 'T1', quiet), /the verification must run on the tree that the commit holds[\s\S]*a\.mts/, 'a change after the staging');
+  assert.throws(() => verifyDone(root, 'T9', quiet), /T9 is no item/);
 });
 
 const log = (root: string) => spawnSync('git', ['log', '-1', '--format=%B'], { cwd: root, encoding: 'utf8' }).stdout;

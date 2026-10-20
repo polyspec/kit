@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make item-state` marks an item done only after the commands of its Verification cell pass on the tree that the
+  commit holds: the files it delivers must be staged or committed, and a failing command refuses the state (K335).
 - The dependency policy compares plain Composer releases as versions, so a locked version above the latest release of
   the registry, such as an unreleased `polyspec/template 0.0.11` against 0.0.6, is not outdated (K328-1).
 - Parity rule R16 reports only a match of the requirement pattern that `docs/spec` defines, over every match of an

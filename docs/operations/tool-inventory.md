@@ -467,7 +467,7 @@ of `config/duplication.json` or of the `tools` and `internal` of `config/parity.
 defines: `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:` or `external:`. The skipped and narrowed tests are the markers of
 `make test-markers-check`, which also reads `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]` and the skip of a
 `node:test` context. `make item-state` refuses a bypassed or impossible state whose cause cites a release, a failure that is not
-reproduced, a flake, a transient or unrelated failure or the environment. The tools and tests of kit itself are left out.
+reproduced, a flake, a transient or unrelated failure or the environment. `make item-state` marks an item done only after the commands of its Verification cell pass on the tree that the commit holds (K335). The tools and tests of kit itself are left out.
 
 ## Owner check (K8.1-1)
 

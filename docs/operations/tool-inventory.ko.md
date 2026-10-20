@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4ccad4405cdb3b07e31c6cbad568c8dc50b5a5815796f7df529bd3273f1f20d1 -->
+<!-- source-sha256: d7d5512598f622f28bd43a377cd2e8f3f7af5a3690a8f50d84754f79686ce76a -->
 
 # 도구 목록
 
@@ -425,7 +425,7 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`(`generated:`, `fixture:`, `test:`,
 `harness:`, `ecosystem:`, `external:`). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
 `pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽는다. `make item-state`는 cause가 release,
-재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. kit 자신의 도구와 test는
+재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. `make item-state`는 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 item을 done으로 표시한다(K335). kit 자신의 도구와 test는
 제외한다.
 
 ## Owner check (K8.1-1)

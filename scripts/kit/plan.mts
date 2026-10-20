@@ -323,6 +323,32 @@ export function testItem(root: string, id: string, print: (text: string) => void
   return commands;
 }
 
+/** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
+function rowCells(text: string, id: string): string[] | undefined {
+  const line = text.split('\n').find(row => row.startsWith(`| ${id} |`));
+  return line?.split(' | ').map(cell => cell.replace(/^\| /, '').replace(/ \|$/, ''));
+}
+
+/**
+ * The checks before an item is marked done by the command (K335): the files it delivers have no change that is neither staged nor
+ * committed, so the verification below runs on the tree that the commit holds, and the commands of its Verification cell pass
+ * (testItem). Throws with the cause; an agent's word that the tests passed closes nothing.
+ */
+export function verifyDone(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const tracker = trackers.find(entry => readChecklist(readFileSync(path.join(root, entry.path), 'utf8'), entry).items.some(item => item.id === id));
+  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  const cells = rowCells(readFileSync(path.join(root, tracker.path), 'utf8'), id);
+  const delivered = (cells?.[2] ?? '').split(/[\s,]+/).map(token => token.replace(/^`|`$/g, '')).filter(token => token !== '' && existsSync(path.join(root, token)));
+  if (delivered.length > 0) {
+    const status = spawnSync('git', ['status', '--porcelain', '-uall', '--', ...delivered], { cwd: root, encoding: 'utf8' });
+    if (status.status !== 0) throw new Error(`git status ended with exit status ${status.status}: ${status.stderr}`);
+    const loose = status.stdout.split('\n').filter(line => line !== '' && (line.startsWith('??') || line[1] !== ' '));
+    if (loose.length > 0) throw new Error(`${id}: the verification must run on the tree that the commit holds; stage or commit these files first:\n${loose.join('\n')}`);
+  }
+  testItem(root, id, print);
+}
+
 // A trailer line of a commit message, such as Co-Authored-By: Name <mail>, which git reads by its key and is never wrapped.
 const TRAILER = /^[A-Za-z][A-Za-z0-9-]*: \S/;
 
@@ -385,6 +411,8 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
+      // The done state needs the verification of the row to pass on the tree of the commit (K335).
+      if (change.state === DONE) verifyDone(root, change.id);
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
     } else if (command === 'plan-split') {
       const split = { from: required(env.FROM, 'FROM'), to: required(env.TO, 'TO'), ids: required(env.IDS, 'IDS').split(/\s+/), title: env.TITLE, titleKo: env.TITLE_KO };
