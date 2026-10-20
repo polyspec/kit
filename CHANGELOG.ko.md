@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ae30e602fba5663802779f0215d79cad403de5ae3c6ae2653440c4ea1cb642bf -->
+<!-- source-sha256: bf32fea34e412f493fc4ad5338311b6d183b41d0aa9705e3df6c0c39a27b2e38 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-review`는 Go module을 가장 가까운 go.work로 검사한다. link가 쓰는 옆의 go.work, 없으면 그 module을 쓰는
+  상위 폴더의 tracked go.work를 쓰므로, 저장소 workspace의 module이 자기 module을 찾는다(K418).
 - P8은 규칙마다 강제된다. phpcs는 `@`로 숨긴 오류를, oxlint는 잡은 오류를 cause로 갖지 않고 던지는 catch를, PHP
   extension의 build는 확인해야 하는 결과를 버리는 것을(`-Werror=unused-result`), gate `make suppression-check`는 이유를
   적지 않은 lint finding의 모든 억제를 거부한다(K334).

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make dependency-review` scans a Go module with its nearest go.work: the one beside it, which the link writes, else a
+  tracked go.work of a parent folder that uses it, so a module of the workspace of the repository resolves its own modules (K418).
 - P8 is enforced rule by rule: phpcs refuses an error silenced with `@`, oxlint a catch that throws without the caught
   error as its cause, the build of a PHP extension a dropped result that must be checked (`-Werror=unused-result`), and the
   gate `make suppression-check` every suppression of a lint finding that states no reason (K334).
