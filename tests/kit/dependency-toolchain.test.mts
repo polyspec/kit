@@ -9,12 +9,14 @@ import { TOOLCHAIN, UPDATE, readPolicy, readState } from '../../scripts/kit/depe
 import type { Dependency } from '../../scripts/kit/dependency-state.mts';
 import { fixOf, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture } from './checkout.mts';
+import { checkoutTools } from './checkout-stubs.mts';
 
 const toolchainRuff: Dependency = { ecosystem: 'pypi', manifest: TOOLCHAIN, package: 'ruff', kind: 'toolchain', spec: '==0.16.10', version: '0.16.10', lock: null };
 const policyOf = (root: string) => readPolicy(root);
 
 test('the ruff of mise.toml is a PyPI dependency of the review state', (t) => {
   const root = fixture(t);
+  checkoutTools(root, ['go']);
   writeFileSync(path.join(root, TOOLCHAIN), '[tools]\nruff = "0.16.10"\n');
   const state = readState(root, policyOf(root));
   assert.deepEqual(state.dependencies.filter(dependency => dependency.manifest === TOOLCHAIN), [toolchainRuff]);
@@ -22,6 +24,7 @@ test('the ruff of mise.toml is a PyPI dependency of the review state', (t) => {
 
 test('a mise.toml without ruff has no toolchain dependency', (t) => {
   const root = fixture(t);
+  checkoutTools(root, ['go']);
   writeFileSync(path.join(root, TOOLCHAIN), '[tools]\npython = "3.14.8"\n');
   const state = readState(root, policyOf(root));
   assert.equal(state.dependencies.some(dependency => dependency.manifest === TOOLCHAIN), false);

@@ -23,7 +23,6 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSy
 import path from 'node:path';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
@@ -52,9 +51,8 @@ function consumerTool(top: string, name: 'npm' | 'composer' | 'uv' | 'go' | 'car
   if (given) return { command: given, env };
   if (name === 'cargo') return { command: 'cargo', env };
   if (name === 'composer') return { command: composerCommand(top, `the links of ${top}`), env: toolsEnvironment(top, env) };
-  const command = name === 'npm' ? toolsPath(top, 'bin', 'npm') : toolCommand(top, name);
-  if (!existsSync(command)) throw new Error(`the links of ${top} need ${command}; run make install-tools there, or give ${variable}`);
-  return { command, env: toolsEnvironment(top, env) };
+  // A missing tool of the checkout throws the message of toolCommand, the one message for it (K393-1).
+  return { command: toolCommand(top, name), env: toolsEnvironment(top, env) };
 }
 
 /** The real path of `file`, or undefined when it does not exist; any other error is thrown. */

@@ -695,7 +695,7 @@ test('a polyspec name of require-dev of a composer.json without a linked record 
 test('a missing tool of the consumer fails with its cause', (t) => {
   const { consumer, env } = workspace(t);
   const { UV: _uv, ...noUv } = env;
-  assert.throws(() => linkLines([consumer], noUv), /the links of .*cons need .*var\/tools\/mise\/shims\/uv; run make install-tools there, or give UV/);
+  assert.throws(() => linkLines([consumer], noUv), /uv of the checkout is missing \(var\/tools\/bin\/uv, var\/tools\/mise\/shims\/uv\); run make install/);
 });
 
 test('a malformed installed.json and a failed uv workspace dir throw with their cause', (t) => {

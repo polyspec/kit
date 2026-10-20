@@ -42,7 +42,7 @@ test('go.mod requirements are the direct modules that the checkout does not repl
   writeFileSync(path.join(root, 'go.mod'), text);
   // goRequirements runs the go of PATH: the stub, which answers from the record of the real go (registry.mts).
   const saved = { ...process.env };
-  Object.assign(process.env, toolStubs());
+  Object.assign(process.env, toolStubs(root));
   t.after(() => {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
     Object.assign(process.env, saved);
@@ -62,7 +62,7 @@ test('the review reports a newer stable release of a Go module and the gate read
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v1.6.0', 'v1.7.0', 'v2.0.0-rc.1'] } });
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -89,7 +89,7 @@ test('a Go module without a stable release is an error of its query, not a modul
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v2.0.0-rc.1'] } });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -100,7 +100,7 @@ test('the review records the Go advisories, and the update plan raises the modul
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root, REPORT);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v1.6.0', 'v1.7.0'] } });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -121,11 +121,11 @@ test('the review records the Go advisories, and the update plan raises the modul
 test('the review names the install command when govulncheck is not installed', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /packages\/fixture-go\/go\.sum: the advisory query failed: var\/tools\/mise\/shims\/govulncheck is not installed; declare go:golang\.org\/x\/vuln\/cmd\/govulncheck in mise\.toml and run make install-tools/);
+  assert.match(result.stdout, /packages\/fixture-go\/go\.sum: the advisory query failed: govulncheck of the checkout is missing \(var\/tools\/bin\/govulncheck, var\/tools\/mise\/shims\/govulncheck\); run make install/);
 });
 
 test('govulncheck scans the packages of each tracked Go module and never the tree under var/ (K53)', (t) => {
@@ -140,7 +140,7 @@ test('govulncheck scans the packages of each tracked Go module and never the tre
   writeFileSync(path.join(goroot, 'src/x/x.go'), 'package x\n');
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.doesNotMatch(result.stdout, /advisory query failed/);
@@ -162,7 +162,7 @@ test('the advisory scan of a linked Go module runs with its go.work and a failed
   writeFileSync(path.join(root, 'go.work'), 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   mkdirSync(path.join(root, 'packages/sibling'), { recursive: true });
   writeFileSync(path.join(root, 'packages/sibling/go.mod'), 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.doesNotMatch(result.stdout, /advisory query failed/);

@@ -27,6 +27,7 @@ import { trackedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { ciRefusal } from './ci-only.mts';
 import { git } from './git.mts';
+import { toolCommand } from './mise-tools.mts';
 import { readConfig } from './schema-validate.mts';
 import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
@@ -383,7 +384,8 @@ const complain = (text: string) => console.error(`[owner-check] ${text}`);
 function step(root: string, { name, command, args }: Check) {
   say(`start ${name}`);
   const started = performance.now();
-  const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' });
+  // npm is the tool of the checkout, never the one on PATH (K393-1).
+  const result = spawnSync(command === 'npm' ? toolCommand(root, 'npm') : command, args, { cwd: root, stdio: 'inherit' });
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   const passed = result.status === 0;
   say(`${name} ${passed ? 'passed' : `failed with ${result.error?.message ?? result.status ?? result.signal}`} in ${seconds} s`);

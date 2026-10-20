@@ -299,6 +299,13 @@ test('the real npm ci and composer install install the archives of a tag from th
       }));
     },
   });
+  // npm and composer of the checkout are its wrappers, which run the real tools of PATH: this case installs for real (K393-1).
+  const checkoutBin = path.join(box.root, 'var/tools/bin');
+  mkdirSync(checkoutBin, { recursive: true });
+  for (const tool of ['npm', 'composer']) {
+    const real = spawnSync('sh', ['-c', 'command -v "$1"', 'sh', tool], { encoding: 'utf8' }).stdout.trim();
+    writeFileSync(path.join(checkoutBin, tool), `#!/bin/sh\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  }
   const tag = box.release('0.0.1');
   const env = { ...process.env, GITHUB_REPOSITORY: 'example/kit-fixture' };
   const ctx = release.context(box.root, { env });

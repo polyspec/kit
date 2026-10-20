@@ -18,6 +18,7 @@ import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readStub, TEXTS } from './stub-json.mts';
 import { known } from './known.mts';
+import { toolCommand as checkoutTool } from '../../scripts/kit/mise-tools.mts';
 
 /** The record that run-tests --results writes: the tool, the inputs, the time and each case. */
 type Results = { tool: string; ok?: boolean; elapsedMs?: number; inputs?: { paths: string[]; digest: string }; cases: { id: string; status: string; elapsedMs?: number }[] };
@@ -472,7 +473,7 @@ test('the library run of test-php-ext takes PHPUnit from the vendor-dir of the r
 
 test('a tool that cannot start fails with its command and the fix', async (t) => {
   // The go of the checkout is missing from var/tools/mise/shims: the run stops before it starts, and PATH is not searched (K393).
-  await assert.rejects(inProcess(t, ['go', './...']), /var\/tools\/mise\/shims\/go does not exist; run make install/);
+  await assert.rejects(inProcess(t, ['go', './...']), /go of the checkout is missing \(var\/tools\/bin\/go, var\/tools\/mise\/shims\/go\); run make install/);
   // PHPUnit starts by its path in the vendor directory, so PATH does not matter for it.
   const phpunit = await inProcess(t, ['phpunit'], { root: tree(t, COMPOSER_PROJECT) });
   assert.match(phpunit.text, /cannot start .*vendor\/bin\/phpunit: .*; run composer install in \./);
@@ -657,7 +658,7 @@ test('--venv accepts an environment with the symbolic links of the tool that mad
 });
 
 test('a var/tools/mise/shims/python3 that does not exist fails before the run, with the fix (K393)', async (t) => {
-  await assert.rejects(inProcess(t, ['python', 'tests'], { root: tree(t) }), /var\/tools\/mise\/shims\/python3 does not exist; run make install/);
+  await assert.rejects(inProcess(t, ['python', 'tests'], { root: tree(t) }), /python3 of the checkout is missing \(var\/tools\/bin\/python3, var\/tools\/mise\/shims\/python3\); run make install/);
 });
 
 test('inputsDigest hashes the tracked and new non-ignored files under the paths and fails on a path without files', (t) => {
@@ -765,4 +766,30 @@ test('run-tests starts its runner with the environment of mise of the checkout, 
   assert.equal(state, path.join(real, 'var/tools/mise/state'));
   assert.equal(config, path.join(real, 'mise.toml'));
   assert.equal(first, path.join(real, 'var/tools/bin'));
+});
+
+// The tools of the checkout are the wrapper of var/tools/bin or the shim of mise, never a tool of PATH.
+test('the tools of kit are taken from the checkout, never from PATH (K393-1)', (t) => {
+  const root = tree(t);
+  const wrapper = path.join(root, 'var/tools/bin/npm');
+  mkdirSync(path.dirname(wrapper), { recursive: true });
+  writeFileSync(wrapper, '#!/bin/sh\n');
+  assert.equal(checkoutTool(root, 'npm'), wrapper);
+  const shim = path.join(root, 'var/tools/mise/shims/go');
+  mkdirSync(path.dirname(shim), { recursive: true });
+  writeFileSync(shim, '#!/bin/sh\n');
+  assert.equal(checkoutTool(root, 'go'), shim);
+  // A tool of PATH does not stand in for a tool that the checkout lacks.
+  const other = tree(t);
+  const onPath = mkdtempSync(path.join(tmpdir(), 'kit-path-'));
+  t.after(() => rmSync(onPath, { recursive: true, force: true }));
+  writeFileSync(path.join(onPath, 'uv'), '#!/bin/sh\n');
+  chmodSync(path.join(onPath, 'uv'), 0o755);
+  const previous = process.env.PATH;
+  process.env.PATH = `${onPath}${path.delimiter}${previous ?? ''}`;
+  try {
+    assert.throws(() => checkoutTool(other, 'uv'), /uv of the checkout is missing .*; run make install/);
+  } finally {
+    process.env.PATH = previous;
+  }
 });

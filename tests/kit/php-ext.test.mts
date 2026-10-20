@@ -3,8 +3,8 @@
 // with what the PHP library declares. The extension of tests/kit/php-ext-fixture registers Polyspec\Demo\add and
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,18 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const FIXTURE = path.join(ROOT, 'tests/kit/php-ext-fixture');
 const STUB = readFileSync(path.join(FIXTURE, 'polyspec_demo.stub.php'), 'utf8');
 const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8');
+
+// The build tests start the PHP of the checkout, its wrappers in var/tools/bin (K393-1). The fixture checkout gets wrappers that
+// run the PHP of PATH, which these tests build with on purpose: the build is the test, not where its PHP comes from.
+function phpWrappers(root: string) {
+  const bin = path.join(root, 'var/tools/bin');
+  mkdirSync(bin, { recursive: true });
+  for (const name of ['php', 'php-config', 'phpize']) {
+    const real = execFileSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim();
+    writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
+    chmodSync(path.join(bin, name), 0o755);
+  }
+}
 
 // The files of a repository whose extension follows S10, as { path: text }.
 const good = (): Record<string, string> => ({
@@ -106,6 +118,7 @@ test('the build publishes the extension, which reports the version of its compos
   const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php/autoload.php': "<?php\n\nrequire __DIR__ . '/src/Demo.php';\n" });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   const extension = path.join(root, 'var/php-ext/polyspec_demo.so');
@@ -140,6 +153,7 @@ test('the declarations of the extension are compared with the library that decla
   });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual(declarations(root), []);
@@ -152,6 +166,7 @@ test('the build copy holds the sources of the extension only, so a stale build p
   const source = path.join(root, 'packages/php-ext/src');
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(source, 'polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
   // An in-place build of src/ leaves objects, a libtool library and modules/polyspec_demo.so, as a repository that builds there does.
   for (const [command, args] of [['phpize', []], ['./configure', ['--enable-polyspec-demo']], ['make', []]] as const) {
     const made = spawnSync(command, args, { cwd: source, encoding: 'utf8' });
@@ -222,6 +237,7 @@ test('the build of an extension fails on a dropped result that must be checked, 
     );
     const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php-ext/src/polyspec_demo.c': injected });
     assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+    phpWrappers(root);
     return spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   };
   const dropped = build('checked();');
@@ -240,6 +256,7 @@ test('the compare of test-php-ext fails on a class, function or constant that th
   const autoload = "<?php\n\nrequire __DIR__ . '/../src/Demo.php';\n";
   const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php/vendor/autoload.php': autoload, 'packages/php-ext/src/polyspec_demo.c': extra });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});

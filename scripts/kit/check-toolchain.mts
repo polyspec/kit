@@ -62,11 +62,12 @@ const shim = (tool: keyof typeof MISE_TOOLS, output: { args: string[]; pattern: 
 const probes: Record<string, Probe> = {
   // The node of mise.toml runs from its wrapper var/tools/bin/node, which the bootstrap writes, first on PATH (K171).
   node: { command: root => toolsPath(root, 'bin', 'node'), args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
-  npm: { command: () => 'npm', args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
+  // npm and php are the tools of the checkout, its wrappers in var/tools/bin, never the ones on PATH (K393-1).
+  npm: { command: root => toolCommand(root, 'npm'), args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
   mise: { command: root => toolsPath(root, 'bin', 'mise'), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
   // rustup installs the toolchain of rust-toolchain.toml through make install-tools (install-rust.mts); its proxy names a missing one.
   rust: { command: () => 'rustc', args: ['--version'], pattern: /^rustc (\d+\.\d+\.\d+) /m, absent: /toolchain '([^']+)' is not installed/, fix: () => INSTALL },
-  php: { command: () => 'php', args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `make install-tools finds the PHP of .php-version; install it first with ${present(v, 'the declared PHP minors').split(' or ').map(phpInstall).join(' or ')}` },
+  php: { command: root => toolCommand(root, 'php'), args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `make install-tools finds the PHP of .php-version; install it first with ${present(v, 'the declared PHP minors').split(' or ').map(phpInstall).join(' or ')}` },
   phpunit: { command: () => 'phpunit', ...RELEASE_OUTPUT.phpunit, fix: () => INSTALL },
   phpcs: { command: () => 'phpcs', ...RELEASE_OUTPUT.phpcs, fix: () => INSTALL },
   phpstan: { command: () => 'phpstan', ...RELEASE_OUTPUT.phpstan, fix: () => INSTALL },
@@ -101,6 +102,13 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
   // Destructuring the probe of an unknown tool failed here before.
   if (!entry) throw new Error(`unknown tool ${tool}; the tools are ${TOOLS.join(', ')}`);
   const { command, pattern } = entry;
+  // A tool of the checkout that is missing is a finding of its own probe, which names the fix, and not an error of the check.
+  let program: string;
+  try {
+    program = command(root);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
   const failure = (shown: string, result: RunResult) => {
     const detail = String(result.stderr ?? '').trim();
     const ended = result.signal ? `ended by signal ${result.signal}` : `exit status ${result.status}`;
@@ -113,8 +121,8 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
     if (found.error || found.status !== 0) return failure(`${shownPath(root, mise)} which ${entry.which}`, found);
     args.push(found.stdout.trim());
   }
-  const result = run(command(root), args);
-  const shown = `${shownPath(root, command(root))} ${args.join(' ')}`;
+  const result = run(program, args);
+  const shown = `${shownPath(root, program)} ${args.join(' ')}`;
   if (result.error || result.status !== 0) return failure(shown, result);
   const release = pattern.exec(result.stdout)?.[1];
   return release ? { release } : { error: `no release in the output of \`${shown}\`: ${JSON.stringify(result.stdout.trim())}` };

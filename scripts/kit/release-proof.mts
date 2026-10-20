@@ -29,6 +29,7 @@ import { assetNames, context, latestTag, parseTag, recordedRelease, stepFailure,
 import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
 import { installConsumers, type ReleaseContext } from './release-consumer.mts';
+import { toolCommand } from './mise-tools.mts';
 import { readPylock, type PylockPackage } from './pylock.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { wheelMetadata, wheelName } from './release-wheel.mts';
@@ -153,7 +154,8 @@ function proveGoModules(ctx: ReleaseContext, tag: string, version: string, direc
     const goTag = module === '.' ? `v${version}` : `${module}/v${version}`;
     const remote = run('git', ['ls-remote', '--tags', config.repositoryUrl, `refs/tags/${goTag}`], { cwd: folder, env });
     if (!remote.split('\n').some(line => line.endsWith(`\trefs/tags/${goTag}`))) throw new Stop(`the tag ${goTag} of the Go module ${modulePath} is not on ${config.repositoryUrl}, git ls-remote lists [${remote.trim()}]`);
-    const listed = run('go', ['list', '-m', `${modulePath}@v${version}`], { cwd: folder, env: { ...env, GOFLAGS: '-mod=mod', GOPROXY: 'direct', GOPATH: path.join(folder, 'gopath') } }).trim();
+    // go is the tool of the checkout, never the one on PATH (K393-1).
+    const listed = run(toolCommand(ctx.root, 'go'), ['list', '-m',`${modulePath}@v${version}`], { cwd: folder, env: { ...env, GOFLAGS: '-mod=mod', GOPROXY: 'direct', GOPATH: path.join(folder, 'gopath') } }).trim();
     if (listed !== `${modulePath} v${version}`) throw new Stop(`go list -m ${modulePath}@v${version} printed "${listed}", expected "${modulePath} v${version}"`);
     step(`the Go module ${modulePath} resolves at ${goTag}`);
   }

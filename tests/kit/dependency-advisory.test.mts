@@ -23,7 +23,7 @@ function reviewed(t: TestContext, accepted: object[]) {
   editFixture(root, 'config/dependency-policy.json', (policy: { advisoryExceptions?: object[] }) => { policy.advisoryExceptions = accepted; });
   installCargoAuditStub(root, VULNERABLE);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   return { root, result: review(root, ['--record'], stub.env) };
 }

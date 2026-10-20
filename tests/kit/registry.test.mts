@@ -53,7 +53,7 @@ test('the go stub answers go mod edit of the fixture from the record of the real
 // passes with neither on PATH (K127).
 test('the gate of the fixture passes with the stubs and no go and no composer on PATH', (t) => {
   const root = fixtureCheckout(t);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const bin = stub.env.PATH?.split(path.delimiter)[0];
   assert.ok(bin, 'the stub environment has no PATH');

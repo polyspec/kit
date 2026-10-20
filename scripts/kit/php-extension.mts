@@ -13,7 +13,8 @@
 // In a repository without packages/php-ext, check, build and test say so and pass: every repository runs them in its CI.
 // The PHP library is packages/php, named polyspec/<repository>; the extension lies in packages/php-ext with its sources in src/,
 // is named polyspec/<repository>-php-ext and polyspec_<repository> (a hyphen an underscore), and has one stub,
-// src/polyspec_<repository>.stub.php. phpize, php-config and php are those on PATH, the PHP of .php-version.
+// src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin of the checkout, the PHP of
+// .php-version, never the ones on PATH (K393-1).
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -23,6 +24,7 @@ import { SYMBOLS } from './install-symbols.mts';
 import { spawnSync } from 'node:child_process';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { run, Stop } from './process.mts';
+import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 
 export const LIBRARY = 'packages/php';
@@ -186,8 +188,9 @@ function phpized(root: string, label: string): { work: string; source: string } 
   mkdirSync(work, { recursive: true });
   cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
   cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
-  console.log(`[php-extension] phpize (${run('php-config', ['--version']).trim()})`);
-  run('phpize', [], { cwd: source });
+  // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
+  console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
+  run(toolCommand(root, 'phpize'), [], { cwd: source });
   return { work, source };
 }
 
@@ -246,7 +249,8 @@ export function declarations(root: string): string[] {
   const library = path.join(root, OUTPUT, `${names.extension}.so`);
   if (!existsSync(library)) throw new Stop(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
   const script = path.join(SYMBOLS, 'php', 'reflection.php');
-  const extension = declarationsOf(run('php', ['-d', `extension=${library}`, script, 'extension', names.extension]));
+  const php = toolCommand(root, 'php');
+  const extension = declarationsOf(run(php, ['-d', `extension=${library}`, script, 'extension', names.extension]));
   const request = path.join(root, OUTPUT, `names.${process.pid}.json`);
   writeFileSync(request, JSON.stringify({ classes: Object.keys(extension.classes), functions: Object.keys(extension.functions), constants: Object.keys(extension.constants) }));
   try {
@@ -254,7 +258,7 @@ export function declarations(root: string): string[] {
     for (const folder of names.libraries) {
       const autoloader = packageVendorFile(root, folder, 'autoload.php');
       if (!autoloader) throw new Stop(`${folder} has no Composer autoloader, which the declarations of the library are read through: run composer install in ${folder}, or in the project that requires it`);
-      const found = declarationsOf(run('php', [script, 'library', path.join(root, autoloader), request]));
+      const found = declarationsOf(run(php, [script, 'library', path.join(root, autoloader), request]));
       for (const kind of ['classes', 'functions', 'constants'] as const) {
         for (const [name, declared] of Object.entries(found[kind])) if (declared !== null && declared !== undefined) own[kind][name] = declared;
       }

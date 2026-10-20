@@ -395,7 +395,7 @@ export function readState(root: string, policy: DependencyPolicy) {
     const file = goWorkFile(root, path.posix.dirname(manifestPath), process.env);
     if (file === null) return new Set();
     if (!workspaces.has(file)) {
-      const used = (readGoWork(file, process.env).Use ?? []).map(use => path.relative(root, path.resolve(path.dirname(file), use.DiskPath, 'go.mod')));
+      const used = (readGoWork(root, file, process.env).Use ?? []).map(use => path.relative(root, path.resolve(path.dirname(file), use.DiskPath, 'go.mod')));
       workspaces.set(file, new Set(used.map(mod => readGoMod(root, mod, process.env).Module.Path)));
     }
     // The line above sets the file.

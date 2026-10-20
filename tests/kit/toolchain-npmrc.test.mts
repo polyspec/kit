@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { npmrcFindings } from '../../scripts/kit/toolchain-floors.mts';
 import { tree } from './tree.mts';
+import { checkoutTools } from './checkout-stubs.mts';
 
 test('an .npmrc that sets install-links=true or bin-links=false fails; other keys and the defaults pass', (t) => {
   const root = tree(t, {
@@ -16,6 +17,7 @@ test('an .npmrc that sets install-links=true or bin-links=false fails; other key
     'packages/c/package.json': '{}',
     'packages/c/.npmrc': "bin-links='false'\n",
   });
+  checkoutTools(root, ['npm']);
   // The npm configuration of the user and of the environment does not count, only the .npmrc of the checkout.
   const env = { ...process.env, npm_config_install_links: 'true', NPM_CONFIG_BIN_LINKS: 'false' };
   assert.deepEqual(npmrcFindings(root, env), [

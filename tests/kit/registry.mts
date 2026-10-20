@@ -7,6 +7,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { checkoutStubs } from './checkout-stubs.mts';
 
 /** The records of the real go and Composer that the go and composer stubs answer from. */
 export const TOOL_RECORDS = path.join(import.meta.dirname, 'tool-records.json');
@@ -146,9 +147,10 @@ if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
 
 /**
  * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
- * the directory with `t.after`.
+ * the directory with `t.after`. With `checkout`, the stubs of npm, composer and go are also the wrappers of that checkout in
+ * var/tools/bin, which kit starts before PATH (K393-1); PATH is unchanged.
  */
-export function stubRegistries(t: { after: (cleanup: () => void) => unknown }) {
+export function stubRegistries(t: { after: (cleanup: () => void) => unknown }, checkout?: string) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-registry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
@@ -157,6 +159,7 @@ export function stubRegistries(t: { after: (cleanup: () => void) => unknown }) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
+  if (checkout !== undefined) checkoutStubs(checkout, bin, ['npm', 'composer', 'go']);
   const log = path.join(directory, 'calls.log');
   writeFileSync(log, '');
   const registryFile = path.join(directory, 'registry.json');
@@ -172,16 +175,25 @@ export function stubRegistries(t: { after: (cleanup: () => void) => unknown }) {
 // The stubs of a process that a test runs without its own registries, such as the gate: an empty registry, removed when the
 // process exits.
 let processStubs: NodeJS.ProcessEnv | undefined;
+const exitCleanups: (() => unknown)[] = [];
+let exitHooked = false;
+function atProcessExit(cleanup: () => unknown): void {
+  if (!exitHooked) {
+    exitHooked = true;
+    process.on('exit', () => { for (const done of exitCleanups) done(); });
+  }
+  exitCleanups.push(cleanup);
+}
 
 /**
  * The environment of the stubs with an empty registry, made once for this process: the gate runs go mod edit and composer
- * validate, which the stubs answer from the records, so a gate of the fixture runs neither go nor Composer.
+ * validate, which the stubs answer from the records, so a gate of the fixture runs neither go nor Composer. With `checkout`,
+ * the stubs are made for that checkout too (K393-1), and are not cached.
  */
-export function toolStubs(): NodeJS.ProcessEnv {
+export function toolStubs(checkout?: string): NodeJS.ProcessEnv {
+  if (checkout !== undefined) return stubRegistries({ after: atProcessExit }, checkout).env;
   if (processStubs) return processStubs;
-  const cleanups: (() => unknown)[] = [];
-  process.on('exit', () => { for (const cleanup of cleanups) cleanup(); });
-  processStubs = stubRegistries({ after: cleanup => cleanups.push(cleanup) }).env;
+  processStubs = stubRegistries({ after: atProcessExit }).env;
   return processStubs;
 }
 

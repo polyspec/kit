@@ -27,7 +27,7 @@ const findings = (result: { stderr: string }) => result.stderr.split('\n').filte
 
 test('the gate passes on the fixture and queries no registry', (t) => {
   const root = fixture(t);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const result = gate(root, stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-policy\] 6 registry dependencies and 5 locks match the review of /m);
@@ -175,7 +175,7 @@ test('while a project is linked the review record is compared with the versions 
 // dependency, judged by its link and the record, never a path package of this repository.
 test('while a project is linked a provider path dist of the link lock is a linked dependency, not a package of this repository (K358)', (t) => {
   const root = fixture(t);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const directory = path.join(root, 'packages/fixture-php');
   const lock = readConfig<{ packages: { name: string; version: string; dist?: unknown }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
   const provider = tree(t, { 'packages/php/composer.json': JSON.stringify({ name: 'psr/log' }) });
@@ -232,7 +232,7 @@ test('the review reports a newer stable release with the fix command and writes 
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, npm: { ...FIXTURE_REGISTRY.npm, 'is-number': ['7.0.0', '7.1.0'] } });
   const before = readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8');
   const result = review(root, [], stub.env);
@@ -245,7 +245,7 @@ test('the review records the fixture, and a second run writes the same record', 
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const first = review(root, ['--record'], stub.env);
   assert.equal(first.status, 0, first.stdout + first.stderr);
@@ -261,7 +261,7 @@ test('the review records the fixture, and a second run writes the same record', 
 
 test('the mutation check rejects every mutation of the fixture', (t) => {
   const root = fixture(t);
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs(root) });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
@@ -275,7 +275,7 @@ test('the mutation check applies to the ecosystems of the repository: no Compose
   };
   edit('config/dependency-policy.json', (policy: { composerPlatforms: string[] }) => { policy.composerPlatforms = []; });
   edit('config/dependency-review.json', (record: { dependencies: Array<{ ecosystem: string }> }) => { record.dependencies = record.dependencies.filter(entry => entry.ecosystem === 'pypi'); });
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs(root) });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /3 mutations rejected/);
 });
@@ -288,7 +288,7 @@ test('the mutation check copies go.work, so a module that requires only a worksp
   write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
   write('packages/sibling/sibling.go', 'package sibling\n');
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs(root) });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /5 mutations rejected/);
 });
@@ -301,7 +301,7 @@ test('the mutation check fails with one finding when go.work uses a module that 
   write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
   write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
   appendFileSync(path.join(root, '.gitignore'), 'packages/sibling/\n');
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs() });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-dependency-policy-mutation.mts'))], { cwd: root, encoding: 'utf8', env: toolStubs(root) });
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(result.stdout, '');
   assert.equal(result.stderr, '[dependency-policy] go.work: uses ./packages/sibling, whose go.mod Git does not track; a committed go.work may only use tracked modules. Fix: commit packages/sibling/go.mod or remove the use from go.work\n');
@@ -314,7 +314,7 @@ test('a package that the root overrides install from a URL is not reviewed again
   const manifest = readNpmManifest(root, 'package.json');
   manifest.overrides = { 'is-number': 'https://example.org/releases/is-number-7.0.0.tgz' };
   writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, npm: Object.fromEntries(Object.entries(FIXTURE_REGISTRY.npm).filter(([name]) => name !== 'is-number')) });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -361,7 +361,7 @@ test('the review records and audits every npm lock that the policy names', (t) =
   installGovulncheckStub(root);
   addSubPackage(root, '0.0.0');
   addPolicyLock(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -374,7 +374,7 @@ test('an npm audit that prints nothing is an error of its lock, not a lock witho
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, npmAuditText: '' });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -387,7 +387,7 @@ test('the review refuses a policy that breaks its schema instead of reviewing no
   const policy = readConfig<{ pythonLocks?: unknown }>(root, POLICY, 'dependency-policy.schema.json');
   delete policy.pythonLocks;
   writeFileSync(file, JSON.stringify(policy));
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -401,7 +401,7 @@ test('the gate reads the review record by its schema and names each error', (t) 
   const record = readConfig<{ comment?: string }>(root, RECORD, 'dependency-review.schema.json');
   delete record.comment;
   writeFileSync(file, JSON.stringify(record));
-  const result = gate(root, stubRegistries(t).env);
+  const result = gate(root, stubRegistries(t, root).env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stderr, /\[dependency-policy\] config\/dependency-review\.json: the record breaks dependency-review\.schema\.json: .*comment/);
 });
@@ -410,7 +410,7 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const via = [{ source: 1099, url: 'https://github.com/advisories/GHSA-0000-0000-0001', severity: 'high', title: 'nested overflows' }];
   stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { nested: { range: '<1.2.0', via } } } });
   review(root, ['--record'], stub.env);

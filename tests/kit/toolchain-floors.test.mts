@@ -6,6 +6,7 @@ import { cargoFindings, composerFindings, enginesFindings, goModFindings, pyproj
 import { Pinning } from '../../scripts/kit/toolchain-exceptions.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { tree } from './tree.mts';
+import { checkoutTools } from './checkout-stubs.mts';
 
 const PHP = PINS.php;
 
@@ -105,6 +106,7 @@ test('every go.mod declares go <the Go pin> and no toolchain line, which the go 
     'packages/c/go.mod': 'module example.com/c\n\ngo 1.27\n\ntoolchain go1.27.2\n',
     'packages/d/go.mod': 'module example.com/d\n\ngo 1.27.2 // the pin of kit\n',
   });
+  checkoutTools(root, ['go']);
   assert.deepEqual(goModFindings(root, new Pinning(PINS), { ...process.env, GOTOOLCHAIN: 'local' }), [
     'packages/b/go.mod: go is "1.21"; kit pins go 1.27.2, so it must be "1.27.2"',
     'packages/c/go.mod: go is "1.27"; kit pins go 1.27.2, so it must be "1.27.2"',

@@ -62,6 +62,10 @@ const setup = (t: TestContext, outputs: Record<string, string | null> = OUTPUTS,
   for (const name of Object.keys(outputs).filter(command => MISE_COMMANDS.includes(command))) {
     writeFileSync(path.join(root, 'var/tools/mise/shims', name), `#!/bin/sh\nexec '${path.join(stubs.directory, 'bin', name)}' "$@"\n`, { mode: 0o755 });
   }
+  // npm and php are the tools of the checkout (K393-1): their wrappers in var/tools/bin run the stubs of PATH.
+  for (const name of ['npm', 'php'].filter(command => command in outputs)) {
+    writeFileSync(path.join(root, 'var/tools/bin', name), `#!/bin/sh\nexec '${path.join(stubs.directory, 'bin', name)}' "$@"\n`, { mode: 0o755 });
+  }
   return { root, stubs };
 };
 
@@ -215,7 +219,7 @@ test('a command that is missing or prints no release is a mismatch that names th
   const { root, stubs } = setup(t, { ...OUTPUTS, npm: 'twelve', composer: null });
   const result = check(root, stubs.env, 'npm', 'composer');
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /npm: no release in the output of `npm --version`: "twelve"; packageManager of package\.json declares 12\.2\.0; fix: make install-tools/);
+  assert.match(result.stderr, /npm: no release in the output of `var\/tools\/bin\/npm --version`: "twelve"; packageManager of package\.json declares 12\.2\.0; fix: make install-tools/);
   assert.match(result.stderr, /composer: `var\/tools\/mise\/shims\/composer --version --no-ansi` failed \(.*\).*; mise\.toml tools\.http:composer declares 2\.10\.3; fix: make install-tools/);
 });
 
@@ -225,9 +229,9 @@ test('a version command ended by a signal names the signal, not an exit status (
   writeFileSync(killed, '#!/usr/bin/env node\nprocess.kill(process.pid, "SIGKILL");\n');
   chmodSync(killed, 0o755);
   const [mismatch] = toolchainMismatches(['npm'], { root, env: stubs.env });
-  assert.match(mismatch ?? '', /^npm: `npm --version` failed \(ended by signal SIGKILL\); packageManager of package\.json declares 12\.2\.0/);
+  assert.match(mismatch ?? '', /^npm: `var\/tools\/bin\/npm --version` failed \(ended by signal SIGKILL\); packageManager of package\.json declares 12\.2\.0/);
   const stubbed = toolchainMismatches(['npm'], { root, run: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' }) });
-  assert.match(stubbed[0] ?? '', /`npm --version` failed \(ended by signal SIGTERM\)/);
+  assert.match(stubbed[0] ?? '', /`var\/tools\/bin\/npm --version` failed \(ended by signal SIGTERM\)/);
 });
 
 test('a tool that cannot run names the declared release in its fix: the minors of PHP (K108)', (t) => {
@@ -236,7 +240,7 @@ test('a tool that cannot run names the declared release in its fix: the minors o
   const result = check(root, stubs.env, 'php');
   assert.equal(result.status, 1);
   const pin = PHP.replaceAll('.', '\\.');
-  assert.match(result.stderr, new RegExp(`php: \`php -n -r .*\` failed .*; config/toolchain\\.json php declares 8\\.2 or ${pin}; fix: make install-tools finds the PHP of \\.php-version; install it first with brew install php@8\\.2 or apt install php8\\.2-cli or brew install php@${pin} or apt install php${pin}-cli\\n`));
+  assert.match(result.stderr, new RegExp(`php: \`var/tools/bin/php -n -r .*\` failed .*; config/toolchain\\.json php declares 8\\.2 or ${pin}; fix: make install-tools finds the PHP of \\.php-version; install it first with brew install php@8\\.2 or apt install php8\\.2-cli or brew install php@${pin} or apt install php${pin}-cli\\n`));
 });
 
 test('the tools to check come from the arguments; an undeclared tool, an unknown tool or no declaration fails', (t) => {

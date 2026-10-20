@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
@@ -183,6 +183,11 @@ function typed(t: Parameters<typeof tree>[0]) {
   const root = committed(t, 'T1');
   mkdirSync(path.join(root, 'node_modules/.bin'), { recursive: true });
   symlinkSync(path.resolve('node_modules/.bin/tsc'), path.join(root, 'node_modules/.bin/tsc'));
+  // npm is the tool of the checkout (K393-1): its wrapper runs the npm of PATH, whose scripts these tests run on purpose.
+  const npm = execFileSync('/bin/sh', ['-c', 'command -v npm'], { encoding: 'utf8' }).trim();
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/npm'), `#!/bin/sh\nexec '${npm}' "$@"\n`);
+  chmodSync(path.join(root, 'var/tools/bin/npm'), 0o755);
   writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n');
   writeFileSync(path.join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, noEmit: true, module: 'esnext', target: 'es2022', allowImportingTsExtensions: true }, include: ['*.mts'] }));
   return root;

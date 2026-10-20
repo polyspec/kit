@@ -222,7 +222,8 @@ test('the command line prints one line for each step and the exit status', (t) =
   box.stub({ modes: { go: 'fail' } });
   assert.equal(run(['v0.0.1']), 1);
   // Each failed run wrote an error line; without one, assert.match fails on undefined as before.
-  assert.match(known(errors.at(-1), 'errors.at(-1)'), /^\[release-proof\] v0\.0\.1 failed: go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
+  // The go that runs is the shim of the checkout (K393-1), so the message names its path before the command.
+  assert.match(known(errors.at(-1), 'errors.at(-1)'), /^\[release-proof\] v0\.0\.1 failed: .*go list -m example\.com\/kit-fixture-go@v0\.0\.1 exited with 1/);
   assert.equal(run(['v0.0']), 1);
   // The refused tag wrote an error line, as above.
   assert.match(known(errors.at(-1), 'errors.at(-1)'), /v0\.0 failed: v0\.0: a release tag is vX\.Y\.Z/);

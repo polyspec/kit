@@ -28,6 +28,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { extensionNames, repositoryOf } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
+import { toolCommand } from './mise-tools.mts';
 
 /** A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool. */
 export type Run = { cwd: string; tool: string; options?: string[]; args: string[] };
@@ -216,7 +217,9 @@ if (isMain(import.meta.url)) {
     const builds = buildRuns(files, name);
     if (builds.length === 0) console.log(`[runtime-targets] the packages of ${name} have no build step`);
     for (const build of builds) {
-      const command = build.command === 'tsc' ? path.join(root, 'node_modules/.bin/tsc') : build.command;
+      // go and uv are the tools of the checkout, never the ones on PATH (K393-1). cargo stays on PATH: install-tools does not wrap
+      // it (rustup finds it through rust-toolchain.toml), so it is the one build command that PATH resolves.
+      const command = build.command === 'tsc' ? path.join(root, 'node_modules/.bin/tsc') : build.command === 'go' || build.command === 'uv' ? toolCommand(root, build.command) : build.command;
       console.log(`[runtime-targets] ${build.cwd}: ${build.command} ${build.args.join(' ')}`);
       const result = spawnSync(command, build.args, { cwd: path.join(root, build.cwd), stdio: 'inherit' });
       if (result.error) throw new Error(`${build.command} could not start: ${result.error.message}`);

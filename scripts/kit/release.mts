@@ -54,6 +54,7 @@ import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
+import { toolCommand } from './mise-tools.mts';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -541,7 +542,8 @@ export function assets(ctx: Context, tag: string): string[] {
       ctx.log(`[release] ${tag}: packing ${name} from ${folder} into ${names[index]}`);
       if (kind === 'npm') {
         const before = new Set(readdirSync(next));
-        run('npm', ['pack', '--pack-destination', next], { cwd: path.join(root, folder), env: ctx.env });
+        // npm is the tool of the checkout, never the one on PATH (K393-1).
+        run(toolCommand(root, 'npm'), ['pack', '--pack-destination', next], { cwd: path.join(root, folder), env: ctx.env });
         // npm pack names its output itself; the single new file is renamed to the archive name.
         const created = readdirSync(next).filter(item => !before.has(item));
         if (created.length !== 1) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not one archive`);

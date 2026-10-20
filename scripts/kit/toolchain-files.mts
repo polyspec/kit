@@ -1,8 +1,8 @@
 // The readers of the manifests whose format an ecosystem tool reads, so that kit parses none of them itself (S1):
 //   TOML    smol-toml through readToml of toml.mts, the one TOML reader of kit (pyproject.toml, rust-toolchain.toml)
-//   go.mod  go mod edit -json of the Go on PATH
+//   go.mod  go mod edit -json of the Go of the checkout (K393-1)
 //   Cargo   cargo metadata --no-deps of the cargo on PATH, offline
-//   .npmrc  npm config get of the npm on PATH, in the directory of the file
+//   .npmrc  npm config get of the npm of the checkout, in the directory of the file
 // A reader that cannot run or read its file throws an Error that names the file and the cause. The Rust declaration of a
 // checkout is read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before the
 // tools are installed; the Go release is a tool of mise.toml (toolchain-mise.mts).
@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { execute } from './process.mts';
+import { toolCommand } from './mise-tools.mts';
 import { readToml } from './toml.mts';
 import type { TomlTable } from './toml.mts';
 import { parseJson } from './schema-validate.mts';
@@ -41,15 +42,15 @@ type CargoPackage = { manifest_path: string; version: string; rust_version: stri
  * require and replace directives, each when present.
  */
 export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): GoMod =>
-  parseJson<GoMod>(output(file, '`go mod edit -json`', 'go', ['mod', 'edit', '-json', path.join(root, file)], env), 'go-mod.schema.json', `go mod edit -json ${file}`);
+  parseJson<GoMod>(output(file, '`go mod edit -json`', toolCommand(root, 'go'), ['mod', 'edit', '-json', path.join(root, file)], env), 'go-mod.schema.json', `go mod edit -json ${file}`);
 
-/** The go.work file `file` (absolute) as `go work edit -json` prints it: the directories of its use directives, when present. */
-export const readGoWork = (file: string, env: NodeJS.ProcessEnv): { Use?: { DiskPath: string }[] } =>
-  parseJson<{ Use?: { DiskPath: string }[] }>(output(file, '`go work edit -json`', 'go', ['work', 'edit', '-json', file], env), 'go-work.schema.json', `go work edit -json ${file}`);
+/** The go.work file `file` (absolute) of `root` as `go work edit -json` prints it: the directories of its use directives, when present. */
+export const readGoWork = (root: string, file: string, env: NodeJS.ProcessEnv): { Use?: { DiskPath: string }[] } =>
+  parseJson<{ Use?: { DiskPath: string }[] }>(output(file, '`go work edit -json`', toolCommand(root, 'go'), ['work', 'edit', '-json', file], env), 'go-work.schema.json', `go work edit -json ${file}`);
 
 /** The go.work file that the go command uses in the directory `directory` of `root` (`go env GOWORK`), or null for none. */
 export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessEnv): string | null {
-  const file = output(path.posix.join(directory, 'go.mod'), '`go env GOWORK`', 'go', ['env', 'GOWORK'], env, path.join(root, directory)).trim();
+  const file = output(path.posix.join(directory, 'go.mod'), '`go env GOWORK`', toolCommand(root, 'go'), ['env', 'GOWORK'], env, path.join(root, directory)).trim();
   // go env prints nothing without a workspace and off when GOWORK=off turns it off.
   return file === '' || file === 'off' ? null : file;
 }
@@ -69,7 +70,8 @@ export function readNpmConfig(root: string, file: string, keys: string[], env: N
     const project = Object.fromEntries(Object.entries(env).filter(([key]) => !/^npm_config_/i.test(key)));
     const isolated = { ...project, npm_config_userconfig: path.join(none, 'user'), npm_config_globalconfig: path.join(none, 'global') };
     const cwd = path.join(root, path.dirname(file));
-    return Object.fromEntries(keys.map(key => [key, output(file, `\`npm config get ${key}\``, 'npm', ['config', 'get', key], isolated, cwd).trim()]));
+    const npm = toolCommand(root, 'npm');
+    return Object.fromEntries(keys.map(key => [key, output(file, `\`npm config get ${key}\``, npm, ['config', 'get', key], isolated, cwd).trim()]));
   } finally {
     rmSync(none, { recursive: true, force: true });
   }

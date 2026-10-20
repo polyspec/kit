@@ -18,7 +18,7 @@ test('the review records the Cargo lock with its advisories, and the gate then n
   const root = fixture(t);
   installCargoAuditStub(root, VULNERABLE);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -41,11 +41,11 @@ test('the gate fails when a Cargo lock changed after its review', (t) => {
 
 test('the review names the install command when cargo-audit is not installed', (t) => {
   const root = fixture(t);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /var\/tools\/mise\/shims\/cargo-audit is not installed; declare github:rustsec\/rustsec in mise\.toml and run make install-tools/);
+  assert.match(result.stdout, /cargo-audit of the checkout is missing \(var\/tools\/bin\/cargo-audit, var\/tools\/mise\/shims\/cargo-audit\); run make install/);
 });
 
 test('the vendored fixture of kit is not a lock of the repository that holds it', (t) => {

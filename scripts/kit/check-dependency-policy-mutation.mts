@@ -4,7 +4,7 @@
 // accepts and fails when there is one. The check runs only as the command (`make dependency-policy-mutation-check`); importing the
 // module runs nothing.
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
@@ -53,7 +53,7 @@ function untrackedUses(root: string): string[] {
   const files = checkedFiles(root);
   const tracked = new Set(files);
   return files.filter(file => posix.basename(file) === 'go.work').flatMap(file =>
-    (readGoWork(join(root, file), process.env).Use ?? [])
+    (readGoWork(root, join(root, file), process.env).Use ?? [])
       .map(use => ({ use: use.DiskPath, mod: posix.join(posix.dirname(file), use.DiskPath, 'go.mod') }))
       .filter(({ mod }) => !tracked.has(mod))
       .map(({ use, mod }) => `${file}: uses ${use}, whose go.mod Git does not track; a committed go.work may only use tracked modules. Fix: commit ${mod} or remove the use from ${file}`));
@@ -73,6 +73,12 @@ function copy(directory: string) {
   }
   // The gate lists the files of a checkout through Git, so each copy is a repository.
   spawnSync('git', ['init', '--quiet'], { cwd: directory });
+  // The copy runs with the tools of the checkout it was copied from, as a worktree shares them: its var/tools is a link to that
+  // folder (K393-1).
+  if (existsSync(join(repositoryRoot(), 'var/tools'))) {
+    mkdirSync(join(directory, 'var'), { recursive: true });
+    symlinkSync(join(repositoryRoot(), 'var/tools'), join(directory, 'var/tools'));
+  }
 }
 
 // The policy and the review record, validated against their schemas, as far as the mutations read and change them.

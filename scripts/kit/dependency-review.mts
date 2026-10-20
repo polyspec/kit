@@ -38,6 +38,17 @@ import { checkedFiles } from './tracked-files.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
+// The tools of the plan that run from the checkout, its wrappers in var/tools/bin, never the ones on PATH (K393-1).
+const CHECKOUT_TOOLS = new Set(['npm', 'go', 'composer', 'node']);
+// The command of a tool of the checkout, or the message that names it as missing (toolCommand): it is reported for the lock
+// whose advisory check needs it, so the review of the other locks goes on (K393-1).
+const checkoutTool = (root: string, name: string): { command: string; error?: undefined } | { command?: undefined; error: string } => {
+  try {
+    return { command: toolCommand(root, name) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+};
 const say = (text: string) => process.stdout.write(`[dependency-review] ${text}\n`);
 
 /** The state of readState (dependency-state.mts), with the fields that the review reads. */
@@ -147,7 +158,7 @@ export function composerEnvironment(root: string, directory: string): NodeJS.Pro
 
 /** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
 function npmLatest(root: string, name: string): Latest {
-  const answer = query<NpmView | NpmView[]>('npm-view.schema.json', 'npm', ['view', name, 'dist-tags', 'versions', '--json'], root);
+  const answer = query<NpmView | NpmView[]>('npm-view.schema.json', toolCommand(root, 'npm'), ['view', name, 'dist-tags', 'versions', '--json'], root);
   if (answer.error !== undefined) return answer;
   const value = answer.value;
   // npm 12 prints the fields of the one matching package as an array of one object.
@@ -156,7 +167,7 @@ function npmLatest(root: string, name: string): Latest {
   const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter((version): version is string => Boolean(version));
   const candidates = stableDescending('npm', versions).filter((version: string) => !tag || isPrerelease('npm', tag) || !older('npm', tag, version));
   for (const version of candidates) {
-    const deprecated = run('npm', ['view', `${name}@${version}`, 'deprecated'], root);
+    const deprecated = run(toolCommand(root, 'npm'), ['view', `${name}@${version}`, 'deprecated'], root);
     if (deprecated.error !== undefined) return deprecated;
     if (!deprecated.stdout.trim()) return { latest: version };
   }
@@ -216,7 +227,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     }
     if (dependency.ecosystem === 'go') {
       const directory = path.posix.dirname(dependency.manifest);
-      const answer = query<GoVersions>('go-versions.schema.json', 'go', ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
+      const answer = query<GoVersions>('go-versions.schema.json', toolCommand(root, 'go'), ['list', '-m', '-versions', '-json', dependency.package], path.join(root, directory));
       if (answer.error !== undefined) {
         latest.set(key, { error: answer.error });
         continue;
@@ -241,7 +252,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     // composer outdated reports the latest stable release of every locked package, once for each root, and the review keeps
     // the first-party requirements: those of the root and of the packages of its path repositories (K168), which --direct,
     // the requirements of the root alone, would miss. composer audit reports an abandoned package.
-    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory), undefined, undefined, composerEnvironment(root, directory)));
+    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', toolCommand(root, 'composer'), ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory), undefined, undefined, composerEnvironment(root, directory)));
     // The line above sets the directory.
     const answer = present(composer.get(directory), 'composer.get(directory)');
     if (answer.error !== undefined) {
@@ -263,7 +274,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
 export function goPackages(root: string, lock: string, env?: NodeJS.ProcessEnv): { list: string[]; error?: undefined } | { error: string; list?: undefined } {
   const patterns = goPackagePatterns(root, lock);
   if (patterns.length === 0) return { list: [] };
-  const answer = run('go', ['list', '-e', '-f', '{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', ...patterns], path.join(root, path.posix.dirname(lock)), undefined, env);
+  const answer = run(toolCommand(root, 'go'), ['list', '-e', '-f', '{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', ...patterns], path.join(root, path.posix.dirname(lock)), undefined, env);
   return answer.error !== undefined ? answer : { list: answer.stdout.split('\n').filter(Boolean) };
 }
 
@@ -314,7 +325,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'npm')) {
     // readState holds the lock of each npm lock.
     const npmVersions = present(state.npmLocks.get(lock), 'state.npmLocks.get(lock)').packages ?? {};
-    const npm = query<NpmAudit>('npm-audit.schema.json', 'npm', ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
+    const npm = query<NpmAudit>('npm-audit.schema.json', toolCommand(root, 'npm'), ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
     if (npm.error !== undefined) result.set(lock, { error: npm.error });
     else {
       const list: Advisory[] = [];
@@ -331,10 +342,10 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   // cargo-audit reads the RustSec advisory database from a clone in .tools; the first lock fetches it.
   let fetched = false;
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'cargo')) {
-    const command = toolCommand(root, MISE_TOOLS.cargoAudit.command);
+    const tool = checkoutTool(root, MISE_TOOLS.cargoAudit.command);
     const args: string[] = ['audit', '--db', path.join(root, 'var', 'tools', 'rustsec-advisory-db'), ...(fetched ? ['--no-fetch'] : []), '--file', path.join(root, lock), '--json'];
     // cargo-audit exits with 1 when it finds a vulnerability.
-    const answer: Answer<CargoAudit> = existsSync(command) ? query<CargoAudit>('cargo-audit.schema.json', command, args, root, [0, 1]) : { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.cargoAudit.key} in mise.toml and run make install-tools` };
+    const answer: Answer<CargoAudit> = tool.error !== undefined ? { error: tool.error } : query<CargoAudit>('cargo-audit.schema.json', tool.command, args, root, [0, 1]);
     fetched ||= !answer.error;
     const value = answered(lock, answer);
     if (value === undefined) continue;
@@ -368,11 +379,12 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     result.set(lock, failure ? { error: failure } : { advisories: list });
   }
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'go')) {
-    const command = toolCommand(root, MISE_TOOLS.govulncheck.command);
-    if (!existsSync(command)) {
-      result.set(lock, { error: `${path.relative(root, command)} is not installed; declare ${MISE_TOOLS.govulncheck.key} in mise.toml and run make install-tools` });
+    const tool = checkoutTool(root, MISE_TOOLS.govulncheck.command);
+    if (tool.error !== undefined) {
+      result.set(lock, { error: tool.error });
       continue;
     }
+    const command = tool.command;
     const env = goScanEnvironment(root, lock);
     const packages = goPackages(root, lock, env);
     if (packages.error !== undefined) {
@@ -403,7 +415,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
     // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.
-    const answer = query<ComposerAudit>('composer-audit.schema.json', 'composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {}, composerEnvironment(root, directory));
+    const answer = query<ComposerAudit>('composer-audit.schema.json', toolCommand(root, 'composer'), ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {}, composerEnvironment(root, directory));
     const value = answered(lock, answer);
     if (value === undefined) continue;
     const list: Advisory[] = [];
@@ -603,7 +615,7 @@ function main(): void {
     let failed = 0;
     for (const step of plan) {
       say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
-      const outcome = spawnSync(step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' && !step.tracked ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
+      const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' && !step.tracked ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
       if (outcome.error || outcome.status !== 0) {
         failed += 1;
         say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);

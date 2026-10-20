@@ -221,8 +221,9 @@ export function installConsumers(ctx: ReleaseContext, version: string, directory
     let installed = 0;
     for (const [kind, consumer, packages] of projects) {
       const project = stage(ctx, kind, consumer, folder, directory, manifestFor(ctx, kind, consumer, packages, version), consumer);
-      if (kind === 'npm') run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(config)], { cwd: project, env });
-      else run('composer', ['install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
+      // npm and Composer are the tools of the checkout, never the ones on PATH (K393-1).
+      if (kind === 'npm') run(toolCommand(ctx.root, 'npm'), ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(config)], { cwd: project, env });
+      else run(toolCommand(ctx.root, 'composer'), ['install','--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
       step(`${kind} ${kind === 'npm' ? 'ci' : 'install'} of ${packages.length} packages from ${consumer.directory}`);
       for (const { name } of packages) {
         const actual = installedVersion(kind, project, name);
@@ -329,8 +330,9 @@ export function lockConsumers(ctx: ReleaseContext, tag: string, step: (text: str
     for (const [kind, consumer, packages] of plan(ctx.config, version)) {
       const manifest = manifestFor(ctx, kind, consumer, packages, version);
       const project = stage(ctx, kind, consumer, folder, assets, manifest, null);
-      if (kind === 'npm') run('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(ctx.config)], { cwd: project, env });
-      else run('composer', ['update', '--no-install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
+      // npm and Composer are the tools of the checkout, never the ones on PATH.
+      if (kind === 'npm') run(toolCommand(ctx.root, 'npm'), ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--fetch-retries=0', ...registryArguments(ctx.config)], { cwd: project, env });
+      else run(toolCommand(ctx.root, 'composer'), ['update','--no-install', '--no-interaction', '--no-progress', '--no-plugins', '--no-scripts'], { cwd: project, env });
       const lock = withoutArchiveHashes(kind, path.join(project, FILES[kind].lock), packages);
       for (const [file, value] of [[FILES[kind].manifest, manifest], [FILES[kind].lock, lock]] as const) {
         writeAtomic(path.join(ctx.root, consumer.directory, file), json(value, FILES[kind].indent));

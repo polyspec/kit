@@ -197,10 +197,19 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   mutate(root);
   const bin = path.join(root, '.stubs/bin');
   mkdirSync(bin, { recursive: true });
-  for (const [name, source] of [['gh', GH_STUB], ['npm', NPM_STUB], ['python3', PYTHON3_WHEEL_STUB]] as const) {
+  for (const [name, source] of [['gh', GH_STUB], ['python3', PYTHON3_WHEEL_STUB]] as const) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
+  // npm is the tool of the checkout, so its stub is the file that var/tools/bin holds (K393-1).
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/npm'), NPM_STUB);
+  chmodSync(path.join(root, 'var/tools/bin/npm'), 0o755);
+  // go is the tool of the checkout as well: its shim runs the go of PATH, which reads the go.mod files of the fixture.
+  const realGo = spawnSync('/bin/sh', ['-c', 'command -v go'], { encoding: 'utf8' }).stdout.trim();
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/mise/shims/go'), `#!/bin/sh\nexec '${realGo}' "$@"\n`);
+  chmodSync(path.join(root, 'var/tools/mise/shims/go'), 0o755);
   const state = path.join(root, '.stubs/state.json');
   const npmLog = path.join(root, '.stubs/npm.log');
   writeFileSync(npmLog, '');

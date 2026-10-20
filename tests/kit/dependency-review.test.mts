@@ -17,7 +17,7 @@ test('a newer ruff release of mise.toml is named in the fix of its finding', (t)
   writeFileSync(path.join(root, TOOLCHAIN), '[tools]\nruff = "0.16.10"\n');
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, ruff: { '0.16.10': [{}], '0.16.11': [{}] } } });
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -65,7 +65,7 @@ test('a requirement of a published package of a Composer monorepo is reviewed fr
   rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '3.0.3', 'example/framework': '1.0.0', 'example/helper': '2.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const result = review(root, [], stub.env);
@@ -91,7 +91,7 @@ test('while a Composer project is linked the review asks Composer for the link f
   rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '3.0.3', 'example/framework': '1.0.0', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   assert.match(review(root, [], stub.env).stdout, /psr\/log 3\.0\.2 < 3\.0\.3: a newer stable release exists/, 'without a link the package is compared');
@@ -114,7 +114,7 @@ test('a newer release of a requirement of a dependency group is a finding (K177)
   writeFileSync(manifest, `${readFileSync(manifest, 'utf8')}\n[dependency-groups]\ntest = ["pytest==8.0.0"]\ndev = [{ include-group = "test" }]\n`);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, pytest: { '8.0.0': [{}], '8.1.0': [{}] } } });
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -130,7 +130,7 @@ test('the none-matched answer of composer outdated is no release, and is never r
   rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '[none matched]', 'example/framework': '1.0.0', 'example/helper': '2.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const result = review(root, [], stub.env);
@@ -149,7 +149,7 @@ test('the review never proposes a release older than the locked version of a Com
   rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'polyspec/template': '0.0.6', 'psr/log': '3.0.2', 'example/framework': '1.1.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const result = review(root, ['--update'], stub.env);
@@ -173,7 +173,7 @@ test('while linked UPDATE also declares the new range in the tracked composer.js
   writeFileSync(path.join(root, 'composer.link.lock'), JSON.stringify(MONOREPO_LOCK));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const lockBefore = readFileSync(path.join(root, 'composer.lock'), 'utf8');
@@ -198,7 +198,7 @@ test('while linked UPDATE also updates the tracked lock of a package that is no 
   writeFileSync(path.join(root, 'composer.link.lock'), lock);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'polyspec/template': '0.0.12', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   review(root, ['--update'], stub.env);
@@ -224,7 +224,7 @@ test('a Go module under the tracked go.work of the repository is scanned with th
   writeFileSync(path.join(root, 'packages/lone/main.go'), 'package main\n\nfunc main() {}\n');
   spawnSync('git', ['add', '-A', '-f', '--', 'go.work', 'packages'], { cwd: root });
   spawnSync('git', ['-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', 'commit', '--quiet', '-m', 'workspace'], { cwd: root });
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry(FIXTURE_REGISTRY);
   review(root, [], stub.env);
   const calls = readFileSync(path.join(root, 'var/tools/govulncheck-calls.log'), 'utf8').split('\n').filter(Boolean).map(line => {

@@ -6,7 +6,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { git } from './git.mts';
-import { toolsEnvironment } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -53,8 +53,8 @@ export function checkerOf(root: string, folder: string): { command: string; args
   const manifest = path.join(root, folder, 'package.json');
   const scripts = existsSync(manifest) ? readJsonObject(manifest).scripts : undefined;
   if (isJsonObject(scripts) && typeof scripts.typecheck === 'string') {
-    const npm = path.join(root, 'var/tools/bin/npm');
-    return { command: existsSync(npm) ? npm : 'npm', args: ['run', 'typecheck'], label: 'npm run typecheck' };
+    // npm is the tool of the checkout, never the one on PATH (K393-1).
+    return { command: toolCommand(root, 'npm'), args: ['run', 'typecheck'], label: 'npm run typecheck' };
   }
   return { command: tscOf(root), args: ['--noEmit', '-p', 'tsconfig.json'], label: 'tsc --noEmit -p tsconfig.json' };
 }
@@ -72,7 +72,7 @@ function builtFor(root: string, output: string, env: NodeJS.ProcessEnv): number 
     if (!existsSync(path.join(folder, 'package.json'))) continue;
     const manifest = readJsonObject(path.join(folder, 'package.json'));
     if (!isJsonObject(manifest.scripts) || typeof manifest.scripts.build !== 'string') continue;
-    const result = execute('npm', ['run', 'build'], { cwd: realpathSync(folder), env });
+    const result = execute(toolCommand(root, 'npm'), ['run', 'build'], { cwd: realpathSync(folder), env });
     if (result.error || result.status !== 0) throw new Error(`npm run build of ${name} failed: ${result.error?.message ?? `${result.stdout}${result.stderr}`.trim()}`);
     built += 1;
   }

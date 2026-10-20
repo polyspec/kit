@@ -128,7 +128,7 @@ test('the review names a newer PyPI release of a registry package with the uv re
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, click: { '8.1.7': [{}], '8.1.8': [{}] } } });
   const result = review(root, [], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -140,7 +140,7 @@ test('the review names pip lock as the regeneration of a lock that pip wrote', (
   installCargoAuditStub(root);
   installGovulncheckStub(root);
   writeLock(root, lockText(root).replace('created-by = "uv"', 'created-by = "pip"'));
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, click: { '8.1.7': [{}], '8.1.8': [{}] } } });
   const result = review(root, [], stub.env);
   assert.match(result.stdout, /click 8\.1\.7 < 8\.1\.8: a newer stable release exists\. Fix: regenerate packages\/fixture-python\/pylock\.toml with pip: pip lock, then make dependency-review RECORD=1\./);
@@ -150,7 +150,7 @@ test('the review reports the PyPI advisories of a registry package at its locked
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
-  const stub = stubRegistries(t);
+  const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypiVulnerabilities: { click: { '8.1.7': [{ id: 'GHSA-test-0001', summary: 'test advisory', link: 'https://example.org/advisory', aliases: [], fixed_in: ['8.1.8'], withdrawn: null }] } } });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
