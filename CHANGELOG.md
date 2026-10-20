@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make unlink` restores a Python project locked with `pylock.toml`: it reinstalls the locked releases of the linked packages
+  from the pylock into the environment, and names a linked package that the pylock does not hold (K401-1).
 - docs-check reads a K-id after the name of a sibling repository, as `template-benchmark K79-3`, as the item of that
   repository, and in a repository whose own ids are K-ids only `kit K<n>` as a kit item (K374-1).
 - A test of kit fails when a module of kit reads beside itself a file or folder that kit-build does not ship into dist, and

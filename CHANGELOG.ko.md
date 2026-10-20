@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 705761b3d4eb8185bb1ae6d512bd63027279d310d5fee816c470441718db0c90 -->
+<!-- source-sha256: 341f5cc224c9159047f393ea88abdab74a98838b0ac7fc84d4b599b40b40fe68 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make unlink`은 `pylock.toml`로 lock한 Python project를 복원한다. 링크된 package의 lock된 release를 pylock에서 환경에 다시
+  설치하고, pylock에 없는 링크된 package를 적는다(K401-1).
 - docs-check는 `template-benchmark K79-3`처럼 sibling 저장소의 이름 뒤에 온 K-id를 그 저장소의 item으로 읽고, 자기 id가
   K-id인 저장소에서는 `kit K<n>`만 kit item으로 읽는다(K374-1).
 - kit의 module이 자기 옆에서 읽는 파일이나 폴더를 kit-build가 dist에 담지 않으면 kit의 테스트가 실패하고, kit-build 테스트의
