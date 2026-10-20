@@ -6,6 +6,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { goRequirements } from '../../scripts/kit/dependency-state.mts';
 import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
@@ -167,7 +168,11 @@ test('the advisory scan of a linked Go module runs with its go.work and a failed
   assert.doesNotMatch(result.stdout, /advisory query failed/);
   const calls = govulncheckCalls(root);
   assert.ok(calls.length > 0, result.stdout + result.stderr);
-  const log = readFileSync(path.join(root, 'var/tools/govulncheck-calls.log'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as { cwd: string; gowork?: string });
+  const log = readFileSync(path.join(root, 'var/tools/govulncheck-calls.log'), 'utf8').split('\n').filter(Boolean).map(line => {
+    const call: unknown = JSON.parse(line);
+    if (!isJsonObject(call) || typeof call.cwd !== 'string') throw new Error(`govulncheck-calls.log holds no call with a cwd: ${line}`);
+    return { cwd: call.cwd, gowork: typeof call.gowork === 'string' ? call.gowork : undefined };
+  });
   assert.equal(log.find(call => call.cwd === realpathSync(root))?.gowork, path.join(realpathSync(root), 'go.work'));
   // govulncheck of a module that does not compile prints the compiler's errors on stderr and exits 1.
   writeFileSync(path.join(root, 'var/tools/mise/shims/govulncheck'), `#!/usr/bin/env node

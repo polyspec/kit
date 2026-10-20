@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
+import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
 import { tree } from './tree.mts';
@@ -106,5 +107,6 @@ test('a repository without PHP sources lints nothing, with no tool and no config
 test('phpstan runs with no memory limit, so a large package is analysed (K346)', (t) => {
   const steps = lintSteps(checkout(t).root).filter(step => step.label.startsWith('phpstan'));
   assert.equal(steps.length, 1);
-  assert.ok(steps[0]!.args.includes('--memory-limit=-1'), steps[0]!.args.join(' '));
+  const step = present(steps[0], 'the phpstan step');
+  assert.ok(step.args.includes('--memory-limit=-1'), step.args.join(' '));
 });

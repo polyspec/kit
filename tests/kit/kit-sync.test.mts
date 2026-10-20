@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { check, checkConfig, isSource } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
@@ -190,9 +191,10 @@ test('a generated configuration that breaks its schema names the command that wr
 // the root files of config/layout.kit.yml must name each root-level key of kit.copies, or make layout-check fails there.
 test('every root file that kit-sync writes is declared among the root files of config/layout.kit.yml (K356)', () => {
   const kitRoot = path.join(import.meta.dirname, '../..');
-  const { kit } = JSON.parse(readFileSync(path.join(kitRoot, 'package.json'), 'utf8')) as { kit: { copies: Record<string, string> } };
+  const manifest: unknown = JSON.parse(readFileSync(path.join(kitRoot, 'package.json'), 'utf8'));
   const layout = readFileSync(path.join(kitRoot, 'config/layout.kit.yml'), 'utf8');
-  for (const key of Object.keys(kit.copies)) {
+  if (!isJsonObject(manifest) || !isJsonObject(manifest.kit) || !isJsonObject(manifest.kit.copies)) throw new Error('package.json of kit holds no kit.copies object');
+  for (const key of Object.keys(manifest.kit.copies)) {
     if (key.includes('/')) continue;
     assert.ok(layout.includes(`"!${key}"`), `${key} is a root file that kit-sync writes, but config/layout.kit.yml does not declare it: add "!${key}" to the root files of layout-root-files`);
   }

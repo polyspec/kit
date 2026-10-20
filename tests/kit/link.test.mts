@@ -309,12 +309,20 @@ test('a relink keeps the versions that the link lock holds for the packages that
     'var/contracts/vendor/composer/installed.json': vendor,
   });
   const linkLock = path.join(consumer, 'composer.link.lock');
-  const versionOf = (name: string) => (JSON.parse(readFileSync(linkLock, 'utf8')) as { packages: { name: string; version: string }[] }).packages.find(item => item.name === name)?.version;
+  const versionOf = (name: string) => {
+    const lock: unknown = JSON.parse(readFileSync(linkLock, 'utf8'));
+    if (!isJsonObject(lock) || !Array.isArray(lock.packages)) throw new Error('composer.link.lock holds no packages list');
+    const packages: unknown[] = lock.packages;
+    const item = packages.find(entry => isJsonObject(entry) && entry.name === name);
+    return isJsonObject(item) ? item.version : undefined;
+  };
   linkLines([consumer], env);
   assert.equal(versionOf('psr/log'), '3.0.0', 'the first link writes the link lock from the tracked lock');
   // What `make dependency-review UPDATE=1` applies to the link lock: a package that is not linked moves to another release.
-  const lock = JSON.parse(readFileSync(linkLock, 'utf8')) as { packages: { name: string; version: string }[] };
-  for (const item of lock.packages) if (item.name === 'psr/log') item.version = '3.0.1';
+  const lock: unknown = JSON.parse(readFileSync(linkLock, 'utf8'));
+  if (!isJsonObject(lock) || !Array.isArray(lock.packages)) throw new Error('composer.link.lock holds no packages list');
+  const packages: unknown[] = lock.packages;
+  for (const item of packages) if (isJsonObject(item) && item.name === 'psr/log') item.version = '3.0.1';
   writeFileSync(linkLock, JSON.stringify(lock));
   // The relink follows a new install of the vendor, which holds the archive again, so Composer updates the linked package.
   writeFileSync(path.join(consumer, 'var/contracts/vendor/composer/installed.json'), vendor);
