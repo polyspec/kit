@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5b68fcc0945dd4b1556f7c6944bbc3f9f3eb41aa4b08c2a3801c512d30f3e8bb -->
+<!-- source-sha256: 6ab4ee0fdb12b8d3ec919030fc95ed79117a3b3d089ed8fbd82ffc79799f65b1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make lint-ts`는 TypeScript가 있는 각 `tsconfig.json`의 폴더에서 `tsc --noEmit -p tsconfig.json`을 실행하고, vitest와 node는 type 검사
+  없이 transpile하므로 `make commit`과 `make item-test`는 변경된 각 TypeScript 파일이 속한 `tsconfig.json`으로 이를 실행해 type error면 거부한다
+  (K309).
 - `kit link`는 install recipe의 uv sync가 editable을 제거한 뒤처럼 환경에 없는 선언된 polyspec Python package를 provider 폴더의 editable
   install로 설치하므로, 두 번째 실행도 첫 번째처럼 linked로 끝난다 (K316-2).
 - Parity 규칙 R6은 bound 파일처럼 어느 구현의 `internal` glob이 고르는 test 파일도 제외하므로, PHP 구현의 internal node 실행 test는 R6에 걸리지 않는다

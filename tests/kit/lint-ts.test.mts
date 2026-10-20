@@ -73,6 +73,25 @@ test('a consumer without package-lock.json fails as kit-check does; another inst
   assert.throws(() => lintSteps(checkout(t, { omit: 'package-lock.json' }).root), /package-lock\.json is missing; it locks @polyspec\/kit/);
 });
 
+// K309: vitest and node transpile without checking the types, so the gate runs tsc --noEmit in each project.
+test('tsc --noEmit runs in the folder of each tsconfig.json that holds TypeScript, and its failure fails the gate (K309)', (t) => {
+  const { root, calls } = checkout(t, { installed: ['oxlint', 'knip', 'api-extractor', 'tsc'] });
+  writeFileSync(path.join(root, 'packages/ts/tsconfig.json'), '{}\n');
+  mkdirSync(path.join(root, 'tools'), { recursive: true });
+  writeFileSync(path.join(root, 'tools/tsconfig.json'), '{}\n');
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(calls().filter(call => call.startsWith('tsc')), ['tsc --noEmit -p tsconfig.json [ts]'], 'a tsconfig.json with no TypeScript below it has no project');
+  const failing = checkout(t, { installed: ['oxlint', 'knip', 'api-extractor', 'tsc'], failing: 'tsc' });
+  writeFileSync(path.join(failing.root, 'packages/ts/tsconfig.json'), '{}\n');
+  assert.deepEqual(lint(failing.root, () => {}), ['tsc packages/ts']);
+});
+
+test('a checkout with a TypeScript project and no tsc fails with the fix (K309)', (t) => {
+  const { root } = checkout(t);
+  writeFileSync(path.join(root, 'packages/ts/tsconfig.json'), '{}\n');
+  assert.throws(() => lintSteps(root), /node_modules\/\.bin\/tsc is missing; run npm ci/);
+});
+
 test('every step runs after an earlier one failed, and each failure is named', (t) => {
   const { root, calls } = checkout(t, { failing: 'oxlint' });
   assert.deepEqual(lint(root, () => {}), ['oxlint']);

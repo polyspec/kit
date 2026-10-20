@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make lint-ts` runs `tsc --noEmit -p tsconfig.json` in the folder of each `tsconfig.json` that has TypeScript below
+  it, and `make commit` and `make item-test` run it for the owning `tsconfig.json` of each changed TypeScript file and
+  refuse on a type error, since vitest and node transpile without checking the types (K309).
 - `kit link` installs a declared polyspec Python package that the environment lacks, such as after the uv sync of an
   install recipe removed the editables, as the editable install of its provider folder, so a second run ends linked
   like the first (K316-2).

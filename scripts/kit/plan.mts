@@ -36,6 +36,7 @@ import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { spawnSync } from 'node:child_process';
+import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
@@ -310,6 +311,9 @@ export function testItem(root: string, id: string, print: (text: string) => void
     const refused = refusal(command, undefined, () => (database ??= makeDatabase(root)));
     if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
   }
+  // The types of the changed TypeScript are checked first (K309): the tests transpile without checking them.
+  const typeFailure = typeErrorMessage(typeErrors(root, foldersOfChanged(root, changedFiles(root))));
+  if (typeFailure) throw new Error(`${id}: ${typeFailure}`);
   for (const command of commands) {
     print(`[plan] ${id}: ${command}`);
     const result = spawnSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' });
@@ -359,6 +363,10 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
   const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
+  // The types of the TypeScript that the commit changes (K309): vitest and node transpile without checking them, so tsc runs here.
+  const staged = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+  const typeFailure = typeErrorMessage(typeErrors(root, foldersOfChanged(root, staged)));
+  if (typeFailure) throw new Error(typeFailure);
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`git commit ended with exit status ${result.status}: ${result.stdout}${result.stderr}`);

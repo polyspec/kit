@@ -954,7 +954,7 @@ does not declare is neither installed nor checked.
   a released go.mod never holds a replace that its consumers would not see. It also forbids a toolchain line, since `go mod
   tidy` removes one equal to the go directive. forbidigo is left out: no standard names a Go API to forbid, and its default
   bans `fmt.Print` of every CLI.
-- **TypeScript.** typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. They
+- **TypeScript.** The types are checked by `tsc --noEmit -p tsconfig.json` in the folder of each `tsconfig.json` with TypeScript below it: a step of `make lint-ts`, and in the local commit path (`make commit`, `make item-test`) for the owning tsconfig of each changed file, since vitest and node transpile without checking the types (K309). typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. They
   apply to TypeScript files only, an `overrides` entry of `.oxlintrc.json` for `**/*.{ts,mts,cts,tsx}`, as
   typescript-eslint's `disableTypeChecked` turns them off for JavaScript: in a plain .js or .mjs file every untyped
   parameter is `any`, so they reported only that the file is JavaScript. An override cannot enable a category, so the base

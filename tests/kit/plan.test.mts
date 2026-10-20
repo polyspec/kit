@@ -1,7 +1,7 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
@@ -141,6 +141,33 @@ test('item-test runs the commands of the Verification cell in order and fails on
   assert.throws(() => testItem(root, 'T2', quiet), /`node -e "process.exit\(3\)"` of T2 ended with exit status 3/);
   assert.ok(!existsSync(path.join(root, 'three')), 'no command runs after the first that failed');
   assert.throws(() => testItem(root, 'T9', quiet), /T9 is no item/);
+});
+
+// K309: vitest and node transpile without checking the types, so a type error of a changed TypeScript file is refused before the commit
+// and before the verification of the item, with the real tsc of this checkout.
+function typed(t: Parameters<typeof tree>[0]) {
+  const root = committed(t, 'T1');
+  mkdirSync(path.join(root, 'node_modules/.bin'), { recursive: true });
+  symlinkSync(path.resolve('node_modules/.bin/tsc'), path.join(root, 'node_modules/.bin/tsc'));
+  writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n');
+  writeFileSync(path.join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, noEmit: true, module: 'esnext', target: 'es2022', allowImportingTsExtensions: true }, include: ['*.mts'] }));
+  return root;
+}
+
+test('a commit and an item test refuse a changed TypeScript file with a type error, and accept it once fixed (K309)', (t) => {
+  const root = typed(t);
+  writeFileSync(path.join(root, 'a.mts'), "export const n: number = 'text';\n");
+  stage(root, 'a.mts', 'tsconfig.json');
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, 'Why.\n');
+  const commit = { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body };
+  assert.throws(() => commitItem(root, commit, identity), /tsc --noEmit -p tsconfig\.json failed:[\s\S]*TS2322/);
+  newItem(root, item('parser', 'T2', { verification: '`node -e "process.exit(0)"`' }));
+  assert.throws(() => testItem(root, 'T2', () => {}), /T2: tsc --noEmit -p tsconfig\.json failed:[\s\S]*TS2322/);
+  writeFileSync(path.join(root, 'a.mts'), 'export const n: number = 1;\n');
+  stage(root, 'a.mts');
+  commitItem(root, commit, identity);
+  assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
 });
 
 const log = (root: string) => spawnSync('git', ['log', '-1', '--format=%B'], { cwd: root, encoding: 'utf8' }).stdout;

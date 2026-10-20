@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4bd6cbe1d1b28e8c5e7df93ea244b2e7adb55d8e8af93c7558d502c32e4b4b6a -->
+<!-- source-sha256: 70474012ad4eb8ea83ab4e6d728215f8ecacb8f6409a8caa5c3f61b0ac96ed16 -->
 
 # 도구 목록
 
@@ -869,7 +869,7 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - **Go.** gomoddirectives는 모든 `replace`를 금지합니다. 저장소의 module은 `go.work`로 서로를 찾으며, 배포한 go.mod는 consumer가
   보지 못하는 replace를 가지지 않습니다. `go mod tidy`가 go directive와 같은 toolchain 줄을 지우므로 toolchain 줄도 금지합니다.
   forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
-- **TypeScript.** typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. 이 규칙은
+- **TypeScript.** type은 TypeScript가 있는 각 `tsconfig.json` 폴더의 `tsc --noEmit -p tsconfig.json`이 검사합니다. 이는 `make lint-ts`의 한 단계이고, vitest와 node는 type 검사 없이 transpile하므로 local commit 경로(`make commit`, `make item-test`)에서는 변경된 각 파일이 속한 tsconfig로 실행됩니다(K309). typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. 이 규칙은
   typescript-eslint의 `disableTypeChecked`가 JavaScript에서 끄는 것처럼 `.oxlintrc.json`의 `**/*.{ts,mts,cts,tsx}`에 대한
   `overrides` 항목으로 TypeScript 파일에만 적용됩니다: 일반 .js나 .mjs 파일에서는 type이 없는 parameter가 모두 `any`이므로
   그 파일이 JavaScript라는 것만 보고했습니다. override는 category를 켤 수 없으므로 base가 correctness의 type-aware 규칙을 끄고

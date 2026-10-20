@@ -1178,7 +1178,7 @@ test('R6 leaves out a file that an internal glob of any implementation selects (
   ];
   const file = 'packages/php-ext/tests/engine/engine.test.mjs';
   const model = (declared: boolean): ParityModel => {
-    const list = declared ? implementations : implementations.map(entry => ({ ...entry, internal: undefined }));
+    const list = declared ? implementations : implementations.map(({ internal: _internal, ...entry }) => entry);
     return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]) };
   };
   assert.deepEqual(misplacedTests(model(false), [file]).map(finding => finding.place), [file], 'without the declaration the node test outside the node roots is R6');
