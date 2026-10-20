@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a01d4c80c01d64aa6f14f60eb4578b95f6a52955d77321cf0bfa21eb205a5a25 -->
+<!-- source-sha256: 662210391d483cebd16f8a602ebc5ae86b66322073fcc7b80508e6741950ebf6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- php, node, npm, composer, go, python, uv를 실행하는 kit의 모든 도구는 하나의 helper(mise-tools.mts의 `toolCommand`:
+  `var/tools/bin`, 다음 checkout의 mise shim)로 checkout에서 그 도구를 가져오며, 없으면 PATH로 대체하지 않고 run make
+  install과 함께 실패한다. bootstrap npm installer는 machine의 node를 쓰고, cargo는 PATH에 남는다(K393-1).
 - `make dependency-policy-check`는 저장소와 sibling checkout이 모두 직접 요구하는 패키지의 핀을 각 root의 install lock에서
   비교하고, 다른 version이나 다른 source로 lock된 패키지를 두 lock과 그 entry의 줄과 함께 실패시킨다. 전이 패키지와 tests/나
   fixtures/ 아래의 lock은 비교하지 않으며, CI처럼 sibling이 없으면 아무것도 비교하지 않는다(K378).

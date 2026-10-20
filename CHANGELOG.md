@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- Every tool of kit that starts php, node, npm, composer, go, python or uv takes it from the checkout through one helper
+  (`toolCommand` of mise-tools.mts: `var/tools/bin`, then the shim of mise of the checkout) and fails with run make install
+  when it is missing, never falling back to PATH; the bootstrap npm installer keeps the node of the machine, and cargo stays
+  on PATH (K393-1).
 - `make dependency-policy-check` compares the pins of the packages that the repository and a sibling checkout both require
   directly, in the install locks at their roots, and fails a package locked at another version or from another source,
   naming both locks with the line of the entry; a transitive package and a lock under tests/ or fixtures/ are not compared,
