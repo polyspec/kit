@@ -6,7 +6,7 @@
 // breaks and its fix, one line each, and fails when there is one.
 //
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, isVersionText, older } from './version.mts';
@@ -68,6 +68,11 @@ type Policy = DependencyPolicy & {
   composerPlatforms: { manifest: string; php: string }[];
 };
 
+// The patch of the one PHP platform: PHPUnit 13 requires PHP >= 8.4.1 (config/phpunit/composer.lock), so the platform of a
+// repository is the minor of .php-version with this patch.
+const PLATFORM_PATCH = 1;
+const PHP_VERSION = '.php-version';
+
 const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
@@ -128,6 +133,22 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     // version field is not reported.
     const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory));
     if (failure) add('composerLock', manifestPath, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
+  }
+
+  // One PHP platform (K282): every Composer manifest that declares config.platform.php, and every entry of composerPlatforms,
+  // names the same PHP, and a repository that pins .php-version names its minor with the patch PLATFORM_PATCH.
+  const platforms = new Map<string, string>();
+  for (const platform of policy.composerPlatforms) platforms.set(platform.manifest, platform.php);
+  const kitWrote = writtenByKit(copiesOf(runningKit()));
+  const symbols = path.relative(root, SYMBOLS).split(path.sep).join('/');
+  for (const file of checkedFiles(root).filter(item => path.posix.basename(item) === 'composer.json' && !kitWrote(item) && !item.startsWith(`${symbols}/`))) {
+    const declared = readComposerManifest(root, file).config?.platform?.php;
+    if (typeof declared === 'string') platforms.set(`${file} config.platform.php`, declared);
+  }
+  const phpPin = existsSync(path.join(root, PHP_VERSION)) ? readFileSync(path.join(root, PHP_VERSION), 'utf8').trim() : undefined;
+  const expected = phpPin === undefined ? [...platforms.values()][0] : `${phpPin.split('.').slice(0, 2).join('.')}.${PLATFORM_PATCH}`;
+  for (const [subject, php] of platforms) {
+    if (expected !== undefined && php !== expected) add('platform', subject, `the PHP platform is ${php}, the one platform of this repository is ${expected}${phpPin === undefined ? ', that of its first manifest' : `: the minor of ${PHP_VERSION} with the patch ${PLATFORM_PATCH}, which PHPUnit 13 needs`}`, `set it to ${expected}`);
   }
 
   // The published Composer manifests have no lock: the development root composer.json resolves them.

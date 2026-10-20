@@ -1015,6 +1015,11 @@ copies of `make kit-sync` and `config/phpunit/composer.json`), the Composer proj
 and the Composer consumer project of `config/release.json` (`consumers.composer.directory`), which
 `make release-consumer-lock` resolves from the release archives.
 
+A repository has one PHP platform (K282): every entry of `composerPlatforms` and every `config.platform.php` of a Composer
+manifest of the checkout (except the manifests that kit writes) names the same PHP, and a repository that pins `.php-version`
+names its minor with the patch 1, which PHPUnit 13 needs (`8.4` gives `8.4.1`). A manifest that differs fails with the rule
+`platform` and the value to set.
+
 ## Consumer install of the release archives (K5.4)
 
 `scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 135912d454bf808336e6df9a7c14850a1fa76f4cdc659f4316282d351e7ee6e3 -->
+<!-- source-sha256: 25d938c996181c9de14b3b68107ed74a6b40faac9fa587dd506f861c7655386c -->
 
 # 도구 목록
 
@@ -928,6 +928,10 @@ published manifest는 `--no-check-lock`으로 검증합니다. `UPDATE=1`은 pub
 목록에 없다는 이유로 검사를 벗어날 수 없습니다. 검사하지 않는 것: kit이 쓰는 manifest(`make kit-sync`의 사본과
 `config/phpunit/composer.json`), kit이 배포하는 symbol extractor의 Composer project, `config/release.json`의 Composer consumer
 project(`consumers.composer.directory`)이며, 마지막은 `make release-consumer-lock`이 release archive로 resolve합니다.
+
+저장소의 PHP platform은 하나입니다(K282). `composerPlatforms`의 모든 항목과 checkout의 Composer manifest의 모든
+`config.platform.php`(kit이 쓰는 manifest 제외)가 같은 PHP를 가리키고, `.php-version`을 고정한 저장소는 그 minor에 PHPUnit 13이
+요구하는 patch 1을 붙인 값을 씁니다(`8.4`이면 `8.4.1`). 다른 manifest는 규칙 `platform`과 설정할 값과 함께 실패합니다.
 
 ## Release archive의 consumer 설치 (K5.4)
 

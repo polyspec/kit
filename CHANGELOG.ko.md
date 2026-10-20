@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 53e969d619947edc4ff7adffd0d24b1e15f7450c97d746bd2365190274e9a974 -->
+<!-- source-sha256: 381344fb44dd04bfc6d094c313f9a42ca858e6d8b2ed44cd297ca01ec398cb10 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-policy-check`는 PHP platform을 하나로 요구한다(K282): composerPlatforms의 모든 항목과 Composer manifest의 모든 config.platform.php가 같은 PHP를 가리키고, .php-version이 있으면 그 minor에 PHPUnit 13이 요구하는 patch 1을 붙인 값(8.4.1)이다. Red: 검사를 되돌린 상태에서 `node --test --test-name-pattern=K282 tests/kit/dependency-policy.test.mts`가 실패했다(platform finding 없음). Green: 통과한다. hyper, fsm, orm, template(8.4.0)은 이제 이 규칙에 실패한다.
 - version이 아닌 Composer 응답은 version으로 기록하지 않는다(K281): `version.mts`의 `isVersionText`가 composer outdated의 "[none matched]"를 거부하므로 dependency-review는 release 없음으로 보고하고 dependency-policy-check는 latest가 version이 아닌 review 기록을 실패시킨다. Red: dependency-review와 dependency-policy test의 `--test-name-pattern=K281`이 실패했다(sentinel이 기록되고 받아들여졌다). Green: 둘 다 통과한다.
 - `make rules-check`는 PRINCIPLES 규칙을 되풀이한 AGENTS 규칙을 실패시킨다: 4단어 연속의 4분의 1을 넘는 부분이 PRINCIPLES.md의 한 규칙에 있는 경우이다(K279). 일곱 저장소의 AGENTS 규칙은 kit의 되풀이한 규칙(0.29, 0.71, 0.82)을 빼면 0.15 이하였고, kit의 사본 네 개를 제거했다. Red: `node --test --test-name-pattern=K279 tests/kit/check-rules.test.mts`가 되풀이한 규칙에 finding을 내지 않았다. Green: 통과하며 kit에서 `node scripts/kit/check-rules.mts`가 통과한다.
 - `make kit-check`는 저장소의 CHECK_TARGETS가 kit-gates의 모든 prerequisite에 단어나 prerequisite로 닿을 것을 요구하며, 언어의 lint와 PHP extension gate는 그 code를 가진 저장소에서만 요구한다(K289). Red: suite를 읽는 check가 없어서 language-check, rebuild-check, duplication-check가 없는 저장소도 kit-check를 통과했다(case가 없던 `gateFindings`를 import한다). Green: `node --test tests/kit/kit-check.test.mts`가 통과하고 kit-check가 hyper, fsm, ordered-json, crudui에서 빠진 gate를 지목한다.

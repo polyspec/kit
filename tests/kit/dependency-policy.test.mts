@@ -50,6 +50,19 @@ test('the gate fails on a review record that holds the none-matched sentinel as 
   assert.match(result.stderr, /the review recorded \[none matched\] as the latest stable release/);
 });
 
+// K282: one PHP platform. A manifest that declares another config.platform.php than the others, and a platform that is not the
+// minor of .php-version with the patch 1 (PHPUnit 13 needs 8.4.1), fail the gate.
+test('the gate fails on a Composer platform that differs from the others or from .php-version (K282)', (t) => {
+  const root = fixture(t);
+  mkdirSync(path.join(root, 'tools/extra'), { recursive: true });
+  writeFileSync(path.join(root, 'tools/extra/composer.json'), '{ "name": "example/extra", "config": { "platform": { "php": "8.1.0" } } }\n');
+  const split = gate(root);
+  assert.match(split.stderr, /^\[dependency-policy\] tools\/extra\/composer\.json config\.platform\.php: the PHP platform is 8\.1\.0, the one platform of this repository is 8\.2\.0, that of its first manifest/m);
+  writeFileSync(path.join(root, '.php-version'), '8.2\n');
+  const pinned = gate(root);
+  assert.match(pinned.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.json: the PHP platform is 8\.2\.0, the one platform of this repository is 8\.2\.1: the minor of \.php-version with the patch 1, which PHPUnit 13 needs/m);
+});
+
 // K181: a Composer manifest that composerPlatforms does not name escaped composer validate --strict, so its lock went stale
 // unnoticed; the fixture holds the Composer consumer project of its release, which is not checked here.
 test('the gate fails on a Composer manifest that no Composer platform covers; a manifest that kit writes passes', (t) => {
