@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f10c2a76d16d1751ed617792db14345d41593e6093875448236b4ebaad4c7df3 -->
+<!-- source-sha256: d25ce7324d33009d7dbee4ea2c886511f1a9dfce9b12540df68daf3d83d00a70 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 layout은 kit link가 링크된 checkout의 root에 쓰는 파일(`composer.link.json`, `composer.link.lock`)을 선언하므로,
+  링크된 worktree도 main checkout처럼 `make layout-check`를 통과한다(K423).
 - 실제 layout 테스트가 `make layout-check`의 install 폴더 검사와 함께 다시 통과한다. 그 fixture는 kit의 도구를 그 node로
   실행하고 install 폴더를 무시한다(K372-1).
 - TypeScript 실제 lint 테스트 K170과 K172가 다시 통과한다. 그 fixture는 각 테스트가 증명하는 규칙 옆에서 더는 tsc에 실패하지

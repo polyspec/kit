@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The layout of kit declares the files that kit link writes at the root of a linked checkout (`composer.link.json`,
+  `composer.link.lock`), so a linked worktree passes `make layout-check` as its main checkout does (K423).
 - The real layout tests pass again with the check of the install directories in `make layout-check`: their fixture runs
   the tools of kit with its node and ignores its install directories (K372-1).
 - The real TypeScript lint tests K170 and K172 pass again: their fixtures no longer fail tsc beside the rule that each test
