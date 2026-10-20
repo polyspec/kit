@@ -206,7 +206,7 @@ plan-split: ## Move the items IDS="<id> <id>" with their sub-items from the chec
 item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the waiting state, with TASK, TASK_KO, DELIVERABLES and VERIFICATION; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-new
 
-item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, or its Task cells with TASK and TASK_KO, in both languages, through the checks of item-new; offline
+item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, its Deliverables cell with DELIVERABLES, or its Task cells with TASK and TASK_KO, in both languages, through the checks of item-new; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-edit
 
 item-state: ## Move the item ID to STATE in both languages along an allowed transition; done needs its changelog line, bypassed CAUSE, RETRY, CAUSE_KO and RETRY_KO, impossible CAUSE and CAUSE_KO; offline

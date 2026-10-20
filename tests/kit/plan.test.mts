@@ -438,3 +438,16 @@ test('item-new refuses a private path, and item-edit replaces the Task cells of 
   assert.equal(rows(root, english)[0], '| T1 | Done task | `a.mts` | `node --test a.test.mts` | [o] |', 'the Task of a done item is corrected');
   assert.throws(() => editItem(root, { id: 'T1', verification: '`node -e "1"`' }), /T1 is \[o\]/, 'the Verification of a done item stays');
 });
+
+test('item-edit replaces the Deliverables cell in both languages, and not of a done item (K388)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  editItem(root, { id: 'T1', deliverables: '`b.mts`' });
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ['| T1 | Task T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
+  const done = committed(t, 'T2');
+  setState(done, { id: 'T2', state: '[~]' }, () => {});
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T2).\n`);
+  setState(done, { id: 'T2', state: '[o]' }, () => {});
+  assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`' }), /is \[o\]/);
+});

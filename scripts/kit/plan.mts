@@ -163,14 +163,15 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 
 /**
  * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), or its Task cells, the
- * English `task` and the Korean `taskKo` together (K373), through the checks of newItem; returns the two files as { path: text }.
- * Throws, writing nothing, for an item that is no row, the Verification of a done item (an item that is done stays), a Task without
- * its Korean twin and a cell that fails the checks of docs-check. The Task of a done item is corrected, since its words are no state.
+ * English `task` and the Korean `taskKo` together (K373), or its Deliverables cell, the same in both languages (K388), through the
+ * checks of newItem; returns the two files as { path: text }. Throws, writing nothing, for an item that is no row, the Verification or
+ * the Deliverables of a done item (an item that is done stays), a Task without its Korean twin and a cell that fails the checks of
+ * docs-check. The Task of a done item is corrected, since its words are no state.
  */
-export function editItem(root: string, { id, verification, task, taskKo }: { id: string; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined }): Record<string, string> {
+export function editItem(root: string, { id, deliverables, verification, task, taskKo }: { id: string; deliverables?: string | undefined; verification?: string | undefined; task?: string | undefined; taskKo?: string | undefined }): Record<string, string> {
   if ((task === undefined) !== (taskKo === undefined)) throw new Error('item-edit takes TASK and TASK_KO together: the Korean twin holds the same information');
-  // Without a Task the Verification is edited, and an empty one is refused by its cell.
-  const editsVerification = verification !== undefined || task === undefined;
+  // Without a Task or a Deliverables the Verification is edited, and an empty one is refused by its cell.
+  const editsVerification = verification !== undefined || (task === undefined && deliverables === undefined);
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
@@ -180,10 +181,12 @@ export function editItem(root: string, { id, verification, task, taskKo }: { id:
     const index = lines.findIndex(line => line.startsWith(`| ${id} |`));
     const cells = (lines[index] ?? '').replace(/^\| /, '').replace(/ \|$/, '').split(' | ');
     if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
-    if (editsVerification) {
+    // The Deliverables cell is the same text in both languages (K388), so it is edited in each file like the Verification.
+    if (editsVerification || deliverables !== undefined) {
       if (cells[4]?.startsWith(DONE)) throw new Error(`${id} is ${DONE}; from ${DONE} an item stays; a new finding is an item of its own`);
-      cells[3] = cell(verification, 'VERIFICATION');
     }
+    if (editsVerification) cells[3] = cell(verification, 'VERIFICATION');
+    if (deliverables !== undefined) cells[2] = cell(deliverables, 'DELIVERABLES');
     if (taskText !== undefined) cells[1] = cell(taskText, taskName);
     lines[index] = `| ${cells.join(' | ')} |`;
     return lines.join('\n');
@@ -486,7 +489,7 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-edit') {
       const id = required(env.ID, 'ID');
-      for (const file of Object.keys(editItem(root, { id, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO }))) console.log(`[plan] edited ${id} in ${file}`);
+      for (const file of Object.keys(editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO }))) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       // The done state needs the verification of the row to pass on the tree of the commit (K335).
