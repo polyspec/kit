@@ -174,6 +174,27 @@ test('Composer links the copies of the vendor that composer config vendor-dir na
   assert.match(log(), new RegExp(`composer dump-autoload --working-dir ${consumer}\\n`));
 });
 
+test('a linked Composer package, and an own path package, keep the metadata of their composer.json in installed.json, so the platform check follows the source (K304)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const vendor = 'var/contracts/vendor';
+  const namespace = `Y${String.fromCharCode(92)}`;
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' }, autoload: { 'psr-4': { [namespace]: 'lib/' } } }) });
+  put(consumer, {
+    'packages/own-php/composer.json': JSON.stringify({ name: 'polyspec/own-php', require: { php: '>=8.4' } }),
+    [`${vendor}/composer/installed.json`]: JSON.stringify({ packages: [
+      { name: 'polyspec/y', version: '0.0.1', require: { php: '>=8.5' }, autoload: { 'psr-4': { [namespace]: 'src/' } }, 'install-path': '../polyspec/y' },
+      { name: 'polyspec/own-php', version: 'dev-main', require: { php: '>=8.5' }, dist: { type: 'path', url: '../../../packages/own-php' }, 'install-path': '../../../../packages/own-php' },
+      { name: 'psr/log', version: '3.0.0', require: { php: '>=8.5' }, 'install-path': '../psr/log' },
+    ] }),
+  });
+  linkLines([consumer], env);
+  const packages: Record<string, unknown>[] = JSON.parse(readFileSync(path.join(consumer, vendor, 'composer/installed.json'), 'utf8')).packages;
+  const named = (name: string) => packages.find(item => item.name === name);
+  assert.deepEqual(named('polyspec/y'), { name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' }, autoload: { 'psr-4': { [namespace]: 'lib/' } }, 'install-path': '../polyspec/y' });
+  assert.deepEqual(named('polyspec/own-php')?.require, { php: '>=8.4' });
+  assert.deepEqual(named('psr/log')?.require, { php: '>=8.5' }, 'a package that is neither linked nor a path package is left as Composer recorded it');
+});
+
 test('Composer dumps the autoloader once per project on every link run, even when nothing new is linked', (t) => {
   const { consumer, env, log } = workspace(t);
   linkLines([consumer], env);

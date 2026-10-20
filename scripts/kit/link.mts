@@ -3,7 +3,8 @@
 // source of the checkout that provides it. link only links; it never builds (link-build.mts rebuilds):
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
 //   Composer  each copy that installed.json of the vendor of the consumer's Composer project (composer config vendor-dir)
-//             lists at its install-path becomes a link to the provider's package folder, then composer dump-autoload runs;
+//             lists at its install-path becomes a link to the provider's package folder, its record and that of each path package of the
+//             project take the require and autoload of their composer.json (K304), then composer dump-autoload runs;
 //   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
 //             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
 //             installed into the environment as they are (no sync: the link changes only the linked packages, K239); a read-only
@@ -23,7 +24,7 @@ import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, 
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
-import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
+import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
@@ -304,6 +305,42 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
   return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
 }
 
+// The fields of a composer.json that installed.json of Composer 2 records for a package, and that dump-autoload reads for the
+// autoload rules, the platform check and InstalledVersions (K304).
+const RECORDED_FIELDS = ['require', 'autoload', 'replace', 'provide', 'conflict'] as const;
+
+/**
+ * K304: a package of installed.json that is a link to a provider, or a path package of the project itself, takes the metadata of
+ * the composer.json at its install-path, as Composer records a path package it installs: the platform check that dump-autoload
+ * writes then follows the linked source, not the release that the lock recorded. A field that the composer.json lacks is
+ * removed from the record, the version is taken when the composer.json declares one, and every other package is left as it is.
+ * Returns whether the record changed.
+ */
+function recordLinkedMetadata(record: string): boolean {
+  const parsed = readJsonOf(record);
+  const list = isJsonObject(parsed) ? parsed.packages : parsed;
+  if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);
+  let changed = false;
+  for (const entry of list) {
+    if (!isJsonObject(entry) || typeof entry['install-path'] !== 'string') continue;
+    const folder = path.resolve(path.dirname(record), entry['install-path']);
+    const linked = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+    const path_ = isJsonObject(entry.dist) && entry.dist.type === 'path';
+    const manifest = path.join(folder, MANIFESTS.composer);
+    if (!(linked || path_) || !existsSync(manifest)) continue;
+    const source = readJsonOf(manifest);
+    if (!isJsonObject(source)) continue;
+    for (const field of RECORDED_FIELDS) {
+      if (JSON.stringify(entry[field]) === JSON.stringify(source[field])) continue;
+      if (source[field] === undefined) delete entry[field]; else entry[field] = source[field];
+      changed = true;
+    }
+    if (typeof source.version === 'string' && entry.version !== source.version) { entry.version = source.version; changed = true; }
+  }
+  if (changed) writeAtomic(record, `${JSON.stringify(parsed, null, 4)}\n`);
+  return changed;
+}
+
 function linkComposer(work: Run, consumer: Consumer) {
   if (!consumer.manifests('composer').length) return;
   const composer = consumerTool(consumer.top, 'composer', work.env);
@@ -336,6 +373,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       if (!recorded.has(path.join(folder, item))) unlinkable(work, 'composer', `polyspec/${item}`, `a plain copy that Composer does not record: ${path.join(folder, item)}`);
     }
     // Composer's own answer to autoload rules that a linked package changed; check only reports, so it dumps nothing.
+    if (!work.check) recordLinkedMetadata(record);
     if (!work.check) run(composer.command, ['dump-autoload', '--working-dir', project], { env: composer.env });
   }
 }

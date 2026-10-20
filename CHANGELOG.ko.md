@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 007b16a770b3247bf63c310cb13efda346fdf702077a878c3d1c3402b598dd58 -->
+<!-- source-sha256: 01e85994fde5a2b471405ea2d2bfa6aeabcb60ab5239c0427332aa6de2e1bf8e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer link는 `composer dump-autoload` 전에, 링크된 package와 프로젝트의 path package에 대해 연결된 source의 composer.json의 `require`, `autoload`, `replace`, `provide`, `conflict`, `version`을 installed.json에 가져오므로 platform check와 autoload 규칙이 source 그대로를 따른다(K304). Red: `node --test --test-name-pattern=K304 tests/kit/link.test.mts`에서 기록이 릴리스된 `php >=8.5`를 그대로 요구했다. Green: source의 `>=8.4`를 기록한다.
 - `make toolchain-check`는 `packages/php-ext`가 있는 저장소에서 `make php-ext-arginfo`가 필요로 하는 system 명령을 알린다: PHP의 gen_stub.php가 PHP-Parser를 내려받고 풀 때 쓰는 `curl` 또는 `wget`과 `tar`이다(K303). 고정된 Composer PHP-Parser는 택하지 않았다. gen_stub.php가 자기 PHP에 맞는 release를 하나로 정하기 때문이다. Red: 빠져 있어도 toolchain-check가 조용했다(case가 없던 `arginfoToolFindings`를 import한다). Green: `node --test --test-name-pattern=K303 tests/kit/check-toolchain.test.mts`가 통과한다.
 - `make build-php-ext`와 `make php-ext-arginfo`의 build 사본은 extension의 source(stub, config.h를 뺀 C와 header 파일, config.m4, config.w32, src/ 옆의 composer.json)만 담고 build folder나 산출물은 담지 않으므로, 무시된 src/에 남은 낡은 object나 module이 build되거나 게시될 수 없다(K302). Red: `node --test --test-name-pattern=K302 tests/kit/php-ext.test.mts`가 C가 compile되지 않는데도 extension을 built로 보고했다. Green: build가 실패하고 아무것도 게시하지 않는다.
 - `make rules-check`는 AGENTS.md를 구조로 읽는다(K300): PRINCIPLES.md의 각 규칙에는 id(P<n>, S<n>)가 있고, AGENTS.md의 각 규칙은 `Own:` 또는 `Refines <id>:`로 시작하며, 다듬는 규칙은 PRINCIPLES.md에 없는 기존 경로나 make target을 backtick으로 적는다. K279의 4단어 유사도는 제거했다. kit의 AGENTS.md와 한국어 쌍이 이를 따른다. Red: `node --test --test-name-pattern=K300 tests/kit/check-rules.test.mts`에서 짧은 되풀이 "Build modular components"에 finding이 없었다. Green: 통과한다.
