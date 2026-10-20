@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b74f9b3fa666c40a5009e04343bfbe2f532459c71f7455f185d7256954b40392 -->
+<!-- source-sha256: 3960d59ac152a8e61ec8903dccaa3794d027327855c5752f29bf84722011fcfd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `config/parity.json`의 binding은 `runner`를 `reason`과 함께 선언할 수 있다. 그 test는 그 runner의 program, argument, 출력
+  parser로 실행되고 R2와 R3에서 여전히 구현의 binding으로 세므로, C engine의 node test가 계약을 확인하는 PHP extension도
+  binding할 수 있다. reason 없는 runner나 runner 없는 reason은 선언의 finding이다(K422).
 - `link --siblings`는 checkout 옆 `forks/` 폴더의 main checkout을 origin과 상관없이 그 manifest가 이름 붙인 패키지의
   provider로 링크하며, fork는 polyspec 패키지의 0.0.x 규칙이 다루지 않는 자기 핀(예: 2.6.0-p1)으로 링크된다(K379).
 - kit의 layout은 kit link가 링크된 checkout의 root에 쓰는 파일(`composer.link.json`, `composer.link.lock`)을 선언하므로,

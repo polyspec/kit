@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- A binding of `config/parity.json` may declare `runner` with `reason`: its test runs with the program, arguments and output parser
+  of that runner, and it still counts as the binding of its implementation for R2 and R3, so a PHP extension whose contract a node
+  test of its C engine checks can bind; a runner without a reason, or a reason without a runner, is a finding of the declaration
+  (K422).
 - `link --siblings` links the main checkouts in the folder `forks/` beside the checkouts as providers of the packages that their
   manifests name, whatever their origin, and a fork is linked at its own pin (such as 2.6.0-p1), which the 0.0.x rule of polyspec
   packages does not cover (K379).
