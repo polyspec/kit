@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The kit package exports `./run-command`: runCommand runs one command to its end with no time limit in its own process group,
+  stops what it leaves in the group when it exits and the running commands when the caller is interrupted, captures its output
+  up to a limit, and returns its status, signal, elapsed time and start error; failureOf states a failure in one line, and
+  stopGroup moved into process-group.mts for it and run-tests (K430).
 - P10 is enforced by `.githooks/pre-push` only, and no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/,
   which a consumer that takes PRINCIPLES.md as a copy of kit lacks, so `make rules-check` passes after a kit-sync (K359-2).
 - `make land` leaves its own ancestors, such as the make and the shell that run it, out of the processes of the worktree,

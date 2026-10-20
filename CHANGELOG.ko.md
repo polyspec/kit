@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e72360e2ae4c2d03f88ece6d3b54f07a214117a64063b70199e7666a4cdd99a1 -->
+<!-- source-sha256: 8764712ed7f4615777fe02eab0dd7ddf242f5b91741a4d899d1202bb16a46a3d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit 패키지는 `./run-command`를 export한다. runCommand는 명령 하나를 시간 제한 없이 자기 process group에서 끝까지 실행하고,
+  명령이 끝나면 group에 남긴 것을, 호출자가 중단되면 실행 중인 명령을 멈추며, 출력을 한도까지 담고 status, signal, 경과
+  시간, 시작 오류를 돌려준다. failureOf는 실패를 한 줄로 적고, stopGroup은 이것과 run-tests를 위해 process-group.mts로
+  옮겼다(K430).
 - P10은 `.githooks/pre-push`로만 강제되고, PRINCIPLES.md의 어떤 Enforced by 줄도 PRINCIPLES.md를 kit의 복사본으로 받는
   consumer에 없는 tests/나 scripts/ 아래 경로를 적지 않으므로, kit-sync 뒤에도 `make rules-check`가 통과한다(K359-2).
 - `make land`는 자기를 실행한 make와 shell 같은 자기 조상을 worktree의 프로세스에서 빼므로, make land 전에 worktree로
