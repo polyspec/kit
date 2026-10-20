@@ -3,7 +3,8 @@
 // claude/settings.json). It reads the hook input on stdin and refuses, with exit status 2 and the reason on stderr, a Bash
 // command that runs a suite, a whole test runtime without a selection, or sets the variable that marks a CI run (the suite
 // runs only in CI, ci-only.mts, and locally only the unit tests that own a change run, K240); a Bash command that skips the
-// Git hooks or changes their path, or polls in a loop with a sleep (K248); and, in a consumer repository, an edit of a file
+// Git hooks or changes their path (K248); a Bash command that waits, with a sleep or in a loop that sleeps or polls for a
+// process or a file (K386); and, in a consumer repository, an edit of a file
 // that kit vendors, which `make kit-sync` writes (K248).
 //
 //   node scripts/kit/claude-hook.mts < <hook input JSON>
@@ -28,6 +29,8 @@ const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-
 const CI_MARKERS = new Set(['GITHUB_ACTIONS', 'CI']);
 // The words that run the command after them.
 const PREFIXES = new Set(['time', 'nice', 'command', 'exec', 'npx']);
+// The commands that poll for a process or a file, which a loop repeats until it finds it.
+const POLLS = new Set(['pgrep', 'pidof', 'ls']);
 
 const SUITE = 'runs only in CI (GITHUB_ACTIONS=true); locally run the unit tests that own the change by their file or a name filter';
 const HOOKS = 'skips the Git hooks, which enforce the rules at the commit and the push; commit and push with the hooks';
@@ -145,6 +148,39 @@ function gitRefusal(args: string[]): string | null {
   return null;
 }
 
+/** The refusal of a command that waits: `what` names it, and the message gives the alternatives to waiting. */
+function waitRefusal(what: string): string {
+  return `${what}, which has no known end: run one foreground command bounded by its own work and its timeout, or a run in the background that notifies at its end`;
+}
+
+/** The simple commands of the loops in `parts`: the words after the `do` of each loop, up to its `done`. */
+function loopBodies(parts: string[][]): string[][] {
+  const bodies: string[][] = [];
+  let loops = 0;
+  for (const words of parts) {
+    const head = words[0] ?? '';
+    if (head === 'for' || head === 'while' || head === 'until') loops += 1;
+    else if (head === 'done') loops -= 1;
+    else if (loops > 0) {
+      const body = head === 'do' ? words.slice(1) : words;
+      if (body.length > 0) bodies.push(body);
+    }
+  }
+  return bodies;
+}
+
+/** Whether the simple command `words` sleeps, or polls for a process or a file, after its env and prefix words. */
+function sleepsOrPolls(words: string[]): boolean {
+  let rest = words;
+  while (rest[0] !== undefined && (rest[0] === 'env' || rest[0].startsWith('-') || assigned(rest[0]) || PREFIXES.has(rest[0]))) rest = rest.slice(1);
+  const [command, ...args] = rest;
+  if (command === undefined) return false;
+  const program = path.basename(command);
+  if (program === 'sleep' || POLLS.has(program)) return true;
+  if (program === 'test') return ['-e', '-f', '-d'].includes(args[0] ?? '');
+  return program === '[' && args[0] === '-e';
+}
+
 /** The refusal of one simple command, its `words`, or null. */
 function commandRefusal(words: string[], context: Context, seen: Set<string>): string | null {
   const { isFileAt } = context;
@@ -159,6 +195,7 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
   const [command, ...args] = rest;
   if (command === undefined) return null;
   const program = path.basename(command);
+  if (program === 'sleep') return waitRefusal(`${words.join(' ')} waits`);
   if (program === 'make') return makeRefusal(args, context, seen);
   if (program === 'git') return gitRefusal(args);
   return runnerRefusal(program, args, isFileAt);
@@ -167,8 +204,7 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
 /** The refusal of the Bash command `command` in `context`, or null; `seen` holds the make targets already read. */
 function refusalIn(command: string, context: Context, seen: Set<string>): string | null {
   const parts = commandParts(command);
-  const loop = parts.some(words => words[0] === 'while' || words[0] === 'until');
-  if (loop && parts.some(words => words.includes('sleep'))) return `${command} polls in a loop with a sleep, which has no known end; wait for one command that its own work bounds, or for the event of the work`;
+  if (loopBodies(parts).some(sleepsOrPolls)) return waitRefusal(`${command} sleeps or polls in a loop`);
   for (const words of parts) {
     const refused = commandRefusal(words, context, seen);
     if (refused) return refused;
