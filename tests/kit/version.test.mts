@@ -38,3 +38,11 @@ test('a version that the ecosystem does not read fails with the ecosystem and th
   assert.throws(() => older('npm', 'not a version', '1.0.0'), /npm version "not a version" is not a semver version/);
   assert.throws(() => older('pypi', '1.0', 'x.y'), /PyPI version "x\.y" is not a PEP 440 version/);
 });
+
+// K328-1: a locked version above the latest release is not outdated, whatever the text, and a different dev version still is.
+test('a Composer version above the latest release is not older, and a version below it or a dev version that differs is (K328-1)', () => {
+  assert.equal(older('composer', '0.0.11', '0.0.6'), false, 'a release the registry does not have yet is not outdated');
+  assert.equal(older('composer', 'v0.0.5', '0.0.6'), true);
+  assert.equal(older('composer', '0.0.6', 'v0.0.6'), false);
+  assert.equal(older('composer', 'dev-main', '0.0.6'), true, 'composer outdated judges a version that is no release');
+});

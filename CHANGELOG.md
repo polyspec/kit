@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The dependency policy compares plain Composer releases as versions, so a locked version above the latest release of
+  the registry, such as an unreleased `polyspec/template 0.0.11` against 0.0.6, is not outdated (K328-1).
 - Parity rule R16 reports only a match of the requirement pattern that `docs/spec` defines, over every match of an
   internal test, so `UTF-8` and `SHA-256` name no requirement (K342).
 - While a Composer project is linked, `make dependency-review` runs Composer on `composer.link.json` and its lock,

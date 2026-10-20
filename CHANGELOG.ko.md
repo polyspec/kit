@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7ff577e3a89782462c5ea9c056b0574ca3803b447996a89e226150efbe188fa3 -->
+<!-- source-sha256: 6cd1d19f07a8057de8c66255455647568174b3393b4989465e7af2c2d9e0b7a9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 의존성 policy는 일반 Composer release를 version으로 비교하므로, registry의 latest release보다 높은 locked version(예: 0.0.6에 대한 미공개
+  `polyspec/template 0.0.11`)은 outdated가 아니다 (K328-1).
 - Parity 규칙 R16은 internal test의 모든 match 중 `docs/spec`이 정의한 requirement pattern의 match만 보고하므로, `UTF-8`과 `SHA-256`은
   requirement를 이름으로 부르지 않는다 (K342).
 - Composer project가 linked인 동안 `make dependency-review`는 `composer.link.json`과 그 lock으로 Composer를 실행하고, linked

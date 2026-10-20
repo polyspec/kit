@@ -35,7 +35,13 @@ export function isPrerelease(ecosystem: Exclude<Ecosystem, 'composer'>, version:
 
 /** Whether `current` is an older release than `latest` by the rules of `ecosystem`. */
 export function older(ecosystem: Ecosystem, current: string, latest: string): boolean {
-  if (ecosystem === 'composer') return current !== latest;
+  if (ecosystem === 'composer') {
+    // Plain releases compare as versions (K328-1): a locked version above the latest release, a link or a development lock that the
+    // registry does not have yet, is not outdated. Any other Composer version keeps the judgement of composer outdated: different.
+    const plain = /^v?(\d+\.\d+\.\d+)$/;
+    const [now, newest] = [plain.exec(current)?.[1], plain.exec(latest)?.[1]];
+    return now !== undefined && newest !== undefined ? semver.lt(now, newest) : current !== latest;
+  }
   if (ecosystem === 'pypi') return pep440Older(pep440Of(current), pep440Of(latest));
   return semver.lt(semverOf(ecosystem, current), semverOf(ecosystem, latest));
 }
