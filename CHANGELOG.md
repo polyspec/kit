@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make test-js` and `make test-ts` name only the `*.test.*` and `*.spec.*` files of a package, the naming of the node and vitest conventions, so a probe or a helper under `tests/` is never run as a test (K325). Red: `node --test --test-name-pattern=K325 tests/kit/runtime-targets.test.mts` listed `tests/probe.mjs` and `tests/helper.mts`; Green: only the test files.
 - `make test-python` runs the tests of a package in its environment: the run carries `--venv` with the nearest `.venv` at or above the package folder (K324), so the dependencies of the package import. Red: `node --test --test-name-pattern=K324 tests/kit/runtime-targets.test.mts` expected the `--venv` option and the run had none; Green: it passes.
 - The Composer projects that kit writes (`config/php-lint`, `config/phpunit`, the symbol extractor) resolve for PHP 8.4.1, the minor of `.php-version` with the patch 1, in `composer.json` and in the `platform-overrides` of the lock (K322). Red: `node --test tests/kit/php-platform.test.mts` found `8.4` in config/php-lint and in the extractor project; Green: it finds `8.4.1`.
 - The suite `CHECK_TARGETS` is read with its `$(VAR)` words expanded by `suiteTargets`, for the gate check of `kit-check` and for the owner check (K321). Red: `node --test --test-name-pattern=K321 tests/kit/kit-check.test.mts` reported `docs-check` missing although `$(MORE)` carried it; Green: it finds nothing.

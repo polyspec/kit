@@ -76,3 +76,8 @@ test('the tests of a Python package run in the environment of the package, found
   assert.deepEqual(runtimeRuns(files, 'python', 'x', node, undefined, folder => (folder === 'packages/python' ? 'packages/python/.venv' : undefined)), [{ cwd: 'packages/python', tool: 'python', options: ['--venv', 'packages/python/.venv'], args: ['-k', 'x'] }]);
   assert.deepEqual(runtimeRuns(files, 'python', 'x', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'x'] }], 'without an environment the python of mise runs, as before');
 });
+
+test('the unit tests of a script package are its *.test.* and *.spec.* files, never a helper or a probe of tests/ (K325)', () => {
+  const files = ['packages/js/tests/a.test.mjs', 'packages/js/tests/b.spec.js', 'packages/js/tests/probe.mjs', 'packages/js/tests/helper.mts', 'packages/js/src/c.test.ts'];
+  assert.deepEqual(runtimeRuns(files, 'js', undefined, node), [{ cwd: 'packages/js', tool: 'node', args: ['tests/a.test.mjs', 'tests/b.spec.js', 'src/c.test.ts'] }]);
+});

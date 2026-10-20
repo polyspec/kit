@@ -35,9 +35,12 @@ export type Run = { cwd: string; tool: string; options?: string[]; args: string[
 export const RUNTIMES = ['go', 'js', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 export const SUITES = ['integration', 'conformance'] as const;
 const SCRIPT = /\.[cm]?[jt]sx?$/;
+// The test files of the node and vitest runners (the conventions of parity-declaration.mts): a file named *.test.* or *.spec.*. A helper or
+// a probe in tests/ is no test, and node would run it as one (K325).
+const NODE_TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 
 /** The relative paths of the tracked test scripts of `folder` among `files`. */
-const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && isTestFile(file)).map(file => path.posix.relative(folder, file));
+const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && NODE_TEST.test(file)).map(file => path.posix.relative(folder, file));
 
 /**
  * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): every PHP library of the repository,
