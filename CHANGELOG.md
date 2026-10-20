@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make owner-validate` passes on kit main again: `config/owner-checks.json` owns the merge driver `twin-merge.mts` through
+  `git-hooks.mts`, `clippy.toml` through the real Rust lint test and `scripts/kit/php-library` through the module that
+  reads it (K410).
+
 - `make lint-go` lints the Go files behind every build tag that a module names in its `//go:build` lines: it runs
   golangci-lint (`--build-tags`) and deadcode (`-tags`) once more for each such tag, leaving out the tags that the go tool
   sets itself, so a file behind a tag is linted and a helper that only tagged files use is no longer read as unused (K406).

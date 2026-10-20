@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 189f817105e02e035bcead5beeb688250f92cbd4e9e744501af1f6953dc41ca7 -->
+<!-- source-sha256: 438ce6b653f91dfdacd10229450c306efcaebe6eb52439ff8fa67643641d72eb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- kit main에서 `make owner-validate`가 다시 통과한다. `config/owner-checks.json`은 merge driver `twin-merge.mts`를
+  `git-hooks.mts`를 통해, `clippy.toml`을 실제 Rust lint 테스트를 통해, `scripts/kit/php-library`를 그것을 읽는 module을 통해
+  소유한다(K410).
 
 - `make lint-go`는 module이 `//go:build` 줄에 적는 모든 build tag 뒤의 Go 파일을 lint한다. go 도구가 스스로 설정하는 tag를
   빼고 그런 tag마다 golangci-lint(`--build-tags`)와 deadcode(`-tags`)를 한 번 더 실행하므로, tag 뒤의 파일도 lint되고 tag가
