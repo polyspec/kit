@@ -1,7 +1,9 @@
 """Runs the unittest tests of a checkout as `python -m unittest -v` does, with a timeout for each test and the elapsed time of
 each test (K371).
 
-    python3 python.py --timeout <seconds> <arguments of unittest>
+    python3 -c "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')" python.py --timeout <seconds> <arguments>
+
+The -c start leaves sys.path[0] as the current directory, as `python -m unittest` does; run_path adds nothing to sys.path.
 
 The arguments after --timeout are those of unittest (a discover, test names, -v), which unittest.main reads as they are. A test
 has its timeout: the runner arms signal.setitimer(ITIMER_REAL) when the test starts and disarms it when the test stops; when the
@@ -11,7 +13,6 @@ Only the standard library is used, so no environment needs a package.
 """
 
 import functools
-import os
 import signal
 import sys
 import time
@@ -95,11 +96,9 @@ def main(argv):
         raise AssertionError(f"the test outlived its timeout of {seconds}s")
 
     signal.signal(signal.SIGALRM, expired)
-    # python -m puts the current directory first on the path, so the tests import the project as they do with -m; the runner
-    # is a script, whose folder would be first otherwise. This is the one change of sys.path that S3 refuses, for that reason (K371).
-    sys.path[0] = os.getcwd()  # noqa: TID251 - the current directory first, as python -m gives it (K371)
     unittest.main(module=None, argv=["unittest", *argv[2:]], testRunner=TimedRunner)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    # The runner is started by runpy with its path as argv[1]: its own arguments follow it (K371).
+    main(sys.argv[2:])

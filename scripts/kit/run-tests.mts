@@ -55,6 +55,8 @@ const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--tim
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // The runner of the python tests (K371): unittest with the timeout of each test and the elapsed time of each, standard library only.
 const PYTHON_RUNNER = fileURLToPath(new URL('./runners/python.py', import.meta.url));
+// The python tests start the runner through runpy: a -c start keeps the current directory first on sys.path, as -m does (K371).
+export const PYTHON_START = "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')";
 // A line in which a tool reports an error: `error: ...` and `error[E0425]: ...` of cargo and rustc, `fatal error: ...`,
 // `panic: ...` of Go and `PHP Fatal error: ...`.
 const ERROR_LINE = /^(?:error(?:\[\w+\])?:|fatal error:|panic:|PHP Fatal error:)/i;
@@ -189,7 +191,7 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // a --module harness keeps `-m <module>`, whose tests run with the timeout of the runner of this script.
       const interpreter = venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3'));
       if (module !== undefined) return { command: interpreter, args: ['-m', module, ...args, '-v'] };
-      return { command: interpreter, args: [PYTHON_RUNNER, '--timeout', String(timeoutSeconds), ...args, '-v'] };
+      return { command: interpreter, args: ['-c', PYTHON_START, PYTHON_RUNNER, '--timeout', String(timeoutSeconds), ...args, '-v'] };
   }
   throw new Error(USAGE);
 }

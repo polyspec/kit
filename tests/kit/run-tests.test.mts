@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mts';
+import { parseArguments, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { libraryTestRun } from '../../scripts/kit/php-library-autoload.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
@@ -171,7 +171,7 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
   assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: [tool(import.meta.resolve('../../scripts/kit/runners/python.py')), '--timeout', '7', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-c', PYTHON_START, tool(import.meta.resolve('../../scripts/kit/runners/python.py')), '--timeout', '7', 'discover', '-s', 'tests', '-v'] });
 });
 
 // Composer gives the vendor directory of the PHPUnit (K184): its folder `vendor`, COMPOSER_VENDOR_DIR, or config.vendor-dir.
@@ -513,7 +513,7 @@ test('python tests run through var/tools/mise/shims/python3, pass, fail and stop
   const hanging = pythonRoot(t, `process.stderr.write('test_hang (t.T.test_hang) ... '); setInterval(() => {}, 1000);`);
   const hung = await inProcess(t, ['python', '--timeout', '1', 'tests'], { root: hanging });
   assert.equal(hung.status, 1, hung.text);
-  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/python3 [^`]*runners\/python\.py --timeout`/);
+  assert.match(hung.text, /⏱ test_hang \(t\.T\.test_hang\) ran [\d.]+s and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/python3 -c import runpy[^`]*`/);
 
   const empty = pythonRoot(t, `process.stderr.write('\\n' + '-'.repeat(70) + '\\nRan 0 tests in 0.000s\\n\\nNO TESTS RAN\\n'); process.exitCode = 5;`);
   const none = await inProcess(t, ['python', 'tests'], { root: empty });
