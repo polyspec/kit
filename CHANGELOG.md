@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make parity-declarations-check RULES="<rule> ..."` reports only the findings of the named rules, by id or name, and those
+  of `config/parity.json` itself; with UNITS too, the findings that both select (K414).
 - A gate command of a Verification takes the make variables after its target, as `make parity-declarations-check RULES=R9`,
   so a gate scoped by UNITS or RULES is the recorded red of a fix row and its Red-Gate line proves it (K357-2).
 - `link rebuild` runs `composer dump-autoload` on the link files of each linked Composer project of the consumer, so its

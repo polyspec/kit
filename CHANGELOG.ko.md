@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 721c05a0db4880673ee5b853a537fec27c207dba2b38efb7c690bb7d5756e8f1 -->
+<!-- source-sha256: 93ef4fdd4ec8df8e9d981bc38ef3fc37ea27738fd561553db18e587d8bda060d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make parity-declarations-check RULES="<rule> ..."`는 id나 이름으로 지정한 rule의 finding과 `config/parity.json` 자체의
+  finding만 보고한다. UNITS도 주면 둘이 모두 고르는 finding을 보고한다(K414).
 - Verification의 gate 명령은 `make parity-declarations-check RULES=R9`처럼 target 뒤의 make 변수를 받으므로, UNITS나
   RULES로 좁힌 gate도 fix row의 기록된 red이고 그 Red-Gate 줄이 그것을 증명한다(K357-2).
 - `link rebuild`는 consumer의 링크된 Composer project마다 link 파일로 `composer dump-autoload`를 실행하므로, provider가
