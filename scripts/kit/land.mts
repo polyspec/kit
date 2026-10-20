@@ -54,6 +54,14 @@ function linesOf(output: string, folder: string, root: string): { line: string; 
     .filter(({ key }) => key.trim() !== '');
 }
 
+// A line that a kit tool prints on stdout as its progress, which starts with the name of the tool in brackets ([parity] tools root
+// ...); a kit tool prints its findings on stderr, and another tool, such as a linter, prints its findings on stdout without it (K394-3).
+const PROGRESS = /^\[[a-z0-9-]+\] /;
+
+/** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
+const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string) =>
+  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line)), ...linesOf(stderr, folder, root)];
+
 /** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */
 function newLines(branch: { line: string; key: string }[], main: { key: string }[]): string[] {
   const left = new Map<string, number>();
@@ -115,7 +123,7 @@ export function land(root: string, branch: string, { print = (text: string) => c
         const onMain = spawnSync('make', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
         if (onMain.error) throw new Error(`make ${gate} could not start in ${root}: ${onMain.error.message}`);
         if (onMain.status !== 0) {
-          const added = newLines(linesOf(`${result.stdout}${result.stderr}`, folder, root), linesOf(`${onMain.stdout}${onMain.stderr}`, folder, root));
+          const added = newLines(findingLines(result, folder, root), findingLines(onMain, folder, root));
           if (added.length === 0) {
             print(`${gate} fails on main too, with no finding that main does not have`);
             continue;

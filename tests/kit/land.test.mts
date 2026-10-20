@@ -143,6 +143,46 @@ test('land compares the output of a gate without the temporary folders that it m
   assert.ok(printed.includes('fresh-x fails on main too, with no finding that main does not have'), printed.join('\n'));
 });
 
+// K394-3: a kit tool prints its progress on stdout as a line that starts with its [name], and its findings on stderr; a new
+// progress line, such as the tools root that parity-declarations-check declares, is no finding, while a new stderr line and a new
+// stdout line of another tool, such as a linter, are.
+test('land counts no progress line of a kit tool as a finding of a gate that fails on main too (K394-3)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // info-x prints a progress line for each line of info.txt, a stderr finding for each line of findings.txt, and the lines of
+  // lint.txt on stdout as a linter does; it fails while findings.txt is not empty.
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check info-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'info-x:', '\t@sed "s/^/[info-x] tools root /" info.txt; cat lint.txt; sed "s/^/[info-x] finding: /" findings.txt >&2; test ! -s findings.txt'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'info.txt', 'findings.txt', 'lint.txt'], targets: ['info-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+    'info.txt': 'tools\n',
+    'findings.txt': 'src/a.txt\n',
+    'lint.txt': 'src/a.txt:1:1: error E1\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const printed: string[] = [];
+  const print = (text: string) => printed.push(text);
+  const branch = (name: string, files: Record<string, string>) => {
+    const folder = path.join(parent, `repo-${name}`);
+    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
+    put(folder, files);
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', name);
+  };
+  branch('feat-a', { 'info.txt': 'tools\nbenchmarks\n' });
+  const branchA = git(main, 'rev-parse', 'feat-a');
+  land(main, 'feat-a', { print });
+  assert.equal(git(main, 'rev-parse', 'main'), branchA, 'a new progress line of the kit tool is no finding');
+  branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/b.txt\n' });
+  assert.throws(() => land(main, 'feat-b', { print }), /feat-b is refused: the gate info-x has 1 findings that main does not have/);
+  branch('feat-c', { 'lint.txt': 'src/a.txt:1:1: error E1\nsrc/c.txt:2:1: error E2\n' });
+  assert.throws(() => land(main, 'feat-c', { print }), /feat-c is refused: the gate info-x has 1 findings that main does not have/);
+});
+
 test('land selects no gate that runs tests (K394-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
