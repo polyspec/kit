@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bf32fea34e412f493fc4ad5338311b6d183b41d0aa9705e3df6c0c39a27b2e38 -->
+<!-- source-sha256: 4ee1b3c993b5e705ded2e70b8263ed1b31aa237f76ce9e88b41e0c3fc6284679 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make docs-check`는 check-documents를 실행한 뒤 저장소가 `DOCS_CHECKS += <target>`으로 더한 모든 문서 검사를 다른 것의
+  상태와 상관없이 실행하고, 실패한 것을 적어 실패한다(K419).
 - `make dependency-review`는 Go module을 가장 가까운 go.work로 검사한다. link가 쓰는 옆의 go.work, 없으면 그 module을 쓰는
   상위 폴더의 tracked go.work를 쓰므로, 저장소 workspace의 module이 자기 module을 찾는다(K418).
 - P8은 규칙마다 강제된다. phpcs는 `@`로 숨긴 오류를, oxlint는 잡은 오류를 cause로 갖지 않고 던지는 catch를, PHP

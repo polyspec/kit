@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make docs-check` runs check-documents and then every document check that a repository adds with
+  `DOCS_CHECKS += <target>`, each whatever the status of the others, and fails naming those that failed (K419).
 - `make dependency-review` scans a Go module with its nearest go.work: the one beside it, which the link writes, else a
   tracked go.work of a parent folder that uses it, so a module of the workspace of the repository resolves its own modules (K418).
 - P8 is enforced rule by rule: phpcs refuses an error silenced with `@`, oxlint a catch that throws without the caught
