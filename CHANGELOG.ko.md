@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c4f33de898f491a2f4db58a370a0dd52fbcf37cbe37f557809d54b83cc7869e9 -->
+<!-- source-sha256: 86f7453c90dff7c58805318f33e4c3b64041891f7127e867d26f81704f7093ec -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- test-markers-check는 checkout의 Python의 ast module로 Python 파일의 syntax tree에서 marker를 읽으므로, 문자열이나
+  docstring 안의 skip marker는 finding이 아니다(K345).
 - twin driver는 git이 `CHANGELOG.md`를 merge하는 방식대로, 그 파일의 merge attribute로 `CHANGELOG.ko.md`를 merge하고
   marker를 계산한다. hook이 아직 union으로 merge하는 checkout도 rebase 뒤 현재의 twin을 갖는다(K354-2).
 - branch는 reflog가 그 위에서 만든 commit을 기록할 때 자기 commit을 가지므로, rebase로 더 새로운 main 위로 옮겨진 새

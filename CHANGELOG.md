@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- test-markers-check reads the markers of a Python file from its syntax tree, with the ast module of the Python of the
+  checkout, so a skip marker inside a string literal or a docstring is no finding (K345).
 - The twin driver merges `CHANGELOG.ko.md` and computes its marker as git merges `CHANGELOG.md`, by the merge attribute of
   that file: a checkout whose hooks still merge it with union keeps a current twin through a rebase (K354-2).
 - A branch has commits of its own when its reflog records a commit made on it, so a fresh branch that a rebase moved onto a
