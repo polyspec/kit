@@ -26,6 +26,7 @@ const GOOD: Record<string, string> = {
 };
 
 const TEST = 'packages/python/tests/test_demo.py';
+const INIT = 'packages/python/src/polyspec/demo/__init__.py';
 const withLine = (line: string) => `${line}\n${GOOD[TEST]}`;
 
 // One violation for each rule: the files it adds or replaces, and the text that the failing step prints for it.
@@ -42,7 +43,28 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'an unused function under a raised min_confidence', files: { 'packages/python/pyproject.toml': `${GOOD['packages/python/pyproject.toml']}\n[tool.vulture]\nmin_confidence = 100\n`, 'packages/python/src/polyspec/demo/__init__.py': `${GOOD['packages/python/src/polyspec/demo/__init__.py']}\n\ndef triple(value: int) -> int:\n    return value * 3\n` }, finding: /unused function 'triple' \(60% confidence\)/ },
   // No swallowed error (K256): a blind except and an except that only passes.
   { name: 'a blind except that passes', files: { 'packages/python/src/polyspec/demo/__init__.py': `${GOOD['packages/python/src/polyspec/demo/__init__.py']}\n\ndef safe() -> int:\n    try:\n        return double(1)\n    except Exception:\n        pass\n    return 0\n` }, finding: /BLE001[\s\S]*S110|S110[\s\S]*BLE001/ },
+  // P8 (K334): an error is never hidden. A typed except that only passes, an except that only re-raises, a re-raise that drops
+  // the traceback, an error logged without it, a jump out of finally, a blanket type: ignore and noqa, and a noqa that suppresses nothing.
+  { name: 'a typed except that only passes', files: { [INIT]: doubleBody('    try:\n        value.bit_length()\n    except AttributeError:\n        pass\n    return value * 2\n') }, finding: /SIM105[\s\S]*S110|S110[\s\S]*SIM105/ },
+  { name: 'an except that only re-raises', files: { [INIT]: doubleBody('    try:\n        return value * 2\n    except ValueError:\n        raise\n') }, finding: /TRY203/ },
+  { name: 'a raise of the caught exception', files: { [INIT]: doubleBody('    try:\n        return value * 2\n    except ValueError as error:\n        raise error\n') }, finding: /TRY201/ },
+  { name: 'an error logged without its traceback', files: { [INIT]: `import logging\n\n\n${doubleBody('    try:\n        return value * 2\n    except ValueError:\n        logging.error("failed")\n        raise\n')}` }, finding: /TRY400/ },
+  { name: 'a return in finally', files: { [INIT]: doubleBody('    try:\n        return value * 2\n    finally:\n        return 0\n') }, finding: /B012/ },
+  { name: 'a blanket type: ignore', files: { [INIT]: doubleBody('    return value * 2  # type: ignore\n') }, finding: /PGH003/ },
+  { name: 'a blanket noqa', files: { [INIT]: `import os  # noqa\n\n\n${GOOD[INIT]}` }, finding: /PGH004/ },
+  { name: 'a noqa that suppresses nothing', files: { [INIT]: doubleBody('    return value * 2  # noqa: F401 - nothing to suppress\n') }, finding: /RUF100/ },
 ];
+
+// The variants that state their need pass (P8): a blind except that names why it is blind, and a re-raise that logs the traceback.
+const STATED: { name: string; files: Record<string, string> }[] = [
+  { name: 'a blind except with its reason', files: { [INIT]: doubleBody('    try:\n        return value * 2\n    except Exception as error:  # noqa: BLE001 - every error of the multiplication is the failure of this call\n        return len(str(error))\n') } },
+  { name: 'a re-raise that keeps the traceback and logs it', files: { [INIT]: `import logging\n\n\n${doubleBody('    try:\n        return value * 2\n    except ValueError:\n        logging.exception("failed")\n        raise\n')}` } },
+];
+
+/** The module `polyspec.demo` whose function double has the body `body`. */
+function doubleBody(body: string): string {
+  return `def double(value: int) -> int:\n${body}`;
+}
 
 /** Writes `files` below `root`. */
 function write(root: string, files: Record<string, string>) {
@@ -96,4 +118,11 @@ test('an entry of the vulture whitelist of the package, with its reason, keeps a
   });
   const { failed, output } = lintOf(root);
   assert.deepEqual(failed, [], output);
+});
+
+test('a variant that states its need passes the Python lint', (t) => {
+  for (const { name, files } of STATED) {
+    const { failed, output } = lintOf(repository(t, files));
+    assert.deepEqual(failed, [], `${name}: ${output}`);
+  }
 });

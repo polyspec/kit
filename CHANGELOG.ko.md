@@ -1,5 +1,6 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 81c817099ba7e6ff32c6abdeddb9ef7807a94cc5ab27cbf82f96cdfe0c835705 -->
+<!-- source-sha256: 906c76591637a75763d9c8d23dacab62c5a8c4b00ac9d1ff82b4a2465e244b1f -->
+<!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -10,6 +11,7 @@
   하고, 실패한 명령은 그 상태를 거부한다 (K335).
 - 의존성 policy는 일반 Composer release를 version으로 비교하므로, registry의 latest release보다 높은 locked version(예: 0.0.6에 대한 미공개
   `polyspec/template 0.0.11`)은 outdated가 아니다 (K328-1).
+- `make lint-python`은 P8 은폐도 실패시킨다: SIM105, typed `try`-`except`-`pass`와 `continue`(`check-typed-exception`의 S110, S112), TRY201, TRY203, TRY400, B012, 규칙 없는 `type: ignore`(PGH003)와 `noqa`(PGH004), 아무것도 억제하지 않는 `noqa`(RUF100). Red: 심은 각 pattern이 lint를 통과했다. green: 각각 해당 rule로 실패하고 need를 밝힌 variant는 통과한다 (`tests/source/lint-python-real.test.mts`) (K334).
 - Parity 규칙 R16은 internal test의 모든 match 중 `docs/spec`이 정의한 requirement pattern의 match만 보고하므로, `UTF-8`과 `SHA-256`은
   requirement를 이름으로 부르지 않는다 (K342).
 - Composer project가 linked인 동안 `make dependency-review`는 `composer.link.json`과 그 lock으로 Composer를 실행하고, linked

@@ -15,6 +15,7 @@ public class, as "<id> names the private <name>". A string annotation is read as
 """
 
 import ast
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -98,10 +99,9 @@ def names_in(node):
         elif isinstance(item, ast.Attribute):
             found.append(item.attr)
         elif isinstance(item, ast.Constant) and isinstance(item.value, str):
-            try:
+            # A string constant that is no expression, such as a Literal value, names no symbol; a forward reference does.
+            with contextlib.suppress(SyntaxError):
                 found.extend(names_in(ast.parse(item.value, mode="eval")))
-            except SyntaxError:
-                pass
     return found
 
 
