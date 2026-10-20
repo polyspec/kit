@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 61bd2058381303abcd3a8682fdf5e1b5693fcf33d59287eaddb04f4e252cb8d8 -->
+<!-- source-sha256: 9ddcc8e2d5951f82017d3ffa39b26cdaf01a0e406e934c684b5baf980f24a2ba -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python link는 `uv.lock`이 없는 workspace에서 PEP 751 lock(`pylock.toml`)으로 설치의 constraint를 얻으므로, orm처럼
+  그렇게 lock한 project도 그 설치가 만든 환경에 링크된다(K401).
 - 변경 기록의 Unreleased 항목은 rebase 뒤에도 최신순으로 남는다. `CHANGELOG.md`는 driver `kit-changelog`로, 그 한국어
   쌍둥이는 `kit-twin`으로 merge되며, 둘은 적용되는 commit만 더한 항목을 main 목록의 형식(항목마다 한 줄, 또는 항목마다 한
   문단)대로 앞에 둔다. `make hooks`는 union 줄을 바꾼다(K354-1).

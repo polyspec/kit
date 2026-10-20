@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The Python link takes the constraints of its install from the PEP 751 lock (`pylock.toml`) of a workspace that has no
+  `uv.lock`, so a project locked that way, as orm is, is linked into the environment that its install made (K401).
 - The Unreleased entries of a changelog stay newest first through a rebase: `CHANGELOG.md` merges with the driver
   `kit-changelog` and its Korean twin with `kit-twin`, which put the entries that only the applied commit adds first, in the
   style of the list of main, one entry a line or each a paragraph; `make hooks` replaces the union line (K354-1).
