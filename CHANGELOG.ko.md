@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2c901f53fa641e12c91b9808bd80008a00a93eeb6a9256f48b1e688cf4e22931 -->
+<!-- source-sha256: fa38809032e5eccebe5e3a69a38cb57991a5ac5a7b1653b4d4d21248d4e38aad -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- parity 선언 검사는 요구 id를 하나도 정의하지 않는 `docs/spec`의 문서마다 그 파일을 적어 보고한다(규칙 R19
+  `spec-without-requirement`)(K337).
 - test-php-ext의 Reflection 비교는 extension이 등록하는 상수도 읽고, library 밖의 class나 함수에서 이미 그랬듯 PHP
   library가 정의하지 않는 상수에서 실패한다(K338).
 - python-venv는 home이 main checkout의 공유 install에 있는 Python인 환경을 받는다. K387 이후 worktree는 그 Python을

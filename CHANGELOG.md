@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The parity declarations report each document of `docs/spec` that defines no requirement id (rule R19
+  `spec-without-requirement`), naming the file (K337).
 - The Reflection compare of test-php-ext also reads the constants that the extension registers, and fails on one that the
   PHP library does not define, as it already did for a class or a function outside the library (K338).
 - python-venv accepts an environment whose home is the Python of the shared installs of the main checkout, which a
