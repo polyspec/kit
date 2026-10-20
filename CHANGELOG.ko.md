@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 341f5cc224c9159047f393ea88abdab74a98838b0ac7fc84d4b599b40b40fe68 -->
+<!-- source-sha256: 6d82566fdd99ebfea4f34268b45254892c44206fa150eb38057757c8d50d96aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- TypeScript 실제 lint 테스트 K170과 K172가 다시 통과한다. 그 fixture는 각 테스트가 증명하는 규칙 옆에서 더는 tsc에 실패하지
+  않는다. 타입 없는 매개변수와, fixture의 tsconfig가 이제 빼는 일부러 깨진 입력 때문이었다(K417).
 - `make unlink`은 `pylock.toml`로 lock한 Python project를 복원한다. 링크된 package의 lock된 release를 pylock에서 환경에 다시
   설치하고, pylock에 없는 링크된 package를 적는다(K401-1).
 - docs-check는 `template-benchmark K79-3`처럼 sibling 저장소의 이름 뒤에 온 K-id를 그 저장소의 item으로 읽고, 자기 id가
