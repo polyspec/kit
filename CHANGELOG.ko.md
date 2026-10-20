@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: af3234bd8f306f706982f9684dca14bb0df37256a8854a3d0df0fc405ff3ff54 -->
+<!-- source-sha256: 7955faf13bd588d59c815f9b4298ed2e5a2b8c70b9ac8133552c943b84ab9e7a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link-state-check`는 저장소가 polyspec 의존성을 선언하는 ecosystem에서만, 그리고 install이 마지막에 link하므로(K360-2)
+  `make install`이 prerequisite나 `$(MAKE)` 호출로 이르지 않는 recipe에만 lock에서 설치한 직후 link하라고 요구한다.
+  local-links.md가 둘 다 말한다. red: link할 것이 없는 kit의 `install-packages` recipe가 검사에 실패해 kit의 모든 worktree가
+  red로 끝났다. green: `node --test --test-name-pattern=K349-2 tests/kit/link-state-check.test.mts`가 통과하고 kit이 검사를
+  통과한다 (K349-2).
 - kit checkout `../kit` 옆의 checkout에서 `kit-bootstrap.mk`는 첫 make부터 link가 설치하는 provider인 `../kit/dist`를
   `KIT`로 쓰고, build되지 않았으면 실패한다. 없으면 CI처럼 `KIT`는 설치된 package이다. 그래서 새 worktree는 `npm ci` 전에
   `kit.mk`를 읽어 kit target을 가리키는 저장소 단계가 실행되고, 자신이 개발하는 kit의 도구로 설치한다. red: 새 template

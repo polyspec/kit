@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `make link-state-check` asks a recipe that installs from a lock to link right after it only for an ecosystem in
+  which the repository declares a polyspec dependency, and not for a recipe that `make install` reaches by a
+  prerequisite or a `$(MAKE)` call, since install links last (K360-2); local-links.md states both. Red: the
+  `install-packages` recipe of kit, which has nothing to link, failed the check and every kit worktree ended red;
+  green: `node --test --test-name-pattern=K349-2 tests/kit/link-state-check.test.mts` passes, and kit passes the
+  check (K349-2).
 - In a checkout beside the kit checkout `../kit`, `kit-bootstrap.mk` takes `../kit/dist` as `KIT` from the first make on,
   the provider that the link installs, and fails when it is not built; without it, as in CI, `KIT` is the installed
   package. A fresh worktree then reads `kit.mk` before `npm ci`, so a repository step that names a kit target runs,
