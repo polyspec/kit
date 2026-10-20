@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make item-edit ID= DELIVERABLES=` replaces the Deliverables cell of a row in both languages through the checks of
+  item-new, for an item in any state but done. Red: item-edit took no DELIVERABLES; green: `node --test
+  --test-name-pattern=K388 tests/kit/plan.test.mts` passes (K388).
 - `make commit` and the commit-msg hook refuse a Subject that already holds ` (#<id>)` before the id that make
   commit adds (rule commit-subject-id). Red: the subject `Fix it (#T1) (#T1)` passed; green: `node --test
   --test-name-pattern=K380-1 tests/kit/commits.test.mts` passes (K380-1).

@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3d9d1131971d6cbc926e17ab2b2f4d5252d5444fddf4ba3e279cf0a00d8367dc -->
+<!-- source-sha256: 2f068f08b4d0c3ae890d22a3c8f6fcbd88aa6607b1a5b806ca9f9063818fab8b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-edit ID= DELIVERABLES=`는 done이 아닌 모든 상태의 item에 대해 item-new의 검사를 거쳐 두 언어의 Deliverables
+  cell을 바꾼다. red: item-edit이 DELIVERABLES를 받지 않았다. green: `node --test --test-name-pattern=K388
+  tests/kit/plan.test.mts`가 통과한다 (K388).
 - `make commit`과 commit-msg hook은 make commit이 붙이는 id 앞에 이미 ` (#<id>)`를 가진 Subject를 거부한다(rule
   commit-subject-id). red: subject `Fix it (#T1) (#T1)`이 통과했다. green: `node --test --test-name-pattern=K380-1
   tests/kit/commits.test.mts`가 통과한다 (K380-1).
