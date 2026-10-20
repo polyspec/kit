@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `kit link` runs the partial `composer update` of the linked packages with `--with-dependencies`, so a dependency
+  that a linked package now requires at another constraint is resolved while unrelated packages stay at the locked
+  release (K331).
 - `make dependency-policy-check` fails a root `composer.json` that requires a polyspec package whose own
   `composer.json` declares a repository that the root lacks, naming the package and the repository, since Composer
   reads `repositories` only from the root manifest, and `kit link` writes the repositories of each linked package into

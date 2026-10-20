@@ -421,7 +421,7 @@ function linkComposer(work: Run, consumer: Consumer) {
     excludeComposerLinkFiles(consumer.top);
     writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, all, lockedVersions(lock)), null, 4)}\n`);
     copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
-    run(composer.command, ['update', ...targets, '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
+    run(composer.command, ['update', ...targets, '--with-dependencies', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
     for (const item of toLink) {
       if (real(item.copy) === realpathSync(item.provider.folder)) line(work, 'linked', 'composer', `${item.name} -> ${item.provider.folder} (now)`);
       else unlinkable(work, 'composer', item.name, `composer update did not link ${item.copy}`);

@@ -70,3 +70,36 @@ test('a package whose released archive requires a newer PHP is installed from it
   assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), tracked.lock, 'the tracked composer.lock is unchanged');
   assert.equal(run(consumer, 'git', 'status', '--porcelain'), '', 'the link files are ignored by Git');
 });
+
+// K331: a dependency that a linked package now requires at another constraint is resolved by the link, since the partial update lists
+// the linked package with its dependencies (--with-dependencies), while a package it does not need stays at the locked release.
+test('the dependency that a linked package raises is resolved by the link, an unrelated package stays locked (K331)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-composer-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const composer = installedBinary('composer');
+  const archives = path.join(root, 'archives');
+  mkdirSync(archives, { recursive: true });
+  const archive = (name: string, version: string, require: Record<string, string> = {}) => {
+    const folder = `archive-${name.replace('/', '-')}-${version}`;
+    put(root, { [`${folder}/composer.json`]: JSON.stringify({ name, version, require }), [`${folder}/x.php`]: '<?php\n' });
+    run(path.join(root, folder), 'zip', '-q', path.join(archives, `${name.replace('/', '-')}-${version}.zip`), 'composer.json', 'x.php');
+  };
+  archive('dep/a', '1.0.0');
+  archive('dep/b', '1.0.0');
+  archive('polyspec/y', '0.0.1', { 'dep/a': '^1.0' });
+  const provider = repository(root, 'prov', { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', require: { 'dep/a': '^1.1' } }) });
+  const consumer = repository(root, 'cons', {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'dep/b': '^1.0' }, repositories: [{ type: 'artifact', url: '../archives' }, { packagist: false }] }),
+    '.gitignore': 'vendor/\nvar/\ncomposer.link.*\n',
+  });
+  run(consumer, composer, 'install', '--no-interaction', '--no-scripts');
+  // Newer releases appear after the lock: the provider needs dep/a 1.1, and dep/b 1.1 is out but nothing needs it.
+  archive('dep/a', '1.1.0');
+  archive('dep/b', '1.1.0');
+  mkdirSync(path.join(consumer, 'var'), { recursive: true });
+  const lines: string[] = [];
+  assert.equal(link({ checkouts: [provider, consumer], directories: [consumer], check: false, print: text => lines.push(text), env: { ...process.env, COMPOSER_BIN: composer } }), true, lines.join('\n'));
+  const locked = (name: string) => (JSON.parse(readFileSync(path.join(consumer, 'composer.link.lock'), 'utf8')) as { packages: { name: string; version: string }[] }).packages.find(item => item.name === name)?.version;
+  assert.equal(locked('dep/a'), '1.1.0', 'the dependency of the linked package is resolved');
+  assert.equal(locked('dep/b'), '1.0.0', 'a package that the linked one does not need stays locked');
+});

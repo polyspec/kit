@@ -193,7 +193,7 @@ test('Composer links the packages of the vendor that composer config vendor-dir 
   linkLines([consumer], env);
   assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')), path.join(provider, 'packages/php'));
   assert.equal(lstatSync(path.join(consumer, 'tests/release-consumer/composer/vendor/polyspec/y')).isSymbolicLink(), false);
-  assert.match(log(), new RegExp(`composer update polyspec/y --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
+  assert.match(log(), new RegExp(`composer update polyspec/y --with-dependencies --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
   const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
   assert.equal(seen.file, 'composer.link.json', 'Composer reads the link manifest, never the tracked composer.json');
   assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
