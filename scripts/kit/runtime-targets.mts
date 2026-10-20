@@ -71,10 +71,26 @@ function pythonPackages(files: readonly string[], folder: string): void {
 }
 
 /**
- * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
- * and `extension` is the built library of the PHP extension, which its tests load.
+ * Whether the name filter `cases` selects a test of the PHP library `place` (K390). PHPUnit matches --filter as a regular expression
+ * against `Class::method` of each test, so this reads the *Test.php files under the place: a test is a `function test…` method of
+ * the class that the file declares. A data-set name is not read, and the expression is read as a JavaScript one, which agrees with
+ * PCRE on the names of the tests.
  */
-function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined): Run[] {
+function phpCaseSelected(files: readonly string[], place: string, cases: string, source: (file: string) => string): boolean {
+  const pattern = new RegExp(cases);
+  return files.filter(file => file.startsWith(`${place}/`) && isTestFile(file) && /Test\.php$/.test(file)).some(file => {
+    const text = source(file);
+    const type = /\bclass\s+(\w+)/.exec(text)?.[1];
+    return type !== undefined && [...text.matchAll(/\bfunction\s+(test\w*)\s*\(/g)].some(method => pattern.test(`${type}::${method[1]}`));
+  });
+}
+
+/**
+ * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
+ * `extension` is the built library of the PHP extension, which its tests load, and `source` reads a tracked file. A PHP library
+ * where `cases` selects no test is not run: its line goes to `notes`.
+ */
+function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, source: (file: string) => string = () => '', notes: string[] = []): Run[] {
   const filter = (flag: string) => (cases === undefined ? [] : [flag, cases]);
   switch (runtime) {
     case 'ts':
@@ -89,8 +105,13 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
     case 'php-ext':
       if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
       // The tests of a library run against the extension with none of the library's sources (K329); the tests of the extension itself
-      // load its own sources.
-      return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension, ...(cwd === folder ? [] : ['--without-library', cwd])], args: filter('--filter') }));
+      // load its own sources. CASES is one filter for every library, so a library where it selects no test is not run (K390): a
+      // filter that selects no test anywhere is a typo, and fails.
+      const places = phpExtensionFolders(files, folder);
+      const selected = cases === undefined ? places : places.filter(place => phpCaseSelected(files, place, cases, source));
+      if (cases !== undefined && selected.length === 0) throw new Error(`CASES=${cases} selects no test of ${places.join(', ')}; fix the name of the test`);
+      for (const place of places.filter(place => !selected.includes(place))) notes.push(`${place}: no case selected by CASES`);
+      return selected.map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension, ...(cwd === folder ? [] : ['--without-library', cwd])], args: filter('--filter') }));
     case 'python':
       pythonPackages(files, folder);
       // The tests run in the environment of the package (K324): the mise python alone holds none of its dependencies.
@@ -102,12 +123,13 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
 
 /**
  * The runs of the unit tests of the packages of `runtime` among the tracked `files`; throws when no package has it.
- * `extension` is the built library of the PHP extension.
+ * `extension` is the built library of the PHP extension, `source` reads a tracked file, and `notes` gets the PHP libraries that
+ * CASES selects no test in (K390).
  */
-export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined): Run[] {
+export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, source?: (file: string) => string, notes?: string[]): Run[] {
   const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
   if (folders.length === 0) throw new Error(`no package of the runtime ${runtime}: packages/${runtime} or packages/<component>/${runtime}`);
-  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv));
+  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv, source, notes));
 }
 
 /** A command of a build: its folder relative to the root, the command and its arguments. */
@@ -209,14 +231,17 @@ if (isMain(import.meta.url)) {
     process.exit(1);
   }
   let runs: Run[];
+  const notes: string[] = [];
   try {
     const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
-    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv);
+    const source = (file: string) => readFileSync(path.join(root, file), 'utf8');
+    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, source, notes);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[runtime-targets] ${error.message}`);
     process.exit(1);
   }
+  for (const note of notes) console.log(note);
   if (runs.length === 0) {
     console.error(`[runtime-targets] tests/${target}/ holds no folder of a runtime`);
     process.exit(1);

@@ -24,15 +24,18 @@ test('each package of a runtime runs its runner with the name filter of CASES in
   assert.throws(() => runtimeRuns(FILES, 'js', 'x', node), /no package of the runtime js/);
 });
 
+// The test sources of the PHPUnit files named by the fixtures: each declares the test `testparses` (K390 reads them for CASES).
+const parsesSource = () => 'class ATest extends TestCase { public function testparses(): void {} }';
+
 test('the tests of the PHP extension run on PHPUnit with the built extension loaded (S10)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/php-ext/tests/ATest.php'];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so'), [{ cwd: 'packages/php-ext', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, parsesSource), [{ cwd: 'packages/php-ext', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
   assert.throws(() => runtimeRuns(files, 'php-ext', 'parses', node), /load the built extension, which is not named/);
 });
 
 test('the extension with no tests of its own runs the PHPUnit files of packages/php with the extension loaded (S10, K285)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php', 'packages/php/composer.json'];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so'), [{ cwd: 'packages/php', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so', '--without-library', 'packages/php'], args: ['--filter', 'parses'] }]);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, parsesSource), [{ cwd: 'packages/php', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so', '--without-library', 'packages/php'], args: ['--filter', 'parses'] }]);
   const both = [...files, 'packages/php-ext/tests/BTest.php'];
   assert.deepEqual(runtimeRuns(both, 'php-ext', undefined, node, '/r/x.so').map(run => run.cwd), ['packages/php', 'packages/php-ext']);
 });
@@ -40,6 +43,19 @@ test('the extension with no tests of its own runs the PHPUnit files of packages/
 test('the extension of a repository with libraries per component runs the PHPUnit files of every library (K293)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/validator/php/tests/ATest.php', 'packages/generator/php/tests/BTest.php', 'packages/codec/php/src/c.php'];
   assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so').map(run => run.cwd), ['packages/generator/php', 'packages/validator/php']);
+});
+
+test('test-php-ext runs CASES only in the libraries where it selects a test, and fails when it selects none (K390)', () => {
+  const files = ['packages/php-ext/src/a.c', 'packages/validator/php/tests/ATest.php', 'packages/generator/php/tests/BTest.php'];
+  const sources: Record<string, string> = {
+    'packages/validator/php/tests/ATest.php': 'class ATest extends TestCase { public function testAlpha(): void {} }',
+    'packages/generator/php/tests/BTest.php': 'class BTest extends TestCase { public function testBeta(): void {} }',
+  };
+  const source = (file: string) => sources[file] ?? '';
+  const notes: string[] = [];
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'testAlpha', node, '/r/x.so', undefined, source, notes), [{ cwd: 'packages/validator/php', tool: 'phpunit', options: ['--php-extension', '/r/x.so', '--without-library', 'packages/validator/php'], args: ['--filter', 'testAlpha'] }]);
+  assert.deepEqual(notes, ['packages/generator/php: no case selected by CASES']);
+  assert.throws(() => runtimeRuns(files, 'php-ext', 'testGamma', node, '/r/x.so', undefined, source), /no test of packages\/generator\/php, packages\/validator\/php/);
 });
 
 test('the test directories of a Python package are packages, which unittest discovers only as such (K298)', () => {
