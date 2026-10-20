@@ -1036,10 +1036,11 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   const root = repository(t);
   rmSync(path.join(root, 'var/tools/mise/shims/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
-  // The python extractor, which the stub implementations use, cannot start either.
+  // The python extractor, which the stub implementations use, cannot start either. A tool that the checkout lacks is the finding
+  // of its runs, naming the tool and its install, and no error ends the check (K393-2).
   assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
-  assert.match(findingAt(missing, 0).message, /the python extractor of python\/symbols\.txt gives no symbols: .* could not start/);
-  assert.match(findingAt(missing, 1).message, /could not start/);
+  assert.match(findingAt(missing, 0).message, /the python extractor of python\/symbols\.txt gives no symbols: python3 of the checkout is missing .*run make install/);
+  assert.match(findingAt(missing, 1).message, /python3 of the checkout is missing .*run make install/);
   // An extractor that install-tools did not build names the declaration and the install.
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);

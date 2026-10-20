@@ -217,7 +217,13 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
   python: (root, entry, env) => {
-    const command = toolCommand(root, 'python3');
+    // A python3 that the checkout lacks is the error of the extractor, which the check reports (K393-2).
+    let command: string;
+    try {
+      command = toolCommand(root, 'python3');
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
     return withLeaks(listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry], env), () => listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry, '--leaks'], env));
   },
   rust: (root, entry, env) => rustdoc(root, entry, env),

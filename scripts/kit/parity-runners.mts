@@ -343,8 +343,14 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
     if (directory === undefined) return { error: `${binding.test} lies under none of the declared roots (${(implementation.roots ?? []).join(', ') || 'none declared'})` };
     return { ...run, cwd: directory, args: words, command: program.includes('/') ? path.resolve(root, program) : program, env };
   }
-  // The program and the arguments of the implementation apply to its own runner only.
+  // The program and the arguments of the implementation apply to its own runner only. A tool that the checkout lacks is the error
+  // of the run, an R3 finding that names it and its install, not an error that ends the check (K393-2).
   const declared = own ? undefined : implementation.command;
-  const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
+  let command: string;
+  try {
+    command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
+  } catch (error) {
+    return { error: `the runner cannot start: ${error instanceof Error ? error.message : String(error)}` };
+  }
   return { ...run, args: run.args(own ? [] : implementation.args ?? []), command, env };
 }
