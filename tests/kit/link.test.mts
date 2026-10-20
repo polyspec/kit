@@ -196,7 +196,7 @@ test('Composer links the packages of the vendor that composer config vendor-dir 
   assert.match(log(), new RegExp(`composer update polyspec/y --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
   const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
   assert.equal(seen.file, 'composer.link.json', 'Composer reads the link manifest, never the tracked composer.json');
-  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true } });
+  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
 });
 
 test('a linked package and an own path package are updated by Composer through the path repositories of composer.link.json, with the released version of the lock (K304-1)', (t) => {
@@ -884,4 +884,15 @@ test('K226: a dependency that no provider and no project package provides still 
   assert.match(text, /NOT linked npm +@polyspec\/ghost \(no provider\)/);
   assert.match(text, /NOT linked composer polyspec\/ghost \(no provider\)/);
   assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
+});
+
+test('a linked package that the lock does not hold takes the exact release that the project requires as the version of its path repository (K304-2)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, {
+    'composer.lock': JSON.stringify({ packages: [{ name: 'psr/log', version: '3.0.0' }] }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.9' } }),
+  });
+  linkLines([consumer], env);
+  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.9' } } });
 });

@@ -342,7 +342,11 @@ function lockedVersions(lock: string): Map<string, string> {
 function linkManifest(project: string, links: readonly { name: string; folder: string }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
   const manifest = readJsonOf(path.join(project, MANIFESTS.composer));
   if (!isJsonObject(manifest)) throw new Error(`${project}/${MANIFESTS.composer} is no object`);
-  const paths = links.map(({ name, folder }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versions.has(name) ? { versions: { [name]: versions.get(name) } } : {}) } }));
+  // The version of a linked package is the release that the lock recorded, else the exact release that the project requires, so
+  // Composer takes the folder for the release and prefers no archive of the same version (K304-2).
+  const required = { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...(isJsonObject(manifest['require-dev']) ? manifest['require-dev'] : {}) };
+  const versionOf = (name: string): string | undefined => versions.get(name) ?? (typeof required[name] === 'string' && /^v?\d+\.\d+\.\d+$/.test(required[name]) ? required[name] : undefined);
+  const paths = links.map(({ name, folder }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name) === undefined ? {} : { versions: { [name]: versionOf(name) } }) } }));
   const existing = manifest.repositories;
   const repositories = Array.isArray(existing) || existing === undefined ? [...paths, ...(existing ?? [])] : { ...Object.fromEntries(paths.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing };
   return { ...manifest, repositories };

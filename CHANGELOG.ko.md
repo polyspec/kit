@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 24293c0a440ba8ec2b8c5619dc990b39275137fac6b2a4592aa632a79cf2d022 -->
+<!-- source-sha256: a81a09bc89f8cdd03bca90e19515515d70be618333da5ffa32bd72af7feb7ca5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- linked 패키지의 `composer.link.json` path repository는 `symlink`와, lock이 기록한 릴리스(없으면 project가 요구하는 정확한 릴리스)로 정한 `versions`를 가지고 다른 repository보다 앞에 오므로, Composer가 그 릴리스를 폴더로 취하고 같은 version의 archive를 택하지 않는다(K304-2). orm, hyper(root와 `examples/board`), crudui의 link lock은 연결된 모든 polyspec 패키지를 dist type `path`로 가지며 `platform_check.php`가 폴더에서 나온 PHP 8.4.1 또는 8.4.0이다. Red: lock에 없는 패키지는 `versions`를 받지 못했다. Green: `node --test --test-name-pattern=K304-2 tests/kit/link.test.mts`가 통과한다.
 - Composer project가 link된 동안(`composer.link.lock`이 있는 동안) `make dependency-policy-check`는 그 project의 platform과 `composer validate`를 `composer.link.json`과 `composer.link.lock`에서 판단하고, link manifest의 path repository의 패키지를 link lock이 다른 dist로 가지면 실패시키며, 추적되는 lock의 review hash는 일괄 release의 검사에 맡긴다(K326). Red: `node --test --test-name-pattern=K326 tests/kit/dependency-policy.test.mts`가 PHP 8.5.0으로 resolve된 추적되는 lock에서 실패했다. Green: link lock에서는 통과하고 다른 platform이나 dist의 link lock은 여전히 실패시킨다.
 - `config/parity.json`의 구현은 이유를 단 `internal` glob을 선언한다(K313). 맞는 test는 parity unit이 아니므로 R5가 binding을 요구하지 않고 어떤 binding도 부를 수 없으며, spec의 requirement를 부르지 않으므로(R16) contract test가 거기 숨을 수 없고, test를 고르지 않는 glob은 선언을 실패시킨다. 기존 `tools`가 contract를 구현하지 않는 단일 언어 package를 이미 덮으므로 `outside` 선언은 더하지 않는다. Red: schema가 선언을 거부했고 R5가 internal 파일을 지적했다. Green: `node --test --test-name-pattern=K313 tests/kit/parity.test.mts`가 통과한다.
 - conductor의 상시 결정은 kit의 규칙이다(K314): PRINCIPLES P32~P35가 범위(모든 구현의 contract 동작, 고유한 통합은 중립 규칙 하나, parity unit이 아닌 내부 test, `docs/spec`에 없는 규칙은 먼저 쓰기, unit을 버리지 않음, test 없이 인용하지 않음, 검사를 피하려는 이름 변경 금지, 반복된 code 재구성, 생성물 미추적)와 provider(release 때문에 막힌 finding은 link 결함)를 각각 `Enforced by`와 함께 적고, `docs/operations/adoption.md`가 item 경계의 절차와 물을 수 있는 질문을 적는다. Red: 결정이 message와 scratch 파일에 있었다. Green: `node scripts/kit/check-rules.mts`가 각 규칙을 그 검사와 함께 읽는다.
