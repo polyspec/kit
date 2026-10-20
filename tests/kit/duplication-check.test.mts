@@ -27,6 +27,18 @@ test('a folder that config/duplication.json excludes with its reason is not read
   assert.throws(() => duplicationCheck(root, () => {}), /reason/);
 });
 
+// K310: jscpd splits its --ignore value at each comma, so the braces of a glob must not reach it that way.
+test('a brace glob of config/duplication.json excludes the files it names, and a file outside it still fails (K310)', (t) => {
+  const root = tree(t, { 'src/a.ts': `${PIECE}\n`, 'tests/b.ts': `${PIECE}\n`, 'spec/c.ts': `${PIECE}\n` });
+  put(root, { 'config/duplication.json': JSON.stringify({ schema: 1, exclude: [{ glob: '{tests,spec}/**', reason: 'test: a test states its case in full' }] }) });
+  assert.equal(duplicationCheck(root, () => {}).status, 0);
+  put(root, { 'src/d.ts': `// another module\n${PIECE}\n` });
+  const found = duplicationCheck(root, () => {});
+  assert.equal(found.status, 1, 'the files outside the braces still duplicate');
+  assert.match(found.output, /src\/d\.ts/);
+  assert.doesNotMatch(found.output, /tests\/b\.ts|spec\/c\.ts/);
+});
+
 // Lines that carry no logic, the file header of each format (K287): the declarations and imports that jscpd's own ignore-pattern
 // skips. Each case: two files that share only a header pass, and two files that share a 6-line body still fail, so a pattern
 // that matched more than the header would show here.

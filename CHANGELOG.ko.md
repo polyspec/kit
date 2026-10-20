@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a84bfe2e7ca859193a4493734caf0ef7a9ad7036926942a46a309b408b822af1 -->
+<!-- source-sha256: 565a409aa507f2a8a629f57821e141849a362d2760471cd252e963ec54d9e9d9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make duplication-check`는 `config/duplication.json`의 exclude glob을 설정 파일로 jscpd에 넘기므로, `{tests,spec}/**` 같은 중괄호
+  glob은 중괄호를 유지하고 그 이름의 파일을 제외한다 (K310).
 - kit에서 `make lint-ts`가 통과한다. link, divergence check, PHP library autoload의 test와 tool은 JSON을 schema나 guard로 읽고,
   real-tool test의 `php` binary는 `config/knip-entries.json`에 선언한다 (K333).
 - `make lint-ts`는 TypeScript가 있는 각 `tsconfig.json`의 폴더에서 `tsc --noEmit -p tsconfig.json`을 실행하고, vitest와 node는 type 검사

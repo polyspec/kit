@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make duplication-check` passes the exclude globs of `config/duplication.json` to jscpd in a configuration file, so
+  a brace glob such as `{tests,spec}/**` keeps its braces and excludes the files it names (K310).
 - `make lint-ts` passes in kit: the JSON of the tests and tools of the link, the divergence check and the PHP library
   autoload is read through a schema or a guard, and the `php` binary of the real-tool tests is declared in
   `config/knip-entries.json` (K333).

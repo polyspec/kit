@@ -4,7 +4,8 @@
 // more that exists twice, the sign of a concern that two components hold. The folders that config/duplication.json
 // excludes, each with its reason, are not read.
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isJsonObject, readJson } from './bootstrap/files.mts';
@@ -55,8 +56,13 @@ function jscpd(): string {
 /** Runs jscpd over `root` and returns its status and output, which `print` receives; throws when jscpd cannot start. */
 export function duplicationCheck(root: string, print: (text: string) => void = text => process.stdout.write(text)): { status: number; output: string } {
   const excluded = existsSync(path.join(root, CONFIG)) ? readConfig<DuplicationConfig>(root, CONFIG, 'duplication.schema.json').exclude : [];
-  const args = ['--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', '--ignore-pattern', HEADER_PATTERNS.join(','), ...(excluded.length ? ['--ignore', excluded.map(entry => entry.glob).join(',')] : []), root];
+  // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
+  const config = path.join(folder, 'jscpd.json');
+  writeFileSync(config, JSON.stringify({ ignore: excluded.map(entry => entry.glob) }));
+  const args = ['--config', config, '--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', '--ignore-pattern', HEADER_PATTERNS.join(','), root];
   const result = spawnSync(jscpd(), args, { cwd: root, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
+  rmSync(folder, { recursive: true, force: true });
   if (result.error) throw new Error(`jscpd could not start: ${result.error.message}`);
   const output = `${result.stdout}${result.stderr}`;
   print(output);
