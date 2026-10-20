@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make dependency-review` scans a Go module with the `go.work` that the link wrote beside its `go.mod`, so govulncheck
+  compiles the linked modules that the code uses, while the version listing stays on the released modules
+  (`GOWORK=off`); a failed Go scan is reported with its output and the fix of its cause, not as an outage of the
+  advisory database. Red: the scan of a linked module ran without its `go.work`; green: `node --test
+  --test-name-pattern=K365 tests/kit/dependency-go.test.mts` passes (K365).
 - `make item-new`, `make item-edit` and `make docs-check` refuse a Verification command that holds a pipe outside
   quotes, since a pipeline hides the exit status of its first command; a quoted pattern such as `-run 'A|B'` stays
   allowed. Red: item-edit accepted `go test -run A|B ./...`, which ran as a pipeline; green: `node --test

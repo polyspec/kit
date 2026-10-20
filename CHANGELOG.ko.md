@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 84330b7cc4e343a7417cb9c4748234acd0bc89963b2f76d7822dc04a8d87b8f4 -->
+<!-- source-sha256: 273ce854ba3690dc6ff29572b3d2a0e829b77ab052b86afea8dc9001d8521c25 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-review`는 link가 `go.mod` 옆에 쓴 `go.work`로 Go module을 scan하므로 govulncheck가 code가 쓰는
+  linked module을 compile하고, version 목록은 released module(`GOWORK=off`)에 머문다. 실패한 Go scan은 advisory
+  database의 장애가 아니라 그 출력과 원인을 고치는 방법으로 보고된다. red: linked module의 scan이 `go.work` 없이
+  실행되었다. green: `node --test --test-name-pattern=K365 tests/kit/dependency-go.test.mts`가 통과한다 (K365).
 - `make item-new`, `make item-edit`, `make docs-check`는 따옴표 밖의 pipe를 가진 Verification 명령을 거부한다.
   pipeline은 첫 명령의 exit status를 숨기기 때문이다. `-run 'A|B'`처럼 따옴표 안의 pattern은 계속 허용된다. red:
   item-edit이 pipeline으로 실행되는 `go test -run A|B ./...`를 받았다. green: `node --test --test-name-pattern=K376
