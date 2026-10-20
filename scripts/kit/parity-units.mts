@@ -63,7 +63,7 @@ export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
     // readDeclaration gives every implementation its test files.
     // A file below the directory of a bound tests/<name>/main.rs is a module of that cargo test target (K148).
     const targetDirectories = implementation.runner === 'cargo' ? [...bound].filter(test => test.endsWith('/main.rs') && path.posix.basename(path.posix.dirname(path.posix.dirname(test))) === 'tests').map(test => path.posix.dirname(test)) : [];
-    const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file))
+    const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file) && !matchesAny((implementation.internal ?? []).map(item => item.glob), file))
       .map(file => finding('R5', `the test file of ${implementation.name} is the test of no binding, so no check runs it`, { implementation: implementation.name, place: file }));
     const named = [...files].filter(file => implementation.roots.some(root => within(root, file)) && testNamed(file) && !tests.has(file) && !model.testRunners.has(file) && !bound.has(file) && !support(file))
       .map(file => finding('R5', `the file is named like a test, and the ${implementation.runner} convention of ${implementation.name} is ${CONVENTIONS[implementation.runner].join(', ')}; name it so, bind it, or declare it a support file`, { implementation: implementation.name, place: file }));

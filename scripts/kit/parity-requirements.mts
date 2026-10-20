@@ -11,12 +11,13 @@
 // case.json is a declaration finding; an id of it that the spec does not define is R14 naming the file, reported once
 // although units share the directory; a unit's cited id is named for R15 when a case.json of the unit's case set lists it.
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
+import { matchesAny } from './glob.mts';
 import { finding, type Finding } from './parity-declaration.mts';
 
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 
 /** The findings of the trace of `config` against the spec among the checked `files`, read with `read`. */
-export function requirementFindings(config: { requirements: { pattern: string }; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
+export function requirementFindings(config: { requirements: { pattern: string }; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
@@ -78,6 +79,16 @@ export function requirementFindings(config: { requirements: { pattern: string };
         }
       }
       if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id }));
+    }
+  }
+  // R16: an internal test names no requirement of the spec (K313): the tests of a requirement are the units that cite it, so a contract
+  // test cannot hide among the internal tests of an implementation.
+  const identifier = new RegExp(`\\b(?:${pattern})\\b`);
+  for (const implementation of config.implementations ?? []) {
+    const globs = (implementation.internal ?? []).map(item => item.glob);
+    for (const file of [...listed].filter(name => matchesAny(globs, name)).sort()) {
+      const named = identifier.exec(read(file))?.[0];
+      if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file }));
     }
   }
   for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`));

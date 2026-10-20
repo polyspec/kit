@@ -22,6 +22,19 @@
           "roots": { "description": "The directories that hold the implementation and its tests; the whole repository is no root.", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
           "tests": { "description": "Globs of test files of the implementation that the convention of its runner does not select; they add to its test files and never remove one. The test files of an implementation are the files in its roots that the convention of its runner selects (scripts/kit/parity-declaration.mts CONVENTIONS: go **/*_test.go; cargo **/tests/**/*.rs and every .rs file with a test attribute; node **/*.test.{ts,mts,cts,mjs,cjs,js}; vitest **/*.{test,spec}.{ts,mts,cts,js,mjs,cjs,tsx,jsx}; php **/*Test.php; python **/test_*.py) and the files of these globs. Each one, except a file of its support globs, must be the test of a binding, and so must a file in its roots that is named like a test (*_test.*, test_*.*, *Test.*, *.test.*, *.spec.*).", "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
           "support": { "description": "Globs of the test-support files of the implementation: files in its roots that its tests or the testPatterns of its runner select but that hold no test, such as a Go helper that must end in _test.go. A support file is no test of a binding; a Go support file declares no function that go test runs, a cargo support file holds no test attribute, and parity-check runs each node, php and python support file once and fails when it reports a case. Each glob selects at least one such file.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
+          "internal": {
+            "description": "The internal tests of the implementation (K313): tests of its private helpers, plain tests of its package that run as its owner tests. A test that matches a glob is no parity unit: R5 does not ask for a binding, no binding may name it, and it names no requirement of the spec (R16), so a contract test cannot hide here. Each entry carries the reason that the tests are internal.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["glob", "reason"],
+              "additionalProperties": false,
+              "properties": {
+                "glob": { "description": "A glob of test files in the roots of the implementation.", "type": "string", "minLength": 1 },
+                "reason": { "description": "Why the tests belong to the implementation alone and test no behaviour of the contract.", "type": "string", "minLength": 1 }
+              }
+            }
+          },
           "command": { "description": "The program of the runner: a path relative to the root of the checkout when it holds a /, else a name on PATH. Default: go, cargo, the running node, php, var/tools/mise/shims/python3. ${NAME} is the value of NAME in the invoking environment when the bindings run.", "type": "string", "minLength": 1, "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "args": { "description": "Arguments of the program: after test for go and cargo; before the test file for node, before the PHPUnit path for php (the run of php then names the configuration of its package with --configuration <package>/phpunit.xml or phpunit.xml.dist, or --no-configuration when it has neither) and before -m unittest for python. ${NAME} is the value of NAME in the invoking environment when the bindings run.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
           "env": {

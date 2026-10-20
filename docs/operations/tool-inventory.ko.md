@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5b4a1609e672bcae5c35ca75eefe8a58e102287060af481e7fc6eb81e391beb0 -->
+<!-- source-sha256: 670e627d9708791503d324d511d7daae487d3c96a45fa85a6960b6acedcfb209 -->
 
 # 도구 목록
 
@@ -1313,6 +1313,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R10 docs-count | `documents`의 문서가 implementation N개를 세는데, 그 문장이 implementation N개를 모두 적지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 모든 implementation이면 예외입니다. 또는 이름을 모두 모아도 모든 implementation이 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
 | R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 선언하지 않습니다. |
 | R12 duplicate-binding | unit이 `bindings`(또는 `symbols`)에 한 implementation을 두 번 적습니다. 같은 test이든 다른 test이든 마찬가지입니다. unit마다 implementation당 binding은 하나입니다. |
+| R16 internal-contract | implementation의 `internal` glob이 고른 test가 spec의 requirement(`requirements.pattern`이 맞는 list item이나 heading)를 이름으로 부르면, contract test가 internal test 사이에 숨을 수 없도록 finding이 된다(K313). |
 
 ### Runner
 
@@ -1442,7 +1443,7 @@ directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 �
 
 | Key | 내용 |
 |---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 PHP library인 `packages/php`와 `packages/<component>/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `internal`(implementation의 내부 test의 glob, 각각 `{ glob, reason }`: 맞는 test는 parity unit이 아니고, R5가 binding을 요구하지 않으며, binding이 이를 부를 수 없고, requirement를 부르지 않고(R16), test를 고르지 않는 glob은 declaration finding이다; K313), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 PHP library인 `packages/php`와 `packages/<component>/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |

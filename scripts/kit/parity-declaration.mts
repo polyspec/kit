@@ -26,6 +26,8 @@ export interface ParityImplementation {
   roots: string[];
   tests?: string[];
   support?: string[];
+  /** Globs of the internal tests of the implementation, each with its reason (K313). */
+  internal?: { glob: string; reason: string }[];
   command?: string;
   args?: string[];
   env?: { name: string; value: string }[];
@@ -121,6 +123,7 @@ export const RULES = {
   R13: 'untraced-requirement',
   R14: 'unknown-requirement',
   R15: 'unnamed-requirement',
+  R16: 'internal-contract',
 };
 
 /** A rule of the check, a key of RULES. */
@@ -520,6 +523,15 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       if (![...files].some(file => matchesAny([glob], file) && (matchesAny(entry.tests ?? [], file) || Boolean(testRunners.get(file)?.includes(entry.runner)) || testNamed(file)))) fail(`implementation ${entry.name}: the support glob ${glob} selects no test file; remove it`);
     }
   }
+  // An internal glob names test files of its implementation (K313); one that selects none is stale, and a file outside its roots is
+  // none of its tests.
+  for (const entry of config.implementations) {
+    for (const { glob } of entry.internal ?? []) {
+      const selected = [...files].filter(file => matchesAny([glob], file));
+      if (!selected.some(file => tests.get(entry.name)?.includes(file))) fail(`implementation ${entry.name}: the internal glob ${glob} selects no test file of ${entry.name}`);
+      for (const file of selected) if (!entry.roots.some(directory => within(directory, file))) fail(`implementation ${entry.name}: the internal test ${file} lies outside ${entry.roots.join(', ')}, the roots of ${entry.name}`);
+    }
+  }
   const patterns: [string, string][] = [
     ...config.implementations.filter((entry): entry is ParityImplementation & { errors: { file: string; pattern: string } } => entry.errors !== undefined).map((entry): [string, string] => [`implementation ${entry.name}`, entry.errors.pattern]),
     ...(config.errors ? [['errors catalog', config.errors.catalog.pattern] as [string, string]] : []),
@@ -555,6 +567,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     for (const entry of unit.bindings ?? []) {
       if (!files.has(entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} does not exist`);
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
+      if (matchesAny((implementations.get(entry.implementation)?.internal ?? []).map(item => item.glob), entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its internal globs; an internal test is no parity unit`);
       for (const word of entry.command ?? []) expand(word, undefined, 'binding command', message => fail(`${where}: the binding of ${entry.implementation}: ${message}`));
       if (unit.kind === 'feature') {
         if (entry.id === undefined) fail(`${where}: the binding of ${entry.implementation} needs id, the native test id that its runner reports`);

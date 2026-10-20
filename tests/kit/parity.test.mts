@@ -1171,6 +1171,30 @@ test('R6: the tests of the PHP extension are those of every PHP library, package
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
+const INTERNAL = (config: Declaration, glob = 'php/tests/Internal*.php') => {
+  const php = config.implementations.find(entry => entry.name === 'php');
+  if (php === undefined) throw new Error('the fixture declares php');
+  php.internal = [{ glob, reason: 'tests of the private helpers of the PHP package, no behaviour of the contract' }];
+  return config;
+};
+
+test('an internal test is no parity unit: R5 asks no binding for it, and the same file without the declaration is R5 (K313)', TIMEOUT, (t) => {
+  const files = { 'php/tests/Internal.php': 'PASS test_helper\n' };
+  const plain = check(t, { files }, { execute: false }).findings;
+  assert.deepEqual(keys(plain.filter(item => item.place === 'php/tests/Internal.php')), ['R5 - php']);
+  const declared = check(t, { files, edit: INTERNAL }, { execute: false }).findings;
+  assert.deepEqual(declared.filter(item => item.place === 'php/tests/Internal.php'), []);
+  assert.deepEqual(declared.filter(item => item.rule === 'declaration').map(item => item.message), []);
+});
+
+test('an internal test that names a requirement of the spec is R16, and an internal glob that selects no test is a declaration finding (K313)', TIMEOUT, (t) => {
+  const named = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// CX-1\n' }, edit: INTERNAL }, { execute: false }).findings;
+  assert.deepEqual(keys(named.filter(item => item.rule === 'R16')), ['R16 - php']);
+  assert.match(findingAt(named.filter(item => item.rule === 'R16'), 0).message, /names CX-1, a requirement of the spec/);
+  const stale = check(t, { edit: config => INTERNAL(config, 'php/tests/Nothing*.php') }, { execute: false }).findings;
+  assert.deepEqual(stale.filter(item => item.rule === 'declaration').map(item => item.message), ['implementation php: the internal glob php/tests/Nothing*.php selects no test file of php']);
+});
+
 test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {
   const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
     .filter(finding => finding.rule === 'declaration').map(finding => finding.message);
