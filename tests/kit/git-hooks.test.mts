@@ -18,7 +18,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -69,17 +69,17 @@ test('check fails while the pre-push hook is missing, not executable or changed;
 });
 
 test('the listed hooks of the repository are checked and made executable, and a missing one fails the check', (t) => {
-  const config = { schema: 1, hooks: ['pre-push', 'commit-msg'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
+  const config = { schema: 1, hooks: ['pre-push', 'post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
   const { work } = checkout(t, { config });
   const failed = hooks(work);
   assert.equal(failed.status, 1);
-  assert.match(failed.stderr, /\.githooks\/commit-msg does not exist; restore it from Git and run make hooks/);
-  const hook = path.join(work, '.githooks/commit-msg');
+  assert.match(failed.stderr, /\.githooks\/post-merge does not exist; restore it from Git and run make hooks/);
+  const hook = path.join(work, '.githooks/post-merge');
   writeFileSync(hook, '#!/bin/sh\nexit 0\n', { mode: 0o644 });
-  assert.match(check(work).stderr, /\.githooks\/commit-msg is not executable/);
+  assert.match(check(work).stderr, /\.githooks\/post-merge is not executable/);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\.githooks\/commit-msg made executable/);
+  assert.match(installed.stdout, /\.githooks\/post-merge made executable/);
   assert.equal(statSync(hook).mode & 0o100, 0o100);
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
   assert.equal(existsSync(path.join(work, '.githooks/pre-push')), true);
@@ -124,4 +124,36 @@ test('the pre-push hook calls the make target push-gate-hook and names no tool p
   assert.equal(dry.status, 0, dry.stderr);
   // kit.mk starts the tool with the node of the checkout by its absolute path (K171); make names the directory by its real path.
   assert.equal(dry.stdout.trim(), `${path.join(realpathSync(process.cwd()), 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/push-gate.mjs hook`);
+});
+
+// K380: kit owns the commit-msg hook, which runs the message checks of make commit on every commit, an amend included.
+test('make hooks writes the commit-msg hook of kit, which refuses the footer of an AI tool at commit time (K380)', (t) => {
+  const { work } = checkout(t);
+  assert.equal(hooks(work).status, 0);
+  const hook = path.join(work, '.githooks/commit-msg');
+  assert.equal(statSync(hook).mode & 0o100, 0o100, 'the commit-msg hook is executable');
+  const text = readFileSync(hook, 'utf8');
+  assert.doesNotMatch(text, /scripts\/kit|node_modules|\.mts|\.mjs/);
+  assert.match(text, /^cd "\$\(git rev-parse --show-toplevel\)" \|\| exit 1$/m);
+  assert.match(text, /^exec make --no-print-directory commit-msg-hook MESSAGE="\$1"$/m);
+  assert.equal(check(work).status, 0);
+
+  rmSync(hook);
+  assert.match(hooksIssue(work) ?? '', /\.githooks\/commit-msg does not exist; restore it from Git and run make hooks/);
+  assert.match(check(work).stderr, /\.githooks\/commit-msg does not exist/);
+  assert.equal(hooks(work).status, 0);
+
+  // End to end: a commit with a valid message is made, and an amend that adds the footer of an AI tool is refused.
+  writeFileSync(path.join(work, 'a.txt'), 'a\n');
+  git(work, 'add', 'a.txt');
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  const valid = 'feat(hooks): Refuse the footer of an AI tool (#T1-1)\n\nThe body names the change.\n';
+  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', valid]);
+  assert.equal(first.status, 0, first.stderr);
+  const head = git(work, 'rev-parse', 'HEAD');
+  const footer = `${valid}\nCo-Authored-By: Claude Opus <noreply@anthropic.com>\n`;
+  const amended = run(work, 'git', [...identity, 'commit', '--amend', '--quiet', '-m', footer]);
+  assert.equal(amended.status, 1, 'the commit-msg hook refuses the amend');
+  assert.match(amended.stderr, /commit-ai-footer/);
+  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
 });

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hooks `pre-commit` and `pre-push` belong to kit: `pre-commit` refuses a
-// staged generated path through `make staged-generated-hook`, and `pre-push` runs the push gate through `make push-gate-hook`;
+// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-push` and `commit-msg` belong to kit: `pre-commit`
+// refuses a staged generated path through `make staged-generated-hook`, `pre-push` runs the push gate through `make push-gate-hook`,
+// and `commit-msg` runs the message checks of make commit on every commit, an amend included, through `make commit-msg-hook`;
 // each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
@@ -18,6 +19,7 @@ import { gitResult } from './git.mts';
 export const HOOKS_PATH = '.githooks';
 export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
 export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
+export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
 export const PRE_COMMIT_CONTENT = `#!/bin/sh
 # The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
 # (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. Written by
@@ -32,11 +34,19 @@ export const PRE_PUSH_CONTENT = `#!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
 exec make --no-print-directory push-gate-hook
 `;
+export const COMMIT_MSG_CONTENT = `#!/bin/sh
+# The commit-msg hook. Git runs it with the file of the message being committed as its argument, before each commit, an amend
+# included. The message checks of the commit rules refuse a message with the footer of an AI tool or another rule break (K380).
+# Written by \`make hooks\`; do not edit it. It calls the make target of the check, which stays across the versions of kit.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec make --no-print-directory commit-msg-hook MESSAGE="$1"
+`;
 
 /** The hooks that kit writes into every checkout, with their content. */
 const KIT_HOOKS = [
   { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
   { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
+  { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
 ];
 
 /** Why the pre-commit hook cannot run in the checkout `root`, with the fix, or null when config/generated.json exists (K362). */

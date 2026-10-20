@@ -83,7 +83,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 # `make ci-targets` (ci-only.mts); no target runs it locally.
 COMMIT ?= HEAD
 
-.PHONY: hooks hooks-check staged-generated-hook push-gate-hook push-gate-commit
+.PHONY: hooks hooks-check staged-generated-hook push-gate-hook commit-msg-hook push-gate-commit
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-push),)
@@ -92,7 +92,7 @@ $(shell git config core.hooksPath .githooks)
 endif
 endif
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit and pre-push hooks of kit and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push and commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
@@ -103,6 +103,9 @@ staged-generated-hook: ## The generated-file check of the pre-commit hook: fail 
 
 push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) hook
+
+commit-msg-hook: ## The message checks of make commit on the message being committed as MESSAGE (K380); the commit-msg hook that make hooks writes runs it
+	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)
 
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)

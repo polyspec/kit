@@ -156,26 +156,26 @@ test('the commit command fails for an item in progress with an annotation for ea
 test('the commit command fails for a commit whose hook is missing or not executable', (t) => {
   const { work } = prepared(t);
   git(work, 'update-index', '--chmod=-x', '.githooks/pre-push');
-  commitIndex(work, 'hook without mode');
+  commitIndex(work, 'feat(core): Add a hook without mode (#T1-1)');
   const mode = gate(work, ['commit', 'HEAD']);
   assert.equal(mode.status, 1);
   assert.match(mode.stdout, /^::error::push refused: \.githooks\/pre-push is tracked with mode 100644, not 100755, in commit [0-9a-f]{12}/m);
 
   git(work, 'rm', '--quiet', '--cached', '.githooks/pre-push');
-  commitIndex(work, 'no hook');
+  commitIndex(work, 'feat(core): Remove the pre-push hook (#T1-1)');
   const missing = gate(work, ['commit', 'HEAD']);
   assert.equal(missing.status, 1);
   assert.match(missing.stdout, /^::error::push refused: \.githooks\/pre-push is not tracked in commit [0-9a-f]{12}/m);
 });
 
 test('the commit command checks every hook that the configuration lists', (t) => {
-  const config = { schema: 1, hooks: ['pre-push', 'commit-msg'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
+  const config = { schema: 1, hooks: ['pre-push', 'post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
   const { work } = prepared(t);
   writeFileSync(path.join(work, 'config/checklist.json'), JSON.stringify(config));
-  commitAll(work, 'list commit-msg');
+  commitAll(work, 'feat(core): List the post-merge hook (#T1-1)');
   const missing = gate(work, ['commit', 'HEAD']);
   assert.equal(missing.status, 1);
-  assert.match(missing.stdout, /^::error::push refused: \.githooks\/commit-msg is not tracked in commit /m);
+  assert.match(missing.stdout, /^::error::push refused: \.githooks\/post-merge is not tracked in commit /m);
   assert.doesNotMatch(missing.stdout, /pre-push is not tracked/);
 });
 
@@ -192,12 +192,19 @@ const note = (work: string, name: string, message: string) => {
   writeFileSync(path.join(work, name), `${name}\n`);
   return commitAll(work, message);
 };
+// The commit skips the commit-time checks, as a commit that reaches the push gate past them does (K380).
+const wideNote = (work: string, name: string, message: string) => {
+  writeFileSync(path.join(work, name), `${name}\n`);
+  git(work, 'add', '--all');
+  git(work, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message);
+  return git(work, 'rev-parse', 'HEAD');
+};
 
 test('a push is refused when a pushed commit has a body line wider than bodyMax, and names the commit and the line', (t) => {
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
   const before = remoteHead(remote);
-  const wide = note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
+  const wide = wideNote(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
   const pushed = push(work);
   assert.notEqual(pushed.status, 0);
   assert.match(pushed.stderr, /push refused: 1 commit finding/);
@@ -217,7 +224,7 @@ test('a push of a clean range is allowed, and its commit messages pass', (t) => 
 test('a new branch is checked for the commits that no remote ref holds', (t) => {
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
-  const wide = note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
+  const wide = wideNote(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
   const refused = push(work, 'HEAD:refs/heads/feat/other-T1');
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, new RegExp(`^  ${wide.slice(0, 7)}[0-9a-f]*: commit-width: line 3 `, 'm'));
@@ -227,7 +234,7 @@ test('a new branch is checked for the commits that no remote ref holds', (t) => 
 test('a push checks only the commits after the remote sha, so a wide commit the remote holds does not refuse', (t) => {
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
-  note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
+  wideNote(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
   assert.equal(push(work, '--no-verify', 'HEAD:refs/heads/main').status, 0);
   const clean = note(work, 'clean.txt', `docs(checklist): Add the more notes (#T1)\n\n${'word '.repeat(14)}ab\n`);
   const pushed = push(work);
@@ -238,7 +245,7 @@ test('a push checks only the commits after the remote sha, so a wide commit the 
 test('a deleted ref pushes no commit and is not checked', (t) => {
   const { work, remote } = prepared(t);
   assert.equal(push(work).status, 0);
-  note(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
+  wideNote(work, 'wide.txt', `docs(checklist): Add the notes (#T1)\n\n${WIDE}\n`);
   assert.equal(push(work, '--no-verify', 'HEAD:refs/heads/feat/other-T1').status, 0);
   const deleted = push(work, ':refs/heads/feat/other-T1');
   assert.equal(deleted.status, 0, deleted.stderr);
