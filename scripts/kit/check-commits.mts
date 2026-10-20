@@ -15,6 +15,8 @@
 //                    CHANGELOG.md and its Korean twin
 //   commit-deleted-test a commit that deletes a test file has a line `Replaced-By: <path>` that names a tracked test file
 //                    of its tree, the test that covers the same requirement (K339)
+//   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
+//                    the first commit of a repository passes
 //   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
 //   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
 //                    declares (K405)
@@ -310,6 +312,20 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
   });
 };
 
+/**
+ * The finding of the row that the subject of `message` names (K424): the id of the subject is an item of a checklist of docs/plans
+ * in the tree `rev` (`''` is the index). A subject without an id is a commit-subject finding, so it has none here.
+ */
+const rowFindings = (root: string, message: string, rev: string): CommitFinding[] => {
+  const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec((message.split('\n')[0] ?? '').trimEnd())?.[1];
+  if (id === undefined) return [];
+  const known = new Set(trackersOf(loadConfig(root), plansAt(root, rev)).flatMap(tracker => readChecklist(fileAt(root, rev, tracker.path), tracker).items.map(item => item.id)));
+  return known.has(id) ? [] : [{ rule: 'commit-row', message: `the subject names ${id}, which is no item of a checklist of docs/plans in the tree of the commit; register the row first with make item-new` }];
+};
+
+/** The row finding of the commit `id`; a root commit is the first commit of a repository, which has no parent and passes. */
+const commitRowFindings = (root: string, id: string, message: string) => (gitResult(root, 'rev-parse', '--verify', '--quiet', `${id}^`).status === 0 ? rowFindings(root, message, id) : []);
+
 /** The sha of the commit that `rev` names in `root`; undefined when it names none, as an unborn HEAD or the parent of a root commit. */
 const commitOf = (root: string, rev: string) => {
   const run = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
@@ -323,7 +339,7 @@ const commitOf = (root: string, rev: string) => {
 export function indexItemFindings(root: string, config: CommitRules, message: string, amend = false) {
   const base = commitOf(root, amend ? 'HEAD^' : 'HEAD');
   const against = base ?? EMPTY_TREE;
-  return itemFindings(root, config, {
+  const found = itemFindings(root, config, {
     before: file => (base ? fileAt(root, base, file) : ''),
     after: file => fileAt(root, '', file),
     changed: git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean),
@@ -334,6 +350,8 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D', against).split('\n').filter(isTestFile),
     tracked: file => trackedAt(root, '', file),
   });
+  // The first commit of a repository has no HEAD, so it has no base and passes.
+  return base === undefined ? found : [...found, ...rowFindings(root, message, '')];
 }
 
 /** The file of the amend record of `root`, which the git directory of its worktree holds (K380-2). */
@@ -444,6 +462,7 @@ export function findingLines(root: string, commits: CommitMessage[], config: Com
     ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
     ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
     ...commitItemFindings(root, config, id, message),
+    ...commitRowFindings(root, id, message),
     ...commitStateFindings(root, id),
   ].map(found => `${id}: ${found.rule}: ${found.message}`));
 }

@@ -7,7 +7,7 @@ import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileMessage, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
+import { fileMessage, findingLines, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
 import { english, pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -71,7 +71,7 @@ test('commit-blank and commit-width: the body', () => {
 test('commit-ai-identity: no AI tool is the author or the committer of a commit (K265)', (t) => {
   assert.deepEqual(identityFindings('Claude <noreply@anthropic.com>', 'author').map(found => found.rule), ['commit-ai-identity']);
   assert.deepEqual(identityFindings('min-0-max <max@blue.tools>', 'committer'), []);
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)'], ['K1', 'K2']);
   put(root, { 'g.txt': 'g' });
   git('add', '-A');
   assert.equal(git('commit', '-q', '--author', 'Claude <noreply@anthropic.com>', '-m', 'feat(docs): Add (#K2)').status, 0);
@@ -82,7 +82,7 @@ test('commit-ai-identity: no AI tool is the author or the committer of a commit 
 
 test('an author or committer other than the identity of config/commit-identity.json is refused, at commit time and in a range (K405)', (t) => {
   const identity = { schema: 1, name: 'min-0-max', email: 'max@blue.tools' };
-  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), 'config/commit-identity.json': JSON.stringify(identity) });
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), 'config/commit-identity.json': JSON.stringify(identity), [PLAN]: plan([['K404', '[ ]'], ['K405', '[ ]'], ['K406', '[ ]']]) });
   // The environment of the fixture without the identity variables of the caller, so that each commit names its own identity.
   const plain = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_(AUTHOR|COMMITTER)_/.test(key)));
   const git = (...args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8', env: plain });
@@ -134,8 +134,8 @@ test('a message file loses its comment lines, and a merge commit is not checked'
   assert.equal(fileMessage('Merge branch x\n'), null);
 });
 
-function repository(t: TestContext, messages: string[]) {
-  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
+function repository(t: TestContext, messages: string[], rows: string[] = []) {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), [PLAN]: plan(rows.map(id => [id, '[ ]'])) });
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   messages.forEach((message, index) => {
     put(root, { [`f${index}.txt`]: String(index) });
@@ -147,7 +147,7 @@ function repository(t: TestContext, messages: string[]) {
 }
 
 test('the commits of a range are checked and each finding names the commit', (t) => {
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject', 'feat(ci): Fine (#K2)']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject', 'feat(ci): Fine (#K2)'], ['K1', 'K2']);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', CONFIG);
   const bad = git('rev-parse', '--short', 'HEAD~1').stdout.trim();
   assert.equal(findings.length, 1);
@@ -161,7 +161,7 @@ test('the commits of a range are checked and each finding names the commit', (t)
 
 // K402: make land checks RANGE=main..<branch>, and the branch of a row whose id holds a dot (P10), such as fix/name-T2.60, holds one.
 test('a range whose refs hold a dot is a range, and three dots, an empty side or a side that starts or ends with a dot is not (K402)', (t) => {
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'feat(ci): Fine (#T2.60)']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'feat(ci): Fine (#T2.60)'], ['K1', 'T2.60']);
   git('branch', '-q', 'base.1', 'HEAD~1');
   git('branch', '-q', 'fix/name-T2.60');
   assert.deepEqual(rangeFindings(root, 'base.1..fix/name-T2.60', CONFIG), []);
@@ -171,7 +171,7 @@ test('a range whose refs hold a dot is a range, and three dots, an empty side or
 });
 
 test('a merge commit in the range is not checked', (t) => {
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)'], ['K1', 'K2', 'K3']);
   git('checkout', '-q', '-b', 'side');
   put(root, { 'side.txt': 'x' });
   git('add', '-A');
@@ -186,7 +186,7 @@ test('a merge commit in the range is not checked', (t) => {
 });
 
 test('the command checks a range or a message file and exits with the findings', (t) => {
-  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject']);
+  const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject'], ['K1', 'K2']);
   // The message being committed is checked on the branch of its row, since a commit on main is refused (K404).
   git('checkout', '-q', '-b', 'feat/name-K2');
   const command = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8' });
@@ -213,7 +213,7 @@ test('the item rules need config/checklist.json: a range of a checkout without i
 });
 
 const TRACKED = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72, changelog: { path: 'CHANGELOG.md', translation: 'CHANGELOG.ko.md' } };
-const CHECKLIST = { schema: 1, hooks: ['pre-push'], idPattern: 'S[0-9]+(?:-[0-9]+)*' };
+const CHECKLIST = { schema: 1, hooks: ['pre-push'], idPattern: '[A-Z][0-9]+(?:[-.][0-9]+)*' };
 // The checklist of the plan p, which kit finds by its folder (K241).
 const PLAN = 'docs/plans/p/checklist.md';
 const plan = (rows: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${rows.map(([id, state]) => `| ${id} | Task ${id} | ${state} |`).join('\n')}\n`;
@@ -318,7 +318,7 @@ test('commit-fix-test takes a Rust unit test: src/tests.rs and a change inside a
     '',
   ].join('\n');
   const { root } = tracked(t, [
-    ['feat(core): Add the adder (#K370)', { 'src/lib.rs': lib('a.wrapping_add(b)', 'assert_eq!(add(1, 2), 3);') }],
+    ['feat(core): Add the adder (#K370)', { 'src/lib.rs': lib('a.wrapping_add(b)', 'assert_eq!(add(1, 2), 3);'), [PLAN]: plan([['K370', '[ ]']]) }],
     ['fix(rust): Correct the adder with its test (#K370)', { 'src/lib.rs': lib('a.saturating_add(b)', 'assert_eq!(add(1, 2), 3, "sum");') }],
     ['fix(rust): Correct the adder with tests.rs (#K370)', { 'src/tests.rs': '#[test]\nfn adds() {}\n' }],
     ['fix(rust): Correct the adder without a test (#K370)', { 'src/lib.rs': lib('b.wrapping_add(a)', 'assert_eq!(add(1, 2), 3, "sum");') }],
@@ -360,6 +360,7 @@ test('commits-check finds in each commit of its range what the hooks refuse at c
   };
   commit('feat(docs): Start (#K1)', {
     'config/checklist.json': JSON.stringify(CHECKLIST),
+    [PLAN]: plan([['K1', '[ ]'], ['K2', '[ ]'], ['K3', '[ ]'], ['K4', '[ ]']]),
     'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }),
     'config/documents.json': JSON.stringify({ schema: 1, include: ['docs/**/*.md'] }),
     ...pair('docs/a.md', 'a', 'Body of a.\n'),
@@ -391,4 +392,39 @@ test('commits-check finds an executable object in a commit of its range, whateve
   const built = git('rev-parse', '--short', 'HEAD').stdout.trim();
   const findings = rangeFindings(root, 'HEAD~1..HEAD', CONFIG);
   assert.deepEqual(findings.map(line => line.replace(/^[0-9a-f]+: /, `${built}: `)).filter(line => line.includes('commit-generated')), [`${built}: commit-generated: cmd/tool/tool is an executable object (ELF), whatever its path; remove it from the commit, or declare it an exception in config/generated.json`]);
+});
+
+// K424: the subject of a commit names a row of a checklist of the tree of that commit; the first commit of a repository has no parent and passes.
+test('commit-row: a subject names a row of a checklist of the tree of its commit, and the first commit passes (K424)', (t) => {
+  const ROWS = { schema: 1, hooks: ['pre-push'], idPattern: 'T[0-9]+' };
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const commit = (message: string, files: Record<string, string>) => {
+    put(root, files);
+    git('add', '-A');
+    const result = git('commit', '-q', '-m', message);
+    assert.equal(result.status, 0, result.stderr);
+    return git('rev-parse', '--short', 'HEAD').stdout.trim();
+  };
+  // The first commit names T9, which its tree lacks: it has no parent, so it passes.
+  commit('feat(core): Start (#T9)', { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: plan([['T1', '[ ]']]) });
+  commit('feat(core): Finish T1 (#T1)', { 'a.txt': 'a\n' });
+  const unnamed = commit('feat(core): Start T9 (#T9)', { 'b.txt': 'b\n' });
+  commit('docs(plan): Register T2 (#T2)', { [PLAN]: plan([['T1', '[ ]'], ['T2', '[ ]']]) });
+  const findings = rangeFindings(root, 'HEAD~3..HEAD', CONFIG);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', new RegExp(`^${unnamed}\\w*: commit-row: the subject names T9, which is no item of a checklist of docs/plans in the tree of the commit; register the row first with make item-new$`));
+  const rootCommit = git('rev-list', '--max-parents=0', 'HEAD').stdout.trim();
+  assert.deepEqual(findingLines(root, [{ id: rootCommit, message: 'feat(core): Start (#T9)' }], CONFIG), [], 'the first commit has no parent');
+  // The commit-msg hook compares the index: a row that the index adds passes, and a row that it lacks fails.
+  put(root, { 'c.txt': 'c\n' });
+  git('add', '-A');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'feat(core): Start T9 (#T9)').map(found => found.rule), ['commit-row']);
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'feat(core): Finish T1 (#T1)'), []);
+  put(root, { [PLAN]: plan([['T1', '[ ]'], ['T2', '[ ]'], ['T9', '[ ]']]) });
+  git('add', '-A');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'feat(core): Start T9 (#T9)'), [], 'the index holds the row that the commit adds');
+  const fresh = tree(t, { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: plan([['T1', '[ ]']]) });
+  spawnSync('git', ['add', '-A'], { cwd: fresh, encoding: 'utf8' });
+  assert.deepEqual(indexItemFindings(fresh, CONFIG, 'feat(core): Start (#T9)'), [], 'the first commit of a repository passes');
 });
