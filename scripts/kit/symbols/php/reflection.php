@@ -10,7 +10,8 @@ declare(strict_types=1);
 // type and parameters. A union type lists its members sorted, since the order of a declaration is no part of the type.
 //
 //   php reflection.php extension <extension name>
-//   php reflection.php library <autoload.php> <file of the JSON names {"classes": [...], "functions": [...], "constants": [...]}>
+//   php reflection.php library <autoload.php> <file of the JSON names>
+//     the names: {"classes": [...], "functions": [...], "constants": [...]}
 //
 // The file declares no symbol, so it is a script with side effects only (PSR-1).
 
@@ -111,7 +112,8 @@ $class = static function (ReflectionClass $class) use ($type, $callable): array 
     ];
 };
 
-// The constants of the extension and of the library are read by name (K338): a constant that the library defines is declared.
+// The constants of the extension and of the library are read by name (K338): a constant that the library
+// defines is declared.
 $declarations = ['classes' => [], 'functions' => [], 'constants' => []];
 $mode = $argv[1] ?? '';
 if ($mode === 'extension' && isset($argv[2])) {
