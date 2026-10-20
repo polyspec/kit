@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0f114c4dd3190d2f65707169e47896b3db9a35407001baabedccded5f153728b -->
+<!-- source-sha256: f00aca27693c3eb2b00ff2c323f24c923614f0e50d1058dd99ee769da48cd3f0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Composer project가 링크된 동안 `make dependency-review UPDATE=1`은 갱신하는 package 중 polyspec package가 아닌 것마다
+  tracked `composer.lock`도 lock만으로 갱신한다. 그래서 기록한 review가 link lock이 tracked lock인 새 checkout에서도
+  성립한다. polyspec package는 계속 release 검사를 기다린다(K392-2).
 
 - `make link-state-check`는 `make install`의 사슬을 따라가기 전에 저장소의 Makefile이 대입하는 변수를 펼친다. 그래서
   `$(PACKAGE_DEPS)`를 거치는 fsm-js-install처럼 변수를 거쳐 닿는 recipe를 더는 link 단계 없는 설치로 보고하지 않는다.

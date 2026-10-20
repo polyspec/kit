@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- While a Composer project is linked, `make dependency-review UPDATE=1` also updates the tracked `composer.lock`, lock only,
+  for each package it updates that is no polyspec package, so the review it records holds in a fresh checkout, whose link
+  lock is the tracked lock; the polyspec packages still wait for the check of the release (K392-2).
+
 - `make link-state-check` expands the variables that the Makefiles of the repository assign before it follows the chain
   of `make install`, so a recipe reached through a variable, such as fsm-js-install through `$(PACKAGE_DEPS)`, is no
   longer reported as an install without the link step; a rule of several targets is reached when one of them is (K403).
