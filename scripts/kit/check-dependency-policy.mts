@@ -15,11 +15,13 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { ConfigError, readConfig, readConfigFindings } from './schema-validate.mts';
-import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
+import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmLock, readNpmManifest } from './manifests.mts';
+import type { ComposerPackage } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
-import { checkedFiles } from './tracked-files.mts';
+import { siblingCheckouts, trackedManifests } from './link-providers.mts';
+import { KIT_FIXTURE, checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { CONFIG as RELEASE_CONFIG } from './release.mts';
@@ -40,6 +42,7 @@ export const RULES = {
   stale: 'an exception names a dependency that its review found at the latest stable release',
   advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package), unless advisoryExceptions of the policy accepts it with its reason and removal condition',
   staleAdvisory: 'an advisory exception names an advisory that the review of its lock found',
+  sharedPin: 'a package that two checkouts of the polyspec checkouts (the repository and its siblings) lock from different sources or at different versions is locked at one version from one source (S4)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
@@ -399,6 +402,58 @@ export function acceptedAdvisories(root: string): string[] {
   }));
 }
 
+// A Composer package of a lock with the source and the dist that Composer records for it.
+type SourcedPackage = ComposerPackage & { source?: { type: string; url: string; reference: string }; dist?: { type: string; url: string; reference?: string } };
+// A package that a tracked lock locks: its ecosystem, its name (an npm lock key), its version and source, and its lock.
+type Pin = { ecosystem: 'composer' | 'npm'; name: string; version: string; source: string; root: string; lock: string };
+
+/**
+ * The Composer and npm packages that the tracked locks of `root` lock. A polyspec package is linked, not pinned across
+ * the checkouts, and the lock of the kit fixture belongs to no checkout. An npm package is named by its lock key, which holds
+ * its path, so a package nested under another one is compared with the package at the same path.
+ */
+function lockedPins(root: string): Pin[] {
+  const pins: Pin[] = [];
+  for (const lock of trackedManifests(root, ['composer.lock', 'package-lock.json']).filter(file => !file.startsWith(KIT_FIXTURE))) {
+    if (path.posix.basename(lock) === 'composer.lock') {
+      const locked = readComposerLock(root, lock);
+      const items: SourcedPackage[] = [...(locked.packages ?? []), ...(locked['packages-dev'] ?? [])];
+      for (const item of items.filter(item => !item.name.startsWith('polyspec/'))) {
+        const source = item.source ? `${item.source.url}@${item.source.reference}` : item.dist?.url ?? 'no source';
+        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock });
+      }
+    } else {
+      for (const [key, entry] of Object.entries(readNpmLock(root, lock).packages ?? {})) {
+        // The root of the lock and the workspace folders hold no package of node_modules; a linked package is a symbolic link.
+        const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
+        if (!key.includes('node_modules/') || entry.link === true || name.startsWith('@polyspec/')) continue;
+        pins.push({ ecosystem: 'npm', name: key, version: entry.version ?? '', source: entry.resolved ?? 'no resolved URL', root, lock });
+      }
+    }
+  }
+  return pins;
+}
+
+/**
+ * The findings of the packages that two of the checkouts `roots` lock from different sources or at different versions (K378).
+ * Each lock of such a package is named with its version and source; a package that one checkout alone locks is no finding.
+ */
+export function sharedPinFindings(roots: readonly string[]): Finding[] {
+  const byPackage = new Map<string, Pin[]>();
+  for (const root of roots) {
+    for (const pin of lockedPins(root)) byPackage.set(`${pin.ecosystem} ${pin.name}`, [...(byPackage.get(`${pin.ecosystem} ${pin.name}`) ?? []), pin]);
+  }
+  const findings: Finding[] = [];
+  for (const pins of byPackage.values()) {
+    const differs = pins.some(a => pins.some(b => a.root !== b.root && (a.version !== b.version || a.source !== b.source)));
+    const [first] = pins;
+    if (!differs || first === undefined) continue;
+    const locks = pins.map(pin => `${path.basename(pin.root)}/${pin.lock} locks ${pin.version} from ${pin.source}`).join('; ');
+    findings.push({ rule: 'sharedPin', subject: first.name, problem: `two checkouts lock it from different sources or at different versions: ${locks}`, fix: 'lock the package at one version from one source in every checkout that locks it' });
+  }
+  return findings;
+}
+
 /** The line of a finding. */
 export const findingLine = (finding: Finding) => `[dependency-policy] ${finding.subject}: ${finding.problem}. Rule: ${RULES[finding.rule]}. Fix: ${finding.fix}.`;
 
@@ -410,9 +465,13 @@ function main(): void {
   }
   // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
   const root = args.length ? path.resolve(present(args[1], 'args[1]')) : repositoryRoot();
-  const findings = check(root);
+  // The locks of the sibling checkouts beside the repository are compared with its own; without a sibling, as in CI, nothing is compared.
+  const siblings = siblingCheckouts(root).checkouts;
+  const findings = [...check(root), ...sharedPinFindings([root, ...siblings])];
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);
+  if (siblings.length === 0) process.stdout.write(`[dependency-policy] no sibling checkout beside ${root}: compared no lock across checkouts\n`);
+  else process.stdout.write(`[dependency-policy] compared the Composer and npm locks of ${siblings.length + 1} checkouts: ${[root, ...siblings].map(checkout => path.basename(checkout)).join(', ')}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);
