@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { parseArguments, run, toolCommand } from '../../scripts/kit/run-tests.mts';
+import { libraryTestRun } from '../../scripts/kit/php-library-autoload.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
@@ -434,6 +435,27 @@ test('phpunit with --cwd of a package of a Composer monorepo runs the PHPUnit of
   const result = await inProcess(t, ['phpunit', '--cwd', 'packages/a'], { root });
   assert.equal(result.status, 0, result.text);
   assert.match(result.text, /✔ phpunit packages\/a: 1 passed/);
+});
+
+// A Composer of the checkout that answers `config vendor-dir` from the composer.json of its folder and installs nothing (K367).
+function composerStub(root: string) {
+  const file = path.join(root, 'var/tools/mise/shims/composer');
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, "#!/usr/bin/env node\nconst fs = require('node:fs');\nif (process.argv.includes('vendor-dir')) console.log(JSON.parse(fs.readFileSync('composer.json', 'utf8')).config?.['vendor-dir'] ?? 'vendor');\n");
+  chmodSync(file, 0o755);
+}
+
+// The library of a Composer monorepo has no vendor directory; its root project installs one at its vendor-dir (K367).
+test('the library run of test-php-ext takes PHPUnit from the vendor-dir of the root project that installs the library (K367)', (t) => {
+  const root = tree(t, {
+    'composer.json': '{"repositories":[{"type":"path","url":"packages/php"}],"config":{"vendor-dir":"vendor-php"}}\n',
+    'packages/php/composer.json': '{}\n',
+    'vendor-php/phpunit/phpunit/phpunit': '#!/usr/bin/env node\n',
+    'vendor-php/composer/installed.json': '{"packages":[]}\n',
+  });
+  composerStub(root);
+  const library = libraryTestRun(root, 'packages/php');
+  assert.equal(library.phpunit, path.join(root, 'vendor-php/phpunit/phpunit/phpunit'));
 });
 
 test('a tool that cannot start fails with its command and the fix', async (t) => {

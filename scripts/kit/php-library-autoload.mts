@@ -2,10 +2,10 @@
 // and none of the library's sources. Composer dumps it from a root package with the autoload-dev of the library alone, over the
 // vendor directory of the library, which is linked in, so it holds the dependencies and the tests and not the autoload (psr-4,
 // classmap and files) of the library itself. The vendor directory of the library is left as it is.
-import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { composerVendor } from './composer-vendor.mts';
+import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
@@ -52,9 +52,11 @@ export function libraryTestRun(root: string, folder: string, env: NodeJS.Process
   const library = path.join(root, folder);
   const manifest = readJsonObject(path.join(library, 'composer.json'));
   const tools = { command: composerCommand(root, 'the tests of the PHP extension'), env: toolsEnvironment(root, env) };
-  const vendor = composerVendor(library, tools);
-  const script = path.join(vendor, 'phpunit/phpunit/phpunit');
-  if (!existsSync(script)) throw new Error(`${path.relative(root, script)} does not exist; run composer install in ${folder}`);
+  // The vendor directory that Composer gives the library: its own, or that of the root project that installs it (K367, K186).
+  const found = packageVendorFile(root, folder, 'phpunit/phpunit/phpunit');
+  if (found === undefined) throw new Error(`${path.relative(root, path.join(composerVendor(library, tools), 'phpunit/phpunit/phpunit'))} does not exist; run composer install in ${folder}, or in the project that requires it`);
+  const script = path.join(root, found);
+  const vendor = path.resolve(script, '../../..');
   const work = path.join(root, 'var/php-ext/library-tests', folder.replaceAll('/', '_'));
   rmSync(work, { recursive: true, force: true });
   const linked = path.join(work, 'vendor');
