@@ -35,9 +35,12 @@ endif
 # one source for every npm that installs or changes the lock: npm ci of install-packages, and npm install, npm audit fix and npm
 # dedupe of dependency-review UPDATE=1 (K189).
 install-packages dependency-review: export npm_config_allow_remote := root
-install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools, then link them to the polyspec checkouts beside the repository when there are any; never builds; ONLINE
+# The link of install-packages (K360): right after npm ci, $(KIT) of a consumer is the released kit that npm ci installed, whose link may
+# predate that of the kit checkout beside the repository; the link of that checkout runs when there is one.
+SIBLING_KIT_LINK := $(if $(filter mjs,$(KIT_EXT)),$(if $(wildcard ../kit/.git),../kit/dist/link.mjs))
+install-packages: ## Install the packages of package-lock.json, @polyspec/kit included, with the npm of var/tools, then link them to the polyspec checkouts beside the repository when there are any (the link of a ../kit checkout, which must be built, when there is one); never builds; ONLINE
 	$(ONLINE) $(NPM) ci
-	$(NODE) $(KIT)/link.$(KIT_EXT) link --siblings
+	$(if $(SIBLING_KIT_LINK),$(if $(wildcard $(SIBLING_KIT_LINK)),,$(error install-packages: $(SIBLING_KIT_LINK) is missing; run make build in ../kit)))$(NODE) $(or $(SIBLING_KIT_LINK),$(KIT)/link.$(KIT_EXT)) link --siblings
 
 .PHONY: install install-kit
 # install runs the bootstrap of kit as its first prerequisite; a repository adds its install steps as later prerequisites
