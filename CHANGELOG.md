@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A branch has commits of its own when its reflog records a commit made on it, so a fresh branch that a rebase moved onto a
+  newer main is no longer taken for merged by `make worktree-prune` and `make link-state-check` (K381-1).
 - run-tests starts its runner with the environment of mise of the checkout (`toolsEnvironment`), so an owner test run
   through run-tests in a shell reads the trust and the tools of the checkout as it does under make (K411).
 - `make install` of kit also installs the packages of the PHP symbol extractor (`kit-install`), so a worktree that

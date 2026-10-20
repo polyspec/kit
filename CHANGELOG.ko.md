@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 780fd3507be922b48602bc61cad5589f383cbedad82c2d0e403edb15e20cc96c -->
+<!-- source-sha256: 5eaea4026e08fbc5aecac5b45078621ac4a8667bc5b0685c1195729e176a4f04 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- branch는 reflog가 그 위에서 만든 commit을 기록할 때 자기 commit을 가지므로, rebase로 더 새로운 main 위로 옮겨진 새
+  branch를 `make worktree-prune`과 `make link-state-check`가 더는 merge된 것으로 보지 않는다(K381-1).
 - run-tests는 checkout의 mise 환경(`toolsEnvironment`)으로 runner를 시작하므로, shell에서 run-tests로 실행한 owner
   테스트도 make에서처럼 checkout의 trust와 도구를 읽는다(K411).
 - kit의 `make install`은 PHP symbol extractor의 package도 설치하므로(`kit-install`), `make worktree-setup`이 만든 worktree가
