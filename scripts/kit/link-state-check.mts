@@ -4,8 +4,9 @@
 // its provider, never a copy, and the link counts as the installed released version, so no version or requirement is compared.
 // While a link exists, in every ecosystem that links:
 //   npm       each @polyspec package of node_modules pinned at 0.0.x is a link, and it resolves to a package of that name;
-//   Composer  each polyspec package that installed.json of the vendor records at 0.0.x is a link, and it resolves to a folder
-//             with the composer.json of that name;
+//   Composer  each polyspec package that installed.json of the vendor records at 0.0.x is a link, it resolves to a folder with
+//             the composer.json of that name, and the record says it was installed from a path repository (dist type path), so a
+//             link over the install of a release archive is a finding (K318);
 //   Go        each `use` folder of go.work holds the go.mod of a module.
 // A plain copy among links is a finding, and a link that resolves to nothing is one. A checkout without a link passes: CI
 // installs the released packages. A finding names the ecosystem and the package.
@@ -24,7 +25,7 @@ const ZERO = /^v?0\.0\./;
 const isLink = (file: string) => lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() === true;
 
 /** A polyspec package found installed: its ecosystem, name, folder and version. */
-type Installed = { ecosystem: 'npm' | 'composer'; name: string; folder: string; version: string | undefined };
+type Installed = { ecosystem: 'npm' | 'composer'; name: string; folder: string; version: string | undefined; dist?: string | undefined };
 
 /** The polyspec packages of node_modules below every package.json of `root`. */
 function npmInstalled(root: string): Installed[] {
@@ -53,7 +54,8 @@ function composerInstalled(root: string, env: NodeJS.ProcessEnv): Installed[] {
     seen.add(record);
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/') || typeof entry['install-path'] !== 'string') continue;
-      found.push({ ecosystem: 'composer', name: entry.name, folder: path.resolve(path.dirname(record), entry['install-path']), version: typeof entry.version === 'string' ? entry.version : undefined });
+      const dist = typeof entry.dist === 'object' && entry.dist !== null ? (entry.dist as Record<string, unknown>).type : undefined;
+      found.push({ ecosystem: 'composer', name: entry.name, folder: path.resolve(path.dirname(record), entry['install-path']), version: typeof entry.version === 'string' ? entry.version : undefined, dist: typeof dist === 'string' ? dist : 'none' });
     }
   }
   return found;
@@ -94,6 +96,7 @@ export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env)
       const manifest = item.ecosystem === 'npm' ? 'package.json' : 'composer.json';
       if (!existsSync(path.join(item.folder, manifest))) found.push(`${item.ecosystem} ${item.name}: the link ${shown} resolves to no package folder`);
       else if (readJsonObject(path.join(item.folder, manifest)).name !== item.name) found.push(`${item.ecosystem} ${item.name}: the link ${shown} resolves to ${realpathSync(item.folder)}, which names another package`);
+      else if (item.ecosystem === 'composer' && item.dist !== 'path') found.push(`composer ${item.name}: ${shown} is a link over an install from ${item.dist}, not Composer's own path install; run kit link`);
     } else if (linked && item.version !== undefined && ZERO.test(item.version)) {
       found.push(`${item.ecosystem} ${item.name}: ${shown} is a copy at ${item.version}, not a link, while other packages are linked`);
     }

@@ -12,7 +12,7 @@ import { put, tree } from './tree.mts';
 function consumer(t: TestContext, link: { y: boolean; z: boolean }) {
   const root = tree(t, {
     'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'polyspec/z': '0.0.1' } }),
-    'vendor/composer/installed.json': JSON.stringify({ packages: ['y', 'z'].map(name => ({ name: `polyspec/${name}`, version: '0.0.1', 'install-path': `../polyspec/${name}`, require: { php: '>=8.5' } })) }),
+    'vendor/composer/installed.json': JSON.stringify({ packages: ['y', 'z'].map(name => ({ name: `polyspec/${name}`, version: '0.0.1', 'install-path': `../polyspec/${name}`, require: { php: '>=8.5' }, dist: { type: link[name as 'y' | 'z'] ? 'path' : 'zip' } })) }),
     'provider/y/composer.json': JSON.stringify({ name: 'polyspec/y', require: { php: '>=8.4' } }),
     'provider/z/composer.json': JSON.stringify({ name: 'polyspec/z' }),
   });
@@ -30,6 +30,12 @@ function consumer(t: TestContext, link: { y: boolean; z: boolean }) {
 test('linked packages pass whatever version and requirement their record holds, since the link counts as the released version (K305-1)', (t) => {
   const { root, env } = consumer(t, { y: true, z: true });
   assert.deepEqual(linkFindings(root, env), []);
+});
+
+test('a link over the install of a release archive is a finding: Composer installed the package from a zip, not from its path repository (K318)', (t) => {
+  const { root, env } = consumer(t, { y: true, z: true });
+  put(root, { 'vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y', dist: { type: 'zip' } }, { name: 'polyspec/z', version: '0.0.1', 'install-path': '../polyspec/z', dist: { type: 'path' } }] }) });
+  assert.deepEqual(linkFindings(root, env), ["composer polyspec/y: vendor/polyspec/y is a link over an install from zip, not Composer's own path install; run kit link"]);
 });
 
 test('a plain copy among links is a finding that names the package, and a checkout without a link passes (K305-1)', (t) => {

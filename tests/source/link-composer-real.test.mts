@@ -4,7 +4,7 @@
 // install, and the tracked composer.json and composer.lock are untouched. Nothing is stubbed; `make install-tools` installs Composer.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -53,10 +53,15 @@ test('a package whose released archive requires a newer PHP is installed from it
   run(consumer, 'git', '-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', 'commit', '--quiet', '-m', 'lock');
   const tracked = { manifest: readFileSync(path.join(consumer, 'composer.json'), 'utf8'), lock: readFileSync(path.join(consumer, 'composer.lock'), 'utf8') };
   mkdirSync(path.join(consumer, 'var'), { recursive: true });
+  // The state that the earlier mechanism left: the installed folder is a symbolic link over the install of the archive.
+  rmSync(path.join(consumer, 'vendor/polyspec/y'), { recursive: true, force: true });
+  symlinkSync(path.join(provider, 'packages/php'), path.join(consumer, 'vendor/polyspec/y'));
   const lines: string[] = [];
   assert.equal(link({ checkouts: [provider, consumer], directories: [consumer], check: false, print: text => lines.push(text), env: { ...process.env, COMPOSER_BIN: composer } }), true, lines.join('\n'));
   assert.equal(lstatSync(path.join(consumer, 'vendor/polyspec/y')).isSymbolicLink(), true, 'the installed folder is a link');
   assert.equal(realpathSync(path.join(consumer, 'vendor/polyspec/y')), path.join(provider, 'packages/php'));
+  const record: { packages: { name: string; dist?: { type: string } }[] } = JSON.parse(readFileSync(path.join(consumer, 'vendor/composer/installed.json'), 'utf8'));
+  assert.equal(record.packages.find(item => item.name === 'polyspec/y')?.dist?.type, 'path', 'Composer installed the package from its path repository, not from the archive');
   assert.doesNotMatch(readFileSync(path.join(consumer, 'vendor/composer/platform_check.php'), 'utf8'), /99/, 'the platform check follows the composer.json of the folder');
   const autoload = spawnSync('php', ['-r', "require 'vendor/autoload.php'; echo class_exists('Y\\\\Hello') ? 'loaded' : 'missing';"], { cwd: consumer, encoding: 'utf8' });
   assert.equal(autoload.status, 0, autoload.stderr + autoload.stdout);

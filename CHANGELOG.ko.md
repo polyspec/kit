@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 466361ce0b79e96fc6f261f6b6b697cc7319c2d5658dec47cf6d24e56c213578 -->
+<!-- source-sha256: 58cea7b3e2b039bcaa5c653ab0c1ac3150dde6b18477e62e3908ffb55339b86c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer 패키지는 폴더가 link이고 `installed.json`이 `dist` type `path`를 기록할 때만 linked로 센다(K318). 옛 mechanism이 남긴 릴리스 archive 설치 위의 link는 partial update가 다시 설치하고, 이미 link된 폴더도 같은 update에 남으며, `link-state-check`는 기록이 다른 dist type인 link를 실패시킨다. Red: 손으로 만든 link 아래 archive 설치가 있는 `tests/source/link-composer-real.test.mts`에서 archive가 유지되었다(기록 dist type `zip`). Green: 기록이 `path`이고 platform check가 폴더를 따른다.
 - Python link는 provider 폴더의 editable install이다(K316): lock의 constraints와 연결된 각 패키지를 폴더의 URL로 지정하는 overrides 파일로 `uv pip install --reinstall-package <이름> -e <폴더>`를 실행한다. `var/link/wheels`에 wheel을 build하거나 보관하지 않고, 상태는 `direct_url.json`(폴더와 `dir_info.editable`)에서 읽으며, uv가 그 설치 시점에 `Requires-Python`과 요구사항을 검사한다. fingerprint, prebuilt wheel, read-only stale 경로는 제거했다. Red: link test가 `-e <폴더>` 설치를 기대했는데 `uv run`으로 build한 wheel이었다. Green: 통과하며 이 checkout의 실제 uv가 다른 연결된 패키지를 릴리스 URL로 요구하는 패키지를 `-e`와 override로 설치한다.
 - Composer link는 Composer가 스스로 설치하는 `symlink` path repository이다(K304-1): link는 git이 무시하는 `composer.link.json`(추적되는 `composer.json`에 provider 폴더마다 path repository를 repositories 앞에 두고 lock의 릴리스를 version으로 쓴 것)과 lock의 사본을 쓰고 연결된 polyspec 패키지와 자기 path 패키지에 `COMPOSER=composer.link.json composer update`를 실행한다. 설치된 폴더는 심볼릭 링크이고 기록, autoload 규칙, platform check는 폴더의 `composer.json`에서 나오며, `composer.json`과 `composer.lock`은 그대로이고, `unlink`는 link 파일을 지운다. K304의 손으로 한 `installed.json` 수정은 제거했다. Red: link test가 `composer.link.json`을 쓰는 `composer update`를 기대했는데 `dump-autoload`였다. Green: 통과하며 `tests/source/link-composer-real.test.mts`가 실제 Composer로 archive가 PHP 99를 요구하는 패키지를 폴더에서 설치한다.
 - `make link-state-check`가 `link-metadata-check`를 대체한다(K305-1): link는 설치된 릴리스 버전으로 간주되므로 version도 요구사항도 비교하지 않으며, link가 있는 동안 link들 사이의 사본인 설치된 0.0.x polyspec package, 그 이름의 package로 풀리지 않는 link, `go.mod` 없는 `go.work`의 `use` 폴더에 대해 package를 적어 실패한다. PRINCIPLES P30과 local-links가 owner 규칙을 적는다. Red: `tests/kit/link-state-check.test.mts`가 없는 module을 import했고 낡은 기록이 옛 gate를 실패시켰다. Green: 통과한다.

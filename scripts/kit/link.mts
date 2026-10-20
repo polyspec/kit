@@ -364,6 +364,7 @@ function linkComposer(work: Run, consumer: Consumer) {
     const names = new Set<string>();
     const recorded = new Set<string>();
     const toLink: { name: string; folder: string; copy: string; provider: Provider }[] = [];
+    const linkedNow: { name: string; folder: string }[] = [];
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) continue;
       names.add(entry.name);
@@ -374,10 +375,13 @@ function linkComposer(work: Run, consumer: Consumer) {
       if (projectPackage(work, 'composer', entry.name, provider, own)) continue;
       if (typeof provider === 'string') { unlinkable(work, 'composer', entry.name, provider); continue; }
       const version = typeof entry.version === 'string' ? entry.version : '';
-      if (real(copy) === realpathSync(provider.folder)) { reportLink(work, 'composer', entry.name, provider); continue; }
+      // A link is Composer's own: the record says the package was installed from a path repository. A symbolic link over an
+      // archive install, which the earlier mechanism made, is installed anew (K318).
+      const installedFromPath = isJsonObject(entry.dist) && entry.dist.type === 'path';
+      if (real(copy) === realpathSync(provider.folder) && installedFromPath) { reportLink(work, 'composer', entry.name, provider); linkedNow.push({ name: entry.name, folder: provider.folder }); continue; }
       const problem = pinProblem(version);
       if (problem) unlinkable(work, 'composer', entry.name, `${problem}: ${copy}`);
-      else if (work.check) unlinkable(work, 'composer', entry.name, copy);
+      else if (work.check) unlinkable(work, 'composer', entry.name, real(copy) === realpathSync(provider.folder) ? `${copy} is a link over a ${isJsonObject(entry.dist) ? String(entry.dist.type) : 'copy'} install, not Composer's path install` : copy);
       else toLink.push({ name: entry.name, folder: provider.folder, copy, provider });
     }
     for (const name of declared) if (!names.has(name)) notInstalled(name);
@@ -391,11 +395,15 @@ function linkComposer(work: Run, consumer: Consumer) {
     // the record, the autoload rules and the platform check come from the composer.json of each folder, the versions are
     // checked by Composer at that install, and every other package stays at its locked release.
     const lock = path.join(project, 'composer.lock');
-    const targets = [...toLink.map(item => item.name), ...ownPathPackages(project).filter(name => names.has(name) && !toLink.some(item => item.name === name))];
-    if (targets.length === 0) continue;
+    // Composer resolves the whole partial update at once, so the folders that are already linked stay in it: a package of the project
+    // that requires one of them is resolved against the folder, not against the release that the lock recorded.
+    const ownTargets = ownPathPackages(project).filter(name => names.has(name) && !toLink.some(item => item.name === name) && !linkedNow.some(item => item.name === name));
+    if (toLink.length === 0 && ownTargets.length === 0) continue;
     if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
+    const all = [...toLink.map(item => ({ name: item.name, folder: item.folder })), ...linkedNow];
+    const targets = [...all.map(item => item.name), ...ownTargets];
     excludeComposerLinkFiles(consumer.top);
-    writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, toLink, lockedVersions(lock)), null, 4)}\n`);
+    writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, all, lockedVersions(lock)), null, 4)}\n`);
     copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
     run(composer.command, ['update', ...targets, '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
     for (const item of toLink) {
