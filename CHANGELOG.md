@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make install` links after all its prerequisites, the steps of the repository included, whose environments the link
+  reads, and `install-kit` only installs; local-links.md states the order. Red: in a fresh orm worktree the link of
+  install-kit ran before the Composer vendor and the Python environment existed and stopped make install; green:
+  `node --test --test-name-pattern='K360|K205' tests/kit/link.test.mts` passes (K360-2).
 - `run-tests` starts the php of a phpunit run with a PHP extension or a library run, the go of a Go run and the python
   of a Python run from the checkout (`var/tools/bin/php`, the shims of mise) and fails with `<path> does not exist;
   run make install` when it is missing, never taking the tool of PATH. Red: the run took the php of PATH, another PHP

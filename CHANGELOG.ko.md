@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bc89c7a3995e296fd576b051c1d3773b35fa2648261fe849c4d4477918fa6154 -->
+<!-- source-sha256: 350251fe15da95c9fa1318ecaedcb8680c4e669e39143caf2fa2df93e4a07225 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make install`은 link가 읽는 환경을 설치하는 저장소의 단계를 포함한 모든 prerequisite 뒤에 link하고,
+  `install-kit`은 설치만 한다. local-links.md가 그 순서를 말한다. red: 새 orm worktree에서 install-kit의 link가 Composer
+  vendor와 Python 환경이 생기기 전에 실행되어 make install을 멈췄다. green: `node --test
+  --test-name-pattern='K360|K205' tests/kit/link.test.mts`가 통과한다 (K360-2).
 - `run-tests`는 PHP extension을 쓰는 phpunit run이나 library run의 php, Go run의 go, Python run의 python을
   checkout(`var/tools/bin/php`, mise의 shim)에서 시작하고, 없으면 `<path> does not exist; run make install`과 함께
   실패하며 PATH의 도구를 쓰지 않는다. red: run이 PATH의 php, 즉 make install 없는 worktree에서 pin이 아닌 PHP를 썼다.
