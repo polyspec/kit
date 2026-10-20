@@ -314,11 +314,15 @@ test('an unused sample file passes once config/knip-entries.json ignores it, and
 // glob still fails oxlint (K172).
 const BROKEN = "import { compile } from 'missing-compiler';\n\ncompile();\ndebugger;\n";
 
+// The project of the repository leaves out the same inputs, as the ignore does for oxlint and knip: tsc would otherwise read the
+// broken import of them, which fails on a missing module, while it still checks the same file in an undeclared folder (K172).
+const BROKEN_PROJECT = { 'tsconfig.json': JSON.stringify({ ...TSCONFIG, exclude: [...TSCONFIG.exclude, 'tests/inputs/broken'] }, null, 2) };
+
 test('oxlint leaves out a file that config/knip-entries.json ignores, and the same violation in an undeclared file still fails (K172)', (t) => {
   const ignore = knipEntries({ ignore: { 'tests/inputs/broken/**': 'inputs of the build tests, broken on purpose' } });
-  const declared = lintOf(repository(t, { 'tests/inputs/broken/input.mts': BROKEN, ...ignore }));
+  const declared = lintOf(repository(t, { 'tests/inputs/broken/input.mts': BROKEN, ...BROKEN_PROJECT, ...ignore }));
   assert.deepEqual(declared.failed, [], declared.output);
-  const undeclared = lintOf(repository(t, { 'tests/inputs/other/input.mts': BROKEN, ...ignore }));
+  const undeclared = lintOf(repository(t, { 'tests/inputs/other/input.mts': BROKEN, ...BROKEN_PROJECT, ...ignore }));
   assert.ok(undeclared.failed.includes('oxlint'), undeclared.output);
   assert.match(undeclared.output, /tests\/inputs\/other\/input\.mts:.*eslint\(no-debugger\)/);
 });
@@ -329,9 +333,10 @@ test('an undocumented export passes API Extractor once the API report is off, wh
 });
 
 // The type-aware rules apply to TypeScript only, as typescript-eslint's disableTypeChecked does for JavaScript: in a plain
-// .mjs file every untyped parameter is any, so no-unsafe-member-access would report each of its member accesses. The same
-// code in a .mts file still fails, and so does a non-type-aware rule in the .mjs file (K170).
-const UNTYPED = 'export function size(value) {\n  return value.length;\n}\n';
+// .mjs file the value of JSON.parse is any, so no-unsafe-member-access would report its member access. The same code in a
+// .mts file still fails, and so does a non-type-aware rule in the .mjs file (K170). The code has no untyped parameter, which
+// strict tsc rejects in a .mts file (TS7006) and so would fail the tsc of the project, not only oxlint.
+const UNTYPED = 'export function size() {\n  return JSON.parse(process.argv[2]).length;\n}\n';
 
 test('the type-aware rules leave a plain JavaScript file alone and still fail the same code in TypeScript (K170)', (t) => {
   const javascript = lintOf(repository(t, { 'scripts/size.mjs': UNTYPED }));
