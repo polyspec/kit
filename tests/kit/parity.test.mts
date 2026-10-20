@@ -1204,6 +1204,15 @@ test('an internal test is no parity unit: R5 asks no binding for it, and the sam
   assert.deepEqual(declared.filter(item => item.rule === 'declaration').map(item => item.message), []);
 });
 
+// K342: only a match that docs/spec defines is a requirement named; UTF-8 matches the pattern of requirements and is none.
+test('an internal test that mentions UTF-8 names no requirement, and one that names a defined requirement after it still does (K342)', TIMEOUT, (t) => {
+  const broad = (config: Declaration) => { config.requirements = { pattern: '[A-Z0-9]+-[0-9]+' }; return INTERNAL(config); };
+  const plain = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// encodes UTF-8 and SHA-256\n' }, edit: broad }, { execute: false }).findings;
+  assert.deepEqual(plain.filter(item => item.rule === 'R16'), []);
+  const named = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// UTF-8 then CX-1\n' }, edit: broad }, { execute: false }).findings;
+  assert.match(findingAt(named.filter(item => item.rule === 'R16'), 0).message, /names CX-1, a requirement of the spec/);
+});
+
 test('an internal test that names a requirement of the spec is R16, and an internal glob that selects no test is a declaration finding (K313)', TIMEOUT, (t) => {
   const named = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// CX-1\n' }, edit: INTERNAL }, { execute: false }).findings;
   assert.deepEqual(keys(named.filter(item => item.rule === 'R16')), ['R16 - php']);

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Parity rule R16 reports only a match of the requirement pattern that `docs/spec` defines, over every match of an
+  internal test, so `UTF-8` and `SHA-256` name no requirement (K342).
 - While a Composer project is linked, `make dependency-review` runs Composer on `composer.link.json` and its lock,
   does not compare a linked package with its registry or update it, and never changes the tracked `composer.json` and
   `composer.lock` (K340).

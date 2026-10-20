@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bf2a9606d2429882730b3a41b477a1e12abc1ca4f117b5446bfcda87d88145eb -->
+<!-- source-sha256: 7ff577e3a89782462c5ea9c056b0574ca3803b447996a89e226150efbe188fa3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Parity 규칙 R16은 internal test의 모든 match 중 `docs/spec`이 정의한 requirement pattern의 match만 보고하므로, `UTF-8`과 `SHA-256`은
+  requirement를 이름으로 부르지 않는다 (K342).
 - Composer project가 linked인 동안 `make dependency-review`는 `composer.link.json`과 그 lock으로 Composer를 실행하고, linked
   package를 registry와 비교하거나 update하지 않으며, tracked `composer.json`과 `composer.lock`을 바꾸지 않는다 (K340).
 - link와 parity test는 시간이 제한되고 더 싸다. `tests/kit/link.test.mts`의 모든 case는 60초 timeout을 갖고, sandbox repository는 git

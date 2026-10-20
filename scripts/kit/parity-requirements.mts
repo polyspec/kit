@@ -83,11 +83,12 @@ export function requirementFindings(config: { requirements: { pattern: string };
   }
   // R16: an internal test names no requirement of the spec (K313): the tests of a requirement are the units that cite it, so a contract
   // test cannot hide among the internal tests of an implementation.
-  const identifier = new RegExp(`\\b(?:${pattern})\\b`);
+  const identifier = new RegExp(`\\b(?:${pattern})\\b`, 'g');
   for (const implementation of config.implementations ?? []) {
     const globs = (implementation.internal ?? []).map(item => item.glob);
     for (const file of [...listed].filter(name => matchesAny(globs, name)).sort()) {
-      const named = identifier.exec(read(file))?.[0];
+      // Only a match that the spec defines is a requirement named (K342): UTF-8 and SHA-256 match a pattern such as [A-Z]+-[0-9]+ and are none.
+      const named = [...read(file).matchAll(identifier)].map(match => match[0]).find(id => defined.has(id));
       if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file }));
     }
   }
