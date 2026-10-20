@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d94b112a3930b7593126fd683ef9fae229628c4522f53a6b428e126024e6787 -->
+<!-- source-sha256: fcd53c7e19ebe9cd20433bb78fa95bfdd41211143d5051b5ea6f9f07e640bcec -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- consumer의 `make install-packages`는 옆의 kit checkout의 link(`../kit/dist/link.mjs`)를 실행하고, `npm ci`가 방금
+  설치한 released kit에는 `--siblings`가 없으므로 그 checkout이 build되지 않았으면 `npm ci` 전에 해결 방법과 함께
+  실패한다. CI처럼 sibling kit이 없으면 설치된 kit의 link를 실행한다. K205 test는 K349가 사실로 만든 대로 recipe가
+  설치 직후 link하고 build하지 않는다고 말한다. red: kit checkout 옆에서 recipe가 설치된 kit의 link를 실행했고 K205
+  test가 실패했다. green: `node --test --test-name-pattern='K360|K205' tests/kit/link.test.mts`가 통과한다 (K360).
 - plan utility는 home directory 안의 경로를 더하는 checklist를 docs-check의 private-path 함수로 거부하고, `make
   item-edit ID= TASK= TASK_KO=`는 done row를 포함해 row의 Task cell을 두 언어로 바꾼다. kit의 docs-check를 실패시킨
   home 경로 없이 row K358과 K363을 다시 썼다. red: item-new가 row에 home directory 안의 경로를 썼고 item-edit은 TASK를

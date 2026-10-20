@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `make install-packages` of a consumer runs the link of the kit checkout beside it (`../kit/dist/link.mjs`), and fails
+  before `npm ci` with the fix when that checkout is not built, since the released kit that `npm ci` just installed
+  has no `--siblings`; without a sibling kit, as in CI, it runs the link of the installed kit. The K205 test states
+  that the recipe links right after the install and never builds, which K349 made true. Red: the recipe ran the link
+  of the installed kit beside a kit checkout, and the K205 test failed; green: `node --test
+  --test-name-pattern='K360|K205' tests/kit/link.test.mts` passes (K360).
 - The plan utilities refuse a checklist that would add a path into a home directory, through the private-path
   function of docs-check, and `make item-edit ID= TASK= TASK_KO=` replaces the Task cells of a row in both languages,
   also of a done row; the rows K358 and K363 are rewritten without the home paths that failed docs-check of kit. Red:
