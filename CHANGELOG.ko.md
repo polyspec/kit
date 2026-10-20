@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 88f8decedba677986e5202efd253e68fa5d272e1d048394483fb7d26613baae1 -->
+<!-- source-sha256: a8fc1149c3dd7d6ec3b24660f27355202b2bbd6c8c746785bbf06a161652a5e8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make worktree-prune`은 자기 commit(reflog가 기록한 생성 지점 이후의 commit)이 모두 main에 있는 branch를 모두 지우고,
+  그 worktree에 commit하지 않은 변경이 없으면 worktree도 지운다. 새 branch, merge되지 않은 branch, 변경이 있는 branch는
+  이유와 함께 적는다. merge된 branch가 남아 있는 동안 `make link-state-check`는 실패한다(K381).
 
 - `make land`는 branch에서 실패한 gate를 main에서 실행한 같은 gate의 출력에 없는 줄이 있을 때만 거부하고 그 줄을 적는다
   (worktree 폴더는 main checkout으로 읽고 숫자는 무시하며 반복 수를 센다). 새 finding이 없으면 main에서 red인 gate가 더는

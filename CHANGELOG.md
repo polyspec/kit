@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make worktree-prune` removes every branch whose own commits (those after the creation point that its reflog records)
+  are all in main, with its worktree when that has no uncommitted change, and lists a fresh, unmerged or dirty one with
+  its reason; `make link-state-check` fails while a merged branch is left (K381).
+
 - `make land` refuses a gate that fails on the branch only when its output has a line that the same gate run on main does
   not have (the worktree folder read as the main checkout, numbers ignored, repeats counted), and names those lines; a gate
   red on main with no new finding no longer refuses every branch. It never runs `parity-check` or a `test-` target, which
