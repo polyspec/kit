@@ -111,6 +111,24 @@ test('a root composer.json that requires a polyspec package lacks a repository t
   assert.doesNotMatch(gate(root).stderr, /that this root manifest lacks/);
 });
 
+// K326-1: while linked, the locked versions are those of the link lock, which Composer resolved; the tracked lock cannot relock.
+test('while a project is linked the review record is compared with the versions of the link lock (K326-1)', (t) => {
+  const root = fixture(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = readConfig<{ packages: { name: string; version: string; dist?: { type: string } }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  const first = record.dependencies.find(item => item.ecosystem === 'composer');
+  assert.ok(first);
+  // The link lock holds a newer version than the tracked lock, as after the update of the link, and the record was made on it.
+  first.version = '9.9.9';
+  first.latest = '9.9.9';
+  writeFileSync(path.join(root, RECORD), `${JSON.stringify(record, null, 2)}\n`);
+  assert.match(gate(root).stderr, new RegExp(`${first.package.replace('/', '\\/')}: the lock holds [^,]+, the review of .+ recorded 9\\.9\\.9`), 'without a link the tracked lock is compared');
+  writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, packages: lock.packages.map(item => (item.name === first.package ? { ...item, version: '9.9.9' } : item)) }));
+  assert.doesNotMatch(gate(root).stderr, /the lock holds/, 'with a link the link lock is compared');
+});
+
 // K328: while a project is linked, a linked package is judged by its link; the registry comparison belongs to the batch release.
 test('a linked package is not compared with the latest release of the registry, and a third-party package still is (K328)', (t) => {
   const root = fixture(t);

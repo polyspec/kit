@@ -334,7 +334,10 @@ export function readState(root: string, policy: DependencyPolicy) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
     const composer = readComposerManifest(root, manifestPath);
-    const composerLock = readComposerLock(root, lockPath);
+    // While the project is linked the versions are those of the link lock, which Composer resolved and the vendor holds; the tracked
+    // lock cannot relock while a provider is linked (K326-1).
+    const linkLock = path.posix.join(path.posix.dirname(manifestPath), 'composer.link.lock');
+    const composerLock = readComposerLock(root, existsSync(path.join(root, linkLock)) ? linkLock : lockPath);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
     for (const kind of ['require', 'require-dev'] as const) {
       for (const [name, spec] of Object.entries(composer[kind] ?? {})) {

@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e521f34cb51587115b18ada33b32f8d839483730de7220fcba6276e05c25f95f -->
+<!-- source-sha256: 0d3b450726add87e6684d3f369811cadc507ad60fe2adab21892525fde34d464 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer project가 linked인 동안 의존성 review와 policy는 locked version을 `composer.link.lock`에서 읽으므로, review record는 relock할
+  수 없는 tracked lock이 아니라 Composer가 resolve하고 vendor가 가진 것과 비교된다 (K326-1).
 - `make install-packages`는 설치한 패키지를 저장소 옆의 polyspec checkout에 링크하고(`link --siblings`), `CHECKOUTS` 없는 `make link`는
   worktree에서도 그 checkout을 쓰며, `make link-state-check`는 lock에서 설치한 뒤 link 단계가 없는 recipe와 `.php-version`과 다른 PHP를 요구하는
   linked vendor를 실패시킨다 (K349).

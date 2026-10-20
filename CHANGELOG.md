@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- While a Composer project is linked, the dependency review and policy read the locked versions from
+  `composer.link.lock`, so the review record is compared with what Composer resolved and the vendor holds, not with
+  the tracked lock that cannot relock (K326-1).
 - `make install-packages` links the installed packages to the polyspec checkouts beside the repository (`link
   --siblings`), `make link` without `CHECKOUTS` takes those checkouts also in a worktree, and `make link-state-check`
   fails a recipe that installs from a lock without the link step after it and a linked vendor whose platform check
