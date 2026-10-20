@@ -10,7 +10,7 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import path from 'node:path';
 import { execute } from './process.mts';
 import { finding, resolveCommand, resolveReferences, supportFiles } from './parity-declaration.mts';
-import type { Environment, Finding, ParityImplementation, ParityModel } from './parity-declaration.mts';
+import type { Environment, Finding, ParityImplementation, ParityModel, Runner } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
 import type { BindingCommand, Outcome, RunError, RunKind, RunTarget } from './parity-runners.mts';
 import { pairs } from './parity-units.mts';
@@ -83,7 +83,8 @@ function resolvedRun(declared: ParityImplementation, root: string, binding: RunT
   const shown = runOf(declared, root, binding, kind, env);
   // The runner of a binding does not read the references, so the declared run starts where the resolved run does.
   if (shown.error) throw new Error(`${declared.name}: the run as declared cannot start while the resolved run starts: ${shown.error}`);
-  return { ...run, shown: [binding.command?.[0] ?? declared.command ?? shown.command, ...shown.args].join(' ') };
+  // The program of a binding with its own runner is that runner's, as runOf gives it.
+  return { ...run, shown: [binding.command?.[0] ?? (binding.runner === undefined ? declared.command : undefined) ?? shown.command, ...shown.args].join(' ') };
 }
 
 // The runners whose support files the check runs: a file runner reports its cases by printing them, so a support file of one
@@ -129,21 +130,21 @@ const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): stri
  */
 function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined }): Finding[] {
   // The bindings of each test file of an implementation, in declaration order.
-  const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; bound: { unit: string; id: string }[] }>();
+  const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
     if (units !== undefined && !units.has(unit.id)) continue;
     // readDeclaration requires bindings and the id of each feature binding.
     const binding = present(unit.bindings, 'unit.bindings').find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
-    // Bindings of one test file share a run only when they name the same command.
-    const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}`;
-    const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, bound: [] };
+    // Bindings of one test file share a run only when they name the same command and the same runner (K422).
+    const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}`;
+    const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, runner: binding.runner, bound: [] };
     entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
     files.set(key, entry);
   }
-  return [...files.values()].flatMap(({ implementation, test, command, bound }) => {
+  return [...files.values()].flatMap(({ implementation, test, command, runner, bound }) => {
     const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
-    const run = resolvedRun(implementation, root, { test, command, ids: bound.map(entry => entry.id) }, 'feature', env);
+    const run = resolvedRun(implementation, root, { test, command, runner, ids: bound.map(entry => entry.id) }, 'feature', env);
     if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
     const units = bound.map(entry => entry.unit).join(', ');
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);
@@ -195,7 +196,7 @@ export function runBindings(model: ParityModel, root: string, { env, files, say,
     // map gives one attempt for each of the two runs.
     // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.
     const declared = model.cases.get(unit.id) ?? [];
-    const group = (name: string) => implementation.runner === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
+    const group = (name: string) => (binding.runner ?? implementation.runner) === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
     const [first, second] = twice(run, root, { unit: unit.id, implementation: implementation.name }, ledger, say, group);
     for (const [attempt, { status, cases }] of [first, second].entries()) say(`${unit.id} ${implementation.name} (${attempt + 1} of 2): ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
     const { result, status, cases } = first;

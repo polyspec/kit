@@ -55,6 +55,9 @@ export interface ParityBinding {
   symbol?: string;
   id?: string;
   command?: string[] | undefined;
+  /** The runner of this binding in place of the runner of its implementation, with its reason (K422). */
+  runner?: Runner | undefined;
+  reason?: string | undefined;
 }
 
 /** The symbol id of an implementation in an API unit. */
@@ -586,20 +589,26 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
       if (matchesAny((implementations.get(entry.implementation)?.internal ?? []).map(item => item.glob), entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its internal globs; an internal test is no parity unit`);
       for (const word of entry.command ?? []) expand(word, undefined, 'binding command', message => fail(`${where}: the binding of ${entry.implementation}: ${message}`));
+      // A binding runs with the runner of its own only with the reason of it, which says why its contract is checked there.
+      if ((entry.runner === undefined) !== (entry.reason === undefined)) {
+        const problem = entry.runner === undefined ? 'has reason without runner; name the runner that runs its test' : 'has runner without reason; say why the implementation checks its contract in that ecosystem';
+        errors.push(finding('declaration', `${where}: the binding of ${entry.implementation} ${problem}`, { unit: unit.id, implementation: entry.implementation, place: DECLARATION }));
+      }
       if (unit.kind === 'feature') {
         if (entry.id === undefined) fail(`${where}: the binding of ${entry.implementation} needs id, the native test id that its runner reports`);
         if (entry.symbol !== undefined) fail(`${where}: the binding of ${entry.implementation} has symbol, which a feature binding does not take; its id names the test`);
         continue;
       }
       if (entry.id !== undefined) fail(`${where}: the binding of ${entry.implementation} has id, which a suite binding does not take; its cases come from ${unit.file}`);
-      const runner = implementations.get(entry.implementation)?.runner;
+      // The runner that runs the binding: its own, else that of its implementation.
+      const runner = entry.runner ?? implementations.get(entry.implementation)?.runner;
       if ((runner === 'go' || runner === 'cargo') && !entry.symbol) fail(`${where}: the binding of ${entry.implementation} needs symbol, the ${runner === 'go' ? 'test function' : 'exact test path'} that runs the cases`);
       // A go binding without symbol took the branch above.
       else if (runner === 'go' && !/^Test\w*$/.test(present(entry.symbol, 'entry.symbol'))) fail(`${where}: the go binding names ${entry.symbol}, which is no test function (^Test\\w*$)`);
       else if (runner === 'php' && entry.symbol !== undefined && !PHP_METHOD.test(entry.symbol)) fail(`${where}: the php binding names ${entry.symbol}, which is no test method <class>::<method> of a fully qualified class`);
     }
     if (unit.kind === 'feature') continue;
-    const goBound = (unit.bindings ?? []).some(entry => implementations.get(entry.implementation)?.runner === 'go');
+    const goBound = (unit.bindings ?? []).some(entry => (entry.runner ?? implementations.get(entry.implementation)?.runner) === 'go');
     if (!unit.file || !unit.cases) continue;
     // A suite file that is a directory holds a case directory for each case, which a glob selects; a vector file names its cases.
     const directory = !files.has(unit.file) && [...files].some(file => within(present(unit.file, 'unit.file'), file));

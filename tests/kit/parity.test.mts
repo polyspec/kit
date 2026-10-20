@@ -724,6 +724,27 @@ test('a binding command that cannot start or exits non-zero is an R3 finding tha
   assert.deepEqual(failing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go').map(run => run.command), ['sh', 'sh']);
 });
 
+// A binding with its own runner runs its test with the program, arguments and output parser of that runner, not those of its
+// implementation, and counts for its implementation: the php suite binding here checks its contract in node, so a
+// php implementation whose contract a node test checks can bind; a runner without a reason, or a reason without a runner, is a
+// declaration finding that names the unit and the implementation.
+test('a binding with its own runner and its reason runs with that runner and binds its implementation (K422)', TIMEOUT, (t) => {
+  const files = { 'php/tests/size.php': null, 'php/tests/size.test.mjs': "import test from 'node:test';\ntest('small', () => {});\n" };
+  const declare = (reason?: string) => (config: Declaration) => {
+    Object.assign(binding(config, 'size', 'php'), { test: 'php/tests/size.test.mjs', runner: 'node', ...(reason === undefined ? {} : { reason }) });
+    return config;
+  };
+  const { findings, ledger } = checkParity(repository(t, { files, edit: declare('the php extension checks the contract of its C engine in node') }), { execute: true, env: ENV, say: () => {} });
+  assert.deepEqual(findings, []);
+  const run = known(ledger.runs.find(entry => entry.unit === 'size' && entry.implementation === 'php'), 'the php run of size');
+  assert.deepEqual([run.command, ...run.args], [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'php/tests/size.test.mjs']);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'size' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['small pass']);
+  const missing = check(t, { files, edit: declare() });
+  assert.deepEqual(keys(missing.findings), ['declaration size php']);
+  const alone = check(t, { edit: (config) => { Object.assign(binding(config, 'size', 'php'), { reason: 'a reason with no runner' }); return config; } });
+  assert.deepEqual(keys(alone.findings), ['declaration size php']);
+});
+
 // A binding command references the invoking environment as its implementation's values do: ${NAME} is resolved when the runs
 // happen, an unset or empty NAME is a finding of that binding's runs and nothing runs, and the reference is printed, not its value (K223).
 test('a binding command references the invoking environment as ${NAME}, resolved when the runs happen (K223)', TIMEOUT, (t) => {
