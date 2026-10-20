@@ -107,3 +107,18 @@ test('release-prepare does nothing by default and runs the preparation that a re
   assert.equal(declared.status, 0, declared.stderr);
   assert.equal(declared.stdout, 'prepared v0.0.1\n');
 });
+
+// K419: a repository adds its document checks after that of kit, and each runs whatever the status of the others.
+test('docs-check runs the checks of DOCS_CHECKS after check-documents, each of them, and fails naming those that failed (K419)', (t) => {
+  const root = tree(t, {});
+  const makefile = (extra: string) => put(root, { Makefile: `include ${KIT_MK}\nDOCS_CHECKS += first-check second-check\nfirst-check:\n\t@echo first ran; ${extra}\nsecond-check:\n\t@echo second ran\n` });
+  const run = () => spawnSync('make', ['--no-print-directory', 'docs-check', 'KIT=scripts/kit', 'KIT_EXT=mts', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  makefile('exit 1');
+  const failed = run();
+  assert.notEqual(failed.status, 0, failed.stdout + failed.stderr);
+  assert.match(failed.stdout + failed.stderr, /check-documents/, 'check-documents ran first');
+  assert.match(failed.stdout, /first ran\n/);
+  assert.match(failed.stdout, /second ran\n/, 'the second check runs although the first failed');
+  assert.match(failed.stderr, /\[docs-check\] failed:.* first-check/);
+  assert.doesNotMatch(failed.stderr, /failed:.*second-check/);
+});

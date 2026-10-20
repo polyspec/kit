@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e09f27faa28400640772f69ac505c9e1d2d49652ca35f18b2d2f3fa1f57ca760 -->
+<!-- source-sha256: ee8dca35efcca6e12f5faa612edf8f659652378384a914c95a09dd204f894b33 -->
 
 # 도구 목록
 
@@ -374,7 +374,9 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 
 `scripts/kit/check-documents.mts`는 template, crudui, hyper의 `check-documents.mts`와 ordered-json의 `docs_check.py`를 대체합니다.
 어느 Markdown 파일이 문서인지, status table, changelog는 `config/documents.json`
-(`scripts/kit/schema/documents.schema.json`)에 선언하고, 체크리스트는 `config/checklist.json`(K7.2)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다.
+(`scripts/kit/schema/documents.schema.json`)에 선언하고, 체크리스트는 `config/checklist.json`(K7.2)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다. 저장소는
+`DOCS_CHECKS += <target>`으로 자기 문서 검사를 `make docs-check`에 더합니다. docs-check는 check-documents를 실행한 뒤
+DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하고, 실패한 target을 적어 실패합니다(K419).
 
 합친 동작(더 넓은 동작을 채택):
 

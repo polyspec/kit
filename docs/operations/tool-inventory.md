@@ -411,7 +411,9 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 `scripts/kit/check-documents.mts` replaces `check-documents.mts` of template, crudui and hyper and `docs_check.py` of
 ordered-json. Which Markdown files are documents, its status tables and changelogs are declared in
 `config/documents.json` (`scripts/kit/schema/documents.schema.json`); its checklists are declared in `config/checklist.json` (K7.2). Each finding is one line
-`<file>:<line>:<column>: <rule>: <message>`.
+`<file>:<line>:<column>: <rule>: <message>`. A repository adds its own document checks to `make docs-check` with
+`DOCS_CHECKS += <target>`: docs-check runs check-documents and then every target of DOCS_CHECKS, each whatever the status of
+the others, and fails naming those that failed (K419).
 
 Merged behaviors (the wider behavior is taken):
 
