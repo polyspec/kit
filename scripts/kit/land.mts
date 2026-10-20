@@ -27,6 +27,49 @@ import { trackedFiles } from './tracked-files.mts';
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
 const ALWAYS_GATES = ['docs-check', 'commits-check'];
 
+// K429: the processes of the machine that run in a worktree, read with ps and lsof (read only): a command line that names a path in
+// the folder, after `=` or a space, and a working directory inside it. land itself and its parent are left out.
+export interface MachineListing {
+  ps: string;
+  // undefined when lsof is missing: only the command lines are then known.
+  lsof?: string;
+}
+
+/** The processes of the worktree `folder` in `listing`, by pid, with the command line that names them (or pid only for a cwd match). */
+export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing): { pid: number; command: string }[] {
+  const escaped = folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const names = new RegExp(`(?<![^\\s=])${escaped}(?=/|\\s|$)`);
+  const inside = (file: string) => file === folder || file.startsWith(`${folder}/`);
+  const commands = new Map<number, string>();
+  const found = new Map<number, string>();
+  for (const line of ps.split('\n')) {
+    const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (match === null) continue;
+    const [, id = '', command = ''] = match;
+    commands.set(Number(id), command);
+    if (names.test(command)) found.set(Number(id), command);
+  }
+  let pid: number | undefined;
+  for (const line of (lsof ?? '').split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1));
+    else if (line.startsWith('n') && pid !== undefined && inside(line.slice(1))) found.set(pid, commands.get(pid) ?? `(no command line in ps)`);
+  }
+  return [...found]
+    .filter(([live]) => live !== process.pid && live !== process.ppid)
+    .sort(([a], [b]) => a - b)
+    .map(([pid, command]) => ({ pid, command }));
+}
+
+/** The ps and lsof outputs of the machine, read only; lsof is undefined when it is not installed. */
+function machineListing(): MachineListing {
+  const ps = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (ps.error || ps.status !== 0) throw new Error(`ps could not list the processes: ${ps.error?.message ?? ps.stderr}`);
+  const lsof = spawnSync('lsof', ['-d', 'cwd', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') return { ps: ps.stdout };
+  if (lsof.error) throw new Error(`lsof could not run: ${lsof.error.message}`);
+  return { ps: ps.stdout, lsof: lsof.stdout };
+}
+
 /** The folder of the worktree that has `branch` checked out, from `git worktree list --porcelain`; undefined when none has it. */
 function worktreeOf(root: string, branch: string): string | undefined {
   const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n');
@@ -104,6 +147,15 @@ export function land(root: string, branch: string, { print = (text: string) => c
   if (dirty !== '') throw new Error(`the main checkout ${root} has uncommitted changes:\n${dirty}`);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
+  // K429: no gate runs, nothing is merged and nothing is removed while a process of the worktree runs.
+  if (folder !== undefined) {
+    const listing = machineListing();
+    if (listing.lsof === undefined) print(`lsof is missing: only the command lines name the processes of ${folder}`);
+    const live = worktreeProcesses(folder, listing);
+    if (live.length) {
+      throw new Error(`${branch} is refused: ${live.length} processes run in the worktree ${folder}; nothing is merged, removed or deleted. Stop them first, then run make land again:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
+    }
+  }
   if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {

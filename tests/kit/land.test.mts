@@ -1,12 +1,12 @@
 // Tests of scripts/kit/land.mts (K394): make land merges a rebased branch fast-forward only after the static gates that the
 // changed paths of the branch select pass, then removes its branch and worktree; a refused branch leaves main unchanged.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land } from '../../scripts/kit/land.mts';
+import { land, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -208,4 +208,47 @@ test('land selects no gate that runs tests (K394-1)', (t) => {
   assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
   assert.ok(printed.includes('parity-check runs tests, which the Verification of the rows runs; land does not run it'));
   assert.ok(printed.includes('test-x runs tests, which the Verification of the rows runs; land does not run it'));
+});
+
+// K429: make land refuses while a process runs in the worktree of the branch, a command line that names a path in it or a working
+// directory inside it. The unit case feeds fixed ps and lsof outputs; the real case starts a process with a path in the worktree.
+test('land lists the processes of the worktree and refuses while one runs (K429)', (t) => {
+  const folder = '/work/kit/repo-x';
+  const ps = [
+    '  101 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
+    '  102 node server.mjs --datadir=/work/kit/repo-x-other/.runtime/db',
+    '  103 sleep 60',
+    '  104 sleep 5',
+    `  ${process.pid} node --test /work/kit/repo-x/tests`,
+  ].join('\n');
+  const lsof = ['p103', 'n/work/kit/repo-x/sub', 'p104', 'n/work/kit/repo-x-other', 'p105', 'n/home', `p${process.pid}`, 'n/work/kit/repo-x'].join('\n');
+  assert.deepEqual(worktreeProcesses(folder, { ps, lsof }).map(live => live.pid), [101, 103]);
+  assert.deepEqual(worktreeProcesses(folder, { ps }).map(live => live.pid), [101], 'without lsof only the command lines count');
+
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folderX = path.join(parent, 'repo-x');
+  git(main, 'worktree', 'add', '--quiet', folderX, '-b', 'feat-x', 'main');
+  put(folderX, { 'src/x.txt': 'x\n' });
+  git(folderX, 'add', '-A');
+  git(folderX, 'commit', '--quiet', '-m', 'x');
+  const mainBefore = git(main, 'rev-parse', 'main');
+  // A process started with a path in the worktree, as make orm-test-servers starts mysqld with its --datadir.
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${folderX}/marker`], { detached: false });
+  t.after(() => child.kill());
+  assert.equal(typeof child.pid, 'number', 'the child process starts');
+  assert.throws(() => land(main, 'feat-x', { print: () => {} }), (error: Error) => error.message.includes(`${child.pid} `) && error.message.includes(`${folderX}/marker`));
+  assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged while a process runs in the worktree');
+  assert.equal(existsSync(folderX), true, 'the worktree is kept');
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'the branch is kept');
 });
