@@ -618,16 +618,23 @@ test('make item-red records a failing Verification, and done requires the record
   });
   assert.match(rangeFindings(unrelated, 'HEAD~1..HEAD', COMMIT_RULES).join('\n'), /commit-fix-test/, 'a Red line on an unrelated commit proves nothing');
 
-  // A row committed without a record: BEFORE= runs its Verification on the commit before the fix, and HEAD is restored exactly.
+  // A row committed with its fix and no record: its row moves to [~] uncommitted, BEFORE= records the red, and the state stays.
   const before = repo({ T10: LACKS_B });
-  setState(before, { id: 'T10', state: '[~]' }, quiet);
-  gitCommit(before, 'start T10');
   put(before, { 'b.mts': 'export {};\n', 'tests/c.test.mts': 'test\n' });
   gitCommit(before, 'fix(parser): Fix it (#T10)\n\nThe test names it.');
+  setState(before, { id: 'T10', state: '[~]' }, quiet);
+  // A tracked change outside docs/plans is refused, and the tree is left as it was.
+  writeFileSync(path.join(before, '.gitignore'), 'var/\nnode_modules/\n');
+  const outsideRefused = redCli(before, 'T10', 'HEAD~1');
+  assert.notEqual(outsideRefused.status, 0);
+  assert.match(outsideRefused.stderr, /changes to tracked files outside docs\/plans, \.gitignore/);
+  writeFileSync(path.join(before, '.gitignore'), 'var/\n');
   assert.equal(redCli(before, 'T10', 'HEAD~1').status, 0, 'the Verification fails before the fix');
   assert.equal(readRecord(before, 'T10')?.head, revParse(before, 'HEAD'), 'the record has HEAD');
   assert.deepEqual(readRecord(before, 'T10')?.tests?.commands, [{ command: LACKS_B, status: 1 }]);
-  assert.equal(readFileSync(path.join(before, 'b.mts'), 'utf8'), 'export {};\n', 'HEAD is restored');
+  assert.equal(readFileSync(path.join(before, 'b.mts'), 'utf8'), 'export {};\n', 'the file is restored');
+  assert.deepEqual(rows(before, 'docs/plans/parser/checklist.md').map(row => row.endsWith('[~] |')), [true], 'the [~] state stays in the tree');
+  assert.deepEqual(rows(before, 'docs/plans/parser/checklist.ko.md').map(row => row.endsWith('[~] |')), [true], 'the [~] state of the twin stays in the tree');
   // The record of the row stays when the row is activated again on the same HEAD (K357).
   setState(before, { id: 'T10', state: '[ ]' }, quiet);
   setState(before, { id: 'T10', state: '[~]' }, quiet);

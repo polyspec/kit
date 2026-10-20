@@ -455,18 +455,23 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
 }
 
 /**
- * Runs `commands` with the non-test files that differ between `before` and HEAD at their content of `before` (a file that `before`
- * lacks is removed), and restores each of them to HEAD in a finally, so the tree is exactly as it was. The tree must be clean.
+ * Runs `commands` with the files of the plans and the changelogs, and the non-test files that differ between `before` and HEAD, at
+ * their content of `before` (a file that `before` lacks is removed). The tree may change under docs/plans only, such as the state
+ * that the row takes when it becomes active; each file is then restored to the bytes it had, so the tree is exactly as it was.
  */
 function runBefore(root: string, id: string, before: string, commands: readonly string[], print: (text: string) => void): Run[] {
   const rev = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${before}^{commit}`], { cwd: root, encoding: 'utf8' });
   if (rev.status !== 0) throw new Error(`BEFORE=${before} is no commit`);
   const sha = rev.stdout.trim();
-  if (spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout.trim() !== '') throw new Error(`${id}: the tree has changes to tracked files; commit or stash them before make item-red BEFORE=${before}`);
-  const changed = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '' && !isTestFile(file));
+  const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(line => line !== '').map(line => line.slice(3));
+  const outside = dirty.filter(file => !file.startsWith('docs/plans/'));
+  if (outside.length > 0) throw new Error(`${id}: the tree has changes to tracked files outside docs/plans, ${outside.join(', ')}; commit or stash them before make item-red BEFORE=${before}`);
+  const changelogs = COMMIT_RULES.changelog ? [COMMIT_RULES.changelog.path, ...(COMMIT_RULES.changelog.translation ? [COMMIT_RULES.changelog.translation] : [])] : [];
+  const differs = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '');
+  const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => !isTestFile(file));
   const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;
-  let runs: Run[] = [];
-  const unrestored: string[] = [];
+  // The bytes of each file as the tree holds them now, so that the swap leaves the tree exactly as it was.
+  const saved = new Map(changed.map(file => [file, existsSync(path.join(root, file)) ? readFileSync(path.join(root, file)) : null] as const));
   try {
     for (const file of changed) {
       if (present(sha, file)) {
@@ -476,18 +481,13 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
         rmSync(path.join(root, file), { force: true });
       }
     }
-    runs = runCommands(root, id, commands, print);
+    return runCommands(root, id, commands, print);
   } finally {
-    for (const file of changed) {
-      if (present('HEAD', file)) {
-        if (spawnSync('git', ['checkout', 'HEAD', '--', file], { cwd: root }).status !== 0) unrestored.push(file);
-      } else {
-        rmSync(path.join(root, file), { force: true });
-      }
+    for (const [file, bytes] of saved) {
+      if (bytes === null) rmSync(path.join(root, file), { force: true });
+      else writeFileSync(path.join(root, file), bytes);
     }
   }
-  if (unrestored.length > 0) throw new Error(`${id}: could not restore these files to HEAD: ${unrestored.join(', ')}`);
-  return runs;
 }
 
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
