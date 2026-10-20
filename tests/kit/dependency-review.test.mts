@@ -136,3 +136,24 @@ test('the none-matched answer of composer outdated is no release, and is never r
   assert.match(result.stdout + result.stderr, /composer outdated in \. reported no release of psr\/log/);
   assert.doesNotMatch(result.stdout + result.stderr, /3\.0\.2 < \[none matched\]/);
 });
+
+// K369: a Composer package locked at a version above the latest release of the registry is not outdated, so the review never
+// proposes the older release (a downgrade), while a real newer release of another package is still proposed.
+test('the review never proposes a release older than the locked version of a Composer package (K369)', (t) => {
+  const root = fixture(t);
+  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
+  writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'polyspec/template': '^0.0.11', 'psr/log': '^3.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } }));
+  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify({ ...MONOREPO_LOCK, packages: [...MONOREPO_LOCK.packages, { name: 'polyspec/template', version: '0.0.11', dist: { type: 'zip', url: 'https://example.com/template.zip' } }] }));
+  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const at = path.basename(root);
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'polyspec/template': '0.0.6', 'psr/log': '3.0.2', 'example/framework': '1.1.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  const result = review(root, ['--update'], stub.env);
+  const calls = stub.calls();
+  assert.doesNotMatch(result.stdout, /polyspec\/template 0\.0\.11 < 0\.0\.6/, result.stdout);
+  assert.deepEqual(calls.filter(call => call.includes('polyspec/template:')), [], calls.join('\n'));
+  assert.match(result.stdout, /example\/framework 1\.0\.0 < 1\.1\.0: a newer stable release exists/);
+  assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0'), calls.join('\n'));
+});

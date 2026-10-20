@@ -414,8 +414,9 @@ export function review(root: string) {
     }
     // A linked package is judged by its link, not against the registry (K328).
     if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) continue;
-    // A dependency that its lock holds at no version is not at the latest release.
-    const outdated = answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate;
+    // A dependency that its lock holds at no version is not at the latest release. A locked version above the latest release is
+    // no newer release, though composer outdated reports update-possible for it: it is never a downgrade (K369).
+    const outdated = answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate && (dependency.version === null || older(dependency.ecosystem, dependency.version, String(answer.latest)));
     // The condition checks that exceptions has the key.
     if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${present(exceptions.get(key), 'exceptions.get(key)').reason}`);
     else if (outdated) {
