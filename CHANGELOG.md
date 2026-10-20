@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make install-packages` only runs `npm ci`, and `make install` links as its own last kit step, `make install-link`,
+  after the full `make install-tools`, since the link needs the Go that only the full install-tools installs; the
+  messages of the bootstrap name that order. Red: the documented order failed at the link after `npm ci`, and the
+  recipes held the link in install-packages; green: `node --test --test-name-pattern='K360|K205'
+  tests/kit/link.test.mts` passes (K360-1).
 - `make dependency-review` scans a Go module with the `go.work` that the link wrote beside its `go.mod`, so govulncheck
   compiles the linked modules that the code uses, while the version listing stays on the released modules
   (`GOWORK=off`); a failed Go scan is reported with its output and the fix of its cause, not as an outage of the

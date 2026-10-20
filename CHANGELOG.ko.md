@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 273ce854ba3690dc6ff29572b3d2a0e829b77ab052b86afea8dc9001d8521c25 -->
+<!-- source-sha256: bc5dab067ec5142e752576582e7828149a7514e41a7b7f14cc0b7fdfb2fad896 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make install-packages`는 `npm ci`만 실행하고, `make install`은 link에 전체 install-tools만 설치하는 Go가 필요하므로
+  전체 `make install-tools` 뒤 마지막 kit 단계인 `make install-link`로 link한다. bootstrap의 message는 그 순서를 말한다.
+  red: 문서의 순서가 `npm ci` 뒤 link에서 실패했고 recipe가 install-packages 안에서 link했다. green: `node --test
+  --test-name-pattern='K360|K205' tests/kit/link.test.mts`가 통과한다 (K360-1).
 - `make dependency-review`는 link가 `go.mod` 옆에 쓴 `go.work`로 Go module을 scan하므로 govulncheck가 code가 쓰는
   linked module을 compile하고, version 목록은 released module(`GOWORK=off`)에 머문다. 실패한 Go scan은 advisory
   database의 장애가 아니라 그 출력과 원인을 고치는 방법으로 보고된다. red: linked module의 scan이 `go.work` 없이
