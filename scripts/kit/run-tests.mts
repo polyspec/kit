@@ -27,7 +27,7 @@
 // SIGHUP, after which it ends on that signal. Only a SIGKILL of the runner itself, which no process can handle, leaves the
 // group running. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -186,6 +186,20 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       return { command: venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3')), args: ['-m', module ?? 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
+}
+
+/**
+ * The tests that the run of `argv` (the arguments of run-tests) selects, as PHPUnit lists them: the command of the run with
+ * --list-tests added, so the library and the extension are the run's own (K390-1). PHPUnit prints each test as ` - Class::method`.
+ */
+export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: NodeJS.ProcessEnv = process.env): string[] {
+  const options = parseArguments(argv, root);
+  const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
+  const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'], ...(library === undefined ? {} : { library }) }, root);
+  const result = spawnSync(command, args, { cwd: options.cwd, env: { ...callerEnv, ...library?.env }, encoding: 'utf8' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
+  return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
 }
 
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */
