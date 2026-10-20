@@ -80,6 +80,13 @@ test('a vendor whose platform check demands an older floor than .php-version is 
   assert.deepEqual(linkFindings(root, env), ['composer vendor/composer/platform_check.php: demands PHP id 80500 while .php-version names 80401; the vendor was installed from the tracked lock, run kit link']);
 });
 
+// The manifests of a repository that declares a polyspec dependency in each ecosystem, which the recipe rule needs (K349-2).
+const POLYSPEC_MANIFESTS: Record<string, string> = {
+  'package.json': JSON.stringify({ devDependencies: { '@polyspec/kit': '0.0.54' } }),
+  'composer.json': JSON.stringify({ require: { 'polyspec/x': '0.0.1' } }),
+  'pyproject.toml': '[project]\nname = "c"\nversion = "0"\ndependencies = ["polyspec-x==0.0.1"]\n',
+};
+
 test('a recipe that installs from a lock without the kit link step after it is a finding, and unlink and the link step pass (K349)', () => {
   const makefile = [
     'a-install:', '	composer install', '	$(MAKE) link', '',
@@ -88,7 +95,7 @@ test('a recipe that installs from a lock without the kit link step after it is a
     'unlink:', '	npm ci', '',
     'd-install:', '	$(MAKE) link', '	composer install', '',
   ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk'], file => (file === 'Makefile' ? makefile : 'x:\n\tnpm ci\n')), [
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), [
     'Makefile:6: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
     'Makefile:18: the recipe d-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
   ]);
@@ -103,7 +110,7 @@ test('a recipe that installs through a make variable without the link step after
     'e-install:', '\t$(NPM) ci', '\tnode kit link --siblings', '',
     'f-install:', '\t${UV} sync --frozen', '\tnode kit link --siblings', '',
   ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile'], () => makefile), [
+  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
     'Makefile:2: the recipe a-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
     'Makefile:5: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
     'Makefile:8: the recipe c-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
@@ -130,4 +137,14 @@ test('an install directory that is a symbolic link, and a workspace package that
   mkdirSync(path.join(own, 'node_modules/@x'), { recursive: true });
   symlinkSync(path.join(own, 'packages/a'), path.join(own, 'node_modules/@x/a'));
   assert.deepEqual(linkFindings(own, process.env), []);
+});
+
+// K349-2: the recipe rule holds where a link can link, outside the chain of make install, which links last.
+test('the recipe rule holds only for an ecosystem with a polyspec dependency, and not for a recipe that make install reaches (K349-2)', () => {
+  const kitLike = ['install-packages:', '\t$(NPM) ci', ''].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'package.json'], file => (file === 'Makefile' ? kitLike : JSON.stringify({ devDependencies: { typescript: '6.0.0' } }))), [], 'a repository without a polyspec dependency has nothing to link');
+  const consumer = ['install: install-kit repo-install', 'install-kit:', '\t$(MAKE) --no-print-directory install-packages', 'install-packages:', '\t$(NPM) ci', 'repo-install:', '\tcomposer install', 'gen:', '\tcomposer install', ''].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? consumer : POLYSPEC_MANIFESTS[file])), [
+    'Makefile:9: the recipe gen installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+  ], 'install reaches install-packages by a make call and repo-install by a prerequisite, and links last; gen is outside it');
 });

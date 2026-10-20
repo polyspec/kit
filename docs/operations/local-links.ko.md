@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 6dbae00ebab9f809389e4a55c88f9809b6a0d573ec0b28f0760c1d1401316323 -->
+<!-- source-sha256: b837c1472ad6bb750c12f12e39a2eb0688021a1cfdaa6dbbe12539c41c4791af -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -43,7 +43,7 @@
 - `--project`(S-426): `link`, `check`, `unlink`에 `--project`를 주면 각 `<dir>` 바로 아래의 매니페스트(package.json, composer.json, pyproject.toml, go.mod)만 다루고 중첩 프로젝트는 다루지 않는다. 주지 않으면 `<dir>` 아래 트리 전체를 다룬다. `kit-bootstrap.mk`의 설치 recipe가 이것을 주므로, 설치는 설치한 프로젝트만 정확히 링크한다. 이름을 준 프로젝트가 설치되어 있지 않으면 여전히 실패한다. `--project`일 때 Composer 프로젝트는 `<dir>` 자신이다. 그 vendor는 `<dir>`에서 `composer config vendor-dir`가 주는 것이고, `<dir>`에 composer.json이 없으면 Composer는 관여하지 않으며, `<dir>` 위의 vendor는 절대 취하지 않는다(K201-3).
 - 저장소 변수: Git hook은 자기 저장소의 변수(GIT_DIR, GIT_INDEX_FILE 등)를 내보내므로, `link`가 제공자 checkout 같은 다른 저장소에서 실행하는 모든 git 명령과 make는 `git rev-parse --local-env-vars`가 나열한 변수 없이 실행한다. git이 submodule에 들어갈 때와 같다(K201-4).
 - kit이 없는 곳(consumer 등)의 명령: `node <kit checkout>/dist/link.mjs link|check [--project <dir>] <checkout>...`, `unlink [--project <dir>]`, `rebuild <repository>...`, `packages <dir> python|npm`(선언된 polyspec 패키지를 한 줄에 하나씩), `cargo [--checkout <checkout>]... <dir> <cargo args>`. 도구는 recipe가 주면 `NPM`, `COMPOSER_BIN`, `UV`, `GO`, `CARGO`이고, 없으면 소비자의 도구(`var/tools/bin/npm`, mise shim, `mise.toml`의 Composer, rustup의 cargo)다. 없는 도구는 그 원인과 함께 실패한다. kit checkout은 한 번 빌드한다(그곳의 `make build`).
-- lock에서 설치하는 recipe는 설치 직후 같은 recipe 안에서 링크를 실행한다. 예: make할 때마다 `uv sync --frozen`이 도는 `$(PYTHON)` 규칙. 환경을 lock과 비교하는 검사(`uv sync --frozen --check` 등)는 root가 선언된 동안 polyspec 패키지를 빼고 외부 패키지만 정확히 검사한다: `uv sync --frozen --check --inexact`에 `link.mjs packages <dir> python`이 출력한 이름마다 `--no-install-package <name>`을 준다. 링크는 `link.mjs check`가 검사한다.
+- lock에서 설치하는 recipe는 링크할 수 있는 곳에서, install chain 밖에서 설치 직후 같은 recipe 안에서 링크를 실행한다(K349-2). 이 규칙은 저장소가 polyspec 의존성을 선언하는 ecosystem에 적용되며(kit은 선언하지 않는다), `make install`이 prerequisite나 `$(MAKE)` 호출로 이르는 recipe는 `install`의 마지막 `install-link` 하나가 다룬다(K360-2). lock에서 다시 설치하는 generator처럼 그 chain 밖의 recipe는 자기 직후에 링크한다. 예: make할 때마다 `uv sync --frozen`이 도는 `$(PYTHON)` 규칙. 환경을 lock과 비교하는 검사(`uv sync --frozen --check` 등)는 root가 선언된 동안 polyspec 패키지를 빼고 외부 패키지만 정확히 검사한다: `uv sync --frozen --check --inexact`에 `link.mjs packages <dir> python`이 출력한 이름마다 `--no-install-package <name>`을 준다. 링크는 `link.mjs check`가 검사한다.
 - `check`는 모든 설치 사본과 선언된 모든 polyspec 의존을 linked, NOT linked, STALE, own(이 저장소)으로 나열한다. NOT linked와 STALE이 있으면 실패한다.
 - `unlink`는 각 도구 자신의 설치(`npm ci`, 링크를 지운 뒤 그 프로젝트에서 `composer install`, `uv sync --locked`)로 checkout을 되돌리고, 링크가 그 소비자를 위해 쓴 파일(`go.work`, `go.work.sum`, Cargo lock 사본, `composer.link.json`, `composer.link.lock`)만 지운 뒤 비게 된 폴더를 지운다. 폴더를 재귀적으로 지우지 않으므로 중첩된 소비자의 파일은 남으며, 건너뛴 복원을 모두 보고하고 실패한다.
 

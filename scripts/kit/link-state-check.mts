@@ -15,6 +15,8 @@ import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { installedPackages } from './link.mts';
+import { EXCLUDED, type Ecosystem } from './link-providers.mts';
+import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -116,41 +118,87 @@ function platformFindings(root: string, installed: readonly Installed[]): string
   return found;
 }
 
-// The tool named literally, or through its make variable such as $(COMPOSER) install (K349-1).
-const INSTALL = /\b(?:composer\s+install|npm\s+ci|uv\s+sync)\b|\$(?:\(COMPOSER(?:_BIN)?\)\s+install|\{COMPOSER(?:_BIN)?\}\s+install|\(NPM\)\s+ci|\{NPM\}\s+ci|\(UV\)\s+sync|\{UV\}\s+sync)\b/;
+// The install from a lock of each ecosystem: the tool named literally, or through its make variable such as $(COMPOSER) install (K349-1).
+const INSTALLS: { ecosystem: Ecosystem; pattern: RegExp }[] = [
+  { ecosystem: 'composer', pattern: /\bcomposer\s+install\b|\$[({]COMPOSER(?:_BIN)?[)}]\s+install\b/ },
+  { ecosystem: 'npm', pattern: /\bnpm\s+ci\b|\$[({]NPM[)}]\s+ci\b/ },
+  { ecosystem: 'python', pattern: /\buv\s+sync\b|\$[({]UV[)}]\s+sync\b/ },
+];
 const LINKS = /\blink\b/;
 // An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
+// A make call of a recipe and the targets it names.
+const MAKE_CALL = /\$[({]MAKE[)}]((?:\s+[^\s;&|]+)+)/;
 
 /**
- * A recipe of the Makefiles of the repository that installs from a lock (composer install, npm ci, uv sync) runs the kit link step
- * after it in the same recipe (K349), so a fresh vendor does not read the tracked locks while polyspec checkouts are present. The
- * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
+ * The ecosystems in which the tracked manifests of `files` declare a polyspec dependency, which a link can link (K349-2); the manifests
+ * that provide nothing to a link (tests, examples, fixtures, config, as link-providers.mts leaves them out) declare none.
  */
-export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined): string[] {
-  const found: string[] = [];
-  for (const file of files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'))) {
-    const lines = (read(file) ?? '').split('\n');
-    let target = '';
-    let recipe: { line: number; text: string }[] = [];
-    const flush = () => {
-      const index = recipe.findIndex(({ text }) => INSTALL.test(text) && !TOOL_PROJECT.test(text));
-      if (target !== '' && target !== 'unlink' && index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
-        found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
-      }
-      recipe = [];
-    };
-    lines.forEach((text, index) => {
-      if (text.startsWith('\t')) { recipe.push({ line: index + 1, text }); return; }
-      flush();
-      target = /^([A-Za-z0-9_.-]+)\s*:(?!=)/.exec(text)?.[1] ?? '';
-    });
-    flush();
+function polyspecEcosystems(files: readonly string[], read: (file: string) => string | undefined): Set<Ecosystem> {
+  const found = new Set<Ecosystem>();
+  const names = (value: unknown) => (isJsonObject(value) ? Object.keys(value) : []);
+  for (const file of files.filter(name => !EXCLUDED.test(name))) {
+    const text = read(file);
+    if (text === undefined) continue;
+    const base = path.posix.basename(file);
+    if (base === 'package.json') {
+      const manifest = JSON.parse(text) as unknown;
+      if (isJsonObject(manifest) && ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'].some(kind => names(manifest[kind]).some(name => name.startsWith('@polyspec/')))) found.add('npm');
+    } else if (base === 'composer.json') {
+      const manifest = JSON.parse(text) as unknown;
+      if (isJsonObject(manifest) && ['require', 'require-dev'].some(kind => names(manifest[kind]).some(name => name.startsWith('polyspec/')))) found.add('composer');
+    } else if (base === 'pyproject.toml') {
+      // The requirements of the project, its extras and its dependency groups, read as TOML.
+      const toml = readToml(text, file);
+      const project = isTable(toml.project) ? toml.project : {};
+      const lists = [project.dependencies, ...(isTable(project['optional-dependencies']) ? Object.values(project['optional-dependencies']) : []), ...(isTable(toml['dependency-groups']) ? Object.values(toml['dependency-groups']) : [])];
+      if (lists.some(list => Array.isArray(list) && list.some(entry => typeof entry === 'string' && /^polyspec[-_.]/i.test(entry.trim())))) found.add('python');
+    }
   }
   return found;
 }
 
-// K375: the install directories of a checkout are real folders; a link there runs the sources of another checkout.
+/**
+ * A recipe of the Makefiles of the repository that installs from a lock (composer install, npm ci, uv sync) runs the kit link step
+ * after it in the same recipe (K349), so a fresh vendor does not read the tracked locks while polyspec checkouts are present. The rule
+ * holds only for an ecosystem in which the repository declares a polyspec dependency, which a link can link, and not for a recipe that
+ * make install reaches, through a prerequisite or a $(MAKE) call, since install links last, after every install (K349-2, K360-2). The
+ * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
+ */
+export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined): string[] {
+  const ecosystems = polyspecEcosystems(files, read);
+  const rules: { file: string; target: string; prerequisites: string[]; recipe: { line: number; text: string }[] }[] = [];
+  for (const file of files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'))) {
+    let rule: (typeof rules)[number] | undefined;
+    (read(file) ?? '').split('\n').forEach((text, index) => {
+      if (text.startsWith('\t')) { rule?.recipe.push({ line: index + 1, text }); return; }
+      const head = /^([A-Za-z0-9_.-]+)\s*:(?!=)([^#;]*)/.exec(text);
+      rule = head ? { file, target: head[1] ?? '', prerequisites: (head[2] ?? '').split(/\s+/).filter(Boolean), recipe: [] } : undefined;
+      if (rule) rules.push(rule);
+    });
+  }
+  // The targets that make install reaches: its prerequisites and the targets that their recipes make, transitively.
+  const reached = new Set<string>();
+  const visit = (target: string) => {
+    if (reached.has(target)) return;
+    reached.add(target);
+    for (const rule of rules.filter(entry => entry.target === target)) {
+      for (const next of rule.prerequisites) visit(next);
+      for (const { text } of rule.recipe) for (const word of MAKE_CALL.exec(text)?.[1]?.split(/\s+/) ?? []) if (/^[A-Za-z0-9_.-]+$/.test(word)) visit(word);
+    }
+  };
+  visit('install');
+  const found: string[] = [];
+  for (const { file, target, recipe } of rules) {
+    if (target === 'unlink' || reached.has(target)) continue;
+    const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
+    if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
+      found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
+    }
+  }
+  return found;
+}
+
 const INSTALL_DIRECTORIES = ['node_modules', 'vendor', '.venv', 'target', 'var'];
 const MANIFESTS = new Set(['package.json', 'composer.json', 'pyproject.toml', 'Cargo.toml']);
 
