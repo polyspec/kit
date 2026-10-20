@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fceeed683d4c4632351000236105ee37c80ba6952e30b45afd10115a240ee85a -->
+<!-- source-sha256: fe6ab0b80ccf744697eee13313967e001b421732a5ba53634893247db163bd7d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 typecheck가 통과한다(K288): `tests/kit/link.test.mts`의 두 assertion은 문자열 message를 넘기고 `tests/kit/parity-requirements.test.mts`는 `caseFile`을 주어졌을 때만 지정한다. Red: `npx tsc --noEmit -p .`가 link.test.mts(384,125)와 (387,134)의 TS2769, parity-requirements.test.mts(65,106)의 TS2375를 나열했다. Green: 출력이 없다.
 - `make rebuild-check`는 저장소의 layout(`scripts/`, package의 `scripts|tools|bin`, generator, benchmark, example, fixture generator)으로 tool source를 찾고 `config/rebuild.json`은 분류만 한다: `paths`를 없앴으므로 저장소는 gate가 보는 범위를 좁힐 수 없다(K286). 좁은 `paths`가 가리던 `install-php.mts`와 PHP·Python symbol extractor의 class를 kit 자신의 config에 추가했다. Red: `node --test tests/kit/rebuild-check.test.mts`가 선언한 path 밖 tool의 case에서 실패했다(benchmarks/run.js와 packages/codec/tools/make.mjs가 통과). Green: 통과하며, `node scripts/kit/rebuild-check.mts`는 처음에 kit의 미분류 tool 다섯을 지목한 뒤 통과한다.
 - PHP extension의 test는 `packages/php`의 PHPUnit 파일이다(K285), S10: `make test-php-ext`는 extension을 load해 `packages/php`(그리고 test가 있으면 `packages/php-ext`)를 실행하고, root `packages/php-ext`의 parity implementation은 layout에 따라 root `packages/php`의 implementation을 공유하므로, 저장소는 `config/parity.json`에 상대 경로(`../php/tests`)를 선언하지 않는다. Red: test 없는 fixture extension에 `node --test tests/kit/runtime-targets.test.mts`가 `cwd: 'packages/php-ext'`로 실패했고, `node --test --test-name-pattern=K285 tests/kit/parity.test.mts`가 `php-ext`의 R6을 찾았다. Green: 둘 다 통과한다.
 - var/tools의 Composer project 설치(PHPUnit, PHP lint)는 최신일 때만 유지한다: 설치의 composer.lock이 project의 lock과 byte 단위로 같고 Composer 자체의 `composer check-platform-reqs --lock`이 wrapped PHP 아래에서 통과해야 하며, 아니면 `make install-tools`가 다시 설치한다. 그래서 PHP 8.5로 만든 설치가 PHP 8.4에서 `Composer dependencies require a PHP version >= 8.5.0`으로 실패하지 않는다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` 0 passed, 3 failed; green: 3 passed (K284).

@@ -62,7 +62,7 @@ const directoryRun = (units: (Input & { caseFile?: string })[], files: Record<st
   const config = { requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) };
   return requirementFindings(config, Object.keys(all), read(all), new Map(Object.entries(cases))).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
 };
-const suite = (id: string, requirements: string[], caseFile?: string): Input & { caseFile?: string } => ({ id, kind: 'suite', file: 'tests/cases', requirements, caseFile, bindings: [{ implementation: 'ts', test: 'ts/b.test.ts' }] });
+const suite = (id: string, requirements: string[], caseFile?: string): Input & { caseFile?: string } => ({ id, kind: 'suite', file: 'tests/cases', requirements, ...(caseFile === undefined ? {} : { caseFile }), bindings: [{ implementation: 'ts', test: 'ts/b.test.ts' }] });
 
 test('a requirement that a directory suite cites is listed in the case.json of its case directories, never found in other files (R15, K277)', () => {
   const files = { ...DIRECTORY, 'tests/cases/text/order/case.json': CASE(['AB-2']), 'tests/cases/text/order/input.tpl': 'AB-3 is no citation of a case file' };

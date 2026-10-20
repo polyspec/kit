@@ -381,10 +381,10 @@ test('K280: a project of the consumer environment is installed with --no-deps, a
   const project = wheelFile(consumer, 'cons', fingerprintOf(consumer, 'python'));
   const own = installs.filter(item => item.includes(project));
   assert.equal(own.length, 1, installs.join('\n'));
-  assert.ok(own[0]?.includes('--no-deps') && own[0].includes('--reinstall-package cons') && !own[0].includes('polyspec_z'), own[0]);
+  assert.ok(own[0]?.includes('--no-deps') && own[0].includes('--reinstall-package cons') && !own[0].includes('polyspec_z'), installs.join('\n'));
   const providers = installs.filter(item => !item.includes(project));
   assert.equal(providers.length, 1, installs.join('\n'));
-  assert.ok(!providers[0]?.includes('--no-deps') && providers[0]?.includes('--constraints') && providers[0].includes('--overrides'), providers[0]);
+  assert.ok(!providers[0]?.includes('--no-deps') && providers[0]?.includes('--constraints') && providers[0].includes('--overrides'), installs.join('\n'));
 });
 
 test('K230: a provider installed from its wheel without the editable install is NOT linked, though its wheel is the one of the fingerprint', (t) => {
