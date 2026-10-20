@@ -336,6 +336,10 @@ worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the bra
 land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then removes the worktree and the branch; offline
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
+.PHONY: worktree-prune
+worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); offline
+	$(NODE) $(KIT)/worktree-prune.$(KIT_EXT)
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 

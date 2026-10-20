@@ -23,6 +23,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
 import { foreignTrusts } from './bootstrap/install-mise.mts';
+import { branchStates } from './worktree-prune.mts';
 
 // Only a package pinned at 0.0.x is linked (docs/operations/local-links.md).
 const ZERO = /^v?0\.0\./;
@@ -257,11 +258,18 @@ function trustFindings(root: string): string[] {
   return foreignTrusts(root).map(({ name, target }) => `mise trusted-configs ${name}: trusts ${target}, not the mise.toml of the checkout; run make install-tools`);
 }
 
+/** The findings of the merged branches of `root` that are left, with their worktree: `make worktree-prune` removes them (K381). */
+function mergedFindings(root: string): string[] {
+  return branchStates(root)
+    .filter(state => state.merged)
+    .map(state => `branch ${state.branch}${state.folder === undefined ? '' : ` in worktree ${path.relative(root, state.folder) || '.'}`} is merged into main and left. Fix: make worktree-prune`);
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
+  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);
