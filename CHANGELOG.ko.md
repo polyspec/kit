@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8efc5c71bc71d242c5c02a257ca6cc55f1f68cad7747c5273f4f09b1e6321ac7 -->
+<!-- source-sha256: 128d45624028cee0220e07b58c3fcc62c611ed26f02b76db512ebfe985b8ddee -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,9 @@
 
 - `make land`는 branch와 main에서 실행한 gate의 출력을 비교하기 전에 시스템 임시 폴더 안의 모든 경로를 하나의 자리표시자로
   읽는다. 그래서 duplication-check가 실행마다 새 임시 폴더에 쓰는 jscpd 설정을 더는 새 finding으로 보지 않는다(K394-2).
+- commit-msg hook은 `HEAD`가 `main`이고 `main`에 commit이 있는 동안의 commit을 거부한다(규칙 `commit-on-main`). row는
+  등록과 닫기를 포함해 자기 branch에서 commit하고 `make land`의 fast-forward로만 `main`에 닿는다. `main`을 만드는 저장소의
+  첫 commit만 예외이다(K404).
 
 - Composer project가 링크된 동안 `make dependency-review UPDATE=1`은 갱신하는 package 중 polyspec package가 아닌 것마다
   tracked `composer.lock`도 lock만으로 갱신한다. 그래서 기록한 review가 link lock이 tracked lock인 새 checkout에서도

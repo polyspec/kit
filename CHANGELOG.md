@@ -8,6 +8,9 @@
 - `make land` reads every path inside the temporary folder of the system as one placeholder before it compares the output
   of a gate on the branch and on main, so the jscpd configuration that duplication-check writes into a fresh temporary
   folder on each run is no longer taken for a new finding (K394-2).
+- The commit-msg hook refuses a commit while `HEAD` is `main` and `main` has a commit (rule `commit-on-main`): a row,
+  its registration and its close included, is committed on its own branch and reaches `main` only through the fast-forward
+  of `make land`; the first commit of a repository, which creates `main`, is the one exception (K404).
 
 - While a Composer project is linked, `make dependency-review UPDATE=1` also updates the tracked `composer.lock`, lock only,
   for each package it updates that is no polyspec package, so the review it records holds in a fresh checkout, whose link
