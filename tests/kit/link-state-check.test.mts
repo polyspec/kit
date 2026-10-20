@@ -187,3 +187,13 @@ test('a trusted-configs entry other than the checkout own mise.toml is a finding
   symlinkSync(home, path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
   assert.deepEqual(linkFindings(root, process.env), [`mise trusted-configs Users-maxkwon-dd34fea3d53e4d0: trusts ${home}, not the mise.toml of the checkout; run make install-tools`]);
 });
+
+// K428: a tools project of a repository outside its workspaces installs from its own lock in a target that install-packages runs
+// through INSTALL_PACKAGES_EXTRA; make install links after it through install-link, so the target needs no link step of its own.
+test('a target that installs a lock with no link after it is a finding, unless INSTALL_PACKAGES_EXTRA names it (K428)', (t) => {
+  const manifest = JSON.stringify({ devDependencies: { '@polyspec/kit': '0.0.54' } });
+  const plain = tree(t, { 'package.json': manifest, Makefile: 'svelte-tools-install:\n\tnpm ci --prefix tools\n' });
+  assert.deepEqual(linkFindings(plain, process.env), ['Makefile:2: the recipe svelte-tools-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line']);
+  const named = tree(t, { 'package.json': manifest, Makefile: 'INSTALL_PACKAGES_EXTRA := svelte-tools-install\nsvelte-tools-install:\n\tnpm ci --prefix tools\n' });
+  assert.deepEqual(linkFindings(named, process.env), []);
+});

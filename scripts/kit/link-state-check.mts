@@ -18,6 +18,8 @@ import { installedPackages } from './link.mts';
 import { EXCLUDED, type Ecosystem } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
+import { makeDatabase } from './owner-check.mts';
+import { expandMake } from './recipe-tools.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -173,7 +175,8 @@ function polyspecEcosystems(files: readonly string[], read: (file: string) => st
  * make install reaches, through a prerequisite or a $(MAKE) call, since install links last, after every install (K349-2, K360-2). The
  * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
  */
-export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined): string[] {
+// The targets of `extras` (INSTALL_PACKAGES_EXTRA, K428) need no link step of their own: install-packages runs them and make install links after them.
+export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined, extras: ReadonlySet<string> = new Set()): string[] {
   const ecosystems = polyspecEcosystems(files, read);
   const makefiles = files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'));
   // The targets and prerequisites of a rule are read after the expansion of the variables that the Makefiles assign, so a target
@@ -219,7 +222,7 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
   // A rule of several targets runs one recipe, so it is reached when one of its targets is.
   for (const { file, targets, recipe } of rules) {
     const target = targets.join(' ');
-    if (targets.includes('unlink') || targets.some(name => reached.has(name))) continue;
+    if (targets.includes('unlink') || targets.some(name => reached.has(name) || extras.has(name))) continue;
     const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
     if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
       found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
@@ -292,11 +295,17 @@ function mergedFindings(root: string): string[] {
     .map(state => `branch ${state.branch}${state.folder === undefined ? '' : ` in worktree ${path.relative(root, state.folder) || '.'}`} is merged into main and left. Fix: make worktree-prune`);
 }
 
+/** The make targets that INSTALL_PACKAGES_EXTRA of the Makefile of `root` names, read from the make database (K428). */
+function extraInstallTargets(root: string): Set<string> {
+  const make = makeDatabase(root);
+  return new Set(expandMake(make.variables.get('INSTALL_PACKAGES_EXTRA') ?? '', make.variables).split(/\s+/).filter(Boolean));
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
+  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

@@ -100,3 +100,17 @@ test('make install runs the bootstrap of kit first, then the install steps that 
   assert.ok(kit !== -1, `make install runs the bootstrap of kit:\n${lines.join('\n')}`);
   assert.ok(lines.indexOf('echo demo-install') > kit, `the steps of the repository follow the bootstrap:\n${lines.join('\n')}`);
 });
+
+test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after its npm ci, in order, with the npm of var/tools and the allow-remote setting (K428)', (t) => {
+  // A tools project outside the workspaces of the repository installs its own lock in a target of the repository.
+  const root = repository(t);
+  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\nINSTALL_PACKAGES_EXTRA := first-extra second-extra\n.PHONY: first-extra second-extra\nfirst-extra:\n\t$(NPM) extra-one\nsecond-extra:\n\t$(NPM) extra-two\n');
+  // After npm ci the package is installed: its kit.mk is there for the targets that the sub-makes read, as the stub npm assumes.
+  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
+  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
+  mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/bin/npm'), '#!/bin/sh\necho "npm allow-remote=$npm_config_allow_remote: $*"\n', { mode: 0o755 });
+  const run = make(root, '-s', 'install-packages');
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
+});
