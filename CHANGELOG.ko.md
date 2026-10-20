@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9bfefa81fb533fb5ac9cc6bd7cd4ef3a44bede57b58f2b0cc6f14a1f19d42b68 -->
+<!-- source-sha256: af0c7925ba65f6084306ca6a466f9ae7ec3d8b1359d5ef996ea7f9182842dfb6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 저장소의 tracked `go.work` 아래에 있는 module에 대해 link가 쓰는 `go.work`는 그 module과 provider 외에 그 workspace의
+  모든 module을 쓴다. 그래서 링크된 동안에도 저장소의 module이 서로를 import한다(K399).
 
 - `make parity-declarations-check UNITS="<id> ..."`는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만
   보고한다. 그래서 자기 unit의 선언을 고친 row는 다른 unit에 finding이 남아 있어도 통과한다. UNITS가 없으면 모든

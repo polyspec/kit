@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The `go.work` that the link writes for a module under a tracked `go.work` of the repository uses every module of that
+  workspace besides the module and the providers, so the modules of the repository still import each other while linked
+  (K399).
+
 - `make parity-declarations-check UNITS="<id> ..."` reports only the findings that name the units and those of
   `config/parity.json` itself, so a row that fixes the declarations of its units passes while other units still have
   findings; without UNITS it reports every finding (K400).
