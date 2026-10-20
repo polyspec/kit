@@ -1727,7 +1727,7 @@ test('a tools root holds single-language tooling tests that R6 accepts and every
   ]);
 });
 
-test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', (t) => {
+test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, (t) => {
   const git = (root: string) => {
     initRepository(root);
     const added = spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8' });

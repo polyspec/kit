@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The link and parity tests are bounded and cheaper: every case of `tests/kit/link.test.mts` has a 60 s timeout, a
+  sandbox repository is a copy of one configured `.git` folder instead of six git processes, and a link workspace
+  copies three repositories committed once per process (K301).
 - Parity rule R17 (leaked-internal) fails a public signature, parent class or interface that names an internal symbol:
   an `@internal` PHP class, a `_`-private Python name, or a TypeScript type that the entry point does not export (API
   Extractor `ae-forgotten-export`) (K307-1).

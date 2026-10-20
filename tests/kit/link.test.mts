@@ -4,10 +4,10 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test, { type TestContext } from 'node:test';
+import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
@@ -26,6 +26,9 @@ function seenUpdate(consumer: string): { file: string; targets: unknown[]; repos
   return { file: value.file, targets, repositories };
 }
 
+
+/** Every case has its own timeout (K301): a case that hangs fails after a minute instead of holding the run. */
+const test = (name: string, body: (t: TestContext) => void): void => { void nodeTest(name, { timeout: 60_000 }, body); };
 
 /** The checkout of kit. */
 const KIT = fileURLToPath(new URL('../../', import.meta.url));
@@ -57,19 +60,15 @@ function stub(bin: string, log: string, name: string, body: string) {
 }
 
 /**
- * A polyspec root with the provider checkout `prov` (the npm package @polyspec/x, the Composer package polyspec/y, the
- * Python package polyspec-z, which requires polyspec-w by its release URL, polyspec-w, and the Go module
- * github.com/polyspec/prov/go) and `kit` (@polyspec/kit), and the consumer checkout `cons`, whose npm project, Composer
- * vendor (under var/contracts, where its composer.json puts it), environment and go.mod hold released 0.0.x copies; the
- * tools are stubs in `bin`, which env names.
+ * The three repositories of every workspace, committed once per process (K301): creating them costs a few dozen git processes, so each
+ * workspace is a copy of this tree, which holds only tracked content; the files that name absolute paths are written after the copy.
  */
-function workspace(t: TestContext) {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-')));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const log = path.join(root, 'tools.log');
-  writeFileSync(log, '');
-  const bin = path.join(root, 'bin');
-  const provider = repository(root, 'prov', {
+let template: string | undefined;
+function workspaceTemplate(): string {
+  if (template !== undefined) return template;
+  const folder = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-template-')));
+  process.once('exit', () => rmSync(folder, { recursive: true, force: true }));
+  repository(folder, 'prov', {
     'packages/ts/package.json': JSON.stringify({ name: '@polyspec/x', exports: { '.': './dist/index.js' } }),
     'packages/ts/src/index.ts': 'export const x = 1;\n',
     'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', autoload: { 'psr-4': { 'Y\\': 'src/' } } }),
@@ -80,8 +79,8 @@ function workspace(t: TestContext) {
     'rust/Cargo.toml': '[package]\nname = "polyspec-prov"\nversion = "0.0.1"\n',
     '.gitignore': 'dist/\nvar/\n',
   });
-  const kit = repository(root, 'kit', { 'package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.53' }), '.gitignore': 'var/\n' });
-  const consumer = repository(root, 'cons', {
+  repository(folder, 'kit', { 'package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.53' }), '.gitignore': 'var/\n' });
+  repository(folder, 'cons', {
     'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: { '@polyspec/x': '0.0.1', '@polyspec/own': '0.0.1' }, devDependencies: { '@polyspec/kit': '0.0.53' } }),
     'package-lock.json': '{}',
     'packages/own/package.json': JSON.stringify({ name: '@polyspec/own' }),
@@ -95,6 +94,27 @@ function workspace(t: TestContext) {
     'Cargo.lock': 'version = 4\n',
     '.gitignore': 'node_modules/\nvar/\n.venv/\ngo.work\ngo.work.sum\n',
   });
+  template = folder;
+  return folder;
+}
+
+/**
+ * A polyspec root with the provider checkout `prov` (the npm package @polyspec/x, the Composer package polyspec/y, the
+ * Python package polyspec-z, which requires polyspec-w by its release URL, polyspec-w, and the Go module
+ * github.com/polyspec/prov/go) and `kit` (@polyspec/kit), and the consumer checkout `cons`, whose npm project, Composer
+ * vendor (under var/contracts, where its composer.json puts it), environment and go.mod hold released 0.0.x copies; the
+ * tools are stubs in `bin`, which env names.
+ */
+function workspace(t: TestContext) {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const log = path.join(root, 'tools.log');
+  writeFileSync(log, '');
+  const bin = path.join(root, 'bin');
+  cpSync(workspaceTemplate(), root, { recursive: true });
+  const provider = path.join(root, 'prov');
+  const kit = path.join(root, 'kit');
+  const consumer = path.join(root, 'cons');
   put(consumer, {
     'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }, { name: '@polyspec/kit', version: '0.0.53', location: 'node_modules/@polyspec/kit' }, { name: '@polyspec/own', version: '0.0.1', location: 'packages/own' }]),
     'node_modules/@polyspec/x/package.json': '{"name":"@polyspec/x","version":"0.0.1"}',
@@ -783,6 +803,7 @@ function kitSandbox(t: TestContext): string {
   copyFileSync(path.join(KIT, 'Makefile'), path.join(dir, 'Makefile'));
   mkdirSync(path.join(dir, 'scripts/kit/schema'), { recursive: true });
   mkdirSync(path.join(dir, 'scripts/kit/symbols'), { recursive: true });
+  mkdirSync(path.join(dir, 'scripts/kit/php-library'), { recursive: true });
   copyFileSync(path.join(KIT, 'scripts/kit/kit.mk'), path.join(dir, 'scripts/kit/kit.mk'));
   return dir;
 }
