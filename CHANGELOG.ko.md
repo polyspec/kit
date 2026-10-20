@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: beedc9382613d7fb902a685e159c01b47a655be75c795ee757be4c9dd2ec6c96 -->
+<!-- source-sha256: 749a4f02310158b8951c25058fa3a72582a674ca57cc8cbd30f3df49c2ef0f1c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 module이 자기 옆에서 읽는 파일이나 폴더를 kit-build가 dist에 담지 않으면 kit의 테스트가 실패하고, kit-build 테스트의
+  sandbox는 build가 담는 폴더를 Makefile에서 얻는다(K421).
 - run-tests는 표준 library만 쓰는 kit의 runner로 Python 테스트를 실행한다. runner는 테스트마다 자기 timeout을 주고 각각의
   경과 시간을 출력하므로 어떤 환경도 새 package가 필요 없다. `docs/operations/tool-inventory.md`는 언어마다 무엇이 테스트에
   timeout을 주는지 적는다(K371).

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A test of kit fails when a module of kit reads beside itself a file or folder that kit-build does not ship into dist, and
+  the sandbox of the kit-build test takes the folders that the build ships from the Makefile (K421).
 - run-tests runs the Python tests with a runner of kit, standard library only, that gives each test its own timeout and prints
   the elapsed time of each, so no environment needs a new package; `docs/operations/tool-inventory.md` states per language what
   gives a test its timeout (K371).
