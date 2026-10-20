@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 17b0f644a6c6c4b96623c63b380d89bfec38e9a25019baea6980ae554451ff07 -->
+<!-- source-sha256: 9f594a36cbe2b714d921622644d679bfc2c01e0a1fb5d908fc7bf4a53b568b9e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 실패한 명령의 message는 비어 있지 않은 두 stream을 stderr, stdout 순서로 모두 가지므로 도구가 stderr의 진행 뒤
+  stdout에 쓴 오류가 남는다. stream이 하나인 명령은 message가 그대로이다. red: stdout의 gen_stub.php 오류가 stderr의
+  download 진행 뒤에서 사라졌다. green: `node --test --test-name-pattern=K352 tests/kit/process.test.mts`가 통과한다
+  (K352).
 - `make parity-declarations-check`는 새 rule R18 duplicate-suite로 다른 case 집합에서 같은 requirement id를 인용하는 두
   directory suite를 두 unit과 id를 말하며 보고한다. 기능은 모든 구현이 test하는 하나의 unit이기 때문이다. red: 한
   기능의 두 suite가 통과했다. green: `node --test --test-name-pattern=K350 tests/kit/parity.test.mts`가 통과한다 (K350).

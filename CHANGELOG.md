@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The message of a failed command holds both of its streams, stderr and then stdout, each when it is not empty, so an
+  error that a tool writes on stdout after progress on stderr is kept; a command with one stream keeps its message.
+  Red: the error of gen_stub.php on stdout was dropped behind the download progress on stderr; green: `node --test
+  --test-name-pattern=K352 tests/kit/process.test.mts` passes (K352).
 - `make parity-declarations-check` reports, by the new rule R18 duplicate-suite, two directory suites that cite the
   same requirement ids from different case sets, naming both units and the ids, since a feature is one unit that
   every implementation tests. Red: two suites of one feature passed; green: `node --test --test-name-pattern=K350
