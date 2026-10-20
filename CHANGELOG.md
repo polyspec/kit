@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The twin driver merges `CHANGELOG.ko.md` and computes its marker as git merges `CHANGELOG.md`, by the merge attribute of
+  that file: a checkout whose hooks still merge it with union keeps a current twin through a rebase (K354-2).
 - A branch has commits of its own when its reflog records a commit made on it, so a fresh branch that a rebase moved onto a
   newer main is no longer taken for merged by `make worktree-prune` and `make link-state-check` (K381-1).
 - run-tests starts its runner with the environment of mise of the checkout (`toolsEnvironment`), so an owner test run

@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5eaea4026e08fbc5aecac5b45078621ac4a8667bc5b0685c1195729e176a4f04 -->
+<!-- source-sha256: c4f33de898f491a2f4db58a370a0dd52fbcf37cbe37f557809d54b83cc7869e9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- twin driver는 git이 `CHANGELOG.md`를 merge하는 방식대로, 그 파일의 merge attribute로 `CHANGELOG.ko.md`를 merge하고
+  marker를 계산한다. hook이 아직 union으로 merge하는 checkout도 rebase 뒤 현재의 twin을 갖는다(K354-2).
 - branch는 reflog가 그 위에서 만든 commit을 기록할 때 자기 commit을 가지므로, rebase로 더 새로운 main 위로 옮겨진 새
   branch를 `make worktree-prune`과 `make link-state-check`가 더는 merge된 것으로 보지 않는다(K381-1).
 - run-tests는 checkout의 mise 환경(`toolsEnvironment`)으로 runner를 시작하므로, shell에서 run-tests로 실행한 owner
