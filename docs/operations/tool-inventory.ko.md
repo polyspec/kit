@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1c295a34696008a3ffc1354219ae8fa0c8dffbd00cdaed17fcfcd49b5db14448 -->
+<!-- source-sha256: 80f4fe74d448a8053cbeff4e1b7f5bf724ecef4662fd10326262d8291de43e08 -->
 
 # 도구 목록
 
@@ -396,6 +396,16 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
   상태의 근거 record, record와 benchmark 파일, distribution 관찰, tracker 절의 배치 규칙, 하위 저장소로의 재귀.
 - changelog section과 `VERSION`의 비교(orm): release 검사가 manifest를 읽어 비교합니다.
 - orm의 `scripts/docs`, `scripts/features`는 제품 전용이므로 orm에 남습니다.
+
+## Rebuild check (K74, K286)
+
+`make rebuild-check`(S1)는 저장소의 모든 tool source에 class를 요구한다. kit이 tracked 파일 중에서 layout으로 tool source를
+찾고, `config/rebuild.json`은 그것을 분류만 한다(`tools`, `kind`는 `ecosystem`, `replaced`, `record`, `policy`이며 kind마다
+필요한 field가 있다). path 목록이 없으므로 저장소는 gate가 보는 범위를 좁힐 수 없다. tool source는 `scripts/`, `packages/*/`와
+`packages/*/*/`의 `scripts|tools|bin`, `benchmarks/`, `examples/` 아래의 script와 program(`mts`, `mjs`, `cjs`, `js`, `ts`,
+`py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>` generator, `tests/fixtures/*/generate.*`이다. test 파일,
+`.d.ts`, kit이 아닌 저장소에 있는 kit의 copy(`kit.copies`)는 아니다. class가 없는 tool source는 finding이고, tracked가 아닌
+파일의 class도 finding이다.
 
 ## Owner check (K8.1-1)
 

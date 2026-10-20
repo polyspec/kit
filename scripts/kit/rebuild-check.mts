@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Checks the classes of the tools of a checkout (`make rebuild-check`), as config/rebuild.json declares them. S1 forbids a
 // rebuild of what an ecosystem tool does, unless a rebuild record (docs/rebuild/<tool>.md) weighs the tools and says why none
-// fits. Every tracked file that `paths` selects has one class:
+// fits. kit finds the tool sources by the layout of the repository (TOOL_SOURCES); a repository cannot narrow them, it only
+// classifies them (K286). Every tool source has one class:
 //   ecosystem   it runs or uses an ecosystem tool, named in `tool`
 //   replaced    an ecosystem library replaces it in a registered item, with the `reason`
 //   record      kit keeps its own implementation; `record` is the rebuild record, which names the tool it covers
@@ -11,6 +12,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
+import { isTestFile } from './check-commits.mts';
+import { copiesOf, PACKAGE } from './kit-check.mts';
+import { readNpmManifest } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -21,17 +25,35 @@ export const DECLARATION = 'config/rebuild.json';
 export type RebuildClass = { kind: string; tool?: string; reason?: string; record?: string };
 
 /** The declaration of config/rebuild.json (scripts/kit/schema/rebuild.schema.json). */
-export type RebuildDeclaration = { schema: 1; comment?: string; paths: string[]; tools: Record<string, RebuildClass> };
+export type RebuildDeclaration = { schema: 1; comment?: string; tools: Record<string, RebuildClass> };
 
 // The field that each class needs, with the words of its finding.
 const NEEDS = { ecosystem: ['tool', 'the tool it uses'], replaced: ['reason', 'its reason'], record: ['record', 'its record'], policy: ['reason', 'its reason'] } as const;
 const isKind = (kind: string): kind is keyof typeof NEEDS => Object.hasOwn(NEEDS, kind);
 
+// The places where the tool sources of a repository lie, whatever it declares (K286): its scripts, the scripts, tools and bin of
+// its packages (and of their components), its generators, its benchmarks, its examples and the generators of its fixtures.
+const EXTENSIONS = '{mts,mjs,cjs,js,ts,py,php,sh,mk}';
+const SOURCE = `*.${EXTENSIONS}`;
+const TOOL_SOURCES = [
+  `scripts/**/${SOURCE}`, `packages/*/{scripts,tools,bin}/**/${SOURCE}`, `packages/*/*/{scripts,tools,bin}/**/${SOURCE}`,
+  '**/*_generate.go', `**/*.generate.${EXTENSIONS}`, `benchmarks/**/${SOURCE}`, `examples/**/${SOURCE}`, 'tests/fixtures/*/generate.*',
+];
+// A test is no tool, and a fixture generator is the one test-side tool.
+const isToolSource = (file: string) => matchesAny(TOOL_SOURCES, file) && !file.endsWith('.d.ts') && (!isTestFile(file) || matchesAny(['tests/fixtures/*/generate.*'], file));
+
+/** The tracked tool sources of `root`: the files of the layout, except the copies of kit in a repository other than kit. */
+export function toolSources(root: string, tracked: readonly string[]): string[] {
+  const manifest = existsSync(path.join(root, 'package.json')) ? readNpmManifest(root, 'package.json') : {};
+  const copies = new Set(manifest.name === PACKAGE ? [] : copiesOf(manifest).map(({ file }) => file));
+  return tracked.filter(file => isToolSource(file) && !copies.has(file));
+}
+
 /** The findings of `declaration` against the tracked files of `root`, sorted. */
 export function rebuildFindings(root: string, declaration: RebuildDeclaration, tracked: string[]): string[] {
   const findings: string[] = [];
   const files = new Set(tracked);
-  for (const file of tracked.filter(item => matchesAny(declaration.paths, item))) {
+  for (const file of toolSources(root, tracked)) {
     if (!Object.hasOwn(declaration.tools, file)) findings.push(`${file}: the tool has no class in ${DECLARATION}; declare it ecosystem, replaced, record or policy`);
   }
   for (const [file, entry] of Object.entries(declaration.tools)) {

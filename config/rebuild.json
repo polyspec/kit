@@ -1,10 +1,6 @@
 {
   "schema": 1,
   "comment": "The class of each tool of kit (S1, K74): ecosystem names the tool it uses, replaced the library and its item, record the rebuild record, policy the reason no ecosystem tool applies.",
-  "paths": [
-    "scripts/kit/**/*.mts",
-    "scripts/kit/*.mk"
-  ],
   "tools": {
     "scripts/kit/bootstrap/bootstrap.mts": {
       "kind": "record",
@@ -485,6 +481,26 @@
     "scripts/kit/wheel-dependencies.mts": {
       "kind": "ecosystem",
       "tool": "pip install --dry-run --report reads the Requires-Dist of a wheel (K123) and pip-requirements-js their PEP 508 form (K73)"
+    },
+    "scripts/kit/install-php.mts": {
+      "kind": "policy",
+      "reason": "polyspec pins the minor of .php-version and runs every tool with that PHP through exec wrappers over the PHP that the machine provides (K283, S8); mise would compile PHP from source and no ecosystem tool selects among the installed PHPs of a machine"
+    },
+    "scripts/kit/symbols/php/PublicSymbols.php": {
+      "kind": "ecosystem",
+      "tool": "nikic/php-parser reads the syntax of the PHP sources (K75)"
+    },
+    "scripts/kit/symbols/php/extract.php": {
+      "kind": "ecosystem",
+      "tool": "nikic/php-parser reads the syntax of the PHP sources (K75)"
+    },
+    "scripts/kit/symbols/php/reflection.php": {
+      "kind": "ecosystem",
+      "tool": "the Reflection API of PHP (K75)"
+    },
+    "scripts/kit/symbols/python.py": {
+      "kind": "ecosystem",
+      "tool": "ast of the Python standard library (K75)"
     }
   }
 }

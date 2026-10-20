@@ -436,6 +436,17 @@ Dropped behaviors:
 - The comparison of the changelog section with `VERSION` (orm): the release check reads the manifests and compares it.
 - The `trace` and `docs` scripts of orm (`scripts/docs`, `scripts/features`) are product-specific and stay in orm.
 
+## Rebuild check (K74, K286)
+
+`make rebuild-check` (S1) requires a class for every tool source of the repository. kit finds the tool sources by the layout,
+among the tracked files, and `config/rebuild.json` only classifies them (`tools`, with `kind` `ecosystem`, `replaced`, `record`
+or `policy` and the field each kind needs); it has no list of paths, so a repository cannot narrow what the gate sees. The
+tool sources are the scripts and programs (`mts`, `mjs`, `cjs`, `js`, `ts`, `py`, `php`, `sh`, `mk`) under `scripts/`, under
+`scripts|tools|bin` of `packages/*/` and `packages/*/*/`, under `benchmarks/` and under `examples/`, the `*_generate.go` and
+`*.generate.<script>` generators, and `tests/fixtures/*/generate.*`; a test file is none, nor a `.d.ts`, nor a copy of kit
+(`kit.copies`) in a repository other than kit. An unclassified tool source is a finding; so is a class of a file that is not
+tracked.
+
 ## Owner check (K8.1-1)
 
 `scripts/kit/owner-check.mts` replaces `owner-check.mts` of template, crudui and hyper and `owner_check.py` of

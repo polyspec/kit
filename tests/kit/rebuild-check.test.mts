@@ -18,7 +18,6 @@ const FILES = {
 };
 const DECLARATION: RebuildDeclaration = {
   schema: 1,
-  paths: ['scripts/kit/*.mts'],
   tools: {
     'scripts/kit/lint.mts': { kind: 'ecosystem', tool: 'ruff' },
     'scripts/kit/lock.mts': { kind: 'record', record: 'docs/rebuild/lock.md' },
@@ -76,6 +75,14 @@ test('a record must exist and name the tool it covers', (t) => {
   const silent = tree(t, { ...FILES, 'docs/rebuild/lock.md': '<!-- doc-id: rebuild-lock -->\n# Rebuild record: lock\n' });
   assert.deepEqual(rebuildFindings(silent, DECLARATION, tracked), [
     'docs/rebuild/lock.md: the record does not name scripts/kit/lock.mts, which config/rebuild.json says it covers',
+  ]);
+});
+
+test('a tool source that the layout finds is a finding, whatever the declaration names (K286)', (t) => {
+  const files = { ...FILES, 'packages/codec/tools/make.mjs': '', 'benchmarks/run.js': '' };
+  assert.deepEqual(rebuildFindings(tree(t, files), DECLARATION, Object.keys(files)), [
+    'benchmarks/run.js: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
+    'packages/codec/tools/make.mjs: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
   ]);
 });
 
