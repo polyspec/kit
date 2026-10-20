@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The Reflection compare of test-php-ext also reads the constants that the extension registers, and fails on one that the
+  PHP library does not define, as it already did for a class or a function outside the library (K338).
 - python-venv accepts an environment whose home is the Python of the shared installs of the main checkout, which a
   worktree runs since K387, so the install of the Python of a new worktree no longer fails (K387-1).
 - install-tools wraps `php-fpm` of the `sbin` of the PHP of `.php-version` beside php, php-config and phpize, and

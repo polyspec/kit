@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5fa88562a6c651eef872c755788ba8d9bade0956abcb5f8626e33233d6e019d9 -->
+<!-- source-sha256: 2c901f53fa641e12c91b9808bd80008a00a93eeb6a9256f48b1e688cf4e22931 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- test-php-ext의 Reflection 비교는 extension이 등록하는 상수도 읽고, library 밖의 class나 함수에서 이미 그랬듯 PHP
+  library가 정의하지 않는 상수에서 실패한다(K338).
 - python-venv는 home이 main checkout의 공유 install에 있는 Python인 환경을 받는다. K387 이후 worktree는 그 Python을
   실행하므로, 새 worktree의 Python 설치가 더는 실패하지 않는다(K387-1).
 - install-tools는 php, php-config, phpize 옆에 `.php-version`의 PHP의 `sbin`에 있는 `php-fpm`을 감싸고, toolchain-check는
