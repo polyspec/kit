@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1953ef1adf360ff96db2cf5e75917e9a190b7fa7c59c07a9724b6ec2dfc2c9f6 -->
+<!-- source-sha256: bf2a9606d2429882730b3a41b477a1e12abc1ca4f117b5446bfcda87d88145eb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer project가 linked인 동안 `make dependency-review`는 `composer.link.json`과 그 lock으로 Composer를 실행하고, linked
+  package를 registry와 비교하거나 update하지 않으며, tracked `composer.json`과 `composer.lock`을 바꾸지 않는다 (K340).
 - link와 parity test는 시간이 제한되고 더 싸다. `tests/kit/link.test.mts`의 모든 case는 60초 timeout을 갖고, sandbox repository는 git
   process 6개 대신 설정된 `.git` 폴더 하나의 복사이며, link workspace는 process당 한 번 commit한 repository 세 개를 복사한다 (K301).
 - Parity 규칙 R17(leaked-internal)은 internal symbol을 이름으로 가리키는 public signature, parent class, interface를 finding으로 한다.

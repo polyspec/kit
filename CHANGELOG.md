@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- While a Composer project is linked, `make dependency-review` runs Composer on `composer.link.json` and its lock,
+  does not compare a linked package with its registry or update it, and never changes the tracked `composer.json` and
+  `composer.lock` (K340).
 - The link and parity tests are bounded and cheaper: every case of `tests/kit/link.test.mts` has a 60 s timeout, a
   sandbox repository is a copy of one configured `.git` folder instead of six git processes, and a link workspace
   copies three repositories committed once per process (K301).

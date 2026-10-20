@@ -111,9 +111,9 @@ interface ComposerAdvisory { advisoryId: string | number; severity?: string | nu
 // PHP encodes an empty map as an empty list.
 interface ComposerAudit { advisories?: Record<string, ComposerAdvisory[] | Record<string, ComposerAdvisory>> | []; abandoned?: Record<string, string | null> | [] }
 
-function run(command: string, args: string[], cwd: string, statuses?: number[]): Ran {
+function run(command: string, args: string[], cwd: string, statuses?: number[], env?: NodeJS.ProcessEnv): Ran {
   try {
-    return { stdout: runCommand(command, args, { cwd, statuses }) };
+    return { stdout: runCommand(command, args, { cwd, statuses, env }) };
   } catch (error) {
     if (!(error instanceof Stop)) throw error;
     return { error: error.message };
@@ -122,8 +122,8 @@ function run(command: string, args: string[], cwd: string, statuses?: number[]):
 
 // The JSON that `command` prints as T, the type that the schema file `schema` describes, or { error }. An empty output is an
 // error, unless `empty` is the documented answer of the command that prints nothing.
-function query<T>(schema: string, command: string, args: string[], cwd: string, statuses?: number[], empty?: T): Answer<T> {
-  const result = run(command, args, cwd, statuses);
+function query<T>(schema: string, command: string, args: string[], cwd: string, statuses?: number[], empty?: T, env?: NodeJS.ProcessEnv): Answer<T> {
+  const result = run(command, args, cwd, statuses, env);
   if (result.error !== undefined) return result;
   if (!result.stdout.trim()) return empty === undefined ? { error: `${command} ${args.join(' ')} printed no JSON: the output is empty` } : { value: empty };
   try {
@@ -132,6 +132,15 @@ function query<T>(schema: string, command: string, args: string[], cwd: string, 
     if (!(error instanceof ConfigError)) throw error;
     return { error: error.message };
   }
+}
+
+/**
+ * The environment of a Composer command in `directory` of `root` (K340): while the project is linked (composer.link.lock exists),
+ * Composer reads composer.link.json and its lock, as the policy judges them (K326), so the review never resolves a linked polyspec
+ * package from its zip, never changes the tracked composer.json and composer.lock, and never reinstalls the vendor from them.
+ */
+export function composerEnvironment(root: string, directory: string): NodeJS.ProcessEnv | undefined {
+  return existsSync(path.join(root, directory, 'composer.link.lock')) ? { ...process.env, COMPOSER: 'composer.link.json' } : undefined;
 }
 
 /** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
@@ -192,6 +201,11 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
   const composer = new Map<string, Answer<ComposerOutdated>>();
   for (const dependency of state.dependencies) {
     const key = dependencyKey(dependency);
+    // A linked package is judged by its link, and the comparison with its latest release belongs to the batch release (K328, K340).
+    if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) {
+      latest.set(key, { latest: present(dependency.version, 'dependency.version') });
+      continue;
+    }
     if (dependency.ecosystem === 'npm') {
       if (!npm.has(dependency.package)) npm.set(dependency.package, npmLatest(root, dependency.package));
       // The line above sets the package.
@@ -225,7 +239,7 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     // composer outdated reports the latest stable release of every locked package, once for each root, and the review keeps
     // the first-party requirements: those of the root and of the packages of its path repositories (K168), which --direct,
     // the requirements of the root alone, would miss. composer audit reports an abandoned package.
-    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
+    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', 'composer', ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory), undefined, undefined, composerEnvironment(root, directory)));
     // The line above sets the directory.
     const answer = present(composer.get(directory), 'composer.get(directory)');
     if (answer.error !== undefined) {
@@ -351,7 +365,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
     // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.
-    const answer = query<ComposerAudit>('composer-audit.schema.json', 'composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {});
+    const answer = query<ComposerAudit>('composer-audit.schema.json', 'composer', ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {}, composerEnvironment(root, directory));
     const value = answered(lock, answer);
     if (value === undefined) continue;
     const list: Advisory[] = [];
@@ -533,11 +547,12 @@ function main(): void {
   let result = review(root);
   if (update) {
     print(result);
-    const plan = updatePlan(result);
+    // A linked package is moved by its link, not by the update (K340).
+    const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package)), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)) });
     let failed = 0;
     for (const step of plan) {
       say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
-      const outcome = spawnSync(step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit' });
+      const outcome = spawnSync(step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
       if (outcome.error || outcome.status !== 0) {
         failed += 1;
         say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { highestStableRelease, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEnvironment, highestStableRelease, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -77,6 +77,31 @@ test('a requirement of a published package of a Composer monorepo is reviewed fr
     { command: 'composer', args: ['require', '--no-update', '--no-interaction', 'psr/log:^3.0.3'], cwd: 'packages/fixture-php' },
     { command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', 'psr/log'], cwd: '.' },
   ]);
+});
+
+// K340: while a Composer project is linked, the review reads the link lock, so a linked package is not compared with its registry and
+// every Composer command runs on composer.link.json, never on the tracked project.
+test('while a Composer project is linked the review asks Composer for the link files and does not compare a linked package (K340)', (t) => {
+  const root = fixture(t);
+  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
+  writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'psr/log': '^3.0' }, config: { platform: { php: '8.2.0' } } }));
+  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify(MONOREPO_LOCK));
+  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t);
+  const at = path.basename(root);
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '3.0.3', 'example/framework': '1.0.0', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  assert.match(review(root, [], stub.env).stdout, /psr\/log 3\.0\.2 < 3\.0\.3: a newer stable release exists/, 'without a link the package is compared');
+  assert.equal(composerEnvironment(root, '.'), undefined, 'a project that is not linked runs Composer on its own files');
+  const linked = { ...MONOREPO_LOCK, packages: MONOREPO_LOCK.packages.map(item => (item.name === 'psr/log' ? { ...item, dist: { type: 'path', url: '../psr-log' } } : item)) };
+  writeFileSync(path.join(root, 'composer.link.json'), readFileSync(path.join(root, 'composer.json'), 'utf8'));
+  writeFileSync(path.join(root, 'composer.link.lock'), JSON.stringify(linked));
+  assert.equal(composerEnvironment(root, '.')?.COMPOSER, 'composer.link.json');
+  const result = review(root, [], stub.env);
+  assert.doesNotMatch(result.stdout, /psr\/log 3\.0\.2 < 3\.0\.3/, 'a linked package is judged by its link');
+  assert.doesNotMatch(result.stderr, /reported no release/);
+  assert.equal(readFileSync(path.join(root, 'composer.lock'), 'utf8'), JSON.stringify(MONOREPO_LOCK), 'the tracked lock is untouched');
 });
 
 // A requirement that only a dependency group of a pyproject.toml declares, here through the include of another group
