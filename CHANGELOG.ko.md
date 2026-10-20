@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8b3fc73b51b2868897a08b9f722ed942378a825b5ec229226cf21f2556f5a81a -->
+<!-- source-sha256: 780fd3507be922b48602bc61cad5589f383cbedad82c2d0e403edb15e20cc96c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- run-tests는 checkout의 mise 환경(`toolsEnvironment`)으로 runner를 시작하므로, shell에서 run-tests로 실행한 owner
+  테스트도 make에서처럼 checkout의 trust와 도구를 읽는다(K411).
 - kit의 `make install`은 PHP symbol extractor의 package도 설치하므로(`kit-install`), `make worktree-setup`이 만든 worktree가
   `make lint-php`를 실행한다(K412).
 - kit main에서 `make lint-php`가 다시 통과한다. kit의 PHP 파일 네 개에서 phpcs의 120자를 넘는 줄을 나누었고, extractor가

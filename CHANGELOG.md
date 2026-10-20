@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- run-tests starts its runner with the environment of mise of the checkout (`toolsEnvironment`), so an owner test run
+  through run-tests in a shell reads the trust and the tools of the checkout as it does under make (K411).
 - `make install` of kit also installs the packages of the PHP symbol extractor (`kit-install`), so a worktree that
   `make worktree-setup` makes runs `make lint-php` (K412).
 - `make lint-php` passes on kit main again: the lines over the 120 characters of phpcs in four PHP files of kit are
