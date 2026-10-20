@@ -211,6 +211,26 @@ test('a repository without an extension passes the check, the build and the test
   }
 });
 
+test('the build of an extension fails on a dropped result that must be checked, P8 for C (K334)', (t) => {
+  // A function that warn_unused_result declares: its result is dropped in MINIT, or used in the variant.
+  const checkedFunction = '__attribute__((warn_unused_result)) static int checked(void) { return 1; }\n\n';
+  const source = readFileSync(path.join(FIXTURE, 'polyspec_demo.c'), 'utf8');
+  const build = (call: string) => {
+    const injected = source.replace('static PHP_MINIT_FUNCTION(polyspec_demo)', `${checkedFunction}static PHP_MINIT_FUNCTION(polyspec_demo)`).replace(
+      'counter_entry = register_class_Polyspec_Demo_Counter();',
+      `counter_entry = register_class_Polyspec_Demo_Counter();\n\t${call}`,
+    );
+    const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-php-ext", "version": "1.2.3"}', 'packages/php/src/Demo.php': library('int'), 'packages/php-ext/src/polyspec_demo.c': injected });
+    assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+    return spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  };
+  const dropped = build('checked();');
+  assert.notEqual(dropped.status, 0, 'a dropped result fails the build');
+  assert.match(`${dropped.stdout}${dropped.stderr}`, /unused-result|warn_unused_result/);
+  const used = build('if (checked() != 1) { return FAILURE; }');
+  assert.equal(used.status, 0, used.stderr);
+});
+
 test('the compare of test-php-ext fails on a class, function or constant that the extension registers outside the library (K338)', (t) => {
   // The fixture registers one more class and one more constant in its MINIT, in the namespace Polyspec\Native, which the library does not have.
   const extra = readFileSync(path.join(FIXTURE, 'polyspec_demo.c'), 'utf8').replace(

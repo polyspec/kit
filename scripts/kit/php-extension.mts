@@ -200,10 +200,12 @@ export function build(root: string): string {
     // downloads; the check above proved the header current, so it is given the time of the stub.
     const stub = statSync(path.join(source, path.basename(names.stub)));
     utimesSync(path.join(source, path.basename(names.arginfo)), stub.atime, stub.mtime);
+    // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
+    const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source });
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source, env });
     console.log('[php-extension] make');
-    const made = run('make', [], { cwd: source });
+    const made = run('make', [], { cwd: source, env });
     const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
     if (warnings.length) throw new Stop(`the build of ${names.extension} has compiler warnings:\n${warnings.join('\n')}`);
     const library = path.join(root, OUTPUT, `${names.extension}.so`);
