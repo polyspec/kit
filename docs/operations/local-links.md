@@ -52,7 +52,7 @@ The links are the kit tool `scripts/kit/link.mts` (K201, K201-1, K205), which us
 - In a checkout beside the kit checkout `../kit`, the bootstrap takes `../kit/dist` as `KIT` from the first make on, the provider that the link installs, so a fresh worktree reads `kit.mk` before `npm ci` and installs with the tools of the kit it develops against; a kit checkout that is not built fails with `make build in ../kit` (K348-1). Without it, as in CI, `KIT` is the installed package.
 - No worktree is made while the free disk is under 30 GB (`WORKTREE_DISK_FLOOR` of `scripts/kit/worktree-setup.mts`).
 - An install directory of a worktree (`node_modules`, `vendor`, `.venv`, `target`, `var`) is its own, never a symbolic link to another checkout, so its tests run its own sources (K375). Until the tools of mise are shared by every checkout (K387), each worktree installs its tools too.
-- A worktree and its branch are removed as soon as the branch is merged into `main`.
+- A worktree and its branch are removed as soon as the branch is merged into `main`: `make land` removes the branch that it lands, and `make worktree-prune` removes every branch whose own commits (those after the creation point that its reflog records) are all in `main`, with its worktree when that has no uncommitted change; a fresh branch, with no commit of its own, is kept. `make link-state-check` fails while a merged branch is left (K381).
 
 ## Known effects
 

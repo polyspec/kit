@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: b837c1472ad6bb750c12f12e39a2eb0688021a1cfdaa6dbbe12539c41c4791af -->
+<!-- source-sha256: 2ca98737497de6f39e5be2137f69c1feebdbb9d54032bb9affecf1fbc9a36343 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -53,7 +53,7 @@
 - kit checkout `../kit` 옆의 checkout에서는 bootstrap이 첫 make부터 link가 설치하는 provider인 `../kit/dist`를 `KIT`로 쓰므로 새 worktree는 `npm ci` 전에 `kit.mk`를 읽고 자신이 개발하는 kit의 도구로 설치한다. build되지 않은 kit checkout이면 `make build in ../kit`과 함께 실패한다(K348-1). 없으면 CI처럼 `KIT`는 설치된 package이다.
 - 여유 disk가 30 GB 미만이면 worktree를 만들지 않는다(`scripts/kit/worktree-setup.mts`의 `WORKTREE_DISK_FLOOR`).
 - worktree의 install directory(`node_modules`, `vendor`, `.venv`, `target`, `var`)는 자기 것이며 다른 checkout으로의 symbolic link가 아니므로 그 test는 자기 source를 실행한다(K375). mise의 도구를 모든 checkout이 공유하기 전까지(K387) 각 worktree는 도구도 설치한다.
-- worktree와 branch는 branch가 `main`에 merge되면 바로 지운다.
+- worktree와 branch는 branch가 `main`에 merge되면 바로 지운다. `make land`는 land한 branch를 지우고, `make worktree-prune`은 자기 commit(reflog가 기록한 생성 지점 이후의 commit)이 모두 `main`에 있는 branch를 모두 지우며, 그 worktree에 commit하지 않은 변경이 없으면 worktree도 지운다. 자기 commit이 없는 새 branch는 남긴다. merge된 branch가 남아 있는 동안 `make link-state-check`는 실패한다(K381).
 
 ## 알려진 영향
 
