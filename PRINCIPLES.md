@@ -134,6 +134,20 @@ repository.
 - P31 No gate is bypassed: a test, script or Makefile never sets the CI identity (`GITHUB_ACTIONS`, `CI`) outside a workflow, never
   names a gate of kit-gates in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).
   Enforced by: `make bypass-check`
+- P32 Scope: a contract behaviour exists in every implementation (S6, S10), implemented with its tests. A language- or
+  runtime-native integration is written once as a neutral rule in docs/spec, and each implementation binds its native form
+  to it. An implementation-internal test is a plain test of its package, not a parity unit, and it cites no requirement; a
+  symbol that is public by accident becomes non-public.
+  Enforced by: `make parity-declarations-check`, `make parity-check`
+- P33 A rule that the work needs and docs/spec lacks is written in docs/spec first. A requirement is cited only by a test that
+  tests it, a unit is never dropped to pass, and nothing is renamed to escape a check.
+  Enforced by: `make parity-declarations-check`
+- P34 Repeated code is fixed by restructuring it into one module, never by excluding it; a tool source is classified; generated
+  output is never tracked in Git.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
+- P35 A finding that looks blocked by a release is a defect of the link tooling and is reported as a kit defect with its
+  file and line; only the re-resolution of a committed lock waits for the decision to release (K314).
+  Enforced by: none, whether a finding is a link defect or a release question is a judgement of the report.
 
 ## Repository standards
 

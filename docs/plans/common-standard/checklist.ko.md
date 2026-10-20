@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9c4d2e62473f36051ab51372c50388b5a1012db97498b164151f57409690eee7 -->
+<!-- source-sha256: 02a192ba307d4b35423a0828940bbdddcc04683deff3c5ab8ff4d148df2ccf4b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -111,3 +111,4 @@
 | K325 | make test-js와 make test-ts는 test 파일만 고른다. 원인: scriptTests가 tests/ 폴더 아래의 모든 script를 test로 취했고(isTestFile이 폴더를 센다) 표준 입력을 읽는 probe(ordered-json의 probe.mjs)가 test로 실행되어 멈췄다. 인수 조건: node 실행이 package의 *.test.*와 *.spec.* 파일(node와 vitest 규약의 이름)만 이름으로 부르고, test별 timeout은 run-tests의 것이다. | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |
 | K312 | rules-check는 target을 부른 변수 집합마다 펼친다. 원인: reached()가 방문한 target을 이름으로만 구분해서 workflow의 첫 make ci-targets TARGETS=... 호출만 펼쳐졌고 뒤의 호출의 target으로 강제되는 규칙(crudui의 push-gate.yml의 make hooks-check)이 어디서도 실행되지 않는다고 보고되었다. 인수 조건: 방문 key가 target과 그 변수이며 한 recipe의 모든 호출에 닿는다. | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts | `node --test --test-name-pattern=K312 tests/kit/check-rules.test.mts` | [o] |
 | K308 | make bypass-check는 모든 저장소의 gate이다. 원인: consumer의 test가 local 실행에서 suite를 막는 guard를 통과하려고 GITHUB_ACTIONS=true를 설정하고, gate를 건너뛰려고 make -o toolchain-check를 실행했는데 어느 것도 거부하는 검사가 없었다. 인수 조건: bypass-check(kit-gates에 있으므로 K289가 요구한다)가 workflow 밖에서 CI identity를 설정하거나, make -o, --old-file, --assume-old에 kit-gates의 gate를 적거나, --no-verify를 쓰는 추적되는 test, script, Makefile, Git hook에 실패하고, kit 자신의 도구와 test는 제외하며, PRINCIPLES P31이 규칙을 적는다. | scripts/kit/bypass-check.mts, scripts/kit/kit.mk, .github/workflows/ci.yml, tests/kit/bypass-check.test.mts, PRINCIPLES.md(.ko) | `node --test tests/kit/bypass-check.test.mts` | [o] |
+| K314 | conductor의 상시 결정은 kit의 규칙이다. 원인: 범위(모든 구현의 contract 동작, 고유한 통합은 중립 규칙 하나, parity unit이 아닌 내부 test, 없는 규칙은 docs/spec에 먼저, unit을 버리지 않음, test 없이 인용하지 않음, 검사를 피하려는 이름 변경 금지), provider(link만, release 때문에 막힌 finding은 link 결함), item 경계에 관한 결정이 어떤 도구도 보지 못하는 message와 scratch 파일에 있었다. 인수 조건: PRINCIPLES P32~P35(+ko)가 각각 Enforced by와 함께 이를 적고(빈 곳은 item K313과 K315), docs/operations/adoption.md(+ko)가 item 경계의 절차와 물을 수 있는 질문을 적는다. | PRINCIPLES.md(.ko), docs/operations/adoption.md(.ko.md) | `node scripts/kit/check-rules.mts` | [o] |

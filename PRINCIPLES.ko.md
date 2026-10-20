@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 2eec03576ec78cc7b4ac0df006ebba00adfb4ae5f4cb45a04c71c730cee6c0c0 -->
+<!-- source-sha256: 052f2c4416dabeb0d22fe3bb996442a233bcafbf869c896ef925e85c17e1b40a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -127,6 +127,18 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
   `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
   Enforced by: `make bypass-check`
+- P32 범위: contract 동작은 모든 구현에 있고(S6, S10) test와 함께 구현한다. 언어나 runtime에 고유한 통합은 docs/spec에
+  중립적인 규칙 하나로 쓰고, 각 구현이 자기 고유한 형태를 거기에 묶는다. 구현 내부 test는 자기 package의 보통 test이지 parity
+  unit이 아니며 requirement를 인용하지 않는다. 우연히 public인 symbol은 non-public이 된다.
+  Enforced by: `make parity-declarations-check`, `make parity-check`
+- P33 작업에 필요한데 docs/spec에 없는 규칙은 docs/spec에 먼저 쓴다. requirement는 그것을 test하는 test만 인용하고, unit을 통과하려고
+  버리지 않으며, 검사를 피하려고 이름을 바꾸지 않는다.
+  Enforced by: `make parity-declarations-check`
+- P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
+- P35 release 때문에 막힌 것처럼 보이는 finding은 link tooling의 결함이며 파일과 줄을 적어 kit 결함으로 보고한다. 커밋된 lock의
+  재resolve만 release 결정을 기다린다 (K314).
+  Enforced by: none, finding이 link 결함인지 release 문제인지는 보고의 판단이다.
 
 ## Repository 기준
 

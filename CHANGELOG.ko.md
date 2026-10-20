@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5a64b8a7bc0da97099848bf12aa02277952c41560c50658997934e4cb410f9c5 -->
+<!-- source-sha256: 66c687a86b2ac457cc7c416c22c20363fbd69d5374b2dc13757f04acb72d9371 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- conductor의 상시 결정은 kit의 규칙이다(K314): PRINCIPLES P32~P35가 범위(모든 구현의 contract 동작, 고유한 통합은 중립 규칙 하나, parity unit이 아닌 내부 test, `docs/spec`에 없는 규칙은 먼저 쓰기, unit을 버리지 않음, test 없이 인용하지 않음, 검사를 피하려는 이름 변경 금지, 반복된 code 재구성, 생성물 미추적)와 provider(release 때문에 막힌 finding은 link 결함)를 각각 `Enforced by`와 함께 적고, `docs/operations/adoption.md`가 item 경계의 절차와 물을 수 있는 질문을 적는다. Red: 결정이 message와 scratch 파일에 있었다. Green: `node scripts/kit/check-rules.mts`가 각 규칙을 그 검사와 함께 읽는다.
 - `make bypass-check`(K308)는 모든 저장소의 gate이다. workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하거나, `make -o`, `--old-file`, `--assume-old`에 `kit-gates`의 gate를 적거나, `--no-verify`를 쓰는 추적되는 test, script, Makefile, Git hook에 실패하고, kit 자신의 도구와 test는 제외한다. Red: 검사가 없어서 `GITHUB_ACTIONS: 'true'`나 `make -o toolchain-check`를 가진 test가 모든 gate를 통과했다(case가 `bypassFindings`를 import한다). Green: `node --test tests/kit/bypass-check.test.mts`가 각각을 찾는다.
 - `make rules-check`는 make target을 부른 변수 집합마다 한 번 펼치므로 workflow의 모든 `make ci-targets TARGETS=...` 호출에 닿고, 뒤의 호출의 target으로 강제되는 규칙이 어디서도 실행되지 않는다고 보고되지 않는다(K312). Red: `node --test --test-name-pattern=K312 tests/kit/check-rules.test.mts`가 `make second`를 닿지 않았다고 보고했다. Green: 아무것도 찾지 않는다.
 - `make test-js`와 `make test-ts`는 package의 `*.test.*`와 `*.spec.*` 파일, 곧 node와 vitest 규약의 이름만 부르므로 `tests/` 아래의 probe나 helper는 test로 실행되지 않는다(K325). Red: `node --test --test-name-pattern=K325 tests/kit/runtime-targets.test.mts`가 `tests/probe.mjs`와 `tests/helper.mts`를 나열했다. Green: test 파일만 나열한다.
