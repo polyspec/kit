@@ -15,7 +15,7 @@
 // step and has no time limit.
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
+import { MISE_WRAPPER, NODE_WRAPPER, removeForeignTrusts } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -34,6 +34,8 @@ import { declaredLintTools } from './toolchain-lint.mts';
 export function installTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const mise = toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
+  // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
+  removeForeignTrusts(root);
   // The Rust channels that the exceptions declare; a malformed exception fails here, as toolchain-check reports it.
   const exceptions = readExceptions(root);
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));

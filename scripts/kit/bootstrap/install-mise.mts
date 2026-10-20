@@ -6,7 +6,7 @@
 // wrapper keeps every directory that mise reads or writes under var/tools, records the trust of the config of the checkout (trustConfig) and installs only
 // what mise.lock pins (MISE_LOCKED), so nothing of the machine changes and no config of the home is read.
 import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import { writeAtomic } from './files.mts';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
@@ -25,12 +25,39 @@ export const MISE_ASSETS: Readonly<Record<string, string>> = {
  * Records the trust of the mise.toml of the checkout `root` with `mise trust` in the state dir of the checkout (MISE_STATE_DIR),
  * run by the mise `binary` with the environment of mise of the checkout. Each shim of the checkout reads that config only once it
  * is trusted there, so a new worktree is trusted by its own install of mise and no environment variable trusts a path (K208).
+ * The trust of the checkout is then the only entry of its trusted-configs: the other entries, of the home directory, of other
+ * checkouts and of removed worktrees, are removed.
  */
 export function trustConfig({ root, binary, print = () => {} }: { root: string; binary: string; print?: (text: string) => void }): void {
   const environment: NodeJS.ProcessEnv = { ...process.env, ...miseEnvironment(root) };
   // With MISE_GLOBAL_CONFIG_FILE set, `mise trust` trusts the global configuration instead of the file it names, so it is unset here (K208).
   delete environment.MISE_GLOBAL_CONFIG_FILE;
   run(binary, ['trust', path.join(root, 'mise.toml')], { cwd: root, env: environment }, print);
+  removeForeignTrusts(root);
+}
+
+/** Removes the entries of trusted-configs of the checkout `root` that trust something other than its own mise.toml. */
+export function removeForeignTrusts(root: string): void {
+  const directory = toolsPath(root, 'mise', 'state', 'trusted-configs');
+  for (const { name } of foreignTrusts(root)) rmSync(path.join(directory, name), { recursive: true, force: true });
+}
+
+/**
+ * The entries of trusted-configs of the checkout `root` that trust something other than the mise.toml of the checkout, each with
+ * the path it trusts (K397). mise records a trust as a link to the folder of the file, so a link to the home directory trusts every
+ * mise.toml under it, and a link to the folder of a removed worktree trusts a folder that no longer holds a config.
+ */
+export function foreignTrusts(root: string): { name: string; target: string }[] {
+  const directory = toolsPath(root, 'mise', 'state', 'trusted-configs');
+  if (!existsSync(directory)) return [];
+  const own = new Set([path.resolve(root), realpathSync(root)]);
+  const found: { name: string; target: string }[] = [];
+  for (const name of readdirSync(directory)) {
+    const entry = path.join(directory, name);
+    const target = lstatSync(entry).isSymbolicLink() ? path.resolve(directory, readlinkSync(entry)) : entry;
+    if (!own.has(target)) found.push({ name, target });
+  }
+  return found.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 /** The download URL of the mise archive of `version` for the asset `asset`. */

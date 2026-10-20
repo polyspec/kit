@@ -22,6 +22,7 @@ import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
+import { foreignTrusts } from './bootstrap/install-mise.mts';
 
 // Only a package pinned at 0.0.x is linked (docs/operations/local-links.md).
 const ZERO = /^v?0\.0\./;
@@ -251,11 +252,16 @@ function workspaceLinkFindings(root: string, folders: readonly string[]): string
   return found;
 }
 
+/** The findings of the trusted-configs of `root` that trust something other than its own mise.toml (K397). */
+function trustFindings(root: string): string[] {
+  return foreignTrusts(root).map(({ name, target }) => `mise trusted-configs ${name}: trusts ${target}, not the mise.toml of the checkout; run make install-tools`);
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
+  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

@@ -8,15 +8,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { TOOLS_GO_MOD } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
+import { tree } from './tree.mts';
 
 const VERSION = '2026.10.8';
 const KEY = `${process.platform}-${process.arch}`;
@@ -161,4 +162,25 @@ test('a checkout whose mise.lock pins no node bootstraps in the documented order
   assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'install --locked node']);
   assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
   assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the bootstrap downloaded mise again');
+});
+
+test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {
+  const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
+  const trusted = path.join(root, 'var/tools/mise/state/trusted-configs');
+  mkdirSync(trusted, { recursive: true });
+  // The records of an earlier install: the trust of the home directory, and the trust of a worktree that was removed.
+  symlinkSync('/stub/home', path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
+  symlinkSync(path.join(root, 'gone'), path.join(trusted, 'polyspec-gone-worktree'));
+  // A stub mise that records a trust as mise does: the folder of the file, or the home directory while MISE_GLOBAL_CONFIG_FILE is set.
+  const binary = path.join(root, 'mise-stub');
+  writeFileSync(binary, '#!/bin/sh\ndir="$MISE_STATE_DIR/trusted-configs"\nmkdir -p "$dir"\nif [ -n "${MISE_GLOBAL_CONFIG_FILE:-}" ]; then target=/stub/home; else target=$(dirname "$2"); fi\nln -sfn "$target" "$dir/$(basename "$target")-trust"\n');
+  chmodSync(binary, 0o755);
+  // make exports MISE_GLOBAL_CONFIG_FILE to every recipe (kit.mk), so the install of mise runs with it set.
+  const saved = process.env.MISE_GLOBAL_CONFIG_FILE;
+  process.env.MISE_GLOBAL_CONFIG_FILE = path.join(root, 'mise.toml');
+  t.after(() => { if (saved === undefined) delete process.env.MISE_GLOBAL_CONFIG_FILE; else process.env.MISE_GLOBAL_CONFIG_FILE = saved; });
+  trustConfig({ root, binary });
+  const entries = readdirSync(trusted);
+  assert.deepEqual(entries, [`${path.basename(root)}-trust`]);
+  assert.equal(readlinkSync(path.join(trusted, entries[0] ?? '')), root, 'the one trust is the folder of the checkout mise.toml');
 });

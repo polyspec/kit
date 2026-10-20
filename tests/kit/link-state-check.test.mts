@@ -148,3 +148,16 @@ test('the recipe rule holds only for an ecosystem with a polyspec dependency, an
     'Makefile:9: the recipe gen installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
   ], 'install reaches install-packages by a make call and repo-install by a prerequisite, and links last; gen is outside it');
 });
+
+test('a trusted-configs entry other than the checkout own mise.toml is a finding (K397)', (t) => {
+  const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
+  const trusted = path.join(root, 'var/tools/mise/state/trusted-configs');
+  mkdirSync(trusted, { recursive: true });
+  // The trust of the checkout own mise.toml is a link to the folder of the checkout, and it is no finding.
+  symlinkSync(root, path.join(trusted, 'own'));
+  assert.deepEqual(linkFindings(root, process.env), []);
+  // A link to a folder outside the checkout trusts the mise.toml under it, here the home directory of mise.
+  const home = tree(t);
+  symlinkSync(home, path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
+  assert.deepEqual(linkFindings(root, process.env), [`mise trusted-configs Users-maxkwon-dd34fea3d53e4d0: trusts ${home}, not the mise.toml of the checkout; run make install-tools`]);
+});
