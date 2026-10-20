@@ -6,13 +6,17 @@
 //   R14 unknown-requirement   a unit cites an id that the spec does not define
 //   R15 unnamed-requirement   a suite or feature unit cites an id that the test of a binding (or the vector file of a
 //                             suite) does not name: a test names the requirement it tests, so a unit cannot cite them all
+// A directory suite names its requirements in data (K277): each case directory of the unit holds case.json, read as JSON,
+// whose `requirements` array of strings lists the ids the case tests, and other keys are ignored. A missing or malformed
+// case.json is a declaration finding; an id of it that the spec does not define is R14 naming the file, reported once
+// although units share the directory; a unit's cited id is named for R15 when a case.json of the unit's case set lists it.
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
 import { finding, type Finding } from './parity-declaration.mts';
 
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 
 /** The findings of the trace of `config` against the spec among the checked `files`, read with `read`. */
-export function requirementFindings(config: { requirements: { pattern: string }; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[] }, files: Iterable<string>, read: (file: string) => string): Finding[] {
+export function requirementFindings(config: { requirements: { pattern: string }; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:[-*]\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
@@ -31,15 +35,44 @@ export function requirementFindings(config: { requirements: { pattern: string };
   if (defined.size === 0) return [finding('declaration', `requirements.pattern ${pattern} matches no requirement of docs/spec; the spec defines each requirement as a bullet **<id>** or a heading <id>`)];
   const cited = new Set<string>();
   const texts = new Map<string, string>();
-  // A suite file may be a directory of case directories, which names no requirement as a text.
+  // A suite file may be a directory of case directories, which holds no text: it is read through the case.json of its cases.
   const text = (file: string) => texts.get(file) ?? (texts.set(file, listed.has(file) ? read(file) : ''), texts.get(file) ?? '');
+  const caseIds = new Map<string, string[] | undefined>();
+  const caseJson = (file: string) => {
+    if (caseIds.has(file)) return caseIds.get(file);
+    let ids: string[] | undefined;
+    if (!listed.has(file)) findings.push(finding('declaration', `${file} is missing; a case of a directory suite lists the requirements it tests in its case.json`));
+    else {
+      let parsed: unknown;
+      let valid = true;
+      try { parsed = JSON.parse(read(file)); } catch (error) {
+        valid = false;
+        findings.push(finding('declaration', `${file} is not JSON: ${error instanceof Error ? error.message : String(error)}`));
+      }
+      if (valid) {
+        const listing = typeof parsed === 'object' && parsed !== null && 'requirements' in parsed ? parsed.requirements : undefined;
+        if (Array.isArray(listing) && listing.every((entry): entry is string => typeof entry === 'string')) {
+          ids = listing;
+          for (const id of ids) if (!defined.has(id)) findings.push(finding('R14', `${file} lists ${id}, which no file of docs/spec defines as a requirement (a bullet **${id}** or a heading ${id})`));
+        } else findings.push(finding('declaration', `${file}: requirements is no array of strings`));
+      }
+    }
+    caseIds.set(file, ids);
+    return ids;
+  };
+  const listedBy = (unit: { id: string; kind: string; file?: string }) => {
+    const names = cases.get(unit.id);
+    if (unit.kind !== 'suite' || unit.file === undefined || listed.has(unit.file) || names === undefined) return undefined;
+    return new Set(names.flatMap(name => caseJson(`${unit.file}/${name}/case.json`) ?? []));
+  };
   const named = (id: string, source: string) => new RegExp(`(?<![A-Za-z0-9-])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![0-9])`).test(source);
   for (const unit of config.units) {
     const tested = unit.kind !== 'api';
+    const directory = listedBy(unit);
     for (const id of unit.requirements) {
       if (tested) cited.add(id);
       if (tested && defined.has(id)) {
-        const vectors = unit.kind === 'suite' && unit.file !== undefined && named(id, text(unit.file));
+        const vectors = directory?.has(id) ?? (unit.kind === 'suite' && unit.file !== undefined && named(id, text(unit.file)));
         for (const binding of unit.bindings ?? []) {
           if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, implementation: binding.implementation }));
         }

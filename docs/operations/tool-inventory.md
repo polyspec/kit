@@ -1527,6 +1527,19 @@ and an opaque key would let any content pass the declaration check; (3) the coup
 file is the spec anchor, which the schema already validates. A consumer that wants one parity source keeps its language facts
 in `config/parity.json` and its other contract data in its own file.
 
+### Requirements of a case (K277)
+
+A case directory of a directory suite holds `case.json`, whose `requirements` array of strings lists the requirement ids that
+the case tests. kit reads it as JSON, never as text, and ignores its other keys, such as `stage`. For R15, an id that a
+unit cites is named when a `case.json` of that unit's case set lists it, so an id-like string in another file of the case
+counts for nothing. A missing `case.json`, invalid JSON or a `requirements` that is no array of strings is a `declaration`
+finding that names the file, and an id that docs/spec does not define is R14 that names the `case.json`, reported once
+although units share the directory.
+
+A unit may declare `caseFile`, a bare file name: its case set is then the selected case directories that hold that file.
+Units that share one directory each take the cases that hold the output they compare. `caseFile` on a suite whose file is
+a vector file is a declaration finding. A single-file suite keeps the text match of R15.
+
 ### Per-case admission
 
 A suite unit may declare `admit`: the key of each case object, beside the case name at `cases`, that lists the implementations
@@ -1552,7 +1565,7 @@ nothing, so it leaves the profile or is excluded with its reason and item.
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
 | `tools` | `root` and `reason` of each directory of single-language tooling tests that implement no contract, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; a root that overlaps an implementation root or holds the test of a binding is a declaration finding |
 | `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `profile`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, what lies inside a case not examined and a matched file a declaration finding; a go binding reports such a name as nested subtests) and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
+| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `profile`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
 | `nativeOnly` | `implementation`, `symbol` and `reason` of an exported symbol that only one implementation has |
 | `exclusions` | `unit`, `implementation`, `reason` and `item`, the checklist item that removes the exclusion |
 | `errors` | `profile` and `catalog` (`file`, `pattern`) |

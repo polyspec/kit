@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: cca5d78459385493053cc4255f1a596fbd1e9483429dc613fe5e247532a95b8e -->
+<!-- source-sha256: 70ae06b839e12fb23b0e5931ac7afebb354ff1144ad16c2cb988578f3dfaf49e -->
 
 # 도구 목록
 
@@ -370,7 +370,7 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: ... -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 70ae06b839e12fb23b0e5931ac7afebb354ff1144ad16c2cb988578f3dfaf49e... -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
@@ -1399,6 +1399,18 @@ rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 ke
 통과시킨다. (3) kit과 consumer 파일 사이에 실제로 있는 결합은 spec anchor이며, schema가 이미 그것을 검증한다. 한 spec의 language 사실을
 한 곳에 두려는 consumer는 language 사실을 `config/parity.json`에, 나머지 contract 데이터는 자기 파일에 둡니다.
 
+### case의 requirement (K277)
+
+directory suite의 case directory는 `case.json`을 가지며, 그 `requirements` 문자열 배열은 case가 test하는 requirement id를
+나열합니다. kit은 이를 text가 아니라 JSON으로 읽고, `stage` 같은 다른 key는 무시합니다. R15에서 unit이 인용한 id는 그 unit의
+case 집합의 `case.json` 하나가 나열하면 이름이 있는 것이므로, case의 다른 파일에 있는 id 모양의 문자열은 세지 않습니다.
+`case.json`이 없거나, JSON이 아니거나, `requirements`가 문자열 배열이 아니면 그 파일을 이름으로 가리키는 `declaration`
+finding이고, docs/spec이 정의하지 않는 id는 `case.json`을 가리키는 R14이며 unit들이 directory를 공유해도 한 번만 보고합니다.
+
+unit은 파일 이름 하나인 `caseFile`을 선언할 수 있습니다. 그러면 그 unit의 case 집합은 그 파일을 가진 선택된 case
+directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 출력을 가진 case를 가집니다. vector 파일을 가진 suite의
+`caseFile`은 declaration finding입니다. 단일 파일 suite는 R15의 text 일치를 그대로 씁니다.
+
 ### case별 admission
 
 suite unit은 `admit`을 선언할 수 있습니다. `admit`은 `cases`에서 case 이름 옆에 있는 각 case 객체의 key이며, 그 case를 admit하는
@@ -1424,7 +1436,7 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. case 안은 검사하지 않고, 맞은 파일은 declaration finding입니다. go binding은 그런 이름을 중첩 subtest로 보고합니다), `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
 | `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
 | `errors` | `profile`과 `catalog`(`file`, `pattern`) |

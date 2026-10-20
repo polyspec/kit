@@ -6,6 +6,7 @@
 ## Unreleased
 
 - `make install-tools` provides the PHP of `.php-version` by discovery: a `php` on PATH of that minor, else `php<minor>` of apt, else the `opt/php@<minor>` keg of Homebrew. It writes exec wrappers for php, php-config and phpize in var/tools/bin before the Composer installs, so every repository runs the pinned PHP whatever PHP the machine puts first on PATH, and it fails with the attempts when none matches. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
+- A case directory of a directory suite lists the requirements it tests in its `case.json` (`requirements`, read as JSON): R15 counts an id as named when a case.json of the unit's case set lists it, a missing or malformed case.json is a declaration finding, and an id of it that docs/spec does not define is R14; a unit may declare `caseFile` to take only the case directories that hold that file (K277).
 
 ## 0.0.54
 

@@ -58,6 +58,8 @@ export interface ParityUnit {
   requirements: string[];
   file?: string;
   cases?: string;
+  /** A directory suite: the file that each of its case directories holds, so only those cases are its cases (K277). */
+  caseFile?: string;
   bindings?: ParityBinding[];
   symbols?: ParitySymbol[];
 }
@@ -193,9 +195,10 @@ export function casesOf(value: unknown, cases: string): { names: string[]; entri
 /**
  * The case directories that `glob` selects in the directory `directory`, read from the checked `files`: each / step of the glob
  * matches one directory level, and each directory that the whole glob matches is a case named by its path relative to
- * `directory`; the files inside a case are not examined. A file that a step matches is an error, and so is a ** step.
+ * `directory`. With `caseFile`, only a selected directory that holds that file is a case (K277). A file that a step matches is
+ * an error, and so is a ** step.
  */
-function caseDirectories(files: ReadonlySet<string>, directory: string, glob: string): { names: string[]; errors: string[] } {
+function caseDirectories(files: ReadonlySet<string>, directory: string, glob: string, caseFile?: string): { names: string[]; errors: string[] } {
   const steps = glob.split('/');
   if (steps.some(step => step.includes('**'))) return { names: [], errors: [`the case glob ${glob} holds **; each / step of the glob matches one directory level`] };
   const names = new Set<string>();
@@ -209,7 +212,8 @@ function caseDirectories(files: ReadonlySet<string>, directory: string, glob: st
       else if (depth === steps.length) names.add(entry);
     }
   }
-  return { names: [...names], errors };
+  const held = caseFile === undefined ? [...names] : [...names].filter(name => files.has(`${directory}/${name}/${caseFile}`));
+  return { names: held, errors };
 }
 
 /** A value that a step of a case path selects, with where it lies and the object or array that holds it. */
@@ -567,9 +571,13 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
       fail(`${where}: ${unit.file} is a file, so cases is a path $… of its case names, not ${unit.cases}`);
       continue;
     }
+    if (!directory && unit.caseFile !== undefined) {
+      fail(`${where}: caseFile ${unit.caseFile} applies only to a suite whose file is a directory, and ${unit.file} is a file`);
+      continue;
+    }
     let found: { names: string[]; entries: CaseEntry[]; errors: string[] };
     if (directory) {
-      const read = caseDirectories(files, unit.file, unit.cases);
+      const read = caseDirectories(files, unit.file, unit.cases, unit.caseFile);
       found = { names: read.names, entries: read.names.map(name => ({ name, parent: undefined })), errors: read.errors };
       for (const error of found.errors) fail(`${where}: ${error}`);
     } else {

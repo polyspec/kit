@@ -16,7 +16,7 @@ const TESTS = { 'go/a_test.go': '// AB-1 AB-2 AB-3', 'ts/a.test.ts': "test('keep
 const bound = (unit: Input) => ({ ...unit, kind: unit.kind ?? 'feature', bindings: unit.bindings ?? [{ implementation: 'go', test: 'go/a_test.go' }, { implementation: 'ts', test: 'ts/a.test.ts' }] });
 const run = (units: Input[], files: Record<string, string> = SPEC) => {
   const all = { ...TESTS, ...files };
-  return requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) }, Object.keys(all), read(all)).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
+  return requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) }, Object.keys(all), read(all), new Map()).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
 };
 
 test('every requirement that the spec defines is cited by a unit: no finding', () => {
@@ -52,6 +52,48 @@ test('a requirement that a test unit cites appears in the test of every binding,
     { id: 'vectors', kind: 'suite', file: 'tests/v.json', requirements: ['AB-2'], bindings: [{ implementation: 'ts', test: 'ts/b.test.ts' }] },
   ], files), [
     'R15 codec ts: cites AB-3, which its test ts/b.test.ts does not name; a test names the requirement it tests',
+  ]);
+});
+
+const CASE = (ids: unknown) => JSON.stringify({ stage: 'x', requirements: ids });
+const DIRECTORY = { ...SPEC, 'ts/b.test.ts': "test('runs the cases')" };
+const directoryRun = (units: (Input & { caseFile?: string })[], files: Record<string, string>, cases: Record<string, string[]>) => {
+  const all = { ...TESTS, ...files };
+  const config = { requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound) };
+  return requirementFindings(config, Object.keys(all), read(all), new Map(Object.entries(cases))).map(f => `${f.rule} ${f.unit ?? '-'}${f.implementation ? ` ${f.implementation}` : ''}: ${f.message}`);
+};
+const suite = (id: string, requirements: string[], caseFile?: string): Input & { caseFile?: string } => ({ id, kind: 'suite', file: 'tests/cases', requirements, caseFile, bindings: [{ implementation: 'ts', test: 'ts/b.test.ts' }] });
+
+test('a requirement that a directory suite cites is listed in the case.json of its case directories, never found in other files (R15, K277)', () => {
+  const files = { ...DIRECTORY, 'tests/cases/text/order/case.json': CASE(['AB-2']), 'tests/cases/text/order/input.tpl': 'AB-3 is no citation of a case file' };
+  assert.deepEqual(directoryRun([suite('cases', ['AB-2', 'AB-3']), { id: 'rest', requirements: ['AB-1'] }], files, { cases: ['text/order'] }), [
+    'R15 cases ts: cites AB-3, which its test ts/b.test.ts does not name; a test names the requirement it tests',
+  ]);
+});
+
+test('caseFile restricts the case set of a unit: an id listed only by a case without that file is unnamed (R15, K277)', () => {
+  const files = { ...DIRECTORY, 'tests/cases/a/one/case.json': CASE(['AB-1']), 'tests/cases/a/one/out.html': 'x', 'tests/cases/a/two/case.json': CASE(['AB-2', 'AB-3']) };
+  assert.deepEqual(directoryRun([suite('html', ['AB-1', 'AB-2'], 'out.html')], files, { html: ['a/one'] }), [
+    'R15 html ts: cites AB-2, which its test ts/b.test.ts does not name; a test names the requirement it tests',
+    'R13 -: docs/spec/api.md defines AB-3, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+  ]);
+});
+
+test('a case.json that is missing, not JSON or without a requirements array of strings is a declaration finding (K277)', () => {
+  const files = { ...DIRECTORY, 'tests/cases/a/none/input.tpl': 'x', 'tests/cases/a/bad/case.json': '{not json', 'tests/cases/a/shape/case.json': CASE('AB-1'), 'tests/cases/a/mixed/case.json': CASE(['AB-1', 4]), 'tests/cases/a/good/case.json': CASE(['AB-1', 'AB-2', 'AB-3']) };
+  const found = directoryRun([suite('cases', ['AB-1', 'AB-2', 'AB-3'])], files, { cases: ['a/none', 'a/bad', 'a/shape', 'a/mixed', 'a/good'] });
+  assert.deepEqual(found.map(line => line.replace(/ is not JSON:.*/, ' is not JSON')), [
+    'declaration -: tests/cases/a/none/case.json is missing; a case of a directory suite lists the requirements it tests in its case.json',
+    'declaration -: tests/cases/a/bad/case.json is not JSON',
+    'declaration -: tests/cases/a/shape/case.json: requirements is no array of strings',
+    'declaration -: tests/cases/a/mixed/case.json: requirements is no array of strings',
+  ]);
+});
+
+test('an id of a case.json that the spec does not define is one R14 although two units share the directory (K277)', () => {
+  const files = { ...DIRECTORY, 'tests/cases/a/one/case.json': CASE(['AB-1', 'AB-9']), 'tests/cases/a/one/out.html': 'x', 'tests/cases/a/one/out.txt': 'x' };
+  assert.deepEqual(directoryRun([suite('html', ['AB-1'], 'out.html'), suite('text', ['AB-1'], 'out.txt'), { id: 'rest', requirements: ['AB-2', 'AB-3'] }], files, { html: ['a/one'], text: ['a/one'] }), [
+    'R14 -: tests/cases/a/one/case.json lists AB-9, which no file of docs/spec defines as a requirement (a bullet **AB-9** or a heading AB-9)',
   ]);
 });
 

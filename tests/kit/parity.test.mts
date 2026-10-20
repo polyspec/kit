@@ -1555,9 +1555,10 @@ test('a case path step .~ selects the keys of an object as the case names (K42)'
 
 // Case directories, a suite whose file is a directory: tests/cases/<group>/<case>/, each holding the files of its case.
 const CASE_DIRECTORIES = {
-  'tests/cases/echo/html-escape-five-chars/case.json': '{}\n',
+  'tests/cases/echo/html-escape-five-chars/case.json': '{"requirements": ["CX-1"]}\n',
   'tests/cases/echo/html-escape-five-chars/expected.html': '&lt;\n',
-  'tests/cases/echo/bool/case.json': '{}\n',
+  'tests/cases/echo/bool/case.json': '{"requirements": ["CX-1"]}\n',
+  'tests/cases/if/true/case.json': '{"requirements": ["CX-1"]}\n',
   'tests/cases/if/true/input.tpl': 'x\n',
   'tests/cases/if/true/nested/deeper.json': '{}\n',
   'tests/vectors/width.json': null,
@@ -1590,6 +1591,9 @@ test('a suite file names a directory whose case glob matches one directory per c
   ]);
   assert.deepEqual(messages({ edit: (config) => { widthUnit(config).cases = '*'; return config; } }), [
     'declaration: unit width: tests/vectors/width.json is a file, so cases is a path $… of its case names, not *',
+  ]);
+  assert.deepEqual(messages({ edit: (config) => { widthUnit(config).caseFile = 'out.html'; return config; } }), [
+    'declaration: unit width: caseFile out.html applies only to a suite whose file is a directory, and tests/vectors/width.json is a file',
   ]);
   assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = 'none/*'; return config; } }), [
     'declaration: unit width: none/* selects no case in tests/cases',

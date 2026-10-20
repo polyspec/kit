@@ -102,7 +102,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
     ...undeclaredPublic(model, extracted.snapshots),
-    ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8')),
+    ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8'), model.cases),
   ];
   return { findings, ledger: executed.ledger };
 }

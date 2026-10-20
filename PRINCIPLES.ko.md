@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 4847310c067f6e617ce537ecb945e093f2beb7fcfcc62a0649b4eb364d83b4fd -->
+<!-- source-sha256: 91168c95b5141f477b8c090ae099b6c00f8ea08c4f038d8f715bd79bc2f99882 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -154,7 +154,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   가집니다(K245). `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
   그 안의 예외는 모두 이유를 가집니다.
   Enforced by: `make layout-check`
-- S6 언어 parity: repository의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test하고, docs/spec이 정의하는 각 requirement(bullet `**<id>**` 또는 heading `<id>`)는 unit이 인용하므로 모든 구현이 그것을 test합니다. 모든 unit은 모든 구현이 가집니다: profile, exclusion, native-only symbol은 없습니다.
+- S6 언어 parity: repository의 모든 구현은 같은 feature unit, vector, API를 같은 수준으로 test하고, docs/spec이 정의하는 각 requirement(bullet `**<id>**` 또는 heading `<id>`)는 unit이 인용하므로 모든 구현이 그것을 test합니다. 모든 unit은 모든 구현이 가집니다: profile, exclusion, native-only symbol은 없습니다. directory suite의 case는 자신이 test하는 requirement를 `case.json`에 나열합니다.
   Enforced by: `make parity-declarations-check`, `make parity-check`
 - S7 test 위치: 기본 기능의 test는 그 기능을 소유한 package와 repository에 둡니다. 소비자는 소비자 관점의 test만 둡니다.
   Enforced by: `make layout-check`, `make parity-declarations-check`
