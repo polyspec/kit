@@ -38,10 +38,21 @@ test('the hook refuses a command that waits: a sleep, and a loop that sleeps or 
     'make build && sleep 5',
     'env X=1 sleep 3',
     'for i in $(seq 1 150); do pgrep -f "make install-tools" >/dev/null || break; sleep 3; done',
-    'for i in 1 2 3; do test -f done.txt && break; done',
   ]) assert.match(refusal(command, anyFile) ?? '', waits, `refused: ${command}`);
   for (const command of ['for f in a b; do echo $f; done', 'grep sleep notes.txt', 'echo done']) {
     assert.equal(refusal(command, anyFile), null, `allowed: ${command}`);
+  }
+});
+
+// K386-1: a for loop over a list ends with its list, so a test in it polls nothing; a while or until loop can wait on a state.
+test('a test or ls in a for loop over a list is allowed, and in a while or until loop it polls (K386-1)', () => {
+  for (const command of [
+    'for file in vendor-php/autoload.php vendor-php/bin/phpunit; do test -f $file || { echo missing; exit 1; }; done',
+    'for i in 1 2 3; do test -f done.txt && break; done',
+    'for f in *.ts; do ls $f; done',
+  ]) assert.equal(refusal(command, anyFile), null, `allowed: ${command}`);
+  for (const command of ['while ! test -f done.txt; do :; done', 'until pgrep -f server; do echo wait; done', 'while true; do ls out; done', 'for f in a b; do sleep 1; done']) {
+    assert.match(refusal(command, anyFile) ?? '', /which has no known end/, `refused: ${command}`);
   }
 });
 

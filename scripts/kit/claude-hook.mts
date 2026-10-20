@@ -153,30 +153,47 @@ function waitRefusal(what: string): string {
   return `${what}, which has no known end: run one foreground command bounded by its own work and its timeout, or a run in the background that notifies at its end`;
 }
 
-/** The simple commands of the loops in `parts`: the words after the `do` of each loop, up to its `done`. */
-function loopBodies(parts: string[][]): string[][] {
-  const bodies: string[][] = [];
-  let loops = 0;
+/**
+ * The simple commands of each loop of `parts` with the kind of their innermost loop: the condition of a while or until loop and the
+ * body of every loop (K386, K386-1).
+ */
+function loopCommands(parts: string[][]): { kind: string; words: string[] }[] {
+  const found: { kind: string; words: string[] }[] = [];
+  const kinds: string[] = [];
   for (const words of parts) {
     const head = words[0] ?? '';
-    if (head === 'for' || head === 'while' || head === 'until') loops += 1;
-    else if (head === 'done') loops -= 1;
-    else if (loops > 0) {
+    if (head === 'for' || head === 'while' || head === 'until') {
+      kinds.push(head);
+      if (head !== 'for' && words.length > 1) found.push({ kind: head, words: words.slice(1) });
+    } else if (head === 'done') kinds.pop();
+    else {
+      const kind = kinds.at(-1);
       const body = head === 'do' ? words.slice(1) : words;
-      if (body.length > 0) bodies.push(body);
+      if (kind !== undefined && body.length > 0) found.push({ kind, words: body });
     }
   }
-  return bodies;
+  return found;
 }
 
-/** Whether the simple command `words` sleeps, or polls for a process or a file, after its env and prefix words. */
-function sleepsOrPolls(words: string[]): boolean {
+/** The program and arguments of the simple command `words`, after its negation, env and prefix words. */
+function programOf(words: string[]): { program: string | undefined; args: string[] } {
   let rest = words;
-  while (rest[0] !== undefined && (rest[0] === 'env' || rest[0].startsWith('-') || assigned(rest[0]) || PREFIXES.has(rest[0]))) rest = rest.slice(1);
+  while (rest[0] !== undefined && (rest[0] === '!' || rest[0] === 'env' || rest[0].startsWith('-') || assigned(rest[0]) || PREFIXES.has(rest[0]))) rest = rest.slice(1);
   const [command, ...args] = rest;
-  if (command === undefined) return false;
-  const program = path.basename(command);
-  if (program === 'sleep' || POLLS.has(program)) return true;
+  return { program: command === undefined ? undefined : path.basename(command), args };
+}
+
+/** Whether the simple command `words` sleeps, which waits in a loop of any kind. */
+const sleeps = (words: string[]) => programOf(words).program === 'sleep';
+
+/**
+ * Whether the simple command `words` polls for a process or a file, which waits only in a while or until loop: their condition can wait
+ * on a state, while a for loop over a list ends with its list (K386-1).
+ */
+function polls(words: string[]): boolean {
+  const { program, args } = programOf(words);
+  if (program === undefined) return false;
+  if (POLLS.has(program)) return true;
   if (program === 'test') return ['-e', '-f', '-d'].includes(args[0] ?? '');
   return program === '[' && args[0] === '-e';
 }
@@ -204,7 +221,7 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
 /** The refusal of the Bash command `command` in `context`, or null; `seen` holds the make targets already read. */
 function refusalIn(command: string, context: Context, seen: Set<string>): string | null {
   const parts = commandParts(command);
-  if (loopBodies(parts).some(sleepsOrPolls)) return waitRefusal(`${command} sleeps or polls in a loop`);
+  if (loopCommands(parts).some(({ kind, words }) => sleeps(words) || (kind !== 'for' && polls(words)))) return waitRefusal(`${command} sleeps or polls in a loop`);
   for (const words of parts) {
     const refused = commandRefusal(words, context, seen);
     if (refused) return refused;
