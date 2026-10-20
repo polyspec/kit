@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f405b282bea00ce9fa6c24221761fd09a4ff85ddcf8c564f3d0725181a038e06 -->
+<!-- source-sha256: d4c78fd78fdf98e8ccf197e4f7a7858bda4d532a407974ee51e6e0c2b2c11eef -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -74,3 +74,4 @@
 | K277 | R15는 directory suite의 case file을 suite의 vector file처럼 읽는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts` | [o] |
 | K280 | link는 연결된 각 provider package의 dependency를 설치하지만 consumer 자신의 environment의 각 project는 --no-deps로 설치한다 | scripts/kit/link.mts, tests/kit/link.test.mts, docs/operations/local-links.md, docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [o] |
 | K284 | var/tools의 Composer project 설치는 lock이 project lock과 같고 wrapped PHP에서 platform 요구가 충족될 때만 최신이다 | scripts/kit/install-composer-project.mts, tests/kit/install-composer-project.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` | [o] |
+| K285 | PHP extension의 test는 packages/php의 PHPUnit 파일이다(S10 ruling 8). 원인: run-tests는 extension package에서만 phpunit을 실행했고 parity는 test가 implementation의 root 안에 있기를 요구해서, fsm이 config/parity.json과 php-ext target에 상대 경로(../php/tests, autoload-dev ../php/...)를 넣어야 했다. 인수 조건: make test-php-ext는 extension을 load해 packages/php를 실행하고(extension 자체 test가 있으면 그것도), packages/php-ext의 parity implementation은 layout으로 packages/php를 공유하므로 상대 경로를 선언하지 않는다. | scripts/kit/runtime-targets.mts, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, scripts/kit/schema/parity.schema.json, tests/kit/runtime-targets.test.mts, tests/kit/parity.test.mts, PRINCIPLES.md(.ko), docs/operations/tool-inventory.md(.ko.md) | `node --test tests/kit/runtime-targets.test.mts` `node --test --test-name-pattern=K285 tests/kit/parity.test.mts` | [o] |

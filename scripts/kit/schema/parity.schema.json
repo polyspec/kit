@@ -52,7 +52,7 @@
             "properties": { "file": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" }, "pattern": { "type": "string" } }
           },
           "shares": {
-            "description": "The implementation whose test files this one runs in its own runtime, such as a native extension that runs the tests of the library it replaces. R6 accepts a binding test of this implementation in the roots of the shared one; R5 still judges only this implementation's own roots and tests. It names another implementation of the same runner (K232).",
+            "description": "The implementation whose test files this one runs in its own runtime, such as a native extension that runs the tests of the library it replaces. R6 accepts a binding test of this implementation in the roots of the shared one; R5 still judges only this implementation's own roots and tests. It names another implementation of the same runner (K232). An implementation of the root packages/php-ext runs the tests of the implementation of the root packages/php without it (S10, K285).",
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           }

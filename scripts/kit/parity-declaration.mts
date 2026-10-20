@@ -35,6 +35,16 @@ export interface ParityImplementation {
   shares?: string;
 }
 
+/**
+ * The roots of the implementation whose test files `entry` runs in its own runtime: the one it declares with `shares`, or, by the
+ * layout of S10, the roots of the PHP library `packages/php` for the extension `packages/php-ext` of the same runner (K285).
+ */
+export function sharedRoots(entry: ParityImplementation, implementations: ReadonlyMap<string, ParityImplementation>): string[] {
+  if (entry.shares !== undefined) return implementations.get(entry.shares)?.roots ?? [];
+  if (!entry.roots.includes('packages/php-ext')) return [];
+  return [...implementations.values()].find(other => other.runner === entry.runner && other.roots.includes('packages/php'))?.roots ?? [];
+}
+
 /** The native test of an implementation in a suite unit. */
 export interface ParityBinding {
   implementation: string;

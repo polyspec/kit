@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: fd9f9fd5b6327df73fbe50148e904e383eab44630b8d667dfa9dc1151087fc8f -->
+<!-- source-sha256: 1c295a34696008a3ffc1354219ae8fa0c8dffbd00cdaed17fcfcd49b5db14448 -->
 
 # 도구 목록
 
@@ -1276,7 +1276,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 test 파일 전체의 실행이 오류로 끝나거나 그 `id`가 정확히 한 번 통과하지 않으면 실패합니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
 | R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
-| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`하는 implementation의 root 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
+| R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`하는 implementation의 root(root `packages/php-ext`의 implementation은 선언 없이 root `packages/php`의 implementation을 공유한다, S10) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
 | R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
 | R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
@@ -1435,7 +1435,7 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 
 | Key | 내용 |
 |---|---|
-| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다) |
+| `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 root `packages/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
 | `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |

@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
+import type { ParityConfig, ParityImplementation, ParityModel } from '../../scripts/kit/parity-declaration.mts';
+import { misplacedTests } from '../../scripts/kit/parity-units.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -1132,6 +1134,19 @@ test('R6: a binding of an implementation that shares the tests of another lies i
   assert.deepEqual(findings.filter(finding => finding.rule === 'declaration').map(finding => finding.message), []);
   assert.deepEqual(placed(findings), []);
   assert.deepEqual(findings.filter(finding => finding.rule === 'R5' && finding.implementation === 'gonative'), []);
+});
+
+test('R6: the tests of the PHP extension are those of packages/php, with no shares declared (K285)', () => {
+  const implementations: ParityImplementation[] = [
+    { name: 'php', runner: 'php', roots: ['packages/php'] },
+    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] },
+  ];
+  const config: ParityConfig = {
+    schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
+    units: [{ id: 'width', kind: 'feature', requirements: [], bindings: implementations.map(entry => ({ implementation: entry.name, test: 'packages/php/tests/WidthTest.php' })) }],
+  };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map() };
+  assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
 test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {

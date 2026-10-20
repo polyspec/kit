@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b3f1fb4a1494e7742625296994dd1c0c2d0fb72e4cdf3f054e1e311e42b1b22b -->
+<!-- source-sha256: 0c1539ecac4da8e16efcd2b03d50b221ccc788b92dbcb4b005985cb22c2b89b2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP extension의 test는 `packages/php`의 PHPUnit 파일이다(K285), S10: `make test-php-ext`는 extension을 load해 `packages/php`(그리고 test가 있으면 `packages/php-ext`)를 실행하고, root `packages/php-ext`의 parity implementation은 layout에 따라 root `packages/php`의 implementation을 공유하므로, 저장소는 `config/parity.json`에 상대 경로(`../php/tests`)를 선언하지 않는다. Red: test 없는 fixture extension에 `node --test tests/kit/runtime-targets.test.mts`가 `cwd: 'packages/php-ext'`로 실패했고, `node --test --test-name-pattern=K285 tests/kit/parity.test.mts`가 `php-ext`의 R6을 찾았다. Green: 둘 다 통과한다.
 - var/tools의 Composer project 설치(PHPUnit, PHP lint)는 최신일 때만 유지한다: 설치의 composer.lock이 project의 lock과 byte 단위로 같고 Composer 자체의 `composer check-platform-reqs --lock`이 wrapped PHP 아래에서 통과해야 하며, 아니면 `make install-tools`가 다시 설치한다. 그래서 PHP 8.5로 만든 설치가 PHP 8.4에서 `Composer dependencies require a PHP version >= 8.5.0`으로 실패하지 않는다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` 0 passed, 3 failed; green: 3 passed (K284).
 - `make install-tools`는 `.php-version`의 PHP를 탐색해서 제공한다: PATH의 해당 minor `php`, 없으면 apt의 `php<minor>`, 없으면 Homebrew의 `opt/php@<minor>` keg. Composer 설치 전에 php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰므로, machine이 어떤 PHP를 PATH 앞에 두어도 모든 저장소가 고정된 PHP로 실행되고, 일치하는 것이 없으면 시도한 목록과 함께 실패한다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
 - link는 소비자 자신의 환경의 각 프로젝트를 `--no-deps`로, 연결된 각 provider를 dependency와 함께 두 번의 install로 설치합니다. 소비자 자신의 프로젝트의 dependency는 소비자의 lock sync가 제공하므로, 다른 방식으로 제공되는 path dependency를 가진 프로젝트가 더는 install을 실패시키지 않습니다 (K280).

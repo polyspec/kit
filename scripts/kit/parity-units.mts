@@ -4,7 +4,7 @@
 // and R11 (an exported symbol that no API unit declares).
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { CONVENTIONS, finding, testNamed, within } from './parity-declaration.mts';
+import { CONVENTIONS, finding, sharedRoots, testNamed, within } from './parity-declaration.mts';
 import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
 import { present } from './present.mts';
 
@@ -88,8 +88,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const bindings = bound.flatMap(({ unit, entry }) => {
     // readDeclaration reports a binding of an implementation that is no declared implementation.
     const implementation = present(model.implementations.get(entry.implementation), 'model.implementations.get(entry.implementation)');
-    const shared = implementation.shares === undefined ? [] : present(model.implementations.get(implementation.shares), 'model.implementations.get(implementation.shares)').roots;
-    const roots = [...implementation.roots, ...shared];
+    const roots = [...implementation.roots, ...sharedRoots(implementation, model.implementations)];
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));

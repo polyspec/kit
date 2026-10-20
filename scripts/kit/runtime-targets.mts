@@ -40,6 +40,17 @@ const SCRIPT = /\.[cm]?[jt]sx?$/;
 const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && isTestFile(file)).map(file => path.posix.relative(folder, file));
 
 /**
+ * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): the PHP library beside it, named `php`, and the
+ * extension itself when it holds tests of its own; the extension alone when no library lies beside it.
+ */
+export function phpExtensionFolders(files: readonly string[], folder: string): string[] {
+  const library = path.posix.join(path.posix.dirname(folder), 'php');
+  const holds = (place: string) => files.some(file => file.startsWith(`${place}/`) && isTestFile(file));
+  const places = [library, folder].filter(place => holds(place));
+  return places.length ? places : [folder];
+}
+
+/**
  * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
  * and `extension` is the built library of the PHP extension, which its tests load.
  */
@@ -57,7 +68,7 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       return [{ cwd: folder, tool: 'phpunit', args: filter('--filter') }];
     case 'php-ext':
       if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
-      return [{ cwd: folder, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }];
+      return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }));
     case 'python':
       return [{ cwd: folder, tool: 'python', args: filter('-k') }];
   }
