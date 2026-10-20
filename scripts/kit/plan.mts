@@ -15,6 +15,10 @@
 //   item-test  ID=<id>
 //              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
 //              fails or that the Claude Code hook refuses (verification.mts)
+//   item-red   ID=<id>
+//              runs each command of the Verification cell of an active item after its test is written and before its fix,
+//              and records the commands that fail with HEAD and the hash of the test files in var/plan/<id>.json; a
+//              Verification that passes proves no red and is refused (K389)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
 //              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
@@ -31,13 +35,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { changedLineNumbers, changesATest, COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, indexItemFindings, isTestFile, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
 import { fileAt, git } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
-import { recordRed, redGateLines } from './gate-red.mts';
+import { hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
+import type { GateRecord, Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
@@ -340,6 +345,8 @@ export function setState(root: string, change: NewState, print: (text: string) =
     throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
   }
   const rules = COMMIT_RULES;
+  // The done state needs the red of the item on its parent: a gate or a test that item-state or item-red recorded (K357).
+  if (change.state === DONE && !hasRed(root, change.id)) throw new Error(`${change.id}: the red of its Verification is not recorded, so the Verification proves no red; make item-red ID=${change.id} runs it after the test is written and before the fix, and records its failure`);
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
     if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');
@@ -373,13 +380,7 @@ export function testItem(root: string, id: string, print: (text: string) => void
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
   const commands = itemCommands(read(tracker.path), tracker, id);
-  if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
-  let database: MakeDatabase | undefined;
-  for (const command of commands) {
-    // The command runs in the root, so a file that it names is judged from there (K353-2).
-    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)));
-    if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
-  }
+  refuseCommands(root, id, commands);
   // The types of the changed TypeScript are checked first (K309): the tests transpile without checking them.
   const typeFailure = typeErrorMessage(typeErrors(root, foldersOfChanged(root, changedFiles(root))));
   if (typeFailure) throw new Error(`${id}: ${typeFailure}`);
@@ -390,6 +391,57 @@ export function testItem(root: string, id: string, print: (text: string) => void
     if (result.status !== 0) throw new Error(`\`${command}\` of ${id} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`}`);
   }
   return commands;
+}
+
+/** Throws when `commands`, the Verification of `id`, name none, or one that the Claude Code hook refuses (K353-2). */
+function refuseCommands(root: string, id: string, commands: readonly string[]): void {
+  if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
+  let database: MakeDatabase | undefined;
+  for (const command of commands) {
+    // The command runs in the root, so a file that it names is judged from there (K353-2).
+    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)));
+    if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
+  }
+}
+
+/** The hash of the test files that the tree of `root` changes: each path and its text, in order. */
+function testTree(root: string): string {
+  const files = git(root, 'status', '--porcelain', '-uall').split('\n').filter(line => line !== '').map(line => line.slice(3)).filter(isTestFile).sort();
+  return sha256(files.map(file => `${file}\0${existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : ''}\0`).join(''));
+}
+
+/**
+ * Runs each command of the Verification cell of the active item `id` in `root` after its test is written and before its fix, and
+ * records the commands that fail in var/plan/<id>.json with HEAD and the hash of the test files: the red that a fix commit
+ * proves (Red-Test, check-commits). Throws, recording nothing, when the item is not active or the Verification passes, since it
+ * then proves no red.
+ */
+export function itemRed(root: string, id: string, print: (text: string) => void = text => console.log(text)): GateRecord {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
+  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  const state = readChecklist(read(tracker.path), tracker).items.find(item => item.id === id)?.state ?? '';
+  if (state !== ACTIVE) throw new Error(`${id} is ${state}; make item-red runs the Verification of an active item, after its test is written and before its fix`);
+  const commands = itemCommands(read(tracker.path), tracker, id);
+  refuseCommands(root, id, commands);
+  const runs: Run[] = [];
+  for (const command of commands) {
+    print(`[plan] ${id}: ${command}`);
+    const result = spawnSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' });
+    if (result.error) throw new Error(`\`${command}\` of ${id} could not start: ${result.error.message}`);
+    if (result.status === null) throw new Error(`\`${command}\` of ${id} ended with the signal ${result.signal}`);
+    print(`[plan] ${id}: ${command} exit ${result.status}`);
+    runs.push({ command, status: result.status });
+  }
+  if (runs.every(run => run.status === 0)) throw new Error(`${id}: the Verification passes before the fix, so it proves no red; write the test that reproduces the defect first`);
+  const head = git(root, 'rev-parse', 'HEAD').trim();
+  // The gates of an earlier run on the same HEAD stay; the tests are recorded with the tree of the test files.
+  const previous = readRecord(root, id);
+  const record: GateRecord = { head, gates: previous?.head === head ? previous.gates : [], tests: { tree: testTree(root), commands: runs } };
+  writeRecord(root, id, record);
+  print(`[plan] ${id}: the Verification fails before the fix on ${head.slice(0, 12)}, so it proves the red; make commit writes it`);
+  return record;
 }
 
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
@@ -459,10 +511,8 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
-  // A fix without a test carries the red of its gate that make item-state recorded on HEAD (K357); a Rust unit test is a test (K370).
-  const cached = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
-  const tested = cached.some(file => changesATest(file, entry => fileAt(root, '', entry), entry => changedLineNumbers(git(root, 'diff', '--cached', '-U0', '--', entry))));
-  const red = commit.type === 'fix' && !tested ? redGateLines(root, commit.id) : [];
+  // A fix carries the red that item-state and item-red recorded on HEAD: a gate of its row (K357) or a test before its fix.
+  const red = commit.type === 'fix' ? redLines(root, commit.id) : [];
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n${red.length ? `\n${red.join('\n')}\n` : ''}`;
   // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
   const twins = stagedTwinFindings(root);
@@ -500,6 +550,9 @@ if (isMain(import.meta.url)) {
     } else if (command === 'plan-split') {
       const split = { from: required(env.FROM, 'FROM'), to: required(env.TO, 'TO'), ids: required(env.IDS, 'IDS').split(/\s+/), title: env.TITLE, titleKo: env.TITLE_KO };
       for (const file of Object.keys(splitPlan(root, split))) console.log(`[plan] moved ${split.ids.join(' ')} in ${file}`);
+    } else if (command === 'item-red') {
+      const id = required(env.ID, 'ID');
+      itemRed(root, id);
     } else if (command === 'item-test') {
       const id = required(env.ID, 'ID');
       console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
@@ -507,7 +560,7 @@ if (isMain(import.meta.url)) {
       const commit = { id: required(env.ID, 'ID'), type: required(env.TYPE, 'TYPE'), scope: required(env.SCOPE, 'SCOPE'), subject: required(env.SUBJECT, 'SUBJECT'), bodyFile: path.resolve(required(env.BODY_FILE, 'BODY_FILE')) };
       console.log(`[plan] committed ${commitItem(root, commit).split('\n')[0] ?? ''}`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, plan-split, item-new, item-edit, item-state, item-test or commit`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, plan-split, item-new, item-edit, item-state, item-red, item-test or commit`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

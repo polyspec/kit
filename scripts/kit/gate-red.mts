@@ -1,10 +1,12 @@
-// The red of a kit gate (K357). A fix whose defect is a finding of a gate of kit-gates, such as a lint finding, has no unit test
-// that reproduces it: the gate is its test. make item-state records the red when the item becomes active: on a tree that equals
-// HEAD outside docs/plans it runs the gate commands of the Verification cell of the row and writes their exit statuses with HEAD
-// to var/plan/<id>.json. make commit writes each gate of that record that failed as a Red-Gate line of the message of a fix commit
-// that changes no test file, and check-commits accepts such a commit when a Red-Gate line names a gate command of the row, a status
-// other than 0 and the parent of the commit, and the commit moves the item to done, whose verification ran the gate green on the
-// tree of the commit (K335).
+// The red of a row before its fix (K357, K389). A fix whose defect is a finding of a gate of kit-gates, such as a lint finding, has
+// no unit test that reproduces it: the gate is its test. make item-state records the red when the item becomes active: on a tree
+// that equals HEAD outside docs/plans it runs the gate commands of the Verification cell of the row and writes their exit statuses
+// with HEAD to var/plan/<id>.json. A test has no such run on the parent of a fix that a test file changes, so make item-red runs
+// the Verification of the active row after its test is written and before its fix, and records the commands that fail with HEAD
+// and the hash of the test files. make commit writes each command of that record that failed as a Red-Gate or Red-Test line
+// of the message of a fix commit, and check-commits accepts a fix that moves the item to done when a Red-Gate or Red-Test line names
+// a command of the row, a status other than 0 and the parent of the commit; the done state of item-state needs such a record too
+// (K335).
 import { spawnSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -12,14 +14,21 @@ import { isJsonObject, jsonText, readJson, writeAtomic } from './bootstrap/files
 import { git } from './git.mts';
 import { makeDatabase } from './owner-check.mts';
 
-/** The record of the red of the gates of an item: the HEAD that they ran on and each gate command with its exit status. */
-export type GateRecord = { head: string; gates: { command: string; status: number }[] };
+/** A command of a Verification with its exit status. */
+export type Run = { command: string; status: number };
 
-// A line of a commit message that records the red of a gate on the parent of the commit.
-const RED_GATE = /^Red-Gate: (make \S+(?: [A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+))*) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
+/**
+ * The record of the red of an item: the HEAD that its runs ran on, each gate command with its exit status (K357), and, when item-red
+ * ran the Verification before the fix, each command with its exit status and the hash of the test files of that tree.
+ */
+export type GateRecord = { head: string; gates: Run[]; tests?: { tree: string; commands: Run[] } };
+
+// A line of a commit message that records the red of a command of the row on the parent of the commit: Red-Gate for a gate, Red-Test
+// for a test that item-red ran.
+const RED_LINE = /^Red-(?:Gate|Test): (.+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
 
 /** The file of the record of the item `id`. */
-const recordFile = (root: string, id: string) => path.join(root, 'var/plan', `${id}.json`);
+export const recordFile = (root: string, id: string) => path.join(root, 'var/plan', `${id}.json`);
 
 // A command that runs one make target, the form of a gate command, with the make variables that scope it after the target, such as
 // UNITS of K400 and RULES of K414 (K357-2); a value is a word or a quoted string.
@@ -48,10 +57,10 @@ export function gateCommands(commands: readonly string[], gates: ReadonlySet<str
 export function recordRed(root: string, id: string, commands: readonly string[], print: (text: string) => void): GateRecord | undefined {
   // The gates are read only for a command that runs one make target, which a gate command is.
   const targets = commands.filter(command => MAKE_TARGET.test(command.trim()));
+  rmSync(recordFile(root, id), { force: true });
   if (targets.length === 0) return undefined;
   const gates = gateCommands(targets, kitGates(root));
   if (gates.length === 0) return undefined;
-  rmSync(recordFile(root, id), { force: true });
   const loose = git(root, 'status', '--porcelain', '-uall').split('\n').filter(line => line !== '' && !line.slice(3).startsWith('docs/plans/'));
   if (loose.length > 0) {
     print(`[plan] ${id}: the tree differs from HEAD, so the gates of its Verification do not run on the parent and no red is recorded; a fix commit without a test file needs that red:\n${loose.join('\n')}`);
@@ -66,37 +75,63 @@ export function recordRed(root: string, id: string, commands: readonly string[],
     print(`[plan] ${id}: ${command} exit ${result.status}${result.status === 0 ? '; the gate passes on HEAD, so it records no red' : ''}`);
     record.gates.push({ command, status: result.status });
   }
-  writeAtomic(recordFile(root, id), jsonText(record));
+  writeRecord(root, id, record);
   return record;
 }
 
+/** Writes the record of the item `id`. */
+export function writeRecord(root: string, id: string, record: GateRecord): void {
+  writeAtomic(recordFile(root, id), jsonText(record));
+}
+
 /** The record of the item `id`, or undefined when there is none. */
-function readRecord(root: string, id: string): GateRecord | undefined {
+export function readRecord(root: string, id: string): GateRecord | undefined {
   const file = recordFile(root, id);
   if (!existsSync(file)) return undefined;
   const value = readJson(file);
-  if (!isJsonObject(value) || typeof value.head !== 'string' || !Array.isArray(value.gates)) throw new Error(`${path.relative(root, file)} is no record of the red of a gate; make item-state writes it`);
-  const gates = value.gates.map((gate: unknown) => {
-    if (!isJsonObject(gate) || typeof gate.command !== 'string' || typeof gate.status !== 'number') throw new Error(`${path.relative(root, file)} holds a gate that is no { command, status }`);
-    return { command: gate.command, status: gate.status };
-  });
-  return { head: value.head, gates };
+  const runs = (list: unknown, name: string): Run[] => {
+    if (!Array.isArray(list)) throw new Error(`${path.relative(root, file)} holds no ${name} list; make item-state or make item-red writes it`);
+    return list.map((run: unknown) => {
+      if (!isJsonObject(run) || typeof run.command !== 'string' || typeof run.status !== 'number') throw new Error(`${path.relative(root, file)} holds a run that is no { command, status }`);
+      return { command: run.command, status: run.status };
+    });
+  };
+  if (!isJsonObject(value) || typeof value.head !== 'string') throw new Error(`${path.relative(root, file)} is no record of the red of an item; make item-state writes it`);
+  const gates = runs(value.gates, 'gates');
+  if (value.tests === undefined) return { head: value.head, gates };
+  if (!isJsonObject(value.tests) || typeof value.tests.tree !== 'string') throw new Error(`${path.relative(root, file)} holds no tests tree; make item-red writes it`);
+  return { head: value.head, gates, tests: { tree: value.tests.tree, commands: runs(value.tests.commands, 'tests') } };
 }
 
-/** The Red-Gate lines of the item `id` for a commit on HEAD: each gate of its record that failed on HEAD; none for another HEAD. */
-export function redGateLines(root: string, id: string): string[] {
+/** The gates and the tests of the record of the item `id` that failed on HEAD; none for another HEAD. */
+function failedRuns(root: string, id: string): { head: string; gates: Run[]; tests: Run[] } | undefined {
   const record = readRecord(root, id);
-  if (!record || record.head !== git(root, 'rev-parse', 'HEAD').trim()) return [];
-  return record.gates.filter(gate => gate.status !== 0).map(gate => `Red-Gate: ${gate.command} exit ${gate.status} at ${record.head.slice(0, 12)}`);
+  if (!record || record.head !== git(root, 'rev-parse', 'HEAD').trim()) return undefined;
+  const failed = (runs: Run[]) => runs.filter(run => run.status !== 0);
+  return { head: record.head, gates: failed(record.gates), tests: failed(record.tests?.commands ?? []) };
+}
+
+/** Whether the item `id` has a red on HEAD: a gate or a test that failed on it, as item-state requires to move the item to done. */
+export function hasRed(root: string, id: string): boolean {
+  const failed = failedRuns(root, id);
+  return failed !== undefined && failed.gates.length + failed.tests.length > 0;
+}
+
+/** The Red-Gate and Red-Test lines of the item `id` for a commit on HEAD: each gate and test of its record that failed on HEAD. */
+export function redLines(root: string, id: string): string[] {
+  const failed = failedRuns(root, id);
+  if (!failed) return [];
+  const line = (kind: string, run: Run) => `${kind}: ${run.command} exit ${run.status} at ${failed.head.slice(0, 12)}`;
+  return [...failed.gates.map(run => line('Red-Gate', run)), ...failed.tests.map(run => line('Red-Test', run))];
 }
 
 /**
- * Whether `message` holds a Red-Gate line that names a command of `gateCommandsOfRow`, the gate commands of the row, and a prefix of
- * the commit `parent`; the gate commands are read only for a message with a Red-Gate line.
+ * Whether `message` holds a Red-Gate or Red-Test line that names a command of `commandsOfRow`, the commands of the row, and a prefix of
+ * the commit `parent`; the commands are read only for a message with such a line.
  */
-export function provesRed(message: string, gateCommandsOfRow: () => readonly string[], parent: string): boolean {
-  const lines = [...message.matchAll(RED_GATE)];
+export function provesRed(message: string, commandsOfRow: () => readonly string[], parent: string): boolean {
+  const lines = [...message.matchAll(RED_LINE)];
   if (lines.length === 0) return false;
-  const gates = gateCommandsOfRow();
-  return lines.some(match => gates.includes(match[1] ?? '') && parent.startsWith(match[3] ?? '-'));
+  const commands = commandsOfRow();
+  return lines.some(match => commands.includes(match[1] ?? '') && parent.startsWith(match[3] ?? '-'));
 }

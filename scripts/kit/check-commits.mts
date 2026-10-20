@@ -39,7 +39,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { gateCommands, kitGates, provesRed } from './gate-red.mts';
+import { provesRed } from './gate-red.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
@@ -266,12 +266,17 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
   }
-  if (message !== undefined && message.startsWith('fix(') && !changed.some(file => changesATest(file, after, changedLines))) {
-    // A defect that a gate of kit-gates finds has the gate as its test: the red of the gate on the parent proves it (K357).
+  if (message !== undefined && message.startsWith('fix(')) {
+    // A fix that moves its item to done proves its red with a Red-Gate or Red-Test line: the command of the Verification of the row
+    // failed on the parent, which item-state (a gate, K357) or item-red (a test, K389) recorded. Without such a fix's item, a fix
+    // needs no proof when a test file changes.
     const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
     const done = changes.find(change => change.id === id && change.to === DONE);
-    const gates = () => (done ? gateCommands(itemCommands(after(done.tracker.path), done.tracker, done.id), kitGates(root)) : []);
-    if (parent === undefined || !provesRed(message, gates, parent)) {
+    const commands = () => (done ? itemCommands(after(done.tracker.path), done.tracker, done.id) : []);
+    const proven = parent !== undefined && provesRed(message, commands, parent);
+    if (done !== undefined && !proven) {
+      found.push({ rule: 'commit-fix-test', message: `the fix commit moves ${done.id} to done without a Red-Gate or Red-Test line of a command of its Verification on the parent; the red is the failing run of the Verification before the fix: make item-red ID=${done.id} records it after the test is written, and make commit writes it` });
+    } else if (done === undefined && !changed.some(file => changesATest(file, after, changedLines))) {
       found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates that the Verification of its row runs, with the red of the gate on the parent: make item-state records it as the item becomes active on a clean tree, and make commit writes it as a Red-Gate line of the commit that moves the item to done (K357)` });
     }
   }

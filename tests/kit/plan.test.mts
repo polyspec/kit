@@ -2,11 +2,13 @@
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
+import { readRecord } from '../../scripts/kit/gate-red.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
 import { COMMIT_RULES, indexItemFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
@@ -36,6 +38,16 @@ test('plan-new refuses a name that is no slug, an existing plan and a missing ti
   assert.throws(() => newPlan(root, { name: 'lexer', title: ' ', titleKo: '렉서' }), /TITLE is empty/);
   assert.throws(() => newPlan(root, { name: 'lexer', title: 'Lexer', titleKo: '' }), /TITLE_KO is empty/);
 });
+
+/**
+ * Writes the record that item-red writes for the item `id` whose command `command` fails on HEAD, for a fixture whose command
+ * the Claude Code hook refuses to run, such as a whole `node --test` run, so item-red cannot run it.
+ */
+function redRecord(root: string, id: string, command = 'node --test a.test.mts') {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  mkdirSync(path.join(root, 'var/plan'), { recursive: true });
+  writeFileSync(path.join(root, 'var/plan', `${id}.json`), JSON.stringify({ head, gates: [], tests: { tree: sha256(''), commands: [{ command, status: 1 }] } }));
+}
 
 /** A checkout with the plans `names`, each made by newPlan. */
 function plans(t: Parameters<typeof tree>[0], ...names: string[]) {
@@ -103,6 +115,8 @@ test('item-state performs an allowed transition in both languages and refuses an
 test('item-state sets done only when the working tree adds the item to the changelog of both languages (K249-2)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
+  // The red of the Verification is recorded before the done state.
+  redRecord(root, 'T1');
   assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md adds no line with \(T1\)/);
   writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
   assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.ko.md adds no line with \(T1\)/);
@@ -432,6 +446,9 @@ test('a fix commit without a test file is refused without a red of its gate, wit
   const findings = (red: string) => indexItemFindings(root, COMMIT_RULES, `fix(lint): Fix the finding (#T1)\n\nWhy.\n${red}`).map(found => found.rule);
   const red = `\nRed-Gate: make lint-x exit 2 at ${head.slice(0, 12)}\n`;
   setState(root, { id: 'T1', state: '[~]' }, () => {});
+  // The gate of the row is red on the parent: the record that item-state wrote for it (K357), which the done state needs.
+  mkdirSync(path.join(root, 'var/plan'), { recursive: true });
+  writeFileSync(path.join(root, 'var/plan/T1.json'), JSON.stringify({ head, gates: [{ command: 'make lint-x', status: 2 }] }));
   writeFileSync(path.join(root, 'a.txt'), 'good\n');
   stage(root, 'a.txt', 'docs/plans');
   assert.deepEqual(findings(red), ['commit-fix-test'], 'a commit that does not move its item to done');
@@ -456,6 +473,45 @@ test('item-state fails naming kit-gates when a Verification runs make <target> a
   setState(root, { id: 'T2', state: '[~]' }, () => {});
 });
 
+// A test in a fix commit is no proof of its red unless item-red ran the Verification before the fix: the red is recorded, and done needs it.
+test('make item-red records a failing Verification, and done requires the record (K389)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(1)"`' }));
+  newItem(root, item('parser', 'T2', { verification: '`node -e "process.exit(0)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'base']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const quiet = () => {};
+  setState(root, { id: 'T1', state: '[~]' }, quiet);
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'start T1']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  setState(root, { id: 'T2', state: '[~]' }, quiet);
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'start T2']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const itemRed = (id: string) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ID: id }, encoding: 'utf8' });
+  const passes = itemRed('T2');
+  assert.notEqual(passes.status, 0);
+  assert.match(passes.stderr, /T2: the Verification passes before the fix, so it proves no red/);
+  for (const id of ['T1', 'T2']) {
+    for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix (${id}).\n`);
+    assert.throws(() => setState(root, { id, state: '[o]' }, quiet), new RegExp(`make item-red ID=${id}`), 'done without a record');
+  }
+  const fails = itemRed('T1');
+  assert.equal(fails.status, 0, fails.stderr);
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const record = readRecord(root, 'T1');
+  assert.equal(record?.head, head);
+  assert.deepEqual(record?.tests?.commands, [{ command: 'node -e "process.exit(1)"', status: 1 }]);
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix (T1).\n`);
+  setState(root, { id: 'T1', state: '[o]' }, quiet);
+  assert.equal(rows(root, 'docs/plans/parser/checklist.md')[0]?.endsWith('[o] |'), true, 'done with the record');
+  // The fix commit writes the red as a Red-Test line, and check-commits accepts it for the item that it moves to done.
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  stage(root, 'a.mts', 'CHANGELOG.md', 'CHANGELOG.ko.md', 'docs/plans');
+  const body = path.join(root, 'var/body.txt');
+  writeFileSync(body, 'The test reproduces it.\n');
+  const message = commitItem(root, { id: 'T1', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body }, identity);
+  assert.equal(message, `fix(parser): Fix it (#T1)\n\nThe test reproduces it.\n\nRed-Test: node -e "process.exit(1)" exit 1 at ${head.slice(0, 12)}\n`);
+  assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', COMMIT_RULES), [], 'the Red-Test line proves the red of the fix');
+});
+
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
 test('item-new refuses a private path, and item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   const root = committed(t, 'T1');
@@ -469,6 +525,7 @@ test('item-new refuses a private path, and item-edit replaces the Task cells of 
   assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | New task | `a.mts` | `node --test a.test.mts` | [ ] |', '| T1 | 새 작업 | `a.mts` | `node --test a.test.mts` | [ ] |']);
   assert.throws(() => editItem(root, { id: 'T1', task: 'See /home/someone/y', taskKo: '보기' }), /the path \/home\/someone\/ into a home directory/);
   setState(root, { id: 'T1', state: '[~]' }, () => {});
+  redRecord(root, 'T1');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Task (T1).\n`);
   setState(root, { id: 'T1', state: '[o]' }, () => {});
   editItem(root, { id: 'T1', task: 'Done task', taskKo: '끝난 작업' });
@@ -484,6 +541,7 @@ test('item-edit replaces the Deliverables cell in both languages, and not of a d
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
   const done = committed(t, 'T2');
   setState(done, { id: 'T2', state: '[~]' }, () => {});
+  redRecord(done, 'T2');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T2).\n`);
   setState(done, { id: 'T2', state: '[o]' }, () => {});
   assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`' }), /is \[o\]/);
