@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bc5dab067ec5142e752576582e7828149a7514e41a7b7f14cc0b7fdfb2fad896 -->
+<!-- source-sha256: 4e6a4164c737f8336f1581a9df9135b22a049b202637fbf3f43f0461461231c9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link-check`는 `CHECKOUTS`가 비면 `make link`처럼 저장소 옆의 checkout으로 검사하므로 `make link` 직후 모든
+  link를 NOT linked로 보고하지 않는다. red: 그 명령이 checkout을 하나도 넘기지 않았다. green: `node --test
+  --test-name-pattern=K383 tests/kit/kit-mk.test.mts`가 통과한다 (K383).
 - `make install-packages`는 `npm ci`만 실행하고, `make install`은 link에 전체 install-tools만 설치하는 Go가 필요하므로
   전체 `make install-tools` 뒤 마지막 kit 단계인 `make install-link`로 link한다. bootstrap의 message는 그 순서를 말한다.
   red: 문서의 순서가 `npm ci` 뒤 link에서 실패했고 recipe가 install-packages 안에서 link했다. green: `node --test

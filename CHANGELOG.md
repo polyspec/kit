@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make link-check` checks against the checkouts beside the repository when `CHECKOUTS` is empty, as `make link`
+  does, so it no longer reports every link as NOT linked right after `make link`. Red: its command named no checkout;
+  green: `node --test --test-name-pattern=K383 tests/kit/kit-mk.test.mts` passes (K383).
 - `make install-packages` only runs `npm ci`, and `make install` links as its own last kit step, `make install-link`,
   after the full `make install-tools`, since the link needs the Go that only the full install-tools installs; the
   messages of the bootstrap name that order. Red: the documented order failed at the link after `npm ci`, and the
