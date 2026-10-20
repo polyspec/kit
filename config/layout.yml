@@ -86,3 +86,7 @@ rules:
       # The extension of the PHP extension tests (S10): its stub is PHP, which gen_stub.php reads, as data of the tests.
       - "!tests/kit/php-ext-fixture/**"
       - "!scripts/kit/symbols/**"
+      # The marker check reads a Python test with the ast module of the Python of the checkout (K345), which only Python can call.
+      - "!scripts/kit/markers/**"
+      # PHPUnit prepends this file into the PHP of an extension run (K329), so only a PHP file can be it.
+      - "!scripts/kit/php-library/**"
