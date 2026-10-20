@@ -325,8 +325,8 @@ link-check: ## List every installed polyspec package pinned at 0.0.x as linked, 
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
-# The release and the dependency review use the released versions, so their Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review: export GOWORK := off
+# The release, the dependency review and the dependency policy use the released versions (K343), so their Go runs without the go.work of the links.
+release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK := off
 
 
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------

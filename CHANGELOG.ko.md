@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1a89e1fdcddfd8900d4d0d2f5cb091ea4b148172744e8a99597fe434ac5a9cb6 -->
+<!-- source-sha256: d84be34c867b4ad16252922572a3e57960ddfabc068745900e34fc50349db995 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-policy-check`는 `make dependency-review`처럼 `GOWORK=off`로 실행되므로, linked Go checkout이 어떤 manifest도
+  선언하지 않는 lock의 review record를 더 이상 보고하지 않는다 (K343).
 - `make lint-ts`, `make commit`, `make item-test`의 type 검사는 package의 `package.json`에 `typecheck` script가 있으면
   그것(`.svelte` 파일이 있는 package는 svelte-check)을 실행하고, 없을 때만 `tsc --noEmit`을 실행한다 (K355).
 - Composer project가 linked인 동안 의존성 review와 policy는 locked version을 `composer.link.lock`에서 읽으므로, review record는 relock할

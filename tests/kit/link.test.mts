@@ -832,7 +832,7 @@ test('make kit-build restores dist when the rename of dist.next fails, and exits
   assert.equal(existsSync(path.join(dir, 'dist.old')), false);
 });
 
-test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of its environment (K205)', (t) => {
+test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of its environment (K205, K343)', (t) => {
   const dir = kitSandbox(t);
   const log = path.join(dir, 'node.log');
   put(dir, { 'bin/node': `#!/bin/sh\necho "$* GOWORK=$GOWORK" >> ${JSON.stringify(log)}\n` });
@@ -840,10 +840,13 @@ test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of
   const { GOWORK: _inherited, ...base } = process.env;
   const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...base, TAG: 'v0.0.1' } });
   assert.equal(make('release-assets').status, 0);
+  assert.equal(make('dependency-policy-check').status, 0);
   assert.equal(make('kit-fixture-record').status, 0);
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   assert.match(lines[0] ?? '', /assets v0\.0\.1 GOWORK=off$/);
-  assert.match(lines[1] ?? '', /record-fixture\.mts GOWORK=$/);
+  // The policy reads the released modules as the review does (K343).
+  assert.match(lines[1] ?? '', /check-dependency-policy\.mts GOWORK=off$/);
+  assert.match(lines[2] ?? '', /record-fixture\.mts GOWORK=$/);
   assert.equal(existsSync(path.join(dir, 'var/link')), false, 'make writes no link file of its own');
 });
 test('K205: each Go module gets a git-ignored go.work at its root that uses the module and the providers; unlink --project removes only its own', (t) => {

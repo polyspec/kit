@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make dependency-policy-check` runs with `GOWORK=off` as `make dependency-review` does, so a linked Go checkout no
+  longer reports the review record of a lock that no manifest declares (K343).
 - The type check of `make lint-ts`, `make commit` and `make item-test` runs the `typecheck` script of the package when
   its `package.json` has one (svelte-check for a package with `.svelte` files), `tsc --noEmit` only otherwise (K355).
 - While a Composer project is linked, the dependency review and policy read the locked versions from
