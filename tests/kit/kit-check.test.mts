@@ -63,3 +63,11 @@ test('the words of CHECK_TARGETS are expanded: a gate that a $(VAR) word carries
   const make = { targets, variables: new Map([['CHECK_TARGETS', 'kit-check $(MORE)'], ['MORE', 'docs-check']]) };
   assert.deepEqual(gateFindings(['docs/a.md'], make), []);
 });
+
+test('lint-rust is required in CHECK_TARGETS only where the repository holds Rust sources (K364)', () => {
+  const target = (name: string, prerequisites: string[] = []) => [name, { prerequisites, recipe: '' }] as const;
+  const targets = new Map([target('kit-gates', ['kit-check', 'lint-rust']), target('kit-check')]);
+  const make = { targets, variables: new Map([['CHECK_TARGETS', 'kit-check']]) };
+  assert.deepEqual(gateFindings(['docs/a.md', 'src/b.ts'], make), []);
+  assert.deepEqual(gateFindings(['packages/rust/src/lib.rs'], make), ['Makefile: CHECK_TARGETS runs no lint-rust, a gate of kit-gates for the Rust of this repository; add it to CHECK_TARGETS']);
+});

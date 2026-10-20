@@ -209,6 +209,7 @@ const LANGUAGE_GATES: Record<string, { name: string; code: RegExp }> = {
   'lint-python': { name: 'Python', code: /\.py$/ },
   'lint-ts': { name: 'TypeScript', code: /\.[cm]?[jt]sx?$/ },
   'lint-go': { name: 'Go', code: /\.go$/ },
+  'lint-rust': { name: 'Rust', code: /\.rs$/ },
   'lint-php-ext': { name: 'PHP extension', code: /^packages\/php-ext\// },
   'test-php-ext': { name: 'PHP extension', code: /^packages\/php-ext\// },
 };
