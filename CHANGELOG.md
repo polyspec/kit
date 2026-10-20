@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- The link takes a package folder that a path repository of an enclosing Composer project installs as part of that
+  project, so it links the polyspec requirements of the folder in the vendor of that project, and names that vendor while
+  it is not installed yet (K396).
+
 - The `go.work` that the link writes for a module under a tracked `go.work` of the repository uses every module of that
   workspace besides the module and the providers, so the modules of the repository still import each other while linked
   (K399).

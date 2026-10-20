@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: af0c7925ba65f6084306ca6a466f9ae7ec3d8b1359d5ef996ea7f9182842dfb6 -->
+<!-- source-sha256: 3a5bb49496a2aff267a2aa873f25eb60201641cd8c5584710e1cb3226d3a76e2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- link는 바깥 Composer project의 path repository가 설치하는 package 폴더를 그 project의 일부로 보므로, 그 폴더의
+  polyspec 요구를 그 project의 vendor에 링크하고, 아직 설치되지 않은 동안에는 그 vendor를 적는다(K396).
 
 - 저장소의 tracked `go.work` 아래에 있는 module에 대해 link가 쓰는 `go.work`는 그 module과 provider 외에 그 workspace의
   모든 module을 쓴다. 그래서 링크된 동안에도 저장소의 module이 서로를 import한다(K399).
