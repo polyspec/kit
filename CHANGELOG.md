@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `link --siblings` takes only the main checkouts of polyspec repositories, whose origin is
+  `github.com/polyspec/<folder>`, and prints every other folder with a `.git` entry once as skipped with its reason, so a
+  stray copy such as `template_2026` no longer provides the packages a second time. Red: the copies `prov_2026` and
+  `prov-copy` were taken as checkouts; green: `node --test --test-name-pattern=K363 tests/kit/link.test.mts` passes
+  (K363).
 - `make item-state`, check-commits and `make bypass-check` read the gates of kit-gates from the make database of the
   Makefile of the repository, which includes the kit.mk of the kit that it uses, and fail naming kit-gates when the
   Makefile declares none; they read `scripts/kit/kit.mk`, which only kit holds, so a consumer had no gate: no Red-Gate

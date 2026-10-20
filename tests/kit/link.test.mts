@@ -80,6 +80,9 @@ function workspaceTemplate(): string {
     '.gitignore': 'dist/\nvar/\n',
   });
   repository(folder, 'kit', { 'package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.53' }), '.gitignore': 'var/\n' });
+  // A checkout of a polyspec repository has the origin of its name (K363).
+  git(path.join(folder, 'prov'), 'remote', 'add', 'origin', 'https://github.com/polyspec/prov.git');
+  git(path.join(folder, 'kit'), 'remote', 'add', 'origin', 'git@github.com:polyspec/kit.git');
   repository(folder, 'cons', {
     'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: { '@polyspec/x': '0.0.1', '@polyspec/own': '0.0.1' }, devDependencies: { '@polyspec/kit': '0.0.53' } }),
     'package-lock.json': '{}',
@@ -267,13 +270,26 @@ test('the repositories that a linked package declares are written into composer.
 // K349: the checkouts beside the repository are the checkouts of a link without arguments, also from a worktree of the repository.
 test('siblingCheckouts finds the checkouts beside the repository, not the repository, and a worktree finds the same (K349)', (t) => {
   const { provider, kit, consumer } = workspace(t);
-  assert.deepEqual(siblingCheckouts(consumer), [kit, provider].sort());
+  assert.deepEqual(siblingCheckouts(consumer).checkouts, [kit, provider].sort());
   git(consumer, 'worktree', 'add', '--quiet', path.join(path.dirname(consumer), 'cons-wt'), '-b', 'wt');
-  assert.deepEqual(siblingCheckouts(path.join(path.dirname(consumer), 'cons-wt')), [kit, provider].sort());
+  assert.deepEqual(siblingCheckouts(path.join(path.dirname(consumer), 'cons-wt')).checkouts, [kit, provider].sort());
   const alone = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-alone-')));
   t.after(() => rmSync(alone, { recursive: true, force: true }));
   initRepository(path.join(alone, 'only'));
-  assert.deepEqual(siblingCheckouts(path.join(alone, 'only')), [], 'no sibling, as in CI');
+  assert.deepEqual(siblingCheckouts(path.join(alone, 'only')), { checkouts: [], skipped: [] }, 'no sibling, as in CI');
+});
+
+// K363: a sibling is the main checkout of a polyspec repository, its origin github.com/polyspec/<name> and its folder that name.
+test('siblingCheckouts takes only the checkouts of polyspec repositories and lists every other folder as skipped (K363)', (t) => {
+  const { provider, kit, consumer } = workspace(t);
+  const workspaceFolder = path.dirname(consumer);
+  cpSync(provider, path.join(workspaceFolder, 'prov_2026'), { recursive: true });
+  git(path.join(workspaceFolder, 'prov_2026'), 'remote', 'remove', 'origin');
+  cpSync(provider, path.join(workspaceFolder, 'prov-copy'), { recursive: true });
+  assert.deepEqual(siblingCheckouts(consumer), {
+    checkouts: [kit, provider].sort(),
+    skipped: [`${path.join(workspaceFolder, 'prov-copy')} (origin https://github.com/polyspec/prov.git)`, `${path.join(workspaceFolder, 'prov_2026')} (no origin)`],
+  });
 });
 
 test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {

@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 80e80a561f16978234e1d6abb7d281e3a0cd0ea932acce3aba53fdf9759720bd -->
+<!-- source-sha256: 0752b89dca2ca867101f37792e2acca810eca9a493d0105647dd26884433530a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link --siblings`는 origin이 `github.com/polyspec/<folder>`인 polyspec 저장소의 main checkout만 받고, `.git`을 가진
+  그 밖의 폴더는 이유와 함께 skipped로 한 번 출력하므로 `template_2026` 같은 사본이 package를 한 번 더 제공하지 않는다.
+  red: 사본 `prov_2026`과 `prov-copy`가 checkout으로 받아들여졌다. green: `node --test --test-name-pattern=K363
+  tests/kit/link.test.mts`가 통과한다 (K363).
 - `make item-state`, check-commits, `make bypass-check`는 kit-gates의 gate를 저장소 Makefile의 make database, 즉
   저장소가 쓰는 kit의 kit.mk를 include한 database에서 읽고, Makefile이 kit-gates를 선언하지 않으면 kit-gates를 말하며
   실패한다. 이전에는 kit만 가진 `scripts/kit/kit.mk`를 읽어 consumer에 gate가 없었으므로 Red-Gate 기록이 쓰이지 않았고

@@ -873,7 +873,9 @@ if (isMain(import.meta.url)) {
     const positional = withoutProject.filter(argument => argument !== '--siblings');
     const directories = [projectDirectory ?? '.'];
     if (siblings && (command === 'link' || command === 'check')) {
-      positional.push(...siblingCheckouts(projectDirectory ?? '.'));
+      const found = siblingCheckouts(projectDirectory ?? '.');
+      for (const folder of found.skipped) print(`skipped ${folder}: no main checkout of a polyspec repository, whose origin is github.com/polyspec/<its folder>`);
+      positional.push(...found.checkouts);
       if (positional.length === 0) {
         print(`no polyspec checkout beside ${workTreeOf(projectDirectory ?? '.')}: nothing is linked and the installs stay the released packages`);
         process.exit(0);

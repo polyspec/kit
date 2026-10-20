@@ -125,18 +125,35 @@ export type Provider = { ecosystem: Ecosystem; name: string; folder: string; rep
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
 
+// The origin of the checkout of a polyspec repository, whose name is the folder of the checkout (K363).
+const POLYSPEC_ORIGIN = /^(?:https:\/\/|ssh:\/\/git@|git@)github\.com[:/]polyspec\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/;
+
 /**
- * The main checkouts that lie beside the main checkout of the repository of `directory` (K349): the folders of its workspace that
- * hold a .git directory, the repository itself left out. A worktree finds the same siblings as its main checkout. None where
- * the consumer has no sibling, as in CI.
+ * The main checkouts of polyspec repositories that lie beside the main checkout of the repository of `directory` (K349, K363): the
+ * folders of its workspace that hold a .git directory and whose origin is github.com/polyspec/<folder>, the repository itself left
+ * out, and every other folder with a .git entry as skipped, with the reason: a worktree, or a copy without that origin. A worktree
+ * finds the same siblings as its main checkout. None where the consumer has no sibling, as in CI.
  */
-export function siblingCheckouts(directory: string): string[] {
+export function siblingCheckouts(directory: string): { checkouts: string[]; skipped: string[] } {
   const own = path.dirname(repositoryOf(directory));
   const workspace = path.dirname(own);
-  return readdirSync(workspace, { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && path.join(workspace, entry.name) !== own && existsSync(path.join(workspace, entry.name, '.git', 'HEAD')))
-    .map(entry => realpathSync(path.join(workspace, entry.name)))
-    .sort();
+  const checkouts: string[] = [];
+  const skipped: string[] = [];
+  for (const name of readdirSync(workspace, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()) {
+    const folder = path.join(workspace, name);
+    if (folder === own || !existsSync(path.join(folder, '.git'))) continue;
+    if (!existsSync(path.join(folder, '.git', 'HEAD'))) {
+      skipped.push(`${folder} (no main checkout)`);
+      continue;
+    }
+    // git config exits 1 for a key that is not set; any other failure is an error of the checkout.
+    const origin = linkGit(folder, 'config', '--get', 'remote.origin.url');
+    if (origin.error || (origin.status !== 0 && origin.status !== 1)) throw new Error(`git config --get remote.origin.url failed in ${folder}: ${origin.error?.message ?? origin.stderr.trim()}`);
+    const url = origin.status === 0 ? origin.stdout.trim() : undefined;
+    if (url !== undefined && POLYSPEC_ORIGIN.exec(url)?.[1] === name) checkouts.push(realpathSync(folder));
+    else skipped.push(`${folder} (${url === undefined ? 'no origin' : `origin ${url}`})`);
+  }
+  return { checkouts: checkouts.sort(), skipped };
 }
 
 /** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */
