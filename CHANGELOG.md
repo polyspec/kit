@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The generated-file check refuses a file whose content is an executable object (ELF, Mach-O thin or fat, PE), whatever its
+  path, unless `config/generated.json` declares it: at commit time from the index, and in `commits-check` from each commit (K416).
 - `commits-check` runs the generated-file and the Korean twin checks of the pre-commit hook on every commit of its range,
   besides the message and identity checks, so a commit made with `--no-verify` fails the gate and the pre-push (K351).
 - `make parity-declarations-check RULES="<rule> ..."` reports only the findings of the named rules, by id or name, and those

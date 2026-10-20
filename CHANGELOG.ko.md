@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f7f560a7a8447a4bed7d94146650652c2f5338fbdd867d9bb4c00502b0951cd5 -->
+<!-- source-sha256: 34ed8a514e29c2290ec620dc2b790e2c2c97a685c7408409f7a02eada350a8b4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- generated file 검사는 `config/generated.json`이 선언하지 않는 한 경로와 상관없이 내용이 실행 object(ELF, Mach-O thin
+  또는 fat, PE)인 파일을 거부한다. commit 때는 index에서, `commits-check`에서는 각 commit에서 읽는다(K416).
 - `commits-check`는 메시지와 identity 검사 외에 pre-commit hook의 generated file 검사와 한국어 쌍둥이 검사도 범위의 모든
   commit에 실행하므로, `--no-verify`로 만든 commit은 gate와 pre-push에서 실패한다(K351).
 - `make parity-declarations-check RULES="<rule> ..."`는 id나 이름으로 지정한 rule의 finding과 `config/parity.json` 자체의
