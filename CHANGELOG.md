@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- The library run of `make test-php-ext` finds PHPUnit in the vendor directory that Composer gives the library, its
+  own or that of the root project that installs it through a path repository and its `vendor-dir`, as `run-tests`
+  does for `phpunit --cwd` (K186). Red: a library installed by a root project with `vendor-dir` failed with
+  `packages/php/vendor/phpunit/phpunit/phpunit does not exist`; green: `node --test --test-name-pattern=K367
+  tests/kit/run-tests.test.mts` passes (K367).
 - `make link-state-check` reports a linked vendor whose platform check demands a newer PHP than `.php-version`, not one
   that demands the lower floor of its packages, since Composer demands the highest floor that the packages require
   (80400 for `>=8.4`). Red: a vendor that demanded 80400 with `.php-version` 8.4.1 was a finding; green: `node --test

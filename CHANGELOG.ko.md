@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2ee8d59ad917570693c2e31b068b929aeb04896cbb9c788a847a6a69786983a1 -->
+<!-- source-sha256: b3c5700b5fd91df0fc25804546ca2ebb31eac2b3915216a465156faa387ec436 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make test-php-ext`의 library run은 Composer가 library에 주는 vendor 디렉터리, 즉 library 자신의 것이나 path
+  repository와 `vendor-dir`로 library를 설치하는 root project의 것에서 `run-tests`가 `phpunit --cwd`에 하듯이(K186)
+  PHPUnit을 찾는다. red: `vendor-dir`을 가진 root project가 설치한 library가 `packages/php/vendor/phpunit/phpunit/phpunit
+  does not exist`로 실패했다. green: `node --test --test-name-pattern=K367 tests/kit/run-tests.test.mts`가 통과한다
+  (K367).
 - `make link-state-check`는 `.php-version`보다 새 PHP를 요구하는 linked vendor의 platform check를 보고하고, package의
   더 낮은 floor를 요구하는 vendor는 보고하지 않는다. Composer는 package가 요구하는 가장 높은 floor(`>=8.4`이면 80400)를
   요구하기 때문이다. red: `.php-version` 8.4.1에서 80400을 요구하는 vendor가 finding이었다. green: `node --test
