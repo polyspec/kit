@@ -45,6 +45,7 @@
     "phpcs.xml.dist",
     "phpstan.dist.neon",
     ".golangci.yml",
+    "clippy.toml",
     ".oxlintrc.json",
     "knip.json",
     ".editorconfig",
