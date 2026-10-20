@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make text-absent FILE=<path> TEXT=<text>` fails, naming each line, while a tracked file holds the literal text, and passes
+  once it is gone: the red of a row whose whole change is text, which P19 now states, together with the rule that a change
+  corrects the comments and documents it makes stale in its own commit; the text reaches the tool through its environment,
+  so a backquote or a `$( )` in it runs nothing (K431).
 - `make parity-declarations-check UNITS=` scopes the schema findings of config/parity.json too: a finding at `/units/<index>`
   counts only when that unit is named, so a row that adds the requirement of one unit proves its red and green while other
   units still break the schema; the run then says that the other rules need a declaration that passes the schema (K400-1).

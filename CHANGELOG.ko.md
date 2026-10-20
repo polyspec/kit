@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a46f5ebca78e385d1dd6af0024fe97faabb52067e0a979cfc0864d3b0e6a9e1e -->
+<!-- source-sha256: 6ea1c53ed3990f0db9aed9ae5ca2dfc4d18a5682dbfd8674d9e54758958ba552 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make text-absent FILE=<path> TEXT=<text>`는 추적되는 파일이 그 문구를 그대로 가진 동안 각 줄을 적어 실패하고, 문구가
+  사라지면 통과한다. 이는 변경 전체가 text인 행의 red이며, P19는 이제 이것과 함께 변경이 낡게 만든 주석과 문서를 그 변경의
+  커밋에서 고친다는 규칙을 적는다. 문구는 환경 변수로 도구에 전해지므로 그 안의 백틱이나 `$( )`는 아무것도 실행하지 않는다
+  (K431).
 - `make parity-declarations-check UNITS=`는 config/parity.json의 schema finding도 범위로 좁힌다: `/units/<index>`의 finding은
   그 unit이 이름 붙었을 때만 세므로, 다른 unit이 아직 schema를 어겨도 한 unit의 requirement를 더하는 행은 red와 green을
   증명한다. 그때 실행은 다른 규칙이 schema를 통과하는 선언을 필요로 한다고 말한다(K400-1).
