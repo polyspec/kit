@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4ee1b3c993b5e705ded2e70b8263ed1b31aa237f76ce9e88b41e0c3fc6284679 -->
+<!-- source-sha256: 0fa199ab5dd9bfb2a27315446264029224d8e0573923e3172e7e12e97bd6c0b6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- checklist는 각 row의 id로 row마다 merge된다. `make hooks`는 `docs/plans/*/checklist.md`에 driver `kit-checklist`를
+  선언하고 `kit-twin`은 그 쌍둥이를 같게 merge하므로, main이 닫은 row는 branch가 그 뒤에 덧붙인 row 옆에 한 번만 남고,
+  양쪽이 다르게 바꾼 row는 그 id를 적은 conflict이다(K354-3).
 - `make docs-check`는 check-documents를 실행한 뒤 저장소가 `DOCS_CHECKS += <target>`으로 더한 모든 문서 검사를 다른 것의
   상태와 상관없이 실행하고, 실패한 것을 적어 실패한다(K419).
 - `make dependency-review`는 Go module을 가장 가까운 go.work로 검사한다. link가 쓰는 옆의 go.work, 없으면 그 module을 쓰는
