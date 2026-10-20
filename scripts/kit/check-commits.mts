@@ -38,7 +38,7 @@ import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } 
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gateCommands, kitGates, provesRed } from './gate-red.mts';
-import { CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
+import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
 import type { DocumentsConfig } from './check-documents.mts';
@@ -383,7 +383,7 @@ const commitStateFindings = (root: string, id: string): CommitFinding[] => {
   const found: CommitFinding[] = [];
   if (tracked.has(GENERATED_CONFIG)) {
     const config = parseJson<GeneratedConfig>(fileAt(root, id, GENERATED_CONFIG), 'generated.schema.json', `${GENERATED_CONFIG} at ${id}`);
-    found.push(...generatedFindings(changed, config, 'remove it from the commit').map(message => ({ rule: 'commit-generated', message })));
+    found.push(...generatedFindings(changed, config, 'remove it from the commit', file => blobContent(root, id, file)).map(message => ({ rule: 'commit-generated', message })));
   }
   if (tracked.has(DOCUMENTS_CONFIG)) {
     const config = parseJson<DocumentsConfig>(fileAt(root, id, DOCUMENTS_CONFIG), 'documents.schema.json', `${DOCUMENTS_CONFIG} at ${id}`);

@@ -377,3 +377,18 @@ test('commits-check finds in each commit of its range what the hooks refuse at c
   assert.equal(twinLines.length, 1, findings.join('\n'));
   assert.match(twinLines[0] ?? '', /: commit-twin: docs\/a\.ko\.md: revision: /);
 });
+
+// K416: commits-check reads the content of each changed file of a commit, so an executable object committed with --no-verify fails.
+test('commits-check finds an executable object in a commit of its range, whatever its path (K416)', (t) => {
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  put(root, { 'config/checklist.json': JSON.stringify(CHECKLIST), 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }), 'cmd/tool/main.go': 'package main\n' });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(cmd): Start (#K1)').status, 0);
+  writeFileSync(path.join(root, 'cmd/tool/tool'), Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]), Buffer.alloc(56)]));
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '--no-verify', '-m', 'feat(cmd): Build the tool (#K2)').status, 0);
+  const built = git('rev-parse', '--short', 'HEAD').stdout.trim();
+  const findings = rangeFindings(root, 'HEAD~1..HEAD', CONFIG);
+  assert.deepEqual(findings.map(line => line.replace(/^[0-9a-f]+: /, `${built}: `)).filter(line => line.includes('commit-generated')), [`${built}: commit-generated: cmd/tool/tool is an executable object (ELF), whatever its path; remove it from the commit, or declare it an exception in config/generated.json`]);
+});

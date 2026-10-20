@@ -11,7 +11,7 @@ import { tool } from './kit-tools.mts';
 
 const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
-const stage = (work: string, file: string, text = 'x\n') => {
+const stage = (work: string, file: string, text: string | Buffer = 'x\n') => {
   mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
   writeFileSync(path.join(work, file), text);
   git(work, 'add', file);
@@ -63,4 +63,31 @@ test('the pre-commit hook that git-hooks install writes calls the make target st
   const hook = readFileSync(path.join(work, '.githooks/pre-commit'), 'utf8');
   assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
   assert.match(hook, /^exec make --no-print-directory staged-generated-hook$/m);
+});
+
+test('a staged executable is refused whatever its path, and one that config/generated.json declares passes (K416)', (t) => {
+  const machO = Buffer.concat([Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01]), Buffer.alloc(56)]);
+  const elf = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]), Buffer.alloc(56)]);
+  const binary = 'packages/go/cmd/tool/tool';
+  const machOCheckout = prepared(t, { files: { 'config/generated.json': GENERATED_CONFIG } });
+  stage(machOCheckout.work, binary, machO);
+  const refusedMachO = check(machOCheckout.work);
+  assert.equal(refusedMachO.status, 1, refusedMachO.stderr);
+  assert.match(refusedMachO.stderr, /packages\/go\/cmd\/tool\/tool is an executable object \(Mach-O 64-bit\)/);
+  const elfCheckout = prepared(t, { files: { 'config/generated.json': GENERATED_CONFIG } });
+  stage(elfCheckout.work, binary, elf);
+  const refusedElf = check(elfCheckout.work);
+  assert.equal(refusedElf.status, 1, refusedElf.stderr);
+  assert.match(refusedElf.stderr, /packages\/go\/cmd\/tool\/tool is an executable object \(ELF\)/);
+  const textCheckout = prepared(t, { files: { 'config/generated.json': GENERATED_CONFIG } });
+  stage(textCheckout.work, 'packages/go/cmd/text/tool', 'package main\n');
+  const accepted = check(textCheckout.work);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.match(accepted.stdout, /no generated file is staged/);
+  const declared = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**', binary] });
+  const declaredCheckout = prepared(t, { files: { 'config/generated.json': declared } });
+  stage(declaredCheckout.work, binary, machO);
+  const exempt = check(declaredCheckout.work);
+  assert.equal(exempt.status, 0, exempt.stderr);
+  assert.match(exempt.stdout, /no generated file is staged/);
 });
