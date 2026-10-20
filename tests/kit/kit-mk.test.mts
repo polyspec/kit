@@ -28,6 +28,14 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
+test('link-check names the sibling checkouts when CHECKOUTS is empty, as link does (K383)', () => {
+  const dryRun = (goal: string, ...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, goal, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+  assert.match(dryRun('link-check'), /--siblings$/);
+  assert.match(dryRun('link'), /--siblings$/);
+  assert.match(dryRun('link-check', 'CHECKOUTS=a b'), / a b$/);
+  assert.match(dryRun('link', 'CHECKOUTS=a b'), / a b$/);
+});
+
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {
   for (const args of [[], ['KIT=scripts/kit'], ['KIT_EXT=mts']]) {
     const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', ...args], { cwd: ROOT, encoding: 'utf8' });

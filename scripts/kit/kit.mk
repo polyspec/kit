@@ -319,8 +319,8 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 link: ## Link every installed polyspec package pinned at 0.0.x to its source in CHECKOUTS, else in the checkouts beside the repository, also from a worktree (PROJECT names the consumer); never builds; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
-link-check: ## List every installed polyspec package pinned at 0.0.x as linked, NOT linked or STALE against CHECKOUTS; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(CHECKOUTS)
+link-check: ## List every installed polyspec package pinned at 0.0.x as linked, NOT linked or STALE against CHECKOUTS, else the checkouts beside the repository; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
