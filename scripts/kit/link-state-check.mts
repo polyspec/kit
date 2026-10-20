@@ -89,10 +89,69 @@ function goFindings(root: string): string[] {
   return found;
 }
 
+/** The PHP that .php-version names, as the id of the platform of K322 (<major>.<minor>.1 as 8<major>0<minor>01), or undefined. */
+function expectedPhpId(root: string): number | undefined {
+  const file = path.join(root, '.php-version');
+  if (!existsSync(file)) return undefined;
+  const [major, minor] = readFileSync(file, 'utf8').trim().split('.').map(Number);
+  return major === undefined || minor === undefined || Number.isNaN(major) || Number.isNaN(minor) ? undefined : major * 10000 + minor * 100 + 1;
+}
+
+/**
+ * While a Composer project is linked, its vendor must read the composer.json of the links (K349): the platform check that Composer
+ * wrote demands the PHP that .php-version names. A vendor installed from the tracked lock demands the platform of that lock, which a
+ * polyspec package of another PHP cannot meet.
+ */
+function platformFindings(root: string, installed: readonly Installed[]): string[] {
+  const expected = expectedPhpId(root);
+  if (expected === undefined) return [];
+  const found: string[] = [];
+  for (const vendor of new Set(installed.filter(item => item.ecosystem === 'composer' && isLink(item.folder)).map(item => path.dirname(path.dirname(item.folder))))) {
+    const file = path.join(vendor, 'composer/platform_check.php');
+    if (!existsSync(file)) continue;
+    const demanded = /PHP_VERSION_ID >= (\d+)/.exec(readFileSync(file, 'utf8'))?.[1];
+    if (demanded !== undefined && Number(demanded) !== expected) found.push(`composer ${path.relative(root, file)}: demands PHP id ${demanded} while .php-version names ${expected}; the vendor was installed from the tracked lock, run kit link`);
+  }
+  return found;
+}
+
+const INSTALL = /\b(?:composer\s+install|npm\s+ci|uv\s+sync)\b/;
+const LINKS = /\blink\b/;
+// An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
+const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
+
+/**
+ * A recipe of the Makefiles of the repository that installs from a lock (composer install, npm ci, uv sync) runs the kit link step
+ * after it in the same recipe (K349), so a fresh vendor does not read the tracked locks while polyspec checkouts are present. The
+ * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
+ */
+export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined): string[] {
+  const found: string[] = [];
+  for (const file of files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'))) {
+    const lines = (read(file) ?? '').split('\n');
+    let target = '';
+    let recipe: { line: number; text: string }[] = [];
+    const flush = () => {
+      const index = recipe.findIndex(({ text }) => INSTALL.test(text) && !TOOL_PROJECT.test(text));
+      if (target !== '' && target !== 'unlink' && index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
+        found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
+      }
+      recipe = [];
+    };
+    lines.forEach((text, index) => {
+      if (text.startsWith('\t')) { recipe.push({ line: index + 1, text }); return; }
+      flush();
+      target = /^([A-Za-z0-9_.-]+)\s*:(?!=)/.exec(text)?.[1] ?? '';
+    });
+    flush();
+  }
+  return found;
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
-  const found = goFindings(root);
+  const found = [...goFindings(root), ...platformFindings(root, installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

@@ -14,7 +14,7 @@
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
-//   node link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
+//   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
 //                 packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
@@ -29,7 +29,7 @@ import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
 import {
   assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider,
-  providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf,
+  providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workTreeOf,
 } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -866,8 +866,19 @@ if (isMain(import.meta.url)) {
     const project = rest.indexOf('--project');
     const projectDirectory = project === -1 ? undefined : rest[project + 1];
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
-    const positional = rest.filter((_, index) => project === -1 || (index !== project && index !== project + 1));
+    const withoutProject = rest.filter((_, index) => project === -1 || (index !== project && index !== project + 1));
+    // `--siblings` takes the checkouts beside the repository as the checkouts (K349): an install recipe links right after the
+    // install when polyspec checkouts are present, and a checkout without a sibling, such as CI, installs the released packages.
+    const siblings = withoutProject.includes('--siblings');
+    const positional = withoutProject.filter(argument => argument !== '--siblings');
     const directories = [projectDirectory ?? '.'];
+    if (siblings && (command === 'link' || command === 'check')) {
+      positional.push(...siblingCheckouts(projectDirectory ?? '.'));
+      if (positional.length === 0) {
+        print(`no polyspec checkout beside ${workTreeOf(projectDirectory ?? '.')}: nothing is linked and the installs stay the released packages`);
+        process.exit(0);
+      }
+    }
     switch (command) {
       case 'link': case 'check':
         if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;

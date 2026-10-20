@@ -48,7 +48,7 @@ The links are the kit tool `scripts/kit/link.mts` (K201, K201-1, K205), which us
 
 ## Known effects
 
-- `npm ci`, `composer install` and `uv sync` remove the links; run `link` again after an install, and confirm with `link-check`. `make install-packages` does not link (K205).
+- `npm ci`, `composer install` and `uv sync` remove the links; run `link` again after an install, and confirm with `link-check`. `make install-packages` links the packages it installed to the polyspec checkouts beside the repository when there are any (`link --siblings`, K349), and `make link` without `CHECKOUTS` takes those checkouts too, also in a worktree; a recipe that installs from a lock without the link step after it fails `make link-state-check`, as does a linked vendor whose platform check demands another PHP than `.php-version`.
 - The package manager still records the released version (lock files, Composer's `installed.json`). A check that compares installed packages with their lock fails while linked; it is run after unlinking or after the batch release.
 - npm resolves a linked package's own dependencies from the provider checkout's `node_modules`; Composer resolves them from the consumer's vendor, so a provider's new Composer requirement must also be installed in the consumer.
 - A PHP C extension is not linked; it needs a built shared library.

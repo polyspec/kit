@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { linkFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings, recipeFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
 /** A consumer whose Composer vendor records polyspec/y and polyspec/z at 0.0.1; `link` says which of them are links. */
@@ -60,4 +60,27 @@ test('a link that resolves to no package of that name, an npm copy among links a
 test('the Composer projects that kit writes are no consumer project, so a repository with only those needs no Composer (K320)', (t) => {
   const root = tree(t, { 'config/php-lint/composer.json': '{"name": "polyspec/kit-php-lint"}', 'config/phpunit/composer.json': '{"name": "polyspec/kit-phpunit"}' });
   assert.deepEqual(linkFindings(root, { ...process.env, COMPOSER_BIN: '' }), []);
+});
+
+// K349: a vendor installed from the tracked lock demands the platform of that lock, which a polyspec package of another PHP cannot meet.
+test('a linked vendor whose platform check demands another PHP than .php-version is a finding (K349)', (t) => {
+  const { root, env } = consumer(t, { y: true, z: true });
+  put(root, { '.php-version': '8.4\n', 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80500)) {\n}\n' });
+  assert.deepEqual(linkFindings(root, env), ['composer vendor/composer/platform_check.php: demands PHP id 80500 while .php-version names 80401; the vendor was installed from the tracked lock, run kit link']);
+  put(root, { 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80401)) {\n}\n' });
+  assert.deepEqual(linkFindings(root, env), []);
+});
+
+test('a recipe that installs from a lock without the kit link step after it is a finding, and unlink and the link step pass (K349)', () => {
+  const makefile = [
+    'a-install:', '	composer install', '	$(MAKE) link', '',
+    'b-install:', '	npm ci', '	@echo done', '',
+    'c-install:', '	uv sync --frozen', '	node kit link --siblings', '',
+    'unlink:', '	npm ci', '',
+    'd-install:', '	$(MAKE) link', '	composer install', '',
+  ].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk'], file => (file === 'Makefile' ? makefile : 'x:\n\tnpm ci\n')), [
+    'Makefile:6: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:18: the recipe d-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+  ]);
 });

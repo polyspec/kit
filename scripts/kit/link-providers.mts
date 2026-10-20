@@ -3,7 +3,7 @@
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
-import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { readComposerManifestFile, readNpmManifestFile } from './manifests.mts';
@@ -124,6 +124,20 @@ export type Provider = { ecosystem: Ecosystem; name: string; folder: string; rep
 
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
+
+/**
+ * The main checkouts that lie beside the main checkout of the repository of `directory` (K349): the folders of its workspace that
+ * hold a .git directory, the repository itself left out. A worktree finds the same siblings as its main checkout. None where
+ * the consumer has no sibling, as in CI.
+ */
+export function siblingCheckouts(directory: string): string[] {
+  const own = path.dirname(repositoryOf(directory));
+  const workspace = path.dirname(own);
+  return readdirSync(workspace, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && path.join(workspace, entry.name) !== own && existsSync(path.join(workspace, entry.name, '.git', 'HEAD')))
+    .map(entry => realpathSync(path.join(workspace, entry.name)))
+    .sort();
+}
 
 /** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */
 export const mainCheckouts = (directories: readonly string[]): string[] => directories.map((directory) => {

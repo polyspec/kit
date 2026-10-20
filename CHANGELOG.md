@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make install-packages` links the installed packages to the polyspec checkouts beside the repository (`link
+  --siblings`), `make link` without `CHECKOUTS` takes those checkouts also in a worktree, and `make link-state-check`
+  fails a recipe that installs from a lock without the link step after it and a linked vendor whose platform check
+  demands another PHP than `.php-version` (K349).
 - `make item-state` checks the transition to done before it runs the verification, so a waiting row is refused with
   the states it can move to, not for its unstaged files (K353-1).
 - `make item-edit ID= VERIFICATION=` replaces the Verification cell of a row in both languages through the checks of

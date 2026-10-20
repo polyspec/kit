@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 6305721a95e095175a1b1dc5a224ceefae170529158cb0027eb73520e180011f -->
+<!-- source-sha256: c1f645a786b26898dbfb0ce3f082608be2c4e30730293e4babc9deae4a448858 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -39,7 +39,7 @@
 - 사본 없음: 제공자를 복사하지 않는다. `node_modules`나 vendor에서 도구의 기록이 나열하지 않는 polyspec 폴더는 plain copy이며 그 경로와 함께 `NOT linked`로 보고한다. `file:` tarball로 설치한 패키지도 다른 설치처럼 링크한다.
 - 빌드 없음: `link`는 링크만 한다. 제공자는 `link.mjs rebuild <repository>...`나 그 자신의 target으로, 그 Makefile에서 릴리스가 빌드하는 target(`release-assets`의 prerequisite. 없는 prerequisite이면 make의 오류와 함께 실패한다), 없으면 `build`로 빌드한다. 링크된 npm 제공자는 그 `package.json`이 가리키는 출력이 없거나, 입력이 가장 오래된 출력보다 새롭고 입력이 마지막 rebuild 뒤 기록한 digest(제공자의 `var/link/built/`)와 다르면 STALE이고, `check`는 실패한다.
 - 쓰기: 도구가 저장소에 쓰는 각 파일(소비자의 `var/link`, 제공자의 `var/link/built`, 각 Go 모듈의 `go.work`와 `go.work.sum`, Cargo lock 사본)과 설치 폴더를 대신하는 각 링크는 그곳에서 git이 무시하는 것이다(`git check-ignore`). 소비자는 `var/link`, `go.work`, `go.work.sum`을 무시해야 한다. git이 무시하지 않는 경로는 이름과 함께 실패하며, 소비자 밖의 공유 폴더는 없다(K205가 K203의 대체 폴더를 없앴다).
-- kit checkout의 명령: `make link CHECKOUTS="<checkout>..."`, `make link-check CHECKOUTS="..."`, `make unlink`이며 각각 `PROJECT=<dir>`로 소비자를 밝힌다(없으면 checkout 전체 트리). `make install-packages`는 빌드도 링크도 하지 않는다(K205). 설치 뒤에는 `make link`를 다시 실행하고 `make link-check`로 확인한다.
+- kit checkout의 명령: `make link CHECKOUTS="<checkout>..."`, `make link-check CHECKOUTS="..."`, `make unlink`이며 각각 `PROJECT=<dir>`로 소비자를 밝힌다(없으면 checkout 전체 트리). `make install-packages`는 빌드하지 않는다(K205). 설치 뒤에는 `make link`를 다시 실행하고 `make link-check`로 확인한다.
 - `--project`(S-426): `link`, `check`, `unlink`에 `--project`를 주면 각 `<dir>` 바로 아래의 매니페스트(package.json, composer.json, pyproject.toml, go.mod)만 다루고 중첩 프로젝트는 다루지 않는다. 주지 않으면 `<dir>` 아래 트리 전체를 다룬다. `kit-bootstrap.mk`의 설치 recipe가 이것을 주므로, 설치는 설치한 프로젝트만 정확히 링크한다. 이름을 준 프로젝트가 설치되어 있지 않으면 여전히 실패한다. `--project`일 때 Composer 프로젝트는 `<dir>` 자신이다. 그 vendor는 `<dir>`에서 `composer config vendor-dir`가 주는 것이고, `<dir>`에 composer.json이 없으면 Composer는 관여하지 않으며, `<dir>` 위의 vendor는 절대 취하지 않는다(K201-3).
 - 저장소 변수: Git hook은 자기 저장소의 변수(GIT_DIR, GIT_INDEX_FILE 등)를 내보내므로, `link`가 제공자 checkout 같은 다른 저장소에서 실행하는 모든 git 명령과 make는 `git rev-parse --local-env-vars`가 나열한 변수 없이 실행한다. git이 submodule에 들어갈 때와 같다(K201-4).
 - kit이 없는 곳(consumer 등)의 명령: `node <kit checkout>/dist/link.mjs link|check [--project <dir>] <checkout>...`, `unlink [--project <dir>]`, `rebuild <repository>...`, `packages <dir> python|npm`(선언된 polyspec 패키지를 한 줄에 하나씩), `cargo [--checkout <checkout>]... <dir> <cargo args>`. 도구는 recipe가 주면 `NPM`, `COMPOSER_BIN`, `UV`, `GO`, `CARGO`이고, 없으면 소비자의 도구(`var/tools/bin/npm`, mise shim, `mise.toml`의 Composer, rustup의 cargo)다. 없는 도구는 그 원인과 함께 실패한다. kit checkout은 한 번 빌드한다(그곳의 `make build`).
@@ -49,7 +49,7 @@
 
 ## 알려진 영향
 
-- `npm ci`, `composer install`, `uv sync`는 링크를 지운다. 설치 뒤에는 `link`를 다시 실행하고 `link-check`로 확인한다. `make install-packages`는 링크하지 않는다(K205).
+- `npm ci`, `composer install`, `uv sync`는 링크를 지운다. 설치 뒤에는 `link`를 다시 실행하고 `link-check`로 확인한다. `make install-packages`는 설치한 패키지를, 저장소 옆에 polyspec checkout이 있으면 그것에 링크하고(`link --siblings`, K349), `CHECKOUTS` 없는 `make link`도 worktree에서까지 그 checkout을 쓴다. lock에서 설치하는 recipe에 그 뒤의 link 단계가 없거나 linked vendor의 platform check가 `.php-version`과 다른 PHP를 요구하면 `make link-state-check`가 실패한다.
 - 패키지 관리자는 여전히 릴리스 버전을 기록한다(lock 파일, Composer의 `installed.json`). 설치본을 lock과 비교하는 검사는 링크 중에 실패하므로, 링크를 푼 뒤나 일괄 릴리스 뒤에 실행한다.
 - npm은 링크된 패키지 자신의 의존을 제공자 checkout의 `node_modules`에서 찾는다. Composer는 소비자의 vendor에서 찾으므로, 제공자가 새로 요구하는 Composer 패키지는 소비자에도 설치되어 있어야 한다.
 - PHP C 확장은 링크하지 않는다. 빌드된 공유 라이브러리가 필요하기 때문이다.

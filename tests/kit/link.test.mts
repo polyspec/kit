@@ -10,7 +10,7 @@ import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
-import { assertIgnored, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -262,6 +262,18 @@ test('the repositories that a linked package declares are written into composer.
   const seen = seenUpdate(consumer);
   assert.deepEqual(seen.repositories.filter(entry => isJsonObject(entry) && entry.type === 'vcs'), [fork]);
   assert.equal(seen.repositories.filter(entry => isJsonObject(entry) && entry.url === '../other').length, 0, 'a path repository of the provider is relative to the provider and is not copied');
+});
+
+// K349: the checkouts beside the repository are the checkouts of a link without arguments, also from a worktree of the repository.
+test('siblingCheckouts finds the checkouts beside the repository, not the repository, and a worktree finds the same (K349)', (t) => {
+  const { provider, kit, consumer } = workspace(t);
+  assert.deepEqual(siblingCheckouts(consumer), [kit, provider].sort());
+  git(consumer, 'worktree', 'add', '--quiet', path.join(path.dirname(consumer), 'cons-wt'), '-b', 'wt');
+  assert.deepEqual(siblingCheckouts(path.join(path.dirname(consumer), 'cons-wt')), [kit, provider].sort());
+  const alone = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-alone-')));
+  t.after(() => rmSync(alone, { recursive: true, force: true }));
+  initRepository(path.join(alone, 'only'));
+  assert.deepEqual(siblingCheckouts(path.join(alone, 'only')), [], 'no sibling, as in CI');
 });
 
 test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {

@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9255b092afdfdf799e4929a517d3c7e7a52c8e80fd9722705f7fba9fa8d0f4e6 -->
+<!-- source-sha256: e521f34cb51587115b18ada33b32f8d839483730de7220fcba6276e05c25f95f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make install-packages`는 설치한 패키지를 저장소 옆의 polyspec checkout에 링크하고(`link --siblings`), `CHECKOUTS` 없는 `make link`는
+  worktree에서도 그 checkout을 쓰며, `make link-state-check`는 lock에서 설치한 뒤 link 단계가 없는 recipe와 `.php-version`과 다른 PHP를 요구하는
+  linked vendor를 실패시킨다 (K349).
 - `make item-state`는 verification을 실행하기 전에 done으로의 transition을 검사하므로, waiting row는 stage하지 않은 파일이 아니라 이동할 수 있는 상태와 함께
   거부된다 (K353-1).
 - `make item-edit ID= VERIFICATION=`는 `item-new`와 같은 검사를 거쳐 두 언어 row의 Verification 칸을 바꾸고, `make item-state`와 `make

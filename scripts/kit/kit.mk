@@ -316,8 +316,8 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # provider's source and never builds; link-check lists each one as linked, NOT linked, STALE or own; unlink restores the
 # locked installs. link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Link every installed polyspec package pinned at 0.0.x to its source in CHECKOUTS (PROJECT names the consumer); never builds; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(CHECKOUTS)
+link: ## Link every installed polyspec package pinned at 0.0.x to its source in CHECKOUTS, else in the checkouts beside the repository, also from a worktree (PROJECT names the consumer); never builds; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 link-check: ## List every installed polyspec package pinned at 0.0.x as linked, NOT linked or STALE against CHECKOUTS; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(CHECKOUTS)
