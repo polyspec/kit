@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make test-php-ext CASES=<pattern>` takes the tests that the filter selects in each PHP library from PHPUnit itself,
+  `--list-tests --filter` with the command of the run of that library, so a `#[Test]` method, a data provider and an
+  inherited test count; the reading of `function test…` methods of K390 is removed. Red: a library whose only matching
+  test was a `#[Test]` method without the prefix was reported as no case selected; green: `node --test
+  --test-name-pattern=K390 tests/kit/runtime-targets.test.mts` passes (K390-1).
 - `make land BRANCH=<branch>` lands a branch on main: it refuses a branch that is not rebased on main or has no
   worktree, runs in that worktree the static gates of kit-gates that the changed paths select through
   `config/owner-checks.json`, always with docs-check and commits-check (over `main..<branch>`) and never a test,

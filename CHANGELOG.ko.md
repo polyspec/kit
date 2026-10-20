@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f3616cbef8f377a41951f3d1ba7194c15b4de7ff98ce871ed3631e22cf3e0afc -->
+<!-- source-sha256: 6f12d1dd92b02e78ab1cb0ed30d975c9e1f9145c4fe617878025aefdea42ec25 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make test-php-ext CASES=<pattern>`은 각 PHP library에서 filter가 고르는 test를 그 library run의 명령으로 실행한
+  PHPUnit 자신의 `--list-tests --filter`에서 받으므로 `#[Test]` method, data provider, 상속된 test도 센다. K390의 `function
+  test…` method 읽기는 지웠다. red: 맞는 test가 접두어 없는 `#[Test]` method뿐인 library가 no case selected로 보고되었다.
+  green: `node --test --test-name-pattern=K390 tests/kit/runtime-targets.test.mts`가 통과한다 (K390-1).
 - `make land BRANCH=<branch>`는 branch를 main에 합친다. main에 rebase되지 않았거나 worktree가 없는 branch를 거부하고,
   그 worktree에서 바뀐 경로가 `config/owner-checks.json`으로 고르는 kit-gates의 정적 gate를 docs-check와 commits-check
   (`main..<branch>`)와 함께 실행하며 test는 실행하지 않는다. 실패한 gate의 출력과 함께 거부하고 `--ff-only`로 합친 뒤
