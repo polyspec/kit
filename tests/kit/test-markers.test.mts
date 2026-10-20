@@ -45,3 +45,10 @@ test('testing.Short, pytest.importorskip, @requires, #[Requires...] and the skip
     'tests/a.test.mts:3: t.todo skips or narrows a test',
   ]);
 });
+
+test('a skip marker is no finding only in a fixture of the fixture convention (K344)', () => {
+  const skip = 'func TestFixtureSkip(t *testing.T) {\n\tt.Skip("the runner reports this skip")\n}\n';
+  assert.deepEqual(markerFindings('packages/go/testcase/testcase_fixture_test.go', skip), [], 'a fixture of the convention is no finding');
+  assert.deepEqual(markerFindings('packages/go/testcase/testcase_test.go', skip), ['packages/go/testcase/testcase_test.go:2: t.Skip skips or narrows a test']);
+  assert.deepEqual(markerFindings('tests/fixtures/skip.test.mts', "import test from 'node:test';\ntest.skip('the runner reports this skip', () => {});\n"), [], 'a fixture folder of the convention is no finding');
+});

@@ -29,8 +29,20 @@ const LINE_MARKERS: { files: RegExp; comment: RegExp; markers: RegExp }[] = [
 // K315 added testing.Short, pytest.importorskip, @requires and #[Requires...], and the skip of a test context.
 const finding = (file: string, line: number, marker: string) => `${file}:${line}: ${marker} skips or narrows a test`;
 
+// K344: a skip in a fixture of this convention is no finding, since the skip of a fixture is the behaviour its test checks.
+const FIXTURE_NAME = /_fixture_test\.go$|[._]fixture\.test\.[a-z]+$|^test_.*_fixture\.py$|FixtureTest\.php$/;
+const SKIP_NAME = /skip/i;
+
+/** Whether `file` is a fixture of the convention (K344): in a folder `fixtures` or `testdata`, or named as one. */
+export function isFixtureFile(file: string): boolean {
+  const segments = file.split('/');
+  const basename = segments.pop() ?? '';
+  return segments.some(segment => segment === 'fixtures' || segment === 'testdata') || FIXTURE_NAME.test(basename);
+}
+
 /** The markers of a script `text` of `file`: a call of a narrowing method of a registration, or a narrowing option. */
 function scriptMarkers(file: string, text: string): string[] {
+  const fixture = isFixtureFile(file);
   const found: { line: number; text: string }[] = [];
   const lineOf = (offset: number) => text.slice(0, offset).split('\n').length;
   walk(parseScript(file, text).program, (node) => {
@@ -55,7 +67,7 @@ function scriptMarkers(file: string, text: string): string[] {
       }
     }
   });
-  return found.sort((a, b) => a.line - b.line).map(entry => finding(file, entry.line, entry.text));
+  return found.filter(entry => !(fixture && SKIP_NAME.test(entry.text))).sort((a, b) => a.line - b.line).map(entry => finding(file, entry.line, entry.text));
 }
 
 /** The findings of the test file `file` with the text `text`; a file that is no test of a runner of kit has none. */
@@ -66,7 +78,7 @@ export function markerFindings(file: string, text: string): string[] {
   if (!kind) return [];
   return text.split('\n').flatMap((line, index) => {
     const marker = kind.markers.exec(line.replace(kind.comment, ''));
-    return marker ? [finding(file, index + 1, marker[0])] : [];
+    return marker && !(isFixtureFile(file) && SKIP_NAME.test(marker[0])) ? [finding(file, index + 1, marker[0])] : [];
   });
 }
 
