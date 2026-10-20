@@ -40,6 +40,8 @@ const ITEM_BEFORE = new RegExp(`\\S(?:${JOIN})$`, 'iu');
 const ITEM_AFTER = new RegExp(`^([^,/]*?)(?:${JOIN})\\S`, 'iu');
 // A word that distributes the number after it over the items of its sentence: each, and its Korean word.
 const DISTRIBUTIVE = ['each', '각각'];
+// The nouns after which a noun of the implementations is the modifier of a compound, no implementation: "language service".
+const COMPOUND_HEADS = ['service', 'server', 'client', 'tool', 'protocol', 'file', 'name', 'support', 'feature', 'pair', 'table', 'tag', 'list'];
 
 /**
  * The counts of `text`: each number followed by one of `nouns` after a space, a hyphen (four-client) or a Korean counter
@@ -48,8 +50,19 @@ const DISTRIBUTIVE = ['each', '각각'];
  */
 function countsOf(text: string, nouns: string[]) {
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?<!(?<![\\p{L}\\p{N}])(?:${DISTRIBUTIVE.join('|')})\\s+)(\\d+|${Object.keys(NUMBERS).join('|')})(?:\\s*(?:개|가지)\\s*|\\s+|-)(?:${nouns.map(escape).join('|')})(?![A-Za-z0-9])`, 'giu');
-  // The first group of the pattern is not optional, so every match holds it.
-  return [...text.matchAll(pattern)].map(match => ({ text: match[0], count: /^\d+$/.test(present(match[1], 'match[1]')) ? Number(match[1]) : NUMBERS[present(match[1], 'match[1]').toLowerCase()], index: match.index }));
+  // The first group of the pattern is not optional, so every match holds it. A phrase that states no number of implementations is left
+  // out (K311): the noun is the modifier of a compound ("one language service"), or the number is the pair of a comparison
+  // ("differs between the two languages", the natural languages of a document).
+  const COMPOUND = new RegExp(`^\\s+(?:${COMPOUND_HEADS.join('|')})(?![A-Za-z0-9])`, 'iu');
+  const statesCount = (match: RegExpMatchArray) => {
+    const number = match[1] ?? '';
+    const start = match.index ?? 0;
+    const before = text.slice(0, start);
+    const after = text.slice(start + match[0].length);
+    if (COMPOUND.test(after)) return false;
+    return !(/^(?:two|both|2)$/i.test(number) && /\bbetween\s+(?:the\s+)?$/i.test(before));
+  };
+  return [...text.matchAll(pattern)].filter(statesCount).map(match => ({ text: match[0], count: /^\d+$/.test(present(match[1], 'match[1]')) ? Number(match[1]) : NUMBERS[present(match[1], 'match[1]').toLowerCase()], index: match.index }));
 }
 
 /**

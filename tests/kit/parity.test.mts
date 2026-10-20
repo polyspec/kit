@@ -1403,6 +1403,22 @@ test('R10: a distributive count and a run of names inside a list of other items 
   ]);
 });
 
+// K311: a prose number followed by a noun of the implementations states a count only when it counts implementations.
+test('R10: a noun that modifies a compound and the pair of a comparison are no count of implementations (K311)', TIMEOUT, (t) => {
+  const { findings } = check(t, {
+    files: {
+      'docs/index.md': [
+        '# Codec', '',
+        'The tests run against one language service.', '',
+        'The checker fails when code blocks differ between the two languages.', '',
+        'The three languages implement it.', '',
+      ].join('\n'),
+    },
+    edit: (config) => { config.documents.nouns.push('language', 'languages'); return config; },
+  }, { execute: false });
+  assert.deepEqual(findings.filter(finding => finding.rule === 'R10').map(finding => `${finding.place} ${finding.message.split('"')[1]}`), ['docs/index.md:7 three languages']);
+});
+
 test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, (t) => {
   const prose = (config: Declaration) => { itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
   const { findings } = check(t, {

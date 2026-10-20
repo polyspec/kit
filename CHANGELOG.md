@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Parity rule R10 counts only phrases that state a number of implementations: a noun that modifies a compound ("one
+  language service") and the pair of a comparison ("between the two languages") are no count (K311).
 - `make duplication-check` passes the exclude globs of `config/duplication.json` to jscpd in a configuration file, so
   a brace glob such as `{tests,spec}/**` keeps its braces and excludes the files it names (K310).
 - `make lint-ts` passes in kit: the JSON of the tests and tools of the link, the divergence check and the PHP library
