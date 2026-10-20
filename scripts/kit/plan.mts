@@ -31,11 +31,12 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, fileAt, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, fileAt, indexItemFindings, isTestFile, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
+import { recordRed, redGateLines } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
@@ -288,7 +289,7 @@ function withState(text: string, id: string, state: string): string {
  * the done state without a line with (<id>) that the working tree adds to each changelog of the commit rules, a missing
  * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
  */
-export function setState(root: string, change: NewState): Record<string, string> {
+export function setState(root: string, change: NewState, print: (text: string) => void = text => console.log(text)): Record<string, string> {
   if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
@@ -317,6 +318,8 @@ export function setState(root: string, change: NewState): Record<string, string>
   refuseAdded(root, trackers, files);
   const refused = workingItemFindings(root, rules, files);
   if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
+  // An item that becomes active records the red of the gates that its Verification runs, on the parent of its commit (K357).
+  if (change.state === ACTIVE) recordRed(root, change.id, itemCommands(read(entry.tracker.path), entry.tracker, change.id), print);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -418,7 +421,10 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
-  const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
+  // A fix without a test file carries the red of its gate that make item-state recorded on HEAD (K357).
+  const tested = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').some(isTestFile);
+  const red = commit.type === 'fix' && !tested ? redGateLines(root, commit.id) : [];
+  const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n${red.length ? `\n${red.join('\n')}\n` : ''}`;
   const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   // The types of the TypeScript that the commit changes (K309): vitest and node transpile without checking them, so tsc runs here.

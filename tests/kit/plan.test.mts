@@ -9,6 +9,7 @@ import { commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, 
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
+import { COMMIT_RULES, indexItemFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 
 const CONFIG = { 'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
@@ -315,4 +316,62 @@ test('item-state refuses a bypassed or impossible state whose cause cites a rele
     assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
   }
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
+});
+
+// K357: a fix whose defect is a finding of a gate of kit-gates has the gate as its test; the red of the gate on the parent proves it.
+test('a fix commit without a test file is accepted with the red of the gate of its row that item-state recorded on its parent (K357)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, {
+    '.gitignore': 'var/\n',
+    'Makefile': 'lint-x:\n\tgrep -q good a.txt\n',
+    'scripts/kit/kit.mk': 'kit-gates: lint-x\n',
+    'a.txt': 'bad\n',
+    'CHANGELOG.md': CHANGELOG,
+    'CHANGELOG.ko.md': CHANGELOG,
+  });
+  newItem(root, item('parser', 'T1', { deliverables: '`a.txt`', verification: '`make lint-x`' }));
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '-m', 'base']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const quiet = () => {};
+  writeFileSync(path.join(root, 'a.txt'), 'good\n');
+  setState(root, { id: 'T1', state: '[~]' }, quiet);
+  assert.ok(!existsSync(path.join(root, 'var/plan/T1.json')), 'a tree that differs from HEAD is no parent, so no red is recorded');
+  setState(root, { id: 'T1', state: '[ ]' }, quiet);
+  writeFileSync(path.join(root, 'a.txt'), 'bad\n');
+  setState(root, { id: 'T1', state: '[~]' }, quiet);
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/plan/T1.json'), 'utf8')), { head, gates: [{ command: 'make lint-x', status: 2 }] });
+  writeFileSync(path.join(root, 'a.txt'), 'good\n');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix the finding (T1).\n`);
+  stage(root, 'a.txt', 'CHANGELOG.md', 'CHANGELOG.ko.md');
+  verifyDone(root, 'T1', quiet);
+  setState(root, { id: 'T1', state: '[o]' }, quiet);
+  stage(root, 'docs/plans');
+  const body = path.join(root, 'var/body.txt');
+  writeFileSync(body, 'The gate found it.\n');
+  const message = commitItem(root, { id: 'T1', type: 'fix', scope: 'lint', subject: 'Fix the finding', bodyFile: body }, identity);
+  assert.equal(message, `fix(lint): Fix the finding (#T1)\n\nThe gate found it.\n\nRed-Gate: make lint-x exit 2 at ${head.slice(0, 12)}\n`);
+  assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', COMMIT_RULES), [], 'commits-check reads the red from the message');
+  assert.equal(log(root).trimEnd(), message.trimEnd());
+});
+
+test('a fix commit without a test file is refused without a red of its gate, with the red of another parent, and without moving its item to done (K357)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { 'Makefile': 'lint-x:\n\ttrue\n', 'scripts/kit/kit.mk': 'kit-gates: lint-x\n', 'a.txt': 'bad\n', 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG });
+  newItem(root, item('parser', 'T1', { deliverables: '`a.txt`', verification: '`make lint-x`' }));
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '-m', 'base']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const findings = (red: string) => indexItemFindings(root, COMMIT_RULES, `fix(lint): Fix the finding (#T1)\n\nWhy.\n${red}`).map(found => found.rule);
+  const red = `\nRed-Gate: make lint-x exit 2 at ${head.slice(0, 12)}\n`;
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  writeFileSync(path.join(root, 'a.txt'), 'good\n');
+  stage(root, 'a.txt', 'docs/plans');
+  assert.deepEqual(findings(red), ['commit-fix-test'], 'a commit that does not move its item to done');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix the finding (T1).\n`);
+  setState(root, { id: 'T1', state: '[o]' }, () => {});
+  stage(root, 'CHANGELOG.md', 'CHANGELOG.ko.md', 'docs/plans');
+  assert.deepEqual(findings(''), ['commit-fix-test'], 'no red');
+  assert.deepEqual(findings('\nRed-Gate: make lint-x exit 2 at 0000000000\n'), ['commit-fix-test'], 'the red of another parent');
+  assert.deepEqual(findings(red.replace('lint-x', 'lint-y')), ['commit-fix-test'], 'a command that the row does not run');
+  assert.deepEqual(findings(red.replace('exit 2', 'exit 0')), ['commit-fix-test'], 'a gate that passed on the parent');
+  assert.deepEqual(findings(red), [], 'the red of the gate of the row on the parent');
 });

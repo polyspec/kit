@@ -228,5 +228,5 @@ test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257
   ]);
   const findings = rangeFindings(root, 'HEAD~4..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php\); a fix starts with a test that reproduces the defect$/);
+  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php\); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates .* a Red-Gate line of the commit that moves the item to done \(K357\)$/);
 });

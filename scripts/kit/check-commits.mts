@@ -27,6 +27,8 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
+import { gateCommands, kitGates, provesRed } from './gate-red.mts';
+import { itemCommands } from './verification.mts';
 
 /** The rules of a commit: the types of its subject, the limits of its lines, and the changelog that a done item changes. */
 export type CommitRules = {
@@ -58,7 +60,7 @@ export type CommitMessage = { id: string; message: string; author?: string; comm
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
  * files at both sides.
  */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string };
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined };
 
 
 // A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
@@ -131,7 +133,7 @@ export const isTestFile = (file: string) => TEST_FILE.test(file);
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent }: Change) {
   const changes = [];
   for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
@@ -152,7 +154,13 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     }
   }
   if (message !== undefined && message.startsWith('fix(') && !changed.some(isTestFile)) {
-    found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect` });
+    // A defect that a gate of kit-gates finds has the gate as its test: the red of the gate on the parent proves it (K357).
+    const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
+    const done = changes.find(change => change.id === id && change.to === DONE);
+    const gates = done ? gateCommands(itemCommands(after(done.tracker.path), done.tracker, done.id), kitGates(root)) : [];
+    if (parent === undefined || !provesRed(message, gates, parent)) {
+      found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates that the Verification of its row runs, with the red of the gate on the parent: make item-state records it as the item becomes active on a clean tree, and make commit writes it as a Red-Gate line of the commit that moves the item to done (K357)` });
+    }
   }
   return found;
 }
@@ -166,6 +174,7 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
     changed: git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--root', id).split('\n').filter(Boolean),
     plans: [...(parent ? plansAt(root, parent) : []), ...plansAt(root, id)],
     message,
+    parent: parent ? git(root, 'rev-parse', parent).trim() : undefined,
   });
 };
 
@@ -178,6 +187,7 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
     plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
     message,
+    parent: head ? git(root, 'rev-parse', 'HEAD').trim() : undefined,
   });
 }
 

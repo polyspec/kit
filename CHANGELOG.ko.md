@@ -1,11 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5f9a9a2eb1ee6117caaddac51afebeaa5cc7fdbcece8995b6b564cf5746c00ac -->
+<!-- source-sha256: f669fe458cbb0a6ee0cc2a0196d94658ee24d4f31c092e677227d3d903536654 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 결함이 lint finding 같은 kit-gates gate의 finding인 fix commit은 test 파일 대신 parent에서 그 gate의 red로
+  증명된다. `make item-state`는 row가 `docs/plans` 밖에서 HEAD와 같은 tree에서 active가 될 때 Verification의 gate
+  명령을 실행해 exit status를 `var/plan/<id>.json`에 기록하고, `make commit`은 실패한 gate마다
+  `Red-Gate: make <gate> exit <n> at <parent>` 줄을 쓰며, check-commits는 commit이 item을 done으로 옮기고 그 줄이
+  row의 gate와 parent를 가리킬 때 commit을 받아들인다. red: 그런 commit은 commit-fix-test로 거부되었고 red는 기록되지
+  않았다. green: `node --test --test-name-pattern=K357 tests/kit/plan.test.mts`가 2개 중 2개 통과한다 (K357).
 - Claude Code hook, `make item-test`, `make item-state`는 `run-tests.mts` 명령을 runner와 같은 방식으로 읽는다. option 뒤의
   인수는 `--` 없이도 받고 파일은 `--cwd`에서 해석하므로 `--cwd packages/php -- ../../tests/XTest.php`가 허용된다.
   item-test와 item-state는 Verification 명령의 파일을 명령을 실행하는 root에서 판단한다. red: 두 명령 모두 hook이

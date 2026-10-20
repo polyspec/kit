@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+- A fix commit whose defect is a finding of a gate of kit-gates, such as a lint finding, is proved by the red of the
+  gate on its parent instead of a test file: `make item-state` runs the gate commands of the Verification of a row as
+  it becomes active on a tree that equals HEAD outside `docs/plans` and records their exit statuses in
+  `var/plan/<id>.json`, `make commit` writes each failed gate as a `Red-Gate: make <gate> exit <n> at <parent>` line,
+  and check-commits accepts the commit when it moves the item to done and the line names a gate of the row and the
+  parent. Red: such a commit was refused with commit-fix-test and no red was recorded; green: `node --test
+  --test-name-pattern=K357 tests/kit/plan.test.mts` passes 2 of 2 (K357).
 - The Claude Code hook, `make item-test` and `make item-state` read a command of `run-tests.mts` as the runner does: its
   arguments after the options also without `--`, and a file from its `--cwd`, so `--cwd packages/php --
   ../../tests/XTest.php` is allowed; item-test and item-state judge a file of a Verification command from the root,
