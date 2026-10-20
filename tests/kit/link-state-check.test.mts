@@ -84,3 +84,25 @@ test('a recipe that installs from a lock without the kit link step after it is a
     'Makefile:18: the recipe d-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
   ]);
 });
+
+// K375: a worktree that links its install directories to the main checkout runs the sources of the main checkout.
+test('an install directory that is a symbolic link, and a workspace package that resolves outside the checkout, are findings (K375)', (t) => {
+  const other = tree(t, {});
+  const linked = tree(t, {});
+  symlinkSync(other, path.join(linked, 'node_modules'));
+  assert.deepEqual(linkFindings(linked, process.env), ['install directory node_modules is a symbolic link: remove the link and install the worktree from its own sources']);
+
+  const workspace = JSON.stringify({ name: 'root', workspaces: ['packages/a'] });
+  const outside = tree(t, { 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
+  const foreign = tree(t, { 'package.json': workspace, 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
+  mkdirSync(path.join(foreign, 'node_modules/@x'), { recursive: true });
+  symlinkSync(path.join(outside, 'packages/a'), path.join(foreign, 'node_modules/@x/a'));
+  const found = linkFindings(foreign, process.env);
+  assert.equal(found.length, 1);
+  assert.match(found[0] ?? '', /node_modules\/@x\/a/);
+
+  const own = tree(t, { 'package.json': workspace, 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
+  mkdirSync(path.join(own, 'node_modules/@x'), { recursive: true });
+  symlinkSync(path.join(own, 'packages/a'), path.join(own, 'node_modules/@x/a'));
+  assert.deepEqual(linkFindings(own, process.env), []);
+});

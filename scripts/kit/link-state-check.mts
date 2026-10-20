@@ -19,7 +19,7 @@ import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
+import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
 
 // Only a package pinned at 0.0.x is linked (docs/operations/local-links.md).
 const ZERO = /^v?0\.0\./;
@@ -148,10 +148,64 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
   return found;
 }
 
+// K375: the install directories of a checkout are real folders; a link there runs the sources of another checkout.
+const INSTALL_DIRECTORIES = ['node_modules', 'vendor', '.venv', 'target', 'var'];
+const MANIFESTS = new Set(['package.json', 'composer.json', 'pyproject.toml', 'Cargo.toml']);
+
+/** The folders of `root` that hold a manifest of a tracked file, and the root itself, relative to `root`. */
+function manifestFolders(root: string): string[] {
+  const folders = new Set(['.']);
+  for (const file of trackedFiles(root)) if (MANIFESTS.has(path.posix.basename(file))) folders.add(path.posix.dirname(file));
+  return [...folders].sort();
+}
+
+/** The findings of the install directories of `folders` that are symbolic links. */
+function installLinkFindings(root: string, folders: readonly string[]): string[] {
+  const found: string[] = [];
+  for (const folder of folders) for (const name of INSTALL_DIRECTORIES) {
+    const dir = path.join(root, folder, name);
+    if (isLink(dir)) found.push(`install directory ${path.relative(root, dir)} is a symbolic link: remove the link and install the worktree from its own sources`);
+  }
+  return found;
+}
+
+/** The workspace packages that "workspaces" of the root declares: each package name, with the folder it is in (relative to `root`). */
+function workspacePackages(root: string): Map<string, string> {
+  const packages = new Map<string, string>();
+  const manifest = path.join(root, 'package.json');
+  const patterns = existsSync(manifest) ? readJsonObject(manifest).workspaces : undefined;
+  if (!isStringList(patterns)) return packages;
+  for (const pattern of patterns) {
+    // A pattern `dir/*` names each folder of dir; any other pattern names one folder.
+    const folders = pattern.endsWith('/*') ? (existsSync(path.join(root, pattern.slice(0, -2))) ? readdirSync(path.join(root, pattern.slice(0, -2))) : []).map(item => path.join(pattern.slice(0, -2), item)) : [pattern];
+    for (const folder of folders) {
+      const file = path.join(root, folder, 'package.json');
+      const name = existsSync(file) ? readJsonObject(file).name : undefined;
+      if (typeof name === 'string') packages.set(name, folder);
+    }
+  }
+  return packages;
+}
+
+/** The findings of the workspace packages in node_modules of `folders` that are links resolving outside the checkout. */
+function workspaceLinkFindings(root: string, folders: readonly string[]): string[] {
+  const checkout = realpathSync(root);
+  const names = [...workspacePackages(root).keys()];
+  const found: string[] = [];
+  for (const folder of folders) for (const name of names) {
+    const link = path.join(root, folder, 'node_modules', name);
+    if (!isLink(link) || !existsSync(link)) continue;
+    const target = realpathSync(link);
+    if (target !== checkout && !target.startsWith(`${checkout}${path.sep}`)) found.push(`npm ${name}: the link ${path.relative(root, link)} resolves to ${target}, outside the checkout; remove the link and install the worktree from its own sources`);
+  }
+  return found;
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
-  const found = [...goFindings(root), ...platformFindings(root, installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
+  const folders = manifestFolders(root);
+  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);
