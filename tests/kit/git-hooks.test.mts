@@ -12,6 +12,9 @@ import { checkout, git, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 
+// The configuration of a repository that declares the pattern of its item IDs (K354-3).
+const CONFIG_JSON = '{ "schema": 1, "hooks": ["pre-push"], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
+
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
 
@@ -20,7 +23,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=union, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -260,8 +263,9 @@ test('the twin of a changelog that still merges with union holds the marker of t
 // K354: two branches that both add changelog lines and checklist rows rebase without a conflict, and each commit that the rebase
 // writes holds Korean twins whose marker is the sha256 of their English file.
 test('the merges that make hooks declares rebase two branches of changelog lines and checklist rows with current Korean twins (K354)', (t) => {
-  // The driver runs the make target of kit.mk, as in every repository that includes it.
-  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
+  // The driver runs the make target of kit.mk, as in every repository that includes it, and reads the pattern of the IDs of the
+  // checklists from config/checklist.json.
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE, 'config/checklist.json': CONFIG_JSON });
   const git = (...args: string[]) => {
     const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
     return { ...result, ok: result.status === 0 };
@@ -300,4 +304,37 @@ test('the merges that make hooks declares rebase two branches of changelog lines
     assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), `the twin of ${english[key]} is current`);
     assert.equal(ko.match(/source-sha256/g)?.length, 1, 'one marker');
   }
+});
+
+// K354-3: the rows of a checklist merge by their ID, so a rebase keeps the row that main closes once, beside the row that the
+// branch appends, and its Korean twin holds the same rows with a current marker.
+test('a rebase merges checklist rows by id, so a row that main closes is kept once beside the rows that the branch appends (K354-3)', (t) => {
+  const root = tree(t, { 'Makefile': KIT_MAKEFILE, 'config/checklist.json': CONFIG_JSON });
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+    return { ...result, ok: result.status === 0 };
+  };
+  const english = 'docs/plans/p/checklist.md';
+  const head = '<!-- doc-id: checklist-p -->\n# P\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n';
+  const row = (id: string, state: string) => `| ${id} | task ${id} | \`${id}\` | \`${id}\` | ${state} |`;
+  const write = (rows: string[]) => {
+    const en = `${head}${rows.map(line => `${line}\n`).join('')}`;
+    put(root, { [english]: en, [english.replace(/\.md$/, '.ko.md')]: korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')) });
+    assert.ok(git('add', '-A').ok);
+    assert.ok(git('commit', '--quiet', '-m', 'step').ok);
+  };
+  write([row('T1', '[ ]')]);
+  assert.ok(git('branch', '-M', 'main').ok);
+  assert.ok(git('checkout', '--quiet', '-b', 'row').ok);
+  write([row('T1', '[ ]'), row('T2', '[ ]')]);
+  assert.ok(git('checkout', '--quiet', 'main').ok);
+  write([row('T1', '[o]')]);
+  assert.ok(git('checkout', '--quiet', 'row').ok);
+  installMerges(root);
+  const rebase = git('rebase', 'main');
+  assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
+  const en = readFileSync(path.join(root, english), 'utf8');
+  assert.equal(en, `${head}${row('T1', '[o]')}\n${row('T2', '[ ]')}\n`);
+  const ko = readFileSync(path.join(root, english.replace(/\.md$/, '.ko.md')), 'utf8');
+  assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
 });
