@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9c216607f1b7ab576523cd0a8ee822bade41d6193e7f2e1638f9cfe0ede399ef -->
+<!-- source-sha256: a11306d2f01ad7b577b738a4a8293952292fadf3c50cfa9a5a488be76ffc9046 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link-state-check`는 checkout의 install directory(`node_modules`, `vendor`, `.venv`, `target`, `var`)가 symbolic
+  link이거나 `node_modules` 안의 workspace package link가 checkout 밖으로 resolve되면 실패한다. 그것들을 main
+  checkout에 link한 worktree는 main checkout의 source를 실행하기 때문이다. polyspec provider로의 link는 계속 허용된다.
+  red: `node_modules`를 link한 checkout이 통과했다. green: `node --test --test-name-pattern=K375
+  tests/kit/link-state-check.test.mts`가 통과한다 (K375).
 - `make lint-php`는 phpstan을 제한 없음을 뜻하는 phpstan의 값 `--memory-limit=-1`로 실행한다. 분석에 필요한 memory는
   package와 함께 커지고 제한은 분석을 멈출 뿐이기 때문이다. red: phpstan이 orm packages/php에서 php.ini의 128M에서
   멈췄고 명령에 memory 제한 option이 없었다. green: `node --test --test-name-pattern=K346 tests/kit/lint-php.test.mts`가

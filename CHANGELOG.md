@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make link-state-check` fails an install directory of a checkout (`node_modules`, `vendor`, `.venv`, `target`, `var`)
+  that is a symbolic link, and a link of a workspace package in `node_modules` that resolves outside the checkout,
+  since a worktree that links them to the main checkout runs the sources of the main checkout; a link to a polyspec
+  provider stays allowed. Red: a checkout with a linked `node_modules` passed; green: `node --test
+  --test-name-pattern=K375 tests/kit/link-state-check.test.mts` passes (K375).
 - `make lint-php` runs phpstan with `--memory-limit=-1`, phpstan's value for no limit, since the memory that an
   analysis needs grows with the package and a limit only stops it. Red: phpstan stopped at the 128M of php.ini on
   orm packages/php, and its command had no memory limit; green: `node --test --test-name-pattern=K346
