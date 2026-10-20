@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: cf9bc177e657d38e372a4cc2729db8c55d5923268302cfb330e79844bd772080 -->
+<!-- source-sha256: 92d98660b1cf01840c11574abe40d0ebf80bc6cae768f50b5f30c754408c77fe -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -107,3 +107,4 @@
 | K320 | link-state-check는 consumer의 Composer project만 읽는다. 원인: kit이 쓰는 config/php-lint와 config/phpunit project를 consumer project로 보고 Composer가 없으면 throw했다(ssr). 인수 조건: kit이 쓰는 composer.json은 consumer project가 아니며 그런 것만 가진 저장소는 Composer가 필요 없다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K321 | suite CHECK_TARGETS는  단어를 펼쳐서 읽는다. 원인: kit-check와 owner-check가 make -p가 출력한 원래 값을 나눠서  같은 단어가 target 이름이 되었고 그 뒤의 gate가 없다고 보고되었다(ssr). 인수 조건: suiteTargets가 database의 변수로 make 참조를 펼치고 kit-check가 그것으로 suite를 읽는다. | scripts/kit/owner-check.mts, scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K322 | kit이 쓰는 Composer project는 하나의 PHP platform으로 resolve한다. 원인: config/php-lint와 symbol extractor project가 composer.json과 lock에 platform 8.4를 썼는데 K282는 다른 모든 곳에서 .php-version의 minor에 patch 1을 붙인 값(8.4.1)을 요구한다. 인수 조건: config/php-lint, config/phpunit, scripts/kit/symbols/php의 composer.json과 lock의 platform-overrides가 platform 8.4.1이다. | config/php-lint/composer.json, config/php-lint/composer.lock, scripts/kit/symbols/php/composer.json, scripts/kit/symbols/php/composer.lock, tests/kit/php-platform.test.mts | `node --test tests/kit/php-platform.test.mts` | [o] |
+| K324 | make test-python은 package의 환경에서 test를 실행한다. 원인: runtime-targets가 run-tests가 받는 --venv 없이 mise python을 시작해서 package의 test 디렉터리가 package의 dependency에 대해 ModuleNotFoundError로 실패했다(ordered-json). 인수 조건: package 폴더 이하 위쪽에 .venv가 있으면 python 실행이 가장 가까운 .venv를 --venv로 싣고, 없으면 이전처럼 mise의 python이 실행된다. | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |

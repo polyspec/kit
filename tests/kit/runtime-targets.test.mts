@@ -70,3 +70,9 @@ test('build, test and lint run the target of each runtime that packages/ holds (
   assert.deepEqual(taskTargets(FILES, 'lint'), ['lint-go', 'lint-php', 'lint-python', 'lint-rust', 'lint-ts']);
   assert.deepEqual(taskTargets(FILES, 'test'), ['test-go', 'test-php', 'test-python', 'test-rust', 'test-ts']);
 });
+
+test('the tests of a Python package run in the environment of the package, found at or above it (K324)', () => {
+  const files = ['packages/python/pyproject.toml', 'packages/python/tests/__init__.py', 'packages/python/tests/test_a.py'];
+  assert.deepEqual(runtimeRuns(files, 'python', 'x', node, undefined, folder => (folder === 'packages/python' ? 'packages/python/.venv' : undefined)), [{ cwd: 'packages/python', tool: 'python', options: ['--venv', 'packages/python/.venv'], args: ['-k', 'x'] }]);
+  assert.deepEqual(runtimeRuns(files, 'python', 'x', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'x'] }], 'without an environment the python of mise runs, as before');
+});

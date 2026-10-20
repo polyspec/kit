@@ -71,7 +71,7 @@ function pythonPackages(files: readonly string[], folder: string): void {
  * The run of the runner of `runtime` in `folder` with the name filter `cases`; `vitest` says whether the folder uses vitest,
  * and `extension` is the built library of the PHP extension, which its tests load.
  */
-function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string): Run[] {
+function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined): Run[] {
   const filter = (flag: string) => (cases === undefined ? [] : [flag, cases]);
   switch (runtime) {
     case 'ts':
@@ -88,7 +88,8 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }));
     case 'python':
       pythonPackages(files, folder);
-      return [{ cwd: folder, tool: 'python', args: filter('-k') }];
+      // The tests run in the environment of the package (K324): the mise python alone holds none of its dependencies.
+      return [{ cwd: folder, tool: 'python', ...(venv?.(folder) === undefined ? {} : { options: ['--venv', venv(folder) as string] }), args: filter('-k') }];
   }
   throw new Error(`the runtime ${runtime} is none of ${RUNTIMES.join(', ')}`);
 }
@@ -97,10 +98,10 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
  * The runs of the unit tests of the packages of `runtime` among the tracked `files`; throws when no package has it.
  * `extension` is the built library of the PHP extension.
  */
-export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string): Run[] {
+export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined): Run[] {
   const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
   if (folders.length === 0) throw new Error(`no package of the runtime ${runtime}: packages/${runtime} or packages/<component>/${runtime}`);
-  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension));
+  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv));
 }
 
 /** A command of a build: its folder relative to the root, the command and its arguments. */
@@ -134,9 +135,9 @@ export function taskTargets(files: readonly string[], task: string): string[] {
 }
 
 /** The runs of the suite `suite`: the folder of each runtime under tests/<suite>/ of the root. */
-export function suiteRuns(files: readonly string[], suite: string, vitest: (folder: string) => boolean): Run[] {
+export function suiteRuns(files: readonly string[], suite: string, vitest: (folder: string) => boolean, venv?: (folder: string) => string | undefined): Run[] {
   const runtimes = RUNTIMES.filter(runtime => files.some(file => file.startsWith(`tests/${suite}/${runtime}/`)));
-  return runtimes.flatMap(runtime => runsOf(files, runtime, `tests/${suite}/${runtime}`, undefined, vitest));
+  return runtimes.flatMap(runtime => runsOf(files, runtime, `tests/${suite}/${runtime}`, undefined, vitest, undefined, venv));
 }
 
 /** Whether the package.json of `folder` under `root`, or that of the root, declares vitest. */
@@ -156,6 +157,15 @@ function builtExtension(root: string, files: readonly string[]): string {
   const library = path.join(root, 'var/php-ext', `${extensionNames(owner.repository).extension}.so`);
   if (!existsSync(library)) throw new Error(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
   return library;
+}
+
+/** The virtual environment of the Python package `folder` under `root`: the nearest `.venv` at or above it, up to the root. */
+function environmentOf(root: string, folder: string): string | undefined {
+  for (let place = folder; ; place = path.posix.dirname(place)) {
+    const candidate = path.posix.join(place, '.venv');
+    if (existsSync(path.join(root, candidate, 'pyvenv.cfg'))) return candidate;
+    if (place === '.' || place === '') return undefined;
+  }
 }
 
 if (isMain(import.meta.url)) {
@@ -185,6 +195,7 @@ if (isMain(import.meta.url)) {
     process.exit(0);
   }
   const vitest = (folder: string) => usesVitest(root, folder);
+  const venv = (folder: string) => environmentOf(root, folder);
   const suite = (SUITES as readonly string[]).includes(target);
   const refused = suite ? ciRefusal(`make test-${target}`) : null;
   if (refused) {
@@ -194,7 +205,7 @@ if (isMain(import.meta.url)) {
   let runs: Run[];
   try {
     const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
-    runs = suite ? suiteRuns(files, target, vitest) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension);
+    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[runtime-targets] ${error.message}`);
