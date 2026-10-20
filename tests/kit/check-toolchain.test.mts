@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { arginfoToolFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
+import { arginfoToolFindings, bareFpmFindings, toolchainMismatches, toolchainVersions } from '../../scripts/kit/check-toolchain.mts';
 import { LOCK_PLATFORMS } from '../../scripts/kit/toolchain-mise.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
@@ -364,4 +364,15 @@ test('a repository with a PHP extension needs curl or wget and tar for the argin
   assert.deepEqual(arginfoToolFindings(root, without('tar')), ['make php-ext-arginfo: gen_stub.php of the PHP unpacks its PHP-Parser with tar, which is not installed; fix: install tar']);
   const none = tree(t, { 'docs/a.md': '' });
   assert.deepEqual(arginfoToolFindings(none, without('curl', 'wget', 'tar')), []);
+});
+
+test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wraps php-fpm of the same prefix (K341)', (t) => {
+  const findings = (files: Record<string, string>) => bareFpmFindings(tree(t, files));
+  const one = findings({ 'Makefile': 'all:\n\tphp-fpm -y fpm.conf\n' });
+  assert.equal(one.length, 1, one.join('\n'));
+  assert.match(one[0] ?? '', /^Makefile:2 starts php-fpm by its bare name/);
+  assert.match(findings({ 'Makefile': 'all:\n\tphp-cgi -m\n' })[0] ?? '', /^Makefile:2 starts php-cgi by its bare name/);
+  assert.match(findings({ 'build.mk': 'serve:\n\t@php-fpm -y fpm.conf\n' })[0] ?? '', /^build\.mk:2 starts php-fpm/);
+  assert.match(findings({ 'run.sh': 'set -e\nphp-fpm -y fpm.conf\n' })[0] ?? '', /^run\.sh:2 starts php-fpm/);
+  assert.deepEqual(findings({ 'Makefile': 'all:\n\t$(PHP_FPM) -y fpm.conf\n\tvar/tools/bin/php-fpm -y fpm.conf\n' }), []);
 });

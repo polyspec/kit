@@ -150,3 +150,17 @@ test('the PHP wrappers are removed when PHP is no longer declared (K283)', (t) =
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(readdirSync(bin), ['mise']);
 });
+
+test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wraps php-fpm of the same prefix (K341)', (t) => {
+  const { root, directory, machine, bin } = sandbox(t, '8.4');
+  const prefix = path.join(directory, 'prefix');
+  fake(path.join(prefix, 'bin/php'), '8.4.12');
+  const fpm = fake(path.join(prefix, 'sbin/php-fpm'), '8.4.12');
+  const result = start(root, machine(path.join(prefix, 'bin')));
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(wrapper(bin, 'php-fpm').includes(quoted(fpm)), 'php-fpm holds the sbin of the prefix of php');
+  rmSync(fpm);
+  const without = start(root, machine(path.join(prefix, 'bin')));
+  assert.equal(without.status, 0, without.stderr);
+  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');
+});

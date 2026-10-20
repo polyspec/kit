@@ -17,7 +17,7 @@
 // (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings, and so
 // is a key of an .npmrc that keeps npm from linking.
 import { phpInstall } from './install-php.mts';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -31,6 +31,8 @@ import { PINS } from './toolchain-pins.mts';
 import { Pinning, readExceptions } from './toolchain-exceptions.mts';
 import { floorFindings, npmrcFindings, pinFindings } from './toolchain-floors.mts';
 import { present } from './present.mts';
+import { commandWords } from './recipe-tools.mts';
+import { trackedFiles } from './tracked-files.mts';
 
 const INSTALL = 'make install-tools';
 
@@ -170,6 +172,32 @@ export function arginfoToolFindings(root: string, run: Run = defaultRun(root, to
   return found;
 }
 
+// The PHP commands that a recipe or a script must not start by their bare names: the PATH of the machine finds another PHP's
+// (K341), so install-tools wraps php-fpm of the PHP of .php-version as var/tools/bin/php-fpm.
+const PHP_FPM_COMMANDS: ReadonlySet<string> = new Set(['php-fpm', 'php-cgi']);
+
+/**
+ * One finding for each line of a tracked Makefile or *.mk file that starts a recipe with php-fpm or php-cgi by its bare name, and of
+ * each line of a tracked *.sh script that starts one, read as the shell reads it (commandWords, K341). A make variable that names the
+ * file, or var/tools/bin/php-fpm, is no bare name.
+ */
+export function bareFpmFindings(root: string): string[] {
+  const findings: string[] = [];
+  for (const file of trackedFiles(root)) {
+    const makefile = path.posix.basename(file) === 'Makefile' || file.endsWith('.mk');
+    if (!makefile && !file.endsWith('.sh')) continue;
+    readFileSync(path.join(root, file), 'utf8').split('\n').forEach((line, index) => {
+      // A recipe line starts with a tab, and a script's comment is no command.
+      const text = makefile ? (line.startsWith('\t') ? line.slice(1) : undefined) : (line.trimStart().startsWith('#') ? undefined : line);
+      if (text === undefined) return;
+      for (const word of commandWords(text).filter(word => PHP_FPM_COMMANDS.has(word))) {
+        findings.push(`${file}:${index + 1} starts ${word} by its bare name: \`${line.trim()}\`; the PATH of the machine finds the ${word} of another PHP than .php-version. Fix: start var/tools/bin/${word}, which install-tools writes for the PHP of .php-version, or a make variable that names it`);
+      }
+    });
+  }
+  return findings;
+}
+
 const expectation = (entry: DeclaredTool) => (entry.minors ?? [entry.version]).join(' or ');
 
 if (isMain(import.meta.url)) {
@@ -188,7 +216,7 @@ if (isMain(import.meta.url)) {
     const excepted = [...malformed, ...pinning.stale()];
     const links = npmrcFindings(repositoryRoot(), env);
     const locked = [...miseLockFindings(repositoryRoot()), ...miseLockSidecarFindings(repositoryRoot())];
-    const system = arginfoToolFindings(repositoryRoot());
+    const system = [...arginfoToolFindings(repositoryRoot()), ...bareFpmFindings(repositoryRoot())];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);

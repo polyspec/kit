@@ -11,8 +11,11 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { bootstrapEnvironment, quote, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
 
-/** The wrappers that install-tools writes for the PHP of the checkout, the command of the machine they stand for being found beside php. */
-export const PHP_WRAPPERS = ['php', 'php-config', 'phpize'] as const;
+/**
+ * The wrappers that install-tools writes for the PHP of the checkout, the command of the machine they stand for being found beside
+ * php, or in the sbin of its prefix for php-fpm (K341): the php-fpm of PATH may be another PHP's, as a php-ext store took it for 8.4.
+ */
+export const PHP_WRAPPERS = ['php', 'php-config', 'phpize', 'php-fpm'] as const;
 
 /** What to install when the PHP of `minor` is missing. */
 export const phpInstall = (minor: string): string => `brew install php@${minor} or apt install php${minor}-cli`;
@@ -68,8 +71,9 @@ function discover(minor: string, env: NodeJS.ProcessEnv): Found | string[] {
 }
 
 /**
- * Writes var/tools/bin/php of `root` for the PHP of .php-version, and php-config and phpize when they exist beside it, and removes
- * those companions' wrappers of an earlier run that no longer exist. Throws when .php-version is missing or no PHP matches.
+ * Writes var/tools/bin/php of `root` for the PHP of .php-version, and php-config and phpize when they exist beside it, and php-fpm
+ * when `<prefix>/sbin/php-fpm` exists (K341), and removes those companions' wrappers of an earlier run that no longer exist. Throws
+ * when .php-version is missing or no PHP matches.
  */
 export function installPhp({ root, print }: { root: string; print: (text: string) => void }): void {
   const file = path.join(root, '.php-version');
@@ -83,6 +87,9 @@ export function installPhp({ root, print }: { root: string; print: (text: string
   const directory = path.dirname(found.php);
   const needsExtension = existsSync(path.join(root, 'packages/php-ext'));
   const written: Record<string, string> = { php: found.php };
+  // The prefix of php is the parent of its bin directory; a PHP without sbin/php-fpm gets no wrapper, and nothing fails (K341).
+  const fpm = path.join(path.dirname(directory), 'sbin', 'php-fpm');
+  if (existsSync(fpm)) written['php-fpm'] = fpm;
   for (const name of ['php-config', 'phpize'] as const) {
     const companion = path.join(directory, `${name}${found.suffix}`);
     if (!existsSync(companion)) {
