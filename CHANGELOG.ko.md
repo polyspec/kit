@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b55c942f30ae462e8493bc881d85a439b19ed8ccc4751bde6035766c4388ebc7 -->
+<!-- source-sha256: 61bd2058381303abcd3a8682fdf5e1b5693fcf33d59287eaddb04f4e252cb8d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 변경 기록의 Unreleased 항목은 rebase 뒤에도 최신순으로 남는다. `CHANGELOG.md`는 driver `kit-changelog`로, 그 한국어
+  쌍둥이는 `kit-twin`으로 merge되며, 둘은 적용되는 commit만 더한 항목을 main 목록의 형식(항목마다 한 줄, 또는 항목마다 한
+  문단)대로 앞에 둔다. `make hooks`는 union 줄을 바꾼다(K354-1).
 - kit main에서 `make lint-ts`가 다시 통과한다. 테스트 파일 네 개가 non-null assertion 두 개와 `any`에서의 unsafe assertion
   네 개 대신 검사나 타입이 있는 parse로 값을 읽는다(K409).
 - kit main에서 `make owner-validate`가 다시 통과한다. `config/owner-checks.json`은 merge driver `twin-merge.mts`를

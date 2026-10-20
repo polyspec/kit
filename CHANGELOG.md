@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The Unreleased entries of a changelog stay newest first through a rebase: `CHANGELOG.md` merges with the driver
+  `kit-changelog` and its Korean twin with `kit-twin`, which put the entries that only the applied commit adds first, in the
+  style of the list of main, one entry a line or each a paragraph; `make hooks` replaces the union line (K354-1).
 - `make lint-ts` passes on kit main again: four test files read their values through a check or a typed parse in place of
   two non-null assertions and four unsafe assertions from `any` (K409).
 - `make owner-validate` passes on kit main again: `config/owner-checks.json` owns the merge driver `twin-merge.mts` through
