@@ -56,3 +56,8 @@ test('a link that resolves to no package of that name, an npm copy among links a
     'npm @polyspec/x: the link node_modules/@polyspec/x resolves to no package folder',
   ]);
 });
+
+test('the Composer projects that kit writes are no consumer project, so a repository with only those needs no Composer (K320)', (t) => {
+  const root = tree(t, { 'config/php-lint/composer.json': '{"name": "polyspec/kit-php-lint"}', 'config/phpunit/composer.json': '{"name": "polyspec/kit-phpunit"}' });
+  assert.deepEqual(linkFindings(root, { ...process.env, COMPOSER_BIN: '' }), []);
+});

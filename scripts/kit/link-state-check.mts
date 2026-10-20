@@ -15,6 +15,7 @@ import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { installedPackages } from './link.mts';
+import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -43,7 +44,10 @@ function npmInstalled(root: string): Installed[] {
 
 /** The polyspec packages that installed.json of each Composer vendor of `root` records. */
 function composerInstalled(root: string, env: NodeJS.ProcessEnv): Installed[] {
-  const projects = [...new Set(trackedFiles(root).filter(file => path.posix.basename(file) === 'composer.json').map(file => path.join(root, path.posix.dirname(file))))];
+  // The Composer projects that kit writes (the copies of kit-sync, config/php-lint, the PHPUnit project) are tools of kit, no
+  // consumer project: nothing of them is linked, and they need no Composer here (K320).
+  const kitFile = writtenByKit(copiesOf(runningKit()));
+  const projects = [...new Set(trackedFiles(root).filter(file => path.posix.basename(file) === 'composer.json' && !kitFile(file) && !file.startsWith('config/php-lint/') && !file.startsWith('config/phpunit/')).map(file => path.join(root, path.posix.dirname(file))))];
   if (projects.length === 0) return [];
   const tool = { command: env.COMPOSER_BIN || composerCommand(root, 'link-state-check'), env: env.COMPOSER_BIN ? env : toolsEnvironment(root, env) };
   const found: Installed[] = [];
