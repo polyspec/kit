@@ -299,10 +299,12 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
     const folder = path.dirname(file);
     for (let project = folder; `${project}/`.startsWith(`${consumer.top}/`) && !chosen?.installed; project = path.dirname(project)) {
       if (!existsSync(path.join(project, MANIFESTS.composer))) continue;
-      if (!`${project}/`.startsWith(`${highest}/`) && !installsFolder(project, folder)) continue;
+      const installer = project !== folder && installsFolder(project, folder);
+      if (!`${project}/`.startsWith(`${highest}/`) && !installer) continue;
       const vendor = composerVendor(project, composer);
       const installed = existsSync(path.join(vendor, 'composer/installed.json'));
-      if (!chosen || installed) chosen = { project, vendor, installed };
+      // The project whose path repository installs the folder is its project even before its install, so the vendor to install is named.
+      if (!chosen || installed || installer) chosen = { project, vendor, installed };
     }
     if (!chosen) continue;
     const entry = found.get(chosen.vendor) ?? { project: chosen.project, installed: chosen.installed, declared: new Set<string>() };
