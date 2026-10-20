@@ -1,6 +1,7 @@
 // Tests of K248: every rule of PRINCIPLES.md and AGENTS.md names the check that enforces it, and that check runs at a point
 // that cannot be skipped: a step of a CI workflow, a Git hook of .githooks or the Claude Code hook of .claude/settings.json.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { checkRules } from '../../scripts/kit/check-rules.mts';
@@ -171,4 +172,50 @@ test('a target is expanded for each set of variables it is called with, so every
     'AGENTS.ko.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
   });
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
+// K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
+// Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
+const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [
+  ['P10', '30 GB'],
+  ['P22', 'Haiku 5.5'],
+  ['P24', 'starts from its registered row'],
+  ['P36', 'is registered as a row and worked now'],
+  ['P37', 'reported only after its check has run'],
+  ['P38', 'One integrator writes the main'],
+  ['P20', 'order of the conductor'],
+  ['S10', 'userland framework'],
+];
+
+/** The ids of the rules of a document, in order: each item that begins with P<n> or S<n>. */
+const ruleIds = (text: string) => [...text.matchAll(/^- ([PS]\d+) /gm)].map(match => match[1]);
+
+/** The text of each rule of a document by its id: the item line and its indented lines, up to the next item or blank line. */
+function ruleTexts(text: string): Map<string, string> {
+  const rules = new Map<string, string>();
+  let current = '';
+  for (const line of text.split('\n')) {
+    const start = /^- ([PS]\d+) /.exec(line);
+    if (start) {
+      current = start[1] ?? '';
+      rules.set(current, line);
+    } else if (current !== '' && /^  \S/.test(line)) {
+      rules.set(current, `${rules.get(current)}\n${line}`);
+    } else {
+      current = '';
+    }
+  }
+  return rules;
+}
+
+test('the working guidelines are stated in PRINCIPLES.md, each in its own rule with its Enforced by, and the Korean twin holds the same rule ids (K359)', () => {
+  const principles = readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8');
+  const korean = readFileSync(new URL('../../PRINCIPLES.ko.md', import.meta.url), 'utf8');
+  const rules = ruleTexts(principles);
+  for (const [id, phrase] of GUIDELINE_RULES) {
+    const rule = rules.get(id) ?? '';
+    assert.ok(rule.includes(phrase), `${id} states "${phrase}"`);
+    assert.match(rule, /^  Enforced by: /m, `${id} has its Enforced by line`);
+  }
+  assert.deepEqual(ruleIds(korean), ruleIds(principles));
 });
