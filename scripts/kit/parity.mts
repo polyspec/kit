@@ -9,7 +9,8 @@
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
-//                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400)
+//                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400),
+//                     and a schema finding of config/parity.json counts only at a named unit's index (K400-1)
 //     --rule <x>      with --declarations, only the findings of the named rules count, by id (R10) or by name (docs-count), and
 //                     those of config/parity.json itself (K414); a name that is neither fails the run
 //     --id <requirement>  with --declarations, only the findings that name one of the requirement ids count (R13 to R16, R18),
@@ -81,9 +82,14 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     return { findings: [finding('declaration', `${DECLARATION} does not exist, and packages/ holds ${implementations.length} implementations (${implementations.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`)], ledger };
   }
   say(`read ${DECLARATION}`);
-  const declaration = readDeclaration(root, files);
+  // With --unit, the schema lines of other units do not count; when only those remain, no rule runs on the declaration.
+  const declaration = readDeclaration(root, files, units);
   const model = declaration.model;
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
+  if (model === undefined && declaration.scoped !== undefined) {
+    say(`${declaration.scoped} schema findings of other units remain in ${DECLARATION}, and the other rules need a declaration that passes the schema, so they did not run`);
+    return { findings: [], ledger };
+  }
   if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
   // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).
   const selected = units === undefined ? undefined : new Set(units);

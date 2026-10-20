@@ -455,17 +455,54 @@ export function implementationFolders(files: Iterable<string>): string[] {
 }
 
 /**
+ * The schema lines of the declaration scoped to `units` (K400-1): a line at /units/<index> counts only when the unit at that
+ * index, read from the raw JSON, is named; the lines of other paths count. `ids` holds the ids of the raw units, and is
+ * undefined when the raw JSON cannot be read as units, so that every line counts.
+ */
+function scopeSchemaLines(root: string, lines: string[], units: readonly string[]): { kept: string[]; dropped: number; ids?: Set<string> } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
+  } catch {
+    return { kept: lines, dropped: 0 };
+  }
+  if (!isJsonObject(raw) || !isJsonList(raw.units)) return { kept: lines, dropped: 0 };
+  const idAt = raw.units.map(unit => (isJsonObject(unit) && typeof unit.id === 'string' ? unit.id : undefined));
+  const named = new Set(units);
+  const prefix = `${DECLARATION}: /units/`;
+  const kept: string[] = [];
+  let dropped = 0;
+  for (const line of lines) {
+    const index = line.startsWith(prefix) ? /^\d+(?=[ /]|$)/.exec(line.slice(prefix.length))?.[0] : undefined;
+    if (index === undefined || named.has(idAt[Number(index)] ?? '')) kept.push(line);
+    else dropped++;
+  }
+  return { kept, dropped, ids: new Set(idAt.filter((id): id is string => id !== undefined)) };
+}
+
+/**
  * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
  * implementations by name and the case names of each suite unit. The environment references of the runner values are checked
- * as forms only; the runs resolve them (resolveReferences).
+ * as forms only; the runs resolve them (resolveReferences). With `units` a declaration that breaks the schema gives
+ * the schema lines of the named units and of the paths outside them; `scoped` counts the lines of other units left out, and
+ * when none is left the declaration has no model.
  */
-export function readDeclaration(root: string, files: ReadonlySet<string>): { errors: Finding[]; model?: ParityModel } {
+export function readDeclaration(root: string, files: ReadonlySet<string>, only?: readonly string[]): { errors: Finding[]; model?: ParityModel; scoped?: number } {
   let read: ReturnType<typeof readConfigFindings<ParityConfig>>;
   try {
     read = readConfigFindings<ParityConfig>(root, DECLARATION, 'parity.schema.json');
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { errors: [finding('declaration', error.message, { place: DECLARATION })] };
+  }
+  if (read.errors && only !== undefined) {
+    const scoped = scopeSchemaLines(root, read.errors, only);
+    const known = scoped.ids;
+    const unknown = known === undefined ? [] : only.filter(id => !known.has(id));
+    return {
+      errors: [...scoped.kept.map(message => finding('declaration', message, { place: DECLARATION })), ...unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION }))],
+      scoped: scoped.dropped,
+    };
   }
   if (read.errors) return { errors: read.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
   const config = read.value;

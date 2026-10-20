@@ -1651,6 +1651,34 @@ test('parity-declarations-check UNITS reports the findings of the named units an
   assert.match(declaration.stderr, /R12 .* size go config\/parity\.json: .*names go twice/);
 });
 
+// K400-1: a schema finding of another unit does not fail the check of a valid unit, and the schema finding of the named unit still counts.
+test('parity-declarations-check UNITS scopes the schema findings of config/parity.json to the named units (K400-1)', TIMEOUT, (t) => {
+  const root = repository(t, { edit: config => {
+    const width = itemWhere(config.units, (entry: { id: string }) => entry.id === 'width');
+    delete width.requirements;
+    return config;
+  } });
+  const lines: string[] = [];
+  const declarations = (units?: string[]) => checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units }).findings;
+  assert.deepEqual(declarations(['codec']), [], 'codec holds, and the schema finding of width is another unit');
+  assert.ok(lines.some(line => /^1 schema findings of other units remain in config\/parity\.json, and the other rules need a declaration that passes the schema, so they did not run$/.test(line)), lines.join('\n'));
+  const scopedWidth = declarations(['width']);
+  assert.equal(scopedWidth.length, 1, keys(scopedWidth).join('\n'));
+  assert.match(scopedWidth[0]?.message ?? '', /^config\/parity\.json: \/units\/1 must have required property 'requirements'/);
+  assert.match(declarations()[0]?.message ?? '', /^config\/parity\.json: \/units\/1 must have required property 'requirements'/, 'unscoped, the schema finding counts');
+  assert.deepEqual(declarations(['nope']).map(item => item.message), ['--unit nope names no unit of config/parity.json'], 'an unknown unit is still a finding');
+  const make = (units: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `UNITS=${units}`], { cwd: root, env: ENV, encoding: 'utf8' });
+  const valid = make('codec');
+  assert.equal(valid.status, 0, valid.stdout + valid.stderr);
+  assert.match(valid.stdout, /\[parity\] 1 schema findings of other units remain in config\/parity\.json, and the other rules need a declaration that passes the schema, so they did not run/);
+  const broken = make('width');
+  assert.notEqual(broken.status, 0, broken.stdout + broken.stderr);
+  assert.match(broken.stderr, /\[parity\] declaration declaration config\/parity\.json: config\/parity\.json: \/units\/1 must have required property 'requirements'/);
+  const unknown = make('nope');
+  assert.notEqual(unknown.status, 0, unknown.stdout + unknown.stderr);
+  assert.match(unknown.stderr, /--unit nope names no unit of config\/parity\.json/);
+});
+
 // K414: a row whose fact is a rule of the documents verifies it while the findings of other rules still exist.
 test('parity-declarations-check RULES reports the findings of the named rules only (K414)', TIMEOUT, (t) => {
   const root = repository(t, {
