@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c832c24db45c32c7e7fe960ca85d1bc26ea241bd2d7fb351010723bf04e5c1ba -->
+<!-- source-sha256: a245e3cfd4119889e67177ec50a87a1c08c8a723cc0bced24fd903a75081f91d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `dependency-policy-check`는 tracked Composer lock의 각 package를 그 `composer.json`의 `config.platform`의 `php`와
+  `ext-*`로 검사하고, platform이 요구를 채우지 못하는 package를 적는다(K415).
 - `link check`는 consumer module의 go.work가 쓰는 module을 그 go.work에서 읽으므로, tracked workspace의 다른 module을
   요구하지 않는 module이 더는 not a known dependency로 검사에 실패하지 않는다(K399-1).
 - amend의 commit-msg 검사는 index를 amend되는 commit의 parent와 비교한다. `make hooks`가 amend를 기록하는

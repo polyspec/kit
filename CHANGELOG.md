@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `dependency-policy-check` checks each package of a tracked Composer lock against the `php` and `ext-*` of the
+  `config.platform` of its `composer.json`, and names a package whose requirement the platform does not meet (K415).
 - `link check` reads the modules that the go.work of a consumer module uses from that go.work, so a module of a tracked
   workspace that does not require another module of it no longer fails the check with not a known dependency (K399-1).
 - The commit-msg check of an amend compares the index with the parent of the amended commit: `make hooks` writes a
