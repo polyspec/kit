@@ -52,3 +52,9 @@ test('a skip marker is no finding only in a fixture of the fixture convention (K
   assert.deepEqual(markerFindings('packages/go/testcase/testcase_test.go', skip), ['packages/go/testcase/testcase_test.go:2: t.Skip skips or narrows a test']);
   assert.deepEqual(markerFindings('tests/fixtures/skip.test.mts', "import test from 'node:test';\ntest.skip('the runner reports this skip', () => {});\n"), [], 'a fixture folder of the convention is no finding');
 });
+
+test('a Python skip marker inside a string literal is no finding, and one in code is (K345)', () => {
+  const sample = ['SAMPLE = "@unittest.skip(\'x\')"', 'def test_doc():', '    """Mark it with pytest.mark.skip."""', '    pass', ''].join('\n');
+  assert.deepEqual(markerFindings('tests/test_orm.py', sample), [], 'a marker in a string literal or a docstring is no finding');
+  assert.deepEqual(markerFindings('tests/test_orm.py', '@unittest.skip("x")\ndef test_a(): pass\n'), ['tests/test_orm.py:1: unittest.skip skips or narrows a test']);
+});

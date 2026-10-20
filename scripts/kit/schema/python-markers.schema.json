@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Python markers",
+  "description": "The JSON array that the helper of the markers of Python tests prints, one entry per file (scripts/kit/markers/python.py, K345): the markers of the file with their lines, or the error of a file that does not parse.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["path", "markers", "error"],
+    "additionalProperties": false,
+    "properties": {
+      "path": { "type": "string" },
+      "markers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["line", "marker"],
+          "additionalProperties": false,
+          "properties": {
+            "line": { "type": "integer", "minimum": 1 },
+            "marker": { "type": "string" }
+          }
+        }
+      },
+      "error": {
+        "anyOf": [
+          { "type": "null" },
+          {
+            "type": "object",
+            "required": ["line", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "line": { "type": "integer", "minimum": 1 },
+              "message": { "type": "string" }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
