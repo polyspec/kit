@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 67fd205bb3339b25ad11839e6ff226ce8508d0b4ca42b7961d055089dfa13977 -->
+<!-- source-sha256: fe06a2c4d47d6f517fdd84cc54130ce314081ca3721cb639a671729eec2e980a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -147,3 +147,4 @@
 | K351 | commits-check는 range의 모든 commit에 commit 검사를 다시 실행한다. 원인: agent가 --no-verify로 commit을 amend했고 bypass-check는 tracked file만 본다. 인수 조건: commits-check는 range의 모든 commit에 pre-commit과 commit-msg hook의 검사를 실행해 --no-verify로 만든 commit이 gate와 pre-push에서 실패하고 commit을 이름으로 말한다. red fixture: hook을 위반하는 commit을 --no-verify로 만들면 지금은 통과한다. | scripts/kit/check-commits.mts, tests/kit | `node --test --test-name-pattern=K351 tests/kit/commits.test.mts` | [ ] |
 | K352 | 실패한 명령은 두 stream을 모두 보여 준다. 원인: process.mts run()은 실패 메시지를 (stderr \|\| stdout)로 만들어 stderr가 비어 있지 않으면 stdout을 버리고, make php-ext-arginfo는 wget 진행만 보여 주며 gen_stub의 오류는 stdout에 있다. 인수 조건: 실패 메시지는 stderr와 stdout을 모두 담는다. red fixture. | scripts/kit/process.mts, tests/kit | `node --test --test-name-pattern=K352 tests/kit/process.test.mts` | [ ] |
 | K353 | item-state done은 tsc가 필요로 하는 것을 build하고, row의 Verification 칸은 utility로 고칠 수 있다. 원인: (1) done 상태의 tsc 단계는 workspace package가 build되기 전에는 Cannot find module로 실패한다. (2) kit에는 Verification 칸을 바꾸는 utility가 없어 repo 전체 gate를 Verification으로 쓴 row는 K335에서 done에 이를 수 없다. 인수 조건: (1) done 상태와 item-test의 type 검사는 import하는 workspace package를 스스로 build하거나 package의 typecheck target을 실행한다. (2) make item-edit ID= VERIFICATION=은 item-new와 같은 검사를 거쳐 두 언어의 Verification 칸을 바꾼다. 각각 red fixture. | scripts/kit/plan.mts, scripts/kit/ts-typecheck.mts, tests/kit/plan.test.mts, Makefile | `node --test --test-name-pattern=K353 tests/kit/plan.test.mts` | [o] |
+| K353-1 | done 상태의 거부는 허용되는 다음 상태를 말한다. 원인: 정리되지 않은 tree에서 item-state는 파일을 stage하거나 commit하라고만 말하지만 waiting row는 done 전에 active를 거쳐야 하며, agent는 stage한 뒤에야 이를 안다. 인수 조건: done 상태는 verification을 실행하기 전에 transition을 검사하므로 waiting row의 거부는 waiting에서 active로 간다고 말하고, item-edit은 어느 작업 디렉터리에서나 저장소 root를 기준으로 실행된다. red fixture: stage하지 않은 산출 파일이 있는 waiting row는 파일이 아니라 transition 때문에 거부된다. | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test --test-name-pattern=K353-1 tests/kit/plan.test.mts` | [ ] |
