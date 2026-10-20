@@ -226,6 +226,31 @@ test('checklist: an invalid config/checklist.json is a finding of the document c
   hasPart(run(root), 'config/checklist.json: config: ', '/idPattern must be string');
 });
 
+test('a checklist row that names an unregistered kit item is a finding with its file and line (K374)', (t) => {
+  // The checklist of kit holds K365 and K369; the consumer names K365 (registered), BK12 (no id) and K99999 and K12345 (unregistered).
+  const kit = tree(t, {
+    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }),
+    'docs/plans/kit/checklist.md': '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n| K369 | b | `b.mts` | `node --test b.test.mts` | [o] |\n',
+  });
+  const rows = [
+    '| ID | Task | Deliverables | Verification | State |',
+    '| --- | --- | --- | --- | --- |',
+    '| T1 | a | `a.mts` | `node --test a.test.mts` for K99999 | [ ] |',
+    '| T2 | waits on K365 | `b.mts` | `node --test b.test.mts` | [ ] |',
+    '| T3 | BK12 is no id | `c.mts` | `node --test c.test.mts` | [ ] |',
+    '| T4 | d | `d.mts` | `node --test d.test.mts` | [!] cause: waits on K12345; retry: K365 done |',
+  ].join('\n');
+  const consumer = pair(CHECKLIST, 'checklist', `${rows}\n`);
+  const en = consumer[CHECKLIST];
+  assert.ok(en !== undefined);
+  const root = tree(t, { ...consumer, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  const found = check(root, CONFIG, kit).findings;
+  const lineOf = (needle: string) => en.split('\n').findIndex(entry => entry.includes(needle)) + 1;
+  hasPart(found, `${CHECKLIST}:${lineOf('| T1 |')}:`, 'checklist-kit', 'K99999');
+  hasPart(found, `${CHECKLIST}:${lineOf('| T4 |')}:`, 'checklist-kit', 'K12345');
+  assert.deepEqual(found.filter(line => line.includes('checklist-kit') && !/K99999|K12345/.test(line)), [], found.join('\n'));
+});
+
 const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, columns: [{ index: 1, enum: ['planned', 'implemented'] }, { index: 3, pattern: '\\]\\([^)]+\\)' }] };
 const table = (rows: string) => `| ID | Status | Note | Evidence |\n| --- | --- | --- | --- |\n${rows}\n`;
 const withTable = (t: TestContext, en: string, ko = en) => tree(t, pair('features.md', 'features', en, ko));

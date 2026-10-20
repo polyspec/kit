@@ -14,6 +14,9 @@
 //                   both languages (the strict reading of scripts/kit/checklist.mts), an item ID is unique among them and a
 //                   sub-item has its parent in its checklist (checklist-cross), and no other document under docs/ holds
 //                   checklist items (checklist-place)
+//   checklist-kit   a task row names in its Task, Verification or state a kit item id (K<n> or K<n>-<m>) that the checklists of
+//                   the kit the repository uses hold none of (K374); the kit is this checkout, or else ../kit beside it, and where
+//                   neither exists the rule is skipped with a note
 //   status-table    the status tables have the declared cells and values, equal in both languages
 //   changelog       the changelogs start with ## Unreleased, then the versions newest first, equal in both languages
 //
@@ -24,10 +27,10 @@ import path from 'node:path';
 import { changelogFindings, changelogPairFindings } from './changelog.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { verificationFindings } from './verification.mts';
-import { checklistsFindings, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, planFindings, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
+import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, planFindings, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
-import { anchors, headingAnchors, links, proseLines, scanFences } from './markdown.mts';
+import { anchors, headingAnchors, lineBlocks, links, proseLines, scanFences } from './markdown.mts';
 import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -192,8 +195,75 @@ function pairFindings(root: string, config: DocumentsConfig, english: string, id
   return found;
 }
 
-/** The findings of the checkout at `root` under `config`, as printed lines, sorted. */
-export function check(root: string, config: DocumentsConfig) {
+// A kit item id named in a row: K<digits> with its -<digits> or .<digits> parts (the idPattern of kit's config/checklist.json,
+// which kit's items use as K2.1), standing alone, so BK12 and K12x are no id.
+const KIT_ID = /(?<![A-Za-z0-9_])K[0-9]+(?:[.-][0-9]+)*(?![A-Za-z0-9_])/g;
+const KIT_PACKAGE = '@polyspec/kit';
+
+/** The name of the package.json of `root`, or undefined when it has none or cannot be read. */
+const packageName = (root: string): unknown => {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+    return typeof parsed === 'object' && parsed !== null && 'name' in parsed ? parsed.name : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The checkout of the kit whose checklists the rows of `root` name: `root` itself in kit, else the kit checkout ../kit
+ * beside the repository (K348-1), since the kit package ships no plan. Undefined when neither exists.
+ */
+export function kitCheckoutOf(root: string): string | undefined {
+  if (packageName(root) === KIT_PACKAGE) return root;
+  const sibling = path.resolve(root, '..', 'kit');
+  return existsSync(path.join(sibling, CHECKLIST_CONFIG)) ? sibling : undefined;
+}
+
+/** The item IDs of the checklists of the kit checkout `kit`: every task of every plan folder. Throws when one cannot be read. */
+function kitItemIds(kit: string): Set<string> {
+  const ids = new Set<string>();
+  for (const tracker of trackersOf(loadChecklists(kit), workingPlanFiles(kit))) {
+    for (const item of readChecklist(readFileSync(path.join(kit, tracker.path), 'utf8'), tracker).items) ids.add(item.id);
+  }
+  return ids;
+}
+
+/**
+ * The findings of the task rows of the checklists that name a kit item id which `ids` does not hold: the Task, the
+ * Verification and the state cell of each row, English and Korean alike, each with its line and column.
+ */
+function kitRowFindings(checklists: readonly Tracker[], available: (file: string) => string | undefined, ids: Set<string>): [string, DocumentFinding][] {
+  const found: [string, DocumentFinding][] = [];
+  const task = CHECKLIST_COLUMNS.indexOf('Task');
+  const verification = CHECKLIST_COLUMNS.indexOf('Verification');
+  for (const tracker of checklists) {
+    for (const file of [tracker.path, tracker.translation]) {
+      const text = available(file);
+      if (text === undefined) continue;
+      const blocks = lineBlocks(text);
+      for (const item of readChecklist(text, tracker).items) {
+        const block = blocks[item.line - 1];
+        if (block?.kind !== 'tableRow') continue;
+        // The state is the last cell; a row too short for the columns of a checklist names what its cells hold.
+        const named = [[task, 'Task'], [verification, 'Verification'], [block.cells.length - 1, 'state']] as const;
+        for (const [index, label] of named.filter(([column], at, all) => all.findIndex(([other]) => other === column) === at)) {
+          const cell = block.cells[index];
+          if (cell === undefined) continue;
+          for (const match of cell.text.matchAll(KIT_ID)) {
+            if (ids.has(match[0])) continue;
+            found.push([file, { line: item.line, column: cell.start + match.index + 1, rule: 'checklist-kit', message: `the row of ${item.id} names the kit item ${match[0]} in its ${label}, which no checklist of kit holds; a row waits only on a kit item that a kit checklist holds` }]);
+          }
+        }
+      }
+    }
+  }
+  return found;
+}
+
+/** The findings of the checkout at `root` under `config`, as printed lines, sorted; `kitRoot` is the kit checkout the rows name. */
+export function check(root: string, config: DocumentsConfig, kitRoot: string | undefined = kitCheckoutOf(root)) {
+  const notes: string[] = [];
   const cache = new Map<string, string>();
   const read = (file: string) => {
     if (!cache.has(file)) cache.set(file, readFileSync(path.join(root, file), 'utf8'));
@@ -230,6 +300,18 @@ export function check(root: string, config: DocumentsConfig) {
   const available = (file: string) => (missing.includes(file) ? undefined : read(file));
   let database: MakeDatabase | undefined;
   for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available, () => (database ??= makeDatabase(root)))]) add(file, finding);
+  // A row that names a kit item waits on the checklists of the kit that the repository uses; without a kit the rule is skipped.
+  if (checklists.length > 0) {
+    if (kitRoot === undefined) notes.push(`no checkout of the kit at ${path.resolve(root, '..', 'kit')}: the rows that name kit items are not checked`);
+    else {
+      try {
+        for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot))) add(file, entry);
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        notes.push(`the checklists of the kit at ${kitRoot} cannot be read (${error.message}): the rows that name kit items are not checked`);
+      }
+    }
+  }
   // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
   const prose = documents.filter(name => name.startsWith('docs/'));
   for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {
@@ -261,7 +343,7 @@ export function check(root: string, config: DocumentsConfig) {
   }
   const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
-  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
+  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length, notes };
 }
 
 /** Whether the index holds `file` (K382: a staged check reads the index, not the working tree). */
@@ -308,7 +390,8 @@ if (isMain(import.meta.url)) {
   }
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  const { findings, documents, checklists } = check(root, config);
+  const { findings, documents, checklists, notes } = check(root, config);
+  for (const note of notes) console.log(`[check-documents] note: ${note}`);
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
     console.error(`[check-documents] ${findings.length} findings in ${documents} document pairs`);
