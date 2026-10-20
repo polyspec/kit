@@ -38,7 +38,7 @@ import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
-import { toolCommand as miseCommand } from './mise-tools.mts';
+import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
@@ -196,7 +196,8 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
   const options = parseArguments(argv, root);
   const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
   const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'], ...(library === undefined ? {} : { library }) }, root);
-  const result = spawnSync(command, args, { cwd: options.cwd, env: { ...callerEnv, ...library?.env }, encoding: 'utf8' });
+  // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
+  const result = spawnSync(command, args, { cwd: options.cwd, env: { ...toolsEnvironment(root, callerEnv), ...library?.env }, encoding: 'utf8' });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
   return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
@@ -264,7 +265,9 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
   // color off.
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
-  const env: NodeJS.ProcessEnv = { ...process.env, ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
+  // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
+  // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
+  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;

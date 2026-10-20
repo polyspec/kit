@@ -3,7 +3,7 @@
 // PHPUnit. The runs use fixture test files in a temporary checkout and stubs of the tools on PATH; nothing needs a network.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -728,4 +728,20 @@ test('a run without a selection refuses outside CI and runs no tool; a run of a 
   assert.doesNotMatch(lines.join(''), /✔ one/);
   const selected = await run(['node', '--', 'tests/one.test.mjs'], { root, write: () => {}, callerEnv: {} });
   assert.equal(selected, 0);
+});
+
+// A shell that runs no make has no MISE_* variable: the runner must still start its tools with the mise of the checkout (K411).
+test('run-tests starts its runner with the environment of mise of the checkout, also outside make (K411)', (t) => {
+  // The fixture writes the state dir, the global config file and the first PATH entry, one per line.
+  const fixture = "import { writeFileSync } from 'node:fs';\ntest('env', () => { writeFileSync('seen.txt', [process.env.MISE_STATE_DIR, process.env.MISE_GLOBAL_CONFIG_FILE, process.env.PATH.split(':')[0]].join('\\n')); });\n";
+  const root = checkout(t, { 'tests/env.test.mjs': `${SPEC}${fixture}` });
+  const env: NodeJS.ProcessEnv = { ...process.env, ...CI };
+  for (const name of Object.keys(env)) if (name.startsWith('MISE_')) delete env[name];
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--', 'tests/env.test.mjs'], { cwd: root, encoding: 'utf8', env });
+  assert.equal(result.status, 0, output(result));
+  const real = realpathSync(root);
+  const [state, config, first] = readFileSync(path.join(real, 'seen.txt'), 'utf8').split('\n');
+  assert.equal(state, path.join(real, 'var/tools/mise/state'));
+  assert.equal(config, path.join(real, 'mise.toml'));
+  assert.equal(first, path.join(real, 'var/tools/bin'));
 });
