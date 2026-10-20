@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e4523b6bd2de0ca2adb5b3c2895241f2901b5182168261628ec2c914647e95c6 -->
+<!-- source-sha256: 8e8a161a0badd413e700d66558a8aeb954ec44452bc194ba6eb602e25de4cb4d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `config/layout.kit.yml`은 kit-sync가 모든 저장소에 쓰는 `clippy.toml`을 root 파일로 선언하고, `kit.copies`의 root
+  파일이 그 목록에 없으면 kit test가 실패한다. red: `clippy.toml`이 선언되지 않아 fsm에서 `make layout-check`가
+  실패했다. green: `node --test --test-name-pattern=K356 tests/kit/kit-sync.test.mts`가 통과한다 (K356).
 - kit-check는 다른 언어의 lint처럼 Rust source가 있는 저장소에서만 `CHECK_TARGETS`에 `lint-rust`를 요구한다. red:
   `.rs` 파일이 없는 저장소가 `CHECK_TARGETS`가 `lint-rust`를 실행하지 않는다는 finding을 받았다. green: `node --test
   --test-name-pattern=K364 tests/kit/kit-check.test.mts`가 통과한다 (K364).

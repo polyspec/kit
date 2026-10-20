@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `config/layout.kit.yml` declares `clippy.toml`, which kit-sync writes into every repository, among the root files,
+  and a kit test fails when a root file of `kit.copies` is missing from that list. Red: `clippy.toml` was not declared
+  and `make layout-check` failed in fsm; green: `node --test --test-name-pattern=K356 tests/kit/kit-sync.test.mts`
+  passes (K356).
 - kit-check requires `lint-rust` in `CHECK_TARGETS` only for a repository with Rust sources, as it does for the lint
   of the other languages. Red: a repository without a `.rs` file got the finding that `CHECK_TARGETS` runs no
   `lint-rust`; green: `node --test --test-name-pattern=K364 tests/kit/kit-check.test.mts` passes (K364).
