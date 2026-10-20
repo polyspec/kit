@@ -52,13 +52,20 @@ const KIT_HOOKS = [
 
 // The merges of the files that every row changes (K354): the lines of a changelog and the rows of a checklist are independent, so
 // their English files merge as the union of both sides and their Korean twins with the driver kit-twin of twin-merge.mts, which
-// writes the marker of the merged English file. .git/info/attributes holds the lines, so no tracked file of a repository changes.
-export const MERGE_ATTRIBUTES = ['CHANGELOG.md merge=union', 'CHANGELOG.ko.md merge=kit-twin', 'docs/plans/*/checklist.md merge=union', 'docs/plans/*/checklist.ko.md merge=kit-twin'];
-const DRIVER_NAME = 'kit: the union of a Korean twin with the marker of its merged English file (K354)';
+// writes the marker of the merged English file. The English changelog merges with the driver kit-changelog, the union with its
+// Unreleased entries newest first (K354-1). .git/info/attributes holds the lines, so no tracked file of a repository changes.
+export const MERGE_ATTRIBUTES = ['CHANGELOG.md merge=kit-changelog', 'CHANGELOG.ko.md merge=kit-twin', 'docs/plans/*/checklist.md merge=union', 'docs/plans/*/checklist.ko.md merge=kit-twin'];
 
-// The driver kit-twin as git runs it, in the top of the work tree: the make target of the driver, which stays across the versions of
-// kit as the hooks do, and runs twin-merge of the kit of the checkout.
+// Each driver as git runs it, in the top of the work tree: the make target of the drivers, which stays across the versions of kit as
+// the hooks do, and runs twin-merge of the kit of the checkout, which tells the two by the path.
 const DRIVER = 'make --no-print-directory twin-merge MERGE="%O %A %B %P"';
+const DRIVERS = [
+  { name: 'kit-twin', description: 'kit: the union of a Korean twin with the marker of its merged English file (K354)' },
+  { name: 'kit-changelog', description: 'kit: the union of a changelog with its Unreleased entries newest first (K354-1)' },
+];
+
+/** The pattern of an attributes line, which a later line of the same pattern and attribute overrides. */
+const patternOf = (line: string) => line.split(/\s+/)[0];
 
 /** The attributes file of the repository of `root`, which every worktree of it reads. */
 const attributesFile = (root: string) => path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'info/attributes').stdout.trim());
@@ -77,21 +84,26 @@ export function mergeIssue(root: string) {
   const lines = existsSync(file) ? readFileSync(file, 'utf8').split('\n') : [];
   const absent = MERGE_ATTRIBUTES.filter(line => !lines.includes(line));
   if (absent.length) return `${path.relative(root, file)} lacks ${absent.join(', ')}; run make hooks`;
-  if (configValue(root, 'merge.kit-twin.driver') !== DRIVER) return `the merge driver kit-twin is not ${DRIVER}; run make hooks`;
+  for (const { name } of DRIVERS) if (configValue(root, `merge.${name}.driver`) !== DRIVER) return `the merge driver ${name} is not ${DRIVER}; run make hooks`;
   return null;
 }
 
-/** Declares the merges of K354 in `root`: the missing lines of .git/info/attributes and the driver kit-twin; returns what it changed. */
+/**
+ * Declares the merges of K354 in `root`: the missing lines of .git/info/attributes, in place of a line that gives the same pattern
+ * another merge (as CHANGELOG.md merge=union before K354-1), and the drivers; returns what it changed.
+ */
 export function installMerges(root: string): string[] {
   const changes: string[] = [];
   const file = attributesFile(root);
-  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  const absent = MERGE_ATTRIBUTES.filter(line => !text.split('\n').includes(line));
+  const lines = (existsSync(file) ? readFileSync(file, 'utf8') : '').split('\n').filter(line => line !== '');
+  const absent = MERGE_ATTRIBUTES.filter(line => !lines.includes(line));
   if (absent.length) {
-    writeAtomic(file, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${absent.join('\n')}\n`);
+    const replaced = new Set(absent.map(patternOf));
+    const kept = lines.filter(line => !(replaced.has(patternOf(line)) && /\bmerge=/.test(line)));
+    writeAtomic(file, `${[...kept, ...absent].join('\n')}\n`);
     changes.push(`${path.relative(root, file)}: ${absent.join(', ')} added`);
   }
-  for (const [key, value] of [['merge.kit-twin.name', DRIVER_NAME], ['merge.kit-twin.driver', DRIVER]] as const) {
+  for (const [key, value] of DRIVERS.flatMap(({ name, description }) => [[`merge.${name}.name`, description], [`merge.${name}.driver`, DRIVER]] as const)) {
     if (configValue(root, key) === value) continue;
     const run = gitResult(root, 'config', key, value);
     if (run.status !== 0) throw new Error(`git config ${key} failed in ${root}: ${run.stderr.trim()}`);

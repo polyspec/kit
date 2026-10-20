@@ -94,7 +94,7 @@ $(shell git config core.hooksPath .githooks)
 endif
 endif
 
-twin-merge: ## The merge driver kit-twin of a Korean changelog or checklist, which make hooks declares (K354): git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
+twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354) and kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
 hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push and commit-msg hooks of kit and check the hooks

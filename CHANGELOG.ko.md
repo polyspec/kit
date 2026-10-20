@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 32497b4a3a6c62bb587407511f042452ed8e9e6f3abb5ea81495b175ebecdc7f -->
+<!-- source-sha256: b55c942f30ae462e8493bc881d85a439b19ed8ccc4751bde6035766c4388ebc7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -11,65 +11,49 @@
 - kit main에서 `make owner-validate`가 다시 통과한다. `config/owner-checks.json`은 merge driver `twin-merge.mts`를
   `git-hooks.mts`를 통해, `clippy.toml`을 실제 Rust lint 테스트를 통해, `scripts/kit/php-library`를 그것을 읽는 module을 통해
   소유한다(K410).
-
 - `make lint-go`는 module이 `//go:build` 줄에 적는 모든 build tag 뒤의 Go 파일을 lint한다. go 도구가 스스로 설정하는 tag를
   빼고 그런 tag마다 golangci-lint(`--build-tags`)와 deadcode(`-tags`)를 한 번 더 실행하므로, tag 뒤의 파일도 lint되고 tag가
   붙은 파일만 쓰는 helper를 더는 쓰이지 않는 것으로 보지 않는다(K406).
-
 - kit package는 `kit.copies`가 선언하는 `clippy.toml`을 담으므로, kit-sync가 그것을 consumer에 복사하고 main에서 copy
   테스트가 통과한다(K408).
-
 - kit main에서 `make duplication-check`와 `make lint-python`이 다시 통과한다. Python extractor의 symbol과 leak은 한 함수로
   module의 공개 이름을 읽고, extractor는 format되어 있다(K407).
-
 - 저장소는 kit-sync가 복사하는 `config/commit-identity.json`에 commit identity를 선언하고, commit-msg 검사와
   `commits-check`는 그와 다른 author나 committer를 거부하며(규칙 `commit-identity`) clone의 `git config user.name`과
   `user.email`을 고칠 곳으로 적는다. AI identity 규칙(K265)은 남는다(K405).
-
-- `make land`는 branch와 main에서 실행한 gate의 출력을 비교하기 전에 시스템 임시 폴더 안의 모든 경로를 하나의 자리표시자로
-  읽는다. 그래서 duplication-check가 실행마다 새 임시 폴더에 쓰는 jscpd 설정을 더는 새 finding으로 보지 않는다(K394-2).
 - commit-msg hook은 `HEAD`가 `main`이고 `main`에 commit이 있는 동안의 commit을 거부한다(규칙 `commit-on-main`). row는
   등록과 닫기를 포함해 자기 branch에서 commit하고 `make land`의 fast-forward로만 `main`에 닿는다. `main`을 만드는 저장소의
   첫 commit만 예외이다(K404).
-
+- `make land`는 branch와 main에서 실행한 gate의 출력을 비교하기 전에 시스템 임시 폴더 안의 모든 경로를 하나의 자리표시자로
+  읽는다. 그래서 duplication-check가 실행마다 새 임시 폴더에 쓰는 jscpd 설정을 더는 새 finding으로 보지 않는다(K394-2).
 - Composer project가 링크된 동안 `make dependency-review UPDATE=1`은 갱신하는 package 중 polyspec package가 아닌 것마다
   tracked `composer.lock`도 lock만으로 갱신한다. 그래서 기록한 review가 link lock이 tracked lock인 새 checkout에서도
   성립한다. polyspec package는 계속 release 검사를 기다린다(K392-2).
-
 - `make link-state-check`는 `make install`의 사슬을 따라가기 전에 저장소의 Makefile이 대입하는 변수를 펼친다. 그래서
   `$(PACKAGE_DEPS)`를 거치는 fsm-js-install처럼 변수를 거쳐 닿는 recipe를 더는 link 단계 없는 설치로 보고하지 않는다.
   target이 여럿인 rule은 그중 하나가 닿으면 닿은 것이다(K403).
-
 - `commits-check`는 ref에 점이 있는 범위를 받으므로, `make land`는 `chore/kitsync-T2.60`처럼 점이 있는 row id의 branch를
   land한다. 점 세 개, 빈 쪽, 점으로 시작하거나 끝나는 쪽은 계속 거부한다(K402).
-
 - `kit.mk`와 `miseEnvironment`는 `MISE_GLOBAL_CONFIG_ROOT`를 checkout으로 설정한다. `MISE_GLOBAL_CONFIG_FILE`이 설정되어
   있으면 `mise install`은 global config의 root(기본값은 home 디렉터리)의 trust를 기록하므로, `make install-tools`가 K397이
   지운 home 항목을 곧바로 다시 썼다(K397-1).
-
 - `make worktree-prune`은 자기 commit(reflog가 기록한 생성 지점 이후의 commit)이 모두 main에 있는 branch를 모두 지우고,
   그 worktree에 commit하지 않은 변경이 없으면 worktree도 지운다. 새 branch, merge되지 않은 branch, 변경이 있는 branch는
   이유와 함께 적는다. merge된 branch가 남아 있는 동안 `make link-state-check`는 실패한다(K381).
-
 - `make land`는 branch에서 실패한 gate를 main에서 실행한 같은 gate의 출력에 없는 줄이 있을 때만 거부하고 그 줄을 적는다
   (worktree 폴더는 main checkout으로 읽고 숫자는 무시하며 반복 수를 센다). 새 finding이 없으면 main에서 red인 gate가 더는
   모든 branch를 거부하지 않는다. row의 Verification이 실행하는 `parity-check`와 `test-` target은 실행하지 않는다(K394-1).
-
 - link는 바깥 Composer project의 path repository가 설치하는 package 폴더를 그 project의 일부로 보므로, 그 폴더의
   polyspec 요구를 그 project의 vendor에 링크하고, 아직 설치되지 않은 동안에는 그 vendor를 적는다(K396).
-
 - 저장소의 tracked `go.work` 아래에 있는 module에 대해 link가 쓰는 `go.work`는 그 module과 provider 외에 그 workspace의
   모든 module을 쓴다. 그래서 링크된 동안에도 저장소의 module이 서로를 import한다(K399).
-
 - `make parity-declarations-check UNITS="<id> ..."`는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만
   보고한다. 그래서 자기 unit의 선언을 고친 row는 다른 unit에 finding이 남아 있어도 통과한다. UNITS가 없으면 모든
   finding을 보고한다(K400).
-
 - checkout의 mise 상태는 자기 `mise.toml`만 신뢰한다. `trustConfig`와 `make install-tools`는
   `var/tools/mise/state/trusted-configs`의 다른 항목(home 디렉터리, 다른 checkout, 지운 worktree로의 링크)을 모두 지우고,
   `make link-state-check`는 그런 항목을 적어 실패한다. `MISE_GLOBAL_CONFIG_FILE`이 설정된 채 실행한 `mise trust`는 home
   디렉터리를 신뢰해 그 아래의 모든 `mise.toml`을 신뢰하게 했다(K397).
-
 - Composer project가 linked인 동안 `make dependency-review UPDATE=1`은 `composer.link.json`에 쓰는 새 범위를 tracked
   `composer.json`에도 쓴다(tracked manifest로 `composer require --no-update`). tracked lock은 release 검사를 기다린다.
   red: 범위가 link manifest에만 쓰였다. green: `node --test --test-name-pattern=K392-1 tests/kit/dependency-review.test.mts`가
@@ -366,7 +350,6 @@
 - var/tools의 Composer project 설치(PHPUnit, PHP lint)는 최신일 때만 유지한다: 설치의 composer.lock이 project의 lock과 byte 단위로 같고 Composer 자체의 `composer check-platform-reqs --lock`이 wrapped PHP 아래에서 통과해야 하며, 아니면 `make install-tools`가 다시 설치한다. 그래서 PHP 8.5로 만든 설치가 PHP 8.4에서 `Composer dependencies require a PHP version >= 8.5.0`으로 실패하지 않는다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` 0 passed, 3 failed; green: 3 passed (K284).
 - `make install-tools`는 `.php-version`의 PHP를 탐색해서 제공한다: PATH의 해당 minor `php`, 없으면 apt의 `php<minor>`, 없으면 Homebrew의 `opt/php@<minor>` keg. Composer 설치 전에 php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰므로, machine이 어떤 PHP를 PATH 앞에 두어도 모든 저장소가 고정된 PHP로 실행되고, 일치하는 것이 없으면 시도한 목록과 함께 실패한다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
 - link는 소비자 자신의 환경의 각 프로젝트를 `--no-deps`로, 연결된 각 provider를 dependency와 함께 두 번의 install로 설치합니다. 소비자 자신의 프로젝트의 dependency는 소비자의 lock sync가 제공하므로, 다른 방식으로 제공되는 path dependency를 가진 프로젝트가 더는 install을 실패시키지 않습니다 (K280).
-
 - directory suite의 case directory는 자신이 test하는 requirement를 `case.json`의 `requirements`(JSON으로 읽음)에 나열합니다. R15는 unit의 case 집합의 case.json 하나가 나열한 id를 이름이 있는 것으로 세고, 없거나 형식이 틀린 case.json은 declaration finding이며, docs/spec이 정의하지 않는 id는 R14입니다. unit은 `caseFile`을 선언해 그 파일을 가진 case directory만 가질 수 있습니다 (K277).
 
 ## 0.0.54

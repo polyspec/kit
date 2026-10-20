@@ -10,69 +10,53 @@
 - `make owner-validate` passes on kit main again: `config/owner-checks.json` owns the merge driver `twin-merge.mts` through
   `git-hooks.mts`, `clippy.toml` through the real Rust lint test and `scripts/kit/php-library` through the module that
   reads it (K410).
-
 - `make lint-go` lints the Go files behind every build tag that a module names in its `//go:build` lines: it runs
   golangci-lint (`--build-tags`) and deadcode (`-tags`) once more for each such tag, leaving out the tags that the go tool
   sets itself, so a file behind a tag is linted and a helper that only tagged files use is no longer read as unused (K406).
-
 - The package of kit ships `clippy.toml`, which `kit.copies` declares, so kit-sync copies it into a consumer and the test of
   the copies passes on main (K408).
-
 - `make duplication-check` and `make lint-python` pass on kit main again: the symbols and the leaks of the Python
   extractor read the public names of a module through one function, and the extractor is formatted (K407).
-
 - The repository declares its commit identity in `config/commit-identity.json`, which kit-sync copies, and the commit-msg
   check and `commits-check` refuse an author or committer other than it (rule `commit-identity`), naming
   `git config user.name` and `user.email` of the clone as the fix; the rule of an AI identity (K265) stays (K405).
-
-- `make land` reads every path inside the temporary folder of the system as one placeholder before it compares the output
-  of a gate on the branch and on main, so the jscpd configuration that duplication-check writes into a fresh temporary
-  folder on each run is no longer taken for a new finding (K394-2).
 - The commit-msg hook refuses a commit while `HEAD` is `main` and `main` has a commit (rule `commit-on-main`): a row,
   its registration and its close included, is committed on its own branch and reaches `main` only through the fast-forward
   of `make land`; the first commit of a repository, which creates `main`, is the one exception (K404).
-
+- `make land` reads every path inside the temporary folder of the system as one placeholder before it compares the output
+  of a gate on the branch and on main, so the jscpd configuration that duplication-check writes into a fresh temporary
+  folder on each run is no longer taken for a new finding (K394-2).
 - While a Composer project is linked, `make dependency-review UPDATE=1` also updates the tracked `composer.lock`, lock only,
   for each package it updates that is no polyspec package, so the review it records holds in a fresh checkout, whose link
   lock is the tracked lock; the polyspec packages still wait for the check of the release (K392-2).
-
 - `make link-state-check` expands the variables that the Makefiles of the repository assign before it follows the chain
   of `make install`, so a recipe reached through a variable, such as fsm-js-install through `$(PACKAGE_DEPS)`, is no
   longer reported as an install without the link step; a rule of several targets is reached when one of them is (K403).
-
 - `commits-check` takes a range whose refs hold a dot, so `make land` lands the branch of a row id with a dot, such as
   `chore/kitsync-T2.60`; three dots, an empty side and a side that starts or ends with a dot stay refused (K402).
-
 - `kit.mk` and `miseEnvironment` set `MISE_GLOBAL_CONFIG_ROOT` to the checkout: with `MISE_GLOBAL_CONFIG_FILE` set,
   `mise install` records the trust of the root of the global config, the home directory by default, so `make install-tools`
   wrote the home entry again right after K397 removed it (K397-1).
-
 - `make worktree-prune` removes every branch whose own commits (those after the creation point that its reflog records)
   are all in main, with its worktree when that has no uncommitted change, and lists a fresh, unmerged or dirty one with
   its reason; `make link-state-check` fails while a merged branch is left (K381).
-
 - `make land` refuses a gate that fails on the branch only when its output has a line that the same gate run on main does
   not have (the worktree folder read as the main checkout, numbers ignored, repeats counted), and names those lines; a gate
   red on main with no new finding no longer refuses every branch. It never runs `parity-check` or a `test-` target, which
   the Verification of the rows runs (K394-1).
-
 - The link takes a package folder that a path repository of an enclosing Composer project installs as part of that
   project, so it links the polyspec requirements of the folder in the vendor of that project, and names that vendor while
   it is not installed yet (K396).
-
 - The `go.work` that the link writes for a module under a tracked `go.work` of the repository uses every module of that
   workspace besides the module and the providers, so the modules of the repository still import each other while linked
   (K399).
-
 - `make parity-declarations-check UNITS="<id> ..."` reports only the findings that name the units and those of
   `config/parity.json` itself, so a row that fixes the declarations of its units passes while other units still have
   findings; without UNITS it reports every finding (K400).
-
 - The mise state of a checkout trusts only its own `mise.toml`: `trustConfig` and `make install-tools` remove every other
   entry of `var/tools/mise/state/trusted-configs` (a link to the home directory, to another checkout or to a removed
   worktree), and `make link-state-check` names such an entry. A `mise trust` run with `MISE_GLOBAL_CONFIG_FILE` set trusts
   the home directory, which then trusted every `mise.toml` under it (K397).
-
 - While a Composer project is linked, `make dependency-review UPDATE=1` writes each new range into the tracked
   `composer.json` too (`composer require --no-update` with the tracked manifest), as it writes it into
   `composer.link.json`; the tracked lock waits for the check of the release. Red: the range went only into the link
@@ -394,7 +378,6 @@
 - A Composer project installation of var/tools (PHPUnit, the PHP lint) is kept only while it is current: its composer.lock equals the lock of the project byte for byte and Composer's own `composer check-platform-reqs --lock` passes in it under the wrapped PHP; otherwise `make install-tools` installs it again, so an installation made under PHP 8.5 no longer fails with `Composer dependencies require a PHP version >= 8.5.0` under PHP 8.4. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-composer-project.test.mts` 0 passed, 3 failed; green: 3 passed (K284).
 - `make install-tools` provides the PHP of `.php-version` by discovery: a `php` on PATH of that minor, else `php<minor>` of apt, else the `opt/php@<minor>` keg of Homebrew. It writes exec wrappers for php, php-config and phpize in var/tools/bin before the Composer installs, so every repository runs the pinned PHP whatever PHP the machine puts first on PATH, and it fails with the attempts when none matches. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
 - link installs each project of the consumer's own environment with `--no-deps` and each linked provider with its dependencies, in two installs: the lock sync of the consumer provides the dependencies of its own projects, so a project whose path dependency is provided another way no longer fails the install (K280).
-
 - A case directory of a directory suite lists the requirements it tests in its `case.json` (`requirements`, read as JSON): R15 counts an id as named when a case.json of the unit's case set lists it, a missing or malformed case.json is a declaration finding, and an id of it that docs/spec does not define is R14; a unit may declare `caseFile` to take only the case directories that hold that file (K277).
 
 ## 0.0.54

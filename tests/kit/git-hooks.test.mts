@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
@@ -20,7 +20,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=union, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=union, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=union, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -182,6 +182,47 @@ test('the commit-msg hook refuses a commit while HEAD is main, and passes one on
   git(work, 'checkout', '--quiet', '-b', 'fix/name-T1-1');
   const onBranch = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
   assert.equal(onBranch.status, 0, onBranch.stderr);
+});
+
+// K354-1: the rebase of a branch puts the changelog entry of the branch above the newer entries of main, in the style of the list of
+// main, and the Korean twin alike, with its marker of the merged English (the T26.7-2-6-2 case).
+test('a rebase puts the changelog entry of the branch first, in a tight and in a loose list, with a current twin (K354-1)', (t) => {
+  for (const gap of ['', '\n']) {
+    const root = tree(t, { 'Makefile': KIT_MAKEFILE });
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+      return { ...result, ok: result.status === 0 };
+    };
+    const head = '<!-- doc-id: changelog -->\n# Changelog\n\n## Unreleased\n\n';
+    const write = (lines: string[]) => {
+      const en = `${head}${lines.map(line => `${line}\n`).join(gap)}`;
+      put(root, { 'CHANGELOG.md': en, 'CHANGELOG.ko.md': korean(en, en.split('\n').slice(1).join('\n').replace('# Changelog', '# 변경 기록')) });
+      assert.ok(git('add', '-A').ok);
+      assert.ok(git('commit', '--quiet', '-m', 'step').ok);
+    };
+    write(['- a (T1).']);
+    assert.ok(git('branch', '-M', 'main').ok);
+    assert.ok(git('checkout', '--quiet', '-b', 'row').ok);
+    write(['- b (T2).', '- a (T1).']);
+    assert.ok(git('checkout', '--quiet', 'main').ok);
+    write(['- c (T3).', '- a (T1).']);
+    assert.ok(git('checkout', '--quiet', 'row').ok);
+    // A checkout whose hooks predate K354-1 merges CHANGELOG.md with merge=union; make hooks puts the driver in its place.
+    const attributes = path.join(root, '.git/info/attributes');
+    mkdirSync(path.dirname(attributes), { recursive: true });
+    writeFileSync(attributes, 'CHANGELOG.md merge=union\n');
+    installMerges(root);
+    assert.doesNotMatch(readFileSync(attributes, 'utf8'), /^CHANGELOG\.md merge=union$/m, 'the union of CHANGELOG.md is replaced');
+    assert.match(readFileSync(attributes, 'utf8'), /^CHANGELOG\.md merge=kit-changelog$/m);
+    const rebase = git('rebase', 'main');
+    assert.equal(rebase.status, 0, `the rebase conflicts: ${rebase.stdout}${rebase.stderr}`);
+    const en = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+    const ko = readFileSync(path.join(root, 'CHANGELOG.ko.md'), 'utf8');
+    const style = gap === '' ? 'tight' : 'loose';
+    assert.equal(en, `${head}${['- b (T2).', '- c (T3).', '- a (T1).'].map(line => `${line}\n`).join(gap)}`, `the ${style} English list`);
+    assert.match(ko, new RegExp(`- b \\(T2\\)\\.\\n${gap}- c \\(T3\\)\\.\\n${gap}- a \\(T1\\)\\.\\n`), `the ${style} Korean list`);
+    assert.equal(/<!-- source-sha256: ([0-9a-f]+) -->/.exec(ko)?.[1], createHash('sha256').update(en).digest('hex'), 'the twin is current');
+  }
 });
 
 // K354: two branches that both add changelog lines and checklist rows rebase without a conflict, and each commit that the rebase
