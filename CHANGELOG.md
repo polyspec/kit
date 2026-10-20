@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make hooks` and `make hooks-check` fail naming `config/generated.json` when the repository lacks it, since the
+  pre-commit hook that they install runs the generated-file check on it and would refuse every commit. Red: the check
+  passed without the file; green: `node --test --test-name-pattern=K362 tests/kit/git-hooks.test.mts` passes (K362).
 - `config/layout.kit.yml` declares `clippy.toml`, which kit-sync writes into every repository, among the root files,
   and a kit test fails when a root file of `kit.copies` is missing from that list. Red: `clippy.toml` was not declared
   and `make layout-check` failed in fsm; green: `node --test --test-name-pattern=K356 tests/kit/kit-sync.test.mts`

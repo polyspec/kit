@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8e8a161a0badd413e700d66558a8aeb954ec44452bc194ba6eb602e25de4cb4d -->
+<!-- source-sha256: 3b3e0c6679f4b18b5f0b20d3463a28be70dd7f026a8f43386536f53841980b97 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make hooks`와 `make hooks-check`는 저장소에 `config/generated.json`이 없으면 그 파일을 말하며 실패한다. 이들이
+  설치하는 pre-commit hook이 그 파일로 generated-file 검사를 실행해 모든 commit을 거부하기 때문이다. red: 파일 없이도
+  check가 통과했다. green: `node --test --test-name-pattern=K362 tests/kit/git-hooks.test.mts`가 통과한다 (K362).
 - `config/layout.kit.yml`은 kit-sync가 모든 저장소에 쓰는 `clippy.toml`을 root 파일로 선언하고, `kit.copies`의 root
   파일이 그 목록에 없으면 kit test가 실패한다. red: `clippy.toml`이 선언되지 않아 fsm에서 `make layout-check`가
   실패했다. green: `node --test --test-name-pattern=K356 tests/kit/kit-sync.test.mts`가 통과한다 (K356).
