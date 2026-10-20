@@ -690,10 +690,29 @@ function linkPython(work: Run, consumer: Consumer) {
 /** The go.work of the module in `directory`: the file that link writes there, git-ignored, which go reads without a variable. */
 const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
 
+/**
+ * The module folders that the tracked go.work of the nearest parent of `directory` up to the work tree `top` uses, as go work edit
+ * -json reads them (K399): a go.work that link writes in a module below a tracked workspace of the repository shadows that
+ * workspace, so it uses the modules of the workspace too. None when no parent has a tracked go.work. The go.work of `directory`
+ * itself is never read: it is the file that link writes there.
+ */
+function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
+  for (let folder = path.dirname(directory); `${folder}/`.startsWith(`${top}/`); folder = path.dirname(folder)) {
+    const file = goWorkOf(folder);
+    if (!tracked.has(file)) continue;
+    const parsed = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: folder, env: go.env })) as unknown;
+    if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
+    const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
+    return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
+  }
+  return [];
+}
+
 function linkGo(work: Run, consumer: Consumer) {
   const modules = consumer.manifests('go', true);
   if (!modules.length) return;
   const go = consumerTool(consumer.top, 'go', work.env);
+  const tracked = new Set(trackedManifests(consumer.top, ['go.work']).map(file => path.join(consumer.top, file)));
   for (const module of modules) {
     const directory = path.dirname(module);
     const file = goWorkOf(directory);
@@ -704,11 +723,15 @@ function linkGo(work: Run, consumer: Consumer) {
       if (problem) unlinkable(work, 'go', requirement.path, problem);
       else if (typeof provider !== 'string') requires.set(requirement.path, provider);
     }
+    // The modules of the tracked workspace that the go.work of this module uses besides its own module.
+    const workspace = requires.size ? trackedWorkspaceFolders(go, consumer.top, directory, tracked).filter(folder => folder !== directory) : [];
     if (work.check) {
-      for (const [name, provider] of requires) {
+      const wanted = new Map<string, string>([...requires].map(([name, provider]) => [name, provider.folder]));
+      for (const folder of workspace) wanted.set(goModule(go, path.join(folder, 'go.mod'), consumer.top).module, folder);
+      for (const [name, folder] of wanted) {
         const found = existsSync(file) ? run(go.command, ['list', '-m', '-f', '{{.Dir}}', name], { cwd: directory, env: { ...go.env, GOWORK: file } }).trim() : '';
-        if (real(found) === realpathSync(provider.folder)) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
-        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${provider.folder}`);
+        if (real(found) === realpathSync(folder)) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
+        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}`);
       }
       continue;
     }
@@ -717,7 +740,7 @@ function linkGo(work: Run, consumer: Consumer) {
     rmSync(file, { force: true });
     rmSync(`${file}.sum`, { force: true });
     if (!requires.size) continue;
-    const folders = [directory, ...new Set([...requires.values()].map(provider => provider.folder))];
+    const folders = [...new Set([directory, ...workspace, ...[...requires.values()].map(provider => provider.folder)])];
     run(go.command, ['work', 'init', ...folders.map(folder => path.relative(directory, folder) || '.')], { cwd: directory, env: { ...go.env, GOWORK: file } });
     for (const [name, provider] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
   }

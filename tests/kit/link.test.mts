@@ -165,7 +165,7 @@ writeFileSync(path.join(project, vendor, 'composer/installed.json'), JSON.string
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
 case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; shift 2; nodeps=""; while [ $# -gt 0 ]; do case "$1" in --constraints) cp "$2" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; shift 2;; --overrides) cp "$2" ${JSON.stringify(path.join(consumer, 'overrides.logged'))}; shift 2;; --python|--reinstall-package) shift 2;; --no-deps) nodeps=1; shift;; -e) dir=$2; n=$(sed -n 's/^name = "\\(.*\\)"/\\1/p' "$dir/pyproject.toml" | head -n 1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$dir" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; if [ -z "$nodeps" ]; then for dep in $(sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$dir/pyproject.toml" | tr -d "\\"' " | tr ',' '\\n' | sed 's/[=<>@].*//'); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done; fi; shift 2;; *) shift;; esac; done;; esac`);
-  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
+  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
   current = [provider, kit, consumer];
@@ -963,6 +963,24 @@ test('K205: each Go module gets a git-ignored go.work at its root that uses the 
   assert.equal(unlink({ directories: [consumer], project: true, print: text => lines.push(text), env }), true, lines.join('\n'));
   assert.equal(existsSync(outer), false, 'the go.work of the named module is removed');
   assert.equal(existsSync(inner), true, 'the go.work of the nested module stays');
+});
+test('the go.work that link writes for a module of a tracked workspace uses every module of that workspace (K399)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const requires = JSON.stringify({ Module: { Path: 'a' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });
+  put(consumer, {
+    'ws/go.work': 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n',
+    'ws/go.work.json': JSON.stringify({ Use: [{ DiskPath: './a' }, { DiskPath: './b' }] }),
+    'ws/a/go.mod': 'module a\n', 'ws/a/go.mod.json': requires,
+    'ws/b/go.mod': 'module b\n', 'ws/b/go.mod.json': JSON.stringify({ Module: { Path: 'b' }, Require: [] }),
+  });
+  git(consumer, 'add', '-A');
+  // The go.work of the repository is ignored by .gitignore, so it is added by force, as a tracked file of the repository.
+  git(consumer, 'add', '-f', 'ws/go.work');
+  git(consumer, 'commit', '--quiet', '-m', 'workspace');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  // The folders are the module itself, then the modules of the tracked workspace, then the provider (relative to the module).
+  assert.match(log(), /go work init \. \.\.\/b \.\.\/\.\.\/\.\.\/prov\/go\n/);
 });
 test('Composer under --project: a named project with its own composer.json and no installed vendor never takes the vendor of an ancestor project', (t) => {
   const { consumer, env, log } = workspace(t);
