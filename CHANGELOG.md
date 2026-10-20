@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- P8 is enforced rule by rule: phpcs refuses an error silenced with `@`, oxlint a catch that throws without the caught
+  error as its cause, the build of a PHP extension a dropped result that must be checked (`-Werror=unused-result`), and the
+  gate `make suppression-check` every suppression of a lint finding that states no reason (K334).
 - The generated-file check refuses a file whose content is an executable object (ELF, Mach-O thin or fat, PE), whatever its
   path, unless `config/generated.json` declares it: at commit time from the index, and in `commits-check` from each commit (K416).
 - `commits-check` runs the generated-file and the Korean twin checks of the pre-commit hook on every commit of its range,

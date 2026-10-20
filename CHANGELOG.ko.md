@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 34ed8a514e29c2290ec620dc2b790e2c2c97a685c7408409f7a02eada350a8b4 -->
+<!-- source-sha256: ae30e602fba5663802779f0215d79cad403de5ae3c6ae2653440c4ea1cb642bf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- P8은 규칙마다 강제된다. phpcs는 `@`로 숨긴 오류를, oxlint는 잡은 오류를 cause로 갖지 않고 던지는 catch를, PHP
+  extension의 build는 확인해야 하는 결과를 버리는 것을(`-Werror=unused-result`), gate `make suppression-check`는 이유를
+  적지 않은 lint finding의 모든 억제를 거부한다(K334).
 - generated file 검사는 `config/generated.json`이 선언하지 않는 한 경로와 상관없이 내용이 실행 object(ELF, Mach-O thin
   또는 fat, PE)인 파일을 거부한다. commit 때는 index에서, `commits-check`에서는 각 commit에서 읽는다(K416).
 - `commits-check`는 메시지와 identity 검사 외에 pre-commit hook의 generated file 검사와 한국어 쌍둥이 검사도 범위의 모든
