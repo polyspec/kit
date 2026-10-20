@@ -80,6 +80,55 @@ test('commit-ai-identity: no AI tool is the author or the committer of a commit 
   assert.match(findings[0] ?? '', /: commit-ai-identity: the author Claude <noreply@anthropic\.com> is an AI tool; the account of a commit is a person \(K265\)/);
 });
 
+test('an author or committer other than the identity of config/commit-identity.json is refused, at commit time and in a range (K405)', (t) => {
+  const identity = { schema: 1, name: 'min-0-max', email: 'max@blue.tools' };
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), 'config/commit-identity.json': JSON.stringify(identity) });
+  // The environment of the fixture without the identity variables of the caller, so that each commit names its own identity.
+  const plain = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_(AUTHOR|COMMITTER)_/.test(key)));
+  const git = (...args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8', env: plain });
+  let count = 0;
+  // Each commit names its own identity in its author and committer, through the variables that git reads before the config.
+  const commit = (name: string, email: string, message: string) => {
+    put(root, { [`f${++count}.txt`]: message });
+    const env = { ...plain, GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email };
+    spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8', env });
+    const result = spawnSync('git', ['commit', '-q', '-m', message], { cwd: root, encoding: 'utf8', env });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  commit('min-0-max', 'max@blue.tools', 'feat(commits): Start (#K404)');
+  commit('min-median-max', 'max@blue.tools', 'feat(commits): Add the check (#K405)');
+  commit('min-0-max', 'max@blue.tools', 'feat(commits): Add more (#K406)');
+  const findings = rangeFindings(root, 'HEAD~2..HEAD', CONFIG);
+  assert.equal(findings.length, 2, findings.join('\n'));
+  for (const found of findings) {
+    assert.match(found, /: commit-identity: the (author|committer) min-median-max <max@blue\.tools> is not the identity that config\/commit-identity\.json declares, min-0-max <max@blue\.tools> \(K405\)\. Fix: git config user\.name "min-0-max" and git config user\.email "max@blue\.tools" of the clone$/);
+  }
+  assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), [], 'the last commit is made by the declared identity');
+  // The commit-msg hook reads the identity that git gives the next commit, here the one set in the config of the clone.
+  assert.equal(git('config', 'user.name', 'min-median-max').status, 0);
+  assert.equal(git('config', 'user.email', 'max@blue.tools').status, 0);
+  assert.equal(git('checkout', '-q', '-b', 'fix/identity-K405').status, 0);
+  const file = path.join(root, 'MSG');
+  writeFileSync(file, 'feat(commits): Add the check (#K405)\n');
+  const command = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8', env: plain });
+  const refused = command('--message', file);
+  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+  assert.match(refused.stderr, /\[check-commits\] commit-identity: the author min-median-max <max@blue\.tools> is not the identity that config\/commit-identity\.json declares, min-0-max <max@blue\.tools>/);
+  assert.equal(git('config', 'user.name', 'min-0-max').status, 0);
+  const accepted = command('--message', file);
+  assert.equal(accepted.status, 0, accepted.stderr);
+});
+
+test('a repository without config/commit-identity.json accepts any identity that is no AI tool (K405)', (t) => {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST) });
+  const plain = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_(AUTHOR|COMMITTER)_/.test(key)));
+  put(root, { 'f.txt': 'f' });
+  const env = { ...plain, GIT_AUTHOR_NAME: 'min-median-max', GIT_AUTHOR_EMAIL: 'max@blue.tools', GIT_COMMITTER_NAME: 'min-median-max', GIT_COMMITTER_EMAIL: 'max@blue.tools' };
+  spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8', env });
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'feat(commits): Add the check (#K405)'], { cwd: root, encoding: 'utf8', env }).status, 0);
+  assert.deepEqual(rangeFindings(root, 'HEAD', CONFIG), []);
+});
+
 test('a message file loses its comment lines, and a merge commit is not checked', () => {
   assert.equal(fileMessage('# comment\nfeat(docs): Merge the checks (#K1)\n# more\n'), 'feat(docs): Merge the checks (#K1)\n');
   assert.equal(fileMessage('Merge branch x\n'), null);

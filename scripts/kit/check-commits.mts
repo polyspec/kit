@@ -14,6 +14,8 @@
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
 //   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
+//   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
+//                    declares (K405)
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -30,6 +32,7 @@ import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } 
 import { git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gateCommands, kitGates, provesRed } from './gate-red.mts';
+import { readConfig } from './schema-validate.mts';
 import { itemCommands } from './verification.mts';
 
 /** The rules of a commit: the types of its subject, the limits of its lines, and the changelog that a done item changes. */
@@ -71,15 +74,34 @@ const AI_FOOTER = /^(?:co-authored-by:.*\b(?:claude|anthropic|copilot|chatgpt|op
 // An identity that names an AI tool, by its name or its address (K265).
 const AI_IDENTITY = /\b(?:claude|anthropic|copilot|chatgpt|openai|gemini)\b/i;
 
-/** The finding of the identity `ident` (`Name <address>`) of the `role` of a commit when it is an AI tool (K265). */
-export function identityFindings(ident: string, role: 'author' | 'committer'): CommitFinding[] {
-  return AI_IDENTITY.test(ident) ? [{ rule: 'commit-ai-identity', message: `the ${role} ${ident} is an AI tool; the account of a commit is a person (K265). Fix: set user.name and user.email of the clone` }] : [];
+/** The identity that config/commit-identity.json declares for the commits of the repository. */
+export type CommitIdentity = { name: string; email: string };
+
+const COMMIT_IDENTITY = 'config/commit-identity.json';
+
+/** The identity of config/commit-identity.json of `root`; undefined when the repository declares none. */
+export function declaredIdentity(root: string): CommitIdentity | undefined {
+  return existsSync(path.join(root, COMMIT_IDENTITY)) ? readConfig<CommitIdentity>(root, COMMIT_IDENTITY, 'commit-identity.schema.json') : undefined;
+}
+
+/**
+ * The findings of the identity `ident` (`Name <address>`) of the `role` of a commit: an AI tool (K265), and, when the repository
+ * declares an identity, any other identity than `declared`.
+ */
+export function identityFindings(ident: string, role: 'author' | 'committer', declared?: CommitIdentity): CommitFinding[] {
+  const found: CommitFinding[] = [];
+  if (AI_IDENTITY.test(ident)) found.push({ rule: 'commit-ai-identity', message: `the ${role} ${ident} is an AI tool; the account of a commit is a person (K265). Fix: set user.name and user.email of the clone` });
+  if (declared !== undefined && ident !== `${declared.name} <${declared.email}>`) {
+    found.push({ rule: 'commit-identity', message: `the ${role} ${ident} is not the identity that config/commit-identity.json declares, ${declared.name} <${declared.email}> (K405). Fix: git config user.name "${declared.name}" and git config user.email "${declared.email}" of the clone` });
+  }
+  return found;
 }
 
 /** The findings of the author and the committer that git gives the next commit of `root` (`git var`). */
 export function nextIdentityFindings(root: string): CommitFinding[] {
   const ident = (name: string) => git(root, 'var', name).replace(/ [0-9]+ [+-][0-9]{4}\n?$/, '').trim();
-  return [...identityFindings(ident('GIT_AUTHOR_IDENT'), 'author'), ...identityFindings(ident('GIT_COMMITTER_IDENT'), 'committer')];
+  const declared = declaredIdentity(root);
+  return [...identityFindings(ident('GIT_AUTHOR_IDENT'), 'author', declared), ...identityFindings(ident('GIT_COMMITTER_IDENT'), 'committer', declared)];
 }
 
 /**
@@ -341,10 +363,11 @@ export function rangeMessages(root: string, range: string) {
 
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
+  const declared = declaredIdentity(root);
   return commits.flatMap(({ id, message, author, committer }) => [
     ...messageFindings(message, config),
-    ...(author === undefined ? [] : identityFindings(author, 'author')),
-    ...(committer === undefined ? [] : identityFindings(committer, 'committer')),
+    ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
+    ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
     ...commitItemFindings(root, config, id, message),
   ].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
