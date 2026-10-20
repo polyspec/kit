@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2e5677be679a332e63a5bc4a19b91542d6479b2a1e88cfed0e2c8931af668699 -->
+<!-- source-sha256: ac5e3c30225aa83b00ec75139d38c52e9be991d5e5bed7b1f2dde5fbc5f2ae8a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-policy-check`는 composer.json의 require에 애플리케이션 framework(symfony/console,
+  symfony/framework-bundle, symfony/http-kernel, laravel/framework, laminas/laminas-mvc)를 요구하는 S10의 PHP library를
+  manifest와 패키지 이름과 함께 실패시킨다. 애플리케이션은 library를 요구하는 자기 Composer 패키지다(K425).
 - `make parity-declarations-check IDS="<requirement>..."`는 requirement id 중 하나를 가리키는 finding만 UNITS, RULES와의
   교집합으로, config/parity.json 자체의 finding과 함께 보고한다. 어떤 unit도 인용하지 않는 id는 실행을 실패시키므로, 몇
   requirement의 인용을 옮기는 행도 red를 증명할 수 있다(K414-1).

@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make dependency-policy-check` fails a PHP library of S10 whose composer.json requires an application framework
+  (symfony/console, symfony/framework-bundle, symfony/http-kernel, laravel/framework, laminas/laminas-mvc) in require, naming
+  the manifest and the package: the application is its own Composer package that requires the library (K425).
 - `make parity-declarations-check IDS="<requirement>..."` reports only the findings that name one of the requirement ids,
   intersected with UNITS and RULES, with the findings of config/parity.json itself; an id that no unit cites fails the run,
   so a row that moves the citations of a few requirements can prove its red (K414-1).
