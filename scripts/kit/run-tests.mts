@@ -39,6 +39,7 @@ import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '
 import { signalGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand } from './mise-tools.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
@@ -131,6 +132,15 @@ function splitCargo(args: string[]) {
   return index === -1 ? { cargo: args, harness: [] } : { cargo: args.slice(0, index), harness: args.slice(index + 1) };
 }
 
+/**
+ * The file of the checkout that a command starts. It must exist: a missing one fails before the run starts, and the command is
+ * never looked up on PATH.
+ */
+function checkoutFile(file: string): string {
+  if (!existsSync(file)) throw new Error(`${file} does not exist; run make install`);
+  return file;
+}
+
 /** The command of a tool with its progress and timeout arguments. */
 export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
@@ -149,9 +159,11 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
     case 'go':
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
       // binary, a package.
-      return { command: 'go', args: ['test', '-json', '-count=1', '-timeout=0', ...args] };
+      // go is the one of mise.toml, run by the shim of the checkout, never the go of PATH.
+      return { command: checkoutFile(miseCommand(root, 'go')), args: ['test', '-json', '-count=1', '-timeout=0', ...args] };
     case 'cargo':
-      // One test at a time, so each test prints its start before its result.
+      // One test at a time, so each test prints its start before its result. cargo is not pinned by kit: rustup finds it on PATH
+      // (rust-toolchain.toml), so it is the one command that is not resolved by the checkout.
       return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness] };
     case 'phpunit': {
       // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
@@ -163,14 +175,15 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // -d extension=, in the given order, so an extension loads after one that it depends on.
       // An extension run of the tests of the library (K329) starts the PHPUnit script itself, never the proxy of Composer, which names the
       // autoloader of the library; the file prepended to it names the autoloader without the sources of the library.
-      if (library) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, '--teamcity', ...args] };
-      if (phpExtensions.length) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
+      // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
+      if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, '--teamcity', ...args] };
+      if (phpExtensions.length) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
       // `discover` argument unittest would read `discover` as a test name.
-      return { command: venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3'), args: ['-m', module ?? 'unittest', ...args, '-v'] };
+      return { command: venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3')), args: ['-m', module ?? 'unittest', ...args, '-v'] };
   }
   throw new Error(USAGE);
 }

@@ -161,30 +161,40 @@ test('the arguments of the runner are read before the arguments of the tool', ()
   }
 });
 
-test('each tool starts with its progress and timeout arguments and no limit on a whole run', () => {
+test('each tool starts with its progress and timeout arguments and no limit on a whole run', (t) => {
+  const shims = tree(t, { 'var/tools/mise/shims/go': '', 'var/tools/mise/shims/python3': '' });
   const node = toolCommand({ tool: 'node', timeoutSeconds: 7, cwd: '/r', args: ['a'] }, '/r');
   assert.ok(node.args.includes('--test-timeout=7000') && !node.args.includes('--test-force-exit') && node.args.at(-1) === 'a');
   assert.ok(node.args.some(arg => arg.startsWith('--test-reporter=') && arg.endsWith('scripts/kit/node-reporter.mts')));
   assert.ok(node.args.some(arg => arg.startsWith('--import=file://') && arg.endsWith('scripts/kit/test-exit-deadline.mts?ms=7000')));
   const vitest = toolCommand({ tool: 'vitest', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r');
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
-  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, '/r'), { command: 'go', args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
+  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, '/r'), { command: path.join('/r', 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-m', 'unittest', 'discover', '-s', 'tests', '-v'] });
 });
 
 // Composer gives the vendor directory of the PHPUnit (K184): its folder `vendor`, COMPOSER_VENDOR_DIR, or config.vendor-dir.
 test('phpunit runs the PHPUnit of the vendor directory that Composer gives the project of --cwd', (t) => {
-  const root = tree(t, { 'p/composer.json': '{}\n', 'q/composer.json': '{"config":{"vendor-dir":"lib/vendor"}}\n' });
+  const root = tree(t, { 'p/composer.json': '{}\n', 'q/composer.json': '{"config":{"vendor-dir":"lib/vendor"}}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
   const p = path.join(root, 'p');
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'] }, root), { command: path.join(p, 'vendor/bin/phpunit'), args: ['--teamcity', 't'] });
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 3), ['-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit')]);
   // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: 'php', args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: path.join(root, 'var/tools/bin/php'), args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
   assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(root, 'q'), args: [] }, root).command, path.join(root, 'q/lib/vendor/bin/phpunit'));
   t.after(() => { delete process.env.COMPOSER_VENDOR_DIR; });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
   assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [] }, root).command, '/elsewhere/bin/phpunit');
+});
+
+// A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, never the php of PATH (K393).
+test('a phpunit run with a PHP extension starts the php of the checkout, and fails without it (K393)', (t) => {
+  const root = tree(t, { 'p/composer.json': '{}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
+  const p = path.join(root, 'p');
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).command, path.join(root, 'var/tools/bin/php'));
+  const bare = tree(t, { 'p/composer.json': '{}\n' });
+  assert.throws(() => toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(bare, 'p'), args: [], phpExtensions: ['/r/e.so'] }, bare), /\/var\/tools\/bin\/php does not exist; run make install/);
 });
 
 function recorder() {
@@ -380,15 +390,6 @@ test('the python events pair each test with its outcome, keep the description id
   assert.deepEqual(progress.counts, { passed: 3, failed: 3, skipped: 1, timedOut: 0 });
 });
 
-function stubTool(t: TestContext, name: string, script: string) {
-  const bin = mkdtempSync(path.join(tmpdir(), 'kit-stub-'));
-  t.after(() => rmSync(bin, { recursive: true, force: true }));
-  const file = path.join(bin, name);
-  writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
-  chmodSync(file, 0o755);
-  return bin;
-}
-
 async function inProcess(t: TestContext, args: string[], { path: extraPath, root = tree(t) }: { path?: string; root?: string } = {}) {
   const lines: string[] = [];
   const previous = process.env.PATH;
@@ -400,30 +401,41 @@ async function inProcess(t: TestContext, args: string[], { path: extraPath, root
   }
 }
 
-test('go tests run through a tool on PATH and pass', async (t) => {
+// The go of the checkout is the shim of mise in var/tools/mise/shims, never the go of PATH (K393), so a stub of go is written there.
+function goShim(root: string, script: string) {
+  const file = path.join(root, 'var/tools/mise/shims/go');
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
+  chmodSync(file, 0o755);
+}
+
+test('go tests run through the go shim of the checkout and pass', async (t) => {
   const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0 }, { Action: 'pass', Package: 'p', Elapsed: 0 }];
-  const bin = stubTool(t, 'go', `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));`);
-  const result = await inProcess(t, ['go', './...'], { path: `${bin}${path.delimiter}${process.env.PATH}` });
+  const root = tree(t);
+  goShim(root, `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));`);
+  const result = await inProcess(t, ['go', './...'], { root });
   assert.equal(result.status, 0, result.text);
   assert.match(result.text, /✔ go \. \.\/\.\.\.: 1 passed/);
 });
 
 test('a go tool that reports no test fails the run', async (t) => {
-  const bin = stubTool(t, 'go', `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'pass', Package: 'p', Elapsed: 0 }));`);
-  const result = await inProcess(t, ['go', './...'], { path: `${bin}${path.delimiter}${process.env.PATH}` });
+  const root = tree(t);
+  goShim(root, `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'pass', Package: 'p', Elapsed: 0 }));`);
+  const result = await inProcess(t, ['go', './...'], { root });
   assert.equal(result.status, 1, result.text);
   assert.match(result.text, /no test ran/);
 });
 
 test('a go test that outlives the timeout stops the tool and fails the run', async (t) => {
-  const bin = stubTool(t, 'go', `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'run', Package: 'p', Test: 'TestHang' })); setInterval(() => {}, 1000);`);
-  const result = await inProcess(t, ['go', '--timeout', '1', './...'], { path: `${bin}${path.delimiter}${process.env.PATH}` });
+  const root = tree(t);
+  goShim(root, `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); console.log(JSON.stringify({ Action: 'run', Package: 'p', Test: 'TestHang' })); setInterval(() => {}, 1000);`);
+  const result = await inProcess(t, ['go', '--timeout', '1', './...'], { root });
   assert.equal(result.status, 1, result.text);
-  assert.match(result.text, /⏱ p › TestHang ran \d\.\ds and exceeded its 1\.0s timeout; stopping `go test -json`/);
+  assert.match(result.text, /⏱ p › TestHang ran \d\.\ds and exceeded its 1\.0s timeout; stopping `[^`]*var\/tools\/mise\/shims\/go test -json`/);
 });
 
 // A Composer project, whose vendor directory Composer gives run-tests for PHPUnit.
-const COMPOSER_PROJECT = { 'composer.json': '{}\n' };
+const COMPOSER_PROJECT = { 'composer.json': '{}\n', 'var/tools/bin/php': '#!/bin/sh\n' };
 
 // A package of a Composer monorepo has no vendor directory of its own; the root project requires it through a path
 // repository and installs one vendor directory, as for parity and lint-php (K178, K186).
@@ -459,10 +471,8 @@ test('the library run of test-php-ext takes PHPUnit from the vendor-dir of the r
 });
 
 test('a tool that cannot start fails with its command and the fix', async (t) => {
-  const missing = path.join(tmpdir(), 'kit-no-such-directory');
-  const result = await inProcess(t, ['go', './...'], { path: missing });
-  assert.equal(result.status, 1);
-  assert.match(result.text, /✖ go \. \.\/\.\.\.: cannot start go: .*; declare go in mise\.toml and run make install-tools, which installs it into var\/tools\/mise/);
+  // The go of the checkout is missing from var/tools/mise/shims: the run stops before it starts, and PATH is not searched (K393).
+  await assert.rejects(inProcess(t, ['go', './...']), /var\/tools\/mise\/shims\/go does not exist; run make install/);
   // PHPUnit starts by its path in the vendor directory, so PATH does not matter for it.
   const phpunit = await inProcess(t, ['phpunit'], { root: tree(t, COMPOSER_PROJECT) });
   assert.match(phpunit.text, /cannot start .*vendor\/bin\/phpunit: .*; run composer install in \./);
@@ -581,7 +591,7 @@ function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
 // reader counts; run-tests runs it in place of `-m unittest` (K219).
 test('python tests run through a harness module named by --module, and its cases are counted (K219)', async (t) => {
   assert.equal(parseArguments(['python', '--module', 'pkg.harness', 'discover'], '/repo').module, 'pkg.harness');
-  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover'], module: 'pkg.harness' }, '/r').args, ['-m', 'pkg.harness', 'discover', '-v']);
+  assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover'], module: 'pkg.harness' }, tree(t, { 'var/tools/mise/shims/python3': '' })).args, ['-m', 'pkg.harness', 'discover', '-v']);
   assert.throws(() => parseArguments(['node', '--module', 'pkg.harness'], '/repo'), /Usage: node/);
   // The stub answers only the harness command; any other command of python3 ends with no case, so the run fails.
   const root = pythonRoot(t, `if (process.argv.slice(2, 4).join(' ') !== '-m pkg.harness') { process.exitCode = 2; } else { process.stderr.write('test_a (pkg.t.T.test_a) ... ok\\ntest_b (pkg.t.T.test_b) ... ok\\n\\n' + '-'.repeat(70) + '\\nRan 2 tests in 0.001s\\n\\nOK\\n'); }`);
@@ -625,10 +635,8 @@ test('--venv accepts an environment with the symbolic links of the tool that mad
   assert.equal(readlinkSync(path.join(linked, 'pkg/.venv/bin/python3')), 'python', 'the link is kept as it was made');
 });
 
-test('a var/tools/mise/shims/python3 that cannot start fails with the fix', async (t) => {
-  const result = await inProcess(t, ['python', 'tests'], { root: tree(t) });
-  assert.equal(result.status, 1);
-  assert.match(result.text, /✖ python \. tests: cannot start .*var\/tools\/mise\/shims\/python3: .*; declare python in mise\.toml and run make install-tools, which installs it into var\/tools\/mise/);
+test('a var/tools/mise/shims/python3 that does not exist fails before the run, with the fix (K393)', async (t) => {
+  await assert.rejects(inProcess(t, ['python', 'tests'], { root: tree(t) }), /var\/tools\/mise\/shims\/python3 does not exist; run make install/);
 });
 
 test('inputsDigest hashes the tracked and new non-ignored files under the paths and fails on a path without files', (t) => {
@@ -650,8 +658,8 @@ test('--results writes the cases, the tool, the inputs and the elapsed time of a
   const root = tree(t, { 'pkg/a_test.go': 'package a' });
   const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0.25 },
     { Action: 'run', Package: 'p', Test: 'TestB' }, { Action: 'fail', Package: 'p', Test: 'TestB', Elapsed: 0.5 }, { Action: 'fail', Package: 'p', Elapsed: 1 }];
-  const bin = stubTool(t, 'go', `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exitCode = 1;`);
-  const result = await inProcess(t, ['go', '--results', '.results/go.json', '--cwd', 'pkg', './...'], { root, path: `${bin}${path.delimiter}${process.env.PATH}` });
+  goShim(root, `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exitCode = 1;`);
+  const result = await inProcess(t, ['go', '--results', '.results/go.json', '--cwd', 'pkg', './...'], { root });
   assert.equal(result.status, 1, result.text);
   const record = readStub(path.join(root, '.results/go.json'), RESULTS);
   assert.deepEqual(record.cases, [{ id: 'p › TestA', status: 'pass', elapsedMs: 250 }, { id: 'p › TestB', status: 'fail', elapsedMs: 500 }]);
