@@ -193,6 +193,13 @@ test('the root composer.json and composer.lock of a Composer monorepo are root f
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
+// K423: alint finds the exclude of Git in a main checkout only, so the files that kit link writes at the root are root files of kit.
+test('the files that kit link writes at the root are root files of kit (K423)', (t) => {
+  const root = repository(t, { 'composer.link.json': '{}\n', 'composer.link.lock': '{}\n' });
+  const result = layoutCheck(root);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
 test('make layout-check passes on this checkout', () => {
   const result = layoutCheck(ROOT);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
