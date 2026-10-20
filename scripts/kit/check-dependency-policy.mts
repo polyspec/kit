@@ -94,6 +94,35 @@ function linkFindings(root: string, directory: string, lock: ReturnType<typeof r
   }
 }
 
+/** What identifies a repository to Composer: its type and url, or the name and version of a package repository. */
+const repositoryKey = (repository: { type?: string; url?: string; package?: { name?: string; version?: string } }) =>
+  repository.type === 'package' ? `package ${repository.package?.name ?? ''}@${repository.package?.version ?? ''}` : `${repository.type ?? ''} ${repository.url ?? ''}`;
+
+/**
+ * Composer reads `repositories` only from the root manifest (K330), so a root that requires a polyspec package must itself declare
+ * each repository that the package declares. The package is read from the path repository of the link manifest, else from the vendor.
+ */
+function providerRepositoryFindings(root: string, directory: string, manifest: ReturnType<typeof readComposerManifest>, add: (rule: Rule, subject: string, problem: string, fix: string) => void) {
+  const linkFile = path.posix.join(directory, LINK_MANIFEST);
+  const folders = new Map<string, string>();
+  if (existsSync(path.join(root, linkFile))) {
+    for (const repository of readComposerManifest(root, linkFile).repositories ?? []) {
+      const file = repository.type === 'path' && repository.url !== undefined ? path.resolve(root, directory, repository.url, 'composer.json') : undefined;
+      const name = file !== undefined && existsSync(file) ? readComposerManifestFile(file).name : undefined;
+      if (file !== undefined && name !== undefined) folders.set(name, file);
+    }
+  }
+  const declared = new Set((manifest.repositories ?? []).map(repositoryKey));
+  for (const name of Object.keys({ ...manifest.require, ...manifest['require-dev'] }).filter(item => item.startsWith('polyspec/'))) {
+    const file = folders.get(name) ?? path.join(root, directory, 'vendor', name, 'composer.json');
+    if (!existsSync(file)) continue;
+    for (const repository of readComposerManifestFile(file).repositories ?? []) {
+      if (repository.type === 'path' || declared.has(repositoryKey(repository))) continue;
+      add('platform', path.posix.join(directory, 'composer.json'), `requires ${name}, whose composer.json declares the repository ${repositoryKey(repository)} that this root manifest lacks; Composer reads repositories only from the root`, `add the repository ${JSON.stringify(repository)} to repositories of ${path.posix.join(directory, 'composer.json')}`);
+    }
+  }
+}
+
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
 function composerValidation(composer: string, args: string[], cwd: string, manifest?: string) {
   const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1', ...(manifest === undefined ? {} : { COMPOSER: manifest }) } });
@@ -149,6 +178,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     const lockPath = path.posix.join(directory, linked ? LINK_LOCK : 'composer.lock');
     const composerLock = readComposerLock(root, lockPath);
     if (linked) linkFindings(root, directory, composerLock, add);
+    providerRepositoryFindings(root, directory, composerManifest, add);
     if (composerManifest.config?.platform?.php !== platform.php) add('platform', manifestPath, `config.platform.php is ${String(composerManifest.config?.platform?.php ?? 'absent')}, the policy declares ${platform.php}`, `set config.platform.php to ${platform.php} and run composer update --lock in ${directory}`);
     if (composerLock['platform-overrides']?.php !== platform.php) add('platform', lockPath, `the lock was resolved for PHP ${composerLock['platform-overrides']?.php ?? 'without a platform override'}, the policy declares ${platform.php}`, `run composer update --lock in ${directory}`);
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published

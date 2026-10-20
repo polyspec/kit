@@ -221,6 +221,17 @@ test('a linked package and an own path package are updated by Composer through t
   assert.equal(JSON.parse(readFileSync(path.join(consumer, 'composer.json'), 'utf8')).repositories.length, 2, 'the tracked composer.json is unchanged');
 });
 
+// K330: Composer reads repositories only from the root manifest, so the link writes those of a linked package into composer.link.json.
+test('the repositories that a linked package declares are written into composer.link.json (K330)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const fork = { type: 'vcs', url: 'https://github.com/min-0-max/yaml', 'no-api': true };
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', repositories: [fork, { type: 'path', url: '../other' }] }) });
+  linkLines([consumer], env);
+  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  assert.deepEqual(seen.manifest.repositories.filter((entry: { type: string }) => entry.type === 'vcs'), [fork]);
+  assert.equal(seen.manifest.repositories.filter((entry: { url: string }) => entry.url === '../other').length, 0, 'a path repository of the provider is relative to the provider and is not copied');
+});
+
 test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {
   const { consumer, env, log } = workspace(t);
   linkLines([consumer], env);

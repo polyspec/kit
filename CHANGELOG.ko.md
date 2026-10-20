@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3f845c49e39011076aacee2bbb47dbcfe824deff0055b47c5384af791f4c558c -->
+<!-- source-sha256: cd5a9dbc5670aadff8f11fc35282ad47db725366a5164344f9642f7b9236d159 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer는 `repositories`를 root manifest에서만 읽으므로, `make dependency-policy-check`는 polyspec package를 require하는 root
+  `composer.json`에 그 package의 `composer.json`이 선언한 repository가 없으면 package와 repository 이름과 함께 실패하고, `kit link`는 linked
+  package가 선언한 repositories를 `composer.link.json`에 쓴다 (K330).
 - `make test-php-ext`의 extension 실행은 library의 PHPUnit 파일을 load하고 library의 source는 하나도 load하지 않는다(K329) in S10: `run-tests phpunit --without-library <폴더>`가 library의 vendor directory 위에 Composer가 dump한, library의 dependency와 autoload-dev는 담고 library 자신의 autoload는 담지 않는 autoloader로 PHPUnit script를 시작하며, library의 source를 include하는 test는 실행을 실패시킨다. `make divergence-check`는 Git이 무시하는 구현 root 아래의 source도 읽고 `function_exists`를 `extension_loaded`처럼 보고하므로 library에는 extension에 대한 guard가 없다. Red: `node --test tests/source/php-library-real.test.mts`에서 library autoload로 library의 source가 load되었다. Green: 하나도 load되지 않고 require한 source는 실행을 실패시킨다.
 - 연결된 패키지(Composer project의 link lock의 path dist, `node_modules`의 심볼릭 링크)는 `make dependency-review`와 `make dependency-policy-check`에서 registry의 최신 release와 비교하지 않고 외부 패키지는 여전히 비교한다(K328). 개발 중에는 local checkout이 canonical이므로 그 패키지는 link로 판단하고 registry 비교는 일괄 release의 검사에 속한다. Red: `node --test --test-name-pattern=K328 tests/kit/dependency-policy.test.mts`가 연결된 패키지에 `psr/log: 3.0.2 is older than 99.0.0`으로 실패했다. Green: 통과하고 외부 패키지는 여전히 보고된다.
 - 저장소는 `mise.toml`에 http backend로 내려받는 자기 도구를 선언할 수 있다(K327). key는 `http:<이름>`이고 정확한 `version`과 https `url`을 가진 table이다. `mise.lock`이 모든 platform의 sha256을 pin하고 `make toolchain-check`가 sha256이 빠진 platform을 이름으로 알린다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다. Red: `node --test --test-name-pattern=K327 tests/kit/toolchain-mise.test.mts`가 `mise.toml tools declares http:pie, which kit does not check`로 거부되었다. Green: 통과한다.

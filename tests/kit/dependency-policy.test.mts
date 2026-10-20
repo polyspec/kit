@@ -95,6 +95,22 @@ test('a package of a path repository of the link manifest that the link lock hol
   assert.match(gate(root).stderr, /composer\.link\.lock: psr\/log is linked but locked from a zip dist, not from its path/);
 });
 
+// K330: Composer reads repositories only from the root manifest, so a root that requires a polyspec package must declare the
+// repositories that the package declares.
+test('a root composer.json that requires a polyspec package lacks a repository that the package declares fails (K330)', (t) => {
+  const root = fixture(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const fork = { type: 'vcs', url: 'https://github.com/min-0-max/yaml', 'no-api': true };
+  const manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8')) as { require?: Record<string, string>; repositories?: unknown[] };
+  mkdirSync(path.join(directory, 'vendor/polyspec/provider'), { recursive: true });
+  writeFileSync(path.join(directory, 'vendor/polyspec/provider/composer.json'), JSON.stringify({ name: 'polyspec/provider', repositories: [fork] }));
+  const required = { ...manifest, require: { ...manifest.require, 'polyspec/provider': '0.0.1' } };
+  writeFileSync(path.join(directory, 'composer.json'), JSON.stringify(required));
+  assert.match(gate(root).stderr, /packages\/fixture-php\/composer\.json: requires polyspec\/provider, whose composer\.json declares the repository vcs https:\/\/github\.com\/min-0-max\/yaml that this root manifest lacks/);
+  writeFileSync(path.join(directory, 'composer.json'), JSON.stringify({ ...required, repositories: [...(manifest.repositories ?? []), fork] }));
+  assert.doesNotMatch(gate(root).stderr, /that this root manifest lacks/);
+});
+
 // K328: while a project is linked, a linked package is judged by its link; the registry comparison belongs to the batch release.
 test('a linked package is not compared with the latest release of the registry, and a third-party package still is (K328)', (t) => {
   const root = fixture(t);

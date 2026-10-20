@@ -44,7 +44,7 @@ export type ComposerManifest = {
   version?: string;
   require?: Record<string, string>;
   'require-dev'?: Record<string, string>;
-  repositories?: { type?: string; url?: string }[];
+  repositories?: { type?: string; url?: string; package?: { name?: string; version?: string } }[];
   config?: { platform?: Record<string, string | boolean> };
 };
 

@@ -32,6 +32,17 @@
           },
           "url": {
             "type": "string"
+          },
+          "package": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
           }
         }
       }

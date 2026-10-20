@@ -347,7 +347,20 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
   const versionOf = (name: string): string | undefined => versions.get(name) ?? (typeof required[name] === 'string' && /^v?\d+\.\d+\.\d+$/.test(required[name]) ? required[name] : undefined);
   const paths = links.map(({ name, folder }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name) === undefined ? {} : { versions: { [name]: versionOf(name) } }) } }));
   const existing = manifest.repositories;
-  const repositories = Array.isArray(existing) || existing === undefined ? [...paths, ...(existing ?? [])] : { ...Object.fromEntries(paths.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing };
+  // Composer reads repositories only from the root manifest (K330): the repositories that a linked package declares, such as the
+  // fork that it requires, are written into the link manifest too, so the link resolves them.
+  const key = (entry: unknown) => JSON.stringify(entry);
+  const present = new Set((Array.isArray(existing) ? existing : isJsonObject(existing) ? Object.values(existing) : []).map(key));
+  const provided: unknown[] = [];
+  for (const { folder } of links) {
+    const provider = readJsonOf(path.join(folder, MANIFESTS.composer));
+    const declared = isJsonObject(provider) ? provider.repositories : undefined;
+    for (const entry of Array.isArray(declared) ? declared : isJsonObject(declared) ? Object.values(declared) : []) {
+      if (isJsonObject(entry) && entry.type !== 'path' && !present.has(key(entry))) { present.add(key(entry)); provided.push(entry); }
+    }
+  }
+  const added = [...paths, ...provided];
+  const repositories = Array.isArray(existing) || existing === undefined ? [...added, ...(existing ?? [])] : { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing };
   return { ...manifest, repositories };
 }
 
