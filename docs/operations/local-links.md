@@ -19,7 +19,7 @@ Why: development stalled because each repository waited for another repository's
 
 ## Verification
 
-`make link-metadata-check` (K305, P30) is a gate of every repository. While a link exists it fails when an installed polyspec package does not carry the metadata of its source, and names the package and the field: an npm link that resolves to no package of that name; a Composer record of `vendor/composer/installed.json` whose `version`, `require`, `autoload`, `replace`, `provide` or `conflict` differs from the `composer.json` at its `install-path`; an editable Python install whose `Version` or `Requires-Python` differs from its `pyproject.toml`; a `go.work` `use` folder without a `go.mod`. A checkout without a link passes, so CI, which installs the released packages, is unaffected. The pre-push gate keeps refusing a link record.
+`make link-state-check` (K305-1, P30) is a gate of every repository. It compares no version and no requirement, since the link counts as the installed released version and versions are checked at install only. While a link exists it fails, naming the ecosystem and the package, when an installed polyspec package pinned at 0.0.x is a plain copy among links, when a link resolves to no package of that name (npm `package.json`, Composer `composer.json`), or when a `go.work` `use` folder has no `go.mod`. A checkout without a link passes, so CI, which installs the released packages, is unaffected. The pre-push gate keeps refusing a link record.
 
 ## Mechanism
 

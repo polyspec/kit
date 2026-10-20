@@ -251,7 +251,7 @@ function linkNpm(work: Run, consumer: Consumer) {
 // --- Composer: the vendor of each Composer project of the consumer, and Composer's record of it.
 
 /** The packages of installed.json, in either of Composer's formats. */
-function installedPackages(record: string): Record<string, unknown>[] {
+export function installedPackages(record: string): Record<string, unknown>[] {
   const parsed = readJsonOf(record);
   const list = isJsonObject(parsed) ? parsed.packages : parsed;
   if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);

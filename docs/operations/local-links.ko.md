@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 05536c060ec8df8fc7cdbe0e8be5175757422bed2e90deec89f44f6463475bce -->
+<!-- source-sha256: 7e62dc8a85114fffb0285d6f7318b58a3bf8fc52560c676563b5eb795e7fac9c -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -20,7 +20,7 @@
 
 ## 검증
 
-`make link-metadata-check`(K305, P30)는 모든 저장소의 gate이다. link가 있는 동안 설치된 polyspec 패키지가 source의 metadata를 담지 않으면 패키지와 field를 적어 실패한다: 그 이름의 패키지로 풀리지 않는 npm link, `vendor/composer/installed.json`의 기록의 `version`, `require`, `autoload`, `replace`, `provide`, `conflict`가 `install-path`의 `composer.json`과 다른 경우, `Version`이나 `Requires-Python`이 `pyproject.toml`과 다른 editable Python 설치, `go.mod`가 없는 `go.work`의 `use` 폴더. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다.
+`make link-state-check`(K305-1, P30)는 모든 저장소의 gate이다. link가 설치된 릴리스 버전으로 간주되고 버전은 설치할 때만 검사하므로 version도 요구사항도 비교하지 않는다. link가 있는 동안 0.0.x에 고정된 설치된 polyspec 패키지가 link들 사이의 사본이거나, link가 그 이름의 패키지(npm `package.json`, Composer `composer.json`)로 풀리지 않거나, `go.work`의 `use` 폴더에 `go.mod`가 없으면 ecosystem과 패키지를 적어 실패한다. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다.
 
 ## 방식
 
