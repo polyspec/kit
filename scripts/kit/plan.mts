@@ -35,6 +35,7 @@ import { COMMIT_RULES, fileAt, indexItemFindings, messageFindings, nextIdentityF
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
+import { isFile } from './test-selection.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
@@ -334,7 +335,8 @@ export function testItem(root: string, id: string, print: (text: string) => void
   if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
   let database: MakeDatabase | undefined;
   for (const command of commands) {
-    const refused = refusal(command, undefined, () => (database ??= makeDatabase(root)));
+    // The command runs in the root, so a file that it names is judged from there (K353-2).
+    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)));
     if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
   }
   // The types of the changed TypeScript are checked first (K309): the tests transpile without checking them.

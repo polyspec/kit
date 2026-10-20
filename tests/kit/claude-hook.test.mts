@@ -78,6 +78,16 @@ test('run-tests runs its runner over the arguments after --, so it needs their s
   assert.equal(refusal('node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
 });
 
+// K353-2: the hook reads the options of run-tests.mts as the runner does, so a command that the runner runs is allowed.
+test('the hook resolves a file of run-tests from its --cwd and takes the arguments after its options, as the runner does (K353-2)', () => {
+  const files = new Set(['tests/XTest.php', 'tests/x.test.mts']);
+  const at = (file: string) => files.has(file);
+  assert.equal(refusal('node scripts/kit/run-tests.mts phpunit --cwd packages/php -- ../../tests/XTest.php', at), null, 'the runner runs ../../tests/XTest.php from packages/php');
+  assert.match(refusal('node scripts/kit/run-tests.mts phpunit --cwd packages/php -- tests/XTest.php', at) ?? '', /without a selection/, 'packages/php/tests/XTest.php is no file');
+  assert.equal(refusal('node scripts/kit/run-tests.mts node --timeout 30 tests/x.test.mts', at), null, 'the runner takes the arguments after its options without --');
+  assert.match(refusal('node scripts/kit/run-tests.mts node --timeout 30', at) ?? '', /without a selection/);
+});
+
 test('a test target of a runtime needs CASES, and the suites run only in CI (K244)', () => {
   assert.match(refusal('make test-go') ?? '', /make test-go without CASES runs only in CI/);
   assert.equal(refusal('make test-go CASES=TestParse'), null);

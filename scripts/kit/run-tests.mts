@@ -46,7 +46,7 @@ import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
 import { libraryTestRun, type LibraryRun } from './php-library-autoload.mts';
 import { ciRefusal } from './ci-only.mts';
-import { isFile, selects } from './test-selection.mts';
+import { isFile, runnerWords, selects } from './test-selection.mts';
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -92,9 +92,8 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
   const [tool, ...rest] = argv;
   if (tool === undefined || !TOOLS.includes(tool)) throw new Error(USAGE);
   const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [], phpExtensions: [] };
-  let index = 0;
-  for (; index < rest.length; index += 2) {
-    const [flag, value] = [rest[index], rest[index + 1]];
+  const { options: pairs, args } = runnerWords(rest);
+  for (const [flag, value] of pairs) {
     if (flag === '--timeout') {
       if (!/^[1-9]\d*$/.test(value ?? '')) throw new Error(USAGE);
       options.timeoutSeconds = Number(value);
@@ -119,11 +118,11 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
     } else if (flag === '--inputs') {
       if (!value) throw new Error(USAGE);
       options.inputs.push(value);
-    } else break;
+    }
   }
   if (options.inputs.length && !options.results) throw new Error(`--inputs needs --results\n${USAGE}`);
   if (options.results && !options.inputs.length) options.inputs.push(path.relative(root, options.cwd) || '.');
-  options.args = rest.slice(rest[index] === '--' ? index + 1 : index);
+  options.args = args;
   return options;
 }
 

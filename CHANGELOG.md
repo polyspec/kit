@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- The Claude Code hook, `make item-test` and `make item-state` read a command of `run-tests.mts` as the runner does: its
+  arguments after the options also without `--`, and a file from its `--cwd`, so `--cwd packages/php --
+  ../../tests/XTest.php` is allowed; item-test and item-state judge a file of a Verification command from the root,
+  where they run it. Red: both commands were refused by the hook; green: `node --test --test-name-pattern=K353-2
+  tests/kit/claude-hook.test.mts tests/kit/plan.test.mts` passes 2 of 2 (K353-2).
 - `make dependency-policy-check` runs with `GOWORK=off` as `make dependency-review` does, so a linked Go checkout no
   longer reports the review record of a lock that no manifest declares (K343).
 - The type check of `make lint-ts`, `make commit` and `make item-test` runs the `typecheck` script of the package when

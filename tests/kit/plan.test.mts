@@ -1,7 +1,7 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
@@ -197,6 +197,16 @@ test('verifyDone refuses a waiting row for its transition before it looks at the
   newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\]/);
+});
+
+// K353-2: item-test runs a command in the root, so it judges the files that the command names from the root.
+test('item-test resolves a file of a Verification command from the root, where it runs the command (K353-2)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { 'tests/RootTest.php': '<?php\n', 'vendor/bin/phpunit': '#!/bin/sh\nexit 0\n' });
+  chmodSync(path.join(root, 'vendor/bin/phpunit'), 0o755);
+  newItem(root, item('parser', 'T1', { verification: '`vendor/bin/phpunit tests/RootTest.php`' }));
+  assert.ok(!existsSync('tests/RootTest.php'), 'the working directory of this process holds no such file');
+  assert.deepEqual(testItem(root, 'T1', () => {}), ['vendor/bin/phpunit tests/RootTest.php']);
 });
 
 // K355: the checker of the package is its typecheck script when it has one (svelte-check for a package with .svelte files), tsc otherwise.

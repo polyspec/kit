@@ -12,6 +12,24 @@ export function isFile(file: string): boolean {
   }
 }
 
+// The options of run-tests.mts, each followed by its value.
+const RUNNER_OPTIONS = ['--timeout', '--php-extension', '--without-library', '--venv', '--module', '--cwd', '--results', '--inputs'];
+
+/**
+ * The options of run-tests.mts in `words`, the words after its tool, each with its value, and the arguments that it passes to the
+ * tool: the words after the options, without a -- that ends them. run-tests.mts reads its command line and claude-hook.mts reads a
+ * command of run-tests.mts with this function, so the hook judges the selection that the runner runs (K353-2).
+ */
+export function runnerWords(words: readonly string[]): { options: [string, string | undefined][]; args: string[] } {
+  const options: [string, string | undefined][] = [];
+  let index = 0;
+  for (let flag = words[0]; flag !== undefined && RUNNER_OPTIONS.includes(flag); flag = words[index]) {
+    options.push([flag, words[index + 1]]);
+    index += 2;
+  }
+  return { options, args: words.slice(words[index] === '--' ? index + 1 : index) };
+}
+
 // The options of each runner that take the next argument as their value, so the value is no positional argument.
 const VALUED: Record<string, readonly string[]> = {
   node: ['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-timeout', '--import', '--require', '--experimental-loader', '--loader'],

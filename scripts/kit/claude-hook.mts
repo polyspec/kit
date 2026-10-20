@@ -20,7 +20,7 @@ import { readNpmManifest } from './manifests.mts';
 import { existsSync } from 'node:fs';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
-import { isFile, selects } from './test-selection.mts';
+import { isFile, runnerWords, selects } from './test-selection.mts';
 
 // The make targets of kit that run a suite or a group of its targets.
 const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-failed', 'owner-check']);
@@ -67,9 +67,12 @@ function runnerRefusal(program: string, args: string[], isFileAt: (file: string)
   if (program === 'vitest') return selection(command, 'vitest', args, isFileAt);
   if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return selection(command, 'python', args.slice(2), isFileAt);
   if (program === 'pytest') return selection(command, 'python', args, isFileAt);
-  // run-tests.mts <runner> -- <args> runs the runner over the arguments after --, so it needs their selection (K249-3).
+  // run-tests.mts <runner> [<options>] [--] <args> runs the runner over the arguments after its options in its --cwd, so it needs
+  // their selection there (K249-3, K353-2).
   if (program === 'node' && first !== undefined && second !== undefined && /(?:^|\/)run-tests\.m[jt]s$/.test(first)) {
-    return selection(command, second, args.includes('--') ? args.slice(args.indexOf('--') + 1) : [], isFileAt);
+    const { options, args: toolArgs } = runnerWords(args.slice(2));
+    const cwd = options.findLast(([flag]) => flag === '--cwd')?.[1] ?? '.';
+    return selection(command, second, toolArgs, file => isFileAt(path.isAbsolute(file) ? file : path.join(cwd, file)));
   }
   return null;
 }

@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d84be34c867b4ad16252922572a3e57960ddfabc068745900e34fc50349db995 -->
+<!-- source-sha256: 5f9a9a2eb1ee6117caaddac51afebeaa5cc7fdbcece8995b6b564cf5746c00ac -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Claude Code hook, `make item-test`, `make item-state`는 `run-tests.mts` 명령을 runner와 같은 방식으로 읽는다. option 뒤의
+  인수는 `--` 없이도 받고 파일은 `--cwd`에서 해석하므로 `--cwd packages/php -- ../../tests/XTest.php`가 허용된다.
+  item-test와 item-state는 Verification 명령의 파일을 명령을 실행하는 root에서 판단한다. red: 두 명령 모두 hook이
+  거부했다. green: `node --test --test-name-pattern=K353-2 tests/kit/claude-hook.test.mts tests/kit/plan.test.mts`가
+  2개 중 2개 통과한다 (K353-2).
 - `make dependency-policy-check`는 `make dependency-review`처럼 `GOWORK=off`로 실행되므로, linked Go checkout이 어떤 manifest도
   선언하지 않는 lock의 review record를 더 이상 보고하지 않는다 (K343).
 - `make lint-ts`, `make commit`, `make item-test`의 type 검사는 package의 `package.json`에 `typecheck` script가 있으면
