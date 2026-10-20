@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: feeba478cdc01ff6217cefd420d4f1c3d733f86532c497dbe96623d5cca2bb4d -->
+<!-- source-sha256: 9c216607f1b7ab576523cd0a8ee822bade41d6193e7f2e1638f9cfe0ede399ef -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make lint-php`는 phpstan을 제한 없음을 뜻하는 phpstan의 값 `--memory-limit=-1`로 실행한다. 분석에 필요한 memory는
+  package와 함께 커지고 제한은 분석을 멈출 뿐이기 때문이다. red: phpstan이 orm packages/php에서 php.ini의 128M에서
+  멈췄고 명령에 memory 제한 option이 없었다. green: `node --test --test-name-pattern=K346 tests/kit/lint-php.test.mts`가
+  통과한다 (K346).
 - kit의 isolation test는 다른 저장소의 이름을 그 저장소를 가리키는 곳, 즉 package(`polyspec/<name>`,
   `@polyspec/<name>`, `github.com/polyspec/<name>`)나 경로 segment(`../<name>/`)에서만 읽으므로 link test의 변수
   `template` 같은 같은 영어 단어는 finding이 아니다. red: 그 변수 때문에 kit main에서 test가 실패했다. green: `node

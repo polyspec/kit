@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make lint-php` runs phpstan with `--memory-limit=-1`, phpstan's value for no limit, since the memory that an
+  analysis needs grows with the package and a limit only stops it. Red: phpstan stopped at the 128M of php.ini on
+  orm packages/php, and its command had no memory limit; green: `node --test --test-name-pattern=K346
+  tests/kit/lint-php.test.mts` passes (K346).
 - The isolation test of kit reads the name of another repository only where it names the repository, as a package
   (`polyspec/<name>`, `@polyspec/<name>`, `github.com/polyspec/<name>`) or a path segment (`../<name>/`), so the same
   English word, such as the variable `template` of a link test, is no finding. Red: the test failed on kit main for
