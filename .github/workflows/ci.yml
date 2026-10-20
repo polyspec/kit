@@ -97,6 +97,10 @@ jobs:
       - name: go lint
         if: ${{ !cancelled() }}
         run: make lint-go
+      # The Rust lint of every repository: cargo clippy in each Cargo workspace; a repository without one passes.
+      - name: rust lint
+        if: ${{ !cancelled() }}
+        run: make lint-rust
       # The tests include the mutation check of the gate, which runs on a copy of tests/kit/fixture.
       - name: kit tests
         if: ${{ !cancelled() }}

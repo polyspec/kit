@@ -98,6 +98,7 @@
       "phpcs.xml.dist": "phpcs.xml.dist",
       "phpstan.dist.neon": "phpstan.dist.neon",
       ".golangci.yml": ".golangci.yml",
+      "clippy.toml": "clippy.toml",
       ".oxlintrc.json": ".oxlintrc.json",
       "knip.json": "knip.json",
       ".editorconfig": ".editorconfig",

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { lint, lintSteps } from '../../scripts/kit/lint-rust.mts';
+import { lint, lintSteps, P8_LINTS } from '../../scripts/kit/lint-rust.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
@@ -29,7 +29,7 @@ function checkout(t: TestContext): string {
   return root;
 }
 
-const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', '-D', 'clippy::let_underscore_must_use'];
+const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS];
 
 test('cargo clippy runs with -D warnings in each workspace folder, and not for a member or the kit fixture', (t) => {
   assert.deepEqual(lintSteps(checkout(t)), [

@@ -4,12 +4,15 @@
 // with the lint that names it, including the transmute_copy of the plan's verification. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { lint } from '../../scripts/kit/lint-rust.mts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const LIB = 'packages/rust/src/lib.rs';
 
@@ -30,6 +33,13 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'transmute_copy in an unsafe block', files: { [LIB]: `${GOOD[LIB]}${TRANSMUTE}` }, finding: /error: usage of an `unsafe` block/ },
   { name: 'unsafe code allowed for the crate without a reason', files: { [LIB]: `#![allow(unsafe_code)]\n${GOOD[LIB]}${TRANSMUTE}` }, finding: /error: `allow` attribute without specifying a reason/ },
   { name: 'a clippy warning', files: { [LIB]: `${GOOD[LIB]}\n/// Compares a value with itself.\npub fn same(value: u32) -> bool {\n    value == value\n}\n` }, finding: /error: equal expressions as operands to `==`/ },
+  // P8 (K334): a dropped must_use value, a `let _` of a must_use or untyped value, a map_err that ignores its error, and the Result
+  // methods that turn an Err into a plausible value (clippy.toml).
+  { name: 'a dropped must_use value', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value and drops the result.\npub fn parse(text: &str) {\n    text.parse::<u32>();\n}\n` }, finding: /error: unused `[a-z:]*Result` that must be used/ },
+  { name: 'a let underscore of a must_use value', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value and drops the result.\npub fn parse(text: &str) {\n    let _ = text.parse::<u32>();\n}\n` }, finding: /let_underscore_must_use/ },
+  { name: 'a let underscore of an untyped value', files: { [LIB]: `${GOOD[LIB]}\n/// Drops a value.\npub fn drop_value(value: u32) {\n    let _ = value;\n}\n` }, finding: /let_underscore_untyped/ },
+  { name: 'a map_err that ignores its error', files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> Result<u32, String> {\n    text.parse::<u32>().map_err(|_| String::from("bad"))\n}\n` }, finding: /map_err_ignore/ },
+  ...(['ok()', 'unwrap_or(0)', 'unwrap_or_default()', 'unwrap_or_else(|_| 0)'] as const).map(call => ({ name: `Result::${call.split('(')[0]}`, files: { [LIB]: `${GOOD[LIB]}\n/// Parses a value.\npub fn parse(text: &str) -> u32 {\n    ${call === 'ok()' ? 'text.parse::<u32>().ok().unwrap_or(1)' : `text.parse::<u32>().${call}`}\n}\n` }, finding: /disallowed_methods|use of a disallowed method `core::result::Result::/ })),
 ];
 
 /** Writes `files` below `root`. */
@@ -45,6 +55,7 @@ function repository(t: TestContext, files: Record<string, string> = {}): string 
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-rust-real-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write(root, { ...GOOD, ...files });
+  copyFileSync(path.join(ROOT, 'clippy.toml'), path.join(root, 'clippy.toml'));
   const lock = spawnSync('cargo', ['generate-lockfile', '--offline'], { cwd: root, encoding: 'utf8' });
   assert.equal(lock.status, 0, lock.stderr);
   const init = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' });
@@ -62,7 +73,8 @@ function lintOf(root: string): { failed: string[]; output: string } {
 test('the Rust lint passes on a workspace with the lints of kit, and on an FFI site that allows unsafe code with its reason', (t) => {
   const clippy = spawnSync('cargo', ['+1.99.0', 'clippy', '--version'], { encoding: 'utf8' });
   assert.equal(clippy.status, 0, `cargo clippy of Rust 1.99.0 is missing; rustup toolchain install 1.99.0 --component clippy installs it\n${clippy.stderr}`);
-  for (const files of [{}, { [LIB]: `${GOOD[LIB]}\n/// Reads the bits of a value as a signed value.\n#[allow(unsafe_code, reason = "the FFI site of the plan, which passes the bits to C")]\npub fn bits(value: u32) -> i32 {\n    unsafe { std::mem::transmute_copy(&value) }\n}\n` }]) {
+  const stated = `${GOOD[LIB]}\n/// Parses a value.\n#[allow(clippy::disallowed_methods, reason = "the text is a literal that always parses")]\npub fn parse(text: &str) -> u32 {\n    text.parse::<u32>().unwrap_or(0)\n}\n`;
+  for (const files of [{ [LIB]: stated }, {}, { [LIB]: `${GOOD[LIB]}\n/// Reads the bits of a value as a signed value.\n#[allow(unsafe_code, reason = "the FFI site of the plan, which passes the bits to C")]\npub fn bits(value: u32) -> i32 {\n    unsafe { std::mem::transmute_copy(&value) }\n}\n` }]) {
     const { failed, output } = lintOf(repository(t, files));
     assert.deepEqual(failed, [], output);
     assert.match(output, /Finished/);

@@ -147,7 +147,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check divergence-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 
 .PHONY: link-state-check

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d7d5512598f622f28bd43a377cd2e8f3f7af5a3690a8f50d84754f79686ce76a -->
+<!-- source-sha256: bfcbf331195fbaf5d968e9602006ba694c1c4c65ce03dbe9ca5bd7a3ff31f6e9 -->
 
 # 도구 목록
 
@@ -791,7 +791,7 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
-| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings` |
+| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings`와 P8 lint(`unused_must_use`, `let_underscore_must_use`, `let_underscore_untyped`, `map_err_ignore`, `allow_attributes_without_reason`); `kit-gates`의 member |
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |

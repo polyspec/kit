@@ -1,7 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 06b47e80203413375a021eb3fa419f1c466750cd27db1bff213b6194c1f47777 -->
-<!-- source-sha256: a7515d3be1d4923e2216a756b5b35ec81e233d27a0240888770006dc1fbf7a10 -->
-<!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
+<!-- source-sha256: 9255b092afdfdf799e4929a517d3c7e7a52c8e80fd9722705f7fba9fa8d0f4e6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -12,6 +10,7 @@
   거부된다 (K353-1).
 - `make item-edit ID= VERIFICATION=`는 `item-new`와 같은 검사를 거쳐 두 언어 row의 Verification 칸을 바꾸고, `make item-state`와 `make
   item-test`의 type 검사는 tsc가 찾지 못하는 workspace package를 build(`npm run build`)한 뒤 다시 compile한다 (K353).
+- `make lint-rust`는 P8 은폐도 실패시킨다: `let_underscore_untyped`, `map_err_ignore`, 명시적 `unused_must_use`, `allow_attributes_without_reason`, 그리고 kit이 복사하는 `clippy.toml`은 `#[allow]`가 reason을 밝히지 않는 한 `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`를 금지한다. `lint-rust`는 `kit-gates`와 kit의 CI에 들어가므로 P8이 이를 명시한다. Red: type 없는 `let _`와 금지 method가 통과했다. green: 각각 해당 lint로 실패하고 reason을 밝힌 variant는 통과한다 (`tests/source/lint-rust-real.test.mts`) (K334).
 - `make parity-declarations-check`는 root에 ecosystem의 manifest(`package.json`, `composer.json`, `pyproject.toml`,
   `go.mod`, `Cargo.toml`)가 없는 `config/parity.json`의 implementation과 다른 implementation의 root를 그대로 가진 implementation을
   실패시킨다. implementation은 source root이지 test glob만이 아니기 때문이다 (K336).
