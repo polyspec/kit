@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cb97919990aaa1c736adc32a5a0ca6df05201985983be8426519f7dfc8dfa97a -->
+<!-- source-sha256: a7ffc5fd6d8db03250dfbcb4935080b3b47f73d73b2acd01383ae1c08f98ddc7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- P24는 `make commits-check`를, S10은 `make dependency-policy-check`를, 즉 K424와 K425가 만든 검사를 planned 항목 대신
+  적으므로 `make rules-check`가 main에서 다시 통과한다(K359-1).
 - `make commits-check`와 commit-msg hook은 id `(#<id>)`가 그 커밋 tree의 docs/plans checklist 항목이 아닌 커밋을 실패시키므로
   (규칙 commit-row), 변경은 등록된 행에서 시작한다(P24). 행을 등록하는 커밋은 그 행을 더하므로 통과하고, 저장소의 첫 커밋은
   예외다(K424).

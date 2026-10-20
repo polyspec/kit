@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- P24 names `make commits-check` and S10 `make dependency-policy-check`, the checks that K424 and K425 built, in place of their
+  planned items, so `make rules-check` passes on main again (K359-1).
 - `make commits-check` and the commit-msg hook fail a commit whose id `(#<id>)` is no item of a checklist of docs/plans in
   the tree of that commit (rule commit-row), so a change starts from its registered row (P24); the commit that registers the
   row adds it and passes, and the first commit of a repository is exempt (K424).
