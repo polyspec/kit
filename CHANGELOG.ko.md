@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5ea74a4f7578e1d8c15cfc13f712e7226b5d8a5537cba76364a4c21cea9ceecf -->
+<!-- source-sha256: beedc9382613d7fb902a685e159c01b47a655be75c795ee757be4c9dd2ec6c96 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- run-tests는 표준 library만 쓰는 kit의 runner로 Python 테스트를 실행한다. runner는 테스트마다 자기 timeout을 주고 각각의
+  경과 시간을 출력하므로 어떤 환경도 새 package가 필요 없다. `docs/operations/tool-inventory.md`는 언어마다 무엇이 테스트에
+  timeout을 주는지 적는다(K371).
 - kit의 prepare-commit-msg hook은 기록만 하는 commit에서 아무것도 출력하지 않는다. 오류는 계속 출력한다(K380-3).
 - `make lint-php`는 `autoload.files` 항목의 각 파일을 PHP parser로 읽고, S2가 요구하듯 namespace의 함수와 상수가 아닌
   것이 있으면 파일과 줄을 적어 실패한다(K377).

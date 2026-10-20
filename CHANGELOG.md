@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- run-tests runs the Python tests with a runner of kit, standard library only, that gives each test its own timeout and prints
+  the elapsed time of each, so no environment needs a new package; `docs/operations/tool-inventory.md` states per language what
+  gives a test its timeout (K371).
 - The prepare-commit-msg hook of kit prints nothing on a commit, which it only records; an error still prints (K380-3).
 - `make lint-php` reads each file of an `autoload.files` entry with the PHP parser and fails, with file and line, on
   anything but namespaced functions and constants, as S2 asks (K377).
