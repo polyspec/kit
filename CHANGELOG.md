@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The package of kit ships `clippy.toml`, which `kit.copies` declares, so kit-sync copies it into a consumer and the test of
+  the copies passes on main (K408).
+
 - `make duplication-check` and `make lint-python` pass on kit main again: the symbols and the leaks of the Python
   extractor read the public names of a module through one function, and the extractor is formatted (K407).
 

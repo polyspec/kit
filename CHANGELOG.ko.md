@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f8a482c62bcab53fa1b3afec48e649638149312199e22353830ff21761448369 -->
+<!-- source-sha256: 5e904caa35b54353d60cc323da5a6913f1c3b9f4d275df495106270ada5dc3c5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- kit package는 `kit.copies`가 선언하는 `clippy.toml`을 담으므로, kit-sync가 그것을 consumer에 복사하고 main에서 copy
+  테스트가 통과한다(K408).
 
 - kit main에서 `make duplication-check`와 `make lint-python`이 다시 통과한다. Python extractor의 symbol과 leak은 한 함수로
   module의 공개 이름을 읽고, extractor는 format되어 있다(K407).
