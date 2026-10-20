@@ -13,7 +13,10 @@ const gitPaths = (root: string, ...args: string[]): string[] => git(root, ...arg
 /** The directory of the vendored fixture of kit: its manifests and locks belong to the tests, not to the checkout. */
 export const KIT_FIXTURE = 'tests/kit/fixture/';
 
-// The directories of dependency installs, tool installs and run outputs, which no check of the repository reads.
+// The directories of dependency installs, tool installs and run outputs, which no check of the repository reads. Git must ignore
+// each of them, which installDirectories and installFindings of generated-files.mts check (K372): node_modules beside a
+// package.json, the vendor directory of a composer.json, .venv beside a pyproject.toml and var at the root. vendor is not in this
+// list, because a Go vendor folder is a committed source; the check covers only the Composer vendor directory.
 const INSTALLED = /(^|\/)(node_modules|var|\.tools)\//;
 
 /**

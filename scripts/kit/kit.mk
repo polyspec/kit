@@ -85,9 +85,10 @@ toolchain-check: ## Check that the running tools are the declared versions; TOOL
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
 # the common rules of kit in the vendored config/layout.kit.yml with the map of the repository.
 .PHONY: layout-check
-layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml; offline
+layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory (K372); offline
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
 	$(ALINT) check --config config/layout.yml --color never --compact .
+	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs
 # ---- The gates: Git hooks and push gate --------------------------------------------------------------------------------
 # scripts/kit/git-hooks.mts and push-gate.mts read config/checklist.json. The full suite runs only in CI, as the targets of
 # `make ci-targets` (ci-only.mts); no target runs it locally.

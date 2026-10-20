@@ -6,11 +6,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { git, prepared, run } from './gates-checkout.mts';
+import { checkout, git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 
 const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
+const installs = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'installs']);
 const stage = (work: string, file: string, text: string | Buffer = 'x\n') => {
   mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
   writeFileSync(path.join(work, file), text);
@@ -90,4 +91,25 @@ test('a staged executable is refused whatever its path, and one that config/gene
   const exempt = check(declaredCheckout.work);
   assert.equal(exempt.status, 0, exempt.stderr);
   assert.match(exempt.stdout, /no generated file is staged/);
+});
+
+test('an install directory that Git does not ignore is a finding naming the .gitignore to change (K372)', (t) => {
+  const composer = checkout(t, { files: { 'composer.json': '{}\n' } });
+  const unignored = installs(composer.work);
+  assert.equal(unignored.status, 1, unignored.stderr);
+  assert.match(unignored.stderr, /vendor\/ is not ignored by Git .*add vendor\/ to \.gitignore/);
+  const ignored = checkout(t, { files: { 'composer.json': '{}\n', '.gitignore': '/var/\nvendor/\n' } });
+  const passed = installs(ignored.work);
+  assert.equal(passed.status, 0, passed.stderr);
+  const go = checkout(t, { files: { 'packages/go/go.mod': 'module example.com/go\n', 'packages/go/vendor/x/x.go': 'package x\n' } });
+  const goResult = installs(go.work);
+  assert.equal(goResult.status, 0, goResult.stderr);
+  const npm = checkout(t, { files: { 'packages/app/package.json': '{}\n' } });
+  const npmResult = installs(npm.work);
+  assert.equal(npmResult.status, 1, npmResult.stderr);
+  assert.match(npmResult.stderr, /packages\/app\/node_modules\/ is not ignored by Git .*add packages\/app\/node_modules\/ to packages\/app\/\.gitignore/);
+  const py = checkout(t, { files: { 'packages/py/pyproject.toml': '[project]\nname = "py"\n' } });
+  const pyResult = installs(py.work);
+  assert.equal(pyResult.status, 1, pyResult.stderr);
+  assert.match(pyResult.stderr, /packages\/py\/\.venv\/ is not ignored by Git .*add packages\/py\/\.venv\/ to packages\/py\/\.gitignore/);
 });

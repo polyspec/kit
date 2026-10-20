@@ -6,14 +6,19 @@
 //
 //   node scripts/kit/generated-files.mts staged   fail while a staged path is generated or an executable object, and no exception of
 //                                                 the config allows it, or a staged Korean twin holds a stale source-sha256 (K382)
+//   node scripts/kit/generated-files.mts installs fail while an install directory of the checkout is not ignored by Git (K372): node_modules
+//                                                 beside each package.json, the vendor directory of each composer.json, .venv beside each
+//                                                 pyproject.toml and var at the root; `make layout-check` runs it
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { matchesAny } from './glob.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { stagedTwinFindings } from './check-documents.mts';
+import { trackedFiles } from './tracked-files.mts';
 
 export const CONFIG = 'config/generated.json';
 export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '__pycache__', 'target', 'dist'];
@@ -102,11 +107,52 @@ export function stagedPaths(root: string) {
   return run.stdout.split('\0').filter(Boolean);
 }
 
+/** The install directories of the checkout `root` and the folder of the manifest that makes each one (K372); the root's var is always one. */
+export function installDirectories(root: string): { directory: string; folder: string }[] {
+  const found = [{ directory: 'var', folder: '.' }];
+  for (const file of trackedFiles(root)) {
+    const folder = path.posix.dirname(file);
+    const name = path.posix.basename(file);
+    if (name === 'package.json') found.push({ directory: path.posix.join(folder, 'node_modules'), folder });
+    if (name === 'pyproject.toml') found.push({ directory: path.posix.join(folder, '.venv'), folder });
+    // A Composer project keeps its packages in the vendor-dir of its composer.json, which defaults to vendor (Composer's own rule, as
+    // composer-vendor.mts reads it); a Go vendor folder is a committed source, so only a composer.json makes one of these.
+    if (name === 'composer.json') {
+      const { config } = readJsonObject(root, file);
+      const vendorDir = isJsonObject(config) ? config['vendor-dir'] : undefined;
+      const directory = path.posix.normalize(path.posix.join(folder, typeof vendorDir === 'string' ? vendorDir : 'vendor'));
+      if (directory !== '.' && directory !== '..' && !directory.startsWith('../')) found.push({ directory, folder });
+    }
+  }
+  return found;
+}
+
+/**
+ * The install directories of `root` that Git does not ignore, as lines naming the directory and the .gitignore to change (K372).
+ * `git check-ignore` takes the directory with its trailing slash, so a directory-only pattern such as vendor/ matches it whether or
+ * not it exists.
+ */
+export function installFindings(root: string): string[] {
+  return installDirectories(root).flatMap(({ directory, folder }) => {
+    const run = gitResult(root, 'check-ignore', '-q', `${directory}/`);
+    if (run.error) throw run.error;
+    if (run.status === 0) return [];
+    if (run.status !== 1) throw new Error(`git check-ignore failed in ${root}: ${run.stderr.trim()}`);
+    const gitignore = folder === '.' ? '.gitignore' : `${folder}/.gitignore`;
+    return [`${directory}/ is not ignored by Git (K372); add ${directory}/ to ${gitignore}`];
+  });
+}
+
 if (isMain(import.meta.url)) {
   const [mode, ...rest] = process.argv.slice(2);
-  if (mode !== 'staged' || rest.length > 0) {
-    console.error('Usage: node scripts/kit/generated-files.mts staged');
+  if ((mode !== 'staged' && mode !== 'installs') || rest.length > 0) {
+    console.error('Usage: node scripts/kit/generated-files.mts staged|installs');
     process.exitCode = 2;
+  } else if (mode === 'installs') {
+    const found = installFindings(repositoryRoot());
+    for (const line of found) console.error(`[generated-files] ${line}`);
+    if (found.length > 0) process.exitCode = 1;
+    else console.log('[generated-files] every install directory is ignored by Git');
   } else {
     const root = repositoryRoot();
     const found = [...generatedFindings(stagedPaths(root), loadGeneratedConfig(root), 'unstage it', file => blobContent(root, ':', file)), ...stagedTwinFindings(root)];
