@@ -105,7 +105,7 @@ endif
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push and commit-msg hooks of kit and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push, commit-msg and prepare-commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
@@ -119,6 +119,9 @@ push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on s
 
 commit-msg-hook: ## The message checks of make commit on the message being committed as MESSAGE (K380); the commit-msg hook that make hooks writes runs it
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)
+
+prepare-commit-msg-hook: ## The record of an amend that the commit-msg check reads (K380-2), from the SOURCE and the SHA that git gives the prepare-commit-msg hook; the hook that make hooks writes runs it
+	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --prepare --source=$(SOURCE) --sha=$(SHA)
 
 push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)

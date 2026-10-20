@@ -25,12 +25,14 @@
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
+//   node scripts/kit/check-commits.mts --prepare --source=<s> --sha=<sha>   the record of an amend, from the prepare-commit-msg hook (K380-2)
 //
-// A commit of a range is compared with its parent; the message being committed, with the index against HEAD. The item rules
+// A commit of a range is compared with its parent; the message being committed, with the index against HEAD, or against the parent
+// of HEAD when the commit amends it (K380-2). The item rules
 // read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
 // same findings of the commits that a push sends, through `logMessages` and `findingLines`.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -302,20 +304,56 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
   });
 };
 
-/** The item findings of the change being committed with `message`: the index against HEAD. */
-export function indexItemFindings(root: string, config: CommitRules, message: string) {
-  const head = gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status === 0;
+/** The sha of the commit that `rev` names in `root`; undefined when it names none, as an unborn HEAD or the parent of a root commit. */
+const commitOf = (root: string, rev: string) => {
+  const run = gitResult(root, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`);
+  return run.status === 0 ? run.stdout.trim() : undefined;
+};
+
+/**
+ * The item findings of the change being committed with `message`: the index against HEAD, or, for an amend (K380-2), against the
+ * parent of HEAD, since the commit that the amend makes replaces HEAD. A root commit has no parent, so the empty tree.
+ */
+export function indexItemFindings(root: string, config: CommitRules, message: string, amend = false) {
+  const base = commitOf(root, amend ? 'HEAD^' : 'HEAD');
+  const against = base ?? EMPTY_TREE;
   return itemFindings(root, config, {
-    before: file => (head ? fileAt(root, 'HEAD', file) : ''),
+    before: file => (base ? fileAt(root, base, file) : ''),
     after: file => fileAt(root, '', file),
-    changed: git(root, 'diff', '--cached', '--name-only').split('\n').filter(Boolean),
-    plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
+    changed: git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean),
+    plans: [...(base ? plansAt(root, base) : []), ...plansAt(root, '')],
     message,
-    parent: head ? git(root, 'rev-parse', 'HEAD').trim() : undefined,
-    changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', '--', file)),
-    deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D').split('\n').filter(isTestFile),
+    parent: base,
+    changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', against, '--', file)),
+    deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D', against).split('\n').filter(isTestFile),
     tracked: file => trackedAt(root, '', file),
   });
+}
+
+/** The file of the amend record of `root`, which the git directory of its worktree holds (K380-2). */
+const amendRecord = (root: string) => path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'kit-amend').stdout.trim());
+
+/**
+ * Records an amend for the commit-msg check (K380-2), from the arguments that git gives the prepare-commit-msg hook: an amend gives the
+ * commit `source` `commit` and the sha `HEAD`, and the record holds the sha that HEAD names. Any other commit removes the record.
+ */
+export function recordAmend(root: string, source: string, sha: string) {
+  const file = amendRecord(root);
+  const head = commitOf(root, 'HEAD');
+  if (source === 'commit' && sha !== '' && head !== undefined && commitOf(root, sha) === head) writeFileSync(file, `${head}\n`);
+  else rmSync(file, { force: true });
+}
+
+/**
+ * Whether the commit being made replaces HEAD (K380-2): the record that recordAmend wrote names the current HEAD. The record is removed
+ * either way, so a record that names another HEAD is stale and ignored.
+ */
+export function takeAmend(root: string) {
+  const file = amendRecord(root);
+  if (!existsSync(file)) return false;
+  const named = readFileSync(file, 'utf8').trim();
+  rmSync(file, { force: true });
+  return named !== '' && named === commitOf(root, 'HEAD');
 }
 
 /**
@@ -411,15 +449,20 @@ export function rangeFindings(root: string, range: string, config: CommitRules) 
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' } } });
+  const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' }, prepare: { type: 'boolean' }, source: { type: 'string' }, sha: { type: 'string' } } });
   let findings: string[];
   let label: string;
   try {
     const config = COMMIT_RULES;
+    if (values.prepare) {
+      recordAmend(root, values.source ?? '', values.sha ?? '');
+      process.exit(0);
+    }
     if (values.message !== undefined) {
+      const amend = takeAmend(root);
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : [...branchFindings(root), ...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message)].map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...branchFindings(root), ...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message, amend)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);

@@ -23,7 +23,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -161,6 +161,39 @@ test('make hooks writes the commit-msg hook of kit, which refuses the footer of 
   assert.equal(amended.status, 1, 'the commit-msg hook refuses the amend');
   assert.match(amended.stderr, /commit-ai-footer/);
   assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
+});
+
+// K380-2: an amend replaces HEAD, so the commit-msg check reads the index against the parent of the amended commit, which holds the
+// test of the fix; a plain commit is still checked against HEAD.
+test('an amend that restages a document of a fix commit with its test passes the commit-msg check (K380-2)', (t) => {
+  const { work } = checkout(t);
+  assert.equal(hooks(work).status, 0);
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  git(work, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  git(work, 'add', '-A');
+  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'feat(hooks): Create the repository (#T1-1)\n\nThe body names the change.\n']);
+  assert.equal(first.status, 0, `the first commit creates main: ${first.stderr}`);
+  git(work, 'checkout', '--quiet', '-b', 'fix/name-K380-2');
+
+  mkdirSync(path.join(work, 'src'), { recursive: true });
+  mkdirSync(path.join(work, 'tests'), { recursive: true });
+  mkdirSync(path.join(work, 'docs'), { recursive: true });
+  writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 1;\n');
+  writeFileSync(path.join(work, 'tests/tool.test.mts'), "import test from 'node:test';\n");
+  git(work, 'add', '-A');
+  const fix = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Check the tool (#K380-2)\n\nThe body names the change.\n']);
+  assert.equal(fix.status, 0, fix.stderr);
+
+  writeFileSync(path.join(work, 'docs/notes.md'), '# Notes\n');
+  git(work, 'add', 'docs/notes.md');
+  const amended = run(work, 'git', [...identity, 'commit', '--amend', '--no-edit', '--quiet']);
+  assert.equal(amended.status, 0, `the amend restages a document of the fix commit, which holds its test: ${amended.stderr}`);
+
+  writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 2;\n');
+  git(work, 'add', 'src/tool.mts');
+  const plain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Change the tool (#K380-2)\n\nThe body names the change.\n']);
+  assert.equal(plain.status, 1, 'a plain fix commit that changes no test is refused');
+  assert.match(plain.stderr, /commit-fix-test/);
 });
 
 // K404: a row is committed on its own branch and reaches main only through the fast-forward of make land, so the hook refuses a
