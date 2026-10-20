@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileMessage, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
-import { put, tree } from './tree.mts';
+import { english, pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
@@ -346,4 +346,34 @@ test('rustTestLines: the lines of a #[cfg(test)] module, not the braces of strin
     'fn after() {}',
   ].join('\n');
   assert.deepEqual([...rustTestLines(text)].sort((a, b) => a - b), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+});
+
+test('commits-check finds in each commit of its range what the hooks refuse at commit time (K351)', (t) => {
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const commit = (message: string, files: Record<string, string>, ...flags: string[]) => {
+    put(root, files);
+    git('add', '-A');
+    const result = git('commit', '-q', ...flags, '-m', message);
+    assert.equal(result.status, 0, result.stderr);
+    return git('rev-parse', '--short', 'HEAD').stdout.trim();
+  };
+  commit('feat(docs): Start (#K1)', {
+    'config/checklist.json': JSON.stringify(CHECKLIST),
+    'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }),
+    'config/documents.json': JSON.stringify({ schema: 1, include: ['docs/**/*.md'] }),
+    ...pair('docs/a.md', 'a', 'Body of a.\n'),
+  });
+  const clean = commit('feat(docs): Add the second document (#K2)', pair('docs/b.md', 'b', 'Body of b.\n'));
+  const generated = commit('feat(deps): Vendor a file (#K3)', { 'node_modules/x/index.js': 'x\n' }, '--no-verify');
+  const stale = commit('docs(docs): Change the first document (#K4)', { 'docs/a.md': english('a', 'Changed body of a.\n') }, '--no-verify');
+  const findings = rangeFindings(root, 'HEAD~3..HEAD', CONFIG);
+  assert.equal(findings.length, 2, findings.join('\n'));
+  assert.ok(!findings.some(line => line.startsWith(`${clean}: `)), 'a clean commit gives no finding');
+  const generatedLines = findings.filter(line => line.startsWith(`${generated}: `));
+  assert.equal(generatedLines.length, 1, findings.join('\n'));
+  assert.match(generatedLines[0] ?? '', /: commit-generated: node_modules\/x\/index\.js is a generated file/);
+  const twinLines = findings.filter(line => line.startsWith(`${stale}: `));
+  assert.equal(twinLines.length, 1, findings.join('\n'));
+  assert.match(twinLines[0] ?? '', /: commit-twin: docs\/a\.ko\.md: revision: /);
 });

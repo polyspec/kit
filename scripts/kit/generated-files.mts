@@ -30,6 +30,14 @@ export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig
   return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(config.exceptions, file));
 }
 
+/**
+ * The generated-file findings of the `changed` paths of a side of a change (K351) against `config` of that side, as lines; `fix`
+ * says how the side refuses the path. The staged check and the commit check of check-commits.mts read the same rule.
+ */
+export function generatedFindings(changed: string[], config: GeneratedConfig, fix: string): string[] {
+  return generatedOffenders(changed, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); ${fix}, or declare it in ${CONFIG}`);
+}
+
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema, and when it is missing. */
 export function loadGeneratedConfig(root: string): GeneratedConfig {
   if (!existsSync(path.join(root, CONFIG))) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its generated-file exceptions there`);
@@ -53,11 +61,9 @@ if (isMain(import.meta.url)) {
     process.exitCode = 2;
   } else {
     const root = repositoryRoot();
-    const offenders = generatedOffenders(stagedPaths(root), loadGeneratedConfig(root));
-    const twins = stagedTwinFindings(root);
-    for (const file of offenders) console.error(`[generated-files] ${file} is a generated file (AGENTS.md "Generated files"); unstage it, or declare it in ${CONFIG}`);
-    for (const line of twins) console.error(`[generated-files] ${line}`);
-    if (offenders.length > 0 || twins.length > 0) process.exitCode = 1;
+    const found = [...generatedFindings(stagedPaths(root), loadGeneratedConfig(root), 'unstage it'), ...stagedTwinFindings(root)];
+    for (const line of found) console.error(`[generated-files] ${line}`);
+    if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');
   }
 }

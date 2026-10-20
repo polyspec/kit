@@ -18,6 +18,10 @@
 //   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
 //   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
 //                    declares (K405)
+//   commit-generated the paths that a commit adds, copies, modifies or renames have no generated segment that the
+//                    config/generated.json of its tree does not declare: the staged check of generated-files.mts, read per commit
+//   commit-twin      a Korean twin that a commit changes or leaves stale holds the source-sha256 of its English file in the
+//                    tree of the commit: the staged check of check-documents.mts (K382), read per commit
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -31,10 +35,14 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
-import { git, gitResult } from './git.mts';
+import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gateCommands, kitGates, provesRed } from './gate-red.mts';
-import { readConfig } from './schema-validate.mts';
+import { CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
+import type { GeneratedConfig } from './generated-files.mts';
+import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
+import type { DocumentsConfig } from './check-documents.mts';
+import { parseJson, readConfig } from './schema-validate.mts';
 import { itemCommands } from './verification.mts';
 
 /** The rules of a commit: the types of its subject, the limits of its lines, and the changelog that a done item changes. */
@@ -148,16 +156,6 @@ export function messageFindings(message: string, config: CommitRules) {
 
 // The paths of the plan files at the revision `rev` (`''` is the index), from which trackersOf finds the checklists.
 const plansAt = (root: string, rev: string) => (rev === '' ? git(root, 'ls-files', '--cached', '--', PLANS) : git(root, 'ls-tree', '-r', '--name-only', rev, '--', PLANS)).split('\n').filter(Boolean);
-
-// The text of `file` at the revision `rev` (`:` alone is the index); empty when the revision has no such file. Whether it
-// has the file is read from git ls-tree (ls-files for the index); any failure of git show then throws.
-export const fileAt = (root: string, rev: string, file: string) => {
-  const listed = rev === '' ? git(root, 'ls-files', '--cached', '--', file) : git(root, 'ls-tree', '--name-only', rev, '--', file);
-  if (listed.trim() === '') return '';
-  const shown = gitResult(root, 'show', `${rev}:${file}`);
-  if (shown.error || shown.status !== 0) throw new Error(`git show ${rev}:${file} failed: ${shown.error?.message ?? shown.stderr.trim()}`);
-  return shown.stdout;
-};
 
 // A test file of a runner that kit fixes (S3): a file below a tests/ folder, a *.test.* or *.spec.* file of node and
 // vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file. The Rust unit tests are read by changesATest (K370).
@@ -374,6 +372,26 @@ export function rangeMessages(root: string, range: string) {
   return logMessages(root, range === 'HEAD' ? ['--max-count=1', 'HEAD'] : [range], range);
 }
 
+/**
+ * The findings of the commit `id` that the staged checks of the pre-commit hook make of the index (K351): the paths that the commit
+ * adds, copies, modifies or renames, read against config/generated.json and config/documents.json of its tree; a tree without one of
+ * the two configs has no check of it.
+ */
+const commitStateFindings = (root: string, id: string): CommitFinding[] => {
+  const changed = git(root, 'diff-tree', '--no-commit-id', '--name-only', '--diff-filter=ACMR', '-r', '-z', '--root', id).split('\0').filter(Boolean);
+  const tracked = new Set(git(root, 'ls-tree', '-r', '--name-only', id).split('\n'));
+  const found: CommitFinding[] = [];
+  if (tracked.has(GENERATED_CONFIG)) {
+    const config = parseJson<GeneratedConfig>(fileAt(root, id, GENERATED_CONFIG), 'generated.schema.json', `${GENERATED_CONFIG} at ${id}`);
+    found.push(...generatedFindings(changed, config, 'remove it from the commit').map(message => ({ rule: 'commit-generated', message })));
+  }
+  if (tracked.has(DOCUMENTS_CONFIG)) {
+    const config = parseJson<DocumentsConfig>(fileAt(root, id, DOCUMENTS_CONFIG), 'documents.schema.json', `${DOCUMENTS_CONFIG} at ${id}`);
+    found.push(...twinFindings(config, changed, file => fileAt(root, id, file), file => tracked.has(file)).map(message => ({ rule: 'commit-twin', message })));
+  }
+  return found;
+};
+
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
   const declared = declaredIdentity(root);
@@ -382,6 +400,7 @@ export function findingLines(root: string, commits: CommitMessage[], config: Com
     ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
     ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
     ...commitItemFindings(root, config, id, message),
+    ...commitStateFindings(root, id),
   ].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 

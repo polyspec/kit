@@ -31,8 +31,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { changedLineNumbers, changesATest, COMMIT_RULES, fileAt, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
-import { git } from './git.mts';
+import { changedLineNumbers, changesATest, COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { fileAt, git } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';

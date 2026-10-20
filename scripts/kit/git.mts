@@ -8,3 +8,13 @@ export const git = (root: string, ...args: string[]): string => run('git', args,
 
 /** The outcome `{ status, stdout, stderr, error }` of `git <args>` in `root`. */
 export const gitResult = (root: string, ...args: string[]): Outcome => execute('git', args, { cwd: root });
+
+// The text of `file` at the revision `rev` (`:` alone is the index, a commit its tree, K351); empty when the revision has no such file. Whether it
+// has the file is read from git ls-tree (ls-files for the index); any failure of git show then throws.
+export const fileAt = (root: string, rev: string, file: string) => {
+  const listed = rev === '' ? git(root, 'ls-files', '--cached', '--', file) : git(root, 'ls-tree', '--name-only', rev, '--', file);
+  if (listed.trim() === '') return '';
+  const shown = gitResult(root, 'show', `${rev}:${file}`);
+  if (shown.error || shown.status !== 0) throw new Error(`git show ${rev}:${file} failed: ${shown.error?.message ?? shown.stderr.trim()}`);
+  return shown.stdout;
+};

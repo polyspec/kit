@@ -31,8 +31,7 @@ import { anchors, headingAnchors, links, proseLines, scanFences } from './markdo
 import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { git } from './git.mts';
-import { fileAt } from './check-commits.mts';
+import { fileAt, git } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { sha256 } from './bootstrap/digest.mts';
 import { readConfig } from './schema-validate.mts';
@@ -269,31 +268,36 @@ export function check(root: string, config: DocumentsConfig) {
 const indexed = (root: string, file: string) => git(root, 'ls-files', '--cached', '--', file).split('\n').includes(file);
 
 /**
- * The findings of the staged twins (K382): for each English document of the staged tree whose pair is staged or tracked
- * and that the commit touches, the Korean twin must hold the sha256 of the staged English text. A pair the commit does not
- * touch is not read; its stale marker is the finding of docs-check.
+ * The twin findings of a change (K382, K351), as lines `<korean>: revision: <message>`: for each English document of `changed` whose
+ * pair the side holds (`tracked`), the Korean twin must hold the sha256 of the English text that `read` gives at that side. A pair
+ * that the change does not touch is not read; its stale marker is the finding of docs-check. `config` is the config of that side.
  */
+export function twinFindings(config: DocumentsConfig, changed: string[], read: Read, tracked: (file: string) => boolean): string[] {
+  const englishes = new Set(changed.filter(file => file.endsWith('.md')).map(englishOf));
+  const found: string[] = [];
+  for (const english of [...englishes].sort()) {
+    if (!matchesAny(config.include, english) || matchesAny(config.exclude ?? [], english)) continue;
+    const korean = koreanOf(english);
+    // A side the tree does not hold is the pair-missing finding of docs-check.
+    if (!tracked(english) || !tracked(korean)) continue;
+    const expected = sha256(read(english));
+    const revisions = revisionsOf(read(korean));
+    if (revisions.length === 1 && revisions[0] === expected) continue;
+    const message = revisions.length === 1
+      ? `the source-sha256 is ${revisions[0]}; the sha256 of ${english} is ${expected}; review the translation, then run make documents-stamp`
+      : `the file has ${revisions.length} source-sha256 markers; expected exactly 1 <!-- source-sha256: ${expected} -->, the sha256 of ${english}; review the translation, then run make documents-stamp`;
+    found.push(format(korean, { rule: 'revision', message }));
+  }
+  return found;
+}
+
+/** The findings of the staged twins (K382): the twin findings of the staged paths, read from the index. */
 export function stagedTwinFindings(root: string): string[] {
   // Without config/documents.json docs-check selects no document, so no twin is read here either.
   if (!existsSync(path.join(root, CONFIG))) return [];
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   const staged = git(root, 'diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').split('\0').filter(Boolean);
-  const englishes = new Set(staged.filter(file => file.endsWith('.md')).map(englishOf));
-  const found: string[] = [];
-  for (const english of [...englishes].sort()) {
-    if (!matchesAny(config.include, english) || matchesAny(config.exclude ?? [], english)) continue;
-    const korean = koreanOf(english);
-    // A side missing from the index is the pair-missing finding of docs-check.
-    if (!indexed(root, english) || !indexed(root, korean)) continue;
-    const expected = sha256(fileAt(root, '', english));
-    const revisions = revisionsOf(fileAt(root, '', korean));
-    if (revisions.length === 1 && revisions[0] === expected) continue;
-    const message = revisions.length === 1
-      ? `the staged source-sha256 is ${revisions[0]}; the sha256 of the staged ${english} is ${expected}; review the translation, then run make documents-stamp`
-      : `the staged file has ${revisions.length} source-sha256 markers; expected exactly 1 <!-- source-sha256: ${expected} -->, the sha256 of the staged ${english}; review the translation, then run make documents-stamp`;
-    found.push(format(korean, { rule: 'revision', message }));
-  }
-  return found;
+  return twinFindings(config, staged, file => fileAt(root, '', file), file => indexed(root, file));
 }
 
 if (isMain(import.meta.url)) {
