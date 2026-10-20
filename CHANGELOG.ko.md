@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ac5e3c30225aa83b00ec75139d38c52e9be991d5e5bed7b1f2dde5fbc5f2ae8a -->
+<!-- source-sha256: cb97919990aaa1c736adc32a5a0ca6df05201985983be8426519f7dfc8dfa97a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make commits-check`와 commit-msg hook은 id `(#<id>)`가 그 커밋 tree의 docs/plans checklist 항목이 아닌 커밋을 실패시키므로
+  (규칙 commit-row), 변경은 등록된 행에서 시작한다(P24). 행을 등록하는 커밋은 그 행을 더하므로 통과하고, 저장소의 첫 커밋은
+  예외다(K424).
 - `make dependency-policy-check`는 composer.json의 require에 애플리케이션 framework(symfony/console,
   symfony/framework-bundle, symfony/http-kernel, laravel/framework, laminas/laminas-mvc)를 요구하는 S10의 PHP library를
   manifest와 패키지 이름과 함께 실패시킨다. 애플리케이션은 library를 요구하는 자기 Composer 패키지다(K425).

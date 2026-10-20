@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make commits-check` and the commit-msg hook fail a commit whose id `(#<id>)` is no item of a checklist of docs/plans in
+  the tree of that commit (rule commit-row), so a change starts from its registered row (P24); the commit that registers the
+  row adds it and passes, and the first commit of a repository is exempt (K424).
 - `make dependency-policy-check` fails a PHP library of S10 whose composer.json requires an application framework
   (symfony/console, symfony/framework-bundle, symfony/http-kernel, laravel/framework, laminas/laminas-mvc) in require, naming
   the manifest and the package: the application is its own Composer package that requires the library (K425).
