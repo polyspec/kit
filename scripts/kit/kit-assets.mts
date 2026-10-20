@@ -22,7 +22,7 @@ export function shippedAssets(makefile: string): Set<string> {
   const recipe: string[] = [];
   let inBuild = false;
   for (const line of makefile.split('\n')) {
-    if (/^kit-build:/.test(line)) { inBuild = true; continue; }
+    if (line.startsWith('kit-build:')) { inBuild = true; continue; }
     if (inBuild && !line.startsWith('\t')) break;
     if (inBuild) recipe.push(line);
   }
