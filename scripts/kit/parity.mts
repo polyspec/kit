@@ -12,6 +12,9 @@
 //                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400)
 //     --rule <x>      with --declarations, only the findings of the named rules count, by id (R10) or by name (docs-count), and
 //                     those of config/parity.json itself (K414); a name that is neither fails the run
+//     --id <requirement>  with --declarations, only the findings that name one of the requirement ids count (R13 to R16, R18),
+//                     and those of config/parity.json itself; with --unit and --rule the scope is their intersection;
+//                     an id that no unit cites fails the run (K414-1)
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no public symbol in an implementation, or the extractor of
@@ -65,7 +68,7 @@ export type ParityFinding = Finding;
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
  * bindings (R3) with the environment `env`; `say` prints a line for each step.
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
   // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
@@ -99,6 +102,13 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     if (unknownRules.length) return { findings: unknownRules.map(rule => finding('declaration', `--rule ${rule} names no rule of the parity check`, { place: DECLARATION })), ledger };
     say(`--rule ${rules.join(', ')}: only the findings of these rules and of ${DECLARATION} itself count`);
   }
+  // With --id, a requirement is named by its id; an id that no unit of the declaration cites fails the run before any check (K414-1).
+  if (ids !== undefined) {
+    const cited = new Set(model.config.units.flatMap(unit => unit.requirements));
+    const unknownIds = ids.filter(id => !cited.has(id));
+    if (unknownIds.length) return { findings: unknownIds.map(id => finding('declaration', `--id ${id} names no requirement that a unit of ${DECLARATION} cites`, { place: DECLARATION })), ledger };
+    say(`--id ${ids.join(', ')}: only the findings that name these requirements, and of ${DECLARATION} itself, count`);
+  }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
@@ -121,16 +131,17 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8'), model.cases),
   ];
   // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
-  // The same holds for named rules; the findings of config/parity.json itself stay with either filter.
+  // The same holds for named rules and requirement ids (K414-1); the findings of config/parity.json itself stay with any filter.
   const isDeclaration = (item: ParityFinding) => item.place?.split(':')[0] === DECLARATION;
-  const named = findings.filter(item => (selected === undefined || (item.unit === undefined ? isDeclaration(item) : selected.has(item.unit))) && (ruleIds === undefined || isDeclaration(item) || ruleIds.has(item.rule)));
+  const idSet = ids === undefined ? undefined : new Set(ids);
+  const named = findings.filter(item => (selected === undefined || (item.unit === undefined ? isDeclaration(item) : selected.has(item.unit))) && (ruleIds === undefined || isDeclaration(item) || ruleIds.has(item.rule)) && (idSet === undefined || isDeclaration(item) || (item.requirements ?? []).some(id => idSet.has(id))));
   return { findings: named, ledger: executed.ledger };
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);

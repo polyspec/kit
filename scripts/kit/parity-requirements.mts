@@ -12,6 +12,7 @@
 // case.json is a declaration finding; an id of it that the spec does not define is R14 naming the file, reported once
 // although units share the directory; a unit's cited id is named for R15 when a case.json of the unit's case set lists it.
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
+// Each finding that names one requirement carries its id in `requirements`, and R18 carries the shared ids, so IDS selects them (K414-1).
 import { matchesAny } from './glob.mts';
 import { finding, type Finding } from './parity-declaration.mts';
 
@@ -59,7 +60,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
         const listing = typeof parsed === 'object' && parsed !== null && 'requirements' in parsed ? parsed.requirements : undefined;
         if (Array.isArray(listing) && listing.every((entry): entry is string => typeof entry === 'string')) {
           ids = listing;
-          for (const id of ids) if (!defined.has(id)) findings.push(finding('R14', `${file} lists ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`));
+          for (const id of ids) if (!defined.has(id)) findings.push(finding('R14', `${file} lists ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { requirements: [id] }));
         } else findings.push(finding('declaration', `${file}: requirements is no array of strings`));
       }
     }
@@ -80,10 +81,10 @@ export function requirementFindings(config: { requirements: { pattern: string };
       if (tested && defined.has(id)) {
         const vectors = directory?.has(id) ?? (unit.kind === 'suite' && unit.file !== undefined && named(id, text(unit.file)));
         for (const binding of unit.bindings ?? []) {
-          if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, implementation: binding.implementation }));
+          if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, implementation: binding.implementation, requirements: [id] }));
         }
       }
-      if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id }));
+      if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id, requirements: [id] }));
     }
   }
   // R16: an internal test names no requirement of the spec (K313): the tests of a requirement are the units that cite it, so a contract
@@ -94,7 +95,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
     for (const file of [...listed].filter(name => matchesAny(globs, name)).sort()) {
       // Only a match that the spec defines is a requirement named (K342): UTF-8 and SHA-256 match a pattern such as [A-Z]+-[0-9]+ and are none.
       const named = [...read(file).matchAll(identifier)].map(match => match[0]).find(id => defined.has(id));
-      if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file }));
+      if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file, requirements: [named] }));
     }
   }
   // R18: two directory suites that cite a requirement from different case sets are one feature written twice (K350).
@@ -105,8 +106,8 @@ export function requirementFindings(config: { requirements: { pattern: string };
   });
   for (const [index, first] of directories.entries()) for (const second of directories.slice(index + 1)) {
     const shared = [...new Set(first.unit.requirements)].filter(id => second.unit.requirements.includes(id));
-    if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit`));
+    if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit`, { requirements: shared }));
   }
-  for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`));
+  for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`, { requirements: [id] }));
   return findings;
 }

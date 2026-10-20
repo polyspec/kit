@@ -140,6 +140,7 @@ export interface FindingPlace {
   unit?: string | undefined;
   implementation?: string | undefined;
   place?: string | undefined;
+  requirements?: string[] | undefined;
 }
 
 /** A finding of the check. */
@@ -148,11 +149,13 @@ export interface Finding {
   unit: string | undefined;
   implementation: string | undefined;
   place: string | undefined;
+  // The requirement ids the finding is about, a list so that R18 names each shared id; IDS (K414-1) selects by it.
+  requirements?: string[] | undefined;
   message: string;
 }
 
-/** A finding of `rule` with the unit, implementation and place (a file or file:line) it names, when it names them. */
-export const finding = (rule: Rule, message: string, { unit, implementation, place }: FindingPlace = {}): Finding => ({ rule, unit, implementation, place, message });
+/** A finding of `rule` with the unit, implementation, place (a file or file:line) and requirements it names, when it names them. */
+export const finding = (rule: Rule, message: string, { unit, implementation, place, requirements }: FindingPlace = {}): Finding => ({ rule, unit, implementation, place, requirements, message });
 
 /** The finding as a line: `<rule> <name> [<unit>] [<implementation>] [<place>]: <message>`. */
 export const findingLine = (item: Finding): string => `${[item.rule, RULES[item.rule], item.unit, item.implementation, item.place].filter(Boolean).join(' ')}: ${item.message}`;
