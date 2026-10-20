@@ -493,6 +493,30 @@ function lockedConstraints(consumer: Consumer, uv: Tool, workspace: string, venv
 }
 
 /**
+ * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
+ * in sorted order; undefined when there is none.
+ */
+function pylockOf(workspace: string): string | undefined {
+  const names = readdirSync(workspace).filter(name => /^pylock(\.[A-Za-z0-9_-]+)?\.toml$/.test(name)).sort();
+  const name = names.includes('pylock.toml') ? 'pylock.toml' : names[0];
+  return name === undefined ? undefined : path.join(workspace, name);
+}
+
+/**
+ * The locked releases of a PEP 751 lock `lock` as the constraints of an install: each package of the lock that has a version,
+ * without the linked packages, as lockedConstraints writes them.
+ */
+function pylockConstraints(consumer: Consumer, lock: string, venv: string, linked: ReadonlySet<string>): string {
+  const packages = readTomlFile(lock).packages;
+  const pins = (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => {
+    if (!isJsonObject(item) || typeof item.name !== 'string' || typeof item.version !== 'string') return [];
+    const name = normalizeName(item.name);
+    return linked.has(name) ? [] : [`${name}==${item.version}`];
+  });
+  return writeLinkFile(consumer, inputName(venv, 'constraints'), pins);
+}
+
+/**
  * The overrides of an install of the linked packages (K237, K316-1): each linked package is the editable install of the folder of its
  * checkout, also where another package requires it by its release URL. The line `-e <folder>` is the form that keeps the install
  * editable; the line `name @ file://<folder>` makes uv take a non-editable requirement that beats the `-e` of the command line.
@@ -672,14 +696,17 @@ function linkPython(work: Run, consumer: Consumer) {
       reportLinks(state, false);
       continue;
     }
-    if (!existsSync(path.join(workspace, 'uv.lock'))) {
-      for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock in ${workspace}: run the repository's install`);
+    // The constraints are the locked releases of the uv.lock of the workspace, or of its PEP 751 lock when it has no uv.lock (K401).
+    const pylock = existsSync(path.join(workspace, 'uv.lock')) ? undefined : pylockOf(workspace);
+    if (pylock === undefined && !existsSync(path.join(workspace, 'uv.lock'))) {
+      for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock or pylock.toml in ${workspace}: run the repository's install`);
       continue;
     }
     // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
     // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
     const ready = linked;
-    const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(provider => normalizeName(provider.name))));
+    const lockedNames = new Set(ready.map(provider => normalizeName(provider.name)));
+    const constraints = pylock === undefined ? lockedConstraints(consumer, uv, workspace, venv, lockedNames) : pylockConstraints(consumer, pylock, venv, lockedNames);
     const overrides = linkedOverrides(consumer, venv, ready);
     // A project of the consumer's own environment is installed with --no-deps (K280): the consumer's lock sync provides its
     // dependencies, and a dependency that the lock provides another way (a path dependency of no index) cannot be resolved here.

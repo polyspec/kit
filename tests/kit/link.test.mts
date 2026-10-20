@@ -541,6 +541,33 @@ test('a Python provider that uv pip list does not show is installed as the edita
   assert.match(log(), new RegExp(`uv pip install.*-e ${path.join(provider, 'packages/python').replaceAll('.', '\\.')}`), 'the provider is installed from its folder');
 });
 
+// K401: a Python project locked by a PEP 751 pylock.toml has no uv.lock; its install takes the locked releases from that lock.
+test('a Python project locked with pylock.toml and no uv.lock is linked with the constraints of its lock (K401)', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  rmSync(path.join(consumer, 'python/uv.lock'));
+  put(consumer, {
+    'python/pylock.toml': 'lock-version = "1.0"\ncreated-by = "uv"\n\n[[packages]]\nname = "polyspec-z"\nversion = "0.0.1"\n\n[[packages]]\nname = "jsonschema"\nversion = "4.23.0"\n\n[[packages]]\nname = "local-dir"\n',
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.ok(!log().includes('uv export'), 'a pylock.toml is read, not exported: the workspace has no uv.lock');
+  const install = log().split('\n').find(item => item.startsWith('uv pip install')) ?? '';
+  assert.ok(install.includes(`-e ${path.join(provider, 'packages/python')}`), install);
+  const constraints = readFileSync(path.join(consumer, 'constraints.logged'), 'utf8');
+  assert.match(constraints, /^jsonschema==4\.23\.0$/m, 'the locked release of the other package is a constraint');
+  assert.doesNotMatch(constraints, /polyspec-z/, 'a linked package is no constraint: its checkout version is installed');
+  assert.doesNotMatch(constraints, /local-dir/, 'a package of the lock that has no version is no constraint');
+  assert.match(text, /linked {5}python {3}polyspec-z -> /);
+});
+
+test('a Python project with neither uv.lock nor pylock.toml is not linked, and the message names both locks (K401)', (t) => {
+  const { consumer, env } = workspace(t);
+  rmSync(path.join(consumer, 'python/uv.lock'));
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, false, text);
+  assert.match(text, /NOT linked python {3}polyspec-z \(no uv\.lock or pylock\.toml in .*python: run the repository's install\)/);
+});
+
 // K316-2: the link of every ecosystem is idempotent: a second run ends linked, with the state of the first.
 test('a second link run ends linked with the state of the first, in npm, Composer and Go (K316-2)', (t) => {
   const { provider, consumer, env } = workspace(t);
