@@ -229,3 +229,10 @@ test('the principles of kit name the checks that their done items built, and pas
   assert.match(rules.get('S10') ?? '', /^  Enforced by: .*`make dependency-policy-check`/m);
   assert.deepEqual(checkRules(fileURLToPath(new URL('../..', import.meta.url)), ['PRINCIPLES.md']).findings, []);
 });
+
+// K359-2: the consumers take PRINCIPLES.md as a copy of kit, so its rules name only the checks that every repository has: a make
+// target or a hook, never a path under tests/ or scripts/ of kit.
+test('no rule of PRINCIPLES.md is enforced by a path that only kit has (K359-2)', () => {
+  const lines = readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8').split('\n').filter(line => line.startsWith('  Enforced by: '));
+  assert.deepEqual(lines.filter(line => /`(?:tests|scripts)\//.test(line)), []);
+});

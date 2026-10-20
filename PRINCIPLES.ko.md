@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 5d2aaf43086c4db13e19bcb80e1dbc11dc2290c1b27c82d4d1718e28e1e0dcaa -->
+<!-- source-sha256: e66e38e0d85232dc79edf78d51b4d9677ff1bdd5569a67722ec0f94de1e5f18b -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -46,7 +46,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   만듭니다. 자유 디스크가 30 GB 미만이면 거부합니다. worktree와 그 branch는 main에 merge된 직후 `make land`가
   지웁니다. merge될 수 없는 test나 실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에
   합니다; 바로 지울 수 없으면 checklist 하위 항목에 제거 조건을 적습니다.
-  Enforced by: `.githooks/pre-push`, `tests/kit/worktree-setup.test.mts`
+  Enforced by: `.githooks/pre-push`
 - P11 code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
   영어로 쓰는 한국어 쌍을 가집니다.
   Enforced by: `make commits-check`는 commit message에 대해, `make language-check`는 code에 대해

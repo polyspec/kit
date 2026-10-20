@@ -46,7 +46,7 @@ in kit, with its grounding.
   under 30 GB of free disk. The worktree and its branch are removed right after the merge into main, by `make land`.
   Test or experiment code that cannot merge is cherry-picked when it is worth keeping and otherwise discarded, always before
   the commit; when it cannot be removed at once, a checklist sub-item states the condition of its removal.
-  Enforced by: `.githooks/pre-push`, `tests/kit/worktree-setup.test.mts`
+  Enforced by: `.githooks/pre-push`
 - P11 Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
   English, each with a Korean twin that writes technical terms in English.
   Enforced by: `make commits-check` for the commit messages, `make language-check` for the code
