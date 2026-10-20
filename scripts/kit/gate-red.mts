@@ -16,13 +16,14 @@ import { makeDatabase } from './owner-check.mts';
 export type GateRecord = { head: string; gates: { command: string; status: number }[] };
 
 // A line of a commit message that records the red of a gate on the parent of the commit.
-const RED_GATE = /^Red-Gate: (make \S+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
+const RED_GATE = /^Red-Gate: (make \S+(?: [A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+))*) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
 
 /** The file of the record of the item `id`. */
 const recordFile = (root: string, id: string) => path.join(root, 'var/plan', `${id}.json`);
 
-// A command that runs one make target and nothing else, the form of a gate command.
-const MAKE_TARGET = /^make\s+(\S+)$/;
+// A command that runs one make target, the form of a gate command, with the make variables that scope it after the target, such as
+// UNITS of K400 and RULES of K414 (K357-2); a value is a word or a quoted string.
+const MAKE_TARGET = /^make\s+(\S+)(?:\s+[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+))*$/;
 
 /**
  * The gates of kit-gates in the make database of the Makefile of `root`, which includes the kit.mk of the kit that the repository
@@ -34,7 +35,7 @@ export function kitGates(root: string): Set<string> {
   return new Set(gates);
 }
 
-/** The commands of `commands` that run a gate of `gates` and nothing else: `make <gate>`. */
+/** The commands of `commands` that run a gate of `gates`: `make <gate>`, with its make variables (K357-2). */
 export function gateCommands(commands: readonly string[], gates: ReadonlySet<string>): string[] {
   return commands.filter(command => gates.has(MAKE_TARGET.exec(command.trim())?.[1] ?? ''));
 }
