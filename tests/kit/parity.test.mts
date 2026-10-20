@@ -1630,6 +1630,36 @@ test('parity-declarations-check UNITS reports the findings of the named units an
   assert.match(declaration.stderr, /R12 .* size go config\/parity\.json: .*names go twice/);
 });
 
+// K414: a row whose fact is a rule of the documents verifies it while the findings of other rules still exist.
+test('parity-declarations-check RULES reports the findings of the named rules only (K414)', TIMEOUT, (t) => {
+  const root = repository(t, {
+    edit: config => {
+      itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements = ['CX-9'];
+      return config;
+    },
+    files: { 'docs/spec/tooling.md': '# Tooling\n\nThe tooling runs the checks; it defines no requirement.\n' },
+  });
+  const declarations = (rules?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, rules }).findings;
+  const all = keys(declarations());
+  assert.ok(all.some(line => line.startsWith('R14 ')) && all.some(line => line.startsWith('R19 ')), all.join('\n'));
+  const unknownRequirement = keys(declarations(['R14']));
+  assert.ok(unknownRequirement.length > 0 && unknownRequirement.every(line => line.startsWith('R14 ')), unknownRequirement.join('\n'));
+  assert.deepEqual(keys(declarations(['unknown-requirement'])), unknownRequirement, 'the rule named by its id and by its name give the same findings');
+  assert.deepEqual(keys(declarations(['R19'])), all.filter(line => line.startsWith('R19 ')), 'only the findings of R19');
+  assert.deepEqual(keys(declarations(['R10'])), [], 'R10 holds, so it has no finding');
+  assert.deepEqual(keys(declarations(['nope'])), ['declaration - -'], 'a rule that is no rule of the check is a finding of its own');
+  const make = (rules: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `RULES=${rules}`], { cwd: root, env: ENV, encoding: 'utf8' });
+  const only = make('R14');
+  assert.notEqual(only.status, 0, only.stdout + only.stderr);
+  assert.match(only.stderr, /\[parity\] R14 unknown-requirement width: cites CX-9/);
+  assert.doesNotMatch(only.stderr, /R19 /);
+  const holds = make('R10');
+  assert.equal(holds.status, 0, holds.stdout + holds.stderr);
+  const unknown = make('nope');
+  assert.notEqual(unknown.status, 0, unknown.stdout + unknown.stderr);
+  assert.match(unknown.stderr, /--rule nope names no rule of the parity check/);
+});
+
 // K337: a document of docs/spec that defines no requirement is a finding that names it; the fixture's own spec document defines CX-1.
 test('a document of docs/spec that defines no requirement is a finding that names it (K337)', TIMEOUT, (t) => {
   const root = repository(t, { files: { 'docs/spec/tooling.md': '# Tooling\n\nThe tooling runs the checks; it defines no requirement.\n' } });

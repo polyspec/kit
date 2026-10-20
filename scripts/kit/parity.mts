@@ -10,6 +10,8 @@
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
 //                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400)
+//     --rule <x>      with --declarations, only the findings of the named rules count, by id (R10) or by name (docs-count), and
+//                     those of config/parity.json itself (K414); a name that is neither fails the run
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no public symbol in an implementation, or the extractor of
@@ -44,7 +46,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { toolsEnvironment } from './mise-tools.mts';
-import { DECLARATION, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
+import { DECLARATION, RULES, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
 import { runBindings } from './parity-ledger.mts';
@@ -63,7 +65,7 @@ export type ParityFinding = Finding;
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
  * bindings (R3) with the environment `env`; `say` prints a line for each step.
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
   // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
@@ -89,6 +91,14 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     if (execute) say(`--unit ${[...selected].join(', ')}: only their bindings (R3) run; the cross-unit rules (R1, R2, R4 to R11) need every unit and do not run`);
     else say(`--unit ${[...selected].join(', ')}: only the findings of these units and of ${DECLARATION} itself count`);
   }
+  // With --rule, a rule is named by its id or by its name in RULES; a name that is neither fails the run before any check.
+  const ruleNames: Record<string, string> = RULES;
+  const ruleIds = rules === undefined ? undefined : new Set(Object.keys(ruleNames).filter(id => rules.includes(id) || rules.some(rule => rule === ruleNames[id])));
+  if (rules !== undefined) {
+    const unknownRules = rules.filter(rule => !Object.keys(ruleNames).some(id => id === rule || ruleNames[id] === rule));
+    if (unknownRules.length) return { findings: unknownRules.map(rule => finding('declaration', `--rule ${rule} names no rule of the parity check`, { place: DECLARATION })), ledger };
+    say(`--rule ${rules.join(', ')}: only the findings of these rules and of ${DECLARATION} itself count`);
+  }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
@@ -111,14 +121,16 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8'), model.cases),
   ];
   // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
-  const named = selected === undefined ? findings : findings.filter(item => (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)));
+  // The same holds for named rules; the findings of config/parity.json itself stay with either filter.
+  const isDeclaration = (item: ParityFinding) => item.place?.split(':')[0] === DECLARATION;
+  const named = findings.filter(item => (selected === undefined || (item.unit === undefined ? isDeclaration(item) : selected.has(item.unit))) && (ruleIds === undefined || isDeclaration(item) || ruleIds.has(item.rule)));
   return { findings: named, ledger: executed.ledger };
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);

@@ -423,8 +423,8 @@ endif
 parity-check: ## Run the binding of every suite in every implementation and check every parity rule of config/parity.json; UNITS="<id>..." runs only the named units (their bindings), without the cross-unit rules; the full check runs only in CI; offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit))
 
-parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units and of config/parity.json itself (K400); offline
-	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit))
+parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units and of config/parity.json itself (K400); RULES="<rule>..." reports only the findings of the named rules, by id or name, and of config/parity.json itself (K414); offline
+	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule))
 
 # --- python-lock: the PEP 751 locks of config/dependency-policy.json (pythonLocks), each with its requirements and a constraints file
 # that pins every package. The writer resolves with the uv of mise.toml (make install-tools); the check never resolves.

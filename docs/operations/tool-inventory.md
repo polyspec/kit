@@ -1421,6 +1421,7 @@ reports their outcomes with the same ledger lines. The cross-unit rules (R1, R2,
 An id that no unit of `config/parity.json` holds fails the run and names it; no run starts.
 `make parity-declarations-check UNITS="<id> <id>"` (K400) reports only the findings that name the units and those of `config/parity.json` itself,
 so a row that fixes the declarations of its units passes while other units still have findings; without UNITS it reports every finding.
+`make parity-declarations-check RULES="<rule> <rule>"` (K414) reports only the findings of the named rules, by id or by name, and those of `config/parity.json` itself, so a row whose fact is a rule of the documents verifies it while other rules still have findings.
 
 | Module | Concern |
 |---|---|
