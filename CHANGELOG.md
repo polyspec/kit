@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make parity-declarations-check UNITS="<id> ..."` reports only the findings that name the units and those of
+  `config/parity.json` itself, so a row that fixes the declarations of its units passes while other units still have
+  findings; without UNITS it reports every finding (K400).
+
 - The mise state of a checkout trusts only its own `mise.toml`: `trustConfig` and `make install-tools` remove every other
   entry of `var/tools/mise/state/trusted-configs` (a link to the home directory, to another checkout or to a removed
   worktree), and `make link-state-check` names such an entry. A `mise trust` run with `MISE_GLOBAL_CONFIG_FILE` set trusts

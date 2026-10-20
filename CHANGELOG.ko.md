@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e5078c5eaea2c01d3419ac69aa4ac899fc828f8f07d2cd91c32d40b8200215b6 -->
+<!-- source-sha256: 9bfefa81fb533fb5ac9cc6bd7cd4ef3a44bede57b58f2b0cc6f14a1f19d42b68 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make parity-declarations-check UNITS="<id> ..."`는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만
+  보고한다. 그래서 자기 unit의 선언을 고친 row는 다른 unit에 finding이 남아 있어도 통과한다. UNITS가 없으면 모든
+  finding을 보고한다(K400).
 
 - checkout의 mise 상태는 자기 `mise.toml`만 신뢰한다. `trustConfig`와 `make install-tools`는
   `var/tools/mise/state/trusted-configs`의 다른 항목(home 디렉터리, 다른 checkout, 지운 worktree로의 링크)을 모두 지우고,
