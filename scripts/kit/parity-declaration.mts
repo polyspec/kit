@@ -477,6 +477,20 @@ export function readDeclaration(root: string, files: ReadonlySet<string>): { err
     else if (shared === undefined) fail(`implementation ${entry.name} shares the tests of ${entry.shares}, which is no implementation`);
     else if (shared.runner !== entry.runner) fail(`implementation ${entry.name} shares the tests of ${shared.name}, whose runner ${shared.runner} is not its runner ${entry.runner}`);
   }
+  // An implementation is a source root with the manifest of its ecosystem, never a set of test globs (K336): a root holds a package.json
+  // (node, vitest), composer.json (php), pyproject.toml (python), go.mod (go) or Cargo.toml (cargo), at the root or below it, and
+  // no two implementations have the same roots, which would only split the tests of one package.
+  const MANIFEST: Record<Runner, string> = { node: 'package.json', vitest: 'package.json', php: 'composer.json', python: 'pyproject.toml', go: 'go.mod', cargo: 'Cargo.toml' };
+  for (const entry of config.implementations) {
+    const manifest = MANIFEST[entry.runner];
+    // The whole repository as a root is a finding of its own (below).
+    const sources = entry.roots.filter(root => !/^\.\/?$/.test(root));
+    if (sources.length > 0 && ![...files].some(file => path.posix.basename(file) === manifest && sources.some(root => within(root, file)))) {
+      fail(`implementation ${entry.name}: no root of ${entry.roots.join(', ')} holds a ${manifest}; an implementation is a source root with the manifest of its ecosystem, never only test globs`);
+    }
+    const same = config.implementations.find(other => other !== entry && other.roots.length === entry.roots.length && other.roots.every(root => entry.roots.includes(root)));
+    if (same && entry.name > same.name) fail(`implementation ${entry.name}: it has the roots of ${same.name}; two implementations of one package only split its tests`);
+  }
   // R10 reads a name or a prose name, in any case, as one implementation, so no written name belongs to two.
   for (const entry of config.implementations) {
     for (const name of entry.prose ?? []) {

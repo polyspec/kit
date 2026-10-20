@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 906c76591637a75763d9c8d23dacab62c5a8c4b00ac9d1ff82b4a2465e244b1f -->
+<!-- source-sha256: 481bc31fdf9a5363ec7f363ad2eda7e259f8e93e254e2951f4b24b7213ae86d4 -->
 <!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
 # 변경 기록
 
@@ -7,6 +7,9 @@
 
 ## Unreleased
 
+- `make parity-declarations-check`는 root에 ecosystem의 manifest(`package.json`, `composer.json`, `pyproject.toml`,
+  `go.mod`, `Cargo.toml`)가 없는 `config/parity.json`의 implementation과 다른 implementation의 root를 그대로 가진 implementation을
+  실패시킨다. implementation은 source root이지 test glob만이 아니기 때문이다 (K336).
 - `make item-state`는 item의 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 done으로 표시한다. 산출 파일은 stage되었거나 commit되어 있어야
   하고, 실패한 명령은 그 상태를 거부한다 (K335).
 - 의존성 policy는 일반 Composer release를 version으로 비교하므로, registry의 latest release보다 높은 locked version(예: 0.0.6에 대한 미공개

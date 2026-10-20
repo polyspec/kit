@@ -246,6 +246,7 @@ const FILES = {
   'rust/tests/size.rs': 'PASS vectors::small\n',
   'go/codes.go': 'package codec\n\nconst (\n\tCodeConfig = "CONFIG"\n\tCodeDecode = "CODEC_DECODE"\n)\n',
   'rust/Cargo.toml': '[package]\nname = "codec"\n',
+  'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.0.0"\n',
   'rust/src/lib.rs': 'PASS width::tests::vectors::narrow\nPASS width::tests::vectors::wide\n',
   'rust/src/codes.rs': 'pub const CONFIG: &str = "CONFIG";\npub const CODEC_DECODE: &str = "CODEC_DECODE";\n',
   'rust/tests/codec.rs': 'PASS vectors::empty\nPASS vectors::ascii\n',
@@ -827,6 +828,8 @@ function vitestRepository(t: TestContext, files: Record<string, string | null> =
   };
   const all = {
     '.gitignore': 'var/\nnode_modules/\n',
+    'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
+    'web/package.json': '{ "name": "codec-web", "version": "0.0.0" }\n',
     'tests/vectors/codec.json': JSON.stringify(['empty', 'ascii']),
     'docs/spec/codec.md': '- **CX-1** The codec encodes every vector.\n',
     'ts/codec.test.mjs': NODE_CODEC,
@@ -1137,9 +1140,9 @@ function sharing(config: Declaration, shares: string | undefined): Declaration {
 test('R6: a binding of an implementation that shares the tests of another lies in the roots of either (K232)', TIMEOUT, (t) => {
   const placed = (findings: ParityFinding[]) => findings.filter(finding => finding.rule === 'R6').map(finding => `${finding.unit} ${finding.implementation}`);
   // Without shares, the go tests are outside gonative's roots.
-  assert.deepEqual(placed(check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, undefined) }, { execute: false }).findings), ['width gonative', 'size gonative']);
+  assert.deepEqual(placed(check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, undefined) }, { execute: false }).findings), ['width gonative', 'size gonative']);
   // With shares, gonative's bindings may run go's tests, and R5 still judges only gonative's own roots.
-  const { findings } = check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, 'go') }, { execute: false });
+  const { findings } = check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, 'go') }, { execute: false });
   // The declaration holds, so the rules ran and R6 found the shared roots.
   assert.deepEqual(findings.filter(finding => finding.rule === 'declaration').map(finding => finding.message), []);
   assert.deepEqual(placed(findings), []);
@@ -1222,7 +1225,7 @@ test('an internal test that names a requirement of the spec is R16, and an inter
 });
 
 test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {
-  const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
+  const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
     .filter(finding => finding.rule === 'declaration').map(finding => finding.message);
   assert.deepEqual(messages('gonative'), ['implementation gonative shares its own tests; shares names the implementation whose tests it runs']);
   assert.deepEqual(messages('swift'), ['implementation gonative shares the tests of swift, which is no implementation']);
@@ -1491,6 +1494,22 @@ test('R17: a public signature that names an internal symbol fails, in each extra
     'php: A\\\\Child::take names the internal A\\\\Hidden: a public signature, parent or interface names a symbol that is no public API',
     'python: pkg.build names the private _Hidden: a public signature, parent or interface names a symbol that is no public API',
   ]);
+});
+
+// K336: an implementation is a source root with the manifest of its ecosystem; test globs alone do not make one.
+test('an implementation with no manifest of its ecosystem below its roots, or with the roots of another, is a declaration finding (K336)', TIMEOUT, (t) => {
+  const messages = (edit: (config: Declaration) => Declaration, files: Record<string, string | null> = {}) => check(t, { files, edit }, { execute: false }).findings.filter(item => item.rule === 'declaration').map(item => item.message);
+  assert.deepEqual(messages(config => config), []);
+  const engine = (config: Declaration) => {
+    config.implementations.push({ name: 'php-engine', runner: 'php', roots: ['php/tests/engine'], tests: ['php/tests/engine/*.php'] });
+    return config;
+  };
+  assert.deepEqual(messages(engine, { 'php/tests/engine/a.php': 'PASS x\n' }).filter(message => message.startsWith('implementation ')), ['implementation php-engine: no root of php/tests/engine holds a composer.json; an implementation is a source root with the manifest of its ecosystem, never only test globs']);
+  const twin = (config: Declaration) => {
+    config.implementations.push({ name: 'php-twin', runner: 'php', roots: ['php'], tests: ['php/tests/twin/*.php'] });
+    return config;
+  };
+  assert.match(messages(twin, { 'php/tests/twin/a.php': 'PASS x\n' }).join('\n'), /implementation php-twin: it has the roots of php; two implementations of one package only split its tests/);
 });
 
 test('K276: a declaration with profiles, nativeOnly or exclusions fails the schema, since every unit holds in every implementation', TIMEOUT, (t) => {
