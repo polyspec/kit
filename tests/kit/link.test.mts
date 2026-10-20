@@ -1,5 +1,5 @@
 // Tests of link.mts, the local links of 0.0.x development (K201, K201-1). The tools are stubs that answer from files of the
-// fixture and log their arguments: npm (npm query), Composer (config vendor-dir, dump-autoload, install), uv (workspace dir,
+// fixture and log their arguments: npm (npm query), Composer (config vendor-dir, update, install), uv (workspace dir,
 // pip list, pip install, sync), go (mod edit -json, work init, list -m) and cargo (locate-project); no npm, Composer,
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
@@ -102,7 +102,29 @@ function workspace(t: TestContext) {
   chmodSync(path.join(consumer, 'python/.venv/bin/python'), 0o755);
   put(provider, { 'go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
   stub(bin, log, 'npm', 'cat npm-query.json');
-  stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi`);
+  // `composer update <names> --working-dir <project>` under COMPOSER=<file>: for each path repository of that file, the installed
+  // folder of the package it provides becomes a link to the url (what Composer does with `symlink`); the stub records the file it read.
+  put(bin, { 'composer-update.mjs': `import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+const args = process.argv.slice(2);
+const project = args[args.indexOf('--working-dir') + 1];
+const file = path.join(project, process.env.COMPOSER);
+writeFileSync(path.join(project, 'composer-update.seen.json'), JSON.stringify({ file: process.env.COMPOSER, targets: args.filter(item => item.includes('/') && !item.startsWith('-') && item !== project), manifest: JSON.parse(readFileSync(file, 'utf8')) }));
+let vendor = 'vendor';
+try { vendor = readFileSync(path.join(project, 'composer-vendor-dir'), 'utf8').trim(); } catch {}
+const record = JSON.parse(readFileSync(path.join(project, vendor, 'composer/installed.json'), 'utf8'));
+for (const repository of JSON.parse(readFileSync(file, 'utf8')).repositories ?? []) {
+  if (repository.type !== 'path') continue;
+  const url = path.resolve(project, repository.url);
+  const name = JSON.parse(readFileSync(path.join(url, 'composer.json'), 'utf8')).name;
+  const entry = record.packages.find(item => item.name === name);
+  if (!entry?.['install-path']) continue;
+  const target = path.resolve(project, vendor, 'composer', entry['install-path']);
+  rmSync(target, { recursive: true, force: true });
+  symlinkSync(url, target);
+}
+` });
+  stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi\nif [ "$1" = update ]; then node ${JSON.stringify(path.join(bin, 'composer-update.mjs'))} "$@"; fi`);
   stub(bin, log, 'uv', `case "$1" in run) for a; do last=$a; done; name=$(basename "$(dirname "$last")" | tr - _); mkdir -p "$last" && : > "$last/$name-0.0.1-py3-none-any.whl"; sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$PWD/pyproject.toml" | tr -d '" ' | tr ',' '\n' | sed 's/[=<>@].*//' > "$last/requires.txt";;
 sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
@@ -165,43 +187,47 @@ test('a package pinned at anything but 0.0.x is not linked, in each ecosystem', 
   assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), false);
 });
 
-test('Composer links the copies of the vendor that composer config vendor-dir names, then dumps the autoloader; a release-consumer project is never linked', (t) => {
+test('Composer links the packages of the vendor that composer config vendor-dir names through a path repository with symlink, in a git-ignored composer.link.json; a release-consumer project is never linked (K304-1)', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   put(consumer, { 'tests/release-consumer/composer/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }] }), 'tests/release-consumer/composer/vendor/polyspec/y/composer.json': '{}' });
   linkLines([consumer], env);
   assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')), path.join(provider, 'packages/php'));
   assert.equal(lstatSync(path.join(consumer, 'tests/release-consumer/composer/vendor/polyspec/y')).isSymbolicLink(), false);
-  assert.match(log(), new RegExp(`composer dump-autoload --working-dir ${consumer}\\n`));
+  assert.match(log(), new RegExp(`composer update polyspec/y --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
+  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  assert.equal(seen.file, 'composer.link.json', 'Composer reads the link manifest, never the tracked composer.json');
+  assert.deepEqual(seen.manifest.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true } });
 });
 
-test('a linked Composer package, and an own path package, keep the metadata of their composer.json in installed.json, so the platform check follows the source (K304)', (t) => {
+test('a linked package and an own path package are updated by Composer through the path repositories of composer.link.json, with the released version of the lock (K304-1)', (t) => {
   const { provider, consumer, env } = workspace(t);
-  const vendor = 'var/contracts/vendor';
-  const namespace = `Y${String.fromCharCode(92)}`;
-  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' }, autoload: { 'psr-4': { [namespace]: 'lib/' } } }) });
   put(consumer, {
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }, { name: 'psr/log', version: '3.0.0' }] }),
     'packages/own-php/composer.json': JSON.stringify({ name: 'polyspec/own-php', require: { php: '>=8.4' } }),
-    [`${vendor}/composer/installed.json`]: JSON.stringify({ packages: [
-      { name: 'polyspec/y', version: '0.0.1', require: { php: '>=8.5' }, autoload: { 'psr-4': { [namespace]: 'src/' } }, 'install-path': '../polyspec/y' },
-      { name: 'polyspec/own-php', version: 'dev-main', require: { php: '>=8.5' }, dist: { type: 'path', url: '../../../packages/own-php' }, 'install-path': '../../../../packages/own-php' },
-      { name: 'psr/log', version: '3.0.0', require: { php: '>=8.5' }, 'install-path': '../psr/log' },
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [
+      { name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' },
+      { name: 'polyspec/own-php', version: 'dev-main', dist: { type: 'path', url: '../../../packages/own-php' }, 'install-path': '../../../../packages/own-php' },
     ] }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, repositories: [{ type: 'artifact', url: 'var/composer-artifacts' }, { type: 'path', url: 'packages/own-php' }] }),
   });
   linkLines([consumer], env);
-  const packages: Record<string, unknown>[] = JSON.parse(readFileSync(path.join(consumer, vendor, 'composer/installed.json'), 'utf8')).packages;
-  const named = (name: string) => packages.find(item => item.name === name);
-  assert.deepEqual(named('polyspec/y'), { name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' }, autoload: { 'psr-4': { [namespace]: 'lib/' } }, 'install-path': '../polyspec/y' });
-  assert.deepEqual(named('polyspec/own-php')?.require, { php: '>=8.4' });
-  assert.deepEqual(named('psr/log')?.require, { php: '>=8.5' }, 'a package that is neither linked nor a path package is left as Composer recorded it');
+  const seen = JSON.parse(readFileSync(path.join(consumer, 'composer-update.seen.json'), 'utf8'));
+  assert.deepEqual(seen.targets, ['polyspec/y', 'polyspec/own-php']);
+  assert.deepEqual(seen.manifest.repositories, [
+    { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } },
+    { type: 'artifact', url: 'var/composer-artifacts' },
+    { type: 'path', url: 'packages/own-php' },
+  ]);
+  assert.equal(JSON.parse(readFileSync(path.join(consumer, 'composer.json'), 'utf8')).repositories.length, 2, 'the tracked composer.json is unchanged');
 });
 
-test('Composer dumps the autoloader once per project on every link run, even when nothing new is linked', (t) => {
+test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {
   const { consumer, env, log } = workspace(t);
   linkLines([consumer], env);
-  const dumps = () => log().split('\n').filter(item => item.startsWith('composer dump-autoload')).length;
+  const dumps = () => log().split('\n').filter(item => item.startsWith('composer update')).length;
   assert.equal(dumps(), 1);
   linkLines([consumer], env);
-  assert.equal(dumps(), 2, 'the second run links nothing new, and still dumps once');
+  assert.equal(dumps(), 1, 'the second run links nothing new, so Composer has nothing to install');
 });
 
 test('a polyspec folder that the tool does not record is a plain copy, NOT linked with its path', (t) => {
@@ -926,7 +952,7 @@ test('Composer under --project: a named project with its own composer.json and n
   assert.equal(ok, false, text);
   assert.match(text, new RegExp(`NOT linked composer polyspec/y \\(not installed in ${path.join(consumer, 'sub/vendor').replaceAll('/', '\\/')}\\)`));
   assert.equal(lstatSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')).isSymbolicLink(), false, 'the ancestor vendor is not linked');
-  assert.doesNotMatch(log(), /composer dump-autoload --working-dir .*cons\n/, 'the ancestor project is not dumped');
+  assert.doesNotMatch(log(), /composer update .*--working-dir .*cons\n/, 'the ancestor project is not updated');
 });
 
 test('Composer under --project: a named folder with no composer.json of its own, nested in a Composer project, touches no vendor of the ancestor', (t) => {

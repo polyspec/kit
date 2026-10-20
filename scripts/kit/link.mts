@@ -2,9 +2,10 @@
 // providers (link-providers.mts): each installed polyspec package of a consumer that is pinned at 0.0.x is pointed at the
 // source of the checkout that provides it. link only links; it never builds (link-build.mts rebuilds):
 //   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
-//   Composer  each copy that installed.json of the vendor of the consumer's Composer project (composer config vendor-dir)
-//             lists at its install-path becomes a link to the provider's package folder, its record and that of each path package of the
-//             project take the require and autoload of their composer.json (K304), then composer dump-autoload runs;
+//   Composer  Composer installs the linked packages itself (K304-1): a git-ignored composer.link.json with a path repository
+//             (symlink) per provider folder in front of the repositories, a copy of the lock, and a partial composer update of
+//             the polyspec packages and the path packages of the project, so the record, the autoload rules and the platform
+//             check come from the composer.json of each folder;
 //   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
 //             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
 //             installed into the environment as they are (no sync: the link changes only the linked packages, K239); a read-only
@@ -305,63 +306,49 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
   return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
 }
 
-// The fields of a composer.json that installed.json of Composer 2 records for a package, and that dump-autoload reads for the
-// autoload rules, the platform check and InstalledVersions (K304).
-const RECORDED_FIELDS = ['require', 'autoload', 'replace', 'provide', 'conflict'] as const;
-
-/** A package of installed.json that is a link to a provider, or a path package of the project, with the composer.json it stands for. */
-type RecordedSource = { name: string; entry: Record<string, unknown>; source: Record<string, unknown> };
-
-/** The packages of the record `record` that are links or path packages and whose install-path holds a composer.json. */
-function recordedSources(record: string): { parsed: unknown; sources: RecordedSource[] } {
-  const parsed = readJsonOf(record);
-  const list = isJsonObject(parsed) ? parsed.packages : parsed;
-  if (!Array.isArray(list)) throw new Error(`${record} lists no packages`);
-  const sources: RecordedSource[] = [];
-  for (const entry of list) {
-    if (!isJsonObject(entry) || typeof entry['install-path'] !== 'string') continue;
-    const folder = path.resolve(path.dirname(record), entry['install-path']);
-    const linked = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
-    const pathPackage = isJsonObject(entry.dist) && entry.dist.type === 'path';
-    const manifest = path.join(folder, MANIFESTS.composer);
-    if (!(linked || pathPackage) || !existsSync(manifest)) continue;
-    const source = readJsonOf(manifest);
-    if (isJsonObject(source)) sources.push({ name: String(entry.name), entry, source });
-  }
-  return { parsed, sources };
+/** The names of the Composer packages that the project's own path repositories provide, never its root package. */
+function ownPathPackages(project: string): string[] {
+  const root = readComposerManifestFile(path.join(project, MANIFESTS.composer)).name;
+  return [...ownComposer(project)].filter(name => name !== root);
 }
 
-/** One field of a recorded package that differs from the composer.json at its install-path (K305). */
-export type RecordDifference = { name: string; field: string; installed: unknown; source: unknown };
+/** The lines of the Git exclude file of the work tree `top` that keep the Composer link files out of Git without a tracked change. */
+const COMPOSER_LINK_FILES = ['composer.link.json', 'composer.link.lock'] as const;
 
-/**
- * The fields of the linked and path packages of installed.json `record` that differ from their composer.json: the fields of
- * RECORDED_FIELDS, and the version when the composer.json declares one.
- */
-export function recordDifferences(record: string): RecordDifference[] {
-  return recordedSources(record).sources.flatMap(({ name, entry, source }) => [
-    ...RECORDED_FIELDS.filter(field => JSON.stringify(entry[field]) !== JSON.stringify(source[field])).map(field => ({ name, field, installed: entry[field], source: source[field] })),
-    ...(typeof source.version === 'string' && entry.version !== source.version ? [{ name, field: 'version', installed: entry.version, source: source.version }] : []),
-  ]);
+/** Adds the Composer link files to .git/info/exclude of the repository of `top` (the common Git directory, so a worktree shares it). */
+function excludeComposerLinkFiles(top: string) {
+  const file = path.join(repositoryOf(top), 'info/exclude');
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const missing = COMPOSER_LINK_FILES.filter(name => !text.split('\n').includes(name));
+  if (missing.length === 0) return;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${missing.join('\n')}\n`);
+}
+
+/** The released version of every package of composer.lock `lock`, by name. */
+function lockedVersions(lock: string): Map<string, string> {
+  const parsed = readJsonOf(lock);
+  const found = new Map<string, string>();
+  if (!isJsonObject(parsed)) return found;
+  for (const list of [parsed.packages, parsed['packages-dev']]) {
+    for (const item of Array.isArray(list) ? list : []) if (isJsonObject(item) && typeof item.name === 'string' && typeof item.version === 'string') found.set(item.name, item.version);
+  }
+  return found;
 }
 
 /**
- * K304: a package of installed.json that is a link to a provider, or a path package of the project itself, takes the metadata of
- * the composer.json at its install-path, as Composer records a path package it installs: the platform check that dump-autoload
- * writes then follows the linked source, not the release that the lock recorded. A field that the composer.json lacks is
- * removed from the record, the version is taken when the composer.json declares one, and every other package is left as it is.
- * Returns whether the record changed.
+ * The composer.json of the link run of `project` (K304-1): the tracked one with a path repository for each linked folder in front
+ * of its repositories, so the folder, not a released archive, provides the package. `symlink` makes the installed folder a
+ * symbolic link, and `versions` gives the package the version that the lock recorded, so the link counts as the installed
+ * released version.
  */
-function recordLinkedMetadata(record: string): boolean {
-  const { parsed, sources } = recordedSources(record);
-  const differences = recordDifferences(record);
-  for (const { name, field, source } of differences) {
-    const found = sources.find(item => item.name === name);
-    if (!found) continue;
-    if (source === undefined) delete found.entry[field]; else found.entry[field] = source;
-  }
-  if (differences.length) writeAtomic(record, `${JSON.stringify(parsed, null, 4)}\n`);
-  return differences.length > 0;
+function linkManifest(project: string, links: readonly { name: string; folder: string }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
+  const manifest = readJsonOf(path.join(project, MANIFESTS.composer));
+  if (!isJsonObject(manifest)) throw new Error(`${project}/${MANIFESTS.composer} is no object`);
+  const paths = links.map(({ name, folder }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versions.has(name) ? { versions: { [name]: versions.get(name) } } : {}) } }));
+  const existing = manifest.repositories;
+  const repositories = Array.isArray(existing) || existing === undefined ? [...paths, ...(existing ?? [])] : { ...Object.fromEntries(paths.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing };
+  return { ...manifest, repositories };
 }
 
 function linkComposer(work: Run, consumer: Consumer) {
@@ -379,6 +366,7 @@ function linkComposer(work: Run, consumer: Consumer) {
     const record = path.join(vendor, 'composer/installed.json');
     const names = new Set<string>();
     const recorded = new Set<string>();
+    const toLink: { name: string; folder: string; copy: string; provider: Provider }[] = [];
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) continue;
       names.add(entry.name);
@@ -388,16 +376,35 @@ function linkComposer(work: Run, consumer: Consumer) {
       const provider = providerFor(work, consumer, 'composer', entry.name);
       if (projectPackage(work, 'composer', entry.name, provider, own)) continue;
       if (typeof provider === 'string') { unlinkable(work, 'composer', entry.name, provider); continue; }
-      linkCopy(work, 'composer', entry.name, copy, typeof entry.version === 'string' ? entry.version : '', provider);
+      const version = typeof entry.version === 'string' ? entry.version : '';
+      if (real(copy) === realpathSync(provider.folder)) { reportLink(work, 'composer', entry.name, provider); continue; }
+      const problem = pinProblem(version);
+      if (problem) unlinkable(work, 'composer', entry.name, `${problem}: ${copy}`);
+      else if (work.check) unlinkable(work, 'composer', entry.name, copy);
+      else toLink.push({ name: entry.name, folder: provider.folder, copy, provider });
     }
     for (const name of declared) if (!names.has(name)) notInstalled(name);
     const folder = path.join(vendor, 'polyspec');
     for (const item of existsSync(folder) ? readdirSync(folder) : []) {
       if (!recorded.has(path.join(folder, item))) unlinkable(work, 'composer', `polyspec/${item}`, `a plain copy that Composer does not record: ${path.join(folder, item)}`);
     }
-    // Composer's own answer to autoload rules that a linked package changed; check only reports, so it dumps nothing.
-    if (!work.check) recordLinkedMetadata(record);
-    if (!work.check) run(composer.command, ['dump-autoload', '--working-dir', project], { env: composer.env });
+    if (work.check) continue;
+    // Composer installs the linked folders itself (K304-1): a path repository with `symlink` in a git-ignored composer.link.json,
+    // a copy of the lock beside it, and a partial update of the polyspec packages and the project's own path packages only, so
+    // the record, the autoload rules and the platform check come from the composer.json of each folder, the versions are
+    // checked by Composer at that install, and every other package stays at its locked release.
+    const lock = path.join(project, 'composer.lock');
+    const targets = [...toLink.map(item => item.name), ...ownPathPackages(project).filter(name => names.has(name) && !toLink.some(item => item.name === name))];
+    if (targets.length === 0) continue;
+    if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
+    excludeComposerLinkFiles(consumer.top);
+    writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, toLink, lockedVersions(lock)), null, 4)}\n`);
+    copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
+    run(composer.command, ['update', ...targets, '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
+    for (const item of toLink) {
+      if (real(item.copy) === realpathSync(item.provider.folder)) line(work, 'linked', 'composer', `${item.name} -> ${item.provider.folder} (now)`);
+      else unlinkable(work, 'composer', item.name, `composer update did not link ${item.copy}`);
+    }
   }
 }
 
@@ -825,6 +832,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         const folder = path.join(vendor, 'polyspec');
         for (const item of existsSync(folder) ? readdirSync(folder) : []) if (lstatSync(path.join(folder, item)).isSymbolicLink()) rmSync(path.join(folder, item));
         if (!existsSync(path.join(project, 'composer.lock'))) { skip(`composer ${project}: no composer.lock`); continue; }
+        for (const name of COMPOSER_LINK_FILES) rmSync(path.join(project, name), { force: true });
         run(composer.command, ['install', '--no-interaction'], { cwd: project, env: composer.env });
         print(`  restored   composer ${project}`);
       }
