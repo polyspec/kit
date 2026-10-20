@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a7ffc5fd6d8db03250dfbcb4935080b3b47f73d73b2acd01383ae1c08f98ddc7 -->
+<!-- source-sha256: 4a8db01cf935caf29487b18a149a69a5b6ff665bb4fcd46affc99744d2ee7b86 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-red BEFORE=`는 바꾸는 각 파일의 바이트와 함께 mode를 복구하므로, BEFORE에 없는 Git hook 같은 실행 파일이 실행
+  가능한 채로 돌아온다(K389-1).
 - P24는 `make commits-check`를, S10은 `make dependency-policy-check`를, 즉 K424와 K425가 만든 검사를 planned 항목 대신
   적으므로 `make rules-check`가 main에서 다시 통과한다(K359-1).
 - `make commits-check`와 commit-msg hook은 id `(#<id>)`가 그 커밋 tree의 docs/plans checklist 항목이 아닌 커밋을 실패시키므로
