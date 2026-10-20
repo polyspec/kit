@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `generated-files tracked`, which `make layout-check` runs, fails each tracked path with a generated segment, an executable
+  object header or a generated-file header (a first comment line, a shebang left out, that matches `Code generated .* DO NOT
+  EDIT`), naming the path, unless config/generated.json declares it an exception; the staged check of the hook cannot see a
+  file committed before it existed (K426).
 - A Red-Gate or Red-Test line names the merge-base of HEAD and main, which the rebase of a row branch on main keeps as an
   ancestor of the fix, so a row whose red was recorded on its branch closes after the rebase that `make land` needs; and
   `make item-red BEFORE=` takes a tree whose changelogs the close of the row has changed (K389-2).

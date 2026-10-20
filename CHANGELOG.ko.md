@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 85522d3db79a6cb3009350ce28e99fa1a4a703d886bf9fc21b96fa15dbb7ae19 -->
+<!-- source-sha256: 66e4053eb9fdea296afabab88be3d20e1d8aaf788e14476611b01a43b4ac913d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make layout-check`가 실행하는 `generated-files tracked`는 생성 segment, 실행 object header 또는 생성 파일 header
+  (shebang을 빼고 `Code generated .* DO NOT EDIT`와 맞는 첫 주석 줄)를 가진 추적 경로를, config/generated.json이 예외로
+  선언하지 않는 한, 경로와 함께 실패시킨다. hook의 staged 검사는 hook이 생기기 전에 커밋된 파일을 볼 수 없다(K426).
 - Red-Gate나 Red-Test 줄은 HEAD와 main의 merge-base를 적는다. 행 branch를 main 위로 rebase해도 그 커밋은 fix의 조상으로
   남으므로, branch에서 red를 기록한 행도 `make land`가 요구하는 rebase 뒤에 닫힌다. 또 `make item-red BEFORE=`는 행을 닫으며
   바뀐 changelog를 가진 tree를 받는다(K389-2).
