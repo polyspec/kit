@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0752b89dca2ca867101f37792e2acca810eca9a493d0105647dd26884433530a -->
+<!-- source-sha256: e4523b6bd2de0ca2adb5b3c2895241f2901b5182168261628ec2c914647e95c6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-check는 다른 언어의 lint처럼 Rust source가 있는 저장소에서만 `CHECK_TARGETS`에 `lint-rust`를 요구한다. red:
+  `.rs` 파일이 없는 저장소가 `CHECK_TARGETS`가 `lint-rust`를 실행하지 않는다는 finding을 받았다. green: `node --test
+  --test-name-pattern=K364 tests/kit/kit-check.test.mts`가 통과한다 (K364).
 - `link --siblings`는 origin이 `github.com/polyspec/<folder>`인 polyspec 저장소의 main checkout만 받고, `.git`을 가진
   그 밖의 폴더는 이유와 함께 skipped로 한 번 출력하므로 `template_2026` 같은 사본이 package를 한 번 더 제공하지 않는다.
   red: 사본 `prov_2026`과 `prov-copy`가 checkout으로 받아들여졌다. green: `node --test --test-name-pattern=K363

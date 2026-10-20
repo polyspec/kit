@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- kit-check requires `lint-rust` in `CHECK_TARGETS` only for a repository with Rust sources, as it does for the lint
+  of the other languages. Red: a repository without a `.rs` file got the finding that `CHECK_TARGETS` runs no
+  `lint-rust`; green: `node --test --test-name-pattern=K364 tests/kit/kit-check.test.mts` passes (K364).
 - `link --siblings` takes only the main checkouts of polyspec repositories, whose origin is
   `github.com/polyspec/<folder>`, and prints every other folder with a `.git` entry once as skipped with its reason, so a
   stray copy such as `template_2026` no longer provides the packages a second time. Red: the copies `prov_2026` and
