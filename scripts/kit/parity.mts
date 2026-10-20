@@ -39,6 +39,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { toolsEnvironment } from './mise-tools.mts';
 import { DECLARATION, finding, findingLine, implementationFolders, readDeclaration } from './parity-declaration.mts';
 import type { Finding } from './parity-declaration.mts';
 import { errorCatalog, readCodes } from './parity-errors.mts';
@@ -110,7 +111,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
 if (isMain(import.meta.url)) {
   const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, say, units: values.unit });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);

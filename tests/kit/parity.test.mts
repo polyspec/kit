@@ -201,6 +201,7 @@ if (args[0] === '-I' && args[1].endsWith('/symbols/python.py')) {
   process.exit(0);
 }
 const file = args[args.length - 1];
+if (process.env.REQUIRE_MISE && !process.env.MISE_GLOBAL_CONFIG_FILE) { process.stderr.write('mise.toml not trusted\\n'); process.exit(9); }
 if (process.env.REQUIRE_SOURCE && !(process.env.CODEC_SOURCE === 'python/src' && args[0] === '-B')) process.exit(3);
 let exit = 0;
 for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
@@ -875,6 +876,12 @@ test('vitest discovers the tests of a binding only in the root of its implementa
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web' && entry.unit === 'codec').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
+});
+
+test('the parity command runs the shims of mise with the environment of mise of the checkout (K306)', TIMEOUT, (t) => {
+  const root = repository(t);
+  const run = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts'))], { cwd: root, env: { ...ENV, REQUIRE_MISE: '1' }, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test('R6: a test that two conventions select lies in a root of one of their runners (K75)', TIMEOUT, (t) => {
