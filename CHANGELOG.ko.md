@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4278884e9483ed23a9c87214cb973adbbc3339c1d1e88baf05a156d15fad9f0c -->
+<!-- source-sha256: f8a482c62bcab53fa1b3afec48e649638149312199e22353830ff21761448369 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- kit main에서 `make duplication-check`와 `make lint-python`이 다시 통과한다. Python extractor의 symbol과 leak은 한 함수로
+  module의 공개 이름을 읽고, extractor는 format되어 있다(K407).
 
 - 저장소는 kit-sync가 복사하는 `config/commit-identity.json`에 commit identity를 선언하고, commit-msg 검사와
   `commits-check`는 그와 다른 author나 committer를 거부하며(규칙 `commit-identity`) clone의 `git config user.name`과

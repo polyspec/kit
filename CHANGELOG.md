@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make duplication-check` and `make lint-python` pass on kit main again: the symbols and the leaks of the Python
+  extractor read the public names of a module through one function, and the extractor is formatted (K407).
+
 - The repository declares its commit identity in `config/commit-identity.json`, which kit-sync copies, and the commit-msg
   check and `commits-check` refuse an author or committer other than it (rule `commit-identity`), naming
   `git config user.name` and `user.email` of the clone as the fix; the rule of an AI identity (K265) stays (K405).
