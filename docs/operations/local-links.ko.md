@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: b52e815db2c5ba17c3063afe72b77a59df54079493f2094bb406b5a470b1792a -->
+<!-- source-sha256: 42cdd4a23515c8cdc2f1c43fc8738fd829b7d191d0afdc641c018d290a978821 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -10,7 +10,7 @@
 
 ## 결정
 
-개발은 각 polyspec 저장소의 최신 소스를 대상으로 하고, 그 사이에 릴리스하지 않는다.
+개발은 각 polyspec 저장소의 최신 소스를 대상으로 한다. 모든 저장소의 개발이 끝나기 전에는 아무것도 릴리스하지 않는다: kit을 포함해 어떤 저장소에서도 tag, 버전 올림, release workflow 실행을 하지 않는다. push는 백업이며 아무것도 게시하지 않는다. kit의 변경은 `make build` 뒤에 링크를 통해 다른 checkout에서 보인다.
 
 - 설치된 polyspec 패키지를 그 패키지를 제공하는 저장소의 소스에 링크한다. 링크는 설치된 릴리스 버전으로 간주한다.
 - 릴리스는 개발이 끝난 뒤 의존 순서대로 한 번에 한다: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.

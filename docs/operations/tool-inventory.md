@@ -1357,8 +1357,9 @@ check, and the resolution that reads the reference and not the local wheel).
 ## Language parity (K33)
 
 `scripts/kit/parity.mts` checks that every implementation of a repository holds the same units. `config/parity.json` declares
-the implementations, which is the one source of the language set of the repository, the profiles that group them, and the
-units. The declaration holds no state such as done or planned: the checker takes every fact from the tree.
+the implementations, which is the one source of the language set of the repository, and the units. Every unit holds in every
+implementation (S6): the declaration has no profile, exclusion, admit list or native-only symbol, and it holds no state such as
+done or planned: the checker takes every fact from the tree.
 
 - It runs the binding of each suite and feature in each implementation itself and keeps an in-memory ledger of the runs and
   of the cases and test ids that each run reported. It reads no saved report.
@@ -1396,7 +1397,7 @@ An id that no unit of `config/parity.json` holds fails the run and names it; no 
 |---|---|
 | `parity.mts` | the command, and the order of the rules |
 | `parity-declaration.mts` | the schema, the references of the declaration, and the finding |
-| `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-units.mts` | R1, R2, R4, R5, R6, R11 |
 | `parity-ledger.mts` | R3: the runs of the bindings and the ledger |
 | `parity-runners.mts` | the native command of each runner and the outcome of each case in its output |
 | `parity-node-reporter.mts` | the node:test reporter of the node runner: each test with its enclosing suites, as JSON lines |
@@ -1413,18 +1414,17 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 
 | Rule | Finding |
 |---|---|
-| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation or profile. <br>- A profile narrower than every implementation has no `reason`, cites no `spec` anchor, or only one unit uses it, or a profile of every implementation cites one. <br>- A `spec` anchor of a profile or a `nativeOnly` entry does not resolve. <br>- An implementation is in no profile, or a root is the whole repository. <br>- A binding belongs to an implementation outside the unit's profile. <br>- A go or cargo suite binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A feature binding has no `id` or has a `symbol`, a suite binding has an `id`, or a feature unit has a `file`, `cases` or `admit`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- A `nativeOnly` entry names an implementation that does not exist or that declares no `symbols`. <br>- The `entry` of `symbols` does not exist. <br>- An exclusion names a pair that the unit binds. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no test file of its implementation (of its runner's convention, its `tests` or its runner's `testPatterns`) and no file named like a test, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value, or a word of a binding `command`, holds a `${` form that is not `${NAME}` (K223). <br>- A binding `command` is empty, or holds a word that the pattern of `args` refuses (S3). <br>- An env sets `PYTHONPATH`, or a path field, or a word of an `args` or `env` value, is absolute, starts with `~` or holds a `..` segment (S3). <br>- An `admit` key is on no case object, a list is empty or names an implementation twice, or an implementation of the profile admits no case (K47). |
-| R1 missing-implementation | An API unit declares no symbol of an implementation of its profile, or the declared symbol is no public symbol that the implementation's extractor gives. Or the extractor of an implementation gives no symbols: its program or nightly is missing, it fails, or it prints no list. |
-| R2 missing-binding | A suite or feature unit has no binding of an implementation of its profile. |
+| `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation. <br>- A root is the whole repository. <br>- A go or cargo suite binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A feature binding has no `id` or has a `symbol`, a suite binding has an `id`, or a feature unit has a `file` or `cases`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- The `entry` of `symbols` does not exist. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no test file of its implementation (of its runner's convention, its `tests` or its runner's `testPatterns`) and no file named like a test, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value, or a word of a binding `command`, holds a `${` form that is not `${NAME}` (K223). <br>- A binding `command` is empty, or holds a word that the pattern of `args` refuses (S3). <br>- An env sets `PYTHONPATH`, or a path field, or a word of an `args` or `env` value, is absolute, starts with `~` or holds a `..` segment (S3). |
+| R1 missing-implementation | An API unit declares no symbol of an implementation, or the declared symbol is no public symbol that the implementation's extractor gives. Or the extractor of an implementation gives no symbols: its program or nightly is missing, it fails, or it prints no list. |
+| R2 missing-binding | A suite or feature unit has no binding of an implementation. |
 | R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset, empty or resolves to a path outside the checkout), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. A feature binding fails when the run of its whole test file exits with an error or its `id` did not pass exactly once. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A case that a run reports twice is named by a `reported twice in run <n>` part of the finding. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit and lies in the case directory of none. |
 | R5 undeclared-test | A test file of an implementation (a file in its roots that the convention or `testPatterns` of its runner selects, or a file of its `tests` globs), other than its `support` files, is the test of no binding of that implementation. Or a file in its roots is named like a test (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), no convention selects it, and no binding runs it. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
 | R6 misplaced-test | The test of a binding lies outside the `roots` of its implementation, outside the roots of the implementation it `shares` (an implementation of the root `packages/php-ext` shares the implementation of the root `packages/php` without declaring it, S10), and outside the `comparators`. Or a file that the convention or `testPatterns` of one or more runners select, other than a `support` file of an implementation of those runners, lies outside the roots of every implementation of those runners, outside the `comparators` and outside the `tools` roots. The vendored `scripts/kit` and `tests/kit` are kit's own and are not checked. |
-| R7 error-catalog | An implementation of the `errors` profile declares no codes, or its codes differ from the catalog (missing or extra codes). |
-| R8 exclusion | An exclusion. It never counts as holding the unit, so the check fails until the item that it names removes it. |
-| R9 language-set-drift | A list in another file that `languageLists` declares differs from its profile, or its pattern matches nothing. |
-| R10 docs-count | A document of `documents` counts N implementations, and no profile of N implementations holds the implementations that its sentence names, unless its sentence names exactly N and the names of its passage together are a profile. Or it lists three or more implementation names in a sentence whose implementation names together are no profile. A number after each or 각각 counts per item and is no count ("are each one implementation"), and a run of names with another item of its enumeration on both sides lists those items and is no list ("Node.js, npm, Go, Rust, PHP minor version, Composer"); words of a noun of `documents` after the last name are no item (K197). |
-| R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared neither by an API unit nor by a `nativeOnly` entry of its implementation. Or a `nativeOnly` entry names no public symbol. |
+| R7 error-catalog | An implementation declares no codes (`errors`), or its codes differ from the catalog (missing or extra codes). |
+| R9 language-set-drift | A list in another file that `languageLists` declares differs from the implementations, or its pattern matches nothing. |
+| R10 docs-count | A document of `documents` counts N implementations, and its sentence names not all N implementations, unless its sentence names exactly N and the names of its passage are all the implementations. Or it lists three or more implementation names in a sentence whose names are not all the implementations. A number after each or 각각 counts per item and is no count ("are each one implementation"), and a run of names with another item of its enumeration on both sides lists those items and is no list ("Node.js, npm, Go, Rust, PHP minor version, Composer"); words of a noun of `documents` after the last name are no item (K197). |
+| R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared by no API unit. |
 | R12 duplicate-binding | A unit names one implementation twice in its `bindings` (or its `symbols`), whether with the same test or another one. Each implementation has one binding per unit. |
 
 ### Runners
@@ -1496,7 +1496,7 @@ root of any runner whose convention selects it.
 
 ### Feature units (K75)
 
-A unit of kind `feature` names one native test of each implementation of its profile: `bindings` of `{ implementation, test,
+A unit of kind `feature` names one native test of each implementation: `bindings` of `{ implementation, test,
 id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. `parity-check`
 runs the whole test file of each feature binding, once for every feature that binds that file in that implementation, twice;
 the binding holds when the run exits with 0 and its `id` passed once in each run. A missing, failed, skipped, repeated or
@@ -1537,27 +1537,15 @@ snapshot, and `parity-declarations-check` runs no extractor.
 - An extractor that is not installed, a missing or doubled nightly, a failing tool and an output that is no list of ids are R1
   findings that name the extractor and the entry.
 
-### Spec anchors (K75)
-
-A permanent difference cites the spec that makes it one (S6). A profile narrower than every implementation and every
-`nativeOnly` entry declare `spec`, the anchors `<file>#<fragment>` of their reason, with the file under `contracts/` or
-`docs/spec/`. Each one resolves: a Markdown file defines the fragment as an explicit anchor `<a id>` or a heading anchor, and
-the fragment of a JSON file is a JSON Pointer (RFC 6901) to one of its values. A profile of every implementation cites none.
-
 ### Consumer interface manifests (K227)
 
 `config/parity.json` declares language parity and nothing else. A consumer's other contract data, such as the rules, records
-and owners of its interface manifest, stays in the consumer's own file and is not a key of this schema. The only reference that
-kit reads from such a file is a spec anchor (above): a `nativeOnly` entry or a profile that cites `<file>#<fragment>` under
-`contracts/` or `docs/spec/`. While an anchor cites a file, the file must exist among the checked files and the JSON Pointer must
-resolve; otherwise it is a `declaration` finding. So such a file can be neither deleted nor moved out of `contracts/` or
-`docs/spec/` without re-pointing every anchor that cites it.
+and owners of its interface manifest, stays in the consumer's own file and is not a key of this schema. kit reads no reference to such a file.
 
 Decision (K227): kit adds no schema key for a consumer's interface manifest, neither typed nor opaque, and
 `parity.schema.json` keeps `additionalProperties: false`. Reasons: (1) the parity reader never reads such data, so a key for it
 would validate facts that no check of kit evaluates; (2) a typed key would make kit's schema encode one consumer's data model,
-and an opaque key would let any content pass the declaration check; (3) the coupling that exists between kit and a consumer's
-file is the spec anchor, which the schema already validates. A consumer that wants one parity source keeps its language facts
+and an opaque key would let any content pass the declaration check; (3) with no profile or native-only entry (S6), no coupling remains between kit and a consumer's file. A consumer that wants one parity source keeps its language facts
 in `config/parity.json` and its other contract data in its own file.
 
 ### Requirements of a case (K277)
@@ -1573,19 +1561,6 @@ A unit may declare `caseFile`, a bare file name: its case set is then the select
 Units that share one directory each take the cases that hold the output they compare. `caseFile` on a suite whose file is
 a vector file is a declaration finding. A single-file suite keeps the text match of R15.
 
-### Per-case admission
-
-A suite unit may declare `admit`: the key of each case object, beside the case name at `cases`, that lists the implementations
-which admit the case, such as `kinds`. A case object without the key is admitted by every implementation of the profile. Each
-listed name must be an implementation of the profile, and the key must hold an array of such names; otherwise it is a
-declaration finding. An implementation that a list omits does not run the case: the expected cases of its binding leave the
-case out, so a native test of that case is an R3 finding (`not in the suite`), and every run prints
-`unit <unit> does not run <case> for <implementations>: <key> lists <implementations>`. `admit` belongs to a suite unit only.
-
-These are declaration findings: a key that no case object has, an empty list, a name listed twice, and an implementation of the
-profile that admits no case (unless R8 excludes it, which is itself a finding). An implementation that admits nothing runs
-nothing, so it leaves the profile or is excluded with its reason and item.
-
 ### Declaration
 
 `config/parity.json`, validated against `scripts/kit/schema/parity.schema.json` (`make kit-check` validates it too):
@@ -1593,16 +1568,13 @@ nothing, so it leaves the profile or is excluded with its reason and item.
 | Key | Content |
 |---|---|
 | `implementations` | `name`, `runner` (`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose` (the names that documents write for it, which R10 reads), `roots` (its directories; never the whole repository), `tests` (at least one glob of its test files), `support` (globs of its test-support files), `command`, `args`, `env` (`name`, `value`), `symbols` (`extractor`, one of `go`, `php`, `python`, `rust`, `ts`, and `entry`, the path it reads; Symbol extractors), `errors` (`file`, `pattern`: the generated codes), `shares` (another implementation of the same runner whose test files it runs in its own runtime, such as a native extension that runs the tests of the library it replaces: R6 accepts its binding tests in the roots of the shared implementation, and R5 judges only its own roots and tests; naming itself, no implementation or another runner is a declaration finding; the extension of the root `packages/php-ext` needs no `shares`, since kit shares the implementation of the root `packages/php` with it by the layout of S10) |
-| `profiles` | `name`, the `implementations` that it groups, and `reason`, which a profile narrower than every implementation needs |
 | `suites` | globs of the shared vector files |
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
 | `tools` | `root` and `reason` of each directory of single-language tooling tests that implement no contract, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; a root that overlaps an implementation root or holds the test of a binding is a declaration finding |
 | `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `profile`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
-| `nativeOnly` | `implementation`, `symbol` and `reason` of an exported symbol that only one implementation has |
-| `exclusions` | `unit`, `implementation`, `reason` and `item`, the checklist item that removes the exclusion |
-| `errors` | `profile` and `catalog` (`file`, `pattern`) |
-| `languageLists` | `file`, `pattern` (its first group holds the list; the words of the group are the names) and `profile` |
+| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
+| `errors` | `catalog` (`file`, `pattern`) |
+| `languageLists` | `file` and `pattern` (its first group holds the list; the words of the group are the names) |
 | `documents` | `globs` and `nouns`, the words that a count precedes (`languages`, `언어`) |
 
 A pattern is a regular expression that is applied to each line (flags `gm`), and its first group is the value. A count is digits,
@@ -1618,14 +1590,14 @@ Inline code, link destinations, autolinks, bare URLs, link definitions and HTML 
 names an implementation; a code span after a name keeps the name in its list (``Go `x`, PHP `y`, Rust `z`, and TypeScript
 `w` ``). A sentence ends at `.`, `!` or `?` before a space, and a table cell is a sentence of its own.
 
-A count of N holds when a profile of N implementations holds every implementation that its sentence names ("five clients: Go,
-PHP, Rust, TypeScript and Python"), or when its sentence names exactly N implementations and the names of its passage together
-are a profile. A count of one or two of something else therefore fails as any other count does; a document writes such a
-sentence without a numeral. A list holds when the implementation names of its own sentence together are a profile: a sentence
+A count of N holds when N is the number of the implementations and its sentence names only them ("five clients: Go,
+PHP, Rust, TypeScript and Python"), or when its sentence names exactly N implementations and the names of its passage are all
+the implementations. A count of one or two of something else therefore fails as any other count does; a document writes such a
+sentence without a numeral. A list holds when the implementation names of its own sentence are all the implementations: a sentence
 that states something of a part of the implementations names the others in the same sentence ("Go, Rust and TypeScript generate
 the methods; PHP and Python resolve them at call time"). The items of one Markdown list, with the same marker and indent and
 no other passage between them, are one list when each item names exactly one implementation; three or more such names hold when
-they together are a profile. An implementation is named by its name or by a name of its `prose` (`"prose": ["PHP extension"]`
+they are all the implementations. An implementation is named by its name or by a name of its `prose` (`"prose": ["PHP extension"]`
 for `php-extension`), in any case; a prose name that is a name of another implementation, or a repeated prose name, is a
 declaration finding.
 
@@ -1633,14 +1605,10 @@ The catalog pattern applies to each line of the catalog that is not blank and is
 `//`). It must match every such line, so no code escapes it. A line that the pattern matches without its group holds no code,
 such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$`.
 
-A profile narrower than every implementation removes the omitted implementations from its units. Every run prints such a
-profile with what it omits and its reason. At least two units use it; a one-unit profile would be an exclusion that never fails.
-
 ### Wiring a repository
 
-1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, the profiles, a suite unit for each vector
-   file, an API unit for each public concept, and an exclusion with its checklist item for each unit that an implementation does not
-   hold yet.
+1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, a suite unit for each vector
+   file and an API unit for each public concept; every unit holds in every implementation.
 2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
    `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, a data set named
    `<case>` of the method `<class>::<method>` that the binding names as its symbol in PHPUnit (a `#[DataProvider]` with string
@@ -1661,7 +1629,6 @@ profile with what it omits and its reason. At least two units use it; a one-unit
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
       "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
-  "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
   "comparators": ["tests/conformance/check"],
   "testPatterns": [
@@ -1669,18 +1636,18 @@ profile with what it omits and its reason. At least two units use it; a one-unit
     { "runner": "python", "globs": ["**/test_*.py"] }
   ],
   "units": [
-    { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
+    { "id": "codec", "kind": "suite", "requirements": ["CX-1"], "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
       "bindings": [
         { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
         { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
       ] },
-    { "id": "host-decode", "kind": "api", "profile": "client", "symbols": [
+    { "id": "host-decode", "kind": "api", "requirements": ["CX-1"], "symbols": [
         { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
         { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
       ] }
   ],
-  "exclusions": [],
-  "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
+  "requirements": { "pattern": "CX-[0-9]+" },
+  "errors": { "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
 }
 ```
 

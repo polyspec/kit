@@ -9,7 +9,7 @@ The owner decided this on 2026-10-15 and it is in effect. It covers every develo
 
 ## Decision
 
-Development is completed against the latest source of each polyspec repository, with no release in between.
+Development is completed against the latest source of each polyspec repository. Nothing is released until development of all of them is complete: no tag, no version bump and no release workflow run in any repository, kit included. A push is a backup and publishes nothing; a change to kit is seen in the other checkouts through the links after `make build`.
 
 - An installed polyspec package is linked to the source of the repository that provides it, and the link counts as the installed released version.
 - Releases follow in one batch after development is complete, in dependency order: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.

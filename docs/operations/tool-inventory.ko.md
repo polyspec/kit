@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 25d938c996181c9de14b3b68107ed74a6b40faac9fa587dd506f861c7655386c -->
+<!-- source-sha256: b5b5d2b0c4557509ca3f953997d0a1db0ab1ba7e161e4f1c9b615be3cae04def -->
 
 # 도구 목록
 
@@ -1242,8 +1242,8 @@ resolve하는 consumer도 release가 게시한 asset을 내려받습니다.
 ## Language parity (K33)
 
 `scripts/kit/parity.mts`는 repository의 모든 implementation이 같은 unit을 갖추는지 검사합니다. `config/parity.json`은
-implementation(repository의 language 집합의 유일한 원천), 그것을 묶는 profile, unit을 선언합니다. 선언은 완료나 예정 같은 상태를
-담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
+implementation(repository의 language 집합의 유일한 원천)과 unit을 선언합니다. 모든 unit은 모든 implementation에서 성립합니다(S6):
+선언에는 profile, exclusion, admit 목록, native-only symbol이 없고, 완료나 예정 같은 상태도 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
 
 - 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
   둡니다. 저장된 report는 읽지 않습니다.
@@ -1278,7 +1278,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 |---|---|
 | `parity.mts` | 명령과 rule의 순서 |
 | `parity-declaration.mts` | schema, 선언의 참조, finding |
-| `parity-units.mts` | R1, R2, R4, R5, R6, R8, R11 |
+| `parity-units.mts` | R1, R2, R4, R5, R6, R11 |
 | `parity-ledger.mts` | R3: binding 실행과 ledger |
 | `parity-runners.mts` | runner마다의 native 명령과 그 출력에서 읽은 case의 결과 |
 | `parity-node-reporter.mts` | node runner의 node:test reporter: 각 test를 감싼 suite와 함께 JSON 줄로 |
@@ -1295,18 +1295,17 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 
 | Rule | Finding |
 |---|---|
-| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation 또는 profile을 적습니다. <br>- 모든 implementation보다 좁은 profile에 `reason`이 없거나, `spec` anchor를 인용하지 않거나, 그 profile을 unit 하나만 쓰거나, 모든 implementation의 profile이 anchor를 인용합니다. <br>- profile이나 `nativeOnly` 항목의 `spec` anchor가 풀리지 않습니다. <br>- implementation이 어떤 profile에도 없거나, root가 repository 전체입니다. <br>- binding이 unit의 profile 밖 implementation의 것입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`, `cases`, `admit`이 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `nativeOnly` 항목이 없는 implementation이나 `symbols`를 선언하지 않은 implementation을 적습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- exclusion이 unit이 binding한 쌍을 적습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값, 또는 binding `command`의 단어가 `${NAME}`이 아닌 `${` 형식을 담습니다(K223). <br>- binding의 `command`가 비었거나 `args`의 pattern이 거부하는 단어를 담습니다(S3). <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). <br>- `admit` key가 어떤 case 객체에도 없거나, 목록이 비었거나, implementation 이름을 두 번 적거나, profile의 implementation이 admit하는 case가 없습니다(K47). |
-| R1 missing-implementation | API unit이 profile의 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol이 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
-| R2 missing-binding | suite 또는 feature unit에 profile의 한 implementation의 binding이 없습니다. |
+| `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation을 적습니다. <br>- root가 repository 전체입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`이나 `cases`가 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값, 또는 binding `command`의 단어가 `${NAME}`이 아닌 `${` 형식을 담습니다(K223). <br>- binding의 `command`가 비었거나 `args`의 pattern이 거부하는 단어를 담습니다(S3). <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). |
+| R1 missing-implementation | API unit이 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol이 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
+| R2 missing-binding | suite 또는 feature unit에 한 implementation의 binding이 없습니다. |
 | R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 그 test 파일 전체의 실행이 오류로 끝나거나 그 `id`가 정확히 한 번 통과하지 않으면 실패합니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
 | R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
 | R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`하는 implementation의 root(root `packages/php-ext`의 implementation은 선언 없이 root `packages/php`의 implementation을 공유한다, S10) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
-| R7 error-catalog | `errors` profile의 implementation이 code를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
-| R8 exclusion | exclusion입니다. unit을 갖춘 것으로 세지 않으므로, exclusion이 적은 item이 그것을 제거할 때까지 검사가 실패합니다. |
-| R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 profile과 다르거나, pattern이 아무것도 찾지 못합니다. |
-| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, implementation N개의 어떤 profile도 그 문장이 적은 implementation을 모두 담지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 profile이면 예외입니다. 또는 implementation 이름을 모두 모아도 어떤 profile도 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
-| R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 그 implementation의 `nativeOnly` 항목도 선언하지 않습니다. 또는 `nativeOnly` 항목이 public symbol이 아닌 것을 적습니다. |
+| R7 error-catalog | implementation이 code(`errors`)를 선언하지 않거나, 그 code가 catalog와 다릅니다(누락 또는 초과 code). |
+| R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 implementation과 다르거나, pattern이 아무것도 찾지 못합니다. |
+| R10 docs-count | `documents`의 문서가 implementation N개를 세는데, 그 문장이 implementation N개를 모두 적지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 모든 implementation이면 예외입니다. 또는 이름을 모두 모아도 모든 implementation이 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
+| R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 선언하지 않습니다. |
 | R12 duplicate-binding | unit이 `bindings`(또는 `symbols`)에 한 implementation을 두 번 적습니다. 같은 test이든 다른 test이든 마찬가지입니다. unit마다 implementation당 binding은 하나입니다. |
 
 ### Runner
@@ -1371,7 +1370,7 @@ glob이 선언할 때까지 R5가 실패시킵니다. node와 vitest의 규약�
 
 ### Feature unit (K75)
 
-kind가 `feature`인 unit은 profile의 각 implementation의 native test 하나를 적습니다. `bindings`는 `{ implementation, test, id }`이고,
+kind가 `feature`인 unit은 각 implementation의 native test 하나를 적습니다. `bindings`는 `{ implementation, test, id }`이고,
 `id`는 runner가 보고하는 native test id입니다(위 Feature id 참고). vector 파일은 없습니다. `parity-check`는 feature binding의 test
 파일 전체를, 그 implementation에서 그 파일을 binding하는 모든 feature에 대해 한 번씩, 두 번 실행합니다. 실행이 0으로 끝나고 그
 `id`가 각 실행에서 한 번 통과하면 binding이 성립합니다. 없거나, 실패하거나, 건너뛰었거나, 반복되거나, 바뀌는 id는 R3이고, 한
@@ -1408,25 +1407,15 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
   `rustup toolchain install <channel> --profile minimal`로 설치하며(`install-rust.mts`), rustup이 없으면 그 설치 방법과 함께 실패합니다.
 - 설치되지 않은 extractor, 없거나 둘인 nightly, 실패한 도구, id 목록이 아닌 출력은 extractor와 entry를 적은 R1 finding입니다.
 
-### Spec anchor (K75)
-
-영구적인 차이는 그것을 차이로 만드는 spec을 인용합니다(S6). 모든 implementation보다 좁은 profile과 모든 `nativeOnly` 항목은
-`spec`에 그 이유의 anchor `<file>#<fragment>`를 선언하며, 파일은 `contracts/`나 `docs/spec/` 아래에 있습니다. 각 anchor는
-풀립니다. Markdown 파일은 fragment를 explicit anchor `<a id>`나 heading anchor로 정의하고, JSON 파일의 fragment는 그 값 하나를
-가리키는 JSON Pointer(RFC 6901)입니다. 모든 implementation의 profile은 anchor를 인용하지 않습니다.
-
 ### Consumer의 interface manifest (K227)
 
 `config/parity.json`은 language parity만 선언하며 그 밖은 선언하지 않습니다. consumer의 다른 contract 데이터(interface manifest의
-rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 key가 아닙니다. kit이 그런 파일에서 읽는 것은 spec anchor(위)뿐입니다.
-`nativeOnly` 항목이나 profile이 `contracts/` 또는 `docs/spec/` 아래의 `<file>#<fragment>`를 인용하며, anchor가 파일을 인용하는 동안
-파일은 검사 대상 파일 안에 있어야 하고 JSON Pointer가 풀려야 합니다. 그렇지 않으면 `declaration` finding입니다. 따라서 anchor가 인용하는
-파일은 그 anchor를 모두 다시 가리키기 전에는 지우거나 `contracts/`나 `docs/spec/` 밖으로 옮길 수 없습니다.
+rule, record, owner 등)는 consumer 자신의 파일에 남고 이 schema의 key가 아닙니다. kit은 그런 파일을 가리키는 참조를 읽지 않습니다.
 
 결정(K227): kit은 consumer의 interface manifest를 위한 schema key를 추가하지 않습니다(typed든 opaque든). `parity.schema.json`은
 `additionalProperties: false`를 유지합니다. 이유: (1) parity reader는 그런 데이터를 읽지 않으므로 kit의 어떤 검사도 평가하지 않는 사실을
 검증하게 된다. (2) typed key는 kit의 schema가 한 consumer의 데이터 모델을 담게 하고, opaque key는 declaration 검사를 아무 내용이나
-통과시킨다. (3) kit과 consumer 파일 사이에 실제로 있는 결합은 spec anchor이며, schema가 이미 그것을 검증한다. 한 spec의 language 사실을
+통과시킨다. (3) profile과 native-only 항목이 없으므로(S6) kit과 consumer 파일 사이에 남는 결합이 없다. 한 spec의 language 사실을
 한 곳에 두려는 consumer는 language 사실을 `config/parity.json`에, 나머지 contract 데이터는 자기 파일에 둡니다.
 
 ### case의 requirement (K277)
@@ -1441,19 +1430,6 @@ unit은 파일 이름 하나인 `caseFile`을 선언할 수 있습니다. 그러
 directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 출력을 가진 case를 가집니다. vector 파일을 가진 suite의
 `caseFile`은 declaration finding입니다. 단일 파일 suite는 R15의 text 일치를 그대로 씁니다.
 
-### case별 admission
-
-suite unit은 `admit`을 선언할 수 있습니다. `admit`은 `cases`에서 case 이름 옆에 있는 각 case 객체의 key이며, 그 case를 admit하는
-implementation의 목록을 담습니다(예: `kinds`). 이 key가 없는 case 객체는 profile의 모든 implementation이 admit합니다. 목록의 각
-이름은 profile의 implementation이어야 하며, key는 그런 이름의 배열이어야 합니다. 아니면 선언 finding입니다. 목록이 빼는 implementation은
-그 case를 실행하지 않습니다. 그 binding의 기대 case에서 빠지므로, 그 case의 native test는 R3 finding(`not in the suite`)이고, 모든
-실행은 `unit <unit> does not run <case> for <implementations>: <key> lists <implementations>` 줄을 출력합니다. `admit`은 suite unit에만
-둡니다.
-
-다음은 선언 finding입니다. 어떤 case 객체에도 없는 key, 빈 목록, 두 번 적힌 이름, 그리고 admit하는 case가 없는 profile의
-implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로 제외). 아무것도 admit하지 않는 implementation은 아무것도 실행하지
-않으므로, profile에서 빼거나 이유와 item을 적어 제외해야 합니다.
-
 ### 선언
 
 `config/parity.json`은 `scripts/kit/schema/parity.schema.json`으로 검증합니다(`make kit-check`도 검증합니다):
@@ -1461,16 +1437,13 @@ implementation입니다(R8이 제외한 경우는 그 자체가 finding이므로
 | Key | 내용 |
 |---|---|
 | `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 root `packages/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
-| `profiles` | `name`, 묶는 `implementations`, 그리고 모든 implementation보다 좁은 profile에 필요한 `reason` |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `profile`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
-| `nativeOnly` | 한 implementation만 가진 export된 symbol의 `implementation`, `symbol`, `reason` |
-| `exclusions` | `unit`, `implementation`, `reason`, 그리고 exclusion을 제거하는 checklist item인 `item` |
-| `errors` | `profile`과 `catalog`(`file`, `pattern`) |
-| `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름), `profile` |
+| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `requirements`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
+| `errors` | `catalog`(`file`, `pattern`) |
+| `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름) |
 | `documents` | `globs`와 수 뒤에 오는 단어인 `nouns`(`languages`, `언어`) |
 
 pattern은 각 줄에 적용하는 정규식(flag `gm`)이며, 첫 group이 값입니다. 수는 숫자, twelve까지의 영어 수 단어나 `both`, 또는 열까지의
@@ -1484,12 +1457,12 @@ block, setext 밑줄은 산문이 아니며, setext 밑줄은 그 문단을 끝�
 HTML tag와 주석은 비우므로 산문만 implementation을 적습니다. 이름 뒤의 code span은 그 이름을 목록에 남깁니다
 (``Go `x`, PHP `y`, Rust `z`, and TypeScript `w` ``). 문장은 공백 앞의 `.`, `!`, `?`에서 끝나고, table cell은 따로 한 문장입니다.
 
-N의 수는 implementation N개의 profile이 그 문장이 적은 implementation을 모두 담거나("five clients: Go, PHP, Rust, TypeScript and
-Python"), 문장이 정확히 N개의 implementation을 적고 passage의 이름을 모두 모은 것이 profile일 때 맞습니다. 그래서 다른 것을 하나나
+N의 수는 N이 implementation의 수이고 문장이 그것들만 적거나("five clients: Go, PHP, Rust, TypeScript and
+Python"), 문장이 정확히 N개의 implementation을 적고 passage의 이름을 모두 모은 것이 모든 implementation일 때 맞습니다. 그래서 다른 것을 하나나
 둘 세는 수도 다른 수와 똑같이 실패하며, 문서는 그런 문장을 수사 없이 씁니다. 목록은 그 문장의 implementation 이름을 모두 모은 것이
-profile일 때 맞습니다. implementation 일부에 대해 말하는 문장은 같은 문장에서 나머지도 적습니다("Go, Rust and TypeScript generate
+모든 implementation일 때 맞습니다. implementation 일부에 대해 말하는 문장은 같은 문장에서 나머지도 적습니다("Go, Rust and TypeScript generate
 the methods; PHP and Python resolve them at call time"). marker와 들여쓰기가 같고 사이에 다른 passage가 없는 한 Markdown
-list의 item들은, 각 item이 implementation을 정확히 하나 적을 때 한 목록입니다. 그런 이름 세 개 이상은 모두 모아 profile일 때
+list의 item들은, 각 item이 implementation을 정확히 하나 적을 때 한 목록입니다. 그런 이름 세 개 이상은 모두 모아 모든 implementation일 때
 맞습니다. implementation은 그 이름이나 `prose`의 이름(`php-extension`의 `"prose": ["PHP extension"]`)으로 대소문자 구분 없이
 적힙니다. 다른 implementation의 이름인 prose 이름과 반복된 prose 이름은 declaration finding입니다.
 
@@ -1497,13 +1470,10 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 어떤 code도 빠지지 않습니다. pattern이 group 없이 맞는 줄은 항목의 다른 field처럼 code를 담지 않습니다. 예는
 `^- code: (\w+)$|^  \w+: .*$`입니다.
 
-모든 implementation보다 좁은 profile은 빠진 implementation을 그 unit에서 제외합니다. 실행마다 그런 profile을 빠진 것과 이유와 함께
-출력합니다. unit 둘 이상이 그 profile을 씁니다. unit 하나의 profile은 실패하지 않는 exclusion이 되기 때문입니다.
-
 ### Repository 연결
 
-1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, profile, vector 파일마다 suite unit, 공개 개념마다
-   API unit, 그리고 implementation이 아직 갖추지 못한 unit마다 checklist item을 적은 exclusion을 선언합니다.
+1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, vector 파일마다 suite unit, 공개 개념마다
+   API unit을 선언합니다. 모든 unit은 모든 implementation에서 성립합니다.
 2. 각 binding의 native test가 suite의 case마다 runner의 이름으로 그 case를 보고하게 합니다(Runner 표 참고). Go에서는 subtest
    `<symbol>/<case>`, cargo에서는 test `<symbol>::<case>`, node:test에서는 이름이 `<case>`인 최상위 test, PHPUnit에서는 binding이
    symbol로 적은 method `<class>::<method>`의 이름이 `<case>`인 data set(문자열 key의 `#[DataProvider]`, class는 fully
@@ -1522,7 +1492,6 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
       "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
-  "profiles": [{ "name": "client", "implementations": ["go", "python"] }],
   "suites": ["tests/**/vectors.json"],
   "comparators": ["tests/conformance/check"],
   "testPatterns": [
@@ -1530,18 +1499,18 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
     { "runner": "python", "globs": ["**/test_*.py"] }
   ],
   "units": [
-    { "id": "codec", "kind": "suite", "profile": "client", "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
+    { "id": "codec", "kind": "suite", "requirements": ["CX-1"], "file": "tests/codec/vectors.json", "cases": "$.vectors[*].name",
       "bindings": [
         { "implementation": "go", "test": "packages/go/codec_test.go", "symbol": "TestCodecVectors" },
         { "implementation": "python", "test": "packages/python/tests/test_codec.py" }
       ] },
-    { "id": "host-decode", "kind": "api", "profile": "client", "symbols": [
+    { "id": "host-decode", "kind": "api", "requirements": ["CX-1"], "symbols": [
         { "implementation": "go", "symbol": "packages/go/hostcodec.go::HostDecode" },
         { "implementation": "python", "symbol": "packages/python/codec.py::host_decode" }
       ] }
   ],
-  "exclusions": [],
-  "errors": { "profile": "client", "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
+  "requirements": { "pattern": "CX-[0-9]+" },
+  "errors": { "catalog": { "file": "docs/errors.yaml", "pattern": "^\\s*- code: (\\w+)$" } }
 }
 ```
 

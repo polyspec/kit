@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5f5d14ee2e8bac3c279050cd31fbcb52da08b3f5eee9ab903d43ffb600c44245 -->
+<!-- source-sha256: bce476dbab44e08c03d349b33ee2ef85eb19039315473d034d8297475a3182d3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -86,3 +86,4 @@
 | K290 | make php-ext-arginfo는 header를 만들기 전에 사본을 configure한다. 원인: arginfo가 phpize 뒤에 ./configure 없이 make <header>를 실행했는데 Makefile은 configure가 쓰므로 make가 "No rule to make target polyspec_ordered_json_arginfo.h"로 실패했다. 인수 조건: arginfo는 make 전에 extension의 --enable flag로 ./configure를 실행한다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K295 | PHP extension의 version의 source는 package의 composer.json 하나다. 원인: build-php-ext가 packages/php-ext/src만 복사해서 PIE가 package에서 build할 때 읽는 package version을 config.m4가 읽을 수 없었다. 인수 조건: build는 사본에서 composer.json을 src/ 옆에 두어 config.m4가 ../composer.json에서 version을 정의하게 하며, build한 fixture의 phpversion()은 그 composer.json의 version과 같다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts, tests/kit/php-ext-fixture/, PRINCIPLES.md(.ko) | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K296 | pyproject의 dependency array에 [build-system] requires가 포함된다. 원인: dependencyArrays가 이를 빠뜨려서 make dependency-review UPDATE=1에서 pin-python-dependency가 "no exact pin of setuptools"로 실패했다. 인수 조건: build-system.requires의 pin이 project의 pin처럼 설정된다. | scripts/kit/pyproject-dependencies.mts, tests/kit/pin-python-dependency.test.mts | `node --test tests/kit/pin-python-dependency.test.mts` | [o] |
+| K291 | 문서는 존재하는 규칙을 적는다. 원인: local-links.md가 "그 사이에 릴리스하지 않는다"고만 적어 kit의 릴리스나 tag를 허용하는 듯했고, tool-inventory의 language parity 절은 S6이 선언에서 없앤 profile, admit 목록, exclusion(R8), nativeOnly 항목, spec anchor를 아직 기술했다. 인수 조건: local-links는 모든 개발이 끝나기 전에는 아무것도 릴리스하지 않고 push는 아무것도 게시하지 않는다고 적고, tool-inventory는 parity 선언을 schema대로 profile, admit, exclusion, nativeOnly 없이 기술한다. | docs/operations/local-links.md(.ko.md), docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/check-documents.mts` | [o] |
