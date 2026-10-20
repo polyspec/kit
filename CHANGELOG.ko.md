@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 906762730b58f14ecdc01cb3a90793344f8b2b84f21c39e5a6855a60be3d35f9 -->
+<!-- source-sha256: a6a7b1db32047ebc4e78b4e5194c4ddd7eb67f53aea7d9b7142e466836a5dee0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link-state-check`는 recipe가 도구의 make 변수로 실행하는 lock 설치, 즉 `$(COMPOSER) install`,
+  `$(COMPOSER_BIN) install`, `$(NPM) ci`, `$(UV) sync`도 읽고, 그 뒤에 kit link 단계가 없으면 실패시킨다. red: link 단계
+  없이 `$(COMPOSER) install`을 가진 recipe가 통과했다. green: `node --test --test-name-pattern=K349-1
+  tests/kit/link-state-check.test.mts`가 통과한다 (K349-1).
 - `make hooks`는 `.git/info/attributes`에 `CHANGELOG.md`와 영어 checklist의 git union merge와 그 한국어 문서의 merge
   driver `kit-twin`(`make twin-merge`)을 선언한다. driver는 양쪽의 union과 rebase가 merge한 영어 파일의 revision
   marker를 쓰므로, changelog 줄과 checklist row를 더하는 두 branch의 rebase에 손 편집이나 script가 필요 없고 rebase가 쓰는

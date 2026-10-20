@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make link-state-check` reads an install from a lock that a recipe runs through the make variable of its tool,
+  `$(COMPOSER) install`, `$(COMPOSER_BIN) install`, `$(NPM) ci` or `$(UV) sync`, and fails it without the kit link
+  step after it. Red: a recipe with `$(COMPOSER) install` and no link step passed; green: `node --test
+  --test-name-pattern=K349-1 tests/kit/link-state-check.test.mts` passes (K349-1).
 - `make hooks` declares in `.git/info/attributes` the union merge of git for `CHANGELOG.md` and the English checklists
   and the merge driver `kit-twin` for their Korean twins (`make twin-merge`), which writes the union of both sides and
   the revision marker of the English file as the rebase merges it, so a rebase of two branches that add changelog
