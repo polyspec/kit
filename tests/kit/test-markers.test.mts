@@ -32,3 +32,16 @@ test('a marker in a TSX test fails, and the JSX around it is read (K268)', () =>
   const text = "import { test } from 'vitest';\ntest.skip('renders', () => { render(<Form a={1} />); });\n";
   assert.deepEqual(markerFindings('src/Form.test.tsx', text), ['src/Form.test.tsx:2: test.skip skips or narrows a test']);
 });
+
+test('testing.Short, pytest.importorskip, @requires, #[Requires...] and the skip of a node:test context fail (K315)', () => {
+  assert.deepEqual(markerFindings('a_test.go', 'func TestA(t *testing.T) {\n\tif testing.Short() {\n\t\tcases = 2000\n\t}\n}\n'), ['a_test.go:2: testing.Short() skips or narrows a test']);
+  assert.deepEqual(markerFindings('tests/test_a.py', 'numpy = pytest.importorskip("numpy")\n'), ['tests/test_a.py:1: pytest.importorskip skips or narrows a test']);
+  assert.deepEqual(markerFindings('tests/ATest.php', "<?php\n/** @requires extension redis */\n#[RequiresPhp('>=8.5')]\npublic function testA(): void {}\n"), [
+    'tests/ATest.php:2: @requires skips or narrows a test',
+    'tests/ATest.php:3: #[RequiresPhp( skips or narrows a test',
+  ]);
+  assert.deepEqual(markerFindings('tests/a.test.mts', "import test from 'node:test';\ntest('a', (t) => { t.skip('sudo is not allowed'); });\ntest('b', (t) => { t.todo(); });\n"), [
+    'tests/a.test.mts:2: t.skip skips or narrows a test',
+    'tests/a.test.mts:3: t.todo skips or narrows a test',
+  ]);
+});

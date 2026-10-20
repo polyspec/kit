@@ -204,3 +204,13 @@ test('plan-split refuses an unknown item, a sub-item apart from its parent and a
   assert.equal(readFileSync(path.join(root, 'docs/plans/all/checklist.md'), 'utf8'), before);
   assert.equal(existsSync(path.join(root, 'docs/plans/parser')), false);
 });
+
+test('item-state refuses a bypassed or impossible state whose cause cites a release, a flake, an unrelated failure or the environment (K315)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  setState(root, { id: 'T1', state: '[~]' });
+  for (const cause of ['waits for the next release', 'not reproducible here', 'a flaky test', 'a transient network failure', 'unrelated to this item', 'the environment of the runner']) {
+    assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
+  }
+  assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
+});

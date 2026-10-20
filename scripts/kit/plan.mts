@@ -229,7 +229,15 @@ const TRANSITIONS: Record<string, readonly string[]> = {
 export type NewState = { id: string; state: string; cause?: string | undefined; retry?: string | undefined; causeKo?: string | undefined; retryKo?: string | undefined };
 
 /** The state cells of `change` in English and Korean. */
+// A cause that closes an item without a fix (K315): a release, a failure that is not reproduced, a flake, a transient failure, an
+// unrelated one or the environment explains nothing, so the item stays open until its cause is found.
+const EVASIVE_CAUSE = /\b(?:releas(?:e|ed|es)|not reproducible|cannot reproduce|can't reproduce|flak(?:e|y|iness)|transient|unrelated|environment(?:al)?)\b/i;
+
 function stateCells({ state, cause, retry, causeKo, retryKo }: NewState): [string, string] {
+  for (const [name, text] of [['CAUSE', cause], ['RETRY', retry], ['CAUSE_KO', causeKo], ['RETRY_KO', retryKo]] as const) {
+    const evasive = text === undefined ? undefined : EVASIVE_CAUSE.exec(text)?.[0];
+    if (evasive !== undefined && (state === BYPASSED || state === IMPOSSIBLE)) throw new Error(`${name} cites "${evasive}"; a release, a failure that is not reproduced, a flake, a transient or unrelated failure and the environment are no cause that closes an item. Find the cause and fix it, or name the defect that blocks it`);
+  }
   if (state === BYPASSED) return [`${state} cause: ${cell(cause, 'CAUSE')}; retry: ${cell(retry, 'RETRY')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}; 재시도: ${cell(retryKo, 'RETRY_KO')}`];
   if (state === IMPOSSIBLE) return [`${state} cause: ${cell(cause, 'CAUSE')}`, `${state} 원인: ${cell(causeKo, 'CAUSE_KO')}`];
   return [state, state];

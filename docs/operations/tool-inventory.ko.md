@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 670e627d9708791503d324d511d7daae487d3c96a45fa85a6960b6acedcfb209 -->
+<!-- source-sha256: 2059f2bd6efa87f799c72ea8fdccf22dd99ea8320e0c0ba9c646ade45201a383 -->
 
 # 도구 목록
 
@@ -412,6 +412,19 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 `py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>` generator, `tests/fixtures/*/generate.*`이다. test 파일,
 `.d.ts`, kit이 아닌 저장소에 있는 kit의 copy(`kit.copies`)는 아니다. class가 없는 tool source는 finding이고, tracked가 아닌
 파일의 class도 finding이다.
+
+## Divergence check (K315)
+
+`make divergence-check`(P32)는 구현이 unit이 말하지 않는 방법으로 contract와 달라지면 실패한다. `config/parity.json`의 구현 root(없으면
+runtime별 package 폴더)를 읽고 다음의 파일과 줄을 보고한다: extension, runtime, platform으로 분기하는 test(`extension_loaded`,
+`function_exists`, `PHP_VERSION`, `PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`,
+`runtime.GOOS`, `runtime.GOARCH`, `cfg!`, `#[cfg(...)]`, `os.name`), 다른 구현이 있는지 읽는 구현의 code(`extension_loaded`), script,
+Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`이나 `unsupported`, 그리고 reason이 kit이 정한 kind로
+시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`(`generated:`, `fixture:`, `test:`,
+`harness:`, `ecosystem:`, `external:`). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
+`pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽는다. `make item-state`는 cause가 release,
+재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. kit 자신의 도구와 test는
+제외한다.
 
 ## Owner check (K8.1-1)
 

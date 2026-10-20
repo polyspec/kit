@@ -125,6 +125,10 @@ jobs:
       - name: bypass check
         if: ${{ !cancelled() }}
         run: make bypass-check
+      # No implementation diverges through a branch, a narrowing, a feature state or an exception without a kind (K315).
+      - name: divergence check
+        if: ${{ !cancelled() }}
+        run: make divergence-check
       # Every installed 0.0.x polyspec package is a link that resolves, or nothing is linked; CI links nothing, so it passes (K305-1).
       - name: link state check
         if: ${{ !cancelled() }}

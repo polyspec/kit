@@ -453,6 +453,20 @@ tool sources are the scripts and programs (`mts`, `mjs`, `cjs`, `js`, `ts`, `py`
 (`kit.copies`) in a repository other than kit. An unclassified tool source is a finding; so is a class of a file that is not
 tracked.
 
+## Divergence check (K315)
+
+`make divergence-check` (P32) fails when an implementation differs from the contract by a way that no unit states. It reads the
+implementation roots of `config/parity.json` (else the package folders of each runtime) and reports the file and the line of: a
+test that branches on the extension, the runtime or the platform (`extension_loaded`, `function_exists`, `PHP_VERSION`,
+`PHP_OS`, `sys.version_info`, `sys.platform`, `process.versions`, `process.platform`, `runtime.GOOS`, `runtime.GOARCH`, `cfg!`,
+`#[cfg(...)]`, `os.name`); code of an implementation that reads whether another implementation is present (`extension_loaded`);
+`--exclude-group` in a script, a Makefile or a workflow; `partial` or `unsupported` in `contracts/features.json`; and an exception
+of `config/duplication.json` or of the `tools` and `internal` of `config/parity.json` whose reason begins with no kind that kit
+defines: `generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:` or `external:`. The skipped and narrowed tests are the markers of
+`make test-markers-check`, which also reads `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]` and the skip of a
+`node:test` context. `make item-state` refuses a bypassed or impossible state whose cause cites a release, a failure that is not
+reproduced, a flake, a transient or unrelated failure or the environment. The tools and tests of kit itself are left out.
+
 ## Owner check (K8.1-1)
 
 `scripts/kit/owner-check.mts` replaces `owner-check.mts` of template, crudui and hyper and `owner_check.py` of

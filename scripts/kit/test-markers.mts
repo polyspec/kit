@@ -15,15 +15,18 @@ import { trackedFiles } from './tracked-files.mts';
 const REGISTRATIONS = new Set(['test', 'it', 'describe', 'suite']);
 const NARROWING = new Set(['skip', 'only', 'todo']);
 const SCRIPT = /\.[cm]?[jt]sx?$/;
+// The names that the context of a node:test test goes by.
+const TEST_CONTEXT = /^(?:t|tt|ctx|context|subtest)$/;
 
 // The markers of the other runners, each on a line of code: the comment of the line is left out first.
 const LINE_MARKERS: { files: RegExp; comment: RegExp; markers: RegExp }[] = [
-  { files: /\.go$/, comment: /\/\/.*$/, markers: /\bt\.(?:Skip|SkipNow|Skipf)\b/ },
-  { files: /\.py$/, comment: /#.*$/, markers: /\bunittest\.skip(?:If|Unless)?\b|\bpytest\.mark\.(?:skip|skipif|xfail)\b|\bpytest\.skip\b|\bskipTest\b/ },
-  { files: /\.php$/, comment: /(?:\/\/|#(?!\[)).*$/, markers: /\bmarkTest(?:Skipped|Incomplete)\b/ },
+  { files: /\.go$/, comment: /\/\/.*$/, markers: /\bt\.(?:Skip|SkipNow|Skipf)\b|\btesting\.Short\(\)/ },
+  { files: /\.py$/, comment: /#.*$/, markers: /\bunittest\.skip(?:If|Unless)?\b|\bpytest\.mark\.(?:skip|skipif|xfail)\b|\bpytest\.skip\b|\bpytest\.importorskip\b|\bskipTest\b/ },
+  { files: /\.php$/, comment: /(?:\/\/|#(?!\[)).*$/, markers: /\bmarkTest(?:Skipped|Incomplete)\b|@requires\b|#\[Requires\w*\(/ },
   { files: /\.rs$/, comment: /\/\/.*$/, markers: /#\[ignore\b[^\]]*\]/ },
 ];
 
+// K315 added testing.Short, pytest.importorskip, @requires and #[Requires...], and the skip of a test context.
 const finding = (file: string, line: number, marker: string) => `${file}:${line}: ${marker} skips or narrows a test`;
 
 /** The markers of a script `text` of `file`: a call of a narrowing method of a registration, or a narrowing option. */
@@ -33,6 +36,11 @@ function scriptMarkers(file: string, text: string): string[] {
   walk(parseScript(file, text).program, (node) => {
     if (node.type !== 'CallExpression' || !Array.isArray(node.arguments)) return;
     const [registration = '', method, ...rest] = calleeName(node.callee).split('.');
+    // A skip or todo of the context of a test (node:test t.skip()) skips the test that it runs in (K315).
+    if (method !== undefined && rest.length === 0 && (method === 'skip' || method === 'todo') && TEST_CONTEXT.test(registration)) {
+      found.push({ line: lineOf(node.start), text: `${registration}.${method}` });
+      return;
+    }
     if (method !== undefined && rest.length === 0 && REGISTRATIONS.has(registration) && NARROWING.has(method)) {
       found.push({ line: lineOf(node.start), text: `${registration}.${method}` });
       return;

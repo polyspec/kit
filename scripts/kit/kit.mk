@@ -147,7 +147,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check divergence-check lint-ts lint-php lint-python lint-go lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 
 .PHONY: link-state-check
@@ -157,6 +157,10 @@ link-state-check: ## Fail while an installed 0.0.x polyspec package is a copy am
 .PHONY: bypass-check
 bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI identity, assumes a gate of kit-gates up to date with make -o, or skips a Git hook with --no-verify (K308); offline
 	$(NODE) $(KIT)/bypass-check.$(KIT_EXT)
+
+.PHONY: divergence-check
+divergence-check: ## Fail on an implementation that diverges through a branch on the runtime, a narrowing of its run, a partial or unsupported feature, or an exception without a kind of reason (K315); offline
+	$(NODE) $(KIT)/divergence-check.$(KIT_EXT)
 
 .PHONY: language-check
 language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
