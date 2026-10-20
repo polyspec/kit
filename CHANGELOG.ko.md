@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ea1c53ed3990f0db9aed9ae5ca2dfc4d18a5682dbfd8674d9e54758958ba552 -->
+<!-- source-sha256: 1940f407725776635471910f5933e1326123ad347107741018f6c2858316e820 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- checkout에 도구가 없는 parity runner나 symbol extractor는 그것을 실행의 오류, 즉 도구와 run make install을 적는 R3나 R1
+  finding으로 보고하며, K393-1 이후 python3가 없는 checkout에서 그랬듯 parity-check와 parity-declarations-check를 잡히지
+  않은 오류로 끝내지 않는다(K393-2).
 - `make text-absent FILE=<path> TEXT=<text>`는 추적되는 파일이 그 문구를 그대로 가진 동안 각 줄을 적어 실패하고, 문구가
   사라지면 통과한다. 이는 변경 전체가 text인 행의 red이며, P19는 이제 이것과 함께 변경이 낡게 만든 주석과 문서를 그 변경의
   커밋에서 고친다는 규칙을 적는다. 문구는 환경 변수로 도구에 전해지므로 그 안의 백틱이나 `$( )`는 아무것도 실행하지 않는다

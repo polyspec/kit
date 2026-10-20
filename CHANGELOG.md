@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- A parity runner or symbol extractor whose tool the checkout lacks reports it as the error of its run, an R3 or R1 finding
+  that names the tool and run make install, instead of ending parity-check and parity-declarations-check with an uncaught
+  error, which K393-1 had caused in a checkout without python3 (K393-2).
 - `make text-absent FILE=<path> TEXT=<text>` fails, naming each line, while a tracked file holds the literal text, and passes
   once it is gone: the red of a row whose whole change is text, which P19 now states, together with the rule that a change
   corrects the comments and documents it makes stale in its own commit; the text reaches the tool through its environment,
