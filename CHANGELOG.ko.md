@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 438ce6b653f91dfdacd10229450c306efcaebe6eb52439ff8fa67643641d72eb -->
+<!-- source-sha256: 32497b4a3a6c62bb587407511f042452ed8e9e6f3abb5ea81495b175ebecdc7f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit main에서 `make lint-ts`가 다시 통과한다. 테스트 파일 네 개가 non-null assertion 두 개와 `any`에서의 unsafe assertion
+  네 개 대신 검사나 타입이 있는 parse로 값을 읽는다(K409).
 - kit main에서 `make owner-validate`가 다시 통과한다. `config/owner-checks.json`은 merge driver `twin-merge.mts`를
   `git-hooks.mts`를 통해, `clippy.toml`을 실제 Rust lint 테스트를 통해, `scripts/kit/php-library`를 그것을 읽는 module을 통해
   소유한다(K410).

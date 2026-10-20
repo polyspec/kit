@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make lint-ts` passes on kit main again: four test files read their values through a check or a typed parse in place of
+  two non-null assertions and four unsafe assertions from `any` (K409).
 - `make owner-validate` passes on kit main again: `config/owner-checks.json` owns the merge driver `twin-merge.mts` through
   `git-hooks.mts`, `clippy.toml` through the real Rust lint test and `scripts/kit/php-library` through the module that
   reads it (K410).
