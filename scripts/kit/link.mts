@@ -6,10 +6,8 @@
 //             (symlink) per provider folder in front of the repositories, a copy of the lock, and a partial composer update of
 //             the polyspec packages and the path packages of the project, so the record, the autoload rules and the platform
 //             check come from the composer.json of each folder;
-//   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed
-//             from their editable wheels (K222, K224), built where their folder is writable and kept under var/link/wheels,
-//             installed into the environment as they are (no sync: the link changes only the linked packages, K239); a read-only
-//             folder only installs the wheel that is already there;
+//   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed as
+//             editable installs of their folders (K316, `uv pip install -e`), with no sync (K239): no wheel is built or kept;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
@@ -21,7 +19,7 @@
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
@@ -30,7 +28,6 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
-import { trackedFiles } from './tracked-files.mts';
 import {
   assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider,
   providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf,
@@ -408,100 +405,9 @@ function linkComposer(work: Run, consumer: Consumer) {
   }
 }
 
-// --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed
-// from an editable wheel (K222): setuptools writes <name>.egg-info into its source tree when it builds, so the wheel is built
-// where the checkout is writable, through the backend of its pyproject, in an isolated uv env, and kept under
-// var/link/wheels/<name>/<fingerprint>/. A read-only checkout (a container's mount) only installs the wheel that is there.
-
-/** Directories that a build writes (its own, hidden, cache and egg-info folders): never sources, so never fingerprinted. */
-const BUILT = /^\.|^__pycache__$|^build$|^dist$|\.egg-info$/;
-
-/** The directories below `below` of `folder` as paths with /, left out: BUILT. */
-function pythonDirectories(folder: string): string[] {
-  const directories = new Set<string>();
-  for (const file of trackedFiles(folder)) {
-    for (let directory = path.posix.dirname(file); directory !== '.'; directory = path.posix.dirname(directory)) {
-      if (!directory.split('/').some(part => BUILT.test(part))) directories.add(directory);
-    }
-  }
-  return [...directories];
-}
-
-/**
- * The fingerprint of the Python provider `folder` of `checkout` (K222): the first 12 hex of sha256 over the resolved absolute
- * path of the checkout, its pyproject.toml bytes and the sorted directories of its tracked or new, not ignored, files (K225; a container writes ignored var/ directories there). The path is part of it because
- * an editable wheel is bound to the path it points at: a wheel built for one checkout is never reused for another.
- */
-export function pythonFingerprint(checkout: string, folder: string): string {
-  const hash = createHash('sha256').update(`${realpathSync(checkout)}\n`).update(readFileSync(path.join(folder, MANIFESTS.python)));
-  for (const directory of pythonDirectories(folder).sort()) hash.update(`\n${directory}`);
-  return hash.digest('hex').slice(0, 12);
-}
-
-/** The folder of the editable wheel of `name` at fingerprint `fp` in the consumer: var/link/wheels/<name>/<fp> (K222). */
-const wheelDirOf = (consumer: Consumer, name: string, fp: string): string => linkFile(consumer.top, path.join('wheels', normalizeName(name), fp));
-
-/** The wheel in `directory`, or undefined when there is none. */
-function wheelIn(directory: string): string | undefined {
-  if (!existsSync(directory)) return undefined;
-  const wheel = readdirSync(directory).find(item => item.endsWith('.whl'));
-  return wheel === undefined ? undefined : path.join(directory, wheel);
-}
-
-/** Whether this process can write the checkout `folder`: a read-only mount cannot be built in, so its wheel must be prebuilt (K222). */
-export function writable(folder: string): boolean {
-  try { accessSync(folder, constants.W_OK); return true; } catch { return false; }
-}
-
-/** The PEP 517 build of the pyproject `file`: its requirements, backend and backend-path, with the defaults of PEP 517 and 518. */
-function buildSystemOf(file: string): { requires: string[]; backend: string; backendPath: string[] } {
-  const system = readTomlFile(file)['build-system'];
-  const table = isJsonObject(system) ? system : {};
-  const strings = (value: unknown, fallback: string[]) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : fallback);
-  return {
-    requires: strings(table.requires, ['setuptools>=40.8.0']),
-    backend: typeof table['build-backend'] === 'string' ? table['build-backend'] : 'setuptools.build_meta:__legacy__',
-    backendPath: strings(table['backend-path'], []),
-  };
-}
-
-/** The script of buildEditable: the backend (module:object) builds the editable wheel of the working directory into the folder given. */
-const BUILD_EDITABLE = [
-  'import importlib, os, sys',
-  'backend, paths, out = sys.argv[1], sys.argv[2], sys.argv[3]',
-  'sys.path[:0] = [os.path.abspath(p) for p in paths.split(os.pathsep) if p]',
-  "module, _, attribute = backend.partition(':')",
-  'target = importlib.import_module(module)',
-  "for part in filter(None, attribute.split('.')): target = getattr(target, part)",
-  'target.build_editable(out)',
-].join('\n');
-
-/** Builds the editable wheel of the Python provider into `directory` (K222): an isolated uv env with [build-system].requires, in the checkout. */
-function buildEditable(uv: Tool, provider: Provider, directory: string) {
-  const system = buildSystemOf(path.join(provider.folder, MANIFESTS.python));
-  const staging = `${directory}.partial`;
-  rmSync(staging, { recursive: true, force: true });
-  mkdirSync(staging, { recursive: true });
-  run(uv.command, ['run', '--no-project', '--isolated', ...system.requires.flatMap(requirement => ['--with', requirement]), 'python', '-c', BUILD_EDITABLE, system.backend, system.backendPath.join(path.delimiter), staging], { cwd: provider.folder, env: uv.env });
-  rmSync(directory, { recursive: true, force: true });
-  renameSync(staging, directory);
-}
-
-/** The editable wheel of the Python provider at its fingerprint (K222): prebuilt, or built where its folder is writable; else undefined with the stale reason (K224). */
-function wheelOf(work: Run, consumer: Consumer, uv: Tool, provider: Provider): string | undefined {
-  const fp = pythonFingerprint(provider.checkout, provider.folder);
-  const directory = wheelDirOf(consumer, provider.name, fp);
-  const existing = wheelIn(directory);
-  if (existing) return existing;
-  if (!writable(provider.folder)) {
-    unlinkable(work, 'python', provider.name, `stale prebuilt wheel ${provider.name} (fingerprint ${fp}): run kit link on the host`);
-    return undefined;
-  }
-  buildEditable(uv, provider, directory);
-  const built = wheelIn(directory);
-  if (!built) throw new Error(`the build of ${provider.folder} wrote no wheel into ${directory}`);
-  return built;
-}
+// --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
+// as an editable install of its folder (`uv pip install -e <folder>`, K316): the environment finds the sources in the folder, no
+// wheel is built or kept, and uv checks Requires-Python and the requirements at that install.
 
 /** The environment of the pyproject `file` and its uv workspace, or why there is none. */
 function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
@@ -511,7 +417,7 @@ function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string
   return { venv, workspace };
 }
 
-/** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of a wheel (K222). */
+/** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of the linked packages. */
 function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...flags: string[]) {
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
 }
@@ -542,16 +448,16 @@ function lockedConstraints(consumer: Consumer, uv: Tool, workspace: string, venv
 }
 
 /**
- * The overrides of an install of the linked wheels (K237): each linked package is the wheel of its checkout, also where another
- * package requires it by its release URL, which would conflict with the wheel named on the command line.
+ * The overrides of an install of the linked packages (K237): each linked package is the folder of its checkout, also where another
+ * package requires it by its release URL, which would conflict with the folder named on the command line.
  */
-function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string }[]): string {
-  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => `${provider.name} @ ${pathToFileURL(wheel).href}`));
+function linkedOverrides(consumer: Consumer, venv: string, ready: readonly Provider[]): string {
+  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(provider => `${provider.name} @ ${pathToFileURL(provider.folder).href}`));
 }
 
 /**
  * The project of the pyproject `file` (the consumer's own, or a member of its workspace), as a provider of its folder, so that it is
- * installed from its editable wheel like a provider (K224); undefined when the file declares no [project] name.
+ * installed as an editable install of its folder like a provider (K224); undefined when the file declares no [project] name.
  */
 function ownProject(consumer: Consumer, file: string): Provider | undefined {
   const project = readTomlFile(file).project;
@@ -575,7 +481,7 @@ const READ_INSTALLED = [
   "    text = dist.read_text('direct_url.json')",
   "    url = json.loads(text).get('url', '') if text else ''",
   "    location = unquote(urlparse(url).path) if url.startswith('file:') else 'none'",
-  "    editable = any(str(item).startswith('__editable__') for item in dist.files or [])",
+  "    editable = bool(json.loads(text).get('dir_info', {}).get('editable')) if text else False",
   "    print(name, location, 'yes' if editable else 'no', sep='\\t')",
 ].join('\n');
 
@@ -606,19 +512,13 @@ function installedFiles(venv: string, names: readonly string[], env: NodeJS.Proc
 }
 
 /**
- * Why the installed state of `provider` is not its editable wheel at the current fingerprint, or undefined when it is (K230): a
+ * Why the installed state of `provider` is not the editable install of its folder, or undefined when it is (K230, K316): a
  * link is reported only when the environment itself holds that editable install.
  */
-function editableProblem(consumer: Consumer, provider: Provider, state: Installed | undefined, venv: string): string | undefined {
-  if (state === undefined || state.path === 'none' || state.path === 'absent') return `not installed from a wheel in ${venv}`;
-  const fp = pythonFingerprint(provider.checkout, provider.folder);
-  const dir = path.dirname(state.path);
-  if (dir !== wheelDirOf(consumer, provider.name, fp)) {
-    return path.basename(path.dirname(dir)) === normalizeName(provider.name)
-      ? `installed fingerprint ${path.basename(dir)} differs from ${fp} in ${venv}`
-      : `installed from ${state.path}, not the editable wheel of ${provider.folder} in ${venv}`;
-  }
-  return state.editable ? undefined : `installed from its wheel without the editable install in ${venv}`;
+function editableProblem(provider: Provider, state: Installed | undefined, venv: string): string | undefined {
+  if (state === undefined || state.path === 'none' || state.path === 'absent') return `not installed from a folder in ${venv}`;
+  if (real(state.path) !== real(provider.folder)) return `installed from ${state.path}, not the editable install of ${provider.folder} in ${venv}`;
+  return state.editable ? undefined : `installed from its folder without the editable install in ${venv}`;
 }
 
 /** The normalized project names of the PEP 508 requirements of `list`, a URL requirement too; any other item is ignored. */
@@ -670,7 +570,7 @@ function linkPython(work: Run, consumer: Consumer) {
   if (!files.some(file => declaredPython(file).length)) return;
   const uv = consumerTool(consumer.top, 'uv', work.env);
   // Every project of an environment is a member of it: with --no-install-workspace the sync installs none of them, so each
-  // member, polyspec or not, is installed from its wheel (K224). An environment with no polyspec package is not synced.
+  // member, polyspec or not, is installed as an editable install of its folder (K224). An environment with no polyspec package is not synced.
   const byVenv = new Map<string, { workspace: string; names: Set<string>; projects: Provider[] }>();
   for (const file of files) {
     const target = pythonTarget(uv, file);
@@ -699,7 +599,7 @@ function linkPython(work: Run, consumer: Consumer) {
     // A linked package is linked and its requirements are met (K238): the unmet requirements are those that uv pip check states.
     const stateOf = (names: readonly string[]) => installedFiles(venv, names, work.env);
     const problemOf = (provider: Provider, state: Map<string, Installed>, unmet: ReadonlyMap<string, string>): string | undefined =>
-      editableProblem(consumer, provider, state.get(provider.name), venv) ?? unmet.get(normalizeName(provider.name));
+      editableProblem(provider, state.get(provider.name), venv) ?? unmet.get(normalizeName(provider.name));
     const reportLinks = (state: Map<string, Installed>, now: boolean) => {
       const unmet = unmetPython(uv, venv);
       for (const provider of linked) {
@@ -718,31 +618,22 @@ function linkPython(work: Run, consumer: Consumer) {
       for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock in ${workspace}: run the repository's install`);
       continue;
     }
-    // Every wheel is resolved before the sync: a sync removes each project that it does not install, so a missing wheel
-    // leaves the environment untouched and the run fails (K224).
-    const ready: { provider: Provider; wheel: string }[] = [];
-    let complete = true;
-    for (const provider of linked) {
-      const wheel = wheelOf(work, consumer, uv, provider);
-      if (wheel === undefined) complete = false;
-      else ready.push({ provider, wheel });
-    }
-    if (!complete || !ready.length) continue;
     // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
     // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
-    const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(({ provider }) => normalizeName(provider.name))));
+    const ready = linked;
+    const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(provider => normalizeName(provider.name))));
     const overrides = linkedOverrides(consumer, venv, ready);
     // A project of the consumer's own environment is installed with --no-deps (K280): the consumer's lock sync provides its
     // dependencies, and a dependency that the lock provides another way (a path dependency of no index) cannot be resolved here.
     const own = new Set(projects.map(project => project.name));
     const python = path.join(venv, 'bin/python');
     const installs = [
-      { flags: ['--constraints', constraints, '--overrides', overrides], wheels: ready.filter(({ provider }) => !own.has(provider.name)) },
-      { flags: ['--no-deps'], wheels: ready.filter(({ provider }) => own.has(provider.name)) },
+      { flags: ['--constraints', constraints, '--overrides', overrides], providers: ready.filter(provider => !own.has(provider.name)) },
+      { flags: ['--no-deps'], providers: ready.filter(provider => own.has(provider.name)) },
     ];
-    for (const { flags, wheels } of installs) {
-      if (!wheels.length) continue;
-      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...wheels.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...wheels.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
+    for (const { flags, providers } of installs) {
+      if (!providers.length) continue;
+      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...providers.flatMap(provider => ['--reinstall-package', provider.name]), ...providers.flatMap(provider => ['-e', provider.folder])], { cwd: consumer.top, env: uv.env });
     }
     reportLinks(stateOf(linked.map(provider => provider.name)), true);
   }
