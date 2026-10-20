@@ -133,6 +133,10 @@ jobs:
       - name: divergence check
         if: ${{ !cancelled() }}
         run: make divergence-check
+      # Every suppression of a lint finding states the need of the code in the form of its tool (P8, K334).
+      - name: suppression check
+        if: ${{ !cancelled() }}
+        run: make suppression-check
       # Every installed 0.0.x polyspec package is a link that resolves, or nothing is linked; CI links nothing, so it passes (K305-1).
       - name: link state check
         if: ${{ !cancelled() }}

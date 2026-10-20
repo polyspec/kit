@@ -121,7 +121,7 @@ export function capLog(file: string, limit = LIMIT_BYTES, tail = TAIL_BYTES): bo
   return true;
 }
 
-// eslint-disable-next-line no-control-regex
+// eslint-disable-next-line no-control-regex -- the pattern matches the escape codes of a terminal, which start with ESC
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 // A line that states a failure: a failed test, an error, a failed check of a recipe, a refusal, a panic or a full disk, and
 // the line of a checker that names a file (`docs/a.md:3:1: rule: message`). A line that reports a pass, such as
