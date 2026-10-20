@@ -95,6 +95,33 @@ test('a package of a path repository of the link manifest that the link lock hol
   assert.match(gate(root).stderr, /composer\.link\.lock: psr\/log is linked but locked from a zip dist, not from its path/);
 });
 
+// K328: while a project is linked, a linked package is judged by its link; the registry comparison belongs to the batch release.
+test('a linked package is not compared with the latest release of the registry, and a third-party package still is (K328)', (t) => {
+  const root = fixture(t);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = JSON.parse(readFileSync(path.join(directory, 'composer.lock'), 'utf8')) as { packages: { name: string; version: string; dist?: { type: string } }[] };
+  const recordFile = path.join(root, RECORD);
+  const record: ReviewRecord = JSON.parse(readFileSync(recordFile, 'utf8'));
+  const composer = record.dependencies.filter(item => item.ecosystem === 'composer');
+  assert.ok(composer.length >= 1, 'the fixture record holds a Composer dependency');
+  const [first] = composer;
+  assert.ok(first);
+  first.latest = '99.0.0';
+  writeFileSync(recordFile, `${JSON.stringify(record, null, 2)}\n`);
+  assert.match(gate(root).stderr, new RegExp(`${first.package.replace('/', '\\/')}: ${first.version} is older than 99\\.0\\.0`), 'without a link the registry comparison fails');
+  writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, packages: lock.packages.map(item => (item.name === first.package ? { ...item, dist: { type: 'path', url: '../provider' } } : item)) }));
+  const linked = gate(root).stderr;
+  assert.doesNotMatch(linked, /must have required property/, 'the link lock is a valid lock');
+  assert.doesNotMatch(linked, new RegExp(`${first.package.replace('/', '\\/')}: ${first.version} is older than`), 'the linked package is judged by its link');
+  const other = composer.find(item => item.package !== first.package);
+  if (other) {
+    other.latest = '99.0.0';
+    writeFileSync(recordFile, `${JSON.stringify(record, null, 2)}\n`);
+    assert.match(gate(root).stderr, new RegExp(`${other.package.replace('/', '\\/')}: ${other.version} is older than 99\\.0\\.0`), 'a third-party package is still compared');
+  }
+});
+
 // K181: a Composer manifest that composerPlatforms does not name escaped composer validate --strict, so its lock went stale
 // unnoticed; the fixture holds the Composer consumer project of its release, which is not checked here.
 test('the gate fails on a Composer manifest that no Composer platform covers; a manifest that kit writes passes', (t) => {

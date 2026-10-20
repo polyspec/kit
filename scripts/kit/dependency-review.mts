@@ -32,6 +32,7 @@ import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
+import { isLinked } from './linked-package.mts';
 import { present } from './present.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
@@ -385,6 +386,8 @@ export function review(root: string) {
       lines.push(`${subject}: the registry query failed: ${answer.error}. Fix: run make dependency-review again when the registry answers`);
       continue;
     }
+    // A linked package is judged by its link, not against the registry (K328).
+    if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) continue;
     // A dependency that its lock holds at no version is not at the latest release.
     const outdated = answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate;
     // The condition checks that exceptions has the key.

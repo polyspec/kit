@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f05d64607b10cdd5228085b528ce68749356e6dfa10f47991f6c7f8cf01482e4 -->
+<!-- source-sha256: 766213dd1ddbffafc401fe0378373f6c7ce4967532be055722fc129d6a36f1ca -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 연결된 패키지(Composer project의 link lock의 path dist, `node_modules`의 심볼릭 링크)는 `make dependency-review`와 `make dependency-policy-check`에서 registry의 최신 release와 비교하지 않고 외부 패키지는 여전히 비교한다(K328). 개발 중에는 local checkout이 canonical이므로 그 패키지는 link로 판단하고 registry 비교는 일괄 release의 검사에 속한다. Red: `node --test --test-name-pattern=K328 tests/kit/dependency-policy.test.mts`가 연결된 패키지에 `psr/log: 3.0.2 is older than 99.0.0`으로 실패했다. Green: 통과하고 외부 패키지는 여전히 보고된다.
 - 저장소는 `mise.toml`에 http backend로 내려받는 자기 도구를 선언할 수 있다(K327). key는 `http:<이름>`이고 정확한 `version`과 https `url`을 가진 table이다. `mise.lock`이 모든 platform의 sha256을 pin하고 `make toolchain-check`가 sha256이 빠진 platform을 이름으로 알린다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다. Red: `node --test --test-name-pattern=K327 tests/kit/toolchain-mise.test.mts`가 `mise.toml tools declares http:pie, which kit does not check`로 거부되었다. Green: 통과한다.
 - `make divergence-check`(K315)는 모든 저장소의 gate이다. extension, runtime, platform으로 분기하는 test, 다른 구현이 있는지 읽는 구현의 code, `--exclude-group`, `contracts/features.json`의 `partial`이나 `unsupported`, reason이 kit이 정한 kind(`generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:`, `external:`)로 시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`에 실패한다. `make test-markers-check`는 `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽고, `make item-state`는 cause가 release, 재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. 2026-10-21의 finding: orm 101(test 분기 68, partial feature 18, 예외 11, code 분기 4), template 12, crudui 44, hyper 10, fsm 5, ordered-json 4, ssr 5. Red: 검사가 없었다(case가 `divergenceFindings`를 import한다). Green: `node --test tests/kit/divergence-check.test.mts`가 각 kind를 찾는다.
 - provider 폴더의 non-editable 설치나 릴리스 wheel 위의 link는 editable install이 된다(K316-1): 설치의 overrides 파일은 연결된 package마다 `-e <폴더>` 줄 하나를 담는다. `name @ file://<폴더>` 줄은 uv가 non-editable 요구로 보게 해서 명령줄의 `-e`보다 우선하고 package를 non-editable로 남겼기 때문이다(이 checkout의 uv로 확인: URL 줄이면 `dir_info`가 비고 `-e` 줄이면 `{"editable":true}`이며, 다른 package를 릴리스 URL로 요구하는 package도 마찬가지이다). registry나 archive 설치의 메시지는 그렇게 말한다. Red: `node --test --test-name-pattern=K316-1 tests/kit/link.test.mts`가 `name @ file://` 줄을 찾았다. Green: `-e` 줄을 찾는다.

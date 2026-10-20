@@ -17,6 +17,7 @@ import { ConfigError, readConfig, readConfigFindings } from './schema-validate.m
 import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
+import { isLinked } from './linked-package.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
@@ -317,6 +318,8 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       add('record', subject, `the review recorded ${entry.latest} as the latest stable release`, REVIEW);
       continue;
     }
+    // A linked package is judged by its link, not against the registry (K328).
+    if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) continue;
     const outdated = older(dependency.ecosystem, entry.version, entry.latest);
     if (outdated && !exceptions.has(key)) add('latest', subject, `${entry.version} is older than ${entry.latest}, the latest stable release at the review of ${record.reviewed}, and ${POLICY} holds no exception for it`, `${dependency.kind === 'lock' ? lockFix(dependency.lock, dependency.createdBy, dependency.package) : UPDATE}, or add an exception with its reason, removal condition and verification to ${POLICY}`);
     if (!outdated && exceptions.has(key)) add('stale', subject, `the review of ${record.reviewed} found ${entry.version}, the latest stable release, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
