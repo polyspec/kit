@@ -110,3 +110,21 @@ test('phpstan runs with no memory limit, so a large package is analysed (K346)',
   const step = present(steps[0], 'the phpstan step');
   assert.ok(step.args.includes('--memory-limit=-1'), step.args.join(' '));
 });
+
+// K377: an autoload file of a Composer package holds only declarations of namespaced functions and constants (S2), and the
+// PHP lint reads it with the parser of the PHP symbol extractor, so a require or a class fails with its file and line.
+function autoloadFile(t: TestContext, text: string) {
+  return checkout(t, { files: { 'packages/php/composer.json': '{"autoload":{"files":["src/functions.php"]}}\n', 'packages/php/src/functions.php': text } });
+}
+
+test('an autoload files entry that is not only namespaced functions and constants fails the PHP lint (K377)', (t) => {
+  const required = autoloadFile(t, "<?php\n\nrequire __DIR__ . '/impl.php';\n");
+  const output: string[] = [];
+  assert.deepEqual(lint(required.root, text => output.push(text)), ['autoload files']);
+  assert.match(output.join(''), /packages\/php\/src\/functions\.php:3:/);
+  assert.deepEqual(lint(autoloadFile(t, '<?php\nnamespace Foo; function bar(): int { return 1; } const BAZ = 1;\n').root, () => {}), []);
+  const cls = autoloadFile(t, '<?php\n\nnamespace Foo;\n\nclass Bar {}\n');
+  const classOutput: string[] = [];
+  assert.deepEqual(lint(cls.root, text => classOutput.push(text)), ['autoload files']);
+  assert.match(classOutput.join(''), /packages\/php\/src\/functions\.php:5:/);
+});

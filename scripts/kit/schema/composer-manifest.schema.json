@@ -22,6 +22,18 @@
         "type": "string"
       }
     },
+    "autoload": {
+      "type": "object",
+      "description": "The files that lint-php checks as autoload files (K377).",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "repositories": {
       "type": "array",
       "items": {
