@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d2c5260faebcd0820b8ae2ad801944c4b5aa4924723a5aeb6a25f76c4f961abf -->
+<!-- source-sha256: 740bbb40d34927e2f9fcf3814f649917ff6b43455531b63e23ad7f5566dd52ce -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -167,3 +167,4 @@
 | K345 | Python marker 검사는 문자열이 아니라 code의 marker를 읽는다. 원인: test-markers-check는 Python을 text로 읽으므로 orm packages/python/tests/test_testcase.py 31행의 SAMPLE처럼 문자열 literal 안의 marker가 finding이 된다. 인수 조건: Python 검사는 JavaScript 검사처럼 ecosystem의 parser(checkout Python의 ast module)로 파일의 syntax tree에서 marker를 읽는다. red fixture: 지금은 문자열 literal 안의 skip marker가 finding이다. | scripts/kit/test-markers.mts, tests/kit/test-markers.test.mts | `node --test --test-name-pattern=K345 tests/kit/test-markers.test.mts` | [ ] |
 | K346 | lint-php는 분석에 필요한 memory limit으로 phpstan을 실행한다. 원인: lint-php.mts는 phpstan analyse를 --memory-limit 없이 실행하므로 orm packages/php에서 php.ini의 128M에서 멈춘다. 인수 조건: lint-php는 kit이 이유와 함께 정한 값으로 phpstan의 --memory-limit option을 모든 저장소에서 같게 넘긴다. red fixture: 지금 lint-php의 phpstan 명령에는 --memory-limit이 없다. | scripts/kit/lint-php.mts, tests/kit/lint-php.test.mts | `node --test --test-name-pattern=K346 tests/kit/lint-php.test.mts` | [ ] |
 | K347 | link rebuild는 consumer의 Composer autoload를 새로 만든다. 원인: provider가 파일을 지운 뒤(ordered-json이 bootstrap.php를 지움) link.mjs rebuild는 link를 다시 실행할 때까지 consumer의 vendor/composer/autoload_files.php가 그 파일을 require하게 두었다. 인수 조건: rebuild는 linked Composer consumer마다 link 파일(COMPOSER=composer.link.json)로 composer dump-autoload를 실행해 autoload가 있는 파일만 가리키게 한다. red fixture: rebuild 뒤에도 consumer의 autoload가 provider가 지운 파일을 가리킨다. | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test --test-name-pattern=K347 tests/kit/link.test.mts` | [ ] |
+| K348 | 하나의 kit target이 worktree를 자기 source로 작동하는 상태로 만든다. 원인: consumer의 새 worktree는 gate가 작동하기 전에 손 작업이 필요하고(template은 main checkout에서 var/python/wheelhouse를 복사하고 scripts/composer-install.mts를 실행하고 lint 도구를 위해 mise 환경을 export했다), agent는 대신 symbolic link로 설치를 공유한다(K375). 인수 조건: make worktree-setup은 main checkout에서 아무것도 복사하지 않고 install의 순서로 worktree의 도구, package, link를 자기 source로 설치하며, 인수 없는 link가 worktree에서 작동한다. red fixture: 새 worktree의 gate가 손 작업 전까지 실패한다. | scripts/kit/kit-bootstrap.mk, scripts/kit/kit.mk, tests/kit/kit-bootstrap.test.mts | `node --test --test-name-pattern=K348 tests/kit/kit-bootstrap.test.mts` | [ ] |
