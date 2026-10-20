@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fa38809032e5eccebe5e3a69a38cb57991a5ac5a7b1653b4d4d21248d4e38aad -->
+<!-- source-sha256: cbe00cb0fd3f4d0575a7b266f613d001d907ff65b9ada71ad7d27038448b23aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit main에서 `make lint-php`가 다시 통과한다. kit의 PHP 파일 네 개에서 phpcs의 120자를 넘는 줄을 나누었고, extractor가
+  보고하는 symbol과 leak은 같다(K413).
 - parity 선언 검사는 요구 id를 하나도 정의하지 않는 `docs/spec`의 문서마다 그 파일을 적어 보고한다(규칙 R19
   `spec-without-requirement`)(K337).
 - test-php-ext의 Reflection 비교는 extension이 등록하는 상수도 읽고, library 밖의 class나 함수에서 이미 그랬듯 PHP

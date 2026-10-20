@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make lint-php` passes on kit main again: the lines over the 120 characters of phpcs in four PHP files of kit are
+  wrapped, with the same symbols and leaks from the extractor (K413).
 - The parity declarations report each document of `docs/spec` that defines no requirement id (rule R19
   `spec-without-requirement`), naming the file (K337).
 - The Reflection compare of test-php-ext also reads the constants that the extension registers, and fails on one that the
