@@ -167,10 +167,15 @@ export const mainCheckouts = (directories: readonly string[]): string[] => direc
  * Every provider of the main checkouts `checkouts`: each tracked manifest of a package there. A name that a package folder
  * and the repository root both provide is provided by the package folder, since the root is the development project; two
  * package folders that provide one name fail with both. `go` reads go.mod in `cwd`; without it the Go modules provide nothing.
+ * `own`, the work tree of the consumer (a main checkout or a worktree), provides the packages of its own repository, and a
+ * checkout of that repository among `checkouts` provides nothing, so a worktree never takes the sources of its main checkout
+ * (K385).
  */
-export function providers(checkouts: readonly string[], go: Tool | undefined, cwd: string): Map<string, Provider> {
+export function providers(checkouts: readonly string[], go: Tool | undefined, cwd: string, own?: string): Map<string, Provider> {
   const found = new Map<string, Provider>();
-  for (const checkout of mainCheckouts(checkouts)) {
+  const ownRepository = own === undefined ? undefined : repositoryOf(own);
+  const sources = [...mainCheckouts(checkouts).filter(checkout => repositoryOf(checkout) !== ownRepository), ...(own === undefined ? [] : [workTreeOf(own)])];
+  for (const checkout of sources) {
     const repository = repositoryOf(checkout);
     for (const file of trackedManifests(checkout, Object.values(MANIFESTS)).sort()) {
       if (EXCLUDED.test(file)) continue;

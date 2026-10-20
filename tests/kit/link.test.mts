@@ -328,6 +328,20 @@ test('siblingCheckouts takes only the checkouts of polyspec repositories and lis
   });
 });
 
+// K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.
+test('providers take the packages of the work tree of the consumer as its own, and never the main checkout of its repository (K385)', (t) => {
+  const { provider, kit, consumer } = workspace(t);
+  const worktree = path.join(path.dirname(consumer), 'cons-wt');
+  git(consumer, 'worktree', 'add', '--quiet', worktree, '-b', 'wt');
+  const found = providers([provider, kit, consumer], undefined, worktree, worktree);
+  const own = found.get('npm:@polyspec/own');
+  assert.ok(own, 'the own package of the consumer is a provider');
+  assert.equal(own.checkout, worktree, 'it is provided by the work tree that runs the link, not by the main checkout');
+  assert.equal(own.repository, realpathSync(path.join(consumer, '.git')));
+  assert.equal(found.get('npm:@polyspec/x')?.checkout, provider, 'another repository stays a provider');
+  assert.equal(providers([provider, kit], undefined, consumer, consumer).get('npm:@polyspec/own')?.checkout, consumer, 'a main checkout reads its own packages without naming itself');
+});
+
 test('Composer updates the packages to link once, and a second link run, with everything linked, runs no update (K304-1)', (t) => {
   const { consumer, env, log } = workspace(t);
   linkLines([consumer], env);
@@ -1015,15 +1029,16 @@ function ownPackages(t: TestContext, ghost: boolean) {
   return { consumer, env };
 }
 
-test('K226: a dependency that the project itself provides (an npm workspace member, the root Composer name, a Composer path repository) is satisfied as workspace', (t) => {
+test('K226: a dependency that the project itself provides (an npm workspace member, the root Composer name, a Composer path repository) is satisfied as own (K226, K385)', (t) => {
   const { consumer, env } = ownPackages(t, false);
   const lines: string[] = [];
   const ok = link({ checkouts: [], directories: [consumer], check: false, print: text => lines.push(text), env });
   const text = lines.join('\n');
   assert.equal(ok, true, text);
-  assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
-  assert.match(text, /^ {2}workspace +composer +polyspec\/widget \(/m);
-  assert.match(text, /^ {2}workspace +composer +polyspec\/mono \(/m);
+  // The work tree of the consumer provides the packages of its repository (K385), so they are its own.
+  assert.match(text, /^ {2}own +npm +@polyspec\/b \(this repository\)/m);
+  assert.match(text, /^ {2}own +composer +polyspec\/widget \(this repository\)/m);
+  assert.match(text, /^ {2}own +composer +polyspec\/mono \(this repository\)/m);
   assert.doesNotMatch(text, /NOT linked/);
 });
 
@@ -1035,7 +1050,7 @@ test('K226: a dependency that no provider and no project package provides still 
   assert.equal(ok, false, text);
   assert.match(text, /NOT linked npm +@polyspec\/ghost \(no provider\)/);
   assert.match(text, /NOT linked composer polyspec\/ghost \(no provider\)/);
-  assert.match(text, /^ {2}workspace +npm +@polyspec\/b \(/m);
+  assert.match(text, /^ {2}own +npm +@polyspec\/b \(this repository\)/m);
 });
 
 test('a linked package that the lock does not hold takes the exact release that the project requires as the version of its path repository (K304-2)', (t) => {

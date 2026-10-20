@@ -730,7 +730,7 @@ export function link({ checkouts, directories, check, print, env = process.env, 
   const consumers = directories.map(directory => consumerOf(directory, project));
   const first = consumers[0];
   const go = first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
-  const work: Run = { found: providers(checkouts, go, first?.top ?? process.cwd()), check, print, failed: false, env };
+  const work: Run = { found: providers(checkouts, go, first?.top ?? process.cwd(), first?.top), check, print, failed: false, env };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
     linkNpm(work, consumer);
