@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isTestFile } from './check-commits.mts';
 import { calleeName, isNode, parseScript, walk } from './script-ast.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -20,8 +21,9 @@ const REGISTRATIONS = new Set(['test', 'it', 'describe', 'suite']);
 const NARROWING = new Set(['skip', 'only', 'todo']);
 const SCRIPT = /\.[cm]?[jt]sx?$/;
 const PYTHON = /\.py$/;
-// The Python helper that reads the markers of a Python test from its syntax tree (K345), run by the python3 of the checkout.
-const PYTHON_HELPER = 'scripts/kit/markers/python.py';
+// The Python helper that reads the markers of a Python test from its syntax tree (K345), run by the python3 of the checkout. It lies
+// beside this module, in scripts/kit of kit and in dist of the package, since a consumer holds no scripts/kit (K345-1).
+export const PYTHON_HELPER = fileURLToPath(new URL('./markers/python.py', import.meta.url));
 // The names that the context of a node:test test goes by.
 const TEST_CONTEXT = /^(?:t|tt|ctx|context|subtest)$/;
 
@@ -51,8 +53,8 @@ type PythonReading = { path: string; markers: { line: number; marker: string }[]
 
 /** The findings of the Python test `text` of `file`, read by the python3 of the checkout `root` (K345). */
 function pythonFindings(root: string, file: string, text: string): string[] {
-  const result = spawnSync(toolCommand(root, 'python3'), ['-I', path.join(root, PYTHON_HELPER), '-'], { cwd: root, env: toolsEnvironment(root), input: text, encoding: 'utf8' });
-  if (result.error || result.status !== 0) throw new Error(`${PYTHON_HELPER} could not read ${file}: ${result.error?.message ?? result.stderr.trim()}`);
+  const result = spawnSync(toolCommand(root, 'python3'), ['-I', PYTHON_HELPER, '-'], { cwd: root, env: toolsEnvironment(root), input: text, encoding: 'utf8' });
+  if (result.error || result.status !== 0) throw new Error(`the marker helper ${PYTHON_HELPER} could not read ${file}: ${result.error?.message ?? result.stderr.trim()}`);
   const [reading] = parseJson<PythonReading[]>(result.stdout, 'python-markers.schema.json', `${PYTHON_HELPER} ${file}`);
   if (reading === undefined) throw new Error(`${PYTHON_HELPER} printed no reading of ${file}`);
   if (reading.error) return [`${file}:${reading.error.line}: does not parse (${reading.error.message}), so its markers are not read`];

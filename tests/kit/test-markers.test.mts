@@ -1,8 +1,11 @@
 // Tests of scripts/kit/test-markers.mts: no test is skipped or narrowed by a marker (K255). A TypeScript or JavaScript test
 // is read with its parser, so a marker inside a string, such as a fixture of a test, is no marker.
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
-import { markerFindings } from '../../scripts/kit/test-markers.mts';
+import { fileURLToPath } from 'node:url';
+import { markerFindings, PYTHON_HELPER } from '../../scripts/kit/test-markers.mts';
 
 test('a skip, only or todo marker of node:test or vitest fails, and one inside a string does not (K255)', () => {
   const text = [
@@ -57,4 +60,11 @@ test('a Python skip marker inside a string literal is no finding, and one in cod
   const sample = ['SAMPLE = "@unittest.skip(\'x\')"', 'def test_doc():', '    """Mark it with pytest.mark.skip."""', '    pass', ''].join('\n');
   assert.deepEqual(markerFindings('tests/test_orm.py', sample), [], 'a marker in a string literal or a docstring is no finding');
   assert.deepEqual(markerFindings('tests/test_orm.py', '@unittest.skip("x")\ndef test_a(): pass\n'), ['tests/test_orm.py:1: unittest.skip skips or narrows a test']);
+});
+
+// K345-1: a consumer holds no scripts/kit, so the helper is the one beside the module of the kit that runs, which kit-build ships.
+test('the Python helper of the marker check lies beside its module, and kit-build ships it (K345-1)', () => {
+  assert.ok(path.isAbsolute(PYTHON_HELPER) && existsSync(PYTHON_HELPER), PYTHON_HELPER);
+  assert.equal(path.dirname(path.dirname(PYTHON_HELPER)), path.dirname(fileURLToPath(import.meta.resolve('../../scripts/kit/test-markers.mts'))));
+  assert.match(readFileSync(new URL('../../Makefile', import.meta.url), 'utf8'), /^\tcp -R scripts\/kit\/markers dist\.next\/markers$/m);
 });
