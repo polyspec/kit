@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 86f7453c90dff7c58805318f33e4c3b64041891f7127e867d26f81704f7093ec -->
+<!-- source-sha256: f4fbe922fd69709e1546f80608745ff718ef1558a4c1e7f638c3f2565b821981 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link rebuild`는 consumer의 링크된 Composer project마다 link 파일로 `composer dump-autoload`를 실행하므로, provider가
+  파일을 지운 뒤에도 autoload는 있는 파일만 적는다(K347).
 - test-markers-check는 checkout의 Python의 ast module로 Python 파일의 syntax tree에서 marker를 읽으므로, 문자열이나
   docstring 안의 skip marker는 finding이 아니다(K345).
 - twin driver는 git이 `CHANGELOG.md`를 merge하는 방식대로, 그 파일의 merge attribute로 `CHANGELOG.ko.md`를 merge하고

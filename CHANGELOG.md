@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `link rebuild` runs `composer dump-autoload` on the link files of each linked Composer project of the consumer, so its
+  autoload names only files that exist after a provider removed one (K347).
 - test-markers-check reads the markers of a Python file from its syntax tree, with the ast module of the Python of the
   checkout, so a skip marker inside a string literal or a docstring is no finding (K345).
 - The twin driver merges `CHANGELOG.ko.md` and computes its marker as git merges `CHANGELOG.md`, by the merge attribute of
