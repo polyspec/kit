@@ -6,8 +6,10 @@
 //             (symlink) per provider folder in front of the repositories, a copy of the lock, and a partial composer update of
 //             the polyspec packages and the path packages of the project, so the record, the autoload rules and the platform
 //             check come from the composer.json of each folder;
-//   Python    each declared polyspec package, each polyspec package below it and the consumer's own project are installed as
-//             editable installs of their folders (K316, `uv pip install -e`), with no sync (K239): no wheel is built or kept;
+//   Python    each declared polyspec package and each polyspec package below it is installed from an editable wheel that link
+//             writes into var/link/python (K398): the metadata of its pyproject.toml and a .pth of its import root, no source, so
+//             the folder is only read; the consumer's own project is an editable install of its folder (K316, K224, `uv pip install -e`);
+//             there is no sync (K239);
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
@@ -21,6 +23,8 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { crc32 } from 'node:zlib';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
@@ -493,8 +497,9 @@ export function refreshComposerAutoload({ directories, print, env = process.env 
 }
 
 // --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
-// as an editable install of its folder (`uv pip install -e <folder>`, K316): the environment finds the sources in the folder, no
-// wheel is built or kept, and uv checks Requires-Python and the requirements at that install.
+// from an editable wheel that link writes (K398): its metadata and a .pth naming its import root, no source, so the folder is only
+// read and no build backend runs. uv installs the wheel with its dependencies and checks Requires-Python at that install. The
+// consumer's own project is installed as an editable install of its folder (K224).
 
 /** The environment of the pyproject `file` and its uv workspace, or why there is none. */
 function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
@@ -575,12 +580,12 @@ function pylockReleases(lock: string, names: readonly string[]): { pins: { name:
 }
 
 /**
- * The overrides of an install of the linked packages (K237, K316-1): each linked package is the editable install of the folder of its
- * checkout, also where another package requires it by its release URL. The line `-e <folder>` is the form that keeps the install
- * editable; the line `name @ file://<folder>` makes uv take a non-editable requirement that beats the `-e` of the command line.
+ * The overrides of an install of the linked packages (K237, K316-1, K398): each provider is named by its wheel, so that another package
+ * that requires it by its release URL takes the wheel, a requirement that beats the one of the command line; a project of the consumer
+ * is named by `-e <folder>`, the form that keeps its install editable.
  */
-function linkedOverrides(consumer: Consumer, venv: string, ready: readonly Provider[]): string {
-  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(provider => `-e ${provider.folder}`));
+function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string | undefined }[]): string {
+  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => (wheel === undefined ? `-e ${provider.folder}` : `${provider.name} @ ${pathToFileURL(wheel).href}`)));
 }
 
 /**
@@ -701,6 +706,124 @@ function projectVersion(file: string): string | undefined {
   return typeof version === 'string' ? version : undefined;
 }
 
+/**
+ * The metadata of the editable wheel of a provider `folder` (K398), read from its pyproject.toml: the [project] table, and `root`, the
+ * import root of its .pth. The build backend is never run, so a provider whose metadata the backend computes is refused, with the reason
+ * as a string: a dynamic field, a package-dir of other than the root "", or a build backend that compiles code.
+ */
+type PythonWheel = { name: string; version: string; requiresPython: string | undefined; requires: string[]; scripts: [string, string][]; root: string };
+
+/** The build backends that compile code (K398): their metadata and their extension modules come from a build that link does not run. */
+const COMPILED_BACKENDS = ['maturin', 'scikit_build_core', 'mesonpy'];
+
+/** The [project] fields that a build backend may compute, which the wheel cannot take from the pyproject.toml (K398). */
+const DYNAMIC_FIELDS = ['version', 'dependencies', 'requires-python', 'scripts'];
+
+function pythonWheel(folder: string): PythonWheel | string {
+  const file = path.join(folder, MANIFESTS.python);
+  const document = readTomlFile(file);
+  const project = document.project;
+  if (!isJsonObject(project) || typeof project.name !== 'string') return `${file} declares no [project] name`;
+  const dynamic = declaredList(project.dynamic).map(String).filter(field => DYNAMIC_FIELDS.includes(field));
+  if (dynamic.length) return `${file} declares ${dynamic.join(', ')} dynamic: its build backend computes it`;
+  if (typeof project.version !== 'string') return `${file} declares no static version`;
+  const system = document['build-system'];
+  const backend = isJsonObject(system) && typeof system['build-backend'] === 'string' ? system['build-backend'] : '';
+  if (COMPILED_BACKENDS.some(name => backend.startsWith(name))) return `build backend ${backend} compiles code`;
+  const tool = document.tool;
+  const setuptools: Record<string, unknown> = isJsonObject(tool) && isJsonObject(tool.setuptools) ? tool.setuptools : {};
+  const setup = path.join(folder, 'setup.py');
+  if (setuptools['ext-modules'] !== undefined || (existsSync(setup) && /ext_modules|Extension\(/.test(readFileSync(setup, 'utf8')))) return `${folder} compiles extension modules`;
+  const packageDir = setuptools['package-dir'] ?? {};
+  if (!isJsonObject(packageDir) || Object.entries(packageDir).some(([key, value]) => key !== '' || typeof value !== 'string')) return `${file} maps package-dir of other than the root ""`;
+  const requires = declaredList(project.dependencies);
+  if (!requires.every((item): item is string => typeof item === 'string')) return `${file} declares a dependency that is not a string`;
+  const scripts = Object.entries(isJsonObject(project.scripts) ? project.scripts : {});
+  if (scripts.some(([, target]) => typeof target !== 'string')) return `${file} declares a script that is not a string`;
+  const mapped = packageDir[''];
+  const requiresPython = project['requires-python'];
+  return {
+    name: project.name,
+    version: project.version,
+    requiresPython: typeof requiresPython === 'string' ? requiresPython : undefined,
+    requires,
+    scripts: scripts.map(([name, target]) => [name, String(target)]),
+    root: typeof mapped === 'string' ? path.join(folder, mapped) : existsSync(path.join(folder, 'src')) ? path.join(folder, 'src') : folder,
+  };
+}
+
+/** The entries of the wheel of `wheel` (K398): its dist-info (METADATA, WHEEL, entry_points.txt when it has scripts, RECORD) and the .pth. */
+function wheelEntries(wheel: PythonWheel): { name: string; data: Buffer }[] {
+  const dist = normalizeName(wheel.name).replace(/-/g, '_');
+  const info = `${dist}-${wheel.version}.dist-info`;
+  const text = (lines: readonly string[]) => Buffer.from(`${lines.join('\n')}\n`, 'utf8');
+  const entries = [
+    { name: `${info}/METADATA`, data: text(['Metadata-Version: 2.1', `Name: ${wheel.name}`, `Version: ${wheel.version}`, ...(wheel.requiresPython === undefined ? [] : [`Requires-Python: ${wheel.requiresPython}`]), ...wheel.requires.map(requirement => `Requires-Dist: ${requirement}`)]) },
+    { name: `${info}/WHEEL`, data: text(['Wheel-Version: 1.0', 'Generator: polyspec-kit-link', 'Root-Is-Purelib: true', 'Tag: py3-none-any']) },
+    ...(wheel.scripts.length ? [{ name: `${info}/entry_points.txt`, data: text(['[console_scripts]', ...wheel.scripts.map(([name, target]) => `${name} = ${target}`)]) }] : []),
+    { name: `__editable__.${dist}.pth`, data: text([wheel.root]) },
+  ];
+  const record = [...entries.map(({ name, data }) => `${name},sha256=${createHash('sha256').update(data).digest('base64url')},${data.length}`), `${info}/RECORD,,`];
+  return [...entries, { name: `${info}/RECORD`, data: text(record) }];
+}
+
+/** A zip archive of `entries`, each stored without compression and dated 1980-01-01, so that its bytes are the same on each run (K398). */
+function zipOf(entries: readonly { name: string; data: Buffer }[]): Buffer {
+  const dosDate = 0x21;
+  const parts: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const { name, data } of entries) {
+    const bytes = Buffer.from(name, 'utf8');
+    const checksum = crc32(data);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(0x0800, 6);
+    header.writeUInt16LE(dosDate, 12);
+    header.writeUInt32LE(checksum, 14);
+    header.writeUInt32LE(data.length, 18);
+    header.writeUInt32LE(data.length, 22);
+    header.writeUInt16LE(bytes.length, 26);
+    const record = Buffer.alloc(46);
+    record.writeUInt32LE(0x02014b50, 0);
+    record.writeUInt16LE(20, 4);
+    record.writeUInt16LE(20, 6);
+    record.writeUInt16LE(0x0800, 8);
+    record.writeUInt16LE(dosDate, 14);
+    record.writeUInt32LE(checksum, 16);
+    record.writeUInt32LE(data.length, 20);
+    record.writeUInt32LE(data.length, 24);
+    record.writeUInt16LE(bytes.length, 28);
+    record.writeUInt32LE(offset, 42);
+    parts.push(header, bytes, data);
+    central.push(record, bytes);
+    offset += header.length + bytes.length + data.length;
+  }
+  const directory = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...parts, directory, end]);
+}
+
+/** Writes the editable wheel of `wheel` into var/link/python of the consumer, and returns its path (K398). */
+function writeWheel(consumer: Consumer, wheel: PythonWheel): string {
+  const file = linkFile(consumer.top, path.join('python', `${normalizeName(wheel.name).replace(/-/g, '_')}-${wheel.version}-py3-none-any.whl`));
+  writeAtomic(file, zipOf(wheelEntries(wheel)));
+  return file;
+}
+
+/** The script that writes the PEP 610 record of an editable install of the folder named by its URL (argv 2) over the direct_url.json of the distribution named by argv 1 (K398). */
+const WRITE_DIRECT_URL = [
+  'import importlib.metadata as metadata, json, pathlib, sys',
+  "record = next(file for file in metadata.distribution(sys.argv[1]).files if file.name == 'RECORD')",
+  "pathlib.Path(record.locate()).parent.joinpath('direct_url.json').write_text(json.dumps({'url': sys.argv[2], 'dir_info': {'editable': True}}))",
+].join('\n');
+
 function linkPython(work: Run, consumer: Consumer) {
   const files = consumer.manifests('python');
   if (!files.some(file => declaredPython(file).length)) return;
@@ -721,8 +844,13 @@ function linkPython(work: Run, consumer: Consumer) {
   for (const [venv, { workspace, names, projects }] of byVenv) {
     if (!names.size) continue;
     const installed = installedPython(uv, venv);
+    // The wheel metadata of each provider, read before any install: a provider whose metadata kit cannot read is refused (K398).
+    const wheels = new Map<string, PythonWheel>();
     const linked = [
       ...closure(work, consumer, names).filter((provider) => {
+        const wheel = pythonWheel(provider.folder);
+        if (typeof wheel === 'string') { unlinkable(work, 'python', provider.name, wheel); return false; }
+        wheels.set(provider.name, wheel);
         // A declared package that the environment lacks (a sync of the consumer's install leaves out the polyspec packages and removes
         // the editables of an earlier link) is installed as the editable of its folder, as one over a release wheel is (K316-2); its
         // pin is the version of the folder then.
@@ -762,8 +890,12 @@ function linkPython(work: Run, consumer: Consumer) {
     }
     // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
     // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
-    const ready = linked;
-    const lockedNames = new Set(ready.map(provider => normalizeName(provider.name)));
+    // Each provider is installed from the wheel that link writes for it (K398); a project of the consumer is installed from its folder.
+    const ready = linked.map(provider => {
+      const wheel = wheels.get(provider.name);
+      return { provider, wheel: wheel === undefined ? undefined : writeWheel(consumer, wheel) };
+    });
+    const lockedNames = new Set(ready.map(({ provider }) => normalizeName(provider.name)));
     const constraints = pylock === undefined ? lockedConstraints(consumer, uv, workspace, venv, lockedNames) : pylockConstraints(consumer, pylock, venv, lockedNames);
     const overrides = linkedOverrides(consumer, venv, ready);
     // A project of the consumer's own environment is installed with --no-deps (K280): the consumer's lock sync provides its
@@ -771,12 +903,16 @@ function linkPython(work: Run, consumer: Consumer) {
     const own = new Set(projects.map(project => project.name));
     const python = path.join(venv, 'bin/python');
     const installs = [
-      { flags: ['--constraints', constraints, '--overrides', overrides], providers: ready.filter(provider => !own.has(provider.name)) },
-      { flags: ['--no-deps'], providers: ready.filter(provider => own.has(provider.name)) },
+      { flags: ['--constraints', constraints, '--overrides', overrides], items: ready.filter(({ provider }) => !own.has(provider.name)) },
+      { flags: ['--no-deps'], items: ready.filter(({ provider }) => own.has(provider.name)) },
     ];
-    for (const { flags, providers } of installs) {
-      if (!providers.length) continue;
-      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...providers.flatMap(provider => ['--reinstall-package', provider.name]), ...providers.flatMap(provider => ['-e', provider.folder])], { cwd: consumer.top, env: uv.env });
+    for (const { flags, items } of installs) {
+      if (!items.length) continue;
+      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...items.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...items.flatMap(({ provider, wheel }) => (wheel === undefined ? ['-e', provider.folder] : [wheel]))], { cwd: consumer.top, env: uv.env });
+      // The wheel records its install as a non-editable one of its file: the PEP 610 record is written as the editable install of the folder (K398).
+      for (const { provider, wheel } of items) {
+        if (wheel !== undefined) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: venv, env: work.env });
+      }
     }
     reportLinks(stateOf(linked.map(provider => provider.name)), true);
   }
