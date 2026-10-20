@@ -121,6 +121,10 @@ jobs:
       - name: rules check
         if: ${{ !cancelled() }}
         run: make rules-check
+      # No test, script or Makefile impersonates CI, assumes a gate up to date or skips a hook (K308).
+      - name: bypass check
+        if: ${{ !cancelled() }}
+        run: make bypass-check
       # Every installed 0.0.x polyspec package is a link that resolves, or nothing is linked; CI links nothing, so it passes (K305-1).
       - name: link state check
         if: ${{ !cancelled() }}

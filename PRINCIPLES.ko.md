@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: c91d82072995fd4e82d99ae2bbda77be1f3e614ad90d9f572b6c0538d7a61466 -->
+<!-- source-sha256: 2eec03576ec78cc7b4ac0df006ebba00adfb4ae5f4cb45a04c71c730cee6c0c0 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -124,6 +124,9 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - P30 0.0.x 개발 중 저장소는 다른 저장소의 package를 link로만 쓴다. 설치된 polyspec package 폴더는 제공자 폴더를 가리키는
   심볼릭 링크이며 사본이 아니고, link는 설치된 릴리스 버전으로 간주한다. 버전은 설치할 때만 검사한다 (K305-1).
   Enforced by: `make link-state-check`
+- P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
+  `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
+  Enforced by: `make bypass-check`
 
 ## Repository 기준
 
