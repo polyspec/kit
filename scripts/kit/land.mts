@@ -13,7 +13,8 @@
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
@@ -37,14 +38,19 @@ function worktreeOf(root: string, branch: string): string | undefined {
 // A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
 const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
 
+// A path inside the temporary folder of the system, which a gate may make afresh on each run, as duplication-check makes the
+// folder of its jscpd configuration (K394-2).
+const TEMPORARY = new RegExp(`(?:${[...new Set([tmpdir(), realpathSync(tmpdir())])].map(folder => folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})/[^\\s'"]*`, 'g');
+
 /**
  * The lines of `output`, a gate's stdout and stderr run in `folder`, each with its key: every occurrence of the folder of the
- * worktree replaced by `root`, every run of digits by #; blank lines are dropped.
+ * worktree replaced by `root`, every path inside the temporary folder of the system by <tmp>, every run of digits by #; blank
+ * lines are dropped.
  */
 function linesOf(output: string, folder: string, root: string): { line: string; key: string }[] {
   return output
     .split('\n')
-    .map(line => ({ line, key: line.split(folder).join(root).replace(/\d+/g, '#') }))
+    .map(line => ({ line, key: line.split(folder).join(root).replace(TEMPORARY, '<tmp>').replace(/\d+/g, '#') }))
     .filter(({ key }) => key.trim() !== '');
 }
 

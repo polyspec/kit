@@ -115,6 +115,34 @@ test('land refuses a gate that fails only on a finding that main does not have (
   assert.equal(git(main, 'rev-parse', 'main'), mainC, 'main is unchanged after the refusal of a gate green on main');
 });
 
+// K394-2: duplication-check prints the jscpd configuration that it writes into a fresh temporary folder, so a gate whose findings
+// agree on the branch and on main still prints a line that differs on each run.
+test('land compares the output of a gate without the temporary folders that it makes on each run (K394-2)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // fresh-x prints a path in a new temporary folder on each run, as duplication-check does, and fails with the finding of main.
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check fresh-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'fresh-x:', '\t@folder=$$(mktemp -d); echo "Using config from $$folder/jscpd.json"; rmdir "$$folder"; echo "finding: src/a.txt"; exit 1'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['fresh-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-feat-a');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-a', 'main');
+  put(folder, { 'src/b.txt': 'b\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'feat-a');
+  const head = git(main, 'rev-parse', 'feat-a');
+  const printed: string[] = [];
+  land(main, 'feat-a', { print: text => printed.push(text) });
+  assert.equal(git(main, 'rev-parse', 'main'), head, 'main fast-forwards to the branch');
+  assert.ok(printed.includes('fresh-x fails on main too, with no finding that main does not have'), printed.join('\n'));
+});
+
 test('land selects no gate that runs tests (K394-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
