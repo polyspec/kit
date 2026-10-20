@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6f12d1dd92b02e78ab1cb0ed30d975c9e1f9145c4fe617878025aefdea42ec25 -->
+<!-- source-sha256: 7e718157d0d300c4f85214651dc1f012718ffc6cf5fa469a3cb2f648bb0da2f0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer project가 linked인 동안 `make dependency-review UPDATE=1`은 `composer.link.json`에 쓰는 새 범위를 tracked
+  `composer.json`에도 쓴다(tracked manifest로 `composer require --no-update`). tracked lock은 release 검사를 기다린다.
+  red: 범위가 link manifest에만 쓰였다. green: `node --test --test-name-pattern=K392-1 tests/kit/dependency-review.test.mts`가
+  통과한다 (K392-1).
 - `make test-php-ext CASES=<pattern>`은 각 PHP library에서 filter가 고르는 test를 그 library run의 명령으로 실행한
   PHPUnit 자신의 `--list-tests --filter`에서 받으므로 `#[Test]` method, data provider, 상속된 test도 센다. K390의 `function
   test…` method 읽기는 지웠다. red: 맞는 test가 접두어 없는 `#[Test]` method뿐인 library가 no case selected로 보고되었다.

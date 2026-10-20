@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- While a Composer project is linked, `make dependency-review UPDATE=1` writes each new range into the tracked
+  `composer.json` too (`composer require --no-update` with the tracked manifest), as it writes it into
+  `composer.link.json`; the tracked lock waits for the check of the release. Red: the range went only into the link
+  manifest; green: `node --test --test-name-pattern=K392-1 tests/kit/dependency-review.test.mts` passes (K392-1).
 - `make test-php-ext CASES=<pattern>` takes the tests that the filter selects in each PHP library from PHPUnit itself,
   `--list-tests --filter` with the command of the run of that library, so a `#[Test]` method, a data provider and an
   inherited test count; the reading of `function test…` methods of K390 is removed. Red: a library whose only matching
