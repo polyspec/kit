@@ -8,7 +8,8 @@
 //   node scripts/kit/parity.mts [--declarations] [--unit <id>]...
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
-//                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221)
+//                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
+//                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400)
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no public symbol in an implementation, or the extractor of
@@ -85,12 +86,13 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     const unknown = units?.filter(id => !known.has(id)) ?? [];
     if (unknown.length) return { findings: unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION })), ledger };
     if (execute) say(`--unit ${[...selected].join(', ')}: only their bindings (R3) run; the cross-unit rules (R1, R2, R4 to R11) need every unit and do not run`);
+    else say(`--unit ${[...selected].join(', ')}: only the findings of these units and of ${DECLARATION} itself count`);
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
   for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
   const executed = execute ? runBindings(model, root, { env, files, say, units: selected }) : { ledger, findings: [] };
-  if (selected !== undefined) return { findings: executed.findings, ledger: executed.ledger };
+  if (selected !== undefined && execute) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
   say('check the units against the tree');
   const findings = [
@@ -107,7 +109,9 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...undeclaredPublic(model, extracted.snapshots),
     ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8'), model.cases),
   ];
-  return { findings, ledger: executed.ledger };
+  // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
+  const named = selected === undefined ? findings : findings.filter(item => (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)));
+  return { findings: named, ledger: executed.ledger };
 }
 
 if (isMain(import.meta.url)) {

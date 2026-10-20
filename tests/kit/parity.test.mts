@@ -1601,6 +1601,35 @@ test('--unit with an id that no unit of the declaration holds is an error that n
   assert.doesNotMatch(unknown.stdout, /\[parity\] run /);
 });
 
+// K400: a row that fixes the declarations of its units verifies them alone, while the units of other rows still have findings.
+test('parity-declarations-check UNITS reports the findings of the named units and of config/parity.json only (K400)', TIMEOUT, (t) => {
+  const root = repository(t, { edit: config => {
+    itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements = ['CX-9'];
+    return config;
+  } });
+  const declarations = (units?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, units }).findings;
+  const width = declarations().filter(item => item.unit === 'width');
+  assert.ok(width.length > 0, keys(declarations()).join('\n'));
+  assert.deepEqual(keys(declarations(['width'])), keys(width), 'the findings of width, the unit still failing');
+  assert.deepEqual(declarations(['codec']), [], 'codec, the unit fixed, has no finding of its own');
+  const make = (directory: string, units: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `UNITS=${units}`], { cwd: directory, env: ENV, encoding: 'utf8' });
+  const fixed = make(root, 'codec');
+  assert.equal(fixed.status, 0, fixed.stdout + fixed.stderr);
+  const failing = make(root, 'width');
+  assert.notEqual(failing.status, 0, failing.stdout + failing.stderr);
+  assert.match(failing.stderr, /\[parity\] R14 unknown-requirement width: cites CX-9/);
+  assert.doesNotMatch(failing.stderr, / codec[ :]/);
+  // A finding of config/parity.json itself counts with any units: a binding named twice in size fails the check of codec.
+  const twice = repository(t, { edit: config => {
+    const size = itemWhere(config.units, (entry: { id: string }) => entry.id === 'size');
+    size.bindings = [...size.bindings ?? [], binding(config, 'size', 'go')];
+    return config;
+  } });
+  const declaration = make(twice, 'codec');
+  assert.notEqual(declaration.status, 0, declaration.stdout + declaration.stderr);
+  assert.match(declaration.stderr, /R12 .* size go config\/parity\.json: .*names go twice/);
+});
+
 test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a class is a group, a method a case (K47)', TIMEOUT, (t) => {
   // The messages of PHPUnit 11 for a class with a passing and a failing test method, as the php runner reads them.
   const teamcity = [

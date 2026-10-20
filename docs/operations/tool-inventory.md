@@ -1419,6 +1419,8 @@ checks every rule except R1, R3 and R11 and runs nothing. Both are offline, prin
 `make parity-check UNITS="<id> <id>"` (K221) runs only the bindings (R3) of the named units, through the same runners, cwd and reader as a full run, and
 reports their outcomes with the same ledger lines. The cross-unit rules (R1, R2, R4 to R11) need every unit, so that run prints one line that says they do not run.
 An id that no unit of `config/parity.json` holds fails the run and names it; no run starts.
+`make parity-declarations-check UNITS="<id> <id>"` (K400) reports only the findings that name the units and those of `config/parity.json` itself,
+so a row that fixes the declarations of its units passes while other units still have findings; without UNITS it reports every finding.
 
 | Module | Concern |
 |---|---|
