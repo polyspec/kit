@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3b096976f81100407518e65e84d08a88fc63a55619b14e38388f745fd31a46d1 -->
+<!-- source-sha256: 5d047a077bfa44e6fa63e40923ff4c11e833cd242edced97e1a939bf05551cbe -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -72,3 +72,4 @@
 | K276-1 | suite가 admit list를 선언하지 않는다: 모든 구현이 모든 suite의 모든 case를 실행한다 (S6) | scripts/kit/parity-declaration.mts, scripts/kit/parity-ledger.mts, scripts/kit/parity.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity.test.mts | `node --test tests/kit/parity.test.mts` | [o] |
 | K283 | make install-tools는 .php-version의 PHP를 탐색하고 var/tools/bin의 wrapper로 제공한다 | scripts/kit/install-php.mts, scripts/kit/install-tools.mts, scripts/kit/check-toolchain.mts, tests/kit/install-php.test.mts, AGENTS.md, docs/operations/tool-inventory.md | `node --test tests/kit/install-php.test.mts` | [o] |
 | K277 | R15는 directory suite의 case file을 suite의 vector file처럼 읽는다 | scripts/kit/parity-requirements.mts | `node --test tests/kit/parity-requirements.test.mts` | [o] |
+| K280 | link는 연결된 각 provider package의 dependency를 설치하지만 consumer 자신의 environment의 각 project는 --no-deps로 설치한다 | scripts/kit/link.mts, tests/kit/link.test.mts, docs/operations/local-links.md, docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [o] |

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7d42177b0a48a234159ef983b3626bdb351edd53f7f9a7c6adb3e03853d8ac54 -->
+<!-- source-sha256: 47646c791792695e5dc6ece0ed6c20a0aab7e610aecabf2653f54e1cfc648902 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 - `make install-tools`는 `.php-version`의 PHP를 탐색해서 제공한다: PATH의 해당 minor `php`, 없으면 apt의 `php<minor>`, 없으면 Homebrew의 `opt/php@<minor>` keg. Composer 설치 전에 php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰므로, machine이 어떤 PHP를 PATH 앞에 두어도 모든 저장소가 고정된 PHP로 실행되고, 일치하는 것이 없으면 시도한 목록과 함께 실패한다. Red: `node scripts/kit/run-tests.mts node -- tests/kit/install-php.test.mts` 0 passed, 9 failed; green: 9 passed (K283).
+- link는 소비자 자신의 환경의 각 프로젝트를 `--no-deps`로, 연결된 각 provider를 dependency와 함께 두 번의 install로 설치합니다. 소비자 자신의 프로젝트의 dependency는 소비자의 lock sync가 제공하므로, 다른 방식으로 제공되는 path dependency를 가진 프로젝트가 더는 install을 실패시키지 않습니다 (K280).
+
 - directory suite의 case directory는 자신이 test하는 requirement를 `case.json`의 `requirements`(JSON으로 읽음)에 나열합니다. R15는 unit의 case 집합의 case.json 하나가 나열한 id를 이름이 있는 것으로 세고, 없거나 형식이 틀린 case.json은 declaration finding이며, docs/spec이 정의하지 않는 id는 R14입니다. unit은 `caseFile`을 선언해 그 파일을 가진 case directory만 가질 수 있습니다 (K277).
 
 ## 0.0.54

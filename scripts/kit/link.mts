@@ -664,7 +664,18 @@ function linkPython(work: Run, consumer: Consumer) {
     // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
     const constraints = lockedConstraints(consumer, uv, workspace, venv, new Set(ready.map(({ provider }) => normalizeName(provider.name))));
     const overrides = linkedOverrides(consumer, venv, ready);
-    run(uv.command, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '--constraints', constraints, '--overrides', overrides, ...ready.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...ready.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
+    // A project of the consumer's own environment is installed with --no-deps (K280): the consumer's lock sync provides its
+    // dependencies, and a dependency that the lock provides another way (a path dependency of no index) cannot be resolved here.
+    const own = new Set(projects.map(project => project.name));
+    const python = path.join(venv, 'bin/python');
+    const installs = [
+      { flags: ['--constraints', constraints, '--overrides', overrides], wheels: ready.filter(({ provider }) => !own.has(provider.name)) },
+      { flags: ['--no-deps'], wheels: ready.filter(({ provider }) => own.has(provider.name)) },
+    ];
+    for (const { flags, wheels } of installs) {
+      if (!wheels.length) continue;
+      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...wheels.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...wheels.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
+    }
     reportLinks(stateOf(linked.map(provider => provider.name)), true);
   }
 }
