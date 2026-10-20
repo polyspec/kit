@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8cdcea7aa8a0cd31ea43ec12b156cb04d5af38e1665cb1748eda33700337bf49 -->
+<!-- source-sha256: e59474a72182934b20cceece9f46f182b372888c0cd7b23171fccdf7fb700c47 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 `make hooks`가 쓰는 commit-msg hook(K380)을 추적하므로 kit 자신의 commit도 만들 때 검사되고 kit에서 `make
+  hooks-check`가 통과한다. red: kit에서 `make hooks-check`가 `.githooks/commit-msg`를 말하며 실패했다. green: `make
+  hooks-check`가 통과한다 (K391).
 - `make duplication-check`는 PHP extension의 S10 stub `packages/php-ext/src/polyspec_*.stub.php`를 경로로 제외한다. S10이
   stub에 library를 같은 이름과 signature로 선언하게 하기 때문이다. library 안의 clone은 계속 세며
   docs/operations/tool-inventory.md가 그 이유를 말한다. red: jscpd가 library class를 따라 쓴 stub을 보고했다. green:

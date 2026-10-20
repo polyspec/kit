@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- kit tracks the commit-msg hook that `make hooks` writes (K380), so its own commits are checked when they are made,
+  and `make hooks-check` passes in kit. Red: `make hooks-check` failed in kit, naming `.githooks/commit-msg`; green:
+  `make hooks-check` passes (K391).
 - `make duplication-check` leaves out the S10 stub of a PHP extension, `packages/php-ext/src/polyspec_*.stub.php`, by
   its path, since S10 makes it declare the library under the same names and signatures; clones inside the library stay
   counted, and docs/operations/tool-inventory.md states the reason. Red: jscpd reported a stub that mirrors a library
