@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make item-red ID=` runs the Verification of an active row after its test is written and before its fix, requires a failure and
+  records it; `make commit` writes it as a Red-Test line into each commit of the row, and the done state of `make item-state`
+  requires the record or such a line in the history, which holds on an ancestor of the parent after a rebase.
+  `make item-red ID= BEFORE=<rev>` proves the red of a row committed without a record, on the sources of `<rev>` (K389).
 - A binding of `config/parity.json` may declare `runner` with `reason`: its test runs with the program, arguments and output parser
   of that runner, and it still counts as the binding of its implementation for R2 and R3, so a PHP extension whose contract a node
   test of its C engine checks can bind; a runner without a reason, or a reason without a runner, is a finding of the declaration

@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3960d59ac152a8e61ec8903dccaa3794d027327855c5752f29bf84722011fcfd -->
+<!-- source-sha256: d430c7ecb04f3d507820f5b0eb85ee65f3bf594e7f6a0dd3b62c140b1460ca0d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-red ID=`는 active 행의 Verification을 test 작성 뒤, fix 전에 실행해 실패를 요구하고 기록한다. `make commit`은
+  그 기록을 행의 각 커밋에 Red-Test 줄로 쓰고, `make item-state`의 done 상태는 그 기록이나 history의 그런 줄을 요구하며,
+  그 줄은 rebase 뒤 parent의 조상에서도 성립한다. `make item-red ID= BEFORE=<rev>`는 기록 없이 커밋된 행의 red를 `<rev>`의
+  source로 증명한다(K389).
 - `config/parity.json`의 binding은 `runner`를 `reason`과 함께 선언할 수 있다. 그 test는 그 runner의 program, argument, 출력
   parser로 실행되고 R2와 R3에서 여전히 구현의 binding으로 세므로, C engine의 node test가 계약을 확인하는 PHP extension도
   binding할 수 있다. reason 없는 runner나 runner 없는 reason은 선언의 finding이다(K422).
