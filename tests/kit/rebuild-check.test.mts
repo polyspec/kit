@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { rebuildFindings } from '../../scripts/kit/rebuild-check.mts';
+import { rebuildFindings, toolSources } from '../../scripts/kit/rebuild-check.mts';
 import type { RebuildDeclaration } from '../../scripts/kit/rebuild-check.mts';
 import { tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
@@ -84,6 +84,18 @@ test('a tool source that the layout finds is a finding, whatever the declaration
     'benchmarks/run.js: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
     'packages/codec/tools/make.mjs: the tool has no class in config/rebuild.json; declare it ecosystem, replaced, record or policy',
   ]);
+});
+
+test('the vendored copies of the installed kit are no tool sources of a consumer, and kit own files are (K294)', (t) => {
+  const files = {
+    'package.json': JSON.stringify({ name: 'consumer', version: '1.0.0' }),
+    'package-lock.json': '{}',
+    'node_modules/@polyspec/kit/package.json': JSON.stringify({ name: '@polyspec/kit', version: '1.0.0', kit: { copies: { 'scripts/kit/bootstrap/files.mts': 'scripts/kit/bootstrap/files.mts', 'scripts/kit/kit.mk': 'scripts/kit/kit.mk' } } }),
+    'scripts/kit/bootstrap/files.mts': '',
+    'scripts/kit/kit.mk': '',
+    'scripts/own.mts': '',
+  };
+  assert.deepEqual(toolSources(tree(t, files), Object.keys(files)), ['scripts/own.mts']);
 });
 
 test('the command checks config/rebuild.json of the checkout it runs in and fails with each finding', (t) => {

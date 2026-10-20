@@ -13,8 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { isTestFile } from './check-commits.mts';
-import { copiesOf, PACKAGE } from './kit-check.mts';
-import { readNpmManifest } from './manifests.mts';
+import { installedKit, isSource } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -42,10 +41,13 @@ const TOOL_SOURCES = [
 // A test is no tool, and a fixture generator is the one test-side tool.
 const isToolSource = (file: string) => matchesAny(TOOL_SOURCES, file) && !file.endsWith('.d.ts') && (!isTestFile(file) || matchesAny(['tests/fixtures/*/generate.*'], file));
 
-/** The tracked tool sources of `root`: the files of the layout, except the copies of kit in a repository other than kit. */
+/**
+ * The tracked tool sources of `root`: the files of the layout, except the copies of the installed kit in a repository other than
+ * kit (kit-check reports a repository whose kit is not installed).
+ */
 export function toolSources(root: string, tracked: readonly string[]): string[] {
-  const manifest = existsSync(path.join(root, 'package.json')) ? readNpmManifest(root, 'package.json') : {};
-  const copies = new Set(manifest.name === PACKAGE ? [] : copiesOf(manifest).map(({ file }) => file));
+  const kit = isSource(root) ? undefined : installedKit(root);
+  const copies = new Set(kit === undefined || 'finding' in kit ? [] : kit.copies.map(({ file }) => file));
   return tracked.filter(file => isToolSource(file) && !copies.has(file));
 }
 
