@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ac4628c1f1899d4b0aea6d5e11198b5fe1722d7fac0e41130a14c85345b1c4ea -->
+<!-- source-sha256: 5ea74a4f7578e1d8c15cfc13f712e7226b5d8a5537cba76364a4c21cea9ceecf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 prepare-commit-msg hook은 기록만 하는 commit에서 아무것도 출력하지 않는다. 오류는 계속 출력한다(K380-3).
 - `make lint-php`는 `autoload.files` 항목의 각 파일을 PHP parser로 읽고, S2가 요구하듯 namespace의 함수와 상수가 아닌
   것이 있으면 파일과 줄을 적어 실패한다(K377).
 - docs-check는 kit 자신이나 consumer 옆의 kit checkout에서 읽은 kit의 checklist에 없는 kit item을 적은 checklist row를

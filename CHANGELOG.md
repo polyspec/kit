@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The prepare-commit-msg hook of kit prints nothing on a commit, which it only records; an error still prints (K380-3).
 - `make lint-php` reads each file of an `autoload.files` entry with the PHP parser and fails, with file and line, on
   anything but namespaced functions and constants, as S2 asks (K377).
 - docs-check fails, with its file and line, a checklist row that names a kit item that the checklists of kit do not hold,
