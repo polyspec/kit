@@ -7,7 +7,7 @@ import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileMessage, identityFindings, indexItemFindings, messageFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
+import { fileMessage, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -228,5 +228,53 @@ test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257
   ]);
   const findings = rangeFindings(root, 'HEAD~4..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php\); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates .* a Red-Gate line of the commit that moves the item to done \(K357\)$/);
+  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php, tests\.rs, #\[cfg\(test\)\] or #\[test\] code of \*\.rs\); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates .* a Red-Gate line of the commit that moves the item to done \(K357\)$/);
+});
+
+test('commit-fix-test takes a Rust unit test: src/tests.rs and a change inside a cfg(test) module or a #[test] function (K370)', (t) => {
+  const lib = (adder: string, assertion: string) => [
+    `pub fn add(a: i32, b: i32) -> i32 {`,
+    `    ${adder}`,
+    '}',
+    '',
+    '#[cfg(test)]',
+    'mod tests {',
+    '    use super::*;',
+    '',
+    '    #[test]',
+    '    fn adds() {',
+    `        ${assertion}`,
+    '    }',
+    '}',
+    '',
+  ].join('\n');
+  const { root } = tracked(t, [
+    ['feat(core): Add the adder (#K370)', { 'src/lib.rs': lib('a.wrapping_add(b)', 'assert_eq!(add(1, 2), 3);') }],
+    ['fix(rust): Correct the adder with its test (#K370)', { 'src/lib.rs': lib('a.saturating_add(b)', 'assert_eq!(add(1, 2), 3, "sum");') }],
+    ['fix(rust): Correct the adder with tests.rs (#K370)', { 'src/tests.rs': '#[test]\nfn adds() {}\n' }],
+    ['fix(rust): Correct the adder without a test (#K370)', { 'src/lib.rs': lib('b.wrapping_add(a)', 'assert_eq!(add(1, 2), 3, "sum");') }],
+  ]);
+  const findings = rangeFindings(root, 'HEAD~3..HEAD', TRACKED);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', /: commit-fix-test: /);
+});
+
+test('rustTestLines: the lines of a #[cfg(test)] module, not the braces of strings, chars and comments (K370)', () => {
+  const text = [
+    'fn f() {',
+    '}',
+    '',
+    '#[cfg(test)]',
+    'mod tests {',
+    '    // }',
+    '    #[test]',
+    '    fn a() {',
+    '        let s = "{";',
+    "        let c = '{';",
+    '        /* } */ assert!(s.len() > 0);',
+    '    }',
+    '}',
+    'fn after() {}',
+  ].join('\n');
+  assert.deepEqual([...rustTestLines(text)].sort((a, b) => a - b), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 });

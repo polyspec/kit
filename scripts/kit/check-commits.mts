@@ -60,7 +60,7 @@ export type CommitMessage = { id: string; message: string; author?: string; comm
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
  * files at both sides.
  */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined };
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined; changedLines?: (file: string) => number[] };
 
 
 // A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
@@ -121,19 +121,93 @@ export const fileAt = (root: string, rev: string, file: string) => {
 };
 
 // A test file of a runner that kit fixes (S3): a file below a tests/ folder, a *.test.* or *.spec.* file of node and
-// vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file.
+// vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file. The Rust unit tests are read by changesATest (K370).
 const TEST_FILE = /(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]sx?$|_test\.go$|(?:^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/;
-const TEST_FILES = 'tests/, *.test.*, *_test.go, test_*.py, *Test.php';
+const TEST_FILES = 'tests/, *.test.*, *_test.go, test_*.py, *Test.php, tests.rs, #[cfg(test)] or #[test] code of *.rs';
 
 /** Whether `file` is a test file of a runner that kit fixes. */
 export const isTestFile = (file: string) => TEST_FILE.test(file);
+
+/**
+ * The 1-based line numbers of the Rust test code of `text` (K370): the lines from one that starts with `#[cfg(test)]` or
+ * `#[test]` through the line where the brace depth comes back to its level before the first `{` after the attribute. Braces
+ * of string literals, char literals and comments do not count. Not read: raw strings (r#"…"#), whose quotes are taken as the
+ * quotes of a plain string, and an attribute on an item without braces (`mod tests;`), which lasts to the next block.
+ */
+export function rustTestLines(text: string): Set<number> {
+  const lines = new Set<number>();
+  let depth = 0;
+  let region: { base?: number } | undefined;
+  let block = false;
+  let quote: '"' | "'" | undefined;
+  text.split('\n').forEach((line, index) => {
+    if (region === undefined && /^\s*#\[(?:cfg\(test\)|test)\]/.test(line)) region = {};
+    let ended = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (block) {
+        if (char === '*' && next === '/') {
+          block = false;
+          i++;
+        }
+      } else if (quote !== undefined) {
+        if (char === '\\') i++;
+        else if (char === quote) quote = undefined;
+      } else if (char === '/' && next === '/') {
+        break;
+      } else if (char === '/' && next === '*') {
+        block = true;
+        i++;
+      } else if (char === '"') {
+        quote = '"';
+      } else if (char === "'") {
+        if (next === '\\') quote = "'";
+        else if (line[i + 2] === "'") i += 2;
+      } else if (char === '{') {
+        if (region && region.base === undefined) region.base = depth;
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (region?.base === depth) ended = true;
+      }
+    }
+    if (region !== undefined) lines.add(index + 1);
+    if (ended) region = undefined;
+    if (quote === "'") quote = undefined;
+  });
+  return lines;
+}
+
+/**
+ * The 1-based line numbers that a `git diff -U0` text of one file adds or changes on its new side (K370): a hunk header
+ * `@@ -a,b +c,d @@` names the lines c..c+d-1, d being 1 when it is left out; a hunk that only deletes lines (d is 0) names the line c.
+ */
+export function changedLineNumbers(diff: string): number[] {
+  return [...diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)].flatMap(([, start = '1', count = '1']) => {
+    const first = Number(start);
+    return Array.from({ length: Math.max(Number(count), 1) }, (_, offset) => first + offset);
+  });
+}
+
+/**
+ * Whether the change of `file` is a test (K370): a test file of isTestFile, a tests.rs file, or a .rs file with a changed line
+ * inside its Rust test code (rustTestLines). `after` reads the file at the side of the commit and `changedLines` its changed lines.
+ */
+export function changesATest(file: string, after: (file: string) => string, changedLines: (file: string) => number[]): boolean {
+  if (isTestFile(file)) return true;
+  if (!file.endsWith('.rs')) return false;
+  if (path.posix.basename(file) === 'tests.rs') return true;
+  const regions = rustTestLines(after(file));
+  return changedLines(file).some(line => regions.has(line));
+}
 
 /**
  * The item findings of one change as `{ rule, message }`: `before` and `after` read a checklist file at the two sides of the
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [] }: Change) {
   const changes = [];
   for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
@@ -153,7 +227,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
   }
-  if (message !== undefined && message.startsWith('fix(') && !changed.some(isTestFile)) {
+  if (message !== undefined && message.startsWith('fix(') && !changed.some(file => changesATest(file, after, changedLines))) {
     // A defect that a gate of kit-gates finds has the gate as its test: the red of the gate on the parent proves it (K357).
     const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
     const done = changes.find(change => change.id === id && change.to === DONE);
@@ -165,6 +239,9 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   return found;
 }
 
+// The empty tree of git, the parent of a root commit (K370).
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
 /** The item findings of the commit `id` against its parent; a root commit is compared with an empty tree. */
 const commitItemFindings = (root: string, config: CommitRules, id: string, message: string) => {
   const parent = gitResult(root, 'rev-parse', '--verify', '--quiet', `${id}^`).status === 0 ? `${id}^` : null;
@@ -175,6 +252,7 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
     plans: [...(parent ? plansAt(root, parent) : []), ...plansAt(root, id)],
     message,
     parent: parent ? git(root, 'rev-parse', parent).trim() : undefined,
+    changedLines: file => changedLineNumbers(git(root, 'diff', '-U0', parent ?? EMPTY_TREE, id, '--', file)),
   });
 };
 
@@ -188,6 +266,7 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     plans: [...(head ? plansAt(root, 'HEAD') : []), ...plansAt(root, '')],
     message,
     parent: head ? git(root, 'rev-parse', 'HEAD').trim() : undefined,
+    changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', '--', file)),
   });
 }
 

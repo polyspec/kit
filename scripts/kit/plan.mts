@@ -31,7 +31,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, fileAt, indexItemFindings, isTestFile, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { changedLineNumbers, changesATest, COMMIT_RULES, fileAt, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { git } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
@@ -453,8 +454,9 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
-  // A fix without a test file carries the red of its gate that make item-state recorded on HEAD (K357).
-  const tested = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').some(isTestFile);
+  // A fix without a test carries the red of its gate that make item-state recorded on HEAD (K357); a Rust unit test is a test (K370).
+  const cached = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+  const tested = cached.some(file => changesATest(file, entry => fileAt(root, '', entry), entry => changedLineNumbers(git(root, 'diff', '--cached', '-U0', '--', entry))));
   const red = commit.type === 'fix' && !tested ? redGateLines(root, commit.id) : [];
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n${red.length ? `\n${red.join('\n')}\n` : ''}`;
   // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
