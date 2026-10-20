@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3a1a40c0f88f19cdcaa809b799e2f97907df3c2435dff0fff6e74650dcab3b1e -->
+<!-- source-sha256: 06937b3f8944e10795a49da876c074d2e6e83ec86d31b324a4209fa205c065c9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -83,3 +83,4 @@
 | K281 | version이 아닌 Composer 응답은 version으로 기록하지 않는다. 원인: composer outdated는 repository가 release하지 않는 package(path repository, 예: fsm의 polyspec/orm)에 latest "[none matched]"를 답하는데, dependency-review가 이를 최신 stable release로 기록했고 policy가 받아들였다. 인수 조건: dependency-review는 그런 응답을 release 없음으로 보고하고 dependency-policy-check는 latest가 version이 아닌 기록을 실패시킨다. | scripts/kit/version.mts, scripts/kit/dependency-review.mts, scripts/kit/check-dependency-policy.mts, tests/kit/dependency-review.test.mts, tests/kit/dependency-policy.test.mts | `node --test tests/kit/dependency-review.test.mts tests/kit/dependency-policy.test.mts` | [o] |
 | K282 | 저장소의 PHP platform은 하나다. 원인: composerPlatforms가 manifest마다 다른 PHP를 받아들여 hyper, fsm, orm, template은 8.4.0으로, crudui와 ordered-json은 PHPUnit 13이 요구하는 8.4.1로 resolve했다. 인수 조건: dependency-policy-check는 다른 항목과 다른 composerPlatforms 항목이나 config.platform.php를 실패시키고, .php-version이 있으면 그 minor에 patch 1을 붙인 값이 아닌 것도 실패시킨다. | scripts/kit/check-dependency-policy.mts, tests/kit/dependency-policy.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test tests/kit/dependency-policy.test.mts` | [o] |
 | K294 | rebuild-check는 설치된 kit의 vendored 사본을 제외한다. 원인: toolSources가 kit.copies를 consumer의 package.json에서 읽었는데 거기에는 없어서, vendored scripts/kit 파일이 모두 class 없는 tool로 보고되었다. kit-check는 사본을 설치된 package에서 읽는다. 인수 조건: node_modules/@polyspec/kit/package.json의 사본은 kit이 아닌 저장소의 tool source가 아니다. | scripts/kit/rebuild-check.mts, tests/kit/rebuild-check.test.mts | `node --test tests/kit/rebuild-check.test.mts` | [o] |
+| K290 | make php-ext-arginfo는 header를 만들기 전에 사본을 configure한다. 원인: arginfo가 phpize 뒤에 ./configure 없이 make <header>를 실행했는데 Makefile은 configure가 쓰므로 make가 "No rule to make target polyspec_ordered_json_arginfo.h"로 실패했다. 인수 조건: arginfo는 make 전에 extension의 --enable flag로 ./configure를 실행한다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/php-ext.test.mts` | [o] |

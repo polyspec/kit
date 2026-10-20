@@ -167,6 +167,8 @@ export function arginfo(root: string): void {
   const work = phpized(root, 'arginfo');
   try {
     const header = path.basename(names.arginfo);
+    // The rule of the header lies in the Makefile that ./configure writes, so configure runs first.
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: work });
     rmSync(path.join(work, header), { force: true });
     run('make', [header], { cwd: work });
     writeFileSync(path.join(root, names.arginfo), readFileSync(path.join(work, header)));

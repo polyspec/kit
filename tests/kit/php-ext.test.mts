@@ -114,6 +114,15 @@ test('the build publishes the extension, whose declarations Reflection compares 
   assert.deepEqual(declarationFindings(registered, declared()), ['class Polyspec\\Demo\\Counter methods next returnType: extension "int", library "string"']);
 });
 
+test('arginfo configures the copy before it makes the header, so make has its Makefile (K290)', (t) => {
+  const root = tree(t, { ...good(), 'packages/php/src/Demo.php': library('int') });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const written = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'arginfo'], { cwd: root, encoding: 'utf8' });
+  // gen_stub.php downloads its PHP-Parser, so the run may fail offline; it must not fail for want of a Makefile.
+  assert.doesNotMatch(written.stderr, /No rule to make target|No targets specified/, written.stderr);
+});
+
 test('the build refuses an extension with a finding before phpize runs', (t) => {
   const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-ext"}' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);

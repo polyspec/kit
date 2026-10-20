@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bd8705d4ef90e82875e7e648ddf5a8a40117a2c92a28666970dada18c6d51901 -->
+<!-- source-sha256: afb31970d7c3ef5bd659001c194ebd4ea795edb931e5ae39f03368a6a58dc6b0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make php-ext-arginfo`는 header의 규칙이 configure가 쓰는 Makefile에 있으므로 header를 만들기 전에 사본에서 ./configure를 실행한다(K290). Red: `node --test --test-name-pattern=K290 tests/kit/php-ext.test.mts`가 `make: *** No rule to make target polyspec_demo_arginfo.h`로 실패했다. Green: 통과한다.
 - `make rebuild-check`는 consumer 자신의 package.json에는 없는 kit.copies가 아니라 설치된 kit(`node_modules/@polyspec/kit/package.json`의 kit.copies, kit-check가 읽는 것과 같다)가 나열하는 vendored 사본을 제외한다(K294). Red: `node --test --test-name-pattern=K294 tests/kit/rebuild-check.test.mts`가 사본을 tool source로 나열해 실패했다. Green: 통과한다.
 - `make dependency-policy-check`는 PHP platform을 하나로 요구한다(K282): composerPlatforms의 모든 항목과 Composer manifest의 모든 config.platform.php가 같은 PHP를 가리키고, .php-version이 있으면 그 minor에 PHPUnit 13이 요구하는 patch 1을 붙인 값(8.4.1)이다. Red: 검사를 되돌린 상태에서 `node --test --test-name-pattern=K282 tests/kit/dependency-policy.test.mts`가 실패했다(platform finding 없음). Green: 통과한다. hyper, fsm, orm, template(8.4.0)은 이제 이 규칙에 실패한다.
 - version이 아닌 Composer 응답은 version으로 기록하지 않는다(K281): `version.mts`의 `isVersionText`가 composer outdated의 "[none matched]"를 거부하므로 dependency-review는 release 없음으로 보고하고 dependency-policy-check는 latest가 version이 아닌 review 기록을 실패시킨다. Red: dependency-review와 dependency-policy test의 `--test-name-pattern=K281`이 실패했다(sentinel이 기록되고 받아들여졌다). Green: 둘 다 통과한다.
