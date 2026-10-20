@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make install-packages` runs, after its npm ci, the make targets that the variable INSTALL_PACKAGES_EXTRA of the repository
+  names, such as the install of a tools project outside its npm workspaces with its own package-lock.json, with the same npm
+  and allow-remote setting; they only install, `make install` links after them, link-state-check asks them for no link step,
+  and the release workflow installs them through install-packages (K428).
 - `generated-files tracked`, which `make layout-check` runs, fails each tracked path with a generated segment, an executable
   object header or a generated-file header (a first comment line, a shebang left out, that matches `Code generated .* DO NOT
   EDIT`), naming the path, unless config/generated.json declares it an exception; the staged check of the hook cannot see a

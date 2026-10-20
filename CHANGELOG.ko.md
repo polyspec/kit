@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 66e4053eb9fdea296afabab88be3d20e1d8aaf788e14476611b01a43b4ac913d -->
+<!-- source-sha256: a8a66e3f0d292187d334226f9ed07ea92af72a03c2c5bf9a3507768122fe5418 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make install-packages`는 npm ci 뒤에 저장소 변수 INSTALL_PACKAGES_EXTRA가 이름 붙인 make target(예: npm workspace 밖에
+  자기 package-lock.json을 가진 tools 프로젝트의 설치)을 같은 npm과 allow-remote 설정으로 실행한다. 그것들은 설치만 하고,
+  `make install`이 그 뒤에 link하며, link-state-check는 그것들에 link 단계를 요구하지 않고, release workflow는
+  install-packages로 그것들을 설치한다(K428).
 - `make layout-check`가 실행하는 `generated-files tracked`는 생성 segment, 실행 object header 또는 생성 파일 header
   (shebang을 빼고 `Code generated .* DO NOT EDIT`와 맞는 첫 주석 줄)를 가진 추적 경로를, config/generated.json이 예외로
   선언하지 않는 한, 경로와 함께 실패시킨다. hook의 staged 검사는 hook이 생기기 전에 커밋된 파일을 볼 수 없다(K426).
