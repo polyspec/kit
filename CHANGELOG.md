@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make lint-go` lints the Go files behind every build tag that a module names in its `//go:build` lines: it runs
+  golangci-lint (`--build-tags`) and deadcode (`-tags`) once more for each such tag, leaving out the tags that the go tool
+  sets itself, so a file behind a tag is linted and a helper that only tagged files use is no longer read as unused (K406).
+
 - The package of kit ships `clippy.toml`, which `kit.copies` declares, so kit-sync copies it into a consumer and the test of
   the copies passes on main (K408).
 

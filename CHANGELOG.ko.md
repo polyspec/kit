@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5e904caa35b54353d60cc323da5a6913f1c3b9f4d275df495106270ada5dc3c5 -->
+<!-- source-sha256: 189f817105e02e035bcead5beeb688250f92cbd4e9e744501af1f6953dc41ca7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make lint-go`는 module이 `//go:build` 줄에 적는 모든 build tag 뒤의 Go 파일을 lint한다. go 도구가 스스로 설정하는 tag를
+  빼고 그런 tag마다 golangci-lint(`--build-tags`)와 deadcode(`-tags`)를 한 번 더 실행하므로, tag 뒤의 파일도 lint되고 tag가
+  붙은 파일만 쓰는 helper를 더는 쓰이지 않는 것으로 보지 않는다(K406).
 
 - kit package는 `kit.copies`가 선언하는 `clippy.toml`을 담으므로, kit-sync가 그것을 consumer에 복사하고 main에서 copy
   테스트가 통과한다(K408).
