@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c6c4159fc7037cf91547b9b90b96b69669970f6c4db7e68d4252e63631b60da5 -->
+<!-- source-sha256: ecc209301b655fabc52774388a307e31a085de05dda3e879bd001ebca97d23f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`는 main에서도 실패하는 gate에서 kit 도구의 진행 줄을 finding으로 세지 않는다. stderr의 모든 줄과, kit 도구 이름을
+  대괄호로 시작하는 줄(`[parity] tools root ...`)을 뺀 stdout 줄을 비교하므로, linter가 stdout에 낸 finding은 여전히 센다
+  (K394-3).
 - `make dependency-policy-check`는 remote tarball URL(registry.npmjs.org가 아닌 http(s) `.tgz`)에서 resolve되었지만 lock
   root나 그 workspace의 어떤 package.json도 그 URL로 적지 않은 package-lock.json 항목을 lock의 줄, 패키지, URL과 함께
   실패시키므로, allow-remote=root(K189)에서 npm ci가 거부하는 일이 먼저 보인다. 고치는 방법은 그 패키지를 URL과 함께 root에

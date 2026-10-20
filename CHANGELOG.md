@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make land` counts no progress line of a kit tool as a finding of a gate that fails on main too: it compares every stderr
+  line and the stdout lines but those that start with the name of a kit tool in brackets (`[parity] tools root ...`), so a
+  linter's findings on stdout still count (K394-3).
 - `make dependency-policy-check` fails a package-lock.json entry resolved from a remote tarball URL (an http(s) `.tgz` that is
   not registry.npmjs.org) that no package.json of the lock root or its workspaces names by that URL, naming the lock line,
   the package and the URL, so the refusal of npm ci under allow-remote=root (K189) shows first; the fix declares the package
