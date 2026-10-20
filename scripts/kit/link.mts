@@ -415,7 +415,9 @@ function linkComposer(work: Run, consumer: Consumer) {
     const toLink: { name: string; folder: string; copy: string; provider: Provider }[] = [];
     const linkedNow: { name: string; folder: string }[] = [];
     for (const entry of installedPackages(record)) {
-      if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) continue;
+      if (typeof entry.name !== 'string') continue;
+      // A package of another vendor is linked only when a checkout provides it, such as a fork of forks/ (K379); any other is left alone.
+      if (!entry.name.startsWith('polyspec/') && typeof providerFor(work, consumer, 'composer', entry.name) === 'string') continue;
       names.add(entry.name);
       if (typeof entry['install-path'] !== 'string') { unlinkable(work, 'composer', entry.name, `no install-path in ${record}`); continue; }
       const copy = path.resolve(path.dirname(record), entry['install-path']);

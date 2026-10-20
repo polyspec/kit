@@ -401,6 +401,24 @@ test('siblingCheckouts takes only the checkouts of polyspec repositories and lis
   });
 });
 
+test('link --siblings links a fork checkout of forks/ beside the checkouts as the provider of its package (K379)', (t) => {
+  const { root, provider, kit, consumer, env } = workspace(t);
+  const fork = repository(path.join(root, 'forks'), 'json-schema', {
+    'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
+    '.gitignore': 'vendor/\n',
+  });
+  git(fork, 'remote', 'add', 'origin', 'https://github.com/min-median-max/json-schema.git');
+  put(consumer, {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '0.0.1' } }),
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '0.0.1', 'install-path': '../opis/json-schema' }] }),
+    'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
+  });
+  const checkouts = siblingCheckouts(consumer).checkouts;
+  assert.deepEqual(checkouts, [fork, kit, provider].sort());
+  assert.equal(link({ checkouts, directories: [consumer], check: false, print: () => {}, env }), true);
+  assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/opis/json-schema')), fork);
+});
+
 // K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.
 test('providers take the packages of the work tree of the consumer as its own, and never the main checkout of its repository (K385)', (t) => {
   const { provider, kit, consumer } = workspace(t);

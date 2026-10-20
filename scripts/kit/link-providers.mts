@@ -132,7 +132,8 @@ const POLYSPEC_ORIGIN = /^(?:https:\/\/|ssh:\/\/git@|git@)github\.com[:/]polyspe
  * The main checkouts of polyspec repositories that lie beside the main checkout of the repository of `directory` (K349, K363): the
  * folders of its workspace that hold a .git directory and whose origin is github.com/polyspec/<folder>, the repository itself left
  * out, and every other folder with a .git entry as skipped, with the reason: a worktree, or a copy without that origin. A worktree
- * finds the same siblings as its main checkout. None where the consumer has no sibling, as in CI.
+ * finds the same siblings as its main checkout. The main checkouts of the forks in the folder forks/ of the workspace come too, whatever
+ * their origin. None where the consumer has no sibling, as in CI.
  */
 export function siblingCheckouts(directory: string): { checkouts: string[]; skipped: string[] } {
   const own = path.dirname(repositoryOf(directory));
@@ -152,6 +153,17 @@ export function siblingCheckouts(directory: string): { checkouts: string[]; skip
     const url = origin.status === 0 ? origin.stdout.trim() : undefined;
     if (url !== undefined && POLYSPEC_ORIGIN.exec(url)?.[1] === name) checkouts.push(realpathSync(folder));
     else skipped.push(`${folder} (${url === undefined ? 'no origin' : `origin ${url}`})`);
+  }
+  // A fork checkout is a main checkout in forks/ of the workspace, whatever its origin: the package it provides is named by its
+  // manifest, not by its folder or its origin (K379).
+  const forks = path.join(workspace, 'forks');
+  if (existsSync(forks)) {
+    for (const name of readdirSync(forks, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()) {
+      const folder = path.join(forks, name);
+      if (!existsSync(path.join(folder, '.git'))) continue;
+      if (existsSync(path.join(folder, '.git', 'HEAD'))) checkouts.push(realpathSync(folder));
+      else skipped.push(`${folder} (no main checkout)`);
+    }
   }
   return { checkouts: checkouts.sort(), skipped };
 }
