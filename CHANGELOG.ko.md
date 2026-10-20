@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 749a4f02310158b8951c25058fa3a72582a674ca57cc8cbd30f3df49c2ef0f1c -->
+<!-- source-sha256: 705761b3d4eb8185bb1ae6d512bd63027279d310d5fee816c470441718db0c90 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- docs-check는 `template-benchmark K79-3`처럼 sibling 저장소의 이름 뒤에 온 K-id를 그 저장소의 item으로 읽고, 자기 id가
+  K-id인 저장소에서는 `kit K<n>`만 kit item으로 읽는다(K374-1).
 - kit의 module이 자기 옆에서 읽는 파일이나 폴더를 kit-build가 dist에 담지 않으면 kit의 테스트가 실패하고, kit-build 테스트의
   sandbox는 build가 담는 폴더를 Makefile에서 얻는다(K421).
 - run-tests는 표준 library만 쓰는 kit의 runner로 Python 테스트를 실행한다. runner는 테스트마다 자기 timeout을 주고 각각의
