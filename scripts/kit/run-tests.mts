@@ -37,7 +37,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
-import { signalGroup } from './process-group.mts';
+// stopGroup is the group stop of process-group.mts, which run-command shares (K430).
+import { signalGroup, stopGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -225,19 +226,6 @@ const STOP_GRACE_MS = 5000;
 
 /** The signals that interrupt the runner; it stops the tool's group, then ends on the signal. */
 const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-
-/**
- * Stops the process group `pgid`: SIGTERM, then SIGKILL once the tool has closed (`closed`) or the grace period has passed,
- * whichever comes first, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not errors
- * (process-group.mts).
- */
-export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Parameters<typeof signalGroup>[2]) {
-  if (terminateGroup(pgid, kill) === 'ended') return;
-  let timer: NodeJS.Timeout | undefined;
-  await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
-  clearTimeout(timer);
-  signalGroup(pgid, 'SIGKILL', kill);
-}
 
 export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
   const options = parseArguments(argv, root);

@@ -29,6 +29,10 @@
       "types": "./dist/holder-lock.d.mts",
       "default": "./dist/holder-lock.mjs"
     },
+    "./run-command": {
+      "types": "./dist/run-command.d.mts",
+      "default": "./dist/run-command.mjs"
+    },
     "./install-vscode": {
       "types": "./dist/install-vscode.d.mts",
       "default": "./dist/install-vscode.mjs"

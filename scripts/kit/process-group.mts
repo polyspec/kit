@@ -23,3 +23,16 @@ export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill:
     throw error;
   }
 }
+
+/**
+ * Stops the process group `pgid`: SIGTERM, then SIGKILL once `closed` resolves (the tool has closed) or the grace period has
+ * passed, whichever comes first, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not
+ * errors (signalGroup). run-tests and run-command (K430) stop their groups with it.
+ */
+export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Kill): Promise<void> {
+  if (signalGroup(pgid, 'SIGTERM', kill) === 'ended') return;
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
+  clearTimeout(timer);
+  signalGroup(pgid, 'SIGKILL', kill);
+}
