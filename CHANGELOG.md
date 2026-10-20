@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- test-markers-check takes its Python helper beside its own module, and kit-build ships `markers/` in dist, so the check
+  reads the Python tests of a consumer, which holds no `scripts/kit` (K345-1).
 - The link writes the link manifest and lock of every Composer project that it reports linked, also of one that it finds
   linked from its installed vendor, and `link check` fails while a linked project lacks them, so dependency-review never
   takes a linked project for unlinked (K392-3).

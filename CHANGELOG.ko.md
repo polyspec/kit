@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a110d2c0a49d94f5c749e8a727a382d76c55cfe1d832766b8e046d620e15d905 -->
+<!-- source-sha256: 26c97b8e82165f095186ed247ec40979709f9d3dbc089ca4f6200262b3ffb060 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- test-markers-check는 자기 module 옆의 Python helper를 쓰고 kit-build는 `markers/`를 dist에 담으므로, `scripts/kit`이
+  없는 consumer의 Python 테스트도 읽는다(K345-1).
 - link는 linked로 보고하는 모든 Composer project의 link manifest와 lock을 쓰며, 설치된 vendor로 linked인 project도 그렇다.
   링크된 project에 그것이 없는 동안 `link check`는 실패하므로, dependency-review는 링크된 project를 링크되지 않은 것으로
   보지 않는다(K392-3).
