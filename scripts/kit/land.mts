@@ -35,34 +35,41 @@ export interface MachineListing {
   lsof?: string;
 }
 
-/** The processes of the worktree `folder` in `listing`, by pid, with the command line that names them (or pid only for a cwd match). */
-export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing): { pid: number; command: string }[] {
+/**
+ * The processes of the worktree `folder` in `listing`, by pid, with the command line that names them (or pid only for a cwd match).
+ * `self` and every ancestor of it, such as the make and the shell that run make land, are left out (K429-1).
+ */
+export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, self: number = process.pid): { pid: number; command: string }[] {
   const escaped = folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const names = new RegExp(`(?<![^\\s=])${escaped}(?=/|\\s|$)`);
   const inside = (file: string) => file === folder || file.startsWith(`${folder}/`);
   const commands = new Map<number, string>();
+  const parents = new Map<number, number>();
   const found = new Map<number, string>();
   for (const line of ps.split('\n')) {
-    const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
     if (match === null) continue;
-    const [, id = '', command = ''] = match;
+    const [, id = '', parent = '', command = ''] = match;
     commands.set(Number(id), command);
+    parents.set(Number(id), Number(parent));
     if (names.test(command)) found.set(Number(id), command);
   }
+  const ancestors = new Set<number>();
+  for (let pid: number | undefined = self; pid !== undefined && pid > 0 && !ancestors.has(pid); pid = parents.get(pid)) ancestors.add(pid);
   let pid: number | undefined;
   for (const line of (lsof ?? '').split('\n')) {
     if (line.startsWith('p')) pid = Number(line.slice(1));
     else if (line.startsWith('n') && pid !== undefined && inside(line.slice(1))) found.set(pid, commands.get(pid) ?? `(no command line in ps)`);
   }
   return [...found]
-    .filter(([live]) => live !== process.pid && live !== process.ppid)
+    .filter(([live]) => !ancestors.has(live))
     .sort(([a], [b]) => a - b)
     .map(([pid, command]) => ({ pid, command }));
 }
 
 /** The ps and lsof outputs of the machine, read only; lsof is undefined when it is not installed. */
 function machineListing(): MachineListing {
-  const ps = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  const ps = spawnSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (ps.error || ps.status !== 0) throw new Error(`ps could not list the processes: ${ps.error?.message ?? ps.stderr}`);
   const lsof = spawnSync('lsof', ['-d', 'cwd', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') return { ps: ps.stdout };

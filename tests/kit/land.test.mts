@@ -210,16 +210,29 @@ test('land selects no gate that runs tests (K394-1)', (t) => {
   assert.ok(printed.includes('test-x runs tests, which the Verification of the rows runs; land does not run it'));
 });
 
+// K429-1: the shell that runs make land, and every ancestor of land, may name the worktree in its command line or stand in it;
+// they run make land and are no process of the worktree.
+test('land leaves its own ancestors out of the processes of the worktree (K429-1)', () => {
+  const ps = [
+    '  300     1 zsh -c cd /work/kit/repo-x && git log; cd ../repo && make land BRANCH=x',
+    '  301   300 make land BRANCH=x',
+    '  302   301 node scripts/kit/land.mts x',
+    '  303     1 mysqld --datadir=/work/kit/repo-x/.runtime/db',
+  ].join('\n');
+  const lsof = ['p300', 'n/work/kit/repo-x', 'p303', 'n/work/kit/repo-x/.runtime'].join('\n');
+  assert.deepEqual(worktreeProcesses('/work/kit/repo-x', { ps, lsof }, 302).map(live => live.pid), [303]);
+});
+
 // K429: make land refuses while a process runs in the worktree of the branch, a command line that names a path in it or a working
 // directory inside it. The unit case feeds fixed ps and lsof outputs; the real case starts a process with a path in the worktree.
 test('land lists the processes of the worktree and refuses while one runs (K429)', (t) => {
   const folder = '/work/kit/repo-x';
   const ps = [
-    '  101 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
-    '  102 node server.mjs --datadir=/work/kit/repo-x-other/.runtime/db',
-    '  103 sleep 60',
-    '  104 sleep 5',
-    `  ${process.pid} node --test /work/kit/repo-x/tests`,
+    '  101     1 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
+    '  102     1 node server.mjs --datadir=/work/kit/repo-x-other/.runtime/db',
+    '  103     1 sleep 60',
+    '  104     1 sleep 5',
+    `  ${process.pid}     1 node --test /work/kit/repo-x/tests`,
   ].join('\n');
   const lsof = ['p103', 'n/work/kit/repo-x/sub', 'p104', 'n/work/kit/repo-x-other', 'p105', 'n/home', `p${process.pid}`, 'n/work/kit/repo-x'].join('\n');
   assert.deepEqual(worktreeProcesses(folder, { ps, lsof }).map(live => live.pid), [101, 103]);
