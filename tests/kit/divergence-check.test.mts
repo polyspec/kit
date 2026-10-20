@@ -2,7 +2,11 @@
 // says so is a finding, and the same code outside an implementation root, in a comment or in kit itself is not.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { divergenceFindings, reasonKind } from '../../scripts/kit/divergence-check.mts';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { checkedSources, divergenceFindings, reasonKind } from '../../scripts/kit/divergence-check.mts';
+
+import { tree } from './tree.mts';
 
 const run = (texts: Record<string, string>) => divergenceFindings(Object.keys(texts), file => texts[file]);
 const PARITY = JSON.stringify({ implementations: [{ name: 'php', roots: ['packages/php'] }, { name: 'ts', roots: ['packages/ts'] }] });
@@ -22,7 +26,7 @@ test('a test that branches on the extension, the runtime or the platform is a fi
 
 test('the code of an implementation that reads whether another implementation is present is a finding (K315)', () => {
   assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/bootstrap.php': "<?php\nif (!extension_loaded('polyspec_x')) { require 'X.php'; }\n", 'scripts/tool.php': "<?php\nextension_loaded('x');\n" }), [
-    'packages/php/src/bootstrap.php:2: the code of an implementation branches on the presence of another implementation (extension_loaded)',
+    'packages/php/src/bootstrap.php:2: the code of an implementation branches on the presence of another implementation (extension_loaded), so the library and its extension coexist through a guard of the run time',
   ]);
 });
 
@@ -53,4 +57,17 @@ test('an exception of a configuration whose reason names no kind of kit is a fin
 
 test('the tools and tests of kit itself are left out (K315)', () => {
   assert.deepEqual(run({ 'tests/kit/a.test.mts': "process.platform; extension_loaded('x')", 'config/parity.json': PARITY }), []);
+});
+
+test('a guard of the library that defines a function only when the extension does not is a finding, also in a generated source that Git ignores (K329)', (t) => {
+  assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/Machine.php': "<?php\nif (!function_exists('Acme\\initial')) {\n    function initial() {}\n}\n" }), [
+    'packages/php/src/Machine.php:2: the code of an implementation branches on the presence of another implementation (function_exists), so the library and its extension coexist through a guard of the run time',
+  ]);
+  const root = tree(t, { 'config/parity.json': PARITY, '.gitignore': 'packages/php/src/generated/\n' });
+  mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
+  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nif (!function_exists('x')) {}\n");
+  const read = (file: string) => { try { return readFileSync(path.join(root, file), 'utf8'); } catch { return undefined; } };
+  const files = checkedSources(root, ['config/parity.json'], read);
+  assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
+  assert.equal(divergenceFindings(files, read).length, 1);
 });

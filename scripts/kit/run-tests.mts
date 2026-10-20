@@ -44,6 +44,7 @@ import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
+import { libraryTestRun, type LibraryRun } from './php-library-autoload.mts';
 import { ciRefusal } from './ci-only.mts';
 import { isFile, selects } from './test-selection.mts';
 
@@ -62,13 +63,14 @@ export type RunOptions = {
   args: string[];
   inputs: string[];
   phpExtensions: string[];
+  withoutLibrary?: string;
   venv?: string;
   module?: string;
   results?: string;
 };
 
 /** The options that the command of a tool reads. */
-export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions'>>;
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions'>> & { library?: Pick<LibraryRun, 'phpunit' | 'prepend'> };
 
 // How a tool ended: it could not start, or it closed with a status or a signal.
 type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
@@ -99,6 +101,9 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
     } else if (flag === '--php-extension') {
       if (!value || tool !== 'phpunit') throw new Error(USAGE);
       options.phpExtensions.push(path.resolve(root, value));
+    } else if (flag === '--without-library') {
+      if (!value || tool !== 'phpunit') throw new Error(USAGE);
+      options.withoutLibrary = value;
     } else if (flag === '--venv') {
       if (!value || tool !== 'python') throw new Error(USAGE);
       options.venv = path.resolve(root, value);
@@ -128,7 +133,7 @@ function splitCargo(args: string[]) {
 }
 
 /** The command of a tool with its progress and timeout arguments. */
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module }: ToolOptions, root = repositoryRoot()) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -157,6 +162,9 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       const phpunit = found === undefined ? path.join(composerVendor(cwd), 'bin/phpunit') : path.join(root, found);
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
       // -d extension=, in the given order, so an extension loads after one that it depends on.
+      // An extension run of the tests of the library (K329) starts the PHPUnit script itself, never the proxy of Composer, which names the
+      // autoloader of the library; the file prepended to it names the autoloader without the sources of the library.
+      if (library) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, '--teamcity', ...args] };
       if (phpExtensions.length) return { command: 'php', args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
@@ -199,7 +207,9 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
 export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
-  const { command, args } = toolCommand(options, root);
+  // The tests of the PHP library run against the extension with none of the library's sources (K329).
+  const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
+  const { command, args } = toolCommand({ ...options, ...(library === undefined ? {} : { library }) }, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
   // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
@@ -228,7 +238,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // unittest colors its verbose lines when FORCE_COLOR is set (Python 3.14); its parser reads plain lines, so the run turns
   // color off.
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
-  const env: NodeJS.ProcessEnv = { ...process.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;

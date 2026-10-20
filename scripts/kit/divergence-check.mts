@@ -5,14 +5,15 @@
 //   1. a test of an implementation branches on the implementation, the language, the runtime or the platform to change what it
 //      asserts (extension_loaded, function_exists, PHP_VERSION, PHP_OS, sys.version_info, sys.platform, process.versions,
 //      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name);
-//   2. the code of an implementation branches on the presence of another implementation (extension_loaded: the PHP library
-//      reading whether its extension is loaded);
+//   2. the code of an implementation branches on the presence of another implementation (extension_loaded and function_exists: the
+//      PHP library reading whether its extension is loaded, or defining a function only when the extension does not), also in
+//      the sources that a build generates before the gate and Git ignores (K329);
 //   3. a run of an implementation is narrowed by a flag (--exclude-group);
 //   4. contracts/features.json declares an implementation partial or unsupported;
 //   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
 //      and in the tools and internal tests of config/parity.json.
 // The skipped and narrowed tests are the markers of test-markers-check; the vendored tools and tests of kit are left out.
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isTestFile } from './check-commits.mts';
 import { implementationFolders } from './parity-declaration.mts';
@@ -60,7 +61,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
     if (inRoot && SOURCE.test(file)) {
       for (const { number, code } of lines(text)) {
         if (isTestFile(file) && ENVIRONMENT.test(code)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
-        else if (!isTestFile(file) && /\bextension_loaded\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (extension_loaded)`);
+        else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
       }
     }
     if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || /^\.githooks\//.test(file)) {
@@ -86,11 +87,29 @@ function reasonFindings(file: string, text: string, entries: readonly { glob: st
   return entries.filter(entry => !reasonKind(entry.reason)).map(entry => `${file}:${lineOf(text, entry.glob)}: the exception ${entry.glob} gives a reason of no kind that kit defines; begin it with one of ${REASON_KINDS.map(kind => `${kind}:`).join(' ')}`);
 }
 
+/**
+ * The files that the check reads: the tracked files, and the files on the disk below the implementation roots, since the sources
+ * that a build generates before the gate are not tracked and are the code of the implementation as well (K329).
+ */
+export function checkedSources(root: string, tracked: readonly string[], read: (file: string) => string | undefined): string[] {
+  const found = new Set(tracked);
+  for (const directory of implementationRoots(tracked, read)) {
+    const folder = path.join(root, directory);
+    if (!existsSync(folder)) continue;
+    for (const entry of readdirSync(folder, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const file = path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/');
+      if (!/(?:^|\/)(?:vendor|node_modules|target|\.venv|var|dist|build)\//.test(file)) found.add(file);
+    }
+  }
+  return [...found].sort();
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const files = trackedFiles(root);
+  const tracked = trackedFiles(root);
   const read = (file: string): string | undefined => { try { return readFileSync(path.join(root, file), 'utf8'); } catch { return undefined; } };
-  const found = divergenceFindings(files, read);
+  const found = divergenceFindings(checkedSources(root, tracked, read), read);
   for (const finding of found) console.error(`[divergence-check] ${finding}`);
   if (found.length) {
     console.error(`[divergence-check] ${found.length} divergences; an implementation holds every unit of the contract and is tested as the others are`);

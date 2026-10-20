@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1a37af89e87c9eb3dcb10093883ec3ab6d3f46146fd6833e97ee5a78ce1bb252 -->
+<!-- source-sha256: 4bd6cbe1d1b28e8c5e7df93ea244b2e7adb55d8e8af93c7558d502c32e4b4b6a -->
 
 # 도구 목록
 
@@ -494,7 +494,7 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
   `config.vendor-dir`; K184), 또는 그 위의 가장 가까운 Composer project(monorepo의 root 등, K186)의 `bin/phpunit`을 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
   `--php-extension`은 반복할 수 있습니다: 각 extension은 PHP 자체의 방식인 자기 `-d extension=<path>`로 주어진 순서대로
-  load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165).
+  load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165). `--without-library <folder>`(K329)는 Composer의 proxy가 아니라 PHPUnit script를 직접 실행하고, library의 vendor directory 위에 Composer가 dump한 autoloader를 이름으로 부르는 파일을 앞에 붙입니다. 그 autoloader는 library의 dependency와 autoload-dev를 담고 library 자신의 autoload(psr-4, classmap, files)는 담지 않으므로 library의 source가 extension 옆에 하나도 load되지 않으며, source를 include하는 test는 실행이 끝날 때 실패합니다.
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
 - `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
   끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는

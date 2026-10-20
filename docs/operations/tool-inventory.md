@@ -539,7 +539,10 @@ Merged behaviors:
   root of a monorepo (K186), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts. `--php-extension`
   repeats: each extension is loaded with its own `-d extension=<path>`, PHP's own way, in the given order, so one loads after
-  an extension that it depends on, and each is checked as built before the tool starts (K165).
+  an extension that it depends on, and each is checked as built before the tool starts (K165). `--without-library <folder>` (K329)
+  runs the PHPUnit script itself, never the proxy of Composer, with a prepended file that names an autoloader which Composer dumps
+  over the vendor directory of the library: its dependencies and its autoload-dev, not its own autoload (psr-4, classmap, files), so
+  none of the sources of the library is loaded next to the extension; a test that includes one fails the run at its end.
 - A tool that cannot start fails with its command and the fix.
 - `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start

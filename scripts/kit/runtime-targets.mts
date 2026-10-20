@@ -88,7 +88,9 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       return [{ cwd: folder, tool: 'phpunit', args: filter('--filter') }];
     case 'php-ext':
       if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
-      return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension], args: filter('--filter') }));
+      // The tests of a library run against the extension with none of the library's sources (K329); the tests of the extension itself
+      // load its own sources.
+      return phpExtensionFolders(files, folder).map(cwd => ({ cwd, tool: 'phpunit', options: ['--php-extension', extension, ...(cwd === folder ? [] : ['--without-library', cwd])], args: filter('--filter') }));
     case 'python':
       pythonPackages(files, folder);
       // The tests run in the environment of the package (K324): the mise python alone holds none of its dependencies.
