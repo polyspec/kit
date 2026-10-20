@@ -185,3 +185,15 @@ test('a generated configuration that breaks its schema names the command that wr
   const root = tree(t, { 'config/dependency-review.json': `${JSON.stringify({ schema: 1, comment: 'x', reviewed: '2026-01-01T00:00:00.000Z', locks: [], dependencies: [] })}\n` });
   assert.deepEqual(checkConfig(root), ["config/dependency-review.json: / must have required property 'vcs' {\"missingProperty\":\"vcs\"}. Rule: the schema dependency-review.schema.json of @polyspec/kit. Fix: make dependency-review RECORD=1"]);
 });
+
+// K356: kit-sync writes clippy.toml into every repository, so the layout of the repository must declare it among its root files;
+// the root files of config/layout.kit.yml must name each root-level key of kit.copies, or make layout-check fails there.
+test('every root file that kit-sync writes is declared among the root files of config/layout.kit.yml (K356)', () => {
+  const kitRoot = path.join(import.meta.dirname, '../..');
+  const { kit } = JSON.parse(readFileSync(path.join(kitRoot, 'package.json'), 'utf8')) as { kit: { copies: Record<string, string> } };
+  const layout = readFileSync(path.join(kitRoot, 'config/layout.kit.yml'), 'utf8');
+  for (const key of Object.keys(kit.copies)) {
+    if (key.includes('/')) continue;
+    assert.ok(layout.includes(`"!${key}"`), `${key} is a root file that kit-sync writes, but config/layout.kit.yml does not declare it: add "!${key}" to the root files of layout-root-files`);
+  }
+});
