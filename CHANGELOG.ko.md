@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 26c97b8e82165f095186ed247ec40979709f9d3dbc089ca4f6200262b3ffb060 -->
+<!-- source-sha256: aef52010f4f620b7802a3a20f6e9065db7e338611a93cb5bc9cf65e7b3b628df -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit main에서 `make layout-check`가 다시 통과한다. `config/layout.yml`은 marker 검사의 Python helper와 PHPUnit이 앞에
+  붙이는 PHP 파일을 S9에서 예외로 둔다. 그 언어의 program만 그것일 수 있기 때문이다(K420).
 - test-markers-check는 자기 module 옆의 Python helper를 쓰고 kit-build는 `markers/`를 dist에 담으므로, `scripts/kit`이
   없는 consumer의 Python 테스트도 읽는다(K345-1).
 - link는 linked로 보고하는 모든 Composer project의 link manifest와 lock을 쓰며, 설치된 vendor로 linked인 project도 그렇다.

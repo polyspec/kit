@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make layout-check` passes on kit main again: `config/layout.yml` excepts from S9 the Python helper of the marker check
+  and the PHP file that PHPUnit prepends, which only a program of their language can be (K420).
 - test-markers-check takes its Python helper beside its own module, and kit-build ships `markers/` in dist, so the check
   reads the Python tests of a consumer, which holds no `scripts/kit` (K345-1).
 - The link writes the link manifest and lock of every Composer project that it reports linked, also of one that it finds
