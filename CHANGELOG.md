@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make land` leaves its own ancestors, such as the make and the shell that run it, out of the processes of the worktree,
+  so a shell that changed into the worktree before it ran make land does not refuse the branch (K429-1).
 - `make land` refuses a branch while a process runs from its worktree, a process whose command line names a path in it (such
   as the --datadir of a test database server) or whose working directory lies in it, naming each pid and command, before any
   gate runs; nothing is merged, removed or deleted then (K429).

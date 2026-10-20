@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2a60c04d0f38a415cfca4c56220a9de9a5a046af45fed8a40cb87c718142cb07 -->
+<!-- source-sha256: cf20f3871ac76851fddca086ca7b9ec6f229bea97670c2fe96ec49626a03cdf3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`는 자기를 실행한 make와 shell 같은 자기 조상을 worktree의 프로세스에서 빼므로, make land 전에 worktree로
+  이동한 shell이 branch를 거부하지 않는다(K429-1).
 - `make land`는 worktree에서 실행 중인 프로세스, 즉 command line이 그 안의 경로를 가리키거나(테스트 database server의
   --datadir 같은) 작업 폴더가 그 안에 있는 프로세스가 있으면, 어떤 gate도 돌기 전에 각 pid와 command를 적어 branch를
   거부한다. 그때는 아무것도 merge, 삭제되지 않는다(K429).
