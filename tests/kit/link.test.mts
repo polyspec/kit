@@ -165,7 +165,9 @@ writeFileSync(path.join(project, vendor, 'composer/installed.json'), JSON.string
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
 case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; shift 2; nodeps=""; while [ $# -gt 0 ]; do case "$1" in --constraints) cp "$2" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; shift 2;; --overrides) cp "$2" ${JSON.stringify(path.join(consumer, 'overrides.logged'))}; shift 2;; --python|--reinstall-package) shift 2;; --no-deps) nodeps=1; shift;; -e) dir=$2; n=$(sed -n 's/^name = "\\(.*\\)"/\\1/p' "$dir/pyproject.toml" | head -n 1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$dir" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; if [ -z "$nodeps" ]; then for dep in $(sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$dir/pyproject.toml" | tr -d "\\"' " | tr ',' '\\n' | sed 's/[=<>@].*//'); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done; fi; shift 2;; *) shift;; esac; done;; esac`);
-  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK";; "list -m") echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
+  // The work init writes the Use of the go.work that it writes, as a go.work.json beside it, which work edit -json reads.
+  // The list -m of a module that the module of the folder a does not require fails as real go does.
+  stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
   current = [provider, kit, consumer];
@@ -1030,6 +1032,26 @@ test('the go.work that link writes for a module of a tracked workspace uses ever
   assert.equal(ok, true, text);
   // The folders are the module itself, then the modules of the tracked workspace, then the provider (relative to the module).
   assert.match(log(), /go work init \. \.\.\/b \.\.\/\.\.\/\.\.\/prov\/go\n/);
+});
+test('link check passes for a module of a tracked workspace that does not require another module of it (K399-1)', (t) => {
+  const { consumer, provider, env } = workspace(t);
+  // The npm provider is built (its dist is git-ignored), so the check of the go modules decides the result.
+  put(provider, { 'packages/ts/dist/index.js': 'export {};\n' });
+  const requires = JSON.stringify({ Module: { Path: 'a' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });
+  put(consumer, {
+    'ws/go.work': 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n',
+    'ws/go.work.json': JSON.stringify({ Use: [{ DiskPath: './a' }, { DiskPath: './b' }] }),
+    'ws/a/go.mod': 'module a\n', 'ws/a/go.mod.json': requires,
+    'ws/b/go.mod': 'module b\n', 'ws/b/go.mod.json': JSON.stringify({ Module: { Path: 'b' }, Require: [] }),
+  });
+  git(consumer, 'add', '-A');
+  git(consumer, 'add', '-f', 'ws/go.work');
+  git(consumer, 'commit', '--quiet', '-m', 'workspace');
+  const written = linkLines([consumer], env);
+  assert.equal(written.ok, true, written.text);
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, true, checked.text);
+  assert.match(checked.text, /^ {2}linked +go +b -> /m, checked.text);
 });
 test('a path package installed by the root project is linked in the vendor of the root project (K396)', (t) => {
   const { root, provider, env, log } = workspace(t);

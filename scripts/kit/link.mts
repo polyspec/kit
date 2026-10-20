@@ -755,13 +755,21 @@ const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
 function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
   for (let folder = path.dirname(directory); `${folder}/`.startsWith(`${top}/`); folder = path.dirname(folder)) {
     const file = goWorkOf(folder);
-    if (!tracked.has(file)) continue;
-    const parsed = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: folder, env: go.env })) as unknown;
-    if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
-    const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
-    return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
+    if (tracked.has(file)) return usedFolders(go, file);
   }
   return [];
+}
+
+/**
+ * The module folders that the go.work `file` uses, as go work edit -json reads them: each DiskPath resolved against the folder of
+ * the go.work. The check reads them from the go.work itself, not from go list -m of each module.
+ */
+function usedFolders(go: Tool, file: string): string[] {
+  const folder = path.dirname(file);
+  const parsed = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: folder, env: go.env })) as unknown;
+  if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
+  const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
+  return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
 }
 
 function linkGo(work: Run, consumer: Consumer) {
@@ -782,12 +790,20 @@ function linkGo(work: Run, consumer: Consumer) {
     // The modules of the tracked workspace that the go.work of this module uses besides its own module.
     const workspace = requires.size ? trackedWorkspaceFolders(go, consumer.top, directory, tracked).filter(folder => folder !== directory) : [];
     if (work.check) {
-      const wanted = new Map<string, string>([...requires].map(([name, provider]) => [name, provider.folder]));
-      for (const folder of workspace) wanted.set(goModule(go, path.join(folder, 'go.mod'), consumer.top).module, folder);
-      for (const [name, folder] of wanted) {
+      // The providers that the module requires are found by go list -m; the modules that the link writes (the module and the
+      // tracked workspace) are compared with the modules that the go.work of this module uses.
+      for (const [name, provider] of requires) {
         const found = existsSync(file) ? run(go.command, ['list', '-m', '-f', '{{.Dir}}', name], { cwd: directory, env: { ...go.env, GOWORK: file } }).trim() : '';
-        if (real(found) === realpathSync(folder)) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
-        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}`);
+        if (real(found) === realpathSync(provider.folder)) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
+        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${provider.folder}`);
+      }
+      if (requires.size) {
+        const used = new Set(existsSync(file) ? usedFolders(go, file).map(folder => real(folder)) : []);
+        for (const folder of [directory, ...workspace]) {
+          const name = goModule(go, path.join(folder, 'go.mod'), consumer.top).module;
+          if (used.has(real(folder))) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
+          else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}`);
+        }
       }
       continue;
     }
