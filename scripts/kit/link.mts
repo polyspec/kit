@@ -558,6 +558,22 @@ function pylockConstraints(consumer: Consumer, lock: string, venv: string, linke
 }
 
 /**
+ * The locked releases of the linked packages `names` in the PEP 751 lock `lock` (K401-1): each as the requirement `name==version`
+ * with its name, and the names that the lock does not hold with a version.
+ */
+function pylockReleases(lock: string, names: readonly string[]): { pins: { name: string; requirement: string }[]; missing: string[] } {
+  const packages = readTomlFile(lock).packages;
+  const held = new Map<string, { name: string; requirement: string }>();
+  for (const item of Array.isArray(packages) ? packages : []) {
+    if (isJsonObject(item) && typeof item.name === 'string' && typeof item.version === 'string') held.set(normalizeName(item.name), { name: item.name, requirement: `${item.name}==${item.version}` });
+  }
+  return {
+    pins: names.flatMap(name => held.get(normalizeName(name)) ?? []),
+    missing: names.filter(name => !held.has(normalizeName(name))),
+  };
+}
+
+/**
  * The overrides of an install of the linked packages (K237, K316-1): each linked package is the editable install of the folder of its
  * checkout, also where another package requires it by its release URL. The line `-e <folder>` is the form that keeps the install
  * editable; the line `name @ file://<folder>` makes uv take a non-editable requirement that beats the `-e` of the command line.
@@ -898,7 +914,20 @@ export function unlink({ directories, print, env = process.env, project = false 
       const uv = consumerTool(consumer.top, 'uv', env);
       for (const file of pythonFiles) {
         const target = pythonTarget(uv, file);
-        if (typeof target === 'string' || !existsSync(path.join(target.workspace, 'uv.lock'))) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
+        if (typeof target === 'string') { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
+        if (!existsSync(path.join(target.workspace, 'uv.lock'))) {
+          // A project locked by a PEP 751 lock and no uv.lock (K401-1) gets the locked releases of its linked packages installed over
+          // their editables; a linked package that the lock does not hold has no locked release to restore.
+          const lock = pylockOf(target.workspace);
+          if (lock === undefined) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
+          const { pins, missing } = pylockReleases(lock, declaredPython(file));
+          for (const name of missing) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
+          if (pins.length) {
+            run(uv.command, ['pip', 'install', '--python', path.join(target.venv, 'bin/python'), ...pins.map(pin => pin.requirement), ...pins.flatMap(pin => ['--reinstall-package', pin.name])], { cwd: target.workspace, env: uv.env });
+            print(`  restored   python   ${target.venv}`);
+          }
+          continue;
+        }
         // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
         // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
         // --inexact keeps every other package (K237).

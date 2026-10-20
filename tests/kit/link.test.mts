@@ -603,6 +603,21 @@ test('a Python project with neither uv.lock nor pylock.toml is not linked, and t
   assert.match(text, /NOT linked python {3}polyspec-z \(no uv\.lock or pylock\.toml in .*python: run the repository's install\)/);
 });
 
+test('unlink restores the locked releases of a project locked with pylock.toml (K401-1)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  rmSync(path.join(consumer, 'python/uv.lock'));
+  put(consumer, {
+    'python/pylock.toml': 'lock-version = "1.0"\ncreated-by = "uv"\n\n[[packages]]\nname = "polyspec-z"\nversion = "0.0.1"\n\n[[packages]]\nname = "jsonschema"\nversion = "4.23.0"\n',
+  });
+  assert.equal(linkLines([consumer], env).ok, true);
+  const lines: string[] = [];
+  unlink({ directories: [consumer], print: text => lines.push(text), env });
+  assert.doesNotMatch(lines.join('\n'), /skipped/, lines.join('\n'));
+  const install = log().split('\n').filter(item => item.startsWith('uv pip install') && item.includes('--reinstall-package polyspec-z')).at(-1) ?? '';
+  assert.ok(install.includes(`--python ${path.join(consumer, 'python/.venv/bin/python')}`), install);
+  assert.ok(install.includes('polyspec-z==0.0.1'), install);
+});
+
 // K316-2: the link of every ecosystem is idempotent: a second run ends linked, with the state of the first.
 test('a second link run ends linked with the state of the first, in npm, Composer and Go (K316-2)', (t) => {
   const { provider, consumer, env } = workspace(t);
