@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 57ffda7c2ff46a6f90817b2cb0ca5425d18d5e83869f94a675f99aa644f96f39 -->
+<!-- source-sha256: c028ed1894aaa52ff99e44885d5209607f3b414e4104fd2f6f196f3f94e68fd7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Claude Code hook은 `pgrep`, `pidof`, `ls`, `test`, `[`를 상태를 기다릴 수 있는 `while`이나 `until` loop의 조건이나
+  본문에서만 poll로 읽는다. 목록을 도는 `for` loop는 목록과 함께 끝나므로 그것들을 실행해도 되고, `sleep`은 모든 loop에서
+  계속 거부된다. red: hook이 이름 붙인 두 파일을 `test -f`로 도는 `for` loop(orm의 recipe)를 거부해 그것에 의존하는
+  row에서 orm의 docs-check가 실패했다. green: `node --test --test-name-pattern=K386-1 tests/kit/claude-hook.test.mts`가
+  통과한다 (K386-1).
 - `make test-php-ext CASES=<pattern>`은 PHPUnit이 `--filter`를 `Class::method`에 맞추듯 `*Test.php` 파일의 `test…`
   method에서 읽어 filter가 test를 고르는 PHP library마다 실행하고, 다른 library마다 `<library>: no case selected by
   CASES`를 출력하며, 어느 library에서도 test를 고르지 못하면 실패한다. red: 한 library의 test를 가리키는 filter가 다른

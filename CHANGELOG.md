@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- The Claude Code hook reads `pgrep`, `pidof`, `ls`, `test` and `[` as a poll only in the condition or body of a
+  `while` or `until` loop, which can wait on a state; a `for` loop over a list ends with its list, so it may run them,
+  and a `sleep` stays refused in every loop. Red: the hook refused a `for` loop over two named files with `test -f`
+  (a recipe of orm), and docs-check of orm failed on the rows that depend on it; green: `node --test
+  --test-name-pattern=K386-1 tests/kit/claude-hook.test.mts` passes (K386-1).
 - `make test-php-ext CASES=<pattern>` runs each PHP library where the filter selects a test, read from the `test…`
   methods of its `*Test.php` files as PHPUnit matches `--filter` against `Class::method`, prints `<library>: no case
   selected by CASES` for each other library, and fails when the filter selects no test in any library. Red: a filter
