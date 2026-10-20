@@ -1,11 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 350251fe15da95c9fa1318ecaedcb8680c4e669e39143caf2fa2df93e4a07225 -->
+<!-- source-sha256: af3234bd8f306f706982f9684dca14bb0df37256a8854a3d0df0fc405ff3ff54 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit checkout `../kit` 옆의 checkout에서 `kit-bootstrap.mk`는 첫 make부터 link가 설치하는 provider인 `../kit/dist`를
+  `KIT`로 쓰고, build되지 않았으면 실패한다. 없으면 CI처럼 `KIT`는 설치된 package이다. 그래서 새 worktree는 `npm ci` 전에
+  `kit.mk`를 읽어 kit target을 가리키는 저장소 단계가 실행되고, 자신이 개발하는 kit의 도구로 설치한다. red: 새 template
+  worktree의 `make install`이 `cargo-downloads-fetch` 규칙을 몰랐고 그 install-tools가 php wrapper를 쓰지 않았다.
+  green: `node --test --test-name-pattern=K348-1 tests/kit/link.test.mts`가 통과한다 (K348-1).
 - `make install`은 link가 읽는 환경을 설치하는 저장소의 단계를 포함한 모든 prerequisite 뒤에 link하고,
   `install-kit`은 설치만 한다. local-links.md가 그 순서를 말한다. red: 새 orm worktree에서 install-kit의 link가 Composer
   vendor와 Python 환경이 생기기 전에 실행되어 make install을 멈췄다. green: `node --test

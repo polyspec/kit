@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- In a checkout beside the kit checkout `../kit`, `kit-bootstrap.mk` takes `../kit/dist` as `KIT` from the first make on,
+  the provider that the link installs, and fails when it is not built; without it, as in CI, `KIT` is the installed
+  package. A fresh worktree then reads `kit.mk` before `npm ci`, so a repository step that names a kit target runs,
+  and installs with the tools of the kit it develops against. Red: `make install` of a fresh template worktree knew no
+  rule for `cargo-downloads-fetch`, and its install-tools wrote no php wrapper; green: `node --test
+  --test-name-pattern=K348-1 tests/kit/link.test.mts` passes (K348-1).
 - `make install` links after all its prerequisites, the steps of the repository included, whose environments the link
   reads, and `install-kit` only installs; local-links.md states the order. Red: in a fresh orm worktree the link of
   install-kit ran before the Composer vendor and the Python environment existed and stopped make install; green:
