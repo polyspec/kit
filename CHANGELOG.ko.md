@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: de695b7d7b75cc28fbf570e17848b92e3a029be9c38fbf39cec79f374bdc3154 -->
+<!-- source-sha256: 0f114c4dd3190d2f65707169e47896b3db9a35407001baabedccded5f153728b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- `make link-state-check`는 `make install`의 사슬을 따라가기 전에 저장소의 Makefile이 대입하는 변수를 펼친다. 그래서
+  `$(PACKAGE_DEPS)`를 거치는 fsm-js-install처럼 변수를 거쳐 닿는 recipe를 더는 link 단계 없는 설치로 보고하지 않는다.
+  target이 여럿인 rule은 그중 하나가 닿으면 닿은 것이다(K403).
 
 - `commits-check`는 ref에 점이 있는 범위를 받으므로, `make land`는 `chore/kitsync-T2.60`처럼 점이 있는 row id의 branch를
   land한다. 점 세 개, 빈 쪽, 점으로 시작하거나 끝나는 쪽은 계속 거부한다(K402).

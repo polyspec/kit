@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make link-state-check` expands the variables that the Makefiles of the repository assign before it follows the chain
+  of `make install`, so a recipe reached through a variable, such as fsm-js-install through `$(PACKAGE_DEPS)`, is no
+  longer reported as an install without the link step; a rule of several targets is reached when one of them is (K403).
+
 - `commits-check` takes a range whose refs hold a dot, so `make land` lands the branch of a row id with a dot, such as
   `chore/kitsync-T2.60`; three dots, an empty side and a side that starts or ends with a dot stay refused (K402).
 
