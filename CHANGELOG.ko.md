@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3b3e0c6679f4b18b5f0b20d3463a28be70dd7f026a8f43386536f53841980b97 -->
+<!-- source-sha256: 9d425b7fe9b3320ce70c707e4b99220d01794b38557db56ef60e71e2795f12aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-new`, `make item-edit`, `make item-state`, `make plan-split`은 자신이 바꾸는 한국어 문서가 최신이었으면
+  새 영어 text의 revision marker를 쓰고, 낡은 문서는 낡은 채로 두므로 출력이 `make documents-stamp` 없이 docs-check를
+  통과한다. red: item-new 뒤 marker가 바뀌기 전 text를 가리켰다. green: `node --test --test-name-pattern=K368
+  tests/kit/plan.test.mts`가 통과한다 (K368).
 - `make hooks`와 `make hooks-check`는 저장소에 `config/generated.json`이 없으면 그 파일을 말하며 실패한다. 이들이
   설치하는 pre-commit hook이 그 파일로 generated-file 검사를 실행해 모든 commit을 거부하기 때문이다. red: 파일 없이도
   check가 통과했다. green: `node --test --test-name-pattern=K362 tests/kit/git-hooks.test.mts`가 통과한다 (K362).

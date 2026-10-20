@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make item-new`, `make item-edit`, `make item-state` and `make plan-split` write the revision marker of the new
+  English text into each Korean twin that they change when the twin was current, and keep a stale twin stale, so
+  their output passes docs-check without `make documents-stamp`. Red: after item-new the marker named the text before
+  the change; green: `node --test --test-name-pattern=K368 tests/kit/plan.test.mts` passes (K368).
 - `make hooks` and `make hooks-check` fail naming `config/generated.json` when the repository lacks it, since the
   pre-commit hook that they install runs the generated-file check on it and would refuse every commit. Red: the check
   passed without the file; green: `node --test --test-name-pattern=K362 tests/kit/git-hooks.test.mts` passes (K362).
