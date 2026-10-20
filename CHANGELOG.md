@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `make dependency-review` never proposes a version older than the locked one: a dependency whose latest release in
+  the registry is older than its locked version, such as an unreleased `0.0.11` against `0.0.6`, is not outdated and
+  never enters the update plan, linked or not. Red: the review proposed `polyspec/template 0.0.11 < 0.0.6` and planned
+  `composer require ...:^0.0.6`; green: `node --test --test-name-pattern=K369 tests/kit/dependency-review.test.mts`
+  passes (K369).
 - `make link-check` checks against the checkouts beside the repository when `CHECKOUTS` is empty, as `make link`
   does, so it no longer reports every link as NOT linked right after `make link`. Red: its command named no checkout;
   green: `node --test --test-name-pattern=K383 tests/kit/kit-mk.test.mts` passes (K383).

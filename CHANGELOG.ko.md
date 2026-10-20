@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e6a4164c737f8336f1581a9df9135b22a049b202637fbf3f43f0461461231c9 -->
+<!-- source-sha256: 399c282df8772110b3ce2a748fe465a1517708964d45c43113279ce4a81302c8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-review`는 lock된 version보다 오래된 version을 제안하지 않는다. registry의 최신 release가 lock된
+  version보다 오래된 의존성, 예컨대 `0.0.6`에 대한 미출시 `0.0.11`은 linked 여부와 상관없이 outdated가 아니며 update
+  plan에 들어가지 않는다. red: review가 `polyspec/template 0.0.11 < 0.0.6`을 제안하고 `composer require ...:^0.0.6`을
+  계획했다. green: `node --test --test-name-pattern=K369 tests/kit/dependency-review.test.mts`가 통과한다 (K369).
 - `make link-check`는 `CHECKOUTS`가 비면 `make link`처럼 저장소 옆의 checkout으로 검사하므로 `make link` 직후 모든
   link를 NOT linked로 보고하지 않는다. red: 그 명령이 checkout을 하나도 넘기지 않았다. green: `node --test
   --test-name-pattern=K383 tests/kit/kit-mk.test.mts`가 통과한다 (K383).
