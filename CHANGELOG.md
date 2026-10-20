@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make dependency-policy-check` compares the pins of the packages that the repository and a sibling checkout both require
+  directly, in the install locks at their roots, and fails a package locked at another version or from another source,
+  naming both locks with the line of the entry; a transitive package and a lock under tests/ or fixtures/ are not compared,
+  and without a sibling, as in CI, nothing is compared (K378).
 - PRINCIPLES.md states the working guidelines of the owner with their checks: work reaches main only by `make land` (P10,
   P38), a worktree per row made over 30 GB of free disk and removed after the merge (P10), the full suite only on the order
   of the conductor (P20), subagents on Haiku 5.5 with one row each and their results verified (P22), rows before work (P24,

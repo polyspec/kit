@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a8dba48cd9048d44001d653912c381b37295886c8001885a440444226a94fff7 -->
+<!-- source-sha256: a01d4c80c01d64aa6f14f60eb4578b95f6a52955d77321cf0bfa21eb205a5a25 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-policy-check`는 저장소와 sibling checkout이 모두 직접 요구하는 패키지의 핀을 각 root의 install lock에서
+  비교하고, 다른 version이나 다른 source로 lock된 패키지를 두 lock과 그 entry의 줄과 함께 실패시킨다. 전이 패키지와 tests/나
+  fixtures/ 아래의 lock은 비교하지 않으며, CI처럼 sibling이 없으면 아무것도 비교하지 않는다(K378).
 - PRINCIPLES.md는 owner의 작업 지침을 그 검사와 함께 적는다: 작업은 `make land`로만 main에 들어가고(P10, P38), 행마다
   자유 디스크 30 GB 이상에서 만든 worktree를 merge 뒤 지우며(P10), 전체 suite는 conductor의 지시로만 돌고(P20),
   subagent는 Haiku 5.5에서 행 하나씩 맡고 결과를 검증받으며(P22), 행이 작업보다 먼저이고(P24, planned K424), 미루지 않으며
