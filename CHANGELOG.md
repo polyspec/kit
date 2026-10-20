@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make parity-declarations-check UNITS=` scopes the schema findings of config/parity.json too: a finding at `/units/<index>`
+  counts only when that unit is named, so a row that adds the requirement of one unit proves its red and green while other
+  units still break the schema; the run then says that the other rules need a declaration that passes the schema (K400-1).
 - The kit package exports `./run-command`: runCommand runs one command to its end with no time limit in its own process group,
   stops what it leaves in the group when it exits and the running commands when the caller is interrupted, captures its output
   up to a limit, and returns its status, signal, elapsed time and start error; failureOf states a failure in one line, and

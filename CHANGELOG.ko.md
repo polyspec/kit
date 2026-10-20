@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8764712ed7f4615777fe02eab0dd7ddf242f5b91741a4d899d1202bb16a46a3d -->
+<!-- source-sha256: a46f5ebca78e385d1dd6af0024fe97faabb52067e0a979cfc0864d3b0e6a9e1e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make parity-declarations-check UNITS=`는 config/parity.json의 schema finding도 범위로 좁힌다: `/units/<index>`의 finding은
+  그 unit이 이름 붙었을 때만 세므로, 다른 unit이 아직 schema를 어겨도 한 unit의 requirement를 더하는 행은 red와 green을
+  증명한다. 그때 실행은 다른 규칙이 schema를 통과하는 선언을 필요로 한다고 말한다(K400-1).
 - kit 패키지는 `./run-command`를 export한다. runCommand는 명령 하나를 시간 제한 없이 자기 process group에서 끝까지 실행하고,
   명령이 끝나면 group에 남긴 것을, 호출자가 중단되면 실행 중인 명령을 멈추며, 출력을 한도까지 담고 status, signal, 경과
   시간, 시작 오류를 돌려준다. failureOf는 실패를 한 줄로 적고, stopGroup은 이것과 run-tests를 위해 process-group.mts로
