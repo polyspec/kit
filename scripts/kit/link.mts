@@ -450,6 +450,23 @@ function linkComposer(work: Run, consumer: Consumer) {
   }
 }
 
+/**
+ * K347: after a rebuild of a provider, `composer dump-autoload` of each linked Composer project of the consumers `directories`
+ * (the project whose composer.link.json link wrote), so that its autoload names only the files that exist now (a provider may
+ * have removed one). A project that is not linked is left as it is.
+ */
+export function refreshComposerAutoload({ directories, print, env = process.env }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv }): void {
+  for (const consumer of directories.map(directory => consumerOf(directory))) {
+    if (!consumer.manifests('composer').length) continue;
+    const composer = consumerTool(consumer.top, 'composer', env);
+    for (const { project, installed } of composerProjects(consumer, composer)) {
+      if (!installed || !existsSync(path.join(project, COMPOSER_LINK_FILES[0]))) continue;
+      run(composer.command, ['dump-autoload', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
+      print(`  autoload   composer ${project}`);
+    }
+  }
+}
+
 // --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
 // as an editable install of its folder (`uv pip install -e <folder>`, K316): the environment finds the sources in the folder, no
 // wheel is built or kept, and uv checks Requires-Python and the requirements at that install.
@@ -955,6 +972,7 @@ if (isMain(import.meta.url)) {
         break;
       case 'rebuild':
         for (const repository of rest) rebuild(workTreeOf(repository), print);
+        refreshComposerAutoload({ directories, print });
         break;
       case 'packages': {
         const [directory, ecosystem] = rest;

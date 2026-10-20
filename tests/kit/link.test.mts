@@ -160,7 +160,7 @@ for (const repository of JSON.parse(readFileSync(file, 'utf8')).repositories ?? 
 }
 writeFileSync(path.join(project, vendor, 'composer/installed.json'), JSON.stringify(record));
 ` });
-  stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi\nif [ "$1" = update ]; then node ${JSON.stringify(path.join(bin, 'composer-update.mjs'))} "$@"; fi`);
+  stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi\nif [ "$1" = update ]; then node ${JSON.stringify(path.join(bin, 'composer-update.mjs'))} "$@"; fi\nif [ "$1" = dump-autoload ]; then echo "COMPOSER=$COMPOSER" >> ${JSON.stringify(log)}; fi`);
   stub(bin, log, 'uv', `case "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
@@ -277,6 +277,20 @@ test('Composer links the packages of the vendor that composer config vendor-dir 
   const seen = seenUpdate(consumer);
   assert.equal(seen.file, 'composer.link.json', 'Composer reads the link manifest, never the tracked composer.json');
   assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
+});
+
+test('rebuild refreshes the Composer autoload of each linked consumer (K347)', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  // A Composer project of the consumer that no link touches: its own vendor, with no polyspec package.
+  put(consumer, { 'sub/composer.json': JSON.stringify({ name: 'cons/sub', require: {} }), 'sub/vendor/composer/installed.json': JSON.stringify({ packages: [] }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  linkLines([consumer], env);
+  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), true, 'the consumer is linked');
+  const built = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'rebuild', provider], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(built.status, 0, built.stderr);
+  assert.match(log(), new RegExp(`composer dump-autoload [^\n]*--working-dir ${consumer}\nCOMPOSER=composer\\.link\\.json\n`));
+  assert.doesNotMatch(log(), /dump-autoload [^\n]*--working-dir [^\n]*\/sub\n/, 'a project that is not linked is left as it is');
 });
 
 test('a linked package and an own path package are updated by Composer through the path repositories of composer.link.json, with the released version of the lock (K304-1)', (t) => {
