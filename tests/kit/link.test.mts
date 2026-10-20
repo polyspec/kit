@@ -179,22 +179,34 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
-test('K205: link links the checkouts that it is given with no environment variable, and install-packages links right after the install and never builds', (t) => {
+test('K205: link links the checkouts that it is given with no environment variable, install-packages only installs, and install-kit runs install-link last, after the full install-tools (K360)', (t) => {
   const { provider, kit, consumer, env } = workspace(t);
   const lines: string[] = [];
   const ok = link({ checkouts: [provider, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
   assert.equal(ok, true, lines.join('\n'));
   assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
   const bootstrap = readFileSync(path.join(KIT, 'scripts/kit/kit-bootstrap.mk'), 'utf8').split('\n');
-  const start = bootstrap.findIndex(line => line.startsWith('install-packages:'));
-  assert.ok(start >= 0, 'install-packages has a rule');
-  const recipe: string[] = [];
-  for (let index = start + 1; index < bootstrap.length && bootstrap[index]?.startsWith('\t'); index += 1) recipe.push(bootstrap[index] ?? '');
-  assert.match(recipe.join('\n'), /link --siblings/);
-  assert.doesNotMatch(recipe.join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
+  // The recipe lines of a rule: the lines after its head that start with a tab.
+  const recipeOf = (target: string): string[] => {
+    const start = bootstrap.findIndex(line => line.startsWith(`${target}:`));
+    assert.ok(start >= 0, `${target} has a rule`);
+    const out: string[] = [];
+    for (let index = start + 1; index < bootstrap.length && bootstrap[index]?.startsWith('\t'); index += 1) out.push(bootstrap[index] ?? '');
+    return out;
+  };
+  // Before the package is installed there is no Go, so install-packages must not link: only npm ci.
+  const packages = recipeOf('install-packages').join('\n');
+  assert.match(packages, /\$\(NPM\) ci/);
+  assert.doesNotMatch(packages, /link/);
+  // install-kit runs the full install-tools, without TOOLS, and then install-link as its last line.
+  const kitLines = recipeOf('install-kit');
+  const linkLine = kitLines.findIndex(line => /install-link\s*$/.test(line));
+  assert.equal(linkLine, 3, kitLines.join('\n'));
+  assert.ok(kitLines.findIndex(line => /install-tools\s*$/.test(line)) < linkLine, kitLines.join('\n'));
+  assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
 });
 
-test('install-packages of a consumer runs the link of the sibling kit checkout, and fails when it is not built (K360)', (t) => {
+test('install-link of a consumer runs the link of the sibling kit checkout, and fails when it is not built (K360)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k360-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const cwd = path.join(root, 'ws/cons');
@@ -206,13 +218,13 @@ test('install-packages of a consumer runs the link of the sibling kit checkout, 
   mkdirSync(path.join(kit, 'dist'), { recursive: true });
   writeFileSync(link, '');
   const makefile = path.join(KIT, 'scripts/kit/kit-bootstrap.mk');
-  const dry = () => spawnSync('make', ['-n', '-f', makefile, 'install-packages', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
+  const dry = () => spawnSync('make', ['-n', '-f', makefile, 'install-link', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
   assert.match(dry().stdout, /node \.\.\/kit\/dist\/link\.mjs link --siblings/);
   rmSync(link);
-  // NPM=true keeps a real run from installing anything: the recipe fails before npm ci when the sibling link is missing.
-  const missing = spawnSync('make', ['-f', makefile, 'install-packages', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=true', 'ONLINE='], { cwd, encoding: 'utf8' });
+  // install-link runs no npm; the recipe fails at the missing sibling link, before any link runs.
+  const missing = spawnSync('make', ['-f', makefile, 'install-link', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NODE=node', 'NPM=true', 'ONLINE='], { cwd, encoding: 'utf8' });
   assert.notEqual(missing.status, 0);
-  assert.match(missing.stderr, /install-packages: \.\.\/kit\/dist\/link\.mjs is missing; run make build in \.\.\/kit/);
+  assert.match(missing.stderr, /install-link: \.\.\/kit\/dist\/link\.mjs is missing; run make build in \.\.\/kit/);
   rmSync(kit, { recursive: true, force: true });
   assert.match(dry().stdout, /node node_modules\/@polyspec\/kit\/dist\/link\.mjs link --siblings/);
 });

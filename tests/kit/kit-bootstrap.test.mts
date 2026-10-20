@@ -11,7 +11,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
-const MISSING = 'node_modules/@polyspec/kit/dist/kit.mk is missing; run make install-tools TOOLS=npm, then make install-packages';
+const MISSING = 'node_modules/@polyspec/kit/dist/kit.mk is missing; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link';
 
 /** A repository whose Makefile includes the copy of kit-bootstrap.mk, removed with `t.after`. */
 function repository(t: TestContext) {
@@ -44,7 +44,7 @@ test('without the package, install-tools runs the bootstrap installer of npm and
   assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
   const other = make(root, 'install-tools', 'TOOLS=go');
   assert.equal(other.status, 2, other.stdout);
-  assert.match(other.stdout + other.stderr, /install-tools: only TOOLS=npm runs before the package is installed; run make install-tools TOOLS=npm, then make install-packages/);
+  assert.match(other.stdout + other.stderr, /install-tools: only TOOLS=npm runs before the package is installed; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link/);
 });
 
 test('install-packages runs npm ci with the pinned npm of var/tools, with or without the package', (t) => {
