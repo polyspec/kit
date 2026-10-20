@@ -149,6 +149,32 @@ test('the recipe rule holds only for an ecosystem with a polyspec dependency, an
   ], 'install reaches install-packages by a make call and repo-install by a prerequisite, and links last; gen is outside it');
 });
 
+// K403: fsm reaches its npm install through variables: install: fsm-install, fsm-install: install-kit $(PACKAGE_DEPS), and the rule of
+// $(NPM_DEP), one of PACKAGE_DEPS, makes fsm-js-install.
+test('the recipes that make install reaches through the variables of the Makefiles are reached (K403)', () => {
+  const makefile = [
+    'NPM_DEP := packages/js/node_modules/.package-lock.json',
+    'PHP_DEP = var/deps/php',
+    'PACKAGE_DEPS := $(NPM_DEP)',
+    'PACKAGE_DEPS += ${PHP_DEP}',
+    'export JS_INSTALL ?= fsm-js-install',
+    'install: fsm-install',
+    'fsm-install: install-kit $(PACKAGE_DEPS)',
+    '$(NPM_DEP): packages/js/package-lock.json',
+    '\t$(ONLINE) $(MAKE) $(JS_INSTALL)',
+    '$(PHP_DEP) var/deps/other: composer.lock',
+    '\tcomposer install',
+    'fsm-js-install:',
+    '\tcd packages/js && $(NPM) ci --allow-remote=root --no-audit --no-fund',
+    'gen:',
+    '\tcd packages/js && $(NPM) ci',
+    '',
+  ].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
+    'Makefile:15: the recipe gen installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+  ], 'install reaches fsm-js-install through PACKAGE_DEPS, NPM_DEP and JS_INSTALL, and var/deps/php through PHP_DEP; gen is outside it');
+});
+
 test('a trusted-configs entry other than the checkout own mise.toml is a finding (K397)', (t) => {
   const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
   const trusted = path.join(root, 'var/tools/mise/state/trusted-configs');

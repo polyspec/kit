@@ -131,6 +131,12 @@ const LINKS = /\blink\b/;
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
 // A make call of a recipe and the targets it names.
 const MAKE_CALL = /\$[({]MAKE[)}]((?:\s+[^\s;&|]+)+)/;
+// An assignment of a make variable: =, :=, ::=, ?= or +=, after export or override (K403).
+const ASSIGNMENT = /^(?:(?:export|override)\s+)*([A-Za-z0-9_.-]+)\s*(::?=|\?=|\+=|=)\s*(.*)$/;
+// The head of a rule: its targets, a colon that starts no assignment, and its prerequisites.
+const RULE_HEAD = /^([^\s#:=][^#:=]*?)\s*:(?![:=])([^#;]*)/;
+// A reference to a make variable by its name, $(NAME) or ${NAME}.
+const REFERENCE = /\$[({]([A-Za-z0-9_.-]+)[)}]/g;
 
 /**
  * The ecosystems in which the tracked manifests of `files` declare a polyspec dependency, which a link can link (K349-2); the manifests
@@ -169,13 +175,32 @@ function polyspecEcosystems(files: readonly string[], read: (file: string) => st
  */
 export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined): string[] {
   const ecosystems = polyspecEcosystems(files, read);
-  const rules: { file: string; target: string; prerequisites: string[]; recipe: { line: number; text: string }[] }[] = [];
-  for (const file of files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'))) {
+  const makefiles = files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'));
+  // The targets and prerequisites of a rule are read after the expansion of the variables that the Makefiles assign, so a target
+  // that install reaches through a variable, as fsm-install: install-kit $(PACKAGE_DEPS), is reached (K403). A variable that no
+  // Makefile of the repository assigns, as those of kit.mk, stays as it is written.
+  const variables = new Map<string, string>();
+  for (const file of makefiles) {
+    for (const text of (read(file) ?? '').split('\n')) {
+      const assignment = text.startsWith('\t') ? null : ASSIGNMENT.exec(text);
+      if (!assignment) continue;
+      const [, name = '', operator, value = ''] = assignment;
+      if (operator === '+=') variables.set(name, [variables.get(name), value].filter(Boolean).join(' '));
+      else if (operator !== '?=' || !variables.has(name)) variables.set(name, value);
+    }
+  }
+  const expand = (text: string, depth = 0): string => (depth > 20 ? text : text.replace(REFERENCE, (reference, name: string) => {
+    const value = variables.get(name);
+    return value === undefined ? reference : expand(value, depth + 1);
+  }));
+  const words = (text: string) => expand(text).split(/\s+/).filter(Boolean);
+  const rules: { file: string; targets: string[]; prerequisites: string[]; recipe: { line: number; text: string }[] }[] = [];
+  for (const file of makefiles) {
     let rule: (typeof rules)[number] | undefined;
     (read(file) ?? '').split('\n').forEach((text, index) => {
       if (text.startsWith('\t')) { rule?.recipe.push({ line: index + 1, text }); return; }
-      const head = /^([A-Za-z0-9_.-]+)\s*:(?!=)([^#;]*)/.exec(text);
-      rule = head ? { file, target: head[1] ?? '', prerequisites: (head[2] ?? '').split(/\s+/).filter(Boolean), recipe: [] } : undefined;
+      const head = ASSIGNMENT.test(text) ? null : RULE_HEAD.exec(text);
+      rule = head ? { file, targets: words(head[1] ?? ''), prerequisites: words(head[2] ?? ''), recipe: [] } : undefined;
       if (rule) rules.push(rule);
     });
   }
@@ -184,15 +209,17 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
   const visit = (target: string) => {
     if (reached.has(target)) return;
     reached.add(target);
-    for (const rule of rules.filter(entry => entry.target === target)) {
+    for (const rule of rules.filter(entry => entry.targets.includes(target))) {
       for (const next of rule.prerequisites) visit(next);
-      for (const { text } of rule.recipe) for (const word of MAKE_CALL.exec(text)?.[1]?.split(/\s+/) ?? []) if (/^[A-Za-z0-9_.-]+$/.test(word)) visit(word);
+      for (const { text } of rule.recipe) for (const word of words(MAKE_CALL.exec(text)?.[1] ?? '')) if (/^[A-Za-z0-9_./-]+$/.test(word)) visit(word);
     }
   };
   visit('install');
   const found: string[] = [];
-  for (const { file, target, recipe } of rules) {
-    if (target === 'unlink' || reached.has(target)) continue;
+  // A rule of several targets runs one recipe, so it is reached when one of its targets is.
+  for (const { file, targets, recipe } of rules) {
+    const target = targets.join(' ');
+    if (targets.includes('unlink') || targets.some(name => reached.has(name))) continue;
     const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
     if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
       found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
