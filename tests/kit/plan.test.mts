@@ -5,10 +5,11 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { commitItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
+import { commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
-import { tree } from './tree.mts';
+import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
+import { put, tree } from './tree.mts';
 
 const CONFIG = { 'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
 
@@ -184,6 +185,31 @@ test('verifyDone runs the Verification of the row and refuses a failing command 
   writeFileSync(path.join(root, 'a.mts'), 'export const changed = 1;\n');
   assert.throws(() => verifyDone(root, 'T1', quiet), /the verification must run on the tree that the commit holds[\s\S]*a\.mts/, 'a change after the staging');
   assert.throws(() => verifyDone(root, 'T9', quiet), /T9 is no item/);
+});
+
+// K353: a Verification cell is edited by a utility, and the type check builds the workspace package it cannot find.
+test('item-edit replaces the Verification cell in both languages, through the checks of item-new, and not of a done item (K353)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  editItem(root, { id: 'T1', verification: '`node -e "process.exit(0)"`' });
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ['| T1 | Task T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
+  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
+  assert.throws(() => editItem(root, { id: 'T1', verification: '`node scripts/kit/run-tests.mts node -- tests`' }), /runs a whole runtime without a selection/);
+  assert.throws(() => editItem(root, { id: 'T1', verification: 'a red test' }), /names no command in backticks/);
+  assert.throws(() => editItem(root, { id: 'T9', verification: '`node -e "1"`' }), /T9 is no item/);
+});
+
+test('the type check builds the workspace package that tsc cannot find, once, and then passes (K353)', (t) => {
+  const root = typed(t);
+  put(root, {
+    'libs/dep/package.json': JSON.stringify({ name: 'dep', version: '0.0.0', types: 'dist/index.d.ts', scripts: { build: 'mkdir -p dist && echo "export declare const x: number;" > dist/index.d.ts' } }),
+    'a.mts': "import { x } from 'dep';\nexport const y: number = x;\n",
+  });
+  symlinkSync(path.join(root, 'libs/dep'), path.join(root, 'node_modules/dep'));
+  assert.deepEqual(typeErrors(root, ['.']), []);
+  assert.ok(existsSync(path.join(root, 'libs/dep/dist/index.d.ts')), 'the package was built');
+  put(root, { 'a.mts': "import { x } from 'dep';\nexport const y: string = x;\n" });
+  assert.match(typeErrors(root, ['.'])[0]?.output ?? '', /TS2322/, 'a real type error still fails after the build');
 });
 
 const log = (root: string) => spawnSync('git', ['log', '-1', '--format=%B'], { cwd: root, encoding: 'utf8' }).stdout;

@@ -140,6 +140,32 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
 }
 
 /**
+ * Replaces the Verification cell of the row of the item `id` in the checklist and in its Korean twin (K353), through the checks of
+ * newItem; returns the two files as { path: text }. Throws, writing nothing, for an item that is no row, a done item (an item that is
+ * done stays) and a cell that fails the checks of docs-check.
+ */
+export function editItem(root: string, { id, verification }: { id: string; verification: string | undefined }): Record<string, string> {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
+  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  const replaced = (text: string) => {
+    const lines = text.split('\n');
+    const index = lines.findIndex(line => line.startsWith(`| ${id} |`));
+    const cells = (lines[index] ?? '').replace(/^\| /, '').replace(/ \|$/, '').split(' | ');
+    if (cells.length !== 5) throw new Error(`the row of ${id} holds ${cells.length} cells, not the 5 of a checklist row`);
+    if (cells[4]?.startsWith(DONE)) throw new Error(`${id} is ${DONE}; from ${DONE} an item stays; a new finding is an item of its own`);
+    cells[3] = cell(verification, 'VERIFICATION');
+    lines[index] = `| ${cells.join(' | ')} |`;
+    return lines.join('\n');
+  };
+  const files = { [tracker.path]: replaced(read(tracker.path)), [tracker.translation]: replaced(read(tracker.translation)) };
+  refuseAdded(root, trackers, files);
+  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
+  return files;
+}
+
+/**
  * Throws with the findings that writing `files` ({ path: text }) would add to the checklists of `trackers`, as docs-check
  * reads them. A finding that the checkout has already, such as an empty checklist of another plan, is the work of another
  * change; a finding is the same when its file, rule and message are, since an inserted row moves the lines.
@@ -409,6 +435,9 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-new') {
       const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
+    } else if (command === 'item-edit') {
+      const id = required(env.ID, 'ID');
+      for (const file of Object.keys(editItem(root, { id, verification: env.VERIFICATION }))) console.log(`[plan] edited the Verification of ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       // The done state needs the verification of the row to pass on the tree of the commit (K335).
@@ -424,7 +453,7 @@ if (isMain(import.meta.url)) {
       const commit = { id: required(env.ID, 'ID'), type: required(env.TYPE, 'TYPE'), scope: required(env.SCOPE, 'SCOPE'), subject: required(env.SUBJECT, 'SUBJECT'), bodyFile: path.resolve(required(env.BODY_FILE, 'BODY_FILE')) };
       console.log(`[plan] committed ${commitItem(root, commit).split('\n')[0] ?? ''}`);
     } else {
-      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, plan-split, item-new, item-state, item-test or commit`);
+      throw new Error(`unknown command ${JSON.stringify(command)}; expected plan-new, plan-split, item-new, item-edit, item-state, item-test or commit`);
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

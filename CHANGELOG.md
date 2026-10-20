@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make item-edit ID= VERIFICATION=` replaces the Verification cell of a row in both languages through the checks of
+  `item-new`, and the type check of `make item-state` and `make item-test` builds the workspace package that tsc
+  cannot find (`npm run build`) and compiles again (K353).
 - `make parity-declarations-check` fails an implementation of `config/parity.json` whose roots hold no manifest of its
   ecosystem (`package.json`, `composer.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`) and one that has the roots of
   another, since an implementation is a source root, never only test globs (K336).

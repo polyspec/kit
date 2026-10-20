@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5c461c176b859409c0dc078dc0a858252a3a3c7c31c4bae2d2410fb072d5c44f -->
+<!-- source-sha256: c0fc09f1423c443b330e7b02a19ac71890efe0b5f93a2afc7f2a989af4a7ea79 -->
 <!-- source-sha256: a7515d3be1d4923e2216a756b5b35ec81e233d27a0240888770006dc1fbf7a10 -->
 <!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
 # 변경 기록
@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+- `make item-edit ID= VERIFICATION=`는 `item-new`와 같은 검사를 거쳐 두 언어 row의 Verification 칸을 바꾸고, `make item-state`와 `make
+  item-test`의 type 검사는 tsc가 찾지 못하는 workspace package를 build(`npm run build`)한 뒤 다시 compile한다 (K353).
 - `make parity-declarations-check`는 root에 ecosystem의 manifest(`package.json`, `composer.json`, `pyproject.toml`,
   `go.mod`, `Cargo.toml`)가 없는 `config/parity.json`의 implementation과 다른 implementation의 root를 그대로 가진 implementation을
   실패시킨다. implementation은 source root이지 test glob만이 아니기 때문이다 (K336).
