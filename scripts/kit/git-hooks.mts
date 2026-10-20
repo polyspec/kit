@@ -10,6 +10,7 @@
 import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PRE_PUSH_HOOK } from './checklist.mts';
+import { CONFIG } from './generated-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
@@ -38,6 +39,12 @@ const KIT_HOOKS = [
   { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
 ];
 
+/** Why the pre-commit hook cannot run in the checkout `root`, with the fix, or null when config/generated.json exists (K362). */
+function configIssue(root: string) {
+  if (existsSync(path.join(root, CONFIG))) return null;
+  return `${CONFIG} does not exist, and the pre-commit hook needs it; add ${CONFIG} (its schema is scripts/kit/schema/generated.schema.json), then run make hooks`;
+}
+
 function configuredHooksPath(root: string) {
   const run = gitResult(root, 'config', 'core.hooksPath');
   if (run.error) throw run.error;
@@ -47,6 +54,8 @@ function configuredHooksPath(root: string) {
 
 /** Why a hook of the checkout `root` is not installed, with the fix, or null when every hook of `hooks` is installed. */
 export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hooks) {
+  const missing = configIssue(root);
+  if (missing) return missing;
   const configured = configuredHooksPath(root);
   if (configured !== HOOKS_PATH) {
     return `core.hooksPath is ${configured ? `"${configured}"` : 'not set'}, not ${HOOKS_PATH}, so Git does not run the hooks; run make hooks`;
@@ -70,6 +79,8 @@ export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hook
  * hook that exists executable. Returns the lines of what it changed, empty when nothing changed.
  */
 export function installHooks(root: string, hooks: string[] = loadConfig(root).hooks) {
+  const missing = configIssue(root);
+  if (missing) throw new Error(missing);
   const changes: string[] = [];
   const configured = configuredHooksPath(root);
   if (configured !== HOOKS_PATH) {

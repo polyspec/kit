@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { HOOKS_PATH, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from '../../scripts/kit/git-hooks.mts';
+import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 
@@ -84,6 +84,28 @@ test('the listed hooks of the repository are checked and made executable, and a 
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
   assert.equal(existsSync(path.join(work, '.githooks/pre-push')), true);
   assert.equal(hooksIssue(work), null);
+});
+
+test('check and install fail naming config/generated.json while the pre-commit hook is installed and the repository lacks it (K362)', (t) => {
+  const { work } = checkout(t);
+  const config = path.join(work, 'config/generated.json');
+  const valid = readFileSync(config, 'utf8');
+  rmSync(config);
+  assert.throws(() => installHooks(work), /config\/generated\.json/);
+  assert.notEqual(run(work, 'git', ['config', 'core.hooksPath']).status, 0, 'a refused install writes nothing, so core.hooksPath stays unset');
+  assert.equal(existsSync(path.join(work, PRE_COMMIT)), false, 'a refused install writes no hook');
+
+  writeFileSync(config, valid);
+  assert.equal(hooks(work).status, 0);
+  rmSync(config);
+  assert.match(hooksIssue(work) ?? '', /config\/generated\.json/);
+  assert.match(check(work).stderr, /config\/generated\.json/);
+  assert.equal(check(work).status, 1);
+
+  writeFileSync(config, '{"schema":1,"paths":[],"exceptions":[]}\n');
+  assert.equal(hooks(work).status, 0);
+  assert.equal(hooksIssue(work), null);
+  assert.equal(check(work).status, 0);
 });
 
 test('git-hooks takes only install or check', (t) => {
