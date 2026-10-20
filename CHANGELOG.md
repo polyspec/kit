@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make item-state` checks the transition to done before it runs the verification, so a waiting row is refused with
+  the states it can move to, not for its unstaged files (K353-1).
 - `make item-edit ID= VERIFICATION=` replaces the Verification cell of a row in both languages through the checks of
   `item-new`, and the type check of `make item-state` and `make item-test` builds the workspace package that tsc
   cannot find (`npm run build`) and compiles again (K353).

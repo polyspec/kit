@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c0fc09f1423c443b330e7b02a19ac71890efe0b5f93a2afc7f2a989af4a7ea79 -->
+<!-- source-sha256: 06b47e80203413375a021eb3fa419f1c466750cd27db1bff213b6194c1f47777 -->
 <!-- source-sha256: a7515d3be1d4923e2216a756b5b35ec81e233d27a0240888770006dc1fbf7a10 -->
 <!-- source-sha256: a29c437e4e45ab45ff782e06601b293bc398bb2805ced79c1f6005b8362f55d2 -->
 # 변경 기록
@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+- `make item-state`는 verification을 실행하기 전에 done으로의 transition을 검사하므로, waiting row는 stage하지 않은 파일이 아니라 이동할 수 있는 상태와 함께
+  거부된다 (K353-1).
 - `make item-edit ID= VERIFICATION=`는 `item-new`와 같은 검사를 거쳐 두 언어 row의 Verification 칸을 바꾸고, `make item-state`와 `make
   item-test`의 type 검사는 tsc가 찾지 못하는 workspace package를 build(`npm run build`)한 뒤 다시 compile한다 (K353).
 - `make parity-declarations-check`는 root에 ecosystem의 manifest(`package.json`, `composer.json`, `pyproject.toml`,

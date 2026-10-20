@@ -177,6 +177,10 @@ test('verifyDone runs the Verification of the row and refuses a failing command 
   newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
   newItem(root, item('parser', 'T2', { deliverables: '`a.mts`', verification: '`node -e "process.exit(3)"`' }));
   const quiet = () => {};
+  // Both rows are active: the transition is checked first (K353-1).
+  for (const file of ['docs/plans/parser/checklist.md', 'docs/plans/parser/checklist.ko.md']) {
+    writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8').replaceAll(' | [ ] |', ' | [~] |'));
+  }
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   assert.throws(() => verifyDone(root, 'T1', quiet), /T1: the verification must run on the tree that the commit holds[\s\S]*\?\? a\.mts/, 'an untracked deliverable');
   stage(root, 'a.mts');
@@ -185,6 +189,14 @@ test('verifyDone runs the Verification of the row and refuses a failing command 
   writeFileSync(path.join(root, 'a.mts'), 'export const changed = 1;\n');
   assert.throws(() => verifyDone(root, 'T1', quiet), /the verification must run on the tree that the commit holds[\s\S]*a\.mts/, 'a change after the staging');
   assert.throws(() => verifyDone(root, 'T9', quiet), /T9 is no item/);
+});
+
+// K353-1: the transition is refused before the files, and says where a waiting row goes.
+test('verifyDone refuses a waiting row for its transition before it looks at the files (K353-1)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\]/);
 });
 
 // K353: a Verification cell is edited by a utility, and the type check builds the workspace package it cannot find.

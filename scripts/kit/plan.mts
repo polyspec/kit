@@ -364,6 +364,10 @@ export function verifyDone(root: string, id: string, print: (text: string) => vo
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const tracker = trackers.find(entry => readChecklist(readFileSync(path.join(root, entry.path), 'utf8'), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  // The transition is checked first (K353-1): a waiting row goes through the active state, which staging the files would not tell.
+  const state = readChecklist(readFileSync(path.join(root, tracker.path), 'utf8'), tracker).items.find(item => item.id === id)?.state ?? '';
+  const allowed = present(TRANSITIONS[state], 'TRANSITIONS[state]');
+  if (!allowed.includes(DONE)) throw new Error(`${id} is ${state}; from ${state} ${allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own'}`);
   const cells = rowCells(readFileSync(path.join(root, tracker.path), 'utf8'), id);
   const delivered = (cells?.[2] ?? '').split(/[\s,]+/).map(token => token.replace(/^`|`$/g, '')).filter(token => token !== '' && existsSync(path.join(root, token)));
   if (delivered.length > 0) {
