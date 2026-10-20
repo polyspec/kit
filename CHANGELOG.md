@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make duplication-check` leaves out the S10 stub of a PHP extension, `packages/php-ext/src/polyspec_*.stub.php`, by
+  its path, since S10 makes it declare the library under the same names and signatures; clones inside the library stay
+  counted, and docs/operations/tool-inventory.md states the reason. Red: jscpd reported a stub that mirrors a library
+  class; green: `node --test --test-name-pattern=K366 tests/kit/duplication-check.test.mts` passes (K366).
 - The Claude Code hook of kit refuses a Bash command that waits: a `sleep`, and a `for`, `while` or `until` loop whose
   body sleeps or polls (`pgrep`, `pidof`, `ls`, `test -e`/`-f`/`-d`, `[ -e`), with one message that names the
   alternatives, a foreground command bounded by its own work and timeout or a background run that notifies at its end.

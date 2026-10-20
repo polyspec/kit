@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5b8722b6dc09e17f4cf2e841394244e117747692078292fc002b6d44f7983f6d -->
+<!-- source-sha256: 8cdcea7aa8a0cd31ea43ec12b156cb04d5af38e1665cb1748eda33700337bf49 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make duplication-check`는 PHP extension의 S10 stub `packages/php-ext/src/polyspec_*.stub.php`를 경로로 제외한다. S10이
+  stub에 library를 같은 이름과 signature로 선언하게 하기 때문이다. library 안의 clone은 계속 세며
+  docs/operations/tool-inventory.md가 그 이유를 말한다. red: jscpd가 library class를 따라 쓴 stub을 보고했다. green:
+  `node --test --test-name-pattern=K366 tests/kit/duplication-check.test.mts`가 통과한다 (K366).
 - kit의 Claude Code hook은 기다리는 Bash 명령, 즉 `sleep`과 본문이 sleep하거나 poll하는(`pgrep`, `pidof`, `ls`, `test
   -e`/`-f`/`-d`, `[ -e`) `for`, `while`, `until` loop를 거부하고, 대안인 자기 작업과 timeout으로 끝나는 foreground 명령
   또는 끝날 때 알리는 background 실행을 한 message로 말한다. red: hook이 `sleep 280; echo waited`를 받았다. green: `node
