@@ -104,3 +104,11 @@ export function runCommand(
     child.once('close', (status, signal) => finish(exit ?? { status, signal }));
   });
 }
+
+/** The failure of a finished command in one line, or undefined when it succeeded, as the callers of runCommand print it. */
+export function failureOf(result: Pick<RunCommandResult, 'status' | 'signal' | 'stopped' | 'error'>): string | undefined {
+  if (result.stopped === 'output') return 'wrote more than its output limit; stopped its process group';
+  if (result.error) return result.error.message;
+  if (result.status !== 0) return result.status === null ? `ended by ${result.signal}` : `failed with status ${result.status}`;
+  return undefined;
+}

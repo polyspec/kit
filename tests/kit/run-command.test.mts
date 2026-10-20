@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runCommand } from '../../scripts/kit/run-command.mts';
+import { failureOf, runCommand } from '../../scripts/kit/run-command.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -46,4 +46,12 @@ test('a command that does not start returns the error of its start (K430)', asyn
   const result = await runCommand({ command: 'no-such-command-K430', stdout: 'pipe', stderr: 'pipe' });
   assert.ok(result.error instanceof Error);
   assert.equal(result.status, null);
+});
+
+test('failureOf states the failure of a finished command in one line, and none for a success (K430)', () => {
+  assert.equal(failureOf({ status: 0, signal: null }), undefined);
+  assert.equal(failureOf({ status: 2, signal: null }), 'failed with status 2');
+  assert.equal(failureOf({ status: null, signal: 'SIGTERM' }), 'ended by SIGTERM');
+  assert.equal(failureOf({ status: null, signal: null, error: new Error('spawn x ENOENT') }), 'spawn x ENOENT');
+  assert.equal(failureOf({ status: null, signal: 'SIGKILL', stopped: 'output' }), 'wrote more than its output limit; stopped its process group');
 });
