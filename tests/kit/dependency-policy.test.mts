@@ -13,6 +13,7 @@ import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulnc
 import { tool } from './kit-tools.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 import { readNpmManifest } from '../../scripts/kit/manifests.mts';
+import { satisfies } from '../../scripts/kit/composer-constraint.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import { known } from './known.mts';
@@ -62,6 +63,42 @@ test('the gate fails on a Composer platform that differs from the others or from
   writeFileSync(path.join(root, '.php-version'), '8.2\n');
   const pinned = gate(root);
   assert.match(pinned.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.json: the PHP platform is 8\.2\.0, the one platform of this repository is 8\.2\.1: the minor of \.php-version with the patch 1, which PHPUnit 13 needs/m);
+});
+
+// K415: a tracked lock pinned a package whose PHP requirement the declared platform did not meet, so a fresh worktree failed in
+// vendor/composer/platform_check.php and no check saw it. Each locked package is checked against config.platform of its manifest.
+test('a locked package whose PHP requirement the declared platform does not meet is a finding (K415)', (t) => {
+  const root = fixture(t);
+  const manifestFile = path.join(root, 'packages/fixture-php/composer.json');
+  const lockFile = path.join(root, 'packages/fixture-php/composer.lock');
+  const manifest = readConfig<Record<string, unknown> & { config: Record<string, unknown> }>(root, 'packages/fixture-php/composer.json', 'composer-manifest.schema.json');
+  const lock = readConfig<{ packages: Record<string, unknown>[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
+  // The first locked package requires the given packages; the manifest declares the given platform.
+  const declare = (platform: Record<string, string>, require: Record<string, string>) => {
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, config: { ...manifest.config, platform } }));
+    writeFileSync(lockFile, JSON.stringify({ ...lock, packages: [{ name: 'example/locked', version: '1.0.0', require }, ...lock.packages.slice(1)] }));
+    return gate(root);
+  };
+  const failing = declare({ php: '8.4.1' }, { php: '>=8.5' });
+  assert.match(failing.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: example\/locked 1\.0\.0 requires php >=8\.5, the platform that packages\/fixture-php\/composer\.json declares is php 8\.4\.1/m);
+  assert.doesNotMatch(declare({ php: '8.4.1' }, { php: '^8.2 || ^8.3 || ^8.4' }).stderr, /requires php/, 'a lock that the platform satisfies passes');
+  assert.match(declare({ php: '8.4.1', 'ext-intl': '8.3.0' }, { 'ext-intl': '>=8.4' }).stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: example\/locked 1\.0\.0 requires ext-intl >=8\.4, the platform .* is ext-intl 8\.3\.0/m);
+});
+
+// K415: the Composer constraints of php and ext-* requirements, in the forms that they use, judge a platform version as Composer does.
+test('the Composer constraints of PHP and extension requirements are evaluated in the forms they use (K415)', () => {
+  const cases: [string, string, boolean][] = [
+    ['>=8.5', '8.4.1', false], ['>=8.5', '8.5.0', true], ['>=8.4', '8.4.1', true], ['>8.4', '8.4.0', false], ['<=8.4.1', '8.4.1', true],
+    ['^8.2 || ^8.3 || ^8.4', '8.4.1', true], ['^8.2 || ^8.3', '8.4.1', true], ['^8.2 || ^8.3', '8.1.2', false], ['^8.2', '9.0.0', false], ['^0.3', '0.3.9', true], ['^0.3', '0.4.0', false],
+    ['^0.0.3', '0.0.4', false], ['~8.4.0', '8.4.9', true], ['~8.4.0', '8.5.0', false], ['~8.4', '8.9.0', true], ['~8.4', '9.0.0', false], ['~8', '8.9', true],
+    ['8.4.*', '8.4.1', true], ['8.4.*', '8.5.0', false], ['8.*', '8.0.0', true], ['*', '1.0.0', true], ['8.4.1', '8.4.1', true], ['8.4.1', '8.4.2', false],
+    ['>=8.1 <8.5', '8.4.1', true], ['>=8.1, <8.4', '8.4.1', false], ['>= 8.1', '8.4.1', true], ['!=8.4.1', '8.4.1', false], ['=8.4.1', '8.4.1', true],
+    ['>=8.4', '8.4', true], ['>=8.4', 'v8.4.1', true], ['^8.2 || ^8.3 || ^8.4', '8.1.2', false],
+  ];
+  for (const [constraint, version, expected] of cases) assert.equal(satisfies(constraint, version), expected, `${constraint} against ${version}`);
+  assert.throws(() => satisfies('1.0 - 2.0', '1.5.0'), /kit reads/, 'a hyphen range is a form kit does not read');
+  assert.throws(() => satisfies('dev-main', '8.4.1'), /kit reads/, 'a dev branch is a form kit does not read');
+  assert.throws(() => satisfies('>=8.4', '8.*'), /wildcard/, 'a platform version is concrete');
 });
 
 // K326: while a project is linked the local checkouts are canonical, so the platform and the dist of the Composer packages are judged on

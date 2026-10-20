@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, isVersionText, older } from './version.mts';
+import { satisfies } from './composer-constraint.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -202,6 +203,32 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   const expected = phpPin === undefined ? [...platforms.values()][0] : `${phpPin.split('.').slice(0, 2).join('.')}.${PLATFORM_PATCH}`;
   for (const [subject, php] of platforms) {
     if (expected !== undefined && php !== expected) add('platform', subject, `the PHP platform is ${php}, the one platform of this repository is ${expected}${phpPin === undefined ? ', that of its first manifest' : `: the minor of ${PHP_VERSION} with the patch ${PLATFORM_PATCH}, which PHPUnit 13 needs`}`, `set it to ${expected}`);
+  }
+
+  // Each locked package of a tracked Composer lock is checked against the php and ext-* that config.platform of its composer.json
+  // declares (K415): a package whose require the declared platform does not satisfy fails in vendor/composer/platform_check.php of
+  // a fresh worktree. A project without config.platform.php is checked against no php, and an extension that config.platform does
+  // not declare is not checked.
+  const tracked = checkedFiles(root);
+  for (const file of tracked.filter(item => path.posix.basename(item) === 'composer.json' && !kitWrote(item) && !item.startsWith(`${symbols}/`))) {
+    const lockPath = path.posix.join(path.posix.dirname(file), 'composer.lock');
+    if (!tracked.includes(lockPath)) continue;
+    const platform = readComposerManifest(root, file).config?.platform ?? {};
+    const composerLock = readComposerLock(root, lockPath);
+    for (const locked of [...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])]) {
+      for (const [name, constraint] of Object.entries(locked.require ?? {})) {
+        const declared = platform[name];
+        if ((name !== 'php' && !name.startsWith('ext-')) || typeof declared !== 'string') continue;
+        let satisfied: boolean;
+        try {
+          satisfied = satisfies(constraint, declared);
+        } catch (error) {
+          add('platform', lockPath, `${locked.name} ${locked.version} requires ${name} ${constraint}, which kit does not read: ${error instanceof Error ? error.message : String(error)}`, `change the requirement of ${locked.name} in ${lockPath}, or lock a release that kit reads`);
+          continue;
+        }
+        if (!satisfied) add('platform', lockPath, `${locked.name} ${locked.version} requires ${name} ${constraint}, the platform that ${file} declares is ${name} ${declared}`, `lock a release of ${locked.name} that ${name} ${declared} satisfies, or set config.platform.${name} of ${file} to a version that satisfies ${constraint}, and run composer update --lock in ${path.posix.dirname(file)}`);
+      }
+    }
   }
 
   // The published Composer manifests have no lock: the development root composer.json resolves them.

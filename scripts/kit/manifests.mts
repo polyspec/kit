@@ -48,8 +48,8 @@ export type ComposerManifest = {
   config?: { platform?: Record<string, string | boolean> };
 };
 
-/** A package of a Composer lock. */
-export type ComposerPackage = { name: string; version: string; dist?: { type: string; url: string; shasum?: string } };
+/** A package of a Composer lock; its require holds the requirements that the platform checks (K415). */
+export type ComposerPackage = { name: string; version: string; require?: Record<string, string>; dist?: { type: string; url: string; shasum?: string } };
 
 /** A Composer lock; composer-lock.schema.json. */
 export type ComposerLock = { packages?: ComposerPackage[]; 'packages-dev'?: ComposerPackage[]; 'platform-overrides'?: Record<string, string> };
