@@ -1,9 +1,11 @@
 // Tests of the review path of scripts/kit/dependency-review.mts: the fix that a finding names is the fix of the newer release
 // that the review found. The checkout is the fixture copy of tests/kit/checkout.mts; the registries are stubs.
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { composerEnvironment, highestStableRelease, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
@@ -206,4 +208,30 @@ test('while linked UPDATE also updates the tracked lock of a package that is no 
   assert.ok(calls.indexOf('composer update --with-dependencies --no-install --no-interaction example/framework') > declared, calls.join('\n'));
   assert.ok(calls.includes('composer require --no-update --no-interaction polyspec/template:^0.0.12'), calls.join('\n'));
   assert.deepEqual(calls.filter(call => call.includes('--no-install') && call.includes('polyspec/')), [], calls.join('\n'));
+});
+
+test('a Go module under the tracked go.work of the repository is scanned with that workspace (K418)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  // The tracked root go.work uses the fixture module, which has no go.work of its own; the lone module lies outside every use.
+  writeFileSync(path.join(root, 'go.work'), 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
+  mkdirSync(path.join(root, 'packages/sibling'), { recursive: true });
+  writeFileSync(path.join(root, 'packages/sibling/go.mod'), 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
+  writeFileSync(path.join(root, 'packages/fixture-go/main.go'), 'package main\n\nfunc main() {}\n');
+  mkdirSync(path.join(root, 'packages/lone'), { recursive: true });
+  writeFileSync(path.join(root, 'packages/lone/go.mod'), 'module example.com/other\n\ngo 1.21\n');
+  writeFileSync(path.join(root, 'packages/lone/main.go'), 'package main\n\nfunc main() {}\n');
+  spawnSync('git', ['add', '-A', '-f', '--', 'go.work', 'packages'], { cwd: root });
+  spawnSync('git', ['-c', 'user.name=kit', '-c', 'user.email=kit@example.invalid', 'commit', '--quiet', '-m', 'workspace'], { cwd: root });
+  const stub = stubRegistries(t);
+  stub.registry(FIXTURE_REGISTRY);
+  review(root, [], stub.env);
+  const calls = readFileSync(path.join(root, 'var/tools/govulncheck-calls.log'), 'utf8').split('\n').filter(Boolean).map(line => {
+    const call: unknown = JSON.parse(line);
+    if (!isJsonObject(call) || typeof call.cwd !== 'string') throw new Error(`govulncheck-calls.log holds no call with a cwd: ${line}`);
+    return { cwd: call.cwd, gowork: typeof call.gowork === 'string' ? call.gowork : undefined };
+  });
+  assert.equal(calls.find(call => call.cwd === realpathSync(path.join(root, 'packages/fixture-go')))?.gowork, path.join(realpathSync(root), 'go.work'));
+  assert.equal(calls.find(call => call.cwd === realpathSync(path.join(root, 'packages/lone')))?.gowork, undefined);
 });

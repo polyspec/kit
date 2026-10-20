@@ -18,7 +18,7 @@
 // installs it) and the RustSec advisory database, and those of the Go locks from the govulncheck of mise.toml. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mts.
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
@@ -34,6 +34,7 @@ import { writeJson } from './bootstrap/files.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
 import { present } from './present.mts';
+import { checkedFiles } from './tracked-files.mts';
 
 // npm audit reports these severities; the reviewed severity is moderate. Composer audit reports every advisory.
 const NPM_SEVERITIES = new Set(['moderate', 'high', 'critical']);
@@ -266,11 +267,36 @@ export function goPackages(root: string, lock: string, env?: NodeJS.ProcessEnv):
   return answer.error !== undefined ? answer : { list: answer.stdout.split('\n').filter(Boolean) };
 }
 
-// The environment of a Go scan of `lock` (K365): GOWORK names the go.work beside its go.mod, which the link writes, so the
-// scan compiles the linked modules; without a go.work the environment is the default.
+// The folders (of `root`) that the go.work `file` of `root` lists in its use directives. The text is read, not go work
+// edit, so a scan needs no record of the go command for the file.
+function goWorkUses(root: string, file: string): Set<string> {
+  const uses = new Set<string>();
+  let block = false;
+  for (const raw of readFileSync(path.join(root, file), 'utf8').split('\n')) {
+    const line = raw.replace(/\/\/.*$/, '').trim();
+    let entry: string | undefined;
+    if (block) {
+      if (line === ')') block = false;
+      else entry = line;
+    } else if (line === 'use (') block = true;
+    else entry = /^use\s+(.+)$/.exec(line)?.[1];
+    if (entry) uses.add(path.posix.normalize(path.posix.join(path.posix.dirname(file), entry.replace(/^"(.*)"$/, '$1'))));
+  }
+  return uses;
+}
+
+// The environment of a Go scan of `lock` (K365, K418): GOWORK names the nearest go.work at or above the module, up to the work
+// tree: the go.work beside its go.mod (which the link writes), else a tracked go.work whose use directives list the module. Without
+// one the environment is the default.
 function goScanEnvironment(root: string, lock: string): NodeJS.ProcessEnv | undefined {
-  const work = path.join(root, path.posix.dirname(lock), 'go.work');
-  return existsSync(work) ? { ...process.env, GOWORK: work } : undefined;
+  const module = path.posix.dirname(lock);
+  const tracked = new Set(checkedFiles(root));
+  for (let directory = module; ; directory = path.posix.dirname(directory)) {
+    if (directory === module && existsSync(path.join(root, directory, 'go.work'))) return { ...process.env, GOWORK: path.join(root, directory, 'go.work') };
+    const file = path.posix.join(directory, 'go.work');
+    if (tracked.has(file) && goWorkUses(root, file).has(module)) return { ...process.env, GOWORK: path.join(root, file) };
+    if (directory === '.') return undefined;
+  }
 }
 
 // The fix of a failed Go scan: the output of the scan names the cause, which a module that does not compile has in its code or link.
