@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 483ac15ecf0350033570d75d1c55f16f27acd5d08cbd24d9b5d9097c1c357123 -->
+<!-- source-sha256: 2533c53c1971a9417d43e687211c843670ced4343506986a3a901b9017e9e8d1 -->
 # 공통 표준 체크리스트
 
 ## Kit
