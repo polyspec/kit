@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make dependency-policy-check` fails a package-lock.json entry resolved from a remote tarball URL (an http(s) `.tgz` that is
+  not registry.npmjs.org) that no package.json of the lock root or its workspaces names by that URL, naming the lock line,
+  the package and the URL, so the refusal of npm ci under allow-remote=root (K189) shows first; the fix declares the package
+  with its URL at the root (K427).
 - `make install-packages` runs, after its npm ci, the make targets that the variable INSTALL_PACKAGES_EXTRA of the repository
   names, such as the install of a tools project outside its npm workspaces with its own package-lock.json, with the same npm
   and allow-remote setting; they only install, `make install` links after them, link-state-check asks them for no link step,

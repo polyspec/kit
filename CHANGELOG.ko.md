@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a8a66e3f0d292187d334226f9ed07ea92af72a03c2c5bf9a3507768122fe5418 -->
+<!-- source-sha256: c6c4159fc7037cf91547b9b90b96b69669970f6c4db7e68d4252e63631b60da5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make dependency-policy-check`는 remote tarball URL(registry.npmjs.org가 아닌 http(s) `.tgz`)에서 resolve되었지만 lock
+  root나 그 workspace의 어떤 package.json도 그 URL로 적지 않은 package-lock.json 항목을 lock의 줄, 패키지, URL과 함께
+  실패시키므로, allow-remote=root(K189)에서 npm ci가 거부하는 일이 먼저 보인다. 고치는 방법은 그 패키지를 URL과 함께 root에
+  선언하는 것이다(K427).
 - `make install-packages`는 npm ci 뒤에 저장소 변수 INSTALL_PACKAGES_EXTRA가 이름 붙인 make target(예: npm workspace 밖에
   자기 package-lock.json을 가진 tools 프로젝트의 설치)을 같은 npm과 allow-remote 설정으로 실행한다. 그것들은 설치만 하고,
   `make install`이 그 뒤에 link하며, link-state-check는 그것들에 link 단계를 요구하지 않고, release workflow는
