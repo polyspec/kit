@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Parity rule R6 leaves out the test files that an `internal` glob of any implementation selects, as it does bound
+  files, so an internal node-run test of a PHP implementation draws no R6 (K332).
 - `kit link` runs the partial `composer update` of the linked packages with `--with-dependencies`, so a dependency
   that a linked package now requires at another constraint is resolved while unrelated packages stay at the locked
   release (K331).

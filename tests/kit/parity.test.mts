@@ -1171,6 +1171,20 @@ test('R6: the tests of the PHP extension are those of every PHP library, package
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
+test('R6 leaves out a file that an internal glob of any implementation selects (K332)', () => {
+  const implementations: ParityImplementation[] = [
+    { name: 'ts', runner: 'node', roots: ['packages/ts'] },
+    { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], internal: [{ glob: 'packages/php-ext/tests/engine/*.mjs', reason: 'test: the node-run test of the engine of the extension' }] },
+  ];
+  const file = 'packages/php-ext/tests/engine/engine.test.mjs';
+  const model = (declared: boolean): ParityModel => {
+    const list = declared ? implementations : implementations.map(entry => ({ ...entry, internal: undefined }));
+    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]) };
+  };
+  assert.deepEqual(misplacedTests(model(false), [file]).map(finding => finding.place), [file], 'without the declaration the node test outside the node roots is R6');
+  assert.deepEqual(misplacedTests(model(true), [file]), []);
+});
+
 const INTERNAL = (config: Declaration, glob = 'php/tests/Internal*.php') => {
   const php = config.implementations.find(entry => entry.name === 'php');
   if (php === undefined) throw new Error('the fixture declares php');

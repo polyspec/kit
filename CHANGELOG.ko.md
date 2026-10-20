@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fc689aa51739de09517625a64b2af3cffba8fd7e5a4a602c8d0d01c313d7b431 -->
+<!-- source-sha256: a2aae4ca37be8e6f71acaa23cc6b53c604dee912b49e605984061f8adec923d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Parity 규칙 R6은 bound 파일처럼 어느 구현의 `internal` glob이 고르는 test 파일도 제외하므로, PHP 구현의 internal node 실행 test는 R6에 걸리지 않는다
+  (K332).
 - `kit link`는 linked package의 partial `composer update`를 `--with-dependencies`로 실행하므로, linked package가 새 constraint로
   요구하는 dependency는 resolve되고 관계없는 package는 locked release에 남는다 (K331).
 - Composer는 `repositories`를 root manifest에서만 읽으므로, `make dependency-policy-check`는 polyspec package를 require하는 root

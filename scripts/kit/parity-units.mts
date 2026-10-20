@@ -84,6 +84,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const comparators = model.config.comparators ?? [];
   const tools = (model.config.tools ?? []).map(tool => tool.root);
   const inComparator = (file: string) => comparators.some(root => within(root, file));
+  const internalGlobs = model.config.implementations.flatMap(entry => (entry.internal ?? []).map(item => item.glob));
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
   const bindings = bound.flatMap(({ unit, entry }) => {
     // readDeclaration reports a binding of an implementation that is no declared implementation.
@@ -92,7 +93,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));
-  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && ![...KIT_DIRECTORIES, ...tools].some(root => within(root, file))).flatMap((file) => {
+  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !matchesAny(internalGlobs, file) && ![...KIT_DIRECTORIES, ...tools].some(root => within(root, file))).flatMap((file) => {
     // Conventions overlap (a *.test.ts file is a node and a vitest test), so a file lies in a root of one of its runners.
     const runners = (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file));
     if (!runners.length) return [];
