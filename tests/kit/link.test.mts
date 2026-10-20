@@ -292,6 +292,27 @@ test('a linked package and an own path package are updated by Composer through t
   assert.equal(readJsonFile<{ repositories: unknown[] }>(path.join(consumer, 'composer.json'), 'composer-manifest.schema.json').repositories.length, 2, 'the tracked composer.json is unchanged');
 });
 
+test('a relink keeps the versions that the link lock holds for the packages that it does not link (K392)', (t) => {
+  const { consumer, env } = workspace(t);
+  const vendor = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }] });
+  put(consumer, {
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }, { name: 'psr/log', version: '3.0.0' }] }),
+    'var/contracts/vendor/composer/installed.json': vendor,
+  });
+  const linkLock = path.join(consumer, 'composer.link.lock');
+  const versionOf = (name: string) => (JSON.parse(readFileSync(linkLock, 'utf8')) as { packages: { name: string; version: string }[] }).packages.find(item => item.name === name)?.version;
+  linkLines([consumer], env);
+  assert.equal(versionOf('psr/log'), '3.0.0', 'the first link writes the link lock from the tracked lock');
+  // What `make dependency-review UPDATE=1` applies to the link lock: a package that is not linked moves to another release.
+  const lock = JSON.parse(readFileSync(linkLock, 'utf8')) as { packages: { name: string; version: string }[] };
+  for (const item of lock.packages) if (item.name === 'psr/log') item.version = '3.0.1';
+  writeFileSync(linkLock, JSON.stringify(lock));
+  // The relink follows a new install of the vendor, which holds the archive again, so Composer updates the linked package.
+  writeFileSync(path.join(consumer, 'var/contracts/vendor/composer/installed.json'), vendor);
+  linkLines([consumer], env);
+  assert.equal(versionOf('psr/log'), '3.0.1', 'the relink keeps the link lock, not the tracked composer.lock');
+});
+
 // K330: Composer reads repositories only from the root manifest, so the link writes those of a linked package into composer.link.json.
 test('the repositories that a linked package declares are written into composer.link.json (K330)', (t) => {
   const { provider, consumer, env } = workspace(t);

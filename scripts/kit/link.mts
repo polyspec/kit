@@ -426,7 +426,10 @@ function linkComposer(work: Run, consumer: Consumer) {
     const targets = [...all.map(item => item.name), ...ownTargets];
     excludeComposerLinkFiles(consumer.top);
     writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, all, lockedVersions(lock)), null, 4)}\n`);
-    copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
+    // The link lock is written from the tracked lock only when it is missing, and kept afterwards (K392): what `dependency-review UPDATE=1`
+    // applied to it stays, and the partial update changes only the linked packages there; the packages that it does not link keep their
+    // versions. A tracked lock that gained a package is not copied over it: remove the link lock to take the tracked lock again.
+    if (!existsSync(path.join(project, COMPOSER_LINK_FILES[1]))) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
     run(composer.command, ['update', ...targets, '--with-dependencies', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
     for (const item of toLink) {
       if (real(item.copy) === realpathSync(item.provider.folder)) line(work, 'linked', 'composer', `${item.name} -> ${item.provider.folder} (now)`);
