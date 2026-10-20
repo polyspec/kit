@@ -318,13 +318,17 @@ test('item-state refuses a bypassed or impossible state whose cause cites a rele
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
 });
 
+// The kit.mk of the installed kit in a consumer, which its Makefile includes (K357-1).
+const KIT_MK = 'node_modules/@polyspec/kit/dist/kit.mk';
+
 // K357: a fix whose defect is a finding of a gate of kit-gates has the gate as its test; the red of the gate on the parent proves it.
 test('a fix commit without a test file is accepted with the red of the gate of its row that item-state recorded on its parent (K357)', (t) => {
   const root = plans(t, 'parser');
+  // A consumer includes the kit.mk of the installed kit, which declares kit-gates (K357-1).
   put(root, {
-    '.gitignore': 'var/\n',
-    'Makefile': 'lint-x:\n\tgrep -q good a.txt\n',
-    'scripts/kit/kit.mk': 'kit-gates: lint-x\n',
+    '.gitignore': 'var/\nnode_modules/\n',
+    'Makefile': `include ${KIT_MK}\n`,
+    [KIT_MK]: 'kit-gates: lint-x\nlint-x:\n\tgrep -q good a.txt\n',
     'a.txt': 'bad\n',
     'CHANGELOG.md': CHANGELOG,
     'CHANGELOG.ko.md': CHANGELOG,
@@ -356,7 +360,7 @@ test('a fix commit without a test file is accepted with the red of the gate of i
 
 test('a fix commit without a test file is refused without a red of its gate, with the red of another parent, and without moving its item to done (K357)', (t) => {
   const root = plans(t, 'parser');
-  put(root, { 'Makefile': 'lint-x:\n\ttrue\n', 'scripts/kit/kit.mk': 'kit-gates: lint-x\n', 'a.txt': 'bad\n', 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG });
+  put(root, { '.gitignore': 'var/\nnode_modules/\n', 'Makefile': `include ${KIT_MK}\n`, [KIT_MK]: 'kit-gates: lint-x\nlint-x:\n\ttrue\n', 'a.txt': 'bad\n', 'CHANGELOG.md': CHANGELOG, 'CHANGELOG.ko.md': CHANGELOG });
   newItem(root, item('parser', 'T1', { deliverables: '`a.txt`', verification: '`make lint-x`' }));
   for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '-m', 'base']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
   const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
@@ -374,4 +378,15 @@ test('a fix commit without a test file is refused without a red of its gate, wit
   assert.deepEqual(findings(red.replace('lint-x', 'lint-y')), ['commit-fix-test'], 'a command that the row does not run');
   assert.deepEqual(findings(red.replace('exit 2', 'exit 0')), ['commit-fix-test'], 'a gate that passed on the parent');
   assert.deepEqual(findings(red), [], 'the red of the gate of the row on the parent');
+});
+
+// K357-1: the gates are those of the kit-gates of the Makefile of the repository; a Makefile without kit-gates cannot tell a gate.
+test('item-state fails naming kit-gates when a Verification runs make <target> and the Makefile declares no kit-gates (K357-1)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { 'Makefile': 'lint-x:\n\ttrue\n' });
+  newItem(root, item('parser', 'T1', { verification: '`make lint-x`' }));
+  newItem(root, item('parser', 'T2', { verification: '`node --test a.test.mts`' }));
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '-m', 'base']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  assert.throws(() => setState(root, { id: 'T1', state: '[~]' }, () => {}), /declares no kit-gates/);
+  setState(root, { id: 'T2', state: '[~]' }, () => {});
 });

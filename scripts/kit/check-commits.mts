@@ -157,7 +157,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     // A defect that a gate of kit-gates finds has the gate as its test: the red of the gate on the parent proves it (K357).
     const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
     const done = changes.find(change => change.id === id && change.to === DONE);
-    const gates = done ? gateCommands(itemCommands(after(done.tracker.path), done.tracker, done.id), kitGates(root)) : [];
+    const gates = () => (done ? gateCommands(itemCommands(after(done.tracker.path), done.tracker, done.id), kitGates(root)) : []);
     if (parent === undefined || !provesRed(message, gates, parent)) {
       found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates that the Verification of its row runs, with the red of the gate on the parent: make item-state records it as the item becomes active on a clean tree, and make commit writes it as a Red-Gate line of the commit that moves the item to done (K357)` });
     }

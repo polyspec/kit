@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- `make item-state`, check-commits and `make bypass-check` read the gates of kit-gates from the make database of the
+  Makefile of the repository, which includes the kit.mk of the kit that it uses, and fail naming kit-gates when the
+  Makefile declares none; they read `scripts/kit/kit.mk`, which only kit holds, so a consumer had no gate: no Red-Gate
+  record was written and a `make -o <gate>` passed bypass-check. Red: in a consumer layout no record was written and a
+  planted `make -o lint-go` passed; green: `node --test --test-name-pattern=K357 tests/kit/plan.test.mts
+  tests/kit/bypass-check.test.mts` passes 4 of 4, and fsm reads 24 gates (K357-1).
 - While a Composer project is linked, a provider that the link lock records as a path dist with the absolute folder of
   its checkout is a linked dependency, compared with the review record and judged by its link (K328), not a path
   package of the repository; only a path dist with a relative url is one. Red: `make dependency-policy-check` failed

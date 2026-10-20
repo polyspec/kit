@@ -7,10 +7,11 @@
 //   3. --no-verify: a Git hook is skipped.
 // The tools and tests of kit itself (scripts/kit, tests/kit, tests/source) are left out, since they test the guards that these
 // rules protect. Each finding names the file, the line and the bypass.
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { kitGates } from './gate-red.mts';
 
 // The files that are read: tests, scripts, Makefiles and Git hooks; the workflows are the one place that CI is named.
 const READ = /^(?:tests\/|scripts\/|\.githooks\/|Makefile$|.*\.mk$|.*\/Makefile$)/;
@@ -19,11 +20,6 @@ const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // A CI identity variable set to a value: a shell assignment, an object property, or an assignment to process.env or env.
 const CI_IDENTITY = /\b(?:GITHUB_ACTIONS|CI)\b(?:['"]?\s*[:=]\s*['"]?(?:true|1|yes)\b|\s*\]?\s*=\s*['"]?(?:true|1|yes)\b)/;
 const BYPASS_FLAGS = /\s(?:-o|--old-file|--assume-old)(?:=|\s+)([A-Za-z0-9_.-]+)/g;
-
-/** The gates of kit-gates among the prerequisites of `text`, the content of scripts/kit/kit.mk. */
-export function gatesOf(text: string): string[] {
-  return /^kit-gates:\s*([^#\n]*)/m.exec(text)?.[1]?.split(/\s+/).filter(Boolean) ?? [];
-}
 
 /** The findings of the file `file` with the text `text`; `gates` are the gates of kit-gates. */
 export function bypassFindings(file: string, text: string, gates: readonly string[]): string[] {
@@ -45,8 +41,15 @@ export function bypassFindings(file: string, text: string, gates: readonly strin
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const kit = path.join(root, 'scripts/kit/kit.mk');
-  const gates = existsSync(kit) ? gatesOf(readFileSync(kit, 'utf8')) : [];
+  // The gates are those of the kit.mk that the Makefile includes, which in a consumer is the kit.mk of the installed kit (K357-1).
+  let gates: string[];
+  try {
+    gates = [...kitGates(root)];
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    console.error(`[bypass-check] ${error.message}`);
+    process.exit(2);
+  }
   const found = trackedFiles(root).flatMap(file => bypassFindings(file, readFileSync(path.join(root, file), 'utf8'), gates));
   for (const line of found) console.error(`[bypass-check] ${line}`);
   if (found.length) {

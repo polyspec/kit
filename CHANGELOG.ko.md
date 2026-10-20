@@ -1,11 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3e52dc1adde4a3e5b2d1df4693ddc4b8c6017b7e428bb38000763a3f88d541dd -->
+<!-- source-sha256: 80e80a561f16978234e1d6abb7d281e3a0cd0ea932acce3aba53fdf9759720bd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-state`, check-commits, `make bypass-check`는 kit-gates의 gate를 저장소 Makefile의 make database, 즉
+  저장소가 쓰는 kit의 kit.mk를 include한 database에서 읽고, Makefile이 kit-gates를 선언하지 않으면 kit-gates를 말하며
+  실패한다. 이전에는 kit만 가진 `scripts/kit/kit.mk`를 읽어 consumer에 gate가 없었으므로 Red-Gate 기록이 쓰이지 않았고
+  `make -o <gate>`가 bypass-check를 통과했다. red: consumer layout에서 기록이 쓰이지 않았고 심어 둔 `make -o lint-go`가
+  통과했다. green: `node --test --test-name-pattern=K357 tests/kit/plan.test.mts tests/kit/bypass-check.test.mts`가
+  4개 중 4개 통과하고 fsm은 24개 gate를 읽는다 (K357-1).
 - Composer project가 linked인 동안 link lock이 checkout의 절대 폴더를 가진 path dist로 기록한 provider는 저장소의
   path package가 아니라 review record와 비교되고 link로 판단되는(K328) linked 의존성이다. 상대 url의 path dist만
   저장소의 package이다. red: fsm에서 `make link` 뒤처럼 `make dependency-policy-check`가

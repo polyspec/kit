@@ -6,11 +6,11 @@
 // other than 0 and the parent of the commit, and the commit moves the item to done, whose verification ran the gate green on the
 // tree of the commit (K335).
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, jsonText, readJson, writeAtomic } from './bootstrap/files.mts';
-import { gatesOf } from './bypass-check.mts';
 import { git } from './git.mts';
+import { makeDatabase } from './owner-check.mts';
 
 /** The record of the red of the gates of an item: the HEAD that they ran on and each gate command with its exit status. */
 export type GateRecord = { head: string; gates: { command: string; status: number }[] };
@@ -21,18 +21,22 @@ const RED_GATE = /^Red-Gate: (make \S+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
 /** The file of the record of the item `id`. */
 const recordFile = (root: string, id: string) => path.join(root, 'var/plan', `${id}.json`);
 
-/** The gates of kit-gates that scripts/kit/kit.mk of `root` declares; none without the file. */
+// A command that runs one make target and nothing else, the form of a gate command.
+const MAKE_TARGET = /^make\s+(\S+)$/;
+
+/**
+ * The gates of kit-gates in the make database of the Makefile of `root`, which includes the kit.mk of the kit that the repository
+ * uses: scripts/kit/kit.mk in kit, the kit.mk of the installed kit in a consumer (K357-1). Throws when the Makefile declares none.
+ */
 export function kitGates(root: string): Set<string> {
-  const kit = path.join(root, 'scripts/kit/kit.mk');
-  return new Set(existsSync(kit) ? gatesOf(readFileSync(kit, 'utf8')) : []);
+  const gates = makeDatabase(root).targets.get('kit-gates')?.prerequisites;
+  if (gates === undefined) throw new Error(`${path.join(root, 'Makefile')} declares no kit-gates; a repository includes the kit.mk of kit, which declares the gates`);
+  return new Set(gates);
 }
 
 /** The commands of `commands` that run a gate of `gates` and nothing else: `make <gate>`. */
 export function gateCommands(commands: readonly string[], gates: ReadonlySet<string>): string[] {
-  return commands.filter((command) => {
-    const words = command.trim().split(/\s+/);
-    return words.length === 2 && words[0] === 'make' && gates.has(words[1] ?? '');
-  });
+  return commands.filter(command => gates.has(MAKE_TARGET.exec(command.trim())?.[1] ?? ''));
 }
 
 /**
@@ -41,7 +45,10 @@ export function gateCommands(commands: readonly string[], gates: ReadonlySet<str
  * docs/plans is no tree of the parent, so it records nothing and says so; the record of an earlier activation is removed first.
  */
 export function recordRed(root: string, id: string, commands: readonly string[], print: (text: string) => void): GateRecord | undefined {
-  const gates = gateCommands(commands, kitGates(root));
+  // The gates are read only for a command that runs one make target, which a gate command is.
+  const targets = commands.filter(command => MAKE_TARGET.test(command.trim()));
+  if (targets.length === 0) return undefined;
+  const gates = gateCommands(targets, kitGates(root));
   if (gates.length === 0) return undefined;
   rmSync(recordFile(root, id), { force: true });
   const loose = git(root, 'status', '--porcelain', '-uall').split('\n').filter(line => line !== '' && !line.slice(3).startsWith('docs/plans/'));
@@ -82,7 +89,13 @@ export function redGateLines(root: string, id: string): string[] {
   return record.gates.filter(gate => gate.status !== 0).map(gate => `Red-Gate: ${gate.command} exit ${gate.status} at ${record.head.slice(0, 12)}`);
 }
 
-/** Whether `message` holds a Red-Gate line that names a command of `gateCommandsOfRow` and a prefix of the commit `parent`. */
-export function provesRed(message: string, gateCommandsOfRow: readonly string[], parent: string): boolean {
-  return [...message.matchAll(RED_GATE)].some(match => gateCommandsOfRow.includes(match[1] ?? '') && parent.startsWith(match[3] ?? '-'));
+/**
+ * Whether `message` holds a Red-Gate line that names a command of `gateCommandsOfRow`, the gate commands of the row, and a prefix of
+ * the commit `parent`; the gate commands are read only for a message with a Red-Gate line.
+ */
+export function provesRed(message: string, gateCommandsOfRow: () => readonly string[], parent: string): boolean {
+  const lines = [...message.matchAll(RED_GATE)];
+  if (lines.length === 0) return false;
+  const gates = gateCommandsOfRow();
+  return lines.some(match => gates.includes(match[1] ?? '') && parent.startsWith(match[3] ?? '-'));
 }
