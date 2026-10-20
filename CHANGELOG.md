@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- `link` takes the packages of the consumer's own repository from the work tree that runs it, a main checkout or a
+  worktree, and never from a checkout of the same repository among its arguments, so a worktree links the other
+  repositories only, never takes the sources of its main checkout and names no checkout of its own; its own packages
+  are reported `own (this repository)`. Red: the own package of a worktree was provided by the main checkout; green:
+  `node --test --test-name-pattern=K385 tests/kit/link.test.mts` passes (K385).
 - The fix check of `make commit` and check-commits takes a Rust unit test as the test of a fix: a changed `tests.rs`,
   or a changed line inside a `#[cfg(test)]` item or a `#[test]` function of a `.rs` file, read on the side of the
   commit. Red: a fix whose test was `src/tests.rs` was refused as changing no test file; green: `node --test

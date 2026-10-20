@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f7fb979e574e477cd7e0f8847bd09f393394f513dd10655c7f58cd5558df1cf4 -->
+<!-- source-sha256: 81ba3f5bd0e3ced485f7a5c0cdb240cb0110f2b41f6f130fcc3f87e48ae5b1b5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link`는 소비자 자신의 저장소 package를 그것을 실행하는 work tree(main checkout이나 worktree)에서 받고, 인자 가운데
+  같은 저장소의 checkout에서는 받지 않으므로 worktree는 다른 저장소만 link하고 main checkout의 source를 받지 않으며 자기
+  저장소의 checkout을 밝히지 않는다. 자기 package는 `own (this repository)`로 보고된다. red: worktree의 자기 package를 main
+  checkout이 제공했다. green: `node --test --test-name-pattern=K385 tests/kit/link.test.mts`가 통과한다 (K385).
 - `make commit`과 check-commits의 fix 검사는 Rust unit test를 fix의 test로 받는다. commit 쪽에서 읽은 `.rs` 파일의 바뀐
   `tests.rs`, 또는 `#[cfg(test)]` item이나 `#[test]` 함수 안의 바뀐 줄이다. red: test가 `src/tests.rs`인 fix가 test
   파일을 바꾸지 않는다고 거부되었다. green: `node --test --test-name-pattern=K370 tests/kit/commits.test.mts`가 통과한다
