@@ -26,6 +26,7 @@ import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { CONFIG as RELEASE_CONFIG } from './release.mts';
 import type { ConsumerConfig } from './release-consumer-config.mts';
+import { libraryFolders } from './php-extension.mts';
 
 export const RULES = {
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
@@ -43,6 +44,7 @@ export const RULES = {
   advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package), unless advisoryExceptions of the policy accepts it with its reason and removal condition',
   staleAdvisory: 'an advisory exception names an advisory that the review of its lock found',
   sharedPin: 'a package that the repository and a sibling checkout both require directly is locked at one version from one source in both (S4)',
+  libraryApplication: 'a PHP library of S10 requires no application framework in require, since an application on a userland framework is its own Composer package that requires the library (S10)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
@@ -77,6 +79,9 @@ type Policy = DependencyPolicy & {
 // repository is the minor of .php-version with this patch.
 const PLATFORM_PATCH = 1;
 const PHP_VERSION = '.php-version';
+
+// The application frameworks that a PHP library of S10 may not require in require: an internal class cannot extend a userland class.
+const APPLICATION_FRAMEWORKS = ['symfony/console', 'symfony/framework-bundle', 'symfony/http-kernel', 'laravel/framework', 'laminas/laminas-mvc'];
 
 const nonEmpty = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
@@ -254,6 +259,15 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   for (const file of checkedFiles(root).filter(item => path.posix.basename(item) === 'composer.json')) {
     if (covered.has(file) || kitFile(file) || file.startsWith(`${shipped}/`) || (consumer !== undefined && file === path.posix.join(consumer, 'composer.json'))) continue;
     add('composerCoverage', file, `no entry of composerPlatforms of ${POLICY} names the manifest and no manifest that it names requires it through a path repository, so composer validate --strict never reads it or its lock`, `add { "manifest": "${file}", "php": "<the minimum PHP>" } to composerPlatforms of ${POLICY}, or require the package through a path repository of a manifest that composerPlatforms names`);
+  }
+
+  // A PHP library of S10 is library code only (K425): its require names no application framework, and its application is a package beside it.
+  for (const folder of libraryFolders(tracked)) {
+    const manifestPath = path.posix.join(folder, 'composer.json');
+    const manifest = readComposerManifest(root, manifestPath);
+    for (const name of APPLICATION_FRAMEWORKS.filter(item => manifest.require?.[item] !== undefined)) {
+      add('libraryApplication', manifestPath, `requires ${name} in require`, `move the application on ${name} into its own Composer package that requires ${folder}, and remove ${name} from require of ${manifestPath}`);
+    }
   }
 
   for (const item of state.local) {
