@@ -64,13 +64,18 @@ def defined(tree):
     return names
 
 
-def symbols(path, base):
+def public_names(path, base):
+    """The module of `path`, its definitions by name, and its public names: those of __all__, else the names without _."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    module = module_name(path, base)
     names = defined(tree)
     public = declared_all(tree)
     if public is None:
         public = [name for name in names if not name.startswith("_")]
+    return module_name(path, base), names, public
+
+
+def symbols(path, base):
+    module, names, public = public_names(path, base)
     found = []
     for name in public:
         found.append(f"{module}.{name}")
@@ -114,26 +119,34 @@ def signature_names(function):
 
 
 def leaks(path, base):
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    module = module_name(path, base)
-    names = defined(tree)
-    public = declared_all(tree)
-    if public is None:
-        public = [name for name in names if not name.startswith("_")]
+    module, names, public = public_names(path, base)
     found = []
     for name in public:
         node = names.get(name)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             used = [(f"{module}.{name}", signature_names(node))]
         elif isinstance(node, ast.ClassDef):
-            used = [(f"{module}.{name}", [n for base_class in node.bases for n in names_in(base_class)])]
+            used = [
+                (
+                    f"{module}.{name}",
+                    [n for base_class in node.bases for n in names_in(base_class)],
+                )
+            ]
             for member in node.body:
-                if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and not member.name.startswith("_"):
-                    used.append((f"{module}.{name}.{member.name}", signature_names(member)))
+                if isinstance(
+                    member, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and not member.name.startswith("_"):
+                    used.append(
+                        (f"{module}.{name}.{member.name}", signature_names(member))
+                    )
         else:
             used = []
         for symbol, referenced in used:
-            found.extend(f"{symbol} names the private {n}" for n in dict.fromkeys(referenced) if is_private(n))
+            found.extend(
+                f"{symbol} names the private {n}"
+                for n in dict.fromkeys(referenced)
+                if is_private(n)
+            )
     return found
 
 
@@ -144,10 +157,21 @@ def main():
             raise SystemExit(f"{sys.argv[1]} does not exist")
         base = entry.parent
         files = sorted(entry.rglob("*.py")) if entry.is_dir() else [entry]
-        print(json.dumps(sorted(leak for path in files if not private(path, base) for leak in leaks(path, base))))
+        print(
+            json.dumps(
+                sorted(
+                    leak
+                    for path in files
+                    if not private(path, base)
+                    for leak in leaks(path, base)
+                )
+            )
+        )
         return
     if len(sys.argv) != 2:
-        raise SystemExit("usage: python.py <package directory or module file> [--leaks]")
+        raise SystemExit(
+            "usage: python.py <package directory or module file> [--leaks]"
+        )
     entry = Path(sys.argv[1]).resolve()
     if not entry.exists():
         raise SystemExit(f"{sys.argv[1]} does not exist")
