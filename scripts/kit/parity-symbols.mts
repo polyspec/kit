@@ -33,7 +33,7 @@ import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
 
 /** The public symbol ids of an entry, or why they cannot be read. */
-type Extracted = { symbols: string[]; error?: never } | { error: string };
+type Extracted = { symbols: string[]; leaks?: string[]; error?: never } | { error: string; symbols?: never; leaks?: never };
 
 
 /** The last lines of standard error, which explain a failed extractor. */
@@ -65,7 +65,7 @@ function packageOf(file: string): string | undefined {
 const references = (item: ApiItem): string[] => item.members.flatMap(member => [member.canonicalReference.toString(), ...references(member)]);
 
 /** The API model of the .d.ts entry point `entry` of the checkout `root`, read by API Extractor. */
-function apiModel(root: string, entry: string): Extracted {
+export function apiModel(root: string, entry: string): Extracted {
   const file = path.join(root, entry);
   if (!existsSync(file)) return { error: `${entry} does not exist` };
   const project = packageOf(file);
@@ -92,18 +92,20 @@ function apiModel(root: string, entry: string): Extracted {
       packageJsonFullPath: path.join(project, 'package.json'),
     });
     const errors: string[] = [];
+    // A type that a public signature names and the entry point does not export is a leak of an internal symbol (K307-1).
+    const leaks: string[] = [];
     // An error of the analysis fails the extraction; warnings, such as a missing release tag, are the API report's concern.
     // API Extractor throws on a declaration that it cannot follow, such as a syntax error; that is its failure too.
     let result: ReturnType<typeof ApiExtractor.invoke>;
     try {
-      result = ApiExtractor.invoke(config, { localBuild: true, messageCallback: (message) => { message.handled = true; if (message.logLevel === 'error') errors.push(message.text); } });
+      result = ApiExtractor.invoke(config, { localBuild: true, messageCallback: (message) => { message.handled = true; if (message.logLevel === 'error') errors.push(message.text); else if (message.messageId === 'ae-forgotten-export') leaks.push(message.text); } });
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       return { error: `API Extractor failed on ${entry}: ${error.message}` };
     }
     if (!result.succeeded || errors.length) return { error: `API Extractor failed on ${entry}: ${errors.join(' | ') || `${result.errorCount} errors`}` };
     const api = new ApiModel().loadPackage(path.join(output, 'api.json'));
-    return { symbols: api.entryPoints.flatMap(references) };
+    return { symbols: api.entryPoints.flatMap(references), leaks: [...new Set(leaks)].sort() };
   } finally {
     rmSync(output, { recursive: true, force: true });
   }
@@ -195,6 +197,13 @@ function rustdoc(root: string, entry: string, env: Environment): Extracted {
   }
 }
 
+/** `symbols` with the leaks that `leaks` prints (K307-1), or the error of either run. */
+function withLeaks(symbols: Extracted, leaks: () => Extracted): Extracted {
+  if (symbols.error !== undefined) return symbols;
+  const found = leaks();
+  return found.error === undefined ? { symbols: symbols.symbols, leaks: found.symbols } : found;
+}
+
 // Each extractor: the public symbol ids of `entry` in the checkout `root`.
 const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment) => Extracted> = {
   go: (root, entry, env) => {
@@ -205,9 +214,12 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
   php: (root, entry, env) => {
     const autoload = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
     if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
-    return listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env);
+    return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
-  python: (root, entry, env) => listed(root, toolCommand(root, 'python3'), ['-I', path.join(SYMBOLS, 'python.py'), entry], env),
+  python: (root, entry, env) => {
+    const command = toolCommand(root, 'python3');
+    return withLeaks(listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry], env), () => listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry, '--leaks'], env));
+  },
   rust: (root, entry, env) => rustdoc(root, entry, env),
   ts: (root, entry) => apiModel(root, entry),
 };
@@ -225,7 +237,10 @@ export function extractSymbols(model: ParityModel, root: string, { env, say }: {
     say(`extract the symbols of ${implementation.name}: ${extractor} ${entry}`);
     const extracted = EXTRACTORS[extractor](root, entry, env);
     if (extracted.error !== undefined) findings.push(finding('R1', `the ${extractor} extractor of ${entry} gives no symbols: ${extracted.error}`, { implementation: implementation.name, place: entry }));
-    else snapshots.set(implementation.name, new Set(extracted.symbols));
+    else {
+      snapshots.set(implementation.name, new Set(extracted.symbols));
+      for (const leak of extracted.leaks ?? []) findings.push(finding('R17', `${leak}: a public signature, parent or interface names a symbol that is no public API`, { implementation: implementation.name, place: entry }));
+    }
   }
   return { snapshots, findings };
 }

@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 77d6c078a0a07112b6e12bed581fdaabf18e5e33703337c84f776fc58afbd1a5 -->
+<!-- source-sha256: ad2a75ab0b34632d6631dbcea0d7a0ac00d46f80f8e7e7e22d7f41f76b32c386 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Parity 규칙 R17(leaked-internal)은 internal symbol을 이름으로 가리키는 public signature, parent class, interface를 finding으로 한다.
+  대상은 `@internal` PHP class, `_`로 시작하는 private Python 이름, entry point가 export하지 않는 TypeScript type(API Extractor
+  `ae-forgotten-export`)이다 (K307-1).
 - Parity 규칙 R10은 구현의 개수를 말하는 문구만 센다. 복합 명사의 수식어("one language service")와 비교의 쌍("between the two languages")은 개수로 보지
   않는다 (K311).
 - `make duplication-check`는 `config/duplication.json`의 exclude glob을 설정 파일로 jscpd에 넘기므로, `{tests,spec}/**` 같은 중괄호

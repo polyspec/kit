@@ -13,10 +13,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const AUTOLOAD = path.join(ROOT, 'var/tools/symbols-php/vendor/autoload.php');
 
 /** The public symbol ids that the extractor gives for the PHP files `files`. */
-function symbolsOf(t: Parameters<typeof tree>[0], files: Record<string, string>): string[] {
+function symbolsOf(t: Parameters<typeof tree>[0], files: Record<string, string>, extra: string[] = []): string[] {
   if (!existsSync(AUTOLOAD)) assert.fail(`${path.relative(ROOT, AUTOLOAD)} does not exist; run make install-tools`);
   const root = tree(t, files);
-  const run = spawnSync('php', [path.join(ROOT, 'scripts/kit/symbols/php/extract.php'), AUTOLOAD, root], { encoding: 'utf8' });
+  const run = spawnSync('php', [path.join(ROOT, 'scripts/kit/symbols/php/extract.php'), AUTOLOAD, root, ...extra], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   return parseJson<string[]>(run.stdout, 'symbol-ids.schema.json', 'extract.php');
 }
@@ -59,4 +59,40 @@ function hidden(): void {}
 test('the word internal outside an @internal tag does not hide a symbol (K307)', (t) => {
   const source = '<?php\nnamespace A;\n\n/** Internal use is described here; the tag is {@internal} only at a line start. */\nclass Open\n{\n    /** An @internalised name. */\n    public function run(): void {}\n}\n';
   assert.deepEqual(symbolsOf(t, { 'src/A.php': source }), ['A\\Open', 'A\\Open::run']);
+});
+
+// K307-1: an @internal symbol is hidden from the API, so a public signature, parent or interface that names it leaks it.
+test('a public signature, parent or interface that names an @internal class is a leak, and a public name is not (K307-1)', (t) => {
+  const source = `<?php
+namespace A;
+
+/** @internal */
+class Hidden {}
+/** @internal */
+interface HiddenContract {}
+class Open {}
+
+class Child extends Hidden implements HiddenContract
+{
+    public ?Hidden $field = null;
+    public function __construct(public Hidden $promoted) {}
+    public function take(int|Hidden $value, Open $open): ?Hidden { return null; }
+    private function own(Hidden $value): void {}
+    /** @internal */
+    public function secret(Hidden $value): void {}
+}
+
+function build(Hidden&Open $both): Open { return new Open(); }
+function fine(Open $open): Open { return $open; }
+`;
+  assert.deepEqual(symbolsOf(t, { 'src/A.php': source }, ['--leaks']), [
+    'A\\Child names the internal A\\Hidden',
+    'A\\Child names the internal A\\HiddenContract',
+    'A\\Child::$field names the internal A\\Hidden',
+    'A\\Child::$promoted names the internal A\\Hidden',
+    'A\\Child::__construct names the internal A\\Hidden',
+    'A\\Child::take names the internal A\\Hidden',
+    'A\\build names the internal A\\Hidden',
+  ]);
+  assert.deepEqual(symbolsOf(t, { 'src/A.php': '<?php\nnamespace A;\n\nclass Open {}\nfunction fine(Open $open): Open { return $open; }\n' }, ['--leaks']), []);
 });

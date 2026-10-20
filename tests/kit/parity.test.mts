@@ -166,7 +166,9 @@ const PHP_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0].endsWith('/symbols/php/extract.php')) {
-  console.log(JSON.stringify(fs.readFileSync(args[2] + '/symbols.txt', 'utf8').split('\\n').filter(Boolean)));
+  const listed = fs.readFileSync(args[2] + '/symbols.txt', 'utf8').split('\\n').filter(Boolean);
+  // With --leaks the extractor prints the leaks, the LEAK lines of the file (K307-1); else the symbols, which are no leak.
+  console.log(JSON.stringify(args.includes('--leaks') ? listed.filter(line => line.startsWith('LEAK ')).map(line => line.slice(5)) : listed.filter(line => !line.startsWith('LEAK '))));
   process.exit(0);
 }
 const file = args[args.length - 1];
@@ -197,7 +199,8 @@ const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0] === '-I' && args[1].endsWith('/symbols/python.py')) {
-  console.log(JSON.stringify(fs.readFileSync(args[2], 'utf8').split('\\n').filter(Boolean)));
+  const listed = fs.readFileSync(args[2], 'utf8').split('\\n').filter(Boolean);
+  console.log(JSON.stringify(args.includes('--leaks') ? listed.filter(line => line.startsWith('LEAK ')).map(line => line.slice(5)) : listed.filter(line => !line.startsWith('LEAK '))));
   process.exit(0);
 }
 const file = args[args.length - 1];
@@ -1464,6 +1467,20 @@ test('R11: a public symbol that no API unit declares fails (K75)', TIMEOUT, (t) 
   });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`), [
     'R11 ts: codec-ts!orderedJsonOutput:function(1) is public, and no API unit declares it',
+  ]);
+});
+
+// K307-1: a leak that the php or python extractor reports is an R17 finding that names the public symbol and the internal one.
+test('R17: a public signature that names an internal symbol fails, in each extractor that reports leaks (K307-1)', TIMEOUT, (t) => {
+  const { findings } = check(t, {
+    files: {
+      'php/symbols.txt': 'LEAK A\\\\Child::take names the internal A\\\\Hidden\n',
+      'python/symbols.txt': 'LEAK pkg.build names the private _Hidden\n',
+    },
+  });
+  assert.deepEqual(findings.filter(finding => finding.rule === 'R17').map(finding => `${finding.implementation}: ${finding.message}`), [
+    'php: A\\\\Child::take names the internal A\\\\Hidden: a public signature, parent or interface names a symbol that is no public API',
+    'python: pkg.build names the private _Hidden: a public signature, parent or interface names a symbol that is no public API',
   ]);
 });
 

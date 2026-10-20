@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 70474012ad4eb8ea83ab4e6d728215f8ecacb8f6409a8caa5c3f61b0ac96ed16 -->
+<!-- source-sha256: 4ccad4405cdb3b07e31c6cbad568c8dc50b5a5815796f7df529bd3273f1f20d1 -->
 
 # 도구 목록
 
@@ -1329,6 +1329,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 선언하지 않습니다. |
 | R12 duplicate-binding | unit이 `bindings`(또는 `symbols`)에 한 implementation을 두 번 적습니다. 같은 test이든 다른 test이든 마찬가지입니다. unit마다 implementation당 binding은 하나입니다. |
 | R16 internal-contract | implementation의 `internal` glob이 고른 test가 spec의 requirement(`requirements.pattern`이 맞는 list item이나 heading)를 이름으로 부르면, contract test가 internal test 사이에 숨을 수 없도록 finding이 된다(K313). |
+| R17 leaked-internal | public signature, parent class, interface가 internal symbol을 이름으로 가리킨다. 대상은 docblock에 `@internal`이 있는 PHP class, `_` 하나로 시작하는 Python 이름, entry point가 export하지 않는 TypeScript type(API Extractor `ae-forgotten-export`)이며, 각각 implementation의 extractor(`extract.php`와 `python.py`의 `--leaks`)가 보고한다. finding은 public symbol과 internal symbol을 이름으로 말한다(K307-1). |
 
 ### Runner
 

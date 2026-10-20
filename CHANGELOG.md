@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- Parity rule R17 (leaked-internal) fails a public signature, parent class or interface that names an internal symbol:
+  an `@internal` PHP class, a `_`-private Python name, or a TypeScript type that the entry point does not export (API
+  Extractor `ae-forgotten-export`) (K307-1).
 - Parity rule R10 counts only phrases that state a number of implementations: a noun that modifies a compound ("one
   language service") and the pair of a comparison ("between the two languages") are no count (K311).
 - `make duplication-check` passes the exclude globs of `config/duplication.json` to jscpd in a configuration file, so

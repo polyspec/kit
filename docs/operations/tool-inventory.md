@@ -1452,6 +1452,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 | R11 undeclared-public | A public symbol that the extractor of an implementation gives is declared by no API unit. |
 | R12 duplicate-binding | A unit names one implementation twice in its `bindings` (or its `symbols`), whether with the same test or another one. Each implementation has one binding per unit. |
 | R16 internal-contract | A test that an `internal` glob of an implementation selects names a requirement of the spec (a list item or a heading that `requirements.pattern` matches), so a contract test cannot hide among the internal tests (K313). |
+| R17 leaked-internal | A public signature, parent class or interface names an internal symbol: a PHP class whose docblock carries `@internal`, a Python name that starts with one `_`, or a TypeScript type that the entry point does not export (API Extractor `ae-forgotten-export`), each reported by the extractor of the implementation (`--leaks` of `extract.php` and `python.py`); the finding names the public and the internal symbol (K307-1). |
 
 ### Runners
 
