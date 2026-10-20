@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make link-state-check` reports a linked vendor whose platform check demands a newer PHP than `.php-version`, not one
+  that demands the lower floor of its packages, since Composer demands the highest floor that the packages require
+  (80400 for `>=8.4`). Red: a vendor that demanded 80400 with `.php-version` 8.4.1 was a finding; green: `node --test
+  --test-name-pattern=K384 tests/kit/link-state-check.test.mts` passes (K384).
 - `make dependency-review` never proposes a version older than the locked one: a dependency whose latest release in
   the registry is older than its locked version, such as an unreleased `0.0.11` against `0.0.6`, is not outdated and
   never enters the update plan, linked or not. Red: the review proposed `polyspec/template 0.0.11 < 0.0.6` and planned

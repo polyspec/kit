@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 399c282df8772110b3ce2a748fe465a1517708964d45c43113279ce4a81302c8 -->
+<!-- source-sha256: 2ee8d59ad917570693c2e31b068b929aeb04896cbb9c788a847a6a69786983a1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link-state-check`는 `.php-version`보다 새 PHP를 요구하는 linked vendor의 platform check를 보고하고, package의
+  더 낮은 floor를 요구하는 vendor는 보고하지 않는다. Composer는 package가 요구하는 가장 높은 floor(`>=8.4`이면 80400)를
+  요구하기 때문이다. red: `.php-version` 8.4.1에서 80400을 요구하는 vendor가 finding이었다. green: `node --test
+  --test-name-pattern=K384 tests/kit/link-state-check.test.mts`가 통과한다 (K384).
 - `make dependency-review`는 lock된 version보다 오래된 version을 제안하지 않는다. registry의 최신 release가 lock된
   version보다 오래된 의존성, 예컨대 `0.0.6`에 대한 미출시 `0.0.11`은 linked 여부와 상관없이 outdated가 아니며 update
   plan에 들어가지 않는다. red: review가 `polyspec/template 0.0.11 < 0.0.6`을 제안하고 `composer require ...:^0.0.6`을
