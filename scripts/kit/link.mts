@@ -591,6 +591,13 @@ function installedPython(uv: Tool, venv: string): Map<string, { version: string 
   return found;
 }
 
+/** The project.version of the pyproject `file`, or undefined. */
+function projectVersion(file: string): string | undefined {
+  const project = readTomlFile(file).project;
+  const version = isJsonObject(project) ? project.version : undefined;
+  return typeof version === 'string' ? version : undefined;
+}
+
 function linkPython(work: Run, consumer: Consumer) {
   const files = consumer.manifests('python');
   if (!files.some(file => declaredPython(file).length)) return;
@@ -613,9 +620,13 @@ function linkPython(work: Run, consumer: Consumer) {
     const installed = installedPython(uv, venv);
     const linked = [
       ...closure(work, consumer, names).filter((provider) => {
+        // A declared package that the environment lacks (a sync of the consumer's install leaves out the polyspec packages and removes
+        // the editables of an earlier link) is installed as the editable of its folder, as one over a release wheel is (K316-2); its
+        // pin is the version of the folder then.
         const found = installed.get(provider.name);
-        if (!found) { unlinkable(work, 'python', provider.name, `not installed in ${venv}`); return false; }
-        const problem = pinProblem(found.version);
+        const version = found?.version ?? projectVersion(path.join(provider.folder, MANIFESTS.python));
+        if (version === undefined) { unlinkable(work, 'python', provider.name, `not installed in ${venv}, and ${path.join(provider.folder, MANIFESTS.python)} declares no version`); return false; }
+        const problem = pinProblem(version);
         if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
         return !problem;
       }),

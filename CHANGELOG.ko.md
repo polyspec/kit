@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a2aae4ca37be8e6f71acaa23cc6b53c604dee912b49e605984061f8adec923d8 -->
+<!-- source-sha256: 5b68fcc0945dd4b1556f7c6944bbc3f9f3eb41aa4b08c2a3801c512d30f3e8bb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `kit link`는 install recipe의 uv sync가 editable을 제거한 뒤처럼 환경에 없는 선언된 polyspec Python package를 provider 폴더의 editable
+  install로 설치하므로, 두 번째 실행도 첫 번째처럼 linked로 끝난다 (K316-2).
 - Parity 규칙 R6은 bound 파일처럼 어느 구현의 `internal` glob이 고르는 test 파일도 제외하므로, PHP 구현의 internal node 실행 test는 R6에 걸리지 않는다
   (K332).
 - `kit link`는 linked package의 partial `composer update`를 `--with-dependencies`로 실행하므로, linked package가 새 constraint로

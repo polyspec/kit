@@ -270,6 +270,25 @@ test('an npm copy that npm query does not record is linked only when it already 
   assert.doesNotMatch(linked.text, /npm {6}@polyspec\/x -> .*\(now\)/, 'the provider already is the copy: nothing is linked anew');
 });
 
+// K316-2: the install recipe of a consumer (uv sync without the polyspec packages) removes the editables of an earlier link, so the second
+// run finds the declared polyspec packages not installed and installs them as the editables of their folders again.
+test('a link run twice, with an install between, ends linked both times: a declared package that is not installed is installed as an editable (K316-2)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, { 'python/uv.lock': 'version = 1\n', 'freeze.txt': 'polyspec-z @ file:///released/polyspec_z-0.0.1-py3-none-any.whl\n' });
+  const z = path.join(provider, 'packages/python');
+  const first = linkLines([consumer], env);
+  assert.equal(first.ok, true, first.text);
+  assert.ok(readFileSync(path.join(consumer, 'freeze.txt'), 'utf8').includes(`polyspec-z @ file://${z}`));
+  // The install between the runs: uv sync uninstalls the linked editables and installs nothing in their place.
+  put(consumer, { 'freeze.txt': '', 'pip-list.json': '[]' });
+  const second = linkLines([consumer], env);
+  assert.equal(second.ok, true, second.text);
+  assert.match(second.text, /linked {5}python {3}polyspec-z -> .*\(.*, now\)/);
+  assert.ok(readFileSync(path.join(consumer, 'freeze.txt'), 'utf8').includes(`polyspec-z @ file://${z}`), 'the package is installed as the editable of its folder');
+  const third = linkLines([consumer], env);
+  assert.equal(third.ok, true, third.text);
+});
+
 test('K237: a link keeps the packages of the consumer groups, installs the dependencies of the checkout and holds the locked versions', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   // The checkout declares jsonschema, which the consumer's lock holds for its test group, and small-dep, which the lock does not hold.
@@ -365,15 +384,37 @@ test('the editable install of an older link (uv pip list shows an editable locat
   assert.match(text, /NOT linked python {3}polyspec-z \(.*python\/\.venv\)/);
 });
 
-test('a Python provider that uv pip list does not show is NOT linked, not installed, and nothing is installed for it', (t) => {
-  const { consumer, env, log } = workspace(t);
+test('a Python provider that uv pip list does not show is installed as the editable of its folder (K316-2)', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
   put(consumer, { 'pip-list.json': '[]' });
   const { ok, text } = linkLines([consumer], env);
-  assert.equal(ok, false);
-  assert.match(text, /NOT linked python {3}polyspec-z \(not installed in .*python\/\.venv\)/);
-  assert.match(text, /NOT linked python {3}polyspec-w \(not installed in .*python\/\.venv\)/);
-  assert.doesNotMatch(log(), /uv pip install.*polyspec[-_][zw]/, 'no install of a provider that is not installed');
+  assert.equal(ok, true, text);
+  assert.match(text, /linked {5}python {3}polyspec-z -> .*python\/\.venv, now\)/);
+  assert.match(log(), new RegExp(`uv pip install.*-e ${path.join(provider, 'packages/python').replaceAll('.', '\\.')}`), 'the provider is installed from its folder');
 });
+
+// K316-2: the link of every ecosystem is idempotent: a second run ends linked, with the state of the first.
+test('a second link run ends linked with the state of the first, in npm, Composer and Go (K316-2)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const requires = JSON.stringify({ Module: { Path: 'sub' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });
+  put(consumer, { 'sub/go.mod': 'module sub\n', 'sub/go.mod.json': requires });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  const state = () => ({
+    npm: realpathSync(path.join(consumer, 'node_modules/@polyspec/x')),
+    composer: realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')),
+    go: readFileSync(path.join(consumer, 'sub/go.work'), 'utf8'),
+  });
+  const first = linkLines([consumer], env);
+  assert.equal(first.ok, true, first.text);
+  const before = state();
+  assert.equal(before.npm, path.join(provider, 'packages/ts'));
+  assert.equal(before.composer, path.join(provider, 'packages/php'));
+  const second = linkLines([consumer], env);
+  assert.equal(second.ok, true, second.text);
+  assert.deepEqual(state(), before);
+});
+
 
 test('a Composer record without install-path is NOT linked, and no folder is guessed from its name', (t) => {
   const { consumer, env } = workspace(t);

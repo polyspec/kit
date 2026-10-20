@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `kit link` installs a declared polyspec Python package that the environment lacks, such as after the uv sync of an
+  install recipe removed the editables, as the editable install of its provider folder, so a second run ends linked
+  like the first (K316-2).
 - Parity rule R6 leaves out the test files that an `internal` glob of any implementation selects, as it does bound
   files, so an internal node-run test of a PHP implementation draws no R6 (K332).
 - `kit link` runs the partial `composer update` of the linked packages with `--with-dependencies`, so a dependency
