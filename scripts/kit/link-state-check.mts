@@ -100,7 +100,8 @@ function expectedPhpId(root: string): number | undefined {
 /**
  * While a Composer project is linked, its vendor must read the composer.json of the links (K349): the platform check that Composer
  * wrote demands the PHP that .php-version names. A vendor installed from the tracked lock demands the platform of that lock, which a
- * polyspec package of another PHP cannot meet.
+ * polyspec package of another PHP cannot meet, so a demand above .php-version is the finding (K384). A lower floor is the floor of
+ * the packages, which Composer writes as the highest floor they require (">=8.4" is 80400), and it is no finding.
  */
 function platformFindings(root: string, installed: readonly Installed[]): string[] {
   const expected = expectedPhpId(root);
@@ -110,7 +111,7 @@ function platformFindings(root: string, installed: readonly Installed[]): string
     const file = path.join(vendor, 'composer/platform_check.php');
     if (!existsSync(file)) continue;
     const demanded = /PHP_VERSION_ID >= (\d+)/.exec(readFileSync(file, 'utf8'))?.[1];
-    if (demanded !== undefined && Number(demanded) !== expected) found.push(`composer ${path.relative(root, file)}: demands PHP id ${demanded} while .php-version names ${expected}; the vendor was installed from the tracked lock, run kit link`);
+    if (demanded !== undefined && Number(demanded) > expected) found.push(`composer ${path.relative(root, file)}: demands PHP id ${demanded} while .php-version names ${expected}; the vendor was installed from the tracked lock, run kit link`);
   }
   return found;
 }

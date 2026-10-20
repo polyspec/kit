@@ -71,6 +71,15 @@ test('a linked vendor whose platform check demands another PHP than .php-version
   assert.deepEqual(linkFindings(root, env), []);
 });
 
+// K384: Composer demands the highest floor of the installed packages, so a vendor of packages that require >=8.4 demands 80400.
+test('a vendor whose platform check demands an older floor than .php-version is no finding, and a newer one is (K384)', (t) => {
+  const { root, env } = consumer(t, { y: true, z: true });
+  put(root, { '.php-version': '8.4.1\n', 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80400)) {\n}\n' });
+  assert.deepEqual(linkFindings(root, env), []);
+  put(root, { 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80500)) {\n}\n' });
+  assert.deepEqual(linkFindings(root, env), ['composer vendor/composer/platform_check.php: demands PHP id 80500 while .php-version names 80401; the vendor was installed from the tracked lock, run kit link']);
+});
+
 test('a recipe that installs from a lock without the kit link step after it is a finding, and unlink and the link step pass (K349)', () => {
   const makefile = [
     'a-install:', '	composer install', '	$(MAKE) link', '',
