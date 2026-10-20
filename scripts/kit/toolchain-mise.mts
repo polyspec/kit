@@ -73,6 +73,15 @@ function toolsTable(root: string): Record<string, unknown> | undefined {
   return tools;
 }
 
+/** Why the declaration `value` of the http tool `key` is no declaration of a repository, or undefined when it is one. */
+function httpToolProblem(key: string, value: unknown): string | undefined {
+  if (!key.startsWith('http:')) return 'is no http tool';
+  if (!isTable(value)) return 'must be a table with the version and the url of the download';
+  if (typeof value.version !== 'string' || value.version === '') return 'must declare the version of the download';
+  if (typeof value.url !== 'string' || !/^https:\/\/\S+$/.test(value.url)) return 'must declare the https url of the download, which mise.lock pins by sha256';
+  return undefined;
+}
+
 /** The tools of mise.toml of `root`, each with its release and `mise.toml tools.<key>`; an absent mise.toml declares none. */
 export function declaredMiseTools(root: string): Partial<Record<MiseTool, Declared>> {
   const tools = toolsTable(root) ?? {};
@@ -80,6 +89,10 @@ export function declaredMiseTools(root: string): Partial<Record<MiseTool, Declar
   const declared: Partial<Record<MiseTool, Declared>> = {};
   for (const [key, value] of Object.entries(tools)) {
     const name = names[key];
+    // A repository declares its own downloaded tool through the http backend (K327): the key, an https url and an exact release;
+    // mise.lock pins its sha256 of every platform (miseLockFindings), so it is no tool that kit checks the release of.
+    if (!name && httpToolProblem(key, value) === undefined) continue;
+    if (!name && key.startsWith('http:')) throw new Error(`mise.toml tools.${key}: ${httpToolProblem(key, value)}`);
     if (!name) throw new Error(`mise.toml tools declares ${key}, which kit does not check; the tools are ${Object.values(MISE_TOOLS).map(tool => tool.key).join(', ')}`);
     const version = isTable(value) ? value.version : value;
     const source = `mise.toml tools.${key}`;

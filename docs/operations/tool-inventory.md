@@ -94,6 +94,8 @@ would walk it whatever the working directory.
   that module, as `./...` did not scan it. A Go package under a directory named `var`, `node_modules` or `.tools` is not
   scanned, as no kit check reads those directories.
 
+A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: the key starts with `http:`, the version is declared, and the url is https. `mise.lock` pins its sha256 for every platform of the lock, and `make toolchain-check` names the platform whose sha256 is missing; mise checks the digest at `mise install --locked`. A tool of another backend that kit does not check is still refused.
+
 ### Declarations
 
 | Tool | Declared in | Install or verify |

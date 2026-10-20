@@ -103,3 +103,16 @@ test('mise.lock pins the archive of every platform on which the bootstrap instal
   assert.ok(findings.includes('mise.lock pins go 1.27.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
   assert.ok(findings.includes('mise.lock pins go 1.27.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
 });
+
+test('a repository declares an http tool with a version and an https url, which mise.lock pins by sha256 (K327)', (t) => {
+  const http = '"http:pie" = { version = "1.2.3", url = "https://example.invalid/pie-{{version}}.phar" }\n';
+  const checkout = (extra: string, lock = LOCK) => toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${extra}`, 'mise.lock': lock });
+  assert.deepEqual(Object.keys(declaredMiseTools(checkout(http))), ['go', 'python', 'ruff', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'vulture']);
+  assert.throws(() => declaredMiseTools(checkout('"http:pie" = "1.2.3"\n')), /mise\.toml tools\.http:pie: must be a table with the version and the url of the download/);
+  assert.throws(() => declaredMiseTools(checkout('"http:pie" = { version = "1.2.3", url = "http://example.invalid/pie" }\n')), /must declare the https url of the download/);
+  assert.throws(() => declaredMiseTools(checkout('"http:pie" = { url = "https://example.invalid/pie" }\n')), /must declare the version of the download/);
+  // The lock pins it for every platform: a missing sha256 is a finding, as for a tool of kit.
+  const missing = miseLockFindings(checkout(http, `${LOCK}\n${entry('http:pie', '1.2.3', ['linux-x64'])}`));
+  assert.deepEqual(missing.map(line => line.split(' without ')[0]), ['mise.lock pins http:pie 1.2.3 for linux-arm64', 'mise.lock pins http:pie 1.2.3 for macos-arm64', 'mise.lock pins http:pie 1.2.3 for macos-x64']);
+  assert.deepEqual(miseLockFindings(checkout(http, `${LOCK}\n${entry('http:pie', '1.2.3', BOTH)}`)), []);
+});

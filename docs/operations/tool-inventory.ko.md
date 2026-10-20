@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 2059f2bd6efa87f799c72ea8fdccf22dd99ea8320e0c0ba9c646ade45201a383 -->
+<!-- source-sha256: 1a37af89e87c9eb3dcb10093883ec3ab6d3f46146fd6833e97ee5a78ce1bb252 -->
 
 # 도구 목록
 
@@ -90,6 +90,8 @@ Composer dependency는 택하지 않았습니다. gen_stub.php는 자기 PHP와 
 - 한계: module 디렉터리 밖을 가리키는 `replace` 지시문의 package는 명시되지 않으므로, 그 module에서는 스캔되지 않습니다(이전
   `./...`도 스캔하지 않았습니다). `var`, `node_modules`, `.tools`라는 이름의 디렉터리 아래 Go package도 스캔되지 않습니다. kit의
   어떤 검사도 그 디렉터리를 읽지 않기 때문입니다.
+
+저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. key는 `http:`로 시작하고, version을 선언하며, url은 https이다. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고 `make toolchain-check`가 sha256이 빠진 platform을 이름으로 알리며, mise가 `mise install --locked`에서 digest를 검사한다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다.
 
 ### 선언
 

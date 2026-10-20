@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 67c9b91c7f28b1669e2dc477fcab91157cc3cafd44cfa359a31f1babfe4d7da0 -->
+<!-- source-sha256: f05d64607b10cdd5228085b528ce68749356e6dfa10f47991f6c7f8cf01482e4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 저장소는 `mise.toml`에 http backend로 내려받는 자기 도구를 선언할 수 있다(K327). key는 `http:<이름>`이고 정확한 `version`과 https `url`을 가진 table이다. `mise.lock`이 모든 platform의 sha256을 pin하고 `make toolchain-check`가 sha256이 빠진 platform을 이름으로 알린다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다. Red: `node --test --test-name-pattern=K327 tests/kit/toolchain-mise.test.mts`가 `mise.toml tools declares http:pie, which kit does not check`로 거부되었다. Green: 통과한다.
 - `make divergence-check`(K315)는 모든 저장소의 gate이다. extension, runtime, platform으로 분기하는 test, 다른 구현이 있는지 읽는 구현의 code, `--exclude-group`, `contracts/features.json`의 `partial`이나 `unsupported`, reason이 kit이 정한 kind(`generated:`, `fixture:`, `test:`, `harness:`, `ecosystem:`, `external:`)로 시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`에 실패한다. `make test-markers-check`는 `testing.Short()`, `pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽고, `make item-state`는 cause가 release, 재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. 2026-10-21의 finding: orm 101(test 분기 68, partial feature 18, 예외 11, code 분기 4), template 12, crudui 44, hyper 10, fsm 5, ordered-json 4, ssr 5. Red: 검사가 없었다(case가 `divergenceFindings`를 import한다). Green: `node --test tests/kit/divergence-check.test.mts`가 각 kind를 찾는다.
 - provider 폴더의 non-editable 설치나 릴리스 wheel 위의 link는 editable install이 된다(K316-1): 설치의 overrides 파일은 연결된 package마다 `-e <폴더>` 줄 하나를 담는다. `name @ file://<폴더>` 줄은 uv가 non-editable 요구로 보게 해서 명령줄의 `-e`보다 우선하고 package를 non-editable로 남겼기 때문이다(이 checkout의 uv로 확인: URL 줄이면 `dir_info`가 비고 `-e` 줄이면 `{"editable":true}`이며, 다른 package를 릴리스 URL로 요구하는 package도 마찬가지이다). registry나 archive 설치의 메시지는 그렇게 말한다. Red: `node --test --test-name-pattern=K316-1 tests/kit/link.test.mts`가 `name @ file://` 줄을 찾았다. Green: `-e` 줄을 찾는다.
 - linked 패키지의 `composer.link.json` path repository는 `symlink`와, lock이 기록한 릴리스(없으면 project가 요구하는 정확한 릴리스)로 정한 `versions`를 가지고 다른 repository보다 앞에 오므로, Composer가 그 릴리스를 폴더로 취하고 같은 version의 archive를 택하지 않는다(K304-2). orm, hyper(root와 `examples/board`), crudui의 link lock은 연결된 모든 polyspec 패키지를 dist type `path`로 가지며 `platform_check.php`가 폴더에서 나온 PHP 8.4.1 또는 8.4.0이다. Red: lock에 없는 패키지는 `versions`를 받지 못했다. Green: `node --test --test-name-pattern=K304-2 tests/kit/link.test.mts`가 통과한다.
