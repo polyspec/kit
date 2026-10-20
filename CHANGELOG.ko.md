@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aef52010f4f620b7802a3a20f6e9065db7e338611a93cb5bc9cf65e7b3b628df -->
+<!-- source-sha256: 9d038e5d33852d5db4f36e6b0abcdacd79d5e12a02be2e5260f7eff585310236 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make layout-check`는 Git이 무시하지 않는 install 폴더(`package.json` 옆의 `node_modules`, Composer project의 vendor, `var`,
+  `pyproject.toml` 옆의 `.venv`)에서 그 폴더와 고칠 `.gitignore`를 적어 실패한다. Go vendor 폴더는 정당하다(K372).
 - kit main에서 `make layout-check`가 다시 통과한다. `config/layout.yml`은 marker 검사의 Python helper와 PHPUnit이 앞에
   붙이는 PHP 파일을 S9에서 예외로 둔다. 그 언어의 program만 그것일 수 있기 때문이다(K420).
 - test-markers-check는 자기 module 옆의 Python helper를 쓰고 kit-build는 `markers/`를 dist에 담으므로, `scripts/kit`이

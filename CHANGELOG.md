@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make layout-check` fails on an install directory that Git does not ignore (`node_modules` beside a `package.json`, the vendor
+  of a Composer project, `var`, `.venv` beside a `pyproject.toml`), naming it and the `.gitignore` to change; a Go vendor folder
+  stays legitimate (K372).
 - `make layout-check` passes on kit main again: `config/layout.yml` excepts from S9 the Python helper of the marker check
   and the PHP file that PHPUnit prepends, which only a program of their language can be (K420).
 - test-markers-check takes its Python helper beside its own module, and kit-build ships `markers/` in dist, so the check
