@@ -162,3 +162,13 @@ test('a rule of PRINCIPLES.md without an id fails when AGENTS.md is read with it
   const root = principled(t, ['- Own: A rule.\n  Enforced by: `make docs-check`'], ['- Components are modular.\n  Enforced by: `make lint`']);
   assert.deepEqual(checkRules(root, both).findings, ['PRINCIPLES.md:3: the rule has no id; a rule of PRINCIPLES.md begins with P<n> or S<n>']);
 });
+
+test('a target is expanded for each set of variables it is called with, so every call of one recipe is reached (K312)', (t) => {
+  const root = tree(t, {
+    Makefile: 'ci-targets:\n\t@echo $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make ci-targets TARGETS="first"\n      - run: make ci-targets TARGETS="second"\n',
+    'AGENTS.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
+    'AGENTS.ko.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
+  });
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});

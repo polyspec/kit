@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make rules-check` expands a make target once for each set of variables it is called with, so every `make ci-targets TARGETS=...` call of the workflows is reached and a rule enforced by a target of a later call is no longer reported as run at no point (K312). Red: `node --test --test-name-pattern=K312 tests/kit/check-rules.test.mts` reported `make second` as unreached; Green: it finds nothing.
 - `make test-js` and `make test-ts` name only the `*.test.*` and `*.spec.*` files of a package, the naming of the node and vitest conventions, so a probe or a helper under `tests/` is never run as a test (K325). Red: `node --test --test-name-pattern=K325 tests/kit/runtime-targets.test.mts` listed `tests/probe.mjs` and `tests/helper.mts`; Green: only the test files.
 - `make test-python` runs the tests of a package in its environment: the run carries `--venv` with the nearest `.venv` at or above the package folder (K324), so the dependencies of the package import. Red: `node --test --test-name-pattern=K324 tests/kit/runtime-targets.test.mts` expected the `--venv` option and the run had none; Green: it passes.
 - The Composer projects that kit writes (`config/php-lint`, `config/phpunit`, the symbol extractor) resolve for PHP 8.4.1, the minor of `.php-version` with the patch 1, in `composer.json` and in the `platform-overrides` of the lock (K322). Red: `node --test tests/kit/php-platform.test.mts` found `8.4` in config/php-lint and in the extractor project; Green: it finds `8.4.1`.

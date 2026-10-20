@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ce5a48e88e36cc0b205b9c7504c573391ab9e59680b82123906d3690d43021b1 -->
+<!-- source-sha256: 21e11a775ecc23203f2f5e9f4cb638fe1f5b19203860e90ddaab83901cad0b12 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make rules-check`는 make target을 부른 변수 집합마다 한 번 펼치므로 workflow의 모든 `make ci-targets TARGETS=...` 호출에 닿고, 뒤의 호출의 target으로 강제되는 규칙이 어디서도 실행되지 않는다고 보고되지 않는다(K312). Red: `node --test --test-name-pattern=K312 tests/kit/check-rules.test.mts`가 `make second`를 닿지 않았다고 보고했다. Green: 아무것도 찾지 않는다.
 - `make test-js`와 `make test-ts`는 package의 `*.test.*`와 `*.spec.*` 파일, 곧 node와 vitest 규약의 이름만 부르므로 `tests/` 아래의 probe나 helper는 test로 실행되지 않는다(K325). Red: `node --test --test-name-pattern=K325 tests/kit/runtime-targets.test.mts`가 `tests/probe.mjs`와 `tests/helper.mts`를 나열했다. Green: test 파일만 나열한다.
 - `make test-python`은 package의 test를 그 package의 환경에서 실행한다. package 폴더 이하 위쪽의 가장 가까운 `.venv`를 `--venv`로 싣는다(K324). 그래서 package의 dependency가 import된다. Red: `node --test --test-name-pattern=K324 tests/kit/runtime-targets.test.mts`가 `--venv` option을 기대했는데 실행에 없었다. Green: 통과한다.
 - kit이 쓰는 Composer project(`config/php-lint`, `config/phpunit`, symbol extractor)는 `composer.json`과 lock의 `platform-overrides`에서 `.php-version`의 minor에 patch 1을 붙인 PHP 8.4.1로 resolve한다(K322). Red: `node --test tests/kit/php-platform.test.mts`가 config/php-lint와 extractor project에서 `8.4`를 찾았다. Green: `8.4.1`을 찾는다.

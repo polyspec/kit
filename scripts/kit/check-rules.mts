@@ -179,9 +179,14 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
       for (const words of commandsOf(script)) enter(words, new Map());
     }
   }
+  // A target is expanded once for each set of variables it is called with (K312): `make ci-targets TARGETS="a"` and
+  // `make ci-targets TARGETS="b"` run different targets through one recipe.
+  const expanded = new Set<string>();
   for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
     const rule = make.targets.get(item.target);
-    if (rule === undefined || targets.has(item.target)) continue;
+    const key = `${item.target}\0${JSON.stringify([...item.variables].sort(([left], [right]) => left.localeCompare(right)))}`;
+    if (rule === undefined || expanded.has(key)) continue;
+    expanded.add(key);
     targets.add(item.target);
     const variables = new Map([...make.variables, ...item.variables]);
     for (const prerequisite of rule.prerequisites) queue.push({ target: prerequisite, variables: item.variables });
