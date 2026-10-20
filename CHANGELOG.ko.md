@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1ed52f52eaae765875a653826169d472615b697c447dd5b80dd38c0711006375 -->
+<!-- source-sha256: 3a844161cc63235441cec53631b34a6b8137495bb0952b6577f38b33c853d091 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make lint-php-ext`, `make build-php-ext`, `make php-ext-arginfo`는 tracked 파일과 함께 disk의 `packages/php-ext` 파일을 읽으므로, `src/`를 생성하고 Git이 무시하는 extension도 tracked와 똑같이 통과한다(K297). Red: `node --test --test-name-pattern=K297 tests/kit/php-ext.test.mts`가 `the stub of the extension is missing`으로 실패했다. Green: 통과한다.
 - 문서는 존재하는 규칙을 적는다(K291): local-links는 모든 개발이 끝나기 전에는 kit을 포함해 어떤 저장소에서도 릴리스, tag, 버전 올림을 하지 않으며 push는 아무것도 게시하지 않는다고 적고, tool-inventory의 language parity 절은 S6이 선언에서 없앤 profile, admit 목록, exclusion(R8), nativeOnly 항목, spec anchor를 더는 기술하지 않는다. Red: 본문이 이들을 기술했다. Green: `node scripts/kit/check-documents.mts`가 통과하고 절이 `parity.schema.json`을 따른다.
 - pyproject의 dependency array에 `[build-system] requires`가 포함되므로 `make dependency-review UPDATE=1`이 setuptools 같은 build requirement를 project의 것처럼 pin한다(K296). Red: `node --test --test-name-pattern=K296 tests/kit/pin-python-dependency.test.mts`가 setuptools의 exact pin이 없다며 실패했다. Green: 통과한다.
 - `make build-php-ext`와 `make php-ext-arginfo`는 `composer.json`을 `src/` 옆에 둔 사본에서 작업하므로 `config.m4`가 version의 유일한 source인 `../composer.json`에서 package version을 읽는다(K295) in S10. Red: `node --test tests/kit/php-ext.test.mts`가 build한 fixture의 `phpversion()`이 composer.json의 1.2.3이 아니라 비어 있어 실패했다. Green: 통과한다.

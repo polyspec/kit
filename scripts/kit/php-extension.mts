@@ -15,7 +15,7 @@
 // is named polyspec/<repository>-php-ext and polyspec_<repository> (a hyphen an underscore), and has one stub,
 // src/polyspec_<repository>.stub.php. phpize, php-config and php are those on PATH, the PHP of .php-version.
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { packageVendorFile } from './composer-vendor.mts';
 import { isJsonObject } from './bootstrap/files.mts';
@@ -47,7 +47,7 @@ function composerName(text: string | undefined): string | undefined {
 
 /**
  * The repository name of the PHP library, `polyspec/<repository>` in packages/php/composer.json, or a finding; `read` gives
- * the text of a tracked file or undefined.
+ * the text of a file or undefined.
  */
 export function repositoryOf(read: (file: string) => string | undefined): { repository: string } | { finding: string } {
   const name = composerName(read(`${LIBRARY}/composer.json`));
@@ -56,7 +56,7 @@ export function repositoryOf(read: (file: string) => string | undefined): { repo
   return { repository: match[1] ?? '' };
 }
 
-/** The findings of the extension among the tracked `files`; none when the repository has no packages/php-ext. */
+/** The findings of the extension among the `files`; none when the repository has no packages/php-ext. */
 export function extensionFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
   if (!files.some(file => file.startsWith(`${EXTENSION}/`))) return [];
   const owner = repositoryOf(read);
@@ -109,16 +109,32 @@ export function declarationFindings(extension: Declarations, library: Declaratio
   return [...of('classes', 'class'), ...of('functions', 'function')];
 }
 
-/** The text of the tracked file `file` of `root`, or undefined when it is not tracked. */
-const reader = (root: string, files: readonly string[]) => (file: string) => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined);
+/**
+ * The files of the repository `root` that the extension reads: the tracked files, and the files of packages/php-ext on the disk,
+ * since a repository that never tracks generated output generates the sources of its extension (K297); the vendor and
+ * node_modules folders are no sources.
+ */
+export function extensionFiles(root: string): string[] {
+  const folder = path.join(root, EXTENSION);
+  const disk = existsSync(folder)
+    ? readdirSync(folder, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .map(entry => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+      .filter(file => !/(?:^|\/)(?:vendor|node_modules)\//.test(file))
+    : [];
+  return [...new Set([...trackedFiles(root), ...disk])].sort();
+}
+
+/** The text of the file `file` of `root` on the disk, or undefined when there is none. */
+const reader = (root: string) => (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
 
 /** The names of the extension of `root`, after its check; throws with the findings. */
 function checked(root: string): ReturnType<typeof extensionNames> {
-  const files = trackedFiles(root);
-  if (!files.some(file => file.startsWith(`${EXTENSION}/`))) throw new Stop(`${EXTENSION} holds no tracked file; the repository has no PHP extension`);
-  const found = extensionFindings(files, reader(root, files));
+  const files = extensionFiles(root);
+  if (!files.some(file => file.startsWith(`${EXTENSION}/`))) throw new Stop(`${EXTENSION} holds no file; the repository has no PHP extension`);
+  const found = extensionFindings(files, reader(root));
   if (found.length) throw new Stop(found.join('\n'));
-  const owner = repositoryOf(reader(root, files));
+  const owner = repositoryOf(reader(root));
   if ('finding' in owner) throw new Stop(owner.finding);
   return extensionNames(owner.repository);
 }
@@ -166,8 +182,8 @@ export function build(root: string): string {
 
 /** Writes the arginfo header of the extension of `root` with the rule of phpize, which runs gen_stub.php. */
 export function arginfo(root: string): void {
-  const files = trackedFiles(root);
-  const owner = repositoryOf(reader(root, files));
+  const files = extensionFiles(root);
+  const owner = repositoryOf(reader(root));
   if ('finding' in owner) throw new Stop(owner.finding);
   const names = extensionNames(owner.repository);
   const { work, source } = phpized(root, 'arginfo');
@@ -206,14 +222,14 @@ export function declarations(root: string): string[] {
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const command = process.argv[2] ?? '';
-  const files = trackedFiles(root);
+  const files = extensionFiles(root);
   const present = files.some(file => file.startsWith(`${EXTENSION}/`));
   try {
     if (!['check', 'build', 'arginfo', 'test'].includes(command)) throw new Stop('usage: php-extension.mts check | build | arginfo | test');
     if (!present && command !== 'arginfo') {
-      console.log(`[php-extension] the repository has no PHP extension: ${EXTENSION} holds no tracked file`);
+      console.log(`[php-extension] the repository has no PHP extension: ${EXTENSION} holds no file`);
     } else if (command === 'check') {
-      const found = extensionFindings(files, reader(root, files));
+      const found = extensionFindings(files, reader(root));
       if (found.length) throw new Stop(found.join('\n'));
       console.log('[php-extension] the names, the stub and the arginfo header of the extension match');
     } else if (command === 'build') {

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: bce476dbab44e08c03d349b33ee2ef85eb19039315473d034d8297475a3182d3 -->
+<!-- source-sha256: 43116355f63802d2005d1ce9f606c26e54eabad0fdb568542ed770a5afe042eb -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -87,3 +87,4 @@
 | K295 | PHP extension의 version의 source는 package의 composer.json 하나다. 원인: build-php-ext가 packages/php-ext/src만 복사해서 PIE가 package에서 build할 때 읽는 package version을 config.m4가 읽을 수 없었다. 인수 조건: build는 사본에서 composer.json을 src/ 옆에 두어 config.m4가 ../composer.json에서 version을 정의하게 하며, build한 fixture의 phpversion()은 그 composer.json의 version과 같다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts, tests/kit/php-ext-fixture/, PRINCIPLES.md(.ko) | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K296 | pyproject의 dependency array에 [build-system] requires가 포함된다. 원인: dependencyArrays가 이를 빠뜨려서 make dependency-review UPDATE=1에서 pin-python-dependency가 "no exact pin of setuptools"로 실패했다. 인수 조건: build-system.requires의 pin이 project의 pin처럼 설정된다. | scripts/kit/pyproject-dependencies.mts, tests/kit/pin-python-dependency.test.mts | `node --test tests/kit/pin-python-dependency.test.mts` | [o] |
 | K291 | 문서는 존재하는 규칙을 적는다. 원인: local-links.md가 "그 사이에 릴리스하지 않는다"고만 적어 kit의 릴리스나 tag를 허용하는 듯했고, tool-inventory의 language parity 절은 S6이 선언에서 없앤 profile, admit 목록, exclusion(R8), nativeOnly 항목, spec anchor를 아직 기술했다. 인수 조건: local-links는 모든 개발이 끝나기 전에는 아무것도 릴리스하지 않고 push는 아무것도 게시하지 않는다고 적고, tool-inventory는 parity 선언을 schema대로 profile, admit, exclusion, nativeOnly 없이 기술한다. | docs/operations/local-links.md(.ko.md), docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/check-documents.mts` | [o] |
+| K297 | extension 검사는 packages/php-ext의 working tree를 읽는다. 원인: lint-php-ext와 build-php-ext가 config.m4, stub, arginfo header를 tracked 파일에서만 읽어서, php-ext/src를 생성하고 Git이 무시하는 저장소(fsm)가 "the stub of the extension is missing"으로 실패했다. 인수 조건: tracked 파일과 함께 disk의 packages/php-ext 파일을 읽는다. 무시된 생성 source가 있는 fixture는 검사를 통과하고 그 안의 두 번째 stub은 finding이다. | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/php-ext.test.mts` | [o] |

@@ -124,6 +124,22 @@ test('arginfo configures the copy before it makes the header, so make has its Ma
   assert.doesNotMatch(written.stderr, /No rule to make target|No targets specified/, written.stderr);
 });
 
+test('the sources of the extension are read from the working tree, so generated sources that are not tracked pass the check (K297)', (t) => {
+  const generated = Object.fromEntries(Object.entries(good()).filter(([file]) => file.startsWith('packages/php-ext/src/')));
+  const tracked = Object.fromEntries(Object.entries(good()).filter(([file]) => !(file in generated)));
+  // The generated sources are ignored by Git, as a repository that never tracks generated output ignores them.
+  const root = tree(t, { ...tracked, '.gitignore': 'packages/php-ext/src/\n' });
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  put(root, generated);
+  const checked = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stderr);
+  // A second stub among the generated sources is a finding as well.
+  put(root, { 'packages/php-ext/src/other.stub.php': '<?php\n' });
+  const second = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(second.status, 1);
+  assert.match(second.stderr, /other\.stub\.php: the extension has one stub/);
+});
+
 test('the build refuses an extension with a finding before phpize runs', (t) => {
   const root = tree(t, { ...good(), 'packages/php-ext/composer.json': '{"name": "polyspec/demo-ext"}' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
