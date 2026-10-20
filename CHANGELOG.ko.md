@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d1598566c76e975960ad2abb8318fb386075aac5fe5357b78371b8c2c3ae4f5b -->
+<!-- source-sha256: d8a186a3ac860d64940a5abd702259326879fe50ba9bdca39ae759f28766d4d1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- suite `CHECK_TARGETS`는 `suiteTargets`가 `$(VAR)` 단어를 펼쳐서 읽으며, `kit-check`의 gate 검사와 owner 검사가 이를 쓴다(K321). Red: `node --test --test-name-pattern=K321 tests/kit/kit-check.test.mts`가 `$(MORE)`가 `docs-check`를 담는데도 빠졌다고 보고했다. Green: 아무것도 찾지 않는다.
 - `make link-state-check`는 kit이 쓰는 Composer project(`kit.copies`의 사본, `config/php-lint`, `config/phpunit`)를 제외하므로 그런 것만 가진 저장소는 Composer가 필요 없다(K320). Red: `node --test --test-name-pattern=K320 tests/kit/link-state-check.test.mts`가 없는 Composer 때문에 throw했다. Green: 아무것도 찾지 않는다.
 - `make lint-php`와 `make lint-python`은 PHP나 Python source가 없는 저장소에서 통과한다. 도구나 설정을 찾기 전에 step이 비어 있다(K319). Red: 문서만 있는 tree에서 `node --test tests/kit/lint-php.test.mts tests/kit/lint-python.test.mts`가 없는 도구 때문에 throw했다. Green: 둘 다 step 없이 돌아온다.
 - Composer 패키지는 폴더가 link이고 `installed.json`이 `dist` type `path`를 기록할 때만 linked로 센다(K318). 옛 mechanism이 남긴 릴리스 archive 설치 위의 link는 partial update가 다시 설치하고, 이미 link된 폴더도 같은 update에 남으며, `link-state-check`는 기록이 다른 dist type인 link를 실패시킨다. Red: 손으로 만든 link 아래 archive 설치가 있는 `tests/source/link-composer-real.test.mts`에서 archive가 유지되었다(기록 dist type `zip`). Green: 기록이 `path`이고 platform check가 폴더를 따른다.

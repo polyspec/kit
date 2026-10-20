@@ -56,3 +56,10 @@ test('a repository whose check suite lacks a gate of kit-gates fails, and a gate
   ]);
   assert.deepEqual(gateFindings(['docs/a.md'], make('kit-check language-check')), []);
 });
+
+test('the words of CHECK_TARGETS are expanded: a gate that a $(VAR) word carries is in the suite (K321)', () => {
+  const target = (name: string, prerequisites: string[] = []) => [name, { prerequisites, recipe: '' }] as const;
+  const targets = new Map([target('kit-gates', ['kit-check', 'docs-check']), target('kit-check'), target('docs-check')]);
+  const make = { targets, variables: new Map([['CHECK_TARGETS', 'kit-check $(MORE)'], ['MORE', 'docs-check']]) };
+  assert.deepEqual(gateFindings(['docs/a.md'], make), []);
+});

@@ -31,6 +31,7 @@ import { readConfig } from './schema-validate.mts';
 import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
+import { expandMake } from './recipe-tools.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -180,9 +181,9 @@ function closure(target: string, prerequisites: Map<string, string[]>, result = 
   return result;
 }
 
-/** The targets of the suite, in order: the words of the make variable CHECK_TARGETS. */
+/** The targets of the suite, in order: the words of the make variable CHECK_TARGETS, its $(VAR) references expanded (K321). */
 export function suiteTargets(make: MakeDatabase) {
-  return (make.variables.get('CHECK_TARGETS') ?? '').split(/\s+/).filter(Boolean);
+  return expandMake(make.variables.get('CHECK_TARGETS') ?? '', make.variables).split(/\s+/).filter(Boolean);
 }
 
 /**

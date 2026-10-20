@@ -22,7 +22,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
-import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { bareToolFindings } from './recipe-tools.mts';
@@ -225,7 +225,7 @@ export function gateFindings(files: readonly string[], make: MakeDatabase): stri
     reached.add(name);
     for (const next of make.targets.get(name)?.prerequisites ?? []) visit(next);
   };
-  (make.variables.get('CHECK_TARGETS') ?? '').split(/\s+/).filter(Boolean).forEach(visit);
+  suiteTargets(make).forEach(visit);
   return gates.filter(gate => !reached.has(gate) && (LANGUAGE_GATES[gate] === undefined || files.some(file => LANGUAGE_GATES[gate]?.code.test(file) && !file.startsWith('scripts/kit/')))).map((gate) => {
     const language = LANGUAGE_GATES[gate];
     return `Makefile: CHECK_TARGETS runs no ${gate}, a gate of kit-gates${language ? ` for the ${language.name} of this repository` : ''}; add it to CHECK_TARGETS`;

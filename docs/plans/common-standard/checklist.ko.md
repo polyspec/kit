@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 400c917e7780f661f7e315a24a857e70972b26f7c10f86454c144efb589a1b64 -->
+<!-- source-sha256: 20c6606a5d88567d490079c2a070ae8597e61fd3c3ef7998515ba2a86475d5e7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -105,3 +105,4 @@
 | K318 | Composer link는 릴리스 설치를 대체하고, archive 설치 위의 link는 finding이다(K304-1을 따름). 원인: 옛 mechanism이 손으로 link한 폴더가 linked로 셌고 그래서 link가 composer update를 하지 않아 lock과 platform check가 릴리스 archive를 유지했다(orm: zip의 ordered-json 0.0.9, platform_check 80500). 인수 조건: 폴더가 link이고 installed.json이 dist type path를 기록할 때만 linked이며, 아니면 link가 partial update를 하고 이미 link된 폴더도 같은 update에 넣고, link-state-check는 기록이 다른 dist type인 link를 실패시킨다. | scripts/kit/link.mts, scripts/kit/link-state-check.mts, tests/kit/link.test.mts, tests/kit/link-state-check.test.mts, tests/source/link-composer-real.test.mts, docs/operations/local-links.md(.ko.md) | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K319 | PHP나 Python source가 없는 저장소는 lint-php와 lint-python을 통과한다. 원인: lintSteps가 source를 확인하기 전에 도구와 설정을 찾아서 PHP도 Python도 없는 ssr에서 kit-gates의 gate가 실패했다. 인수 조건: 추적되는 .php(stub 제외)나 .py 파일이 없으면 step은 비고 도구와 설정이 필요 없으며, K289는 이미 언어의 lint를 그 code를 가진 저장소에만 요구한다. | scripts/kit/lint-php.mts, scripts/kit/lint-python.mts, tests/kit/lint-php.test.mts, tests/kit/lint-python.test.mts | `node --test tests/kit/lint-php.test.mts tests/kit/lint-python.test.mts` | [o] |
 | K320 | link-state-check는 consumer의 Composer project만 읽는다. 원인: kit이 쓰는 config/php-lint와 config/phpunit project를 consumer project로 보고 Composer가 없으면 throw했다(ssr). 인수 조건: kit이 쓰는 composer.json은 consumer project가 아니며 그런 것만 가진 저장소는 Composer가 필요 없다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test tests/kit/link-state-check.test.mts` | [o] |
+| K321 | suite CHECK_TARGETS는  단어를 펼쳐서 읽는다. 원인: kit-check와 owner-check가 make -p가 출력한 원래 값을 나눠서  같은 단어가 target 이름이 되었고 그 뒤의 gate가 없다고 보고되었다(ssr). 인수 조건: suiteTargets가 database의 변수로 make 참조를 펼치고 kit-check가 그것으로 suite를 읽는다. | scripts/kit/owner-check.mts, scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
