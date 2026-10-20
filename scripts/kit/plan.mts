@@ -41,7 +41,7 @@ import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
-import { hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
+import { fixProvesRed, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
 import type { GateRecord, Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
@@ -345,8 +345,10 @@ export function setState(root: string, change: NewState, print: (text: string) =
     throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
   }
   const rules = COMMIT_RULES;
-  // The done state needs the red of the item on its parent: a gate or a test that item-state or item-red recorded (K357).
-  if (change.state === DONE && !hasRed(root, change.id)) throw new Error(`${change.id}: the red of its Verification is not recorded, so the Verification proves no red; make item-red ID=${change.id} runs it after the test is written and before the fix, and records its failure`);
+  // The done state needs the red of the item on its parent: a gate or a test that item-state or item-red recorded on HEAD, or a fix
+  // commit of the item in the history of HEAD that carries it (K357).
+  const commands = itemCommands(read(entry.tracker.path), entry.tracker, change.id);
+  if (change.state === DONE && !hasRed(root, change.id) && !fixProvesRed(root, change.id, commands)) throw new Error(`${change.id}: the red of its Verification is not recorded, so the Verification proves no red; make item-red ID=${change.id} runs it after the test is written and before the fix, and records its failure; a fix commit of the row with its Red-Test line also proves it`);
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
     if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');

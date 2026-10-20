@@ -117,6 +117,25 @@ export function hasRed(root: string, id: string): boolean {
   return failed !== undefined && failed.gates.length + failed.tests.length > 0;
 }
 
+/**
+ * Whether a commit of the history of HEAD that fixes the item `id` proves its red: its subject ends with (#<id>) and its message holds
+ * a Red-Gate or Red-Test line that names one of `commands` and failed on the parent of that commit. A close in a later commit reads
+ * the red from its fix commit this way, in any checkout.
+ */
+export function fixProvesRed(root: string, id: string, commands: readonly string[]): boolean {
+  // The commits of HEAD that name the item in a subject; each is read with its message, separated by a record separator.
+  const log = spawnSync('git', ['log', '--format=%H%x1f%B%x1e', '--fixed-strings', `--grep=(#${id})`, 'HEAD'], { cwd: root, encoding: 'utf8' });
+  if (log.status !== 0) throw new Error(`git log ended with exit status ${log.status}: ${log.stderr}`);
+  for (const entry of log.stdout.split('\x1e')) {
+    const [sha = '', message = ''] = entry.trim().split('\x1f');
+    if (sha === '' || !(message.split('\n')[0] ?? '').endsWith(`(#${id})`)) continue;
+    const parent = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${sha}^`], { cwd: root, encoding: 'utf8' });
+    if (parent.status !== 0) continue;
+    if (provesRed(message, () => commands, parent.stdout.trim())) return true;
+  }
+  return false;
+}
+
 /** The Red-Gate and Red-Test lines of the item `id` for a commit on HEAD: each gate and test of its record that failed on HEAD. */
 export function redLines(root: string, id: string): string[] {
   const failed = failedRuns(root, id);

@@ -510,6 +510,51 @@ test('make item-red records a failing Verification, and done requires the record
   const message = commitItem(root, { id: 'T1', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body }, identity);
   assert.equal(message, `fix(parser): Fix it (#T1)\n\nThe test reproduces it.\n\nRed-Test: node -e "process.exit(1)" exit 1 at ${head.slice(0, 12)}\n`);
   assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', COMMIT_RULES), [], 'the Red-Test line proves the red of the fix');
+
+  // A close in a later commit reads the red from the fix commit in the history of HEAD, and a fix without a Red line closes nothing.
+  const later = plans(t, 'parser');
+  newItem(later, item('parser', 'T3', { verification: '`node -e "process.exit(1)"`' }));
+  newItem(later, item('parser', 'T4', { verification: '`node -e "process.exit(1)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(later, file), CHANGELOG);
+  const runGit = (...args: string[]) => {
+    const run = spawnSync('git', args, { cwd: later, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout;
+  };
+  const commitAll = (message: string) => {
+    runGit('add', '-A');
+    runGit('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message);
+  };
+  commitAll('base');
+  setState(later, { id: 'T3', state: '[~]' }, quiet);
+  commitAll('start T3');
+  const redOfT3 = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: later, env: { ...process.env, ID: 'T3' }, encoding: 'utf8' });
+  assert.equal(redOfT3.status, 0, redOfT3.stderr);
+  put(later, { 'tests/a.test.mts': 'red\n', 'a.mts': 'export {};\n' });
+  runGit('add', 'a.mts', 'tests/a.test.mts');
+  const body3 = path.join(later, 'var/body.txt');
+  writeFileSync(body3, 'The test reproduces it.\n');
+  const fix3 = commitItem(later, { id: 'T3', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body3 }, identity);
+  assert.match(fix3, /^Red-Test: node -e "process.exit\(1\)" exit 1 at [0-9a-f]{12}$/m, 'the fix commit carries its red');
+  // The item is closed in a later commit: its record is no longer on HEAD, so the done state reads the fix commit.
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(later, file), `${CHANGELOG}- Fix (T3).\n`);
+  setState(later, { id: 'T3', state: '[o]' }, quiet);
+  assert.equal(rows(later, 'docs/plans/parser/checklist.md')[0]?.endsWith('[o] |'), true, 'closed in a later commit');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(later, file), `${CHANGELOG}- Fix (T3).\n`);
+  runGit('add', '-A');
+  runGit('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'docs(plan): Close T3 (#T3)');
+
+  // A fix commit of T4 without a Red line proves nothing, and its item cannot be closed.
+  setState(later, { id: 'T4', state: '[~]' }, quiet);
+  commitAll('start T4');
+  put(later, { 'tests/b.test.mts': 'green\n', 'b.mts': 'export {};\n' });
+  runGit('add', 'b.mts', 'tests/b.test.mts');
+  const body4 = path.join(later, 'var/body4.txt');
+  writeFileSync(body4, 'The test names it.\n');
+  const fix4 = commitItem(later, { id: 'T4', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body4 }, identity);
+  assert.doesNotMatch(fix4, /^Red-(?:Gate|Test): /m, 'no red was recorded for T4');
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(later, file), `${CHANGELOG}- Fix (T4).\n`);
+  assert.throws(() => setState(later, { id: 'T4', state: '[o]' }, quiet), /make item-red ID=T4/, 'a fix without a Red line does not close');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
