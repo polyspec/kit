@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f4fbe922fd69709e1546f80608745ff718ef1558a4c1e7f638c3f2565b821981 -->
+<!-- source-sha256: 721c05a0db4880673ee5b853a537fec27c207dba2b38efb7c690bb7d5756e8f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Verification의 gate 명령은 `make parity-declarations-check RULES=R9`처럼 target 뒤의 make 변수를 받으므로, UNITS나
+  RULES로 좁힌 gate도 fix row의 기록된 red이고 그 Red-Gate 줄이 그것을 증명한다(K357-2).
 - `link rebuild`는 consumer의 링크된 Composer project마다 link 파일로 `composer dump-autoload`를 실행하므로, provider가
   파일을 지운 뒤에도 autoload는 있는 파일만 적는다(K347).
 - test-markers-check는 checkout의 Python의 ast module로 Python 파일의 syntax tree에서 marker를 읽으므로, 문자열이나
