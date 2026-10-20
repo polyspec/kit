@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make install` of kit also installs the packages of the PHP symbol extractor (`kit-install`), so a worktree that
+  `make worktree-setup` makes runs `make lint-php` (K412).
 - `make lint-php` passes on kit main again: the lines over the 120 characters of phpcs in four PHP files of kit are
   wrapped, with the same symbols and leaks from the extractor (K413).
 - The parity declarations report each document of `docs/spec` that defines no requirement id (rule R19

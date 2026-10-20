@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cbe00cb0fd3f4d0575a7b266f613d001d907ff65b9ada71ad7d27038448b23aa -->
+<!-- source-sha256: 8b3fc73b51b2868897a08b9f722ed942378a825b5ec229226cf21f2556f5a81a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 `make install`은 PHP symbol extractor의 package도 설치하므로(`kit-install`), `make worktree-setup`이 만든 worktree가
+  `make lint-php`를 실행한다(K412).
 - kit main에서 `make lint-php`가 다시 통과한다. kit의 PHP 파일 네 개에서 phpcs의 120자를 넘는 줄을 나누었고, extractor가
   보고하는 symbol과 leak은 같다(K413).
 - parity 선언 검사는 요구 id를 하나도 정의하지 않는 `docs/spec`의 문서마다 그 파일을 적어 보고한다(규칙 R19
