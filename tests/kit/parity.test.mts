@@ -1706,6 +1706,24 @@ const caseDirectories = (config: Declaration) => {
   return config;
 };
 
+// K350: two directory suites that cite the same requirement from different case sets are one feature written twice; R18 names both.
+test('two suite units that cite the same requirements from different case sets are a finding naming both (K350)', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/forms.md': '# Forms\n\n- **CX-2** The form keeps its history.\n- **CX-3** The form saves its draft.\n',
+    'tests/forms/form-history/save/case.json': '{"requirements": ["CX-2"]}\n',
+    'tests/forms/form-history-2/restore/case.json': '{"requirements": ["CX-2"]}\n',
+    'tests/forms/other/draft/case.json': '{"requirements": ["CX-3"]}\n',
+  };
+  const suite = (id: string, requirement: string) => ({ id, kind: 'suite', requirements: [requirement], file: `tests/forms/${id}`, cases: '*', bindings: [] });
+  const edit = (config: Declaration) => {
+    // A third unit with another requirement is no finding.
+    config.units.push(suite('form-history', 'CX-2'), suite('form-history-2', 'CX-2'), suite('other', 'CX-3'));
+    return config;
+  };
+  const { findings } = check(t, { files, edit }, { execute: false });
+  assert.deepEqual(findings.filter(item => item.rule === 'R18').map(item => item.message), ['form-history and form-history-2 both cite CX-2 from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit']);
+});
+
 test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, { files: CASE_DIRECTORIES, edit: caseDirectories });
   // The other implementations hold the unit too, and their native test names are no nested case of the suite.

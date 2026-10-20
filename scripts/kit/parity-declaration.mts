@@ -125,6 +125,7 @@ export const RULES = {
   R15: 'unnamed-requirement',
   R16: 'internal-contract',
   R17: 'leaked-internal',
+  R18: 'duplicate-suite',
 };
 
 /** A rule of the check, a key of RULES. */

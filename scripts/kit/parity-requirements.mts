@@ -6,6 +6,7 @@
 //   R14 unknown-requirement   a unit cites an id that the spec does not define
 //   R15 unnamed-requirement   a suite or feature unit cites an id that the test of a binding (or the vector file of a
 //                             suite) does not name: a test names the requirement it tests, so a unit cannot cite them all
+//   R18 duplicate-suite       two directory suites cite a shared requirement from different case sets: one feature, one unit (K350)
 // A directory suite names its requirements in data (K277): each case directory of the unit holds case.json, read as JSON,
 // whose `requirements` array of strings lists the ids the case tests, and other keys are ignored. A missing or malformed
 // case.json is a declaration finding; an id of it that the spec does not define is R14 naming the file, reported once
@@ -91,6 +92,16 @@ export function requirementFindings(config: { requirements: { pattern: string };
       const named = [...read(file).matchAll(identifier)].map(match => match[0]).find(id => defined.has(id));
       if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file }));
     }
+  }
+  // R18: two directory suites that cite a requirement from different case sets are one feature written twice (K350).
+  const directories = config.units.flatMap(unit => {
+    const names = cases.get(unit.id);
+    if (unit.kind !== 'suite' || unit.file === undefined || listed.has(unit.file) || names === undefined) return [];
+    return [{ unit, files: names.map(name => `${unit.file}/${name}/case.json`).sort().join('\n') }];
+  });
+  for (const [index, first] of directories.entries()) for (const second of directories.slice(index + 1)) {
+    const shared = [...new Set(first.unit.requirements)].filter(id => second.unit.requirements.includes(id));
+    if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit`));
   }
   for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`));
   return findings;
