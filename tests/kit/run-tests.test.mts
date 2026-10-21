@@ -569,6 +569,83 @@ test('a python test that outlives its timeout fails with its timeout, and each t
   assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
 });
 
+// K371-1: every interval without a test event is bounded by the per-test timeout, not only a running test. The stub is the python3
+// of the checkout that runs the real interpreter of PATH, so each fixture is a real unittest run.
+function realPython(root: string) {
+  const python = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+  const stub = path.join(root, 'var/tools/mise/shims/python3');
+  mkdirSync(path.dirname(stub), { recursive: true });
+  writeFileSync(stub, `#!/bin/sh\nexec '${python}' "$@"\n`);
+  chmodSync(stub, 0o755);
+  return root;
+}
+
+// The import of the module sleeps past the timeout, before the first test starts: the run stops the tool at the timeout.
+test('a python bootstrap that outlives the timeout stops the tool and names the start of the run (K371-1)', { timeout: 60_000 }, async (t) => {
+  const root = realPython(checkout(t, { 'tests/__init__.py': '', 'tests/test_boot.py': 'import time\nimport unittest\n\ntime.sleep(5)\n\n\nclass Boot(unittest.TestCase):\n    def test_pass(self):\n        pass\n' }));
+  const began = Date.now();
+  const result = await inProcess(t, ['python', '--timeout', '1', 'discover'], { root });
+  const elapsed = Date.now() - began;
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /⏱ no test started within 1 s after the start of the run; the run elapsed [\d.]+s; stopping `[^`]*var\/tools\/mise\/shims\/python3 -c import runpy/);
+  assert.match(result.text, /✖ python \. discover: 0 passed, 0 failed, 1 timed out/);
+  assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
+});
+
+// The setUpClass of the second class sleeps past the timeout after the first test has ended: the gap names that test.
+test('a python gap between two tests that outlives the timeout names the end of the test before it (K371-1)', { timeout: 60_000 }, async (t) => {
+  const root = realPython(checkout(t, { 'tests/__init__.py': '', 'tests/test_gap.py': 'import time\nimport unittest\n\n\nclass First(unittest.TestCase):\n    def test_a(self):\n        pass\n\n\nclass Second(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n        time.sleep(5)\n\n    def test_b(self):\n        pass\n' }));
+  const began = Date.now();
+  const result = await inProcess(t, ['python', '--timeout', '1', 'discover'], { root });
+  const elapsed = Date.now() - began;
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /✔ test_a \(tests\.test_gap\.First\.test_a\)/);
+  assert.match(result.text, /⏱ no test started within 1 s after the end of test_a \(tests\.test_gap\.First\.test_a\); the run elapsed [\d.]+s; stopping `/);
+  assert.match(result.text, /✖ python \. discover: 1 passed, 0 failed, 1 timed out/);
+  assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
+});
+
+// A go package whose build or bootstrap outlives the timeout emits its first event after the sleep: the gap stops go before it.
+test('a go bootstrap that outlives the timeout stops the tool before its first event (K371-1)', { timeout: 60_000 }, async (t) => {
+  const root = tree(t);
+  const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0 }, { Action: 'pass', Package: 'p', Elapsed: 0 }];
+  goShim(root, `setTimeout(() => { for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); }, 5000);`);
+  const began = Date.now();
+  const result = await inProcess(t, ['go', '--timeout', '1', './...'], { root });
+  const elapsed = Date.now() - began;
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /⏱ no test started within 1 s after the start of the run; the run elapsed [\d.]+s; stopping `[^`]*var\/tools\/mise\/shims\/go test -json`/);
+  assert.match(result.text, /✖ go \. \.\/\.\.\.: 0 passed, 0 failed, 1 timed out/);
+  assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
+});
+
+// The gap watch is armed at the start of the run and after each test ends, and a test start disarms it: a running test has the
+// per-test timeout instead. The module is imported in the test, so only this test fails before the module exists.
+test('the gap watch arms at the start of the run and after a test ends, and a test start disarms it (K371-1)', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  return import('../../scripts/kit/test-gap.mts').then(({ createGap, parseTestEvent }) => {
+    const expired: string[] = [];
+    const gap = createGap({ timeoutMs: 1000, onExpire: last => expired.push(last) });
+    t.mock.timers.tick(999);
+    assert.deepEqual<string[]>(expired, []);
+    t.mock.timers.tick(1);
+    assert.deepEqual<string[]>(expired, ['the start of the run']);
+    const second = createGap({ timeoutMs: 1000, onExpire: last => expired.push(last) });
+    second.event({ kind: 'start', id: 'a' });
+    t.mock.timers.tick(5000);
+    assert.deepEqual<string[]>(expired, ['the start of the run'], 'a running test is bounded by its own timeout');
+    second.event({ kind: 'end', id: 'a' });
+    t.mock.timers.tick(999);
+    assert.deepEqual<string[]>(expired, ['the start of the run']);
+    t.mock.timers.tick(1);
+    assert.deepEqual<string[]>(expired, ['the start of the run', 'the end of a']);
+    gap.close();
+    second.close();
+    assert.deepEqual(parseTestEvent('{"kind":"end","id":"a"}'), { kind: 'end', id: 'a' });
+    assert.throws(() => parseTestEvent('{"kind":"pass","id":"a"}'), /test event/);
+  });
+});
+
 // A stopped tool leaves no process (K141): the runner starts the tool in its own process group and stops the whole group, at a
 // timeout and when the runner itself is interrupted. The hanging stub starts a grandchild, as the mise shim starts the
 // interpreter, and records both pids in a file of its own directory; t.after kills every recorded pid that is still alive, so a

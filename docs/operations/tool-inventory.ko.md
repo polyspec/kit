@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 294bb6176a0fcf7e22d479b735c5c9df2bf05669c577820c5d5ab7b8cb0a630e -->
+<!-- source-sha256: 39cbaf8a920db479a5a82047ad6daf5e0bd6c41deebc0bd1388155bbe53f29d9 -->
 
 # 도구 목록
 
@@ -479,8 +479,9 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 
 - tool: `node`, `vitest`, `go`, `cargo`, `phpunit`(template, crudui), `python`(K17); hyper는 첫째, 마지막, `vitest`를 가집니다. 각 test는 시작,
   실행 중 한 줄, 경과 시간과 함께 결과를 출력하고, test마다 자기 timeout(`--timeout`, 기본 30 s)을 가집니다. `node --test`와
-  vitest가, 다른 tool은 실행기가 timeout을 적용합니다. 전체 실행, package, 파일에는 시간 제한이 없습니다(모든 구현; crudui의
-  `go test -timeout 10m`은 `-timeout=0`으로 바꿉니다).
+  vitest가, 다른 tool은 실행기가 timeout을 적용합니다. test event가 없는 모든 구간(첫 test 전, test 사이, 마지막 test 뒤)도 같은
+  timeout을 가집니다(K371-1): 실행기는 tool을 멈추고 `no test started within N s after <마지막 event>`를 실행 경과 시간과 함께
+  출력합니다. 전체 실행, package, 파일에는 시간 제한이 없습니다(모든 구현; crudui의 `go test -timeout 10m`은 `-timeout=0`으로 바꿉니다).
 - pass, fail, timeout인 test가 하나도 없는 실행은 실패합니다. template은 skip한 test도 test로 셌고 hyper와 crudui는 세지 않았으며,
   skip만 한 실행은 아무것도 검증하지 않았으므로 kit은 후자를 따릅니다. reporter는 count를 `KIT_TEST_RESULT`(hyper의
   `HYPER_TEST_RESULT`) 파일에 쓰고, count가 오지 않으면 실행기가 실패합니다.

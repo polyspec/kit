@@ -418,6 +418,10 @@
       "kind": "ecosystem",
       "tool": "node:test after hook"
     },
+    "scripts/kit/test-gap.mts": {
+      "kind": "policy",
+      "reason": "the gap watch of run-tests (K371-1), which bounds each interval without a test event by the per-test timeout for every tool: no ecosystem timer watches the test events of a child process, and the events of node and vitest come from their reporters through a pipe"
+    },
     "scripts/kit/test-hooks.mts": {
       "kind": "ecosystem",
       "tool": "node:test before and after hooks"

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d4ff74e79649ce88b9ee96cf7bc41e44eb57883ba323bd7a5f961a0368aa6d9b -->
+<!-- source-sha256: 66096d6f6436b00ec3eb47fff1f985e5a7469acbba398aab4af8c6f5fcff343d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K371-1: run-tests는 test event가 없는 모든 구간을 test별 timeout으로 제한합니다. node, vitest, go, cargo, phpunit, python 모두에 적용되며, 첫 test 전, test 사이, 마지막 test 뒤에서 timeout에 이르면 실행기는 test timeout과 같이 tool의 process group을 멈추고 실행 경과 시간과 함께 `no test started within N s after <마지막 event>`를 출력합니다. 실행은 실패합니다. 전체 실행에는 시간 제한이 없습니다. Red: bc80fb67에서 `node --test --test-name-pattern=K371-1 tests/kit/run-tests.test.mts`가 실패(4개 모두 실패: timeout을 넘겨 자는 python import와 go shim이 통과하며, gap watch module이 없음); green: `make item-test ID=K371-1`이 통과(테스트 4개, 건너뛰기 없음). (K371-1).
 - kit-check는 env(할당과 option 포함), exec, command, sh/bash/zsh/dash의 -c 문자열 뒤에서 시작하는 PHPUnit과 phpunit.phar도 찾는다(K436-1). Red: 7b4825eb에서 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(finding 5개 중 4개); green: 통과.
 - kit-check는 make 변수를 펼쳐 읽은 recipe 명령 중 run-tests 밖에서 PHPUnit을 시작하는 명령(PHPUnit 자체, 또는 그것을 실행하는 php interpreter)을 거부한다(K436). 시간 제한을 넘긴 test의 process group을 끝내는 run-tests만 멈춘 PHPUnit test를 멈출 수 있고, PHPUnit의 enforceTimeLimit은 libpq 안에서 기다리는 test를 중단하지 못한다. Red: 변경 전 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(검사가 없고 orm에 그런 명령이 37개 있다); green: 통과하며 kit의 recipe에는 finding이 없다.
 - K439-3: composer-provider-entries는 Composer writer의 scratch 프로젝트를 tracked lock에서 해석한다. 소비자의 composer.json과 composer.lock이 기준이고, 제공되는 패키지는 path repository이며, Composer는 그 패키지만 오프라인으로 갱신한다. 그래서 nikic/php-parser 같은 transitive 요구는 packagist가 아니라 lock에서 온다 (K439-3). Red: node --test --test-name-pattern=K439-3 tests/kit/dependency-review.test.mts가 exit 1(lock 없이는 transitive 요구를 찾지 못함); green: make item-test ID=K439-3이 통과한다(테스트 1개, 건너뛰기 없음). (K439-3).
@@ -15,7 +16,6 @@
 - K441: `make land`와 `make worktree-prune`은 자기 worktree를 제거하기 전에 그 Makefile의 `WORKTREE_STOP` target을 실행하고, `make land`는 그 target이 실패하면 worktree를 남기고 target과 그 출력을 적어 실패한다. `make worktree-prune`은 제거된 worktree 폴더를 명령행에 적은 프로세스를 pid와 경로로 나열하며, 어떤 프로세스도 종료하지 않는다(K441). Red: `node --test --test-name-pattern=K441 tests/kit/land.test.mts`와 `node --test --test-name-pattern=K441 tests/kit/worktree-prune.test.mts`가 base에서 exit 1(서버가 멈추지 않고 프로세스가 나열되지 않음); green: `make item-test ID=K441`이 통과한다(테스트 3개, 건너뛰기 없음).
 - `make npm-install`은 주어진 checkout이 제공하는 패키지를 origin과 상관없이 연결하고, lock에만 transitive로 있는 패키지는 override로 연결하며, checkout이 없는 선언된 polyspec 패키지는 npm ci 대신 실패한다(K448-7).
 - K439-2: composer-provider-entries는 provider 항목을 Composer 자체의 lock writer로 오프라인에서, 소비자가 선언한 플랫폼으로 쓴다. 그래서 자기가 쓴 lock을 다시 실행해도 바뀌지 않고, 플랫폼보다 많이 요구하는 provider는 둘을 함께 적고 실패한다 (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts가 exit 1(manifest의 license 형식); green: make 아래에서 make item-test ID=K439-2가 통과한다(툴체인 Composer, 테스트 2개, 건너뛰기 없음). (K439-2).
-
 - K440-1: kit은 `link`가 각 Go module에 쓰는 `go.work`와 `go.work.sum`을 무시한다. kit 자신의 도구(scripts/kit/symbols/go)도 포함하므로, `link`가 K440의 workspace hook을 쓰기 전에 "not ignored by Git"으로 실패하지 않는다(K440-1). Red: `node --test --test-name-pattern=K440-1 tests/kit/link.test.mts`가 exit 1로 끝난다(scripts/kit/symbols/go/go.work가 무시되지 않음). green: `make item-test ID=K440-1`이 통과하고, checkout에서 `make link`가 hook을 쓴다.
 
 ### 2026-10-21 — install-packages가 make npm-install로 설치한다 (K448-8)

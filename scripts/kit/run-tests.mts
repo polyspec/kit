@@ -19,8 +19,9 @@
 // Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest, through
 // runners/python.py, which gives each test its own timeout, K371). node and
 // vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
-// outlives it. No tool has a time
-// limit on a package, a file or a whole run.
+// outlives it. Every interval without a test event is bounded by the same timeout (K371-1): before the first test, between
+// tests and after the last one, the gap watch of test-gap.mts stops the tool and names the last event. No tool has a time
+// limit on a whole run, a package or a file.
 //
 // Every tool runs in its own process group (spawn's `detached`), so a stop reaches the processes that the tool started, such
 // as the interpreter that the mise shim runs (K141). The runner stops the group with SIGTERM and, when the tool has not
@@ -32,9 +33,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
+import { createGap, parseTestEvent, TEST_EVENTS, TEST_EVENTS_FD } from './test-gap.mts';
+import { compactSeconds } from './time.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
 // stopGroup is the group stop of process-group.mts, which run-command shares (K430).
@@ -257,6 +261,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const reads = ['go', 'cargo', 'phpunit', 'python'].includes(options.tool);
   const cargo = options.tool === 'cargo';
   const python = options.tool === 'python';
+  // node and vitest report their tests from inside the tool, through the pipe of TEST_EVENTS_FD (K371-1).
+  const reporter = !reads;
   // The progress reporters write their counts to this file; the runner requires that a test ran.
   const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
@@ -266,7 +272,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
-  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}) };
+  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;
@@ -275,7 +281,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // for a hangup.
   let parentWatch: NodeJS.Timeout | undefined;
   try {
-    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: true });
+    const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit', reporter ? 'pipe' : 'ignore'], detached: true });
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const closed = new Promise<Ended>((resolve) => {
       child.once('error', error => resolve({ error }));
@@ -285,6 +291,18 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     // A tool that could not start has no pid and no group to stop.
     const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
     onInterrupt = (signal) => { interrupted ??= signal; stop(); };
+    // The gap watch (K371-1): an interval without a test event outlives the timeout, so the tool is stopped and the run fails.
+    let gapExpired = false;
+    const gap = createGap({
+      timeoutMs: options.timeoutSeconds * 1000,
+      onExpire: (lastEvent) => {
+        gapExpired = true;
+        const text = `no test started within ${options.timeoutSeconds} s after ${lastEvent}; the run elapsed ${compactSeconds(Date.now() - began)}; stopping \`${command} ${args.slice(0, 2).join(' ')}\``;
+        if (progress) progress.expire(text);
+        else write(`⏱ ${label}: ${text}\n`);
+        stop();
+      },
+    });
     for (const signal of INTERRUPTS) process.on(signal, onInterrupt);
     const parent = process.ppid;
     parentWatch = setInterval(() => {
@@ -300,6 +318,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       // A test runs out of time only after the tool started, so the child has its pid.
       onTimeout: () => { timedOut = true; stop(); },
       resultFile,
+      onEvent: event => gap.event(event),
     }) : undefined;
     const sink = progress && toProgress(progress);
     // The branches below are the tools that this runner reads, which have a progress and so a sink.
@@ -328,8 +347,15 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     } else if (reads) {
       readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(options.tool === 'go' ? goEvents(present(sink, 'sink'), build) : phpunitEvents(present(sink, 'sink')))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
+    if (reporter) {
+      // The pipe of the test events is the stream that spawn opened for TEST_EVENTS_FD: a readable one, checked here.
+      const events = present(child.stdio[TEST_EVENTS_FD], 'child.stdio[TEST_EVENTS_FD]');
+      if (!(events instanceof Readable)) throw new Error(`the test events of ${label} are not a readable pipe`);
+      readline.createInterface({ input: events }).on('line', text => gap.event(parseTestEvent(text)));
+    }
     const ended = await closed;
     await stopping;
+    gap.close();
     if (interrupted) {
       write(`✖ ${label}: interrupted by ${interrupted}; stopped the process group of the tool\n`);
       return 1;
@@ -343,13 +369,13 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     const code = status ?? (signal ? 1 : 0);
     let exit;
     if (progress) {
-      const counts = progress.close(label, { exitCode: timedOut ? 0 : code, errors, build });
+      const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, errors, build });
       exit = counts.ok && !timedOut ? 0 : 1;
     } else {
       // node --test and vitest print their summary from inside the tool; a tool that then ends on a signal or a nonzero
-      // code fails the run, and this line names why.
-      if (code !== 0) write(`✖ ${label}: the tool ended ${signal ? `on ${signal}` : `with exit code ${status}`}\n`);
-      exit = code === 0 ? 0 : 1;
+      // code fails the run, and this line names why. A run that the gap watch stopped has its own line.
+      if (code !== 0 && !gapExpired) write(`✖ ${label}: the tool ended ${signal ? `on ${signal}` : `with exit code ${status}`}\n`);
+      exit = code === 0 && !gapExpired ? 0 : 1;
     }
     const counts = existsSync(resultFile) ? readJsonFile<Counts>(resultFile, 'test-result.schema.json') : null;
     if (counts !== null && options.results) {
@@ -357,6 +383,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       writeJson(options.results, { tool: options.tool, inputs, elapsedMs: Date.now() - began, ...counts });
       write(`▶ ${label}: recorded ${path.relative(root, options.results)}\n`);
     }
+    // A run that the gap watch stopped fails with its line; a reporter that the stop ended before its summary wrote no counts.
+    if (gapExpired) return 1;
     if (counts === null) {
       write(`✖ ${label}: the progress reporter wrote no counts, so the run cannot show that a test ran; the tool must run with the reporter of scripts/kit\n`);
       return 1;

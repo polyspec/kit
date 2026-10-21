@@ -2,6 +2,7 @@
 // reporter shows every test starting, still running and ending.
 import path from 'node:path';
 import { createProgress, type Progress } from './test-progress.mts';
+import { writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -49,7 +50,8 @@ export default class ProgressReporter {
   declare suites: Set<string>;
 
   onInit(): void {
-    this.progress = createProgress({ write: (text: string) => process.stdout.write(text) });
+    // The test events go to run-tests, which runs the gap watch of each test (K371-1).
+    this.progress = createProgress({ write: (text: string) => process.stdout.write(text), onEvent: writeTestEvent });
     this.suites = new Set();
   }
 

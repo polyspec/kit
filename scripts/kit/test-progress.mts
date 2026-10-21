@@ -4,6 +4,7 @@
 import { writeFileSync } from 'node:fs';
 import { compactSeconds } from './time.mts';
 import { present } from './present.mts';
+import type { TestEvent } from './test-gap.mts';
 
 /** The outcome of a test of a run; a test that ran out of time is `timeout`. */
 export type CaseStatus = 'pass' | 'fail' | 'skip' | 'timeout';
@@ -23,8 +24,9 @@ export type Progress = ReturnType<typeof createProgress>;
  * @param {string} [options.command] the command that a timeout stops, named on the timeout line
  * @param {() => number} [options.now]
  * @param {string} [options.resultFile] receives the counts of the run as JSON when it ends
+ * @param {(event: TestEvent) => unknown} [options.onEvent] receives the start and the end of each test, not of a group (K371-1)
  */
-export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout, command, now = () => Date.now(), resultFile = process.env.KIT_TEST_RESULT }: {
+export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout, command, now = () => Date.now(), resultFile = process.env.KIT_TEST_RESULT, onEvent }: {
   write: (text: string) => unknown;
   heartbeatMs?: number | undefined;
   timeoutMs?: number | undefined;
@@ -32,6 +34,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   command?: string | undefined;
   now?: (() => number) | undefined;
   resultFile?: string | undefined;
+  onEvent?: ((event: TestEvent) => unknown) | undefined;
 }) {
   const started = now();
   const running = new Map<string, { started: number; expired: boolean }>();
@@ -67,14 +70,23 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
     running.delete(id);
     const elapsedMs = durationMs ?? (test ? now() - test.started : 0);
     cases.push({ id, status: status === 'fail' && test?.expired ? 'timeout' : status, elapsedMs });
+    onEvent?.({ kind: 'end', id });
     return elapsedMs;
   };
   return {
     line,
     start(id: string, { group = false }: { group?: boolean | undefined } = {}): void {
       if (group) groups.set(id, now());
-      else running.set(id, { started: now(), expired: false });
+      else {
+        running.set(id, { started: now(), expired: false });
+        onEvent?.({ kind: 'start', id });
+      }
       line(`▶ ${id}`);
+    },
+    /** Counts a run that ran out of time outside its tests, such as before the first test (K371-1), and prints why. */
+    expire(text: string): void {
+      counts.timedOut++;
+      line(`⏱ ${text}`);
     },
     pass(id: string, durationMs?: number): unknown {
       if (groups.has(id)) { groupCounts.passed++; return line(`✔ ${id} (${groupTime(id, durationMs)})`); }

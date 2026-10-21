@@ -8,6 +8,7 @@ import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
+import { writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -40,7 +41,8 @@ export default class ProgressReporter extends Transform {
 
   constructor() {
     super({ writableObjectMode: true });
-    this.progress = createProgress({ write: (text: string) => this.push(text) });
+    // The test events go to run-tests, which runs the gap watch of each test (K371-1).
+    this.progress = createProgress({ write: (text: string) => this.push(text), onEvent: writeTestEvent });
     this.names = new Map();
     // Failed completions not yet matched by their failure report, by test key.
     this.completedFailures = new Map();

@@ -523,8 +523,10 @@ Merged behaviors:
 
 - Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui) and `python` (K17); hyper has the first, the last and `vitest`. Each test
   prints its start, a line while it runs, and its result with the elapsed time; each test has its own timeout
-  (`--timeout`, 30 s by default), enforced by `node --test` and vitest and by the runner for the other tools. No whole run, package or
-  file has a time limit (all implementations; crudui's `go test -timeout 10m` is dropped for `-timeout=0`).
+  (`--timeout`, 30 s by default), enforced by `node --test` and vitest and by the runner for the other tools. Every interval without a
+  test event has the same timeout (K371-1): before the first test, between tests and after the last one, the runner stops the tool
+  and prints `no test started within N s after <last event>` with the elapsed time of the run. No whole run, package or file has a
+  time limit (all implementations; crudui's `go test -timeout 10m` is dropped for `-timeout=0`).
 - A run in which no test passed, failed or ran out of time fails. template counted a skipped test as a test; hyper and crudui did
   not, and kit takes theirs, because a run that only skipped verified nothing. The reporters write their counts to the file in
   `KIT_TEST_RESULT` (hyper's `HYPER_TEST_RESULT`) and the runner fails when no counts arrive.
