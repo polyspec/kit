@@ -3,8 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { rebuildFindings, toolSources } from '../../scripts/kit/rebuild-check.mts';
+import { DECLARATION as REBUILD_DECLARATION, rebuildFindings, toolSources } from '../../scripts/kit/rebuild-check.mts';
 import type { RebuildDeclaration } from '../../scripts/kit/rebuild-check.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
+import { readConfig } from '../../scripts/kit/schema-validate.mts';
+import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 import { tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
@@ -96,6 +99,12 @@ test('the vendored copies of the installed kit are no tool sources of a consumer
     'scripts/own.mts': '',
   };
   assert.deepEqual(toolSources(tree(t, files), Object.keys(files)), ['scripts/own.mts']);
+});
+
+test('K455: every tool of the checkout that rebuild-check reads has its class in config/rebuild.json', () => {
+  const root = repositoryRoot();
+  const declaration = readConfig<RebuildDeclaration>(root, REBUILD_DECLARATION, 'rebuild.schema.json');
+  assert.deepEqual(rebuildFindings(root, declaration, trackedFiles(root)), []);
 });
 
 test('the command checks config/rebuild.json of the checkout it runs in and fails with each finding', (t) => {

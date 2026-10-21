@@ -505,6 +505,106 @@
     "scripts/kit/symbols/python.py": {
       "kind": "ecosystem",
       "tool": "ast of the Python standard library (K75)"
+    },
+    "scripts/kit/bypass-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of P31 that no test, script or Makefile bypasses a gate (CI identity, make -o of a gate, --no-verify); no ecosystem tool checks a bypass of polyspec's gates (K308)"
+    },
+    "scripts/kit/composer-constraint.mts": {
+      "kind": "record",
+      "record": "docs/rebuild/composer-constraint.md"
+    },
+    "scripts/kit/composer-install.mts": {
+      "kind": "ecosystem",
+      "tool": "composer install and composer update with COMPOSER=composer.link.json, the Composer of install-composer-project.mts (K432)"
+    },
+    "scripts/kit/composer-project.mts": {
+      "kind": "policy",
+      "reason": "which Composer files a project's rules judge, the link manifest and link lock while linked (K326-2); the choice is a rule of polyspec, the files are Composer's"
+    },
+    "scripts/kit/divergence-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of P32 and K315 that no implementation diverges from the contract through an escape hatch, a branch on the language, runtime or platform in a test; the patterns are polyspec's"
+    },
+    "scripts/kit/gate-red.mts": {
+      "kind": "policy",
+      "reason": "the red record of a row before its fix (K357, K389): what a failing run of the Verification proves is a rule of polyspec"
+    },
+    "scripts/kit/kit-assets.mts": {
+      "kind": "policy",
+      "reason": "the rule of K421 that each file a module reads beside itself ships into dist; no ecosystem tool lists the assets that a module of kit reads"
+    },
+    "scripts/kit/land.mts": {
+      "kind": "policy",
+      "reason": "the rule of P10 and P38 that work reaches main by a fast-forward merge after its gates pass (K394); no ecosystem tool lands a branch under polyspec's gates"
+    },
+    "scripts/kit/link-state-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of P30 that a development consumer links each 0.0.x provider and never copies it (K305-1); it reads the links that npm and Composer make"
+    },
+    "scripts/kit/linked-package.mts": {
+      "kind": "policy",
+      "reason": "the rule of P30 and K328 that a linked polyspec package is judged by its link, not by the registry"
+    },
+    "scripts/kit/npm-install.mts": {
+      "kind": "ecosystem",
+      "tool": "npm install of a project whose temporary package.json names each sibling package as a file: dependency (K448-2)"
+    },
+    "scripts/kit/php-library-autoload.mts": {
+      "kind": "ecosystem",
+      "tool": "composer dump-autoload, which writes the autoloader of the extension run of the PHP library (K329)"
+    },
+    "scripts/kit/php-library/prepend.php": {
+      "kind": "ecosystem",
+      "tool": "phpunit, which runs the prepended file before the tests of an extension run, with the Composer autoloader it names (K329)"
+    },
+    "scripts/kit/markers/python.py": {
+      "kind": "ecosystem",
+      "tool": "ast of the Python standard library, which reads the markers of the test files (K345)"
+    },
+    "scripts/kit/run-command.mts": {
+      "kind": "ecosystem",
+      "tool": "node:child_process spawn with a process group of its own (K430)"
+    },
+    "scripts/kit/runners/python.py": {
+      "kind": "ecosystem",
+      "tool": "unittest, the standard runner of the Python tests (S3), run with the semantics of python -m unittest"
+    },
+    "scripts/kit/suppression-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of P8 that every suppression of a lint finding states its need (K334); the accepted forms per ecosystem are polyspec's rule"
+    },
+    "scripts/kit/symbols/php/AutoloadFiles.php": {
+      "kind": "ecosystem",
+      "tool": "nikic/php-parser reads the syntax of the autoload files (K377)"
+    },
+    "scripts/kit/symbols/php/autoload-files.php": {
+      "kind": "ecosystem",
+      "tool": "nikic/php-parser reads the syntax of the autoload files (K377)"
+    },
+    "scripts/kit/text-absent.mts": {
+      "kind": "policy",
+      "reason": "the rule of P19 and K431 that a stale text is gone; a literal search that the Verification of a text row runs"
+    },
+    "scripts/kit/ts-typecheck.mts": {
+      "kind": "ecosystem",
+      "tool": "tsc --noEmit, the TypeScript type-check of each owning tsconfig.json (K309)"
+    },
+    "scripts/kit/twin-merge.mts": {
+      "kind": "policy",
+      "reason": "the union merge of a Korean twin with its revision marker (K354), run through git's merge driver interface; the union and the marker are polyspec's rule"
+    },
+    "scripts/kit/worktree-prune.mts": {
+      "kind": "policy",
+      "reason": "the rule of P10 and K381 that merged branches and their worktrees are removed; git branch -d decides the merge, the selection is polyspec's rule"
+    },
+    "scripts/kit/dependency-files.mts": {
+      "kind": "policy",
+      "reason": "the rule of K459 that a change to a dependency manifest or lock of any ecosystem selects the dependency gate; the list of manifests and locks is polyspec's rule"
+    },
+    "scripts/kit/worktree-setup.mts": {
+      "kind": "policy",
+      "reason": "the rule of P10 and K348 that parallel work has its own worktree and branch, installed and checked there"
     }
   }
 }
