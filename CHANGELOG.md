@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K464-1: the sibling rule compares tracked Composer pins from the current committed HEAD and each sibling's committed main, independently of generated Composer link files. Link files remain in scope for runtime platform and validation rules (K326-2). The focused K464 tests cover generated-link disagreement, a genuine tracked mismatch, and an uncommitted tracked-lock edit (K464-1).
+
 - K475: the provider entries of a tracked composer.lock resolve a consumer `vcs` repository through the sibling checkout whose `origin` names the same repository, as a path repository of that checkout, so `make dependency-review UPDATE=1` runs offline (COMPOSER_DISABLE_NETWORK) and fails naming a vcs repository that no sibling checkout names. Red: the K475 test of `tests/kit/dependency-review.test.mts` fails before the fix (Composer cannot reach the repository offline) (K475).
 - K469-1 is done: its row is [o] in this commit, whose red is the K469-1 test run with the guard stashed (install-tools wrote through a symbolic var) and whose green is the K469-1 test of this commit (K469-1). `make install-tools` refuses a var that is a symbolic link, so a worktree keeps its own var/tools and its own mise state.
 - K469 is done: its row is [o] in this commit, whose red is the K469 test run with the fix stashed (the staged tree has no trust of its mise.toml, so mise refuses it) and whose green is the K469 test of this commit (K469). The staged tree of a commit on main or of land trusts its mise.toml in the mise state of its checkout, and removes that trust before the tree is removed, so the gates run there instead of mise refusing the untrusted config.

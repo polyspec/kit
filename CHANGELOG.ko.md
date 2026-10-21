@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4103d739ad7d0855e3b83a88158208fbde597110497994b8b313eaddef91dcfc -->
+<!-- source-sha256: 9469f72d8a23b006b37681078287fff7100a2d8daf8256af2398e2beb3d30a9c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K464-1: sibling rule은 현재 checkout의 commit된 HEAD와 각 sibling의 commit된 main에서 추적되는 Composer pin을 비교하며, 생성된 Composer link 파일과 분리한다. Link 파일은 K326-2의 runtime platform 및 validation rule에서 계속 판단한다. K464 focused test는 생성된 link 불일치, 실제 tracked 불일치, commit되지 않은 tracked lock 수정을 검증한다 (K464-1).
 
 - K475: provider 항목은 추적되는 composer.lock의 소비자 `vcs` repository를, `origin`이 같은 저장소를 가리키는 형제 checkout을 path repository로 삼아 해석하므로, `make dependency-review UPDATE=1`은 COMPOSER_DISABLE_NETWORK 아래에서 오프라인으로 실행된다. 형제 checkout이 가리키지 않는 vcs repository는 이름을 붙여 실패한다. red: 수정 전 `tests/kit/dependency-review.test.mts`의 K475 테스트가 실패한다(Composer가 오프라인에서 repository에 닿지 못함) (K475).
 - K469-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 가드를 stash한 상태에서 실행한 K469-1 테스트(install-tools가 심볼릭 링크 var를 통해 기록했다)이며, green은 이 커밋의 K469-1 테스트다 (K469-1). `make install-tools`는 심볼릭 링크인 var를 거부하여, worktree가 자신의 var/tools와 mise 상태를 유지한다.

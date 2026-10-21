@@ -581,6 +581,34 @@ for (const ownAtTarget of [true, false]) {
   }
 }
 
+test('shared pins compare tracked Composer locks, not generated link locks or manifests (K464-1)', (t) => {
+  const own = committedMain(t, 'kit-k464-own', {
+    '.gitignore': 'composer.link.json\ncomposer.link.lock\n',
+    'composer.json': k464Requiring,
+    'composer.lock': k464Lock('2.6.0'),
+    'composer.link.json': JSON.stringify({ name: 'example/orm-linked', require: { 'opis/json-schema': '^2.6' } }),
+    'composer.link.lock': k464Lock('2.5.0'),
+    'config/dependency-review.json': reviewRecord('2.6.0'),
+  });
+  const sibling = committedMain(t, 'kit-k464-sibling', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
+  assert.deepEqual(sharedPinFindings(own, [sibling]).findings, []);
+
+  writeFileSync(path.join(own, 'composer.lock'), k464Lock('2.5.0'));
+  assert.deepEqual(sharedPinFindings(own, [sibling]).findings, [], 'an uncommitted tracked-lock edit is not part of the committed comparison');
+
+  const trackedLag = committedMain(t, 'kit-k464-tracked-lag', {
+    '.gitignore': 'composer.link.json\ncomposer.link.lock\n',
+    'composer.json': k464Requiring,
+    'composer.lock': k464Lock('2.5.0'),
+    'composer.link.json': JSON.stringify({ name: 'example/orm-linked', require: { 'opis/json-schema': '^2.6' } }),
+    'composer.link.lock': k464Lock('2.6.0'),
+    'config/dependency-review.json': reviewRecord('2.6.0'),
+  });
+  const findings = sharedPinFindings(trackedLag, [sibling]).findings;
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.match(findings[0]?.problem ?? '', /locked at 2\.5\.0/);
+});
+
 test('the sibling side is the committed main of the sibling, not its working tree (K464)', (t) => {
   const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
   const sibling = committedMain(t, 'kit-k464-sibling', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });

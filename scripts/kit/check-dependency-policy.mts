@@ -530,7 +530,8 @@ function directNames(source: Source, directories: readonly string[]): { composer
     for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies]) for (const name of Object.keys(field ?? {})) npm.add(name);
   };
   for (const directory of directories) {
-    const composerFile = judgedComposerFiles(source.root, directory, file => source.has(file)).manifest;
+    // Shared pins compare the committed, tracked Composer declaration, never the generated link manifest (K464-1).
+    const composerFile = path.posix.join(directory, 'composer.json');
     if (source.has(composerFile)) {
       const json = source.json<ComposerManifest>(composerFile, 'composer-manifest.schema.json');
       for (const name of [...Object.keys(json.require ?? {}), ...Object.keys(json['require-dev'] ?? {})]) if (name.includes('/')) composer.add(name);
@@ -564,10 +565,10 @@ function installLocks(source: Source, directories: readonly string[]): { lock: s
   const tracked = new Set(source.files(['composer.lock', 'package-lock.json']));
   return directories
     .flatMap((directory) => {
-      const judged = judgedComposerFiles(source.root, directory, file => source.has(file));
-      const composer = { lock: judged.lock, manifest: judged.manifest };
+      // The sibling rule compares tracked locks only; link locks are generated from sibling packages and are not comparable pins.
+      const composer = { lock: path.posix.join(directory, 'composer.lock'), manifest: path.posix.join(directory, 'composer.json') };
       const npm = { lock: path.posix.join(directory, 'package-lock.json'), manifest: path.posix.join(directory, 'package.json') };
-      return [composer, npm].filter(entry => tracked.has(entry.lock) || (judged.linked && entry.lock === judged.lock));
+      return [composer, npm].filter(entry => tracked.has(entry.lock));
     })
     .filter(entry => !/(^|\/)(tests|fixtures)\//.test(entry.lock));
 }
@@ -633,8 +634,8 @@ export type SharedPinReport = { findings: Finding[]; progress: string[]; compare
 
 /**
  * The findings of the packages that `root` and one of its `siblings` both require directly and lock at another version or from
- * another source (K378). The sibling side is its committed main (K464), and a sibling whose main cannot be read is named as not
- * evaluated in the progress lines, never passed in silence. A version mismatch is reported by the checkout off its reviewed target
+ * another source (K378). Both sides use committed tracked files: the current checkout's HEAD and each sibling's main (K464-1). A
+ * sibling whose main cannot be read is named as not evaluated in the progress lines, never passed in silence. A version mismatch is reported by the checkout off its reviewed target
  * only (reportsVersion), and a source mismatch at one version by both. A package that one of them alone locks, or that only a lock
  * holds as a transitive requirement, is no finding. Each finding names its lock with the line of the entry, the version and the source.
  */
@@ -644,7 +645,7 @@ export function sharedPinFindings(root: string, siblings: readonly string[]): Sh
   const compared: string[] = [];
   let own: Side;
   try {
-    own = sideOf(workingSource(root));
+    own = sideOf(committedSource(root, 'HEAD'));
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     progress.push(`[dependency-policy] ${repositoryName(root)}: the sibling rule is not evaluated: ${error.message}`);
