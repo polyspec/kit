@@ -21,7 +21,7 @@ export type Declaration = { ecosystem: Ecosystem; project: string; name: string 
 const MANIFEST: Record<Ecosystem, string> = { composer: 'composer.json', npm: 'package.json', python: 'pyproject.toml' };
 
 /** Whether a package name of the tracked files is a polyspec package: a Composer name, an npm scope or a Python distribution (PEP 503). */
-const isPolyspec = (name: string): boolean => /^polyspec\//.test(name) || name.startsWith('@polyspec/') || /^polyspec[-_.]/i.test(name);
+const isPolyspec = (name: string): boolean => name.startsWith('polyspec/') || name.startsWith('@polyspec/') || /^polyspec[-_.]/i.test(name);
 
 /** The name of a PEP 508 requirement string, without its extras, version or URL. */
 const requirementName = (requirement: string): string => /^\s*([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(requirement)?.[1] ?? requirement;
