@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 79720cef2ac677198963ae34378864a940682f930f144b44c1c1d3bb46f36a16 -->
+<!-- source-sha256: 4e15497e0dd07a8994e1737d687e21c00add9282dddf1408eb1975135d1aadb6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,10 @@
 - `make land`와 main의 `make commit`은 각 gate를 `make -s`로 실행하므로, checkout마다 다른 make의 recipe 출력 줄을
   HEAD에 없는 finding으로 읽지 않는다(K446-3).
 - K439-1: composer-provider-entries는 각 composer.lock의 platform과 platform-overrides를 그 디렉터리의 composer.json에서 다시 계산하고, release-consumer lock은 건드리지 않는다 (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts가 exit 1(export와 재계산 없음); green: 파일 전체 15개 통과, K439-1 포함. (K439-1).
+
+### 2026-10-21 — 정적 package-dir는 편집 가능 wheel의 finder로 링크된다 (K398-2)
+
+- `scripts/kit/link.mts`가 pyproject에서 패키지를 자기 폴더에 매핑하는 정적 `package-dir`를 가진 Python provider를 링크한다. 패키지는 `setuptools.packages`에 나열되어야 한다 (K398-2): 편집 가능 wheel이 패키지 이름을 폴더에 매핑하는 finder `__editable___<dist>_finder.py`를 쓰고, `.pth`가 그것을 import하여 설치한다. 폴더는 쓰지 않으며 소스는 복사하지 않는다. 정적 문자열 맵이 아닌 `package-dir`나 `setuptools.packages`에 없는 패키지 매핑은 여전히 거부한다. Red: `node --test --test-name-pattern=K398-2 tests/kit/link.test.mts`가 0ad7267f7793에서 수정 전 실패(링크가 package-dir를 거부); green: 통과, `tests/kit/link.test.mts`의 82개 테스트 모두 통과.
 - `make land`와 main의 `make commit`은 체크아웃의 실제 경로와 논리 경로를 같은 키로 읽으므로, 경로만 다른 변경 없는 finding으로 거부되지 않는다(K446-2).
 - main에서 `make commit`은 선택된 gate를 `make land`처럼 HEAD와 비교하고, HEAD에 없는 finding만 거부하므로 HEAD가 이미 가진 finding은 관계없는 변경을 막지 않는다(K446-1).
 - lock을 composer install하는 recipe는 뒤에 link 단계가 있어도 거부되며, sibling이 제공하는 polyspec 패키지를 처음부터

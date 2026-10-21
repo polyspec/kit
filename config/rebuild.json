@@ -236,7 +236,7 @@
     },
     "scripts/kit/link.mts": {
       "kind": "policy",
-      "reason": "the local links of 0.0.x development, which point installed polyspec packages at their providers' sources through npm, Composer, uv, go and cargo, and no single ecosystem tool applies"
+      "reason": "the local links of 0.0.x development, which point installed polyspec packages at their providers' sources through npm, Composer, uv, go and cargo, and no single ecosystem tool applies; its Python editable wheel writes the finder of a static package-dir (K398-2), the meta path finder that setuptools also uses for a non-root package-dir, hand-written because the link runs no build backend"
     },
     "scripts/kit/lint-rust.mts": {
       "kind": "ecosystem",

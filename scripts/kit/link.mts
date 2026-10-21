@@ -760,7 +760,7 @@ function projectVersion(file: string): string | undefined {
  * import root of its .pth. The build backend is never run, so a provider whose metadata the backend computes is refused, with the reason
  * as a string: a dynamic field, a package-dir of other than the root "", or a build backend that compiles code.
  */
-type PythonWheel = { name: string; version: string; requiresPython: string | undefined; requires: string[]; scripts: [string, string][]; root: string };
+type PythonWheel = { name: string; version: string; requiresPython: string | undefined; requires: string[]; scripts: [string, string][]; root: string | undefined; mappings: [string, string][] };
 
 /** The build backends that compile code (K398): their metadata and their extension modules come from a build that link does not run. */
 const COMPILED_BACKENDS = ['maturin', 'scikit_build_core', 'mesonpy'];
@@ -783,8 +783,14 @@ function pythonWheel(folder: string): PythonWheel | string {
   const setuptools: Record<string, unknown> = isJsonObject(tool) && isJsonObject(tool.setuptools) ? tool.setuptools : {};
   const setup = path.join(folder, 'setup.py');
   if (setuptools['ext-modules'] !== undefined || (existsSync(setup) && /ext_modules|Extension\(/.test(readFileSync(setup, 'utf8')))) return `${folder} compiles extension modules`;
+  // A static package-dir that maps a package to a folder of its own (K398-2) is served by a finder of the wheel; the packages it maps
+  // must be listed in setuptools.packages, as setuptools requires for such a mapping.
   const packageDir = setuptools['package-dir'] ?? {};
-  if (!isJsonObject(packageDir) || Object.entries(packageDir).some(([key, value]) => key !== '' || typeof value !== 'string')) return `${file} maps package-dir of other than the root ""`;
+  if (!isJsonObject(packageDir) || Object.values(packageDir).some(value => typeof value !== 'string')) return `${file} declares a package-dir that is not a static map of strings`;
+  const mappings: [string, string][] = Object.entries(packageDir).filter(([key]) => key !== '').map(([key, value]) => [key, path.join(folder, String(value))]);
+  const listed = declaredList(setuptools.packages).map(String);
+  const unlisted = mappings.map(([key]) => key).filter(key => !listed.includes(key));
+  if (unlisted.length) return `${file} maps ${unlisted.join(', ')} in package-dir without listing it in setuptools.packages`;
   const requires = declaredList(project.dependencies);
   if (!requires.every((item): item is string => typeof item === 'string')) return `${file} declares a dependency that is not a string`;
   const scripts = Object.entries(isJsonObject(project.scripts) ? project.scripts : {});
@@ -797,8 +803,33 @@ function pythonWheel(folder: string): PythonWheel | string {
     requiresPython: typeof requiresPython === 'string' ? requiresPython : undefined,
     requires,
     scripts: scripts.map(([name, target]) => [name, String(target)]),
-    root: typeof mapped === 'string' ? path.join(folder, mapped) : existsSync(path.join(folder, 'src')) ? path.join(folder, 'src') : folder,
+    root: typeof mapped === 'string' ? path.join(folder, mapped) : mappings.length ? undefined : existsSync(path.join(folder, 'src')) ? path.join(folder, 'src') : folder,
+    mappings,
   };
+}
+
+/**
+ * The finder of the editable wheel that maps each package of a static package-dir to its folder (K398-2): a meta path finder that
+ * takes the top-level name of the package from its folder's __init__.py and the folder's submodules through the package's __path__.
+ */
+function finderLines(mappings: readonly [string, string][]): string[] {
+  return [
+    'import importlib.abc',
+    'import importlib.util',
+    'import os',
+    'import sys',
+    `MAPPING = ${JSON.stringify(Object.fromEntries(mappings))}`,
+    'class _Finder(importlib.abc.MetaPathFinder):',
+    '    def find_spec(self, name, path=None, target=None):',
+    '        location = MAPPING.get(name)',
+    '        init = os.path.join(location, "__init__.py") if location is not None else None',
+    '        if init is None or not os.path.isfile(init):',
+    '            return None',
+    '        return importlib.util.spec_from_file_location(name, init, submodule_search_locations=[location])',
+    'def install():',
+    '    if not any(isinstance(finder, _Finder) for finder in sys.meta_path):',
+    '        sys.meta_path.insert(0, _Finder())',
+  ];
 }
 
 /** The entries of the wheel of `wheel` (K398): its dist-info (METADATA, WHEEL, entry_points.txt when it has scripts, RECORD) and the .pth. */
@@ -810,7 +841,8 @@ function wheelEntries(wheel: PythonWheel): { name: string; data: Buffer }[] {
     { name: `${info}/METADATA`, data: text(['Metadata-Version: 2.1', `Name: ${wheel.name}`, `Version: ${wheel.version}`, ...(wheel.requiresPython === undefined ? [] : [`Requires-Python: ${wheel.requiresPython}`]), ...wheel.requires.map(requirement => `Requires-Dist: ${requirement}`)]) },
     { name: `${info}/WHEEL`, data: text(['Wheel-Version: 1.0', 'Generator: polyspec-kit-link', 'Root-Is-Purelib: true', 'Tag: py3-none-any']) },
     ...(wheel.scripts.length ? [{ name: `${info}/entry_points.txt`, data: text(['[console_scripts]', ...wheel.scripts.map(([name, target]) => `${name} = ${target}`)]) }] : []),
-    { name: `__editable__.${dist}.pth`, data: text([wheel.root]) },
+    ...(wheel.mappings.length ? [{ name: `__editable___${dist}_finder.py`, data: text(finderLines(wheel.mappings)) }] : []),
+    { name: `__editable__.${dist}.pth`, data: text([...(wheel.root === undefined ? [] : [wheel.root]), ...(wheel.mappings.length ? [`import __editable___${dist}_finder; __editable___${dist}_finder.install()`] : [])]) },
   ];
   const record = [...entries.map(({ name, data }) => `${name},sha256=${createHash('sha256').update(data).digest('base64url')},${data.length}`), `${info}/RECORD,,`];
   return [...entries, { name: `${info}/RECORD`, data: text(record) }];

@@ -627,6 +627,29 @@ test('K398: a Python provider in a read-only folder is linked by a wheel in var/
   assert.match(text, /linked {5}python {3}polyspec-z -> /);
 });
 
+// K398-2: a Python provider with a static package-dir that maps its package to a folder of its own is linked with no write to its folder,
+// through a finder of the editable wheel that maps the package name to the folder (K398-2).
+test('K398-2: a Python provider with a static package-dir is linked by an editable wheel whose finder maps the package, and its folder is not written (K398-2)', (t) => {
+  let folder = '';
+  t.after(() => { if (folder) spawnSync('chmod', ['-R', 'u+w', folder]); });
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, {
+    'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\n[tool.setuptools]\npackage-dir = {"polyspec_z" = "src"}\npackages = ["polyspec_z"]\n',
+    'packages/python/src/__init__.py': 'VALUE = 1\n',
+  });
+  folder = path.join(provider, 'packages/python');
+  const before = folderState(folder);
+  assert.equal(spawnSync('chmod', ['-R', 'a-w', folder]).status, 0);
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.deepEqual(folderState(folder), before, 'the provider folder is unchanged, with no new file');
+  const wheel = path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl');
+  const entries = spawnSync('unzip', ['-Z1', wheel], { encoding: 'utf8' }).stdout.trim().split('\n');
+  assert.ok(entries.some(entry => /^__editable___polyspec_z_finder\.py$/.test(entry)), entries.join('\n'));
+  assert.ok(entries.every(entry => /^polyspec_z-0\.0\.1\.dist-info\/[^/]+$|^__editable__\.polyspec_z\.pth$|^__editable___polyspec_z_finder\.py$/.test(entry)), entries.join('\n'));
+  assert.ok(!log().split('\n').some(item => item.startsWith('uv pip install') && item.includes(`-e ${folder}`)), log());
+});
+
 // K398-1: an own Python project of the consumer is installed from the editable wheel that link writes, as a provider is, with --no-deps (K280):
 // in a read-only folder it is linked, and its folder is not written.
 test('K398-1: an own Python project of the consumer in a read-only folder is installed from its editable wheel, with --no-deps, and its folder is not written (K398-1)', (t) => {

@@ -8,6 +8,10 @@
 - `make land` and `make commit` on main run each gate with `make -s`, so the recipes that make echoes, which differ between
   checkouts, are not read as findings that HEAD lacks (K446-3).
 - K439-1: composer-provider-entries recomputes the platform and platform-overrides of each composer.lock from the composer.json of its directory, and leaves every release-consumer lock untouched (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts exit 1 (the export and the recomputation are missing); green: the file passes 15 of 15, including K439-1. (K439-1).
+
+### 2026-10-21 — A static package-dir is linked by a finder of the editable wheel (K398-2)
+
+- `scripts/kit/link.mts` links a Python provider whose pyproject maps a package to a folder of its own in a static `package-dir`, listing the package in `setuptools.packages` (K398-2): the editable wheel writes a finder, `__editable___<dist>_finder.py`, which maps the package name to its folder, and the `.pth` imports and installs it; the folder is not written and no source is copied. A `package-dir` that is not a static map of strings, or maps a package that `setuptools.packages` does not list, is still refused. Red: `node --test --test-name-pattern=K398-2 tests/kit/link.test.mts` fails before the fix on 0ad7267f7793 (the link refuses the package-dir); green: passes, and the 82 tests of `tests/kit/link.test.mts` pass.
 - `make land` and `make commit` on main read one key for a finding under the real and the logical path of a checkout, so an unchanged finding is not refused for the path it names (K446-2).
 - `make commit` on main compares each selected gate with HEAD, as `make land` does, and refuses only the findings that HEAD lacks, so a finding that HEAD already has does not block an unrelated change (K446-1).
 - A recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install,
