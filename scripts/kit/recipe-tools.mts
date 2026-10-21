@@ -81,14 +81,20 @@ export function commandParts(line: string): string[][] {
   return parts;
 }
 
+/** The words of the command part `part` from its command on: no prefix of make, reserved brace, $(ONLINE) or variable assignment. */
+function commandOf(part: readonly string[]): string[] {
+  // The prefixes @, - and + of make precede the command; $(ONLINE) and the variable assignments only prefix it.
+  const words = part.map((word, index) => (index === 0 ? word.replace(/^[@+-]+/, '') : word)).filter(Boolean);
+  // { and } are reserved words of the shell where a command starts (2.4 Reserved Words), and no command.
+  while (words[0] === '{' || words[0] === '}') words.shift();
+  const start = words.findIndex(word => word !== '$(ONLINE)' && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+  return start === -1 ? [] : words.slice(start);
+}
+
 /** The command words of the recipe line `line`. */
 export function commandWords(line: string): string[] {
   return commandParts(line).flatMap((part) => {
-    // The prefixes @, - and + of make precede the command; $(ONLINE) and the variable assignments only prefix it.
-    const words = part.map((word, index) => (index === 0 ? word.replace(/^[@+-]+/, '') : word)).filter(Boolean);
-    // { and } are reserved words of the shell where a command starts (2.4 Reserved Words), and no command.
-    while (words[0] === '{' || words[0] === '}') words.shift();
-    const command = words.find(word => word !== '$(ONLINE)' && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+    const command = commandOf(part)[0];
     return command === undefined ? [] : [command];
   });
 }
@@ -98,6 +104,26 @@ export function bareToolFindings(make: MakeDatabase): string[] {
   return [...make.targets].flatMap(([target, { recipe }]) => recipe.split('\n').flatMap(line => commandWords(line)
     .filter(word => CHECKOUT_TOOLS.has(word))
     .map(word => `make target ${target} starts ${word} by its bare name: \`${line.trim()}\`; make 3.81 looks it up on the PATH that make started with, so it runs the ${word} of the machine. Fix: start it by its absolute path, such as $(NODE) of kit.mk for node`)));
+}
+
+// The last segment of a path, as the shell looks a command up by it.
+const baseName = (word: string): string => word.slice(word.lastIndexOf('/') + 1);
+
+/** Whether the command `words` starts PHPUnit: PHPUnit itself, or a php interpreter that runs it. */
+function startsPhpunit(words: readonly string[]): boolean {
+  const command = baseName(words[0] ?? '');
+  return command === 'phpunit' || (/^php[0-9.]*$/.test(command) && words.slice(1).some(word => baseName(word) === 'phpunit'));
+}
+
+/** One finding for each recipe command of `make` that starts PHPUnit outside run-tests. */
+// run-tests gives each test its timeout and stops the process group of the tool when a test outlives it (K371), with SIGKILL
+// after a grace period, so a test that waits inside a C call, such as a lock wait of libpq that retries its poll on EINTR,
+// still ends at its timeout (K436). A recipe that starts PHPUnit itself has no limit, and such a test sleeps until someone
+// ends it. The lines are read with the variables of make expanded, so a variable that holds the command counts.
+export function testRunnerFindings(make: MakeDatabase): string[] {
+  return [...make.targets].flatMap(([target, { recipe }]) => recipe.split('\n').flatMap(line => commandParts(expandMake(line, make.variables))
+    .filter(part => startsPhpunit(commandOf(part)))
+    .map(() => `make target ${target} starts PHPUnit outside run-tests: \`${line.trim()}\`; a test that hangs there has no time limit. Fix: run it as $(RUN_TESTS) phpunit [--php-extension <file>] -- <arguments>, which stops a test at its timeout`)));
 }
 
 // The options of make that take the next word as their value.

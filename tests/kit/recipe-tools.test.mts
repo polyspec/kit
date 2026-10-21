@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { makeDatabase } from '../../scripts/kit/owner-check.mts';
-import { bareToolFindings, commandWords } from '../../scripts/kit/recipe-tools.mts';
+import { bareToolFindings, commandWords, testRunnerFindings } from '../../scripts/kit/recipe-tools.mts';
 import { tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -37,4 +37,28 @@ test('a recipe that starts a tool of the checkout by its bare name is a finding;
 
 test('no recipe of kit (its Makefile with kit.mk) starts a tool of the checkout by its bare name', () => {
   assert.deepEqual(bareToolFindings(makeDatabase(ROOT)), []);
+});
+
+test('a recipe that starts PHPUnit outside run-tests is a finding, also through a variable; run-tests and an echo are not (K436)', (t) => {
+  const makefile = [
+    'RUN_TESTS = $(NODE) node_modules/@polyspec/kit/dist/run-tests.mjs',
+    'PHP_EXTENSION_TESTS = php -d extension=x.so vendor-php/bin/phpunit --configuration a.xml',
+    'direct:',
+    '\t$(PHP_EXTENSION_TESTS) tests/ModelTest.php',
+    '\t@test -f env && vendor/bin/phpunit t.php',
+    '\t/opt/homebrew/opt/php@8.4/bin/php8.4 vendor/bin/phpunit t.php',
+    'fine:',
+    '\t$(RUN_TESTS) phpunit --php-extension x.so -- --configuration a.xml tests/ModelTest.php',
+    '\t@echo run phpunit',
+    '\tphp -r "echo 1;"',
+    '',
+  ].join('\n');
+  const findings = testRunnerFindings(makeDatabase(tree(t, { Makefile: makefile })));
+  assert.equal(findings.length, 3, findings.join('\n'));
+  assert.ok(findings.every(finding => finding.startsWith('make target direct starts PHPUnit outside run-tests: ')), findings.join('\n'));
+  assert.match(findings[0] ?? '', /`\$\(PHP_EXTENSION_TESTS\) tests\/ModelTest\.php`; a test that hangs there has no time limit\. Fix: run it as \$\(RUN_TESTS\) phpunit \[--php-extension <file>\] -- <arguments>, which stops a test at its timeout$/);
+});
+
+test('no recipe of kit (its Makefile with kit.mk) starts PHPUnit outside run-tests (K436)', () => {
+  assert.deepEqual(testRunnerFindings(makeDatabase(ROOT)), []);
 });

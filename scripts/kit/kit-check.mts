@@ -25,7 +25,7 @@ import { MISE_LOCKS } from './toolchain-lock.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { bareToolFindings } from './recipe-tools.mts';
+import { bareToolFindings, testRunnerFindings } from './recipe-tools.mts';
 import { git } from './git.mts';
 
 export const PACKAGE = '@polyspec/kit';
@@ -253,7 +253,7 @@ function targetFindings(root: string, make: MakeDatabase): string[] {
  */
 export function check(root: string): string[] {
   const make = makeDatabase(root);
-  const config = [...checkConfig(root), ...bareToolFindings(make), ...targetFindings(root, make), ...symlinkFindings(root), ...retiredFindings(root)];
+  const config = [...checkConfig(root), ...bareToolFindings(make), ...testRunnerFindings(make), ...targetFindings(root, make), ...symlinkFindings(root), ...retiredFindings(root)];
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];
