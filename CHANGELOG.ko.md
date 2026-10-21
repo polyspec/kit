@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c457f4a881c2be9185a75b548ec559d582c8ab9e9e1e54f331570eb09b901f09 -->
+<!-- source-sha256: b5b3b71906bd07456001dc0c7769ef6bd7ab614a1c86e909a3ae025459132a0b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K435-1: Go와 PyPI targeted release에 registry 검증과 정확한 update plan의 focused test를 추가하고, completeness test가 모든 target-release handler의 coverage를 맞춘다 (K435-1).
 
 - K439-3-1: K439-3 real-Composer test는 checkout이 선언한 Composer를 사용하고, 없으면 skip하지 않고 install-tools 수정을 안내하며 실패한다. Verification은 run-tests를 거쳐 skipped-only case를 거부한다 (K439-3-1).
 

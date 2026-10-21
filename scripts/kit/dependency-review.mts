@@ -206,15 +206,15 @@ function npmTarget(root: string, name: string, version: string): Latest {
 }
 
 /** The target version of a Go module, when the registry holds it as a stable release. */
-function goTarget(root: string, name: string, version: string, directory: string): Latest {
-  const answer = query<GoVersions>('go-versions.schema.json', toolCommand(root, 'go'), ['list', '-m', '-versions', '-json', name], path.join(root, directory));
+function goTarget(root: string, name: string, version: string, directory: string, env: NodeJS.ProcessEnv = process.env): Latest {
+  const answer = query<GoVersions>('go-versions.schema.json', toolCommand(root, 'go'), ['list', '-m', '-versions', '-json', name], path.join(root, directory), undefined, undefined, env);
   if (answer.error !== undefined) return { error: answer.error };
   return stableDescending('go', answer.value.Versions ?? []).includes(version) ? { latest: version } : { error: `go list -m -versions has no stable release ${version} of ${name}` };
 }
 
 /** The target version of a PyPI project, when the registry holds it as a stable release with files. */
-function pypiTarget(root: string, name: string, version: string): Latest {
-  const answer = query<PypiProject>('pypi-project.schema.json', 'curl', ['-fsSL', `https://pypi.org/pypi/${name}/json`], root);
+function pypiTarget(root: string, name: string, version: string, env: NodeJS.ProcessEnv = process.env): Latest {
+  const answer = query<PypiProject>('pypi-project.schema.json', 'curl', ['-fsSL', `https://pypi.org/pypi/${name}/json`], root, undefined, undefined, env);
   if (answer.error !== undefined) return { error: answer.error };
   const files = answer.value.releases?.[version];
   return files !== undefined && highestStableRelease({ [version]: files }) === version ? { latest: version } : { error: `PyPI has no stable release ${version} of ${name}` };
@@ -241,12 +241,23 @@ function composerTarget(root: string, name: string, version: string, php: string
   return { latest: version };
 }
 
+/** A registry target handler, keyed by the ecosystems that a targeted UPDATE can validate. */
+type TargetReleaseHandler = (root: string, dependency: Dependency, version: string, platforms: Map<string, string>, env: NodeJS.ProcessEnv) => Latest;
+
+/** The release validators for every ecosystem of a tracked dependency. */
+const targetReleaseHandlers: Record<Dependency['ecosystem'], TargetReleaseHandler> = {
+  npm: (root, dependency, version) => npmTarget(root, dependency.package, version),
+  go: (root, dependency, version, _platforms, env) => goTarget(root, dependency.package, version, path.posix.dirname(dependency.manifest), env),
+  pypi: (root, dependency, version, _platforms, env) => pypiTarget(root, dependency.package, version, env),
+  composer: (root, dependency, version, platforms) => composerTarget(root, dependency.package, version, platforms.get(path.posix.dirname(present(dependency.lock, 'dependency.lock')))),
+};
+
+/** Ecosystems that targeted release/update coverage must exercise. */
+export const TARGET_RELEASE_ECOSYSTEMS = Object.keys(targetReleaseHandlers);
+
 /** The verdict on the target `version` of a dependency: the registry holds it as a stable release, or the failure that names it. */
-function targetRelease(root: string, dependency: Dependency, version: string, platforms: Map<string, string>): Latest {
-  if (dependency.ecosystem === 'npm') return npmTarget(root, dependency.package, version);
-  if (dependency.ecosystem === 'go') return goTarget(root, dependency.package, version, path.posix.dirname(dependency.manifest));
-  if (dependency.ecosystem === 'pypi') return pypiTarget(root, dependency.package, version);
-  return composerTarget(root, dependency.package, version, platforms.get(path.posix.dirname(present(dependency.lock, 'dependency.lock'))));
+export function targetRelease(root: string, dependency: Dependency, version: string, platforms: Map<string, string>, env: NodeJS.ProcessEnv = process.env): Latest {
+  return targetReleaseHandlers[dependency.ecosystem](root, dependency, version, platforms, env);
 }
 
 /**

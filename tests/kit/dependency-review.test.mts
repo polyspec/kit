@@ -9,8 +9,9 @@ import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { composerCommand, composerEnvironment as toolingEnvironment } from '../../scripts/kit/install-composer-project.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
-import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, targetRelease, TARGET_RELEASE_ECOSYSTEMS, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
+import type { Dependency } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 import { editFixture } from './json-fixture.mts';
@@ -393,6 +394,32 @@ test('Composer provider entries use a sibling exact requirement for a path packa
   assert.ok(isJsonObject(yamlEntry));
   assert.equal(yamlEntry.version, '1.0.0', 'the tracked lock version remains unchanged');
   assert.ok(result.rewritten.includes('purrphp/yaml'), 'provider metadata is rewritten from Composer output');
+});
+
+test('K435-1: targeted Go and PyPI releases validate and produce exact update steps', (t) => {
+  const root = fixture(t);
+  const stub = stubRegistries(t, root);
+  stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, click: { '8.1.7': [{}], '8.1.8': [{}] } } });
+  const pypi: Dependency = { ecosystem: 'pypi', manifest: 'packages/fixture-python/pyproject.toml', package: 'click', kind: 'dependencies', spec: '==8.1.7', version: '8.1.7', lock: 'packages/fixture-python/pylock.toml' };
+  const go: Dependency = { ecosystem: 'go', manifest: 'packages/fixture-go/go.mod', package: 'github.com/google/uuid', kind: 'require', spec: 'v1.6.0', version: 'v1.6.0', lock: 'packages/fixture-go/go.sum' };
+
+  assert.deepEqual(targetRelease(root, pypi, '8.1.8', new Map(), stub.env), { latest: '8.1.8' });
+  const pypiPlan = updatePlan({ newer: [{ ...pypi, latest: '8.1.8' }], advisories: [], targeted: true });
+  assert.equal(pypiPlan.length, 1);
+  assert.equal(pypiPlan[0]?.command, 'node');
+  assert.ok(pypiPlan[0]?.args.some(argument => argument.endsWith('/pin-python-dependency.mjs') || argument.endsWith('/pin-python-dependency.mts')));
+  assert.deepEqual(pypiPlan[0]?.args.slice(-3), [pypi.manifest, pypi.package, '8.1.8']);
+
+  assert.deepEqual(targetRelease(root, go, 'v1.5.0', new Map(), stub.env), { latest: 'v1.5.0' });
+  assert.deepEqual(updatePlan({ newer: [{ ...go, latest: 'v1.5.0' }], advisories: [], targeted: true }), [
+    { command: 'go', args: ['get', 'github.com/google/uuid@v1.5.0'], cwd: 'packages/fixture-go' },
+    { command: 'go', args: ['mod', 'tidy'], cwd: 'packages/fixture-go' },
+  ]);
+});
+
+test('K435-1: targeted-update coverage names every target-release handler', () => {
+  const covered = ['npm', 'go', 'pypi', 'composer'].sort();
+  assert.deepEqual([...TARGET_RELEASE_ECOSYSTEMS].sort(), covered);
 });
 
 // K435: UPDATE with --targets moves each dependency that the file names to its target version, in place of the latest stable release
