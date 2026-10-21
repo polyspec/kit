@@ -76,6 +76,9 @@ function revParse(directory: string, ...args: string[]): string[] | undefined {
 /** The repository of `directory`: the real path of its common Git directory, shared by every worktree; the folder outside Git. */
 export const repositoryOf = (directory: string): string => realpathSync(revParse(directory, '--git-common-dir')?.[0] ?? directory);
 
+// The workspace folder of `directory`: the parent of its repository, whose checkouts sit beside it (K440).
+export const workspaceOf = (directory: string): string => path.dirname(path.dirname(repositoryOf(directory)));
+
 /** The top level of the work tree of `directory`, or `directory` itself outside Git. */
 export const workTreeOf = (directory: string): string => realpathSync(revParse(directory, '--show-toplevel')?.[0] ?? directory);
 

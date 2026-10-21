@@ -14,8 +14,8 @@ import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from '
 import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { installedPackages, trackedWorkspaceFolders } from './link.mts';
-import { EXCLUDED, type Ecosystem, type Tool, trackedManifests } from './link-providers.mts';
+import { installedPackages, kitHookCheckout, trackedWorkspaceFolders, withWorkspaceHook, workspaceSettings } from './link.mts';
+import { EXCLUDED, type Ecosystem, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { makeDatabase } from './owner-check.mts';
@@ -322,11 +322,21 @@ function extraInstallTargets(root: string): Set<string> {
   return new Set(expandMake(make.variables.get('INSTALL_PACKAGES_EXTRA') ?? '', make.variables).split(/\s+/).filter(Boolean));
 }
 
+/** K440: the findings of the workspace folder of `root` whose kit checkout has claude-hook but whose .claude/settings.json lacks its hook. */
+function workspaceHookFindings(root: string): string[] {
+  const workspace = workspaceOf(root);
+  const kit = kitHookCheckout(workspace);
+  if (kit === undefined) return [];
+  const settings = workspaceSettings(workspace);
+  if (JSON.stringify(withWorkspaceHook(settings, kit)) === JSON.stringify(settings)) return [];
+  return [`${path.join(workspace, '.claude/settings.json')}: no Bash PreToolUse hook runs the claude-hook of the kit checkout (K440); fix: make link`];
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
+  const found = [...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

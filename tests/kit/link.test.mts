@@ -12,11 +12,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { composerInstall } from '../../scripts/kit/composer-install.mts';
+import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
-import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
 /** What the Composer stub saw in its last update: the file it read, the packages it was given and the repositories of that file. */
@@ -1520,4 +1521,66 @@ test('link --siblings gives a fork the version that a linked provider pins (K379
   const manifest: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.link.json'), 'utf8'));
   if (!isJsonObject(manifest) || !Array.isArray(manifest.repositories)) throw new Error('composer.link.json holds no repositories');
   assert.deepEqual(manifest.repositories.find(item => isJsonObject(item) && item.url === fork), { type: 'path', url: fork, options: { symlink: true, versions: { 'opis/json-schema': 'v2.6.0-p1' } } });
+});
+
+// K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
+// kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
+/** The claude-hook and the node of the kit checkout `kit`, as a checkout has them (linked to the hook and node of this checkout). */
+function hookCheckout(kit: string) {
+  mkdirSync(path.join(kit, 'scripts/kit'), { recursive: true });
+  symlinkSync(path.join(KIT, 'scripts/kit/claude-hook.mts'), path.join(kit, 'scripts/kit/claude-hook.mts'));
+  mkdirSync(path.join(kit, 'var/tools/bin'), { recursive: true });
+  symlinkSync(process.execPath, path.join(kit, 'var/tools/bin/node'));
+}
+
+/** The command of the kit checkout `kit` that runs its node and its claude-hook, as the link writes it. */
+const hookCommand = (kit: string) => `'${path.join(kit, 'var/tools/bin/node')}' '${path.join(kit, 'scripts/kit/claude-hook.mts')}'`;
+
+/** The Bash PreToolUse entry of the hook command of `kit`. */
+const hookEntry = (kit: string) => ({ matcher: 'Bash', hooks: [{ type: 'command', command: hookCommand(kit) }] });
+
+/** `link --siblings` run as the command of the consumer, with the stubs of `env`. */
+function linkSiblings(consumer: string, env: NodeJS.ProcessEnv) {
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--siblings'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+}
+
+test('link --siblings writes the Bash PreToolUse hook of claude-hook into the workspace folder, which refuses sleep 240 (K440)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  linkSiblings(consumer, env);
+  assert.deepEqual(readJsonObject(path.dirname(consumer), '.claude/settings.json'), { hooks: { PreToolUse: [hookEntry(kit)] } });
+  const hook = spawnSync('/bin/sh', ['-c', hookCommand(kit)], { cwd: consumer, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'sleep 240' } }), encoding: 'utf8' });
+  assert.equal(hook.status, 2, hook.stderr);
+  assert.match(hook.stderr, /refuse/);
+});
+
+test('link --siblings keeps the other settings of the workspace folder and replaces its kit hook, so a second run changes nothing (K440)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  const file = path.join(path.dirname(consumer), '.claude/settings.json');
+  const other = { matcher: 'Edit', hooks: [{ type: 'command', command: 'echo edit' }] };
+  const stop = [{ hooks: [{ type: 'command', command: 'echo done' }] }];
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ model: 'sonnet', hooks: { Stop: stop, PreToolUse: [other, { matcher: 'Bash', hooks: [{ type: 'command', command: '"/old/kit/var/tools/bin/node" "/old/kit/scripts/kit/claude-hook.mts"' }] }] } }));
+  linkSiblings(consumer, env);
+  const first = readFileSync(file, 'utf8');
+  assert.deepEqual(readJsonObject(file), { model: 'sonnet', hooks: { Stop: stop, PreToolUse: [other, hookEntry(kit)] } });
+  linkSiblings(consumer, env);
+  assert.equal(readFileSync(file, 'utf8'), first);
+});
+
+test('a workspace without a kit checkout holding claude-hook gets no settings file, as in CI (K440)', (t) => {
+  const { consumer, env } = workspace(t);
+  linkSiblings(consumer, env);
+  assert.equal(existsSync(path.join(path.dirname(consumer), '.claude')), false);
+});
+
+test('link-state-check fails while the workspace folder lacks the kit hook, names the file, and passes after link --siblings (K440)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  const file = path.join(path.dirname(consumer), '.claude/settings.json');
+  assert.ok(linkFindings(consumer, env).some(finding => finding.includes(file) && /make link/.test(finding)), 'a finding names the file and make link');
+  linkSiblings(consumer, env);
+  assert.deepEqual(linkFindings(consumer, env).filter(finding => finding.includes('settings.json')), []);
 });

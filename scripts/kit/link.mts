@@ -32,7 +32,7 @@ import { composerCommand } from './install-composer-project.mts';
 import { buildState, rebuild } from './link-build.mts';
 import {
   assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider,
-  providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workTreeOf,
+  providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf,
 } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -1274,6 +1274,49 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
   return outcome.status ?? 1;
 }
 
+// K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
+// kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
+const KIT_HOOK = 'scripts/kit/claude-hook.mts';
+
+/** The kit checkout of `workspace` whose claude-hook exists, or undefined when the workspace has none, as in CI. */
+export function kitHookCheckout(workspace: string): string | undefined {
+  const kit = path.join(workspace, 'kit');
+  return existsSync(path.join(kit, KIT_HOOK)) ? kit : undefined;
+}
+
+/** The PreToolUse entry of the Bash tool that runs the node and the claude-hook of the kit checkout `kit`, both absolute. */
+function workspaceHookEntry(kit: string) {
+  const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
+  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, 'var/tools/bin/node'))} ${quote(path.join(kit, KIT_HOOK))}` }] };
+}
+
+/** Whether a PreToolUse entry runs the claude-hook of a kit checkout. */
+const isKitHookEntry = (entry: unknown): boolean => isJsonObject(entry) && Array.isArray(entry.hooks) && entry.hooks.some(hook => isJsonObject(hook) && typeof hook.command === 'string' && hook.command.includes(KIT_HOOK));
+
+/** The settings with the kit hook entry added to PreToolUse, or replacing the entry of an earlier kit checkout; all else is kept. */
+export function withWorkspaceHook(settings: Record<string, unknown>, kit: string): Record<string, unknown> {
+  const hooks = isJsonObject(settings.hooks) ? settings.hooks : {};
+  const pre: unknown[] = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
+  const entry = workspaceHookEntry(kit);
+  const index = pre.findIndex(isKitHookEntry);
+  const next = index === -1 ? [...pre, entry] : pre.map((item, position) => (position === index ? entry : item));
+  return { ...settings, hooks: { ...hooks, PreToolUse: next } };
+}
+
+/** The settings file of the workspace folder, or an empty object while it does not exist. */
+export const workspaceSettings = (workspace: string): Record<string, unknown> => (existsSync(path.join(workspace, '.claude/settings.json')) ? readJsonObject(workspace, '.claude/settings.json') : {});
+
+/** Writes the kit hook into the settings of the workspace folder when it has a kit checkout; returns the file written, or undefined. */
+export function writeWorkspaceHook(workspace: string): string | undefined {
+  const kit = kitHookCheckout(workspace);
+  if (kit === undefined) return undefined;
+  const file = path.join(workspace, '.claude/settings.json');
+  const settings = workspaceSettings(workspace);
+  const next = withWorkspaceHook(settings, kit);
+  if (JSON.stringify(next) !== JSON.stringify(settings)) writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
+  return file;
+}
+
 if (isMain(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   const print: Print = text => process.stdout.write(`${text}\n`);
@@ -1300,6 +1343,7 @@ if (isMain(import.meta.url)) {
     switch (command) {
       case 'link': case 'check':
         if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
+        else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
         break;
       case 'unlink':
         if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
