@@ -21,7 +21,7 @@
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { crc32 } from 'node:zlib';
@@ -1277,6 +1277,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
 // kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
 const KIT_HOOK = 'scripts/kit/claude-hook.mts';
+// The node of a kit checkout that runs the hook: installed by make install-tools (K171, K440-2).
+const KIT_NODE = 'var/tools/bin/node';
 
 /** The kit checkout of `workspace` whose claude-hook exists, or undefined when the workspace has none, as in CI. */
 export function kitHookCheckout(workspace: string): string | undefined {
@@ -1284,14 +1286,32 @@ export function kitHookCheckout(workspace: string): string | undefined {
   return existsSync(path.join(kit, KIT_HOOK)) ? kit : undefined;
 }
 
+/**
+ * Whether the node of the kit checkout `kit` can run the hook (K440-2): its path resolves through links to a regular file, and that
+ * file is executable. The writer and link-state-check both judge the node by this predicate.
+ */
+export function kitNodeRunnable(kit: string): boolean {
+  const node = path.join(kit, KIT_NODE);
+  if (!existsSync(node)) return false;
+  const real = realpathSync(node);
+  if (!statSync(real).isFile()) return false;
+  try {
+    accessSync(real, constants.X_OK);
+    return true;
+  } catch (error) {
+    if (errorCode(error) === 'EACCES') return false;
+    throw error;
+  }
+}
+
 /** The PreToolUse entry of the Bash tool that runs the node and the claude-hook of the kit checkout `kit`, both absolute. */
-function workspaceHookEntry(kit: string) {
+export function workspaceHookEntry(kit: string) {
   const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
-  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, 'var/tools/bin/node'))} ${quote(path.join(kit, KIT_HOOK))}` }] };
+  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, KIT_NODE))} ${quote(path.join(kit, KIT_HOOK))}` }] };
 }
 
 /** Whether a PreToolUse entry runs the claude-hook of a kit checkout. */
-const isKitHookEntry = (entry: unknown): boolean => isJsonObject(entry) && Array.isArray(entry.hooks) && entry.hooks.some(hook => isJsonObject(hook) && typeof hook.command === 'string' && hook.command.includes(KIT_HOOK));
+export const isKitHookEntry = (entry: unknown): boolean => isJsonObject(entry) && Array.isArray(entry.hooks) && entry.hooks.some(hook => isJsonObject(hook) && typeof hook.command === 'string' && hook.command.includes(KIT_HOOK));
 
 /** The settings with the kit hook entry added to PreToolUse, or replacing the entry of an earlier kit checkout; all else is kept. */
 export function withWorkspaceHook(settings: Record<string, unknown>, kit: string): Record<string, unknown> {
@@ -1299,17 +1319,23 @@ export function withWorkspaceHook(settings: Record<string, unknown>, kit: string
   const pre: unknown[] = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
   const entry = workspaceHookEntry(kit);
   const index = pre.findIndex(isKitHookEntry);
-  const next = index === -1 ? [...pre, entry] : pre.map((item, position) => (position === index ? entry : item));
+  // The entry replaces the first kit entry, and any further kit entry (of an earlier checkout) is dropped, so one entry stays.
+  const next = index === -1 ? [...pre, entry] : pre.flatMap((item, position) => (position === index ? [entry] : isKitHookEntry(item) ? [] : [item]));
   return { ...settings, hooks: { ...hooks, PreToolUse: next } };
 }
 
 /** The settings file of the workspace folder, or an empty object while it does not exist. */
 export const workspaceSettings = (workspace: string): Record<string, unknown> => (existsSync(path.join(workspace, '.claude/settings.json')) ? readJsonObject(workspace, '.claude/settings.json') : {});
 
-/** Writes the kit hook into the settings of the workspace folder when it has a kit checkout; returns the file written, or undefined. */
+/**
+ * Writes the kit hook into the settings of the workspace folder when it has a kit checkout; returns the file written, or undefined.
+ * The node of the checkout is checked first: while it is missing or not executable the write is refused and the settings file is left
+ * as it is (K440-2).
+ */
 export function writeWorkspaceHook(workspace: string): string | undefined {
   const kit = kitHookCheckout(workspace);
   if (kit === undefined) return undefined;
+  if (!kitNodeRunnable(kit)) throw new Error(`${path.join(kit, KIT_NODE)} is missing or not executable, so the Claude Code hook cannot run; run make -C ${realpathSync(kit)} install-tools`);
   const file = path.join(workspace, '.claude/settings.json');
   const settings = workspaceSettings(workspace);
   const next = withWorkspaceHook(settings, kit);

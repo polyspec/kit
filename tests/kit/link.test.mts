@@ -1586,6 +1586,58 @@ test('link-state-check fails while the workspace folder lacks the kit hook, name
   assert.deepEqual(linkFindings(consumer, env).filter(finding => finding.includes('settings.json')), []);
 });
 
+// K440-2: the writer and link-state-check judge the node of the kit checkout by one predicate, and each drift class has its own finding.
+/** The settings file of the workspace folder of `consumer`, which `link --siblings` writes. */
+const workspaceSettingsFile = (consumer: string) => path.join(path.dirname(consumer), '.claude/settings.json');
+
+/** `link --siblings` run as the command of the consumer, which returns its status and stderr instead of asserting them. */
+function linkSiblingsResult(consumer: string, env: NodeJS.ProcessEnv) {
+  return spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--siblings'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+}
+
+/** The findings of `consumer` that concern its workspace settings file. */
+const settingsFindings = (consumer: string, env: NodeJS.ProcessEnv) => linkFindings(consumer, env).filter(finding => finding.includes('.claude/settings.json'));
+
+test('link-state-check reports a missing kit hook with its own message, when the settings hold no kit entry (K440-2)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  linkSiblings(consumer, env);
+  writeFileSync(workspaceSettingsFile(consumer), JSON.stringify({ model: 'sonnet', hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo edit' }] }] } }));
+  const found = settingsFindings(consumer, env);
+  assert.equal(found.length, 1, found.join('\n'));
+  assert.match(found[0] ?? '', /no Bash PreToolUse hook runs the claude-hook of the kit checkout \(K440\); fix: make link$/);
+});
+
+test('link-state-check reports a kit hook whose content differs with its own message, and link --siblings rewrites it (K440-2)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  linkSiblings(consumer, env);
+  writeFileSync(workspaceSettingsFile(consumer), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `'/old/kit/var/tools/bin/node' '${path.join(kit, 'scripts/kit/claude-hook.mts')}'` }] }] } }));
+  const found = settingsFindings(consumer, env);
+  assert.equal(found.length, 1, found.join('\n'));
+  assert.match(found[0] ?? '', /differs from the entry the link writes \(K440-2\); fix: make link$/);
+  linkSiblings(consumer, env);
+  assert.deepEqual(settingsFindings(consumer, env), []);
+});
+
+test('link-state-check reports a node that is not executable with its own message, and the writer refuses it (K440-2)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  linkSiblings(consumer, env);
+  const file = workspaceSettingsFile(consumer);
+  const before = readFileSync(file, 'utf8');
+  const node = path.join(kit, 'var/tools/bin/node');
+  rmSync(node);
+  writeFileSync(node, '#!/bin/sh\n', { mode: 0o644 });
+  const found = linkFindings(consumer, env).filter(finding => finding.includes(node));
+  assert.equal(found.length, 1, found.join('\n'));
+  assert.match(found[0] ?? '', new RegExp(`${node.replaceAll('.', '\\.')}: the node of the kit checkout is missing or not executable, so the Claude Code hook cannot run \\(K440-2\\); fix: make -C ${realpathSync(kit).replaceAll('.', '\\.')} install-tools$`));
+  const refused = linkSiblingsResult(consumer, env);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, new RegExp(`make -C ${realpathSync(kit).replaceAll('.', '\\.')} install-tools`));
+  assert.equal(readFileSync(file, 'utf8'), before);
+});
+
 // K448-5: cargo links the sibling crates from the start. make cargo-fetch runs cargo fetch of the project through the link, with
 // the checkouts beside it patched, so no fetch materialises the git tag of a sibling crate.
 test('make cargo-fetch runs cargo fetch through the link of the sibling checkouts (K448-5)', () => {
@@ -1600,9 +1652,9 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
 });
 
-// K440-1: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
+// K440-2: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
 // checkout of kit must ignore it; otherwise link fails before it writes the workspace hook of K440.
-test('every Go module of the kit checkout gets a git-ignored go.work (K440-1)', () => {
+test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', () => {
   const root = repositoryRoot();
   const modules = trackedManifests(root, ['go.mod']);
   assert.ok(modules.length > 0, 'the checkout tracks a Go module');

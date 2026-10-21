@@ -14,7 +14,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from '
 import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { installedPackages, kitHookCheckout, trackedWorkspaceFolders, withWorkspaceHook, workspaceSettings } from './link.mts';
+import { installedPackages, isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
 import { EXCLUDED, type Ecosystem, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
@@ -330,14 +330,24 @@ function extraInstallTargets(root: string): Set<string> {
   return new Set(expandMake(make.variables.get('INSTALL_PACKAGES_EXTRA') ?? '', make.variables).split(/\s+/).filter(Boolean));
 }
 
-/** K440: the findings of the workspace folder of `root` whose kit checkout has claude-hook but whose .claude/settings.json lacks its hook. */
+/**
+ * K440, K440-2: the findings of the workspace folder of `root` whose kit checkout has claude-hook. Three classes, one message each: the
+ * node that runs the hook is missing or not executable (kitNodeRunnable); the settings lack the hook (no PreToolUse entry runs the
+ * claude-hook of the checkout); the settings hold a hook of the checkout whose entry differs from the one the writer writes.
+ */
 function workspaceHookFindings(root: string): string[] {
   const workspace = workspaceOf(root);
   const kit = kitHookCheckout(workspace);
   if (kit === undefined) return [];
+  const found: string[] = [];
+  if (!kitNodeRunnable(kit)) found.push(`${path.join(kit, 'var/tools/bin/node')}: the node of the kit checkout is missing or not executable, so the Claude Code hook cannot run (K440-2); fix: make -C ${realpathSync(kit)} install-tools`);
+  const file = path.join(workspace, '.claude/settings.json');
   const settings = workspaceSettings(workspace);
-  if (JSON.stringify(withWorkspaceHook(settings, kit)) === JSON.stringify(settings)) return [];
-  return [`${path.join(workspace, '.claude/settings.json')}: no Bash PreToolUse hook runs the claude-hook of the kit checkout (K440); fix: make link`];
+  const pre: unknown[] = isJsonObject(settings.hooks) && Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
+  const present = pre.filter(isKitHookEntry);
+  if (present.length === 0) found.push(`${file}: no Bash PreToolUse hook runs the claude-hook of the kit checkout (K440); fix: make link`);
+  else if (JSON.stringify(present) !== JSON.stringify([workspaceHookEntry(kit)])) found.push(`${file}: the Bash PreToolUse hook of the claude-hook of the kit checkout differs from the entry the link writes (K440-2); fix: make link`);
+  return found;
 }
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
