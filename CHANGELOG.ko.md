@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c8e53631c5057fd308ece3af4e6e732629455aecd4ff8eba36249a299180581b -->
+<!-- source-sha256: c573214bbb2e21cdb8f6726de5144e4e1675c473081597786742a23a3f72ca30 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K448-9은 done입니다. 항목은 이 커밋에서 [o]입니다. 변경은 fix 커밋 76ac1d3f이고, red는 4a420f07, green은 그 커밋의 K448-9 test입니다 (K448-9).
 - `make npm-install DIR=<project> CHECKOUTS="<package folder> ..."`은 주어진 각 checkout을 도구에 전달하고, 명시 모드에서 그것을 연결합니다. 그래서 polyspec 작업 공간 밖의 소비자(TMPDIR 아래 임시 clone)가 자기 lock의 npm ci를 더 이상 실행하지 않습니다. 대신 `packages/` 아래 package folder를 가진 저장소 루트를 주면 거부하며, 거부 메시지가 그 package folder들을 밝힙니다. package.json이 없는 폴더도 거부합니다(K448-9). Red: 4a420f07에서 CHECKOUTS를 준 상태로 `node --test --test-name-pattern=K448-9 tests/kit/npm-install.test.mts`가 lock의 npm ci를 실행했습니다.
 - K371-1-1은 done입니다. red는 fb5dfef0(base 9177fbab에 test를 더한 상태)에 기록되었고 green은 현재 tree에서 확인했습니다. 위 항목이 둘을 담습니다 (K371-1-1).
 - K371-1-1: 테스트가 test를 보고하지 않고 event loop를 양보하지 않는 node 파일을 다룹니다. 이런 파일은 test-exit-deadline의 파일 쪽 watch가 끝낼 수 없고, 실행기의 gap watch(K371-1)가 timeout에서 `no test started within N s after <마지막 event>`와 함께 끝냅니다. handle을 쥐고 test를 보고하지 않는 파일도, name pattern이 test와 맞지 않는 경우를 포함해 같은 방식으로 끝납니다. supervisor가 본 29시간 실행은 K371-1 이전입니다. 14:42의 kit dist에는 gap watch가 없으므로 consumer를 위해 kit을 다시 build해야 합니다. Red: base 9177fbab(K371-1 source를 되돌린 상태)에서 `node --test --test-name-pattern=K371-1-1 tests/kit/run-tests.test.mts`가 실패합니다. busy 파일이 20.2 s를 돌고 `no test ran`으로 끝났습니다. Green: `make item-test ID=K371-1-1`이 통과합니다(테스트 2개, 건너뛰기 없음). supervisor의 kevent-idle 경우는 재현되지 않았습니다(보고 참조). (K371-1-1).
