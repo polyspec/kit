@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: def2f290b76a4437d1bd608b7c32494baa94955c6215ca617144d17b5cb877e1 -->
+<!-- source-sha256: cbf6b5f7556531578d31584846dd37a6684ef5d88711a65f28bb4779274fd4ff -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K441-1: `make land`와 `make worktree-prune`은 process의 working directory, 열린 file, executable 가운데 하나가 worktree 안에 있을 때만 그 process가 worktree에서 도는 것으로 본다(lsof로 읽으며, 이제 lsof가 필요하다). command line에만 경로가 적힌 process는 사용이 아니므로, 관계없는 `du -sh`가 land를 막지 않는다. `make worktree-prune`도 그런 process가 쓰는 merge된 worktree를 남기며, `make land`가 거부하는 것과 같다(K441-1). Red: `node --test --test-name-pattern=K441-1 tests/kit/land.test.mts`가 exit 1로 끝나고(인자만 적은 process 2개, 201과 205가 세임), `node --test --test-name-pattern=K441-1 tests/kit/worktree-prune.test.mts`가 exit 1로 끝난다(cwd가 안에 있는 process가 있는 worktree가 제거됨). green: `make item-test ID=K441-1`이 통과한다(test 2개, 건너뛰기 없음). (K441-1).
 - K371-1: run-tests는 test event가 없는 모든 구간을 test별 timeout으로 제한합니다. node, vitest, go, cargo, phpunit, python 모두에 적용되며, 첫 test 전, test 사이, 마지막 test 뒤에서 timeout에 이르면 실행기는 test timeout과 같이 tool의 process group을 멈추고 실행 경과 시간과 함께 `no test started within N s after <마지막 event>`를 출력합니다. 실행은 실패합니다. 전체 실행에는 시간 제한이 없습니다. Red: bc80fb67에서 `node --test --test-name-pattern=K371-1 tests/kit/run-tests.test.mts`가 실패(4개 모두 실패: timeout을 넘겨 자는 python import와 go shim이 통과하며, gap watch module이 없음); green: `make item-test ID=K371-1`이 통과(테스트 4개, 건너뛰기 없음). (K371-1).
 - kit-check는 env(할당과 option 포함), exec, command, sh/bash/zsh/dash의 -c 문자열 뒤에서 시작하는 PHPUnit과 phpunit.phar도 찾는다(K436-1). Red: 7b4825eb에서 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(finding 5개 중 4개); green: 통과.
 - kit-check는 make 변수를 펼쳐 읽은 recipe 명령 중 run-tests 밖에서 PHPUnit을 시작하는 명령(PHPUnit 자체, 또는 그것을 실행하는 php interpreter)을 거부한다(K436). 시간 제한을 넘긴 test의 process group을 끝내는 run-tests만 멈춘 PHPUnit test를 멈출 수 있고, PHPUnit의 enforceTimeLimit은 libpq 안에서 기다리는 test를 중단하지 못한다. Red: 변경 전 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(검사가 없고 orm에 그런 명령이 37개 있다); green: 통과하며 kit의 recipe에는 finding이 없다.
