@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: cde6ff6f1d397ee8b173d1c2dd6cf273c7200cd179dbb68a3590e3d9cfa67c03 -->
+<!-- source-sha256: bda71f1aeefb60b84ad84ba1740bb6d389c4bfdbf03bc6d6452823a2138bbe56 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -305,3 +305,5 @@
 | K448-3 | uv는 polyspec provider를 처음부터 설치하고 link한다(K448 후속). 원인: consumer의 uv sync는 잠긴 polyspec release를 설치하고 editable link가 그것을 나중에 바꾸므로, release가 환경에 물질화된다. 인수 조건: uv 경로는 sibling이 제공하는 polyspec 패키지를 처음부터 editable link로 resolve하고 그 release를 설치하지 않으며, 제3자 패키지는 lock에서 설치한다. red fixture: sibling provider가 있는 uv sync가 지금은 환경에 release를 남긴다. | `scripts/kit/link.mts`, `tests/kit/link.test.mts` | `node --test --test-name-pattern=K448-3 tests/kit/link.test.mts` | [ ] |
 | K448-4 | link의 계약 문구는 sibling provider가 release를 먼저 설치하지 않고 처음부터 link된다고 말한다(K448 후속). 원인: link.mts 머리말과 local-links.md(및 한국어 짝)는 설치 후 link를 여전히 서술하므로, K448-1에서 K448-3의 처음부터 link 모드와 모순된다. 인수 조건: link.mts 머리말과 local-links.md 및 그 짝은 sibling이 제공하는 polyspec 패키지가 처음부터 link되며 release에서 설치되지 않는다고 적고, make docs-check가 통과한다. red fixture: 문서가 지금도 npm ci 후 link라고 말한다. | `scripts/kit/link.mts`, `docs/operations/local-links.md`, `docs/operations/local-links.ko.md` | `make docs-check` | [ ] |
 | K449 | docs 또는 chore 커밋이 code나 test 파일을 스테이징하면 commit-msg 검사가 거부한다(K380-2 후속). 원인: docs(plan)으로 커밋된 수정(K448-1, 0e3194c5)이 검사를 통과해 잘못된 제목이 main에 들어갔다. 인수 조건: 스테이징 경로에 code나 test 파일(scripts/, src/, tests/, packages/, *.mts, *.ts, *.go, *.php, *.py, *.rs, 또는 Makefile이나 *.mk recipe 변경)이 있는 docs나 chore 커밋은 경로를 적어 거부되며, 작성자에게 수정만 따로 스테이징해 자기 type으로 커밋하라고 알린다. red fixture: scripts/kit/link.mts가 담긴 docs(plan) 커밋이 지금 통과한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test --test-name-pattern=K449 tests/kit/commits.test.mts` | [~] |
+| K452 | run-tests의 확장 실행(--php-extension, 라이브러리 없음)이 라이브러리 실행과 같은 PHPUnit 설정과 bootstrap을 읽는다: bootstrap 함수를 부르는 orm 같은 테스트는 지금 확장에서 실패한다(S10: 테스트는 바뀌지 않고 실행된다) | scripts/kit/run-tests.mts | `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts` | [ ] |
+| K452-1 | PHP 확장 실행은 PHPUnit이 시작되기 전에 각 --php-extension이 로드됐는지 확인하고, 로드되지 않으면 .so 경로와 그것이 빌드된 PHP 버전·API를 실행 중인 것과 함께 명명하며 실패한다: PHP 8.5용 .so가 PHP 8.4에서 조용히 라이브러리를 시험하면 안 된다(P8) | scripts/kit/run-tests.mts | `node --test --test-name-pattern=K452-1 tests/kit/run-tests.test.mts` | [ ] |
