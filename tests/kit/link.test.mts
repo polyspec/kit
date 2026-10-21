@@ -1757,6 +1757,29 @@ test('K479: unrequired Composer links use provider metadata even when the tracke
   assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), lock);
 });
 
+test('K479-1: refreshes a stale generated Composer manifest for an already-linked package without updating or resetting its link lock', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const source = path.join(provider, 'packages/php');
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.2' }) });
+  const installed = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  rmSync(installed, { recursive: true, force: true });
+  symlinkSync(source, installed);
+  put(consumer, {
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y', dist: { type: 'path', url: source } }] }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'psr/log': '3.0.0' } }),
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }] }),
+    'composer.link.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '*' }, repositories: [] }),
+    'composer.link.lock': JSON.stringify({ packages: [{ name: 'user/state', version: '9.8.7' }] }),
+  });
+  const lockBefore = readFileSync(path.join(consumer, 'composer.link.lock'), 'utf8');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.deepEqual(readJsonObject(consumer, 'composer.link.json').require, { 'psr/log': '3.0.0', 'polyspec/y': '0.0.2' });
+  assert.equal(readFileSync(path.join(consumer, 'composer.link.lock'), 'utf8'), lockBefore);
+  assert.equal(existsSync(path.join(consumer, 'composer-update.seen.json')), false, 'an already-linked package needs no Composer update');
+  assert.equal(realpathSync(installed), source);
+});
+
 for (const version of [undefined, null, 1, '*', 'latest', '^0.0.1', '']) {
   test('K479: unrequired Composer links reject non-exact provider version ' + JSON.stringify(version), (t) => {
     const { provider, consumer, env } = workspace(t);

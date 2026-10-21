@@ -466,10 +466,12 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
 function writeMissingLinkFiles(work: Run, top: string, project: string, linked: { name: string; folder: string }[], lock: string) {
   const missing = COMPOSER_LINK_FILES.filter(name => !existsSync(path.join(project, name)));
   const [first] = linked;
-  if (missing.length === 0 || first === undefined) return;
+  if (first === undefined) return;
   if (!existsSync(lock)) { unlinkable(work, 'composer', first.name, `no composer.lock in ${project}`); return; }
   excludeComposerLinkFiles(top);
-  if (missing.includes(COMPOSER_LINK_FILES[0])) writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, linked, lockedVersions(lock)), null, 4)}\n`);
+  // The link manifest is derived from current provider metadata; refresh it even when an earlier run created it. The link lock
+  // remains the user's persistent partial-update state and is copied from the tracked lock only when absent.
+  writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, linked, lockedVersions(lock)), null, 4)}\n`);
   if (missing.includes(COMPOSER_LINK_FILES[1])) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
 }
 

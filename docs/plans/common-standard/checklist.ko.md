@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: bab5ea92448652012b7c6e34a9d1dcf220d7afc8506a3e66024b58777dcc072b -->
+<!-- source-sha256: 563a258ef174e98f7c82590a945582cbad32c480a977d2991c2c7a9f91c2b523 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -364,3 +364,4 @@
 | K475 | The provider entries of a tracked composer.lock resolve a consumer vcs repository through the sibling checkout whose origin it names, offline; a vcs repository that no sibling checkout provides fails naming it (K475, K439-4, K468) | scripts/kit/dependency-review.mts, tests/kit/dependency-review.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K475 tests/kit/dependency-review.test.mts` | [~] |
 | K476 | Go workspace와 module reader는 가공되지 않은 process environment로 호출되어도 checkout Go shim을 miseEnvironment와 함께 실행하여, dependency-review가 checkout toolchain context 없이 managed shim을 실행하지 않도록 한다 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K476 -- tests/kit/toolchain-files.test.mts` | [o] |
 | K479 | 생성된 composer.link.json은 요구되지 않은 각 연결 Composer 패키지를 wildcard가 아닌 provider의 exact version으로 요구하고, 선언된 제약과 tracked manifest를 보존한다 (K479, K468) | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479 -- tests/kit/link.test.mts` | [o] |
+| K479-1 | 이미 연결된 Composer 패키지의 오래된 composer.link.json을 갱신한다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479-1 -- tests/kit/link.test.mts` | [ ] |
