@@ -8,7 +8,7 @@
 //             check come from the composer.json of each folder;
 //   Python    each declared polyspec package and each polyspec package below it is installed from an editable wheel that link
 //             writes into var/link/python (K398): the metadata of its pyproject.toml and a .pth of its import root, no source, so
-//             the folder is only read; the consumer's own project is an editable install of its folder (K316, K224, `uv pip install -e`);
+//             the folder is only read; the consumer's own project is installed from the same editable wheel (K224);
 //             there is no sync (K239);
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
@@ -505,7 +505,7 @@ export function refreshComposerAutoload({ directories, print, env = process.env 
 // --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
 // from an editable wheel that link writes (K398): its metadata and a .pth naming its import root, no source, so the folder is only
 // read and no build backend runs. uv installs the wheel with its dependencies and checks Requires-Python at that install. The
-// consumer's own project is installed as an editable install of its folder (K224).
+// consumer's own project is installed from its editable wheel too, with --no-deps (K224, K280).
 
 /** The environment of the pyproject `file` and its uv workspace, or why there is none. */
 function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
@@ -586,12 +586,12 @@ function pylockReleases(lock: string, names: readonly string[]): { pins: { name:
 }
 
 /**
- * The overrides of an install of the linked packages (K237, K316-1, K398): each provider is named by its wheel, so that another package
- * that requires it by its release URL takes the wheel, a requirement that beats the one of the command line; a project of the consumer
- * is named by `-e <folder>`, the form that keeps its install editable.
+ * The overrides of an install of the linked packages (K237, K316-1, K398): each linked package, a provider or a project of the
+ * consumer, is named by its wheel, so that another package that requires it by its release URL takes the wheel, a requirement that
+ * beats the one of the command line.
  */
-function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string | undefined }[]): string {
-  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => (wheel === undefined ? `-e ${provider.folder}` : `${provider.name} @ ${pathToFileURL(wheel).href}`)));
+function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string }[]): string {
+  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => `${provider.name} @ ${pathToFileURL(wheel).href}`));
 }
 
 /**
@@ -867,7 +867,14 @@ function linkPython(work: Run, consumer: Consumer) {
         if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
         return !problem;
       }),
-      ...projects,
+      // An own project is installed from its editable wheel as a provider is (K398-1): a project whose metadata the wheel cannot
+      // take is refused, and is not installed from its folder instead.
+      ...projects.filter((project) => {
+        const wheel = pythonWheel(project.folder);
+        if (typeof wheel === 'string') { unlinkable(work, 'python', project.name, wheel); return false; }
+        wheels.set(project.name, wheel);
+        return true;
+      }),
     ];
     // A link is reported from the installed state of the environment, after each install too (K230); a listing is not proof.
     // A linked package is linked and its requirements are met (K238): the unmet requirements are those that uv pip check states.
@@ -896,10 +903,10 @@ function linkPython(work: Run, consumer: Consumer) {
     }
     // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
     // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
-    // Each provider is installed from the wheel that link writes for it (K398); a project of the consumer is installed from its folder.
-    const ready = linked.map(provider => {
+    // Each linked package is installed from the wheel that link writes for it (K398): every entry of linked has its wheel metadata.
+    const ready = linked.flatMap((provider) => {
       const wheel = wheels.get(provider.name);
-      return { provider, wheel: wheel === undefined ? undefined : writeWheel(consumer, wheel) };
+      return wheel === undefined ? [] : [{ provider, wheel: writeWheel(consumer, wheel) }];
     });
     const lockedNames = new Set(ready.map(({ provider }) => normalizeName(provider.name)));
     const constraints = pylock === undefined ? lockedConstraints(consumer, uv, workspace, venv, lockedNames) : pylockConstraints(consumer, pylock, venv, lockedNames);
@@ -914,11 +921,9 @@ function linkPython(work: Run, consumer: Consumer) {
     ];
     for (const { flags, items } of installs) {
       if (!items.length) continue;
-      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...items.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...items.flatMap(({ provider, wheel }) => (wheel === undefined ? ['-e', provider.folder] : [wheel]))], { cwd: consumer.top, env: uv.env });
+      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...items.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...items.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
       // The wheel records its install as a non-editable one of its file: the PEP 610 record is written as the editable install of the folder (K398).
-      for (const { provider, wheel } of items) {
-        if (wheel !== undefined) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: venv, env: work.env });
-      }
+      for (const { provider } of items) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: venv, env: work.env });
     }
     reportLinks(stateOf(linked.map(provider => provider.name)), true);
   }

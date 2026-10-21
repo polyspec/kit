@@ -567,11 +567,10 @@ test('K280: a project of the consumer environment is installed with --no-deps, a
   assert.match(freeze, /^small-dep==1\.0$/m, 'a dependency of the linked provider is installed');
   assert.doesNotMatch(freeze, /path-only-dep/, 'a dependency of the consumer project is left to the consumer lock sync');
   const installs = log().split('\n').filter(item => item.startsWith('uv pip install'));
-  const project = path.join(consumer, 'python');
-  const own = installs.filter(item => item.endsWith(` -e ${project}`));
+  const own = installs.filter(item => item.includes('cons-0-py3-none-any.whl'));
   assert.equal(own.length, 1, installs.join('\n'));
   assert.ok(own[0]?.includes('--no-deps') && own[0].includes('--reinstall-package cons') && !own[0].includes('polyspec_z'), installs.join('\n'));
-  const providers = installs.filter(item => !item.endsWith(` -e ${project}`));
+  const providers = installs.filter(item => !item.includes('cons-0-py3-none-any.whl'));
   assert.equal(providers.length, 1, installs.join('\n'));
   assert.ok(!providers[0]?.includes('--no-deps') && providers[0]?.includes('--constraints') && providers[0].includes('--overrides'), installs.join('\n'));
 });
@@ -621,13 +620,36 @@ test('K398: a Python provider in a read-only folder is linked by a wheel in var/
   assert.match(text, /linked {5}python {3}polyspec-z -> /);
 });
 
-test('K224: a uv workspace root has its project installed as an editable install of its folder', (t) => {
+// K398-1: an own Python project of the consumer is installed from the editable wheel that link writes, as a provider is, with --no-deps (K280):
+// in a read-only folder it is linked, and its folder is not written.
+test('K398-1: an own Python project of the consumer in a read-only folder is installed from its editable wheel, with --no-deps, and its folder is not written (K398-1)', (t) => {
+  let folder = '';
+  // Registered before the workspace, so the folder is writable again before the workspace is removed.
+  t.after(() => { if (folder) spawnSync('chmod', ['-R', 'u+w', folder]); });
+  const { consumer, env, log } = workspace(t);
+  folder = path.join(consumer, 'python');
+  put(consumer, { 'python/uv.lock': 'version = 1\n' });
+  const before = folderState(folder);
+  assert.equal(spawnSync('chmod', ['-R', 'a-w', folder]).status, 0);
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.deepEqual(folderState(folder), before, 'the own project folder is unchanged, with no new file');
+  const installs = log().split('\n').filter(item => item.startsWith('uv pip install'));
+  assert.ok(!installs.some(item => item.includes(' -e ')), installs.join('\n'));
+  const own = installs.find(item => item.includes('cons-0-py3-none-any.whl')) ?? '';
+  assert.ok(own.includes('--no-deps'), installs.join('\n'));
+  assert.ok(existsSync(path.join(consumer, 'var/link/python/cons-0-py3-none-any.whl')), 'the wheel of the own project is in var/link/python');
+  assert.match(text, /linked {5}python {3}cons -> /);
+});
+
+test('K224: a uv workspace root has its project installed as an editable install of its folder, from its wheel (K398-1)', (t) => {
   const { consumer, env, log } = workspace(t);
   put(consumer, { 'python/uv.lock': 'version = 1\n', 'python/pyproject.toml': `${readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8')}[tool.uv.workspace]\nmembers = []\n` });
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
   assert.ok(!log().includes('uv sync'), 'the link runs no sync (K239)');
-  assert.ok(log().includes(`-e ${path.join(consumer, 'python')}`), 'the consumer project is installed from its folder, as a provider is');
+  assert.ok(!log().split('\n').some(item => item.startsWith('uv pip install') && item.includes(' -e ')), 'the consumer project is installed from its wheel, not by -e (K398-1)');
+  assert.ok(log().includes('cons-0-py3-none-any.whl'), 'the consumer project is installed from the wheel of its folder, as a provider is');
 });
 
 test('K224: a uv workspace member without polyspec deps is installed from its folder, so --no-install-workspace drops no member', (t) => {
@@ -639,8 +661,7 @@ test('K224: a uv workspace member without polyspec deps is installed from its fo
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
   assert.ok(!log().includes('uv sync'), 'the link runs no sync (K239)');
-  const member = path.join(consumer, 'python/member');
-  const install = log().split('\n').find(item => item.startsWith('uv pip install') && item.includes(member)) ?? '';
+  const install = log().split('\n').find(item => item.startsWith('uv pip install') && item.includes('member-0-py3-none-any.whl')) ?? '';
   assert.ok(install.includes('--no-deps'), install);
   assert.match(text, /linked {5}python {3}member -> .*\/python\/member \(.*python\/\.venv, now\)/);
 });
