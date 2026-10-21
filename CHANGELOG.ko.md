@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 75aae602f76314d0fc1f8e5f638572cc1dd64ae76666f485ce88b89feb7306fb -->
+<!-- source-sha256: f8cb0ae27fe2b01213c1f61bf1bfb24fa1a117e26f47069de0b2fbc2a7925c85 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K371-1-1은 done입니다. red는 fb5dfef0(base 9177fbab에 test를 더한 상태)에 기록되었고 green은 현재 tree에서 확인했습니다. 위 항목이 둘을 담습니다 (K371-1-1).
+- K371-1-1: 테스트가 test를 보고하지 않고 event loop를 양보하지 않는 node 파일을 다룹니다. 이런 파일은 test-exit-deadline의 파일 쪽 watch가 끝낼 수 없고, 실행기의 gap watch(K371-1)가 timeout에서 `no test started within N s after <마지막 event>`와 함께 끝냅니다. handle을 쥐고 test를 보고하지 않는 파일도, name pattern이 test와 맞지 않는 경우를 포함해 같은 방식으로 끝납니다. supervisor가 본 29시간 실행은 K371-1 이전입니다. 14:42의 kit dist에는 gap watch가 없으므로 consumer를 위해 kit을 다시 build해야 합니다. Red: base 9177fbab(K371-1 source를 되돌린 상태)에서 `node --test --test-name-pattern=K371-1-1 tests/kit/run-tests.test.mts`가 실패합니다. busy 파일이 20.2 s를 돌고 `no test ran`으로 끝났습니다. Green: `make item-test ID=K371-1-1`이 통과합니다(테스트 2개, 건너뛰기 없음). supervisor의 kevent-idle 경우는 재현되지 않았습니다(보고 참조). (K371-1-1).
 - K439-2-1: `tests/kit/dependency-review.test.mts`의 K439-2 test는 checkout이 mise.toml에 선언한 Composer를 쓰고(`make install-tools`가 설치), 없거나 실행할 수 없으면 "no Composer on this machine"으로 건너뛰지 않고 `make install-tools`를 가리키며 실패한다. `COMPOSER_BIN` 재정의는 없앤다(K439-2-1). Red: Composer shim을 제거한 채 `node scripts/kit/run-tests.mts node -- --test-name-pattern=entries.are.Composer tests/kit/dependency-review.test.mts`가 exit 1로 끝난다("1 skipped, no test ran"). green: `make item-test ID=K439-2-1`이 통과한다(test 1개, 건너뛰기 없음), 없는 경우는 make install-tools를 가리키며 실패한다. (K439-2-1).
 - K441-1: `make land`와 `make worktree-prune`은 process의 working directory, 열린 file, executable 가운데 하나가 worktree 안에 있을 때만 그 process가 worktree에서 도는 것으로 본다(lsof로 읽으며, 이제 lsof가 필요하다). command line에만 경로가 적힌 process는 사용이 아니므로, 관계없는 `du -sh`가 land를 막지 않는다. `make worktree-prune`도 그런 process가 쓰는 merge된 worktree를 남기며, `make land`가 거부하는 것과 같다(K441-1). Red: `node --test --test-name-pattern=K441-1 tests/kit/land.test.mts`가 exit 1로 끝나고(인자만 적은 process 2개, 201과 205가 세임), `node --test --test-name-pattern=K441-1 tests/kit/worktree-prune.test.mts`가 exit 1로 끝난다(cwd가 안에 있는 process가 있는 worktree가 제거됨). green: `make item-test ID=K441-1`이 통과한다(test 2개, 건너뛰기 없음). (K441-1).
 - K371-1: run-tests는 test event가 없는 모든 구간을 test별 timeout으로 제한합니다. node, vitest, go, cargo, phpunit, python 모두에 적용되며, 첫 test 전, test 사이, 마지막 test 뒤에서 timeout에 이르면 실행기는 test timeout과 같이 tool의 process group을 멈추고 실행 경과 시간과 함께 `no test started within N s after <마지막 event>`를 출력합니다. 실행은 실패합니다. 전체 실행에는 시간 제한이 없습니다. Red: bc80fb67에서 `node --test --test-name-pattern=K371-1 tests/kit/run-tests.test.mts`가 실패(4개 모두 실패: timeout을 넘겨 자는 python import와 go shim이 통과하며, gap watch module이 없음); green: `make item-test ID=K371-1`이 통과(테스트 4개, 건너뛰기 없음). (K371-1).
