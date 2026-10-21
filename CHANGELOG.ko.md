@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 98270d48cd969876ac17a1e8c3cf7eda2b4414854badd01858e134fefa8e27be -->
+<!-- source-sha256: 71ac3c5b9c3741aeab12b9880e3a39ff5020a56022833f2f4dd9f5d4ea92ea7e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K435: `make dependency-review UPDATE=1 TARGETS=<file>`은 배치의 목표 버전을 registry 스냅샷 시점과 함께 담긴 JSON 파일(dependency-targets.schema.json)에서 읽는다. 이름이 있는 dependency는 정확히 목표 버전으로 옮겨지고, 이름이 없는 dependency는 그대로 남는다. registry에 없거나 PHP 정책을 깨는 목표는 어떤 dependency도 바꾸기 전에 실패하며 그 이름을 밝히고, RECORD=1은 스냅샷 시점을 기록한다 (K435). Red: node --test --test-name-pattern=K435 tests/kit/dependency-review.test.mts가 exit 1(4개 중 4개가 수정 전 실패: TARGETS를 읽지 않음); green: 같은 명령이 4개 중 4개 통과 (K435).
 - K440: `link --siblings`는 kit checkout의 claude-hook을 실행하는 Bash PreToolUse hook을 workspace 폴더의 `.claude/settings.json`에 쓰고 다른 설정은 지킨다. 그 hook이 없으면 `link-state-check`가 실패하므로 workspace 폴더에서 시작한 세션도 보호된다(K440). Red: node --test --test-name-pattern=K440 tests/kit/link.test.mts가 exit 1(workspace 폴더에 hook이 없다); green: make item-test ID=K440이 통과한다(테스트 4개, 건너뛰기 없음). (K440).
 - K441: `make land`와 `make worktree-prune`은 자기 worktree를 제거하기 전에 그 Makefile의 `WORKTREE_STOP` target을 실행하고, `make land`는 그 target이 실패하면 worktree를 남기고 target과 그 출력을 적어 실패한다. `make worktree-prune`은 제거된 worktree 폴더를 명령행에 적은 프로세스를 pid와 경로로 나열하며, 어떤 프로세스도 종료하지 않는다(K441). Red: `node --test --test-name-pattern=K441 tests/kit/land.test.mts`와 `node --test --test-name-pattern=K441 tests/kit/worktree-prune.test.mts`가 base에서 exit 1(서버가 멈추지 않고 프로세스가 나열되지 않음); green: `make item-test ID=K441`이 통과한다(테스트 3개, 건너뛰기 없음).
 - `make npm-install`은 주어진 checkout이 제공하는 패키지를 origin과 상관없이 연결하고, lock에만 transitive로 있는 패키지는 override로 연결하며, checkout이 없는 선언된 polyspec 패키지는 npm ci 대신 실패한다(K448-7).
