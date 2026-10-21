@@ -389,8 +389,8 @@ composer-install: ## Install the Composer project DIR in place of its composer i
 # npm-install is the install of a consumer's npm packages in place of its npm ci: a sibling checkout's polyspec package is linked from the
 # start, through a temporary manifest, so no release is fetched (K448-2).
 .PHONY: npm-install
-npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2)
-	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR)
+npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2); CHECKOUTS names the package folders to link, and a repository root is refused (K448-9)
+	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
 # of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).

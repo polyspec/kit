@@ -19,6 +19,14 @@ function nameOf(checkout: string): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+/** The package folders that a repository root holds under packages/: each directory there with a package.json, sorted. */
+function packageFoldersOf(checkout: string): string[] {
+  const packages = path.join(checkout, 'packages');
+  if (!existsSync(packages) || !lstatSync(packages).isDirectory()) return [];
+  return readdirSync(packages).sort().map(entry => path.join(packages, entry))
+    .filter(folder => lstatSync(folder).isDirectory() && existsSync(path.join(folder, 'package.json')));
+}
+
 /**
  * Installs the packages of `directory` and returns the path that it took: `linked` (a sibling package of the project is linked from
  * its checkout) or `locked` (npm ci of the tracked lock). `npm` is the npm to run; the environment is `env`.
@@ -47,6 +55,15 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     }
   }
   const wanted = new Set([...declared, ...locked]);
+  // The checkouts that the caller names are package folders (K448-9). A repository root holds them under packages/: it is refused,
+  // naming them, instead of being skipped, so nothing is guessed.
+  if (explicit) {
+    for (const checkout of checkouts) {
+      const folders = packageFoldersOf(checkout);
+      if (folders.length) throw new Error(`${checkout} is a repository root, not a package folder; give the package folders it contains: ${folders.join(', ')}`);
+      if (nameOf(checkout) === undefined) throw new Error(`${checkout} is not a package folder: it has no package.json with a name`);
+    }
+  }
   const provided = new Map<string, string>();
   for (const checkout of checkouts) {
     const name = nameOf(checkout);

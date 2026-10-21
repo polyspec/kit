@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f8cb0ae27fe2b01213c1f61bf1bfb24fa1a117e26f47069de0b2fbc2a7925c85 -->
+<!-- source-sha256: c8e53631c5057fd308ece3af4e6e732629455aecd4ff8eba36249a299180581b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install DIR=<project> CHECKOUTS="<package folder> ..."`은 주어진 각 checkout을 도구에 전달하고, 명시 모드에서 그것을 연결합니다. 그래서 polyspec 작업 공간 밖의 소비자(TMPDIR 아래 임시 clone)가 자기 lock의 npm ci를 더 이상 실행하지 않습니다. 대신 `packages/` 아래 package folder를 가진 저장소 루트를 주면 거부하며, 거부 메시지가 그 package folder들을 밝힙니다. package.json이 없는 폴더도 거부합니다(K448-9). Red: 4a420f07에서 CHECKOUTS를 준 상태로 `node --test --test-name-pattern=K448-9 tests/kit/npm-install.test.mts`가 lock의 npm ci를 실행했습니다.
 - K371-1-1은 done입니다. red는 fb5dfef0(base 9177fbab에 test를 더한 상태)에 기록되었고 green은 현재 tree에서 확인했습니다. 위 항목이 둘을 담습니다 (K371-1-1).
 - K371-1-1: 테스트가 test를 보고하지 않고 event loop를 양보하지 않는 node 파일을 다룹니다. 이런 파일은 test-exit-deadline의 파일 쪽 watch가 끝낼 수 없고, 실행기의 gap watch(K371-1)가 timeout에서 `no test started within N s after <마지막 event>`와 함께 끝냅니다. handle을 쥐고 test를 보고하지 않는 파일도, name pattern이 test와 맞지 않는 경우를 포함해 같은 방식으로 끝납니다. supervisor가 본 29시간 실행은 K371-1 이전입니다. 14:42의 kit dist에는 gap watch가 없으므로 consumer를 위해 kit을 다시 build해야 합니다. Red: base 9177fbab(K371-1 source를 되돌린 상태)에서 `node --test --test-name-pattern=K371-1-1 tests/kit/run-tests.test.mts`가 실패합니다. busy 파일이 20.2 s를 돌고 `no test ran`으로 끝났습니다. Green: `make item-test ID=K371-1-1`이 통과합니다(테스트 2개, 건너뛰기 없음). supervisor의 kevent-idle 경우는 재현되지 않았습니다(보고 참조). (K371-1-1).
 - K439-2-1: `tests/kit/dependency-review.test.mts`의 K439-2 test는 checkout이 mise.toml에 선언한 Composer를 쓰고(`make install-tools`가 설치), 없거나 실행할 수 없으면 "no Composer on this machine"으로 건너뛰지 않고 `make install-tools`를 가리키며 실패한다. `COMPOSER_BIN` 재정의는 없앤다(K439-2-1). Red: Composer shim을 제거한 채 `node scripts/kit/run-tests.mts node -- --test-name-pattern=entries.are.Composer tests/kit/dependency-review.test.mts`가 exit 1로 끝난다("1 skipped, no test ran"). green: `make item-test ID=K439-2-1`이 통과한다(test 1개, 건너뛰기 없음), 없는 경우는 make install-tools를 가리키며 실패한다. (K439-2-1).
