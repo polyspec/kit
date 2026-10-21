@@ -29,21 +29,20 @@ import { trackedFiles } from './tracked-files.mts';
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
 const ALWAYS_GATES = ['docs-check', 'commits-check'];
 
-// K429: the processes of the machine that run in a worktree, read with ps and lsof (read only): a command line that names a path in
-// the folder, after `=` or a space, and a working directory inside it. land itself and its parent are left out.
+// K429, K441-1: the processes of the machine that run in a worktree, read with ps and lsof (read only). A process runs in a worktree
+// when its working directory, one of its open files or its executable lies in it; a path that only its command line names, as the
+// argument of a du, is no use of it. land itself and its ancestors are left out.
 export interface MachineListing {
   ps: string;
-  // undefined when lsof is missing: only the command lines are then known.
-  lsof?: string;
+  // The lsof -Fpn output: each process by its p line, with the n line of its cwd, its executable and each open file.
+  lsof: string;
 }
 
 /**
- * The processes of the worktree `folder` in `listing`, by pid, with the command line that names them (or pid only for a cwd match).
- * `self` and every ancestor of it, such as the make and the shell that run make land, are left out (K429-1).
+ * The processes of the worktree `folder` in `listing`, by pid, with the command line of each from ps. `self` and every ancestor of it,
+ * such as the make and the shell that run make land, are left out (K429-1).
  */
 export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, self: number = process.pid): { pid: number; command: string }[] {
-  const escaped = folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const names = new RegExp(`(?<![^\\s=])${escaped}(?=/|\\s|$)`);
   const inside = (file: string) => file === folder || file.startsWith(`${folder}/`);
   const commands = new Map<number, string>();
   const parents = new Map<number, number>();
@@ -54,12 +53,11 @@ export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, 
     const [, id = '', parent = '', command = ''] = match;
     commands.set(Number(id), command);
     parents.set(Number(id), Number(parent));
-    if (names.test(command)) found.set(Number(id), command);
   }
   const ancestors = new Set<number>();
   for (let pid: number | undefined = self; pid !== undefined && pid > 0 && !ancestors.has(pid); pid = parents.get(pid)) ancestors.add(pid);
   let pid: number | undefined;
-  for (const line of (lsof ?? '').split('\n')) {
+  for (const line of lsof.split('\n')) {
     if (line.startsWith('p')) pid = Number(line.slice(1));
     else if (line.startsWith('n') && pid !== undefined && inside(line.slice(1))) found.set(pid, commands.get(pid) ?? `(no command line in ps)`);
   }
@@ -69,12 +67,12 @@ export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, 
     .map(([pid, command]) => ({ pid, command }));
 }
 
-/** The ps and lsof outputs of the machine, read only; lsof is undefined when it is not installed. */
+/** The ps and lsof outputs of the machine, read only. lsof is required: a process is in a worktree by its files, which only lsof lists (K441-1). */
 export function machineListing(): MachineListing {
   const ps = spawnSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (ps.error || ps.status !== 0) throw new Error(`ps could not list the processes: ${ps.error?.message ?? ps.stderr}`);
-  const lsof = spawnSync('lsof', ['-d', 'cwd', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') return { ps: ps.stdout };
+  const lsof = spawnSync('lsof', ['-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error('lsof is missing: make needs it to find the processes that run in a worktree (K441-1); install lsof and run again');
   if (lsof.error) throw new Error(`lsof could not run: ${lsof.error.message}`);
   return { ps: ps.stdout, lsof: lsof.stdout };
 }
@@ -107,9 +105,8 @@ export function stopServers(folder: string, targets: string[], print: (text: str
 }
 
 /** Refuses with the processes that run in the worktree `folder` (K429), when there are some; `consequence` says what is kept. */
-function refuseWhileRunning(folder: string, branch: string, consequence: string, print: (text: string) => void): void {
+function refuseWhileRunning(folder: string, branch: string, consequence: string): void {
   const listing = machineListing();
-  if (listing.lsof === undefined) print(`lsof is missing: only the command lines name the processes of ${folder}`);
   const live = worktreeProcesses(folder, listing);
   if (live.length) {
     throw new Error(`${branch} is refused: ${live.length} processes run in the worktree ${folder}; ${consequence}. Stop them first, then run make land again:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
@@ -193,7 +190,7 @@ export function land(root: string, branch: string, { print = (text: string) => c
   // so its running servers are no refusal here; the check before the removal still refuses a server that the stop left alive.
   const stop = folder === undefined ? undefined : stopTargetOf(folder);
   // K429: no gate runs, nothing is merged and nothing is removed while a process of the worktree runs.
-  if (folder !== undefined && stop === undefined) refuseWhileRunning(folder, branch, 'nothing is merged, removed or deleted', print);
+  if (folder !== undefined && stop === undefined) refuseWhileRunning(folder, branch, 'nothing is merged, removed or deleted');
   if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
@@ -236,7 +233,7 @@ export function land(root: string, branch: string, { print = (text: string) => c
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
       if (stop !== undefined) stopServers(folder, stop, print);
-      refuseWhileRunning(folder, branch, 'the worktree and the branch are kept', print);
+      refuseWhileRunning(folder, branch, 'the worktree and the branch are kept');
       git(root, 'worktree', 'remove', folder);
       print(`removed the worktree ${folder}`);
     } else {

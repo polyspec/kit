@@ -128,3 +128,38 @@ test('worktree-prune reports the processes that name a path under a removed work
   assert.equal(child.exitCode, null, 'the process is left running');
   assert.equal(child.signalCode, null, 'the process is not signalled');
 });
+
+// K441-1: worktree-prune keeps a merged worktree that a process runs in (its cwd, an open file or its executable), as make land
+// refuses it, and removes a merged worktree that a process only names in its arguments.
+test('worktree-prune keeps a merged worktree that a process runs in, and removes one that a process only names (K441-1)', { timeout: 60000 }, async (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-prune-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, { 'base.txt': 'base\n', '.gitignore': 'var/\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const run = path.join(parent, 'repo-run');
+  const named = path.join(parent, 'repo-named');
+  for (const [folder, branch] of [[run, 'fix/run-K5'], [named, 'fix/named-K6']] as const) {
+    git(main, 'worktree', 'add', '--quiet', folder, '-b', branch, 'main');
+    put(folder, { [`${path.basename(folder)}.txt`]: 'work\n' });
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', branch);
+    git(main, 'merge', '--ff-only', '--quiet', branch);
+  }
+  // A process in the run worktree: its working directory is inside it.
+  const inside = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { cwd: run });
+  t.after(() => inside.kill());
+  // A process that names the named worktree in its arguments only: it runs in the parent folder.
+  const argument = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${named}/marker`], { cwd: parent });
+  t.after(() => argument.kill());
+  await Promise.all([once(inside, 'spawn'), once(argument, 'spawn')]);
+  const lines: string[] = [];
+  prune(main, { print: text => lines.push(text) });
+  assert.equal(existsSync(run), true, `the worktree a process runs in is kept\n${lines.join('\n')}`);
+  assert.equal(branchStates(main).find(state => state.branch === 'fix/run-K5')?.folder, run, 'its branch is still checked out there');
+  assert.ok(lines.some(line => line.includes(`kept fix/run-K5 in ${run}`) && line.includes(`${inside.pid} `)), lines.join('\n'));
+  assert.equal(existsSync(named), false, 'a process that only names the worktree in its arguments does not keep it');
+  assert.equal(inside.exitCode, null, 'the process in the worktree is left running');
+});

@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, linesOf, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, machineListing, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -224,8 +224,8 @@ test('land leaves its own ancestors out of the processes of the worktree (K429-1
   assert.deepEqual(worktreeProcesses('/work/kit/repo-x', { ps, lsof }, 302).map(live => live.pid), [303]);
 });
 
-// K429: make land refuses while a process runs in the worktree of the branch, a command line that names a path in it or a working
-// directory inside it. The unit case feeds fixed ps and lsof outputs; the real case starts a process with a path in the worktree.
+// K429: make land refuses while a process runs in the worktree of the branch: a working directory inside it, an open file or an
+// executable there (K441-1). The unit case feeds fixed ps and lsof outputs; the real case starts a process in the worktree.
 test('land lists the processes of the worktree and refuses while one runs (K429)', (t) => {
   const folder = '/work/kit/repo-x';
   const ps = [
@@ -236,8 +236,7 @@ test('land lists the processes of the worktree and refuses while one runs (K429)
     `  ${process.pid}     1 node --test /work/kit/repo-x/tests`,
   ].join('\n');
   const lsof = ['p103', 'n/work/kit/repo-x/sub', 'p104', 'n/work/kit/repo-x-other', 'p105', 'n/home', `p${process.pid}`, 'n/work/kit/repo-x'].join('\n');
-  assert.deepEqual(worktreeProcesses(folder, { ps, lsof }).map(live => live.pid), [101, 103]);
-  assert.deepEqual(worktreeProcesses(folder, { ps }).map(live => live.pid), [101], 'without lsof only the command lines count');
+  assert.deepEqual(worktreeProcesses(folder, { ps, lsof }).map(live => live.pid), [103], 'the process 101 only names the worktree in its arguments, so it is no use of it (K441-1)');
 
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -257,14 +256,38 @@ test('land lists the processes of the worktree and refuses while one runs (K429)
   git(folderX, 'add', '-A');
   git(folderX, 'commit', '--quiet', '-m', 'x');
   const mainBefore = git(main, 'rev-parse', 'main');
-  // A process started with a path in the worktree, as make orm-test-servers starts mysqld with its --datadir.
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${folderX}/marker`], { detached: false });
+  // A process started in the worktree, with a path of it in its arguments, as make orm-test-servers starts mysqld in its --datadir.
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${folderX}/marker`], { cwd: folderX, detached: false });
   t.after(() => child.kill());
   assert.equal(typeof child.pid, 'number', 'the child process starts');
   assert.throws(() => land(main, 'feat-x', { print: () => {} }), (error: Error) => error.message.includes(`${child.pid} `) && error.message.includes(`${folderX}/marker`));
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged while a process runs in the worktree');
   assert.equal(existsSync(folderX), true, 'the worktree is kept');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'the branch is kept');
+});
+
+// K441-1: a process uses a worktree when its working directory, one of its open files or its executable lies in it (lsof). A path that
+// only its command line names, as the argument of du -sh, is no use of it, so it blocks no land.
+test('a process uses a worktree by its cwd, an open file or its executable, not by a path in its arguments (K441-1)', { timeout: 60000 }, async (t) => {
+  const folder = '/work/kit/repo-x';
+  const ps = [
+    '  201     1 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
+    '  202     1 /work/kit/repo-x/bin/tool',
+    '  203     1 sleep 60',
+    '  204     1 sleep 5',
+    '  205     1 du -sh /work/kit/repo-x/a /work/kit/repo-x/b',
+    '  206     1 sleep 7',
+  ].join('\n');
+  const lsof = ['p202', 'n/work/kit/repo-x/bin/tool', 'p203', 'n/work/kit/repo-x/sub', 'p204', 'n/work/kit/repo-x/.runtime/db.lock', 'p205', 'n/home', 'p206', 'n/home', 'n/work/kit/repo-x-other'].join('\n');
+  assert.deepEqual(worktreeProcesses(folder, { ps, lsof }).map(live => live.pid), [202, 203, 204], 'the executable, the cwd and the open file count; the arguments of 201 and 205 do not');
+
+  // The real machine: a process whose argument names the worktree, started elsewhere, is no use of it.
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-usage-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const named = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${parent}/repo-named/marker`], { cwd: parent });
+  t.after(() => named.kill());
+  await once(named, 'spawn');
+  assert.equal(worktreeProcesses(path.join(parent, 'repo-named'), machineListing()).some(live => live.pid === named.pid), false, 'a process named by its arguments only is no use of the worktree');
 });
 
 // K446-1: make commit on main refuses only the findings that HEAD lacks, as land does (K394-1): a finding that HEAD already has does

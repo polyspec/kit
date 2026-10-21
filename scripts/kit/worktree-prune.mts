@@ -12,7 +12,7 @@
 //   node scripts/kit/worktree-prune.mts
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { machineListing, stopServers, stopTargetOf } from './land.mts';
+import { machineListing, stopServers, stopTargetOf, worktreeProcesses } from './land.mts';
 import { git, gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 
@@ -103,6 +103,12 @@ export function prune(root: string, { print = (text: string) => console.log(`[wo
       }
       const stop = stopTargetOf(folder);
       if (stop !== undefined) stopServers(folder, stop, print);
+      // K441-1: a process that runs in the worktree keeps it, as make land refuses it (K429); a path only named in its arguments does not.
+      const live = worktreeProcesses(folder, machineListing());
+      if (live.length > 0) {
+        print(`kept ${branch} in ${folder}: ${live.length} processes run in it: ${live.map(({ pid, command }) => `${pid} ${command}`).join('; ')}`);
+        continue;
+      }
       git(root, 'worktree', 'remove', folder);
       print(`removed the worktree ${folder} of ${branch}`);
     }
