@@ -23,8 +23,8 @@ function nameOf(checkout: string): string | undefined {
  * Installs the packages of `directory` and returns the path that it took: `linked` (a sibling package of the project is linked from
  * its checkout) or `locked` (npm ci of the tracked lock). `npm` is the npm to run; the environment is `env`.
  */
-export function npmInstall({ directory, checkouts, npm = 'npm', env = process.env, print }: {
-  directory: string; checkouts: readonly string[]; npm?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+export function npmInstall({ directory, checkouts, npm = 'npm', env = process.env, print, explicit = false }: {
+  directory: string; checkouts: readonly string[]; npm?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void; explicit?: boolean;
 }): 'linked' | 'locked' {
   const project = path.resolve(directory);
   const manifest = readJsonObject(project, 'package.json');
@@ -33,10 +33,30 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
   };
   const declared = new Set(SECTIONS.flatMap(section => Object.keys(sectionOf(section))));
+  // The packages of the lock too: a transitive package is named only there, and a sibling checkout that provides it is linked through
+  // an override of the temporary manifest (K448-7).
+  const lock = path.join(project, 'package-lock.json');
+  const locked = new Set<string>();
+  if (existsSync(lock)) {
+    const packages = readJsonObject(project, 'package-lock.json').packages;
+    if (typeof packages === 'object' && packages !== null) {
+      for (const key of Object.keys(packages)) {
+        const at = key.lastIndexOf('node_modules/');
+        if (at !== -1) locked.add(key.slice(at + 'node_modules/'.length));
+      }
+    }
+  }
+  const wanted = new Set([...declared, ...locked]);
   const provided = new Map<string, string>();
   for (const checkout of checkouts) {
     const name = nameOf(checkout);
-    if (name !== undefined && declared.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
+    if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
+  }
+  // With the checkouts that the caller names (explicit), a declared @polyspec package that no checkout provides is a failure, not a
+  // reason to run npm ci of the released tarballs (K448-7).
+  if (explicit) {
+    const missing = [...wanted].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && declared.has(name));
+    if (missing.length) throw new Error(`${missing.join(', ')} has no checkout among the given checkouts; give the checkout that provides it, and never a release`);
   }
   if (provided.size === 0) {
     print(`npm-install ${project}: no sibling checkout provides a package the project declares; npm ci of the tracked lock`);
@@ -53,8 +73,11 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
       for (const [name, folder] of provided) if (name in deps) deps[name] = `file:${folder}`;
       linked[section] = deps;
     }
+    // The packages that only the lock names, transitively, are linked through overrides (K448-7).
+    const overrides: Record<string, string> = {};
+    for (const [name, folder] of provided) if (!declared.has(name)) overrides[name] = `file:${folder}`;
+    if (Object.keys(overrides).length) linked.overrides = overrides;
     writeFileSync(path.join(temporary, 'package.json'), JSON.stringify(linked, null, 2) + '\n');
-    const lock = path.join(project, 'package-lock.json');
     if (existsSync(lock)) copyFileSync(lock, path.join(temporary, 'package-lock.json'));
     const install = spawnSync(npm, ['install', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd: temporary, env, encoding: 'utf8' });
     if (install.status !== 0) throw new Error(`npm install of the linked packages of ${project} exited ${install.status}: ${install.stderr}`);
@@ -84,12 +107,19 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
 }
 
 if (isMain(import.meta.url)) {
-  const [directory] = process.argv.slice(2);
+  const [directory, ...given] = process.argv.slice(2);
   if (directory === undefined) {
-    process.stderr.write('Usage: node scripts/kit/npm-install.mts <dir>\n');
+    process.stderr.write('Usage: node scripts/kit/npm-install.mts <dir> [<checkout>...]\n');
     process.exitCode = 2;
   } else {
+    // The checkouts that the caller names are linked whatever their origin; without them the sibling checkouts of the repository are used.
     const { siblingCheckouts } = await import('./link-providers.mts');
-    npmInstall({ directory, checkouts: siblingCheckouts(path.resolve(directory)).checkouts, npm: process.env.NPM_BIN ?? 'npm', print: text => process.stdout.write(`${text}\n`) });
+    const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts;
+    try {
+      npmInstall({ directory, checkouts, explicit: given.length > 0, npm: process.env.NPM_BIN ?? 'npm', print: text => process.stdout.write(`${text}\n`) });
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    }
   }
 }
