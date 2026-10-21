@@ -14,15 +14,15 @@ import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from '
 import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { installedPackages } from './link.mts';
-import { EXCLUDED, type Ecosystem } from './link-providers.mts';
+import { installedPackages, trackedWorkspaceFolders } from './link.mts';
+import { EXCLUDED, type Ecosystem, type Tool, trackedManifests } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { makeDatabase } from './owner-check.mts';
 import { expandMake } from './recipe-tools.mts';
-import { toolsEnvironment } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { trackedFiles } from './tracked-files.mts';
+import { ignoredPaths, trackedFiles } from './tracked-files.mts';
 import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
 import { foreignTrusts } from './bootstrap/install-mise.mts';
 import { branchStates } from './worktree-prune.mts';
@@ -71,15 +71,24 @@ function composerInstalled(root: string, env: NodeJS.ProcessEnv): Installed[] {
   return found;
 }
 
-/** The findings of the go.work files of `root`: each `use` folder holds a go.mod. */
-function goFindings(root: string): string[] {
+/**
+ * The findings of the go.work files of `root`: each `use` folder holds a go.mod. A go.work that link wrote (untracked and git-ignored)
+ * below a tracked go.work uses the modules of that workspace too, as link writes them (K399-2); none is checked above no tracked go.work.
+ */
+function goFindings(root: string, env: NodeJS.ProcessEnv): string[] {
   const found: string[] = [];
+  const tracked = new Set(trackedManifests(root, ['go.work']).map(file => path.join(root, file)));
+  const ignored = new Set(ignoredPaths(root).map(file => path.join(root, file)));
   for (const manifest of trackedFiles(root).filter(file => path.posix.basename(file) === 'go.mod')) {
     const directory = path.join(root, path.posix.dirname(manifest));
     const work = path.join(directory, 'go.work');
     if (!existsSync(work)) continue;
+    const uses: string[] = [];
     let block = false;
-    const check = (use: string) => { if (!existsSync(path.join(directory, use, 'go.mod'))) found.push(`go ${use}: the use folder of ${path.relative(root, work)} holds no go.mod`); };
+    const check = (use: string) => {
+      uses.push(path.resolve(directory, use));
+      if (!existsSync(path.join(directory, use, 'go.mod'))) found.push(`go ${use}: the use folder of ${path.relative(root, work)} holds no go.mod`);
+    };
     for (const line of readFileSync(work, 'utf8').split('\n')) {
       const text = line.trim();
       if (text === 'use (') { block = true; continue; }
@@ -91,6 +100,10 @@ function goFindings(root: string): string[] {
       const single = /^use\s+(\S+)$/.exec(text)?.[1];
       if (single !== undefined) check(single);
     }
+    if (tracked.has(work) || !ignored.has(work)) continue;
+    const go: Tool = env.GO ? { command: env.GO, env } : { command: toolCommand(root, 'go'), env: toolsEnvironment(root, env) };
+    const missing = trackedWorkspaceFolders(go, root, directory, tracked).filter(folder => folder !== directory && !uses.includes(folder));
+    if (missing.length) found.push(`go ${path.relative(root, work)}: does not use the modules ${missing.map(folder => path.relative(root, folder)).join(', ')} of the tracked go.work above it; Fix: make link`);
   }
   return found;
 }
@@ -313,7 +326,7 @@ function extraInstallTargets(root: string): Set<string> {
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
+  const found = [...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

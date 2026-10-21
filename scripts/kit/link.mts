@@ -981,9 +981,9 @@ const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
  * The module folders that the tracked go.work of the nearest parent of `directory` up to the work tree `top` uses, as go work edit
  * -json reads them (K399): a go.work that link writes in a module below a tracked workspace of the repository shadows that
  * workspace, so it uses the modules of the workspace too. None when no parent has a tracked go.work. The go.work of `directory`
- * itself is never read: it is the file that link writes there.
+ * itself is never read: it is the file that link writes there. link-state-check reads it too (K399-2).
  */
-function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
+export function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
   for (let folder = path.dirname(directory); `${folder}/`.startsWith(`${top}/`); folder = path.dirname(folder)) {
     const file = goWorkOf(folder);
     if (tracked.has(file)) return usedFolders(go, file);

@@ -2,6 +2,7 @@
 // version and no requirement; while a link exists, an installed polyspec package pinned at 0.0.x is a link that resolves, and
 // a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -55,6 +56,23 @@ test('a link that resolves to no package of that name, an npm copy among links a
     'npm @polyspec/w: node_modules/@polyspec/w is a copy at 0.0.3, not a link, while other packages are linked',
     'npm @polyspec/x: the link node_modules/@polyspec/x resolves to no package folder',
   ]);
+});
+
+// K399-2: a go.work that link wrote below a tracked go.work lacks the modules of that workspace, which link uses too.
+test('a git-ignored go.work below a tracked go.work that lacks the workspace modules is a finding, and passes once it uses them (K399-2)', (t) => {
+  const root = tree(t, {
+    '.gitignore': 'c/go.work\n',
+    'go.work': 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n',
+    'a/go.mod': 'module a\n',
+    'b/go.mod': 'module b\n',
+    'c/go.mod': 'module c\n',
+    'c/go.work': 'go 1.22\n\nuse (\n\t.\n)\n',
+  });
+  assert.equal(spawnSync('git', ['-C', root, 'add', 'go.work']).status, 0, 'the go.work of the repository is tracked');
+  const env = { ...process.env, GO: 'go' };
+  assert.deepEqual(linkFindings(root, env), ['go c/go.work: does not use the modules a, b of the tracked go.work above it; Fix: make link']);
+  put(root, { 'c/go.work': 'go 1.22\n\nuse (\n\t.\n\t../a\n\t../b\n)\n' });
+  assert.deepEqual(linkFindings(root, env), []);
 });
 
 test('the Composer projects that kit writes are no consumer project, so a repository with only those needs no Composer (K320)', (t) => {
