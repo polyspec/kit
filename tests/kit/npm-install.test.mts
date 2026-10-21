@@ -145,3 +145,28 @@ test('the temporary manifest rewrites each overrides entry of a provided package
   assert.deepEqual(temporary.overrides, { '@polyspec/ordered-json': folder, '@npm/bar': { '@polyspec/ordered-json@0.0.9': folder, '.': '1.0.0' }, 'left-pad': '1.3.0' }, 'the provided package takes the checkout folder at each depth, and the other overrides are kept');
   assert.doesNotMatch(readFileSync(recorded, 'utf8'), /var\/assets/, 'no asset spec of a provided package remains');
 });
+
+// K465: the workspaces that the root declares are part of the project, so the temporary install includes them and their links resolve to
+// the project folders; a provided package is linked beside them, and no link of the project dangles after the install.
+test('npm install keeps the workspaces of the root and links them to the project folders, with no dangling link (K465)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-workspaces-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(path.join(project, 'packages/ws1'), { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 4;\n');
+  writeFileSync(path.join(project, 'packages/ws1/package.json'), JSON.stringify({ name: '@app/ws1', version: '1.0.0', main: 'index.js' }));
+  writeFileSync(path.join(project, 'packages/ws1/index.js'), 'module.exports = 5;\n');
+  const tracked = JSON.stringify({ name: 'app', version: '1.0.0', private: true, workspaces: ['packages/*'], dependencies: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }, null, 2) + '\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: () => undefined, env: process.env });
+  assert.equal(took, 'linked');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
+  const workspace = path.join(project, 'node_modules/@app/ws1');
+  assert.equal(lstatSync(workspace).isSymbolicLink(), true, 'the workspace of the root is linked, not dropped');
+  assert.equal(realpathSync(workspace), realpathSync(path.join(project, 'packages/ws1')), 'the workspace link resolves to the project folder');
+  assert.equal(readlinkSync(workspace).startsWith('/'), true, 'the workspace link is absolute, so it survives the move out of the temporary folder');
+  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(sibling), 'the provided package is linked beside the workspace');
+});

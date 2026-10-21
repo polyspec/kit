@@ -4,7 +4,7 @@
 // moved into the project, with each link made absolute. The tracked package.json and package-lock.json are never written. Without a
 // sibling that provides a package the project declares, as in CI, npm ci runs on the tracked lock.
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync, unlinkSync, writeFileSync, renameSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
@@ -25,6 +25,35 @@ function nameOf(checkout: string): string | undefined {
 function packageNameOf(key: string): string {
   const at = key.indexOf('@', key.startsWith('@') ? 1 : 0);
   return at === -1 ? key : key.slice(0, at);
+}
+
+/**
+ * The workspace patterns of a manifest (`workspaces` as a list, or as an object with `packages`), each re-anchored from the temporary folder
+ * to the project, so that npm links the workspace folders of the project and no workspace is dropped (K465). A negated pattern keeps its `!`.
+ */
+function workspacesIn(workspaces: unknown, fromTemporary: string): unknown {
+  const anchor = (entry: unknown): unknown => {
+    if (typeof entry !== 'string') return entry;
+    const negated = entry.startsWith('!');
+    const joined = path.posix.join(fromTemporary, negated ? entry.slice(1) : entry);
+    return negated ? `!${joined}` : joined;
+  };
+  const anchorAll = (entries: unknown[]): unknown[] => entries.map((entry: unknown) => anchor(entry));
+  if (Array.isArray(workspaces)) return anchorAll(workspaces);
+  if (typeof workspaces === 'object' && workspaces !== null && 'packages' in workspaces && Array.isArray(workspaces.packages)) {
+    return { ...workspaces, packages: anchorAll(workspaces.packages) };
+  }
+  return workspaces;
+}
+
+/** The links under `dir` whose target does not exist, each with its path; a link of a scope folder is read too. */
+function danglingLinksIn(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((entry) => {
+    const item = path.join(dir, entry);
+    if (lstatSync(item).isSymbolicLink()) return existsSync(item) ? [] : [item];
+    return entry.startsWith('@') || entry === '.bin' ? danglingLinksIn(item) : [];
+  });
 }
 
 /** The package folders that a repository root holds under packages/: each directory there with a package.json, sorted. */
@@ -90,9 +119,13 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     if (ci.status !== 0) throw new Error(`npm ci of ${project} exited ${ci.status}: ${ci.stderr}`);
     return 'locked';
   }
-  const temporary = mkdtempSync(path.join(tmpdir(), 'kit-npm-install-'));
+  // The temporary folder lies under the real path of tmpdir(), so the relative paths of the workspaces are plain climbs: npm drops a
+  // workspace whose path crosses a symbolic link, such as /var to /private/var on macOS (K465).
+  const temporary = mkdtempSync(path.join(realpathSync(tmpdir()), 'kit-npm-install-'));
   try {
     const linked: Record<string, unknown> = { ...manifest };
+    // The workspaces of the root are the project's own packages: the temporary install reads them from the project (K465).
+    if ('workspaces' in manifest) linked.workspaces = workspacesIn(manifest.workspaces, path.posix.relative(temporary.split(path.sep).join('/'), project.split(path.sep).join('/')));
     for (const section of SECTIONS) {
       const deps: Record<string, unknown> = sectionOf(section);
       if (Object.keys(deps).length === 0) continue;
@@ -137,6 +170,9 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     const destination = path.join(project, 'node_modules');
     rmSync(destination, { recursive: true, force: true });
     renameSync(modules, destination);
+    // An install that leaves a dangling link of the project fails, never exits 0 with it (K465).
+    const dangling = danglingLinksIn(destination);
+    if (dangling.length) throw new Error(`npm install of ${project} left dangling links: ${dangling.join(', ')}`);
     print(`npm-install ${project}: linked ${[...provided.keys()].join(', ')} from their checkouts`);
     return 'linked';
   } finally {

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5e56207fb2a169a083dcf4e310ce1d5a1a1fee5158a53e7dff7898567131acae -->
+<!-- source-sha256: ce2684a920c5873c28c5d69e87919973b5da46215e63a8a507ab599639de5487 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K465 완료: row가 이 commit에서 [o]이다. red는 수정 전 K465 테스트 실행(root의 workspace가 빠지고 exit 0)이고, green은 이 commit의 K465 테스트이다 (K465). `make npm-install`은 root가 선언한 workspace를 임시 manifest에 project 기준으로 유지하므로 그 link가 project 폴더를 가리킨다. 임시 폴더는 tmpdir()의 실제 경로 아래에 만든다. npm은 /var에서 /private/var로 넘어가는 경로의 workspace를 버리기 때문이다. install 후 project에 dangling link가 남으면 실패한다 (K465).
 - K473: vendored gates workflow는 config/polyspec.json이 선언한 각 저장소를 프로젝트 옆에 기본 브랜치로 설치 전에 clone하고, gates 전에 `make link`를 실행한다. 선언은 `repository`를 owner/name으로 명시하므로(schema), 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling checkout을 갖는다. Red: 수정 전 `tests/kit/gates-workflow.test.mts`와 `tests/kit/polyspec-lock.test.mts`의 K473 test가 실패한다 (K473).
 - K437-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 이전 단정으로 실행한 K437-1 테스트이며, green은 이 커밋의 K437-1 테스트이다 (K437-1).
 - top-level await가 끝나지 않는 node 파일의 K437 테스트는 run이 보고하는 deadline 메시지를 받아들인다. run-tests의 gap watch(K371-1)가 같은 deadline에 run을 먼저 끝내며 `no test started within 2 s`를 보고하므로, run-tests 아래에서 나타나지 않는 파일 쪽 문구를 확인하던 테스트가 실패했다. 테스트는 이제 run이 deadline에 exit status 1로 끝나고, 파일 이름과 두 deadline 메시지 중 하나를 포함하며, 제한 전에 끝나는 것을 요구한다 (K437-1).
