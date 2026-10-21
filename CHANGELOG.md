@@ -6,6 +6,10 @@
 ## Unreleased
 
 - `make npm-install DIR=<project>` installs a consumer's npm packages in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, through a temporary manifest, with no release fetched and no tracked file written (K448-2).
+
+### 2026-10-21 — A package-dir prefix mapped to "." links its listed subpackages (K398-3)
+
+- `scripts/kit/link.mts` accepts a static `package-dir` whose prefix maps to `.` while only its subpackages are listed in `setuptools.packages` (K398-3): each listed package resolves through the longest package-dir prefix it starts with, and the finder of the editable wheel maps names through the longest prefix and gives the parents of a prefix a namespace package with no folder of its own, so `limepie.module.x.src` resolves into the folder and nothing is written there. A listed package that no prefix maps is still refused. Red: `node --test --test-name-pattern=K398-3 tests/kit/link.test.mts` fails before the fix on f6e6f254a6b2 (the link refuses the package-dir); green: passes, and the other K398 tests pass.
 - K379-2: The link writes a fork at the exact pin that the consumer or a linked provider requires (require and require-dev), as its tag, and fails naming both pins when they differ (K379-2). Red: node --test --test-name-pattern=K379-2 tests/kit/link.test.mts exit 1 (the link manifest took the lock version 2.6.0); green: the link tests pass, 82 of 82 in the file, including K379-2. (K379-2).
 - `make commit` on main reads the findings of a gate as `make land` does, without the progress lines that a kit tool prints
   with its name in brackets, so a progress line that differs from HEAD does not refuse a commit (K446-4).

@@ -650,6 +650,28 @@ test('K398-2: a Python provider with a static package-dir is linked by an editab
   assert.ok(!log().split('\n').some(item => item.startsWith('uv pip install') && item.includes(`-e ${folder}`)), log());
 });
 
+// K398-3: a static package-dir that maps a prefix to '.' links its listed subpackages: each listed package resolves through the longest
+// package-dir prefix, and the prefix itself need not be listed (K398-3).
+test('K398-3: a provider whose package-dir maps a prefix to "." and lists only its subpackages is linked, and its folder is not written (K398-3)', (t) => {
+  let folder = '';
+  t.after(() => { if (folder) spawnSync('chmod', ['-R', 'u+w', folder]); });
+  const { provider, consumer, env, log } = workspace(t);
+  put(provider, {
+    'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\n[tool.setuptools]\npackage-dir = {"polyspec_z.module.x" = "."}\npackages = ["polyspec_z.module.x.src"]\n',
+    'packages/python/src/__init__.py': 'VALUE = 1\n',
+  });
+  folder = path.join(provider, 'packages/python');
+  const before = folderState(folder);
+  assert.equal(spawnSync('chmod', ['-R', 'a-w', folder]).status, 0);
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.deepEqual(folderState(folder), before, 'the provider folder is unchanged, with no new file');
+  const wheel = path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl');
+  const entries = spawnSync('unzip', ['-Z1', wheel], { encoding: 'utf8' }).stdout.trim().split('\n');
+  assert.ok(entries.includes('__editable___polyspec_z_finder.py'), entries.join('\n'));
+  assert.ok(!log().split('\n').some(item => item.startsWith('uv pip install') && item.includes(`-e ${folder}`)), log());
+});
+
 // K398-1: an own Python project of the consumer is installed from the editable wheel that link writes, as a provider is, with --no-deps (K280):
 // in a read-only folder it is linked, and its folder is not written.
 test('K398-1: an own Python project of the consumer in a read-only folder is installed from its editable wheel, with --no-deps, and its folder is not written (K398-1)', (t) => {

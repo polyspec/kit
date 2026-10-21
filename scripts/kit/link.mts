@@ -809,9 +809,12 @@ function pythonWheel(folder: string): PythonWheel | string {
   const packageDir = setuptools['package-dir'] ?? {};
   if (!isJsonObject(packageDir) || Object.values(packageDir).some(value => typeof value !== 'string')) return `${file} declares a package-dir that is not a static map of strings`;
   const mappings: [string, string][] = Object.entries(packageDir).filter(([key]) => key !== '').map(([key, value]) => [key, path.join(folder, String(value))]);
+  // Each listed package resolves through the longest package-dir prefix that it starts with (K398-3), so a prefix mapped to "." needs
+  // no listing of its own.
   const listed = declaredList(setuptools.packages).map(String);
-  const unlisted = mappings.map(([key]) => key).filter(key => !listed.includes(key));
-  if (unlisted.length) return `${file} maps ${unlisted.join(', ')} in package-dir without listing it in setuptools.packages`;
+  const prefixes = Object.keys(packageDir).filter(key => key !== '');
+  const unresolved = mappings.length ? listed.filter(name => !prefixes.some(prefix => name === prefix || name.startsWith(`${prefix}.`))) : [];
+  if (unresolved.length) return `${file} lists ${unresolved.join(', ')} in setuptools.packages, which no package-dir prefix maps`;
   const requires = declaredList(project.dependencies);
   if (!requires.every((item): item is string => typeof item === 'string')) return `${file} declares a dependency that is not a string`;
   const scripts = Object.entries(isJsonObject(project.scripts) ? project.scripts : {});
@@ -839,14 +842,32 @@ function finderLines(mappings: readonly [string, string][]): string[] {
     'import importlib.util',
     'import os',
     'import sys',
+    'import importlib.machinery',
     `MAPPING = ${JSON.stringify(Object.fromEntries(mappings))}`,
+    'class _Namespace:',
+    '    def create_module(self, spec):',
+    '        return None',
+    '    def exec_module(self, module):',
+    '        return None',
+    'def _namespace(name, locations):',
+    '    spec = importlib.machinery.ModuleSpec(name, _Namespace(), is_package=True)',
+    '    spec.submodule_search_locations = list(locations)',
+    '    return spec',
     'class _Finder(importlib.abc.MetaPathFinder):',
     '    def find_spec(self, name, path=None, target=None):',
-    '        location = MAPPING.get(name)',
-    '        init = os.path.join(location, "__init__.py") if location is not None else None',
-    '        if init is None or not os.path.isfile(init):',
-    '            return None',
-    '        return importlib.util.spec_from_file_location(name, init, submodule_search_locations=[location])',
+    '        # The longest package-dir prefix that the name starts with maps it (K398-3).',
+    '        prefix = max((key for key in MAPPING if name == key or name.startswith(key + ".")), key=len, default=None)',
+    '        if prefix is not None:',
+    '            rest = name[len(prefix) + 1:] if name != prefix else ""',
+    '            location = os.path.join(MAPPING[prefix], *rest.split(".")) if rest else MAPPING[prefix]',
+    '            init = os.path.join(location, "__init__.py")',
+    '            if os.path.isfile(init):',
+    '                return importlib.util.spec_from_file_location(name, init, submodule_search_locations=[location])',
+    '            return _namespace(name, [location]) if os.path.isdir(location) else None',
+    '        # A parent of a mapped prefix, such as limepie of limepie.module.x, is a namespace package with no folder of its own.',
+    '        if any(key.startswith(name + ".") for key in MAPPING):',
+    '            return _namespace(name, [])',
+    '        return None',
     'def install():',
     '    if not any(isinstance(finder, _Finder) for finder in sys.meta_path):',
     '        sys.meta_path.insert(0, _Finder())',
