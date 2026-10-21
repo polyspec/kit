@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'no
 import path from 'node:path';
 import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { composerEnvironment, highestStableRelease, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEnvironment, highestStableRelease, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -234,4 +234,32 @@ test('a Go module under the tracked go.work of the repository is scanned with th
   });
   assert.equal(calls.find(call => call.cwd === realpathSync(path.join(root, 'packages/fixture-go')))?.gowork, path.join(realpathSync(root), 'go.work'));
   assert.equal(calls.find(call => call.cwd === realpathSync(path.join(root, 'packages/lone')))?.gowork, undefined);
+});
+
+// K439: a tracked composer.lock takes the manifest of the provider that a checkout provides: its require (php >=8.4 of every provider)
+// and the other fields Composer copies into an entry, while the name, the version, the dist, the source and the content-hash stay.
+// A package that no checkout provides is left as it is.
+test('a lock entry of a provided polyspec package takes the manifest of the provider and keeps its version and dist (K439)', () => {
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const lock = `${JSON.stringify({ 'content-hash': '931a126f8dbe3bfc612effd5fcda35b2', packages: [{ name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.5', 'ext-json': '*' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const providers = new Map([['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { php: '>=8.4', 'ext-json': '*' }, autoload: { 'psr-4': { 'Polyspec\\Orm\\': 'src/' } } }]]);
+  const result = providerEntries(lock, providers);
+  const parsed: unknown = JSON.parse(result.text);
+  assert.ok(isJsonObject(parsed) && Array.isArray(parsed.packages), result.text);
+  assert.deepEqual(result.rewritten, ['polyspec/orm']);
+  assert.equal(parsed['content-hash'], '931a126f8dbe3bfc612effd5fcda35b2');
+  assert.deepEqual(parsed.packages[0], { name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.4', 'ext-json': '*' }, type: 'library', autoload: { 'psr-4': { 'Polyspec\\Orm\\': 'src/' } } });
+  assert.equal(result.text, `${JSON.stringify(parsed, null, 4)}\n`, 'kit writes the lock with 4-space indentation and a final newline');
+});
+
+test('a package that no checkout provides is unchanged byte for byte (K439)', () => {
+  const psr = { name: 'psr/log', version: '3.0.2', dist: { type: 'zip', url: 'https://example.com/psr-log.zip' }, require: { php: '>=8.5' } };
+  const orm = { name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: '../orm.zip' }, require: { php: '>=8.5' } };
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [orm, psr], 'packages-dev': [] }, null, 4)}\n`;
+  const result = providerEntries(lock, new Map([['polyspec/orm', { name: 'polyspec/orm', require: { php: '>=8.4' } }]]));
+  const expected = JSON.stringify(psr, null, 4).split('\n').map((line, index) => (index === 0 ? line : `        ${line}`)).join('\n');
+  assert.ok(result.text.includes(`        ${expected}`), result.text);
+  assert.deepEqual(result.rewritten, ['polyspec/orm']);
+  assert.equal(providerEntries(lock, new Map()).text, lock, 'without a provider nothing is rewritten');
+  assert.deepEqual(providerEntries(lock, new Map()).rewritten, []);
 });

@@ -426,7 +426,7 @@ release-proof: ## Prove the released TAG from outside the checkout: release asse
 	$(ONLINE) $(NODE) $(KIT)/release-proof.$(KIT_EXT) "$$TAG"
 
 # --- dependencies: the gate reads the manifests, the locks and the review record; the review asks the registries.
-.PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review
+.PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review composer-provider-entries
 dependency-policy-check: ## Check the manifests and locks against config/dependency-policy.json and the review record; offline
 	$(NODE) $(KIT)/check-dependency-policy.$(KIT_EXT)
 
@@ -435,6 +435,10 @@ dependency-policy-mutation-check: ## Check that the dependency gate rejects each
 
 dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update)
+
+# K439: the metadata of a provided polyspec package in each tracked composer.lock, without the review or the updates.
+composer-provider-entries: ## Rewrite the metadata of each polyspec package that a sibling checkout provides in every tracked composer.lock of the Composer projects, from its composer.json, keeping the versions; offline
+	$(NODE) $(KIT)/dependency-review.$(KIT_EXT) --provider-entries
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,

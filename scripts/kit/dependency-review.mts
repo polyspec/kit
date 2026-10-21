@@ -18,7 +18,7 @@
 // installs it) and the RustSec advisory database, and those of the Go locks from the govulncheck of mise.toml. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mts.
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
@@ -30,7 +30,8 @@ import { readComposerLock } from './manifests.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
-import { writeJson } from './bootstrap/files.mts';
+import { isJsonObject, writeJson } from './bootstrap/files.mts';
+import { providers, siblingCheckouts } from './link-providers.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
 import { present } from './present.mts';
@@ -584,6 +585,69 @@ export function updatePlan({ newer, advisories: found, linked = () => false }: {
   return plan;
 }
 
+/** The manifest fields that Composer copies into a lock entry, in the order that Composer writes them. */
+const LOCK_METADATA = ['require', 'require-dev', 'conflict', 'provide', 'replace', 'suggest', 'type', 'extra', 'autoload', 'autoload-dev', 'bin', 'include-path', 'notification-url', 'license', 'authors', 'description', 'homepage', 'keywords', 'support', 'funding', 'abandoned', 'archive'];
+
+/** The entry `entry` with the metadata fields of `manifest`: a field keeps its place, a missing one is dropped, and the name, the version, the dist, the source and the time stay. */
+function lockEntry(entry: Record<string, unknown>, manifest: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(entry)) {
+    if (!LOCK_METADATA.includes(key)) next[key] = value;
+    else if (key in manifest) next[key] = manifest[key];
+  }
+  for (const key of LOCK_METADATA) if (!(key in next) && key in manifest) next[key] = manifest[key];
+  return next;
+}
+
+/**
+ * K439: the tracked composer.lock `lockText` with the metadata of each package that `providers` provides (name to its composer.json),
+ * in packages and packages-dev. The version, the dist, the source and the content-hash stay, so the entry is what Composer locked; the
+ * lock is written as kit writes its locks (4-space indentation, a final newline). `rewritten` names the packages that changed; with
+ * none the text is returned as it was read.
+ */
+export function providerEntries(lockText: string, providers: ReadonlyMap<string, Record<string, unknown>>): { text: string; rewritten: string[] } {
+  const lock: unknown = JSON.parse(lockText);
+  if (!isJsonObject(lock)) throw new Error('composer.lock holds no object');
+  const rewritten = new Set<string>();
+  for (const section of ['packages', 'packages-dev']) {
+    const list = lock[section];
+    if (!Array.isArray(list)) continue;
+    lock[section] = list.map((entry: unknown) => {
+      if (!isJsonObject(entry) || typeof entry.name !== 'string') return entry;
+      const manifest = providers.get(entry.name);
+      if (manifest === undefined) return entry;
+      const next = lockEntry(entry, manifest);
+      if (JSON.stringify(next) !== JSON.stringify(entry)) rewritten.add(entry.name);
+      return next;
+    });
+  }
+  return { text: rewritten.size ? `${JSON.stringify(lock, null, 4)}\n` : lockText, rewritten: [...rewritten] };
+}
+
+/** The composer.json of each Composer package that a sibling checkout of the repository at `root` provides, by package name. */
+function siblingComposerManifests(root: string): Map<string, Record<string, unknown>> {
+  const manifests = new Map<string, Record<string, unknown>>();
+  for (const provider of providers(siblingCheckouts(root).checkouts, undefined, root).values()) {
+    if (provider.ecosystem !== 'composer') continue;
+    const manifest: unknown = JSON.parse(readFileSync(path.join(provider.folder, 'composer.json'), 'utf8'));
+    if (isJsonObject(manifest)) manifests.set(provider.name, manifest);
+  }
+  return manifests;
+}
+
+/** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote. */
+function rewriteProviderEntries(root: string, directories: readonly string[]): void {
+  const manifests = siblingComposerManifests(root);
+  for (const directory of new Set(directories)) {
+    const lock = path.join(root, directory, 'composer.lock');
+    if (!existsSync(lock)) continue;
+    const { text, rewritten } = providerEntries(readFileSync(lock, 'utf8'), manifests);
+    if (rewritten.length === 0) continue;
+    writeFileSync(lock, text);
+    say(`${path.posix.join(directory, 'composer.lock')}: rewrote the metadata of ${rewritten.join(', ')}`);
+  }
+}
+
 function print(result: { notes: string[]; lines: string[] }) {
   for (const note of result.notes) say(note);
   for (const line of result.lines) say(`${line}.`);
@@ -597,15 +661,21 @@ function main(): void {
   let root = repositoryRoot();
   let record = false;
   let update = false;
+  let providerOnly = false;
   for (let index = 0; index < args.length; index += 1) {
     // The condition checks that the argument after --root is present.
     if (args[index] === '--root' && args[index + 1]) root = path.resolve(present(args[++index], 'args[++index]'));
     else if (args[index] === '--record') record = true;
     else if (args[index] === '--update') update = true;
+    else if (args[index] === '--provider-entries') providerOnly = true;
     else {
-      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update]');
+      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--provider-entries]');
       process.exit(2);
     }
+  }
+  if (providerOnly) {
+    rewriteProviderEntries(root, checkedFiles(root).filter(file => path.posix.basename(file) === 'composer.lock').map(file => path.posix.dirname(file)));
+    return;
   }
   let result = review(root);
   if (update) {
@@ -622,6 +692,7 @@ function main(): void {
       }
     }
     say(`${plan.length - failed} of ${plan.length} update commands passed; reviewing again`);
+    rewriteProviderEntries(root, plan.filter(step => step.command === 'composer').map(step => step.cwd));
     result = review(root);
   }
   print(result);

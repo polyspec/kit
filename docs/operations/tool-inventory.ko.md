@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ffd955127e4e69c8bb1ad500886cf5ec722440b0eb9b650a20cb2b684da72ed6 -->
+<!-- source-sha256: 294bb6176a0fcf7e22d479b735c5c9df2bf05669c577820c5d5ab7b8cb0a630e -->
 
 # 도구 목록
 
@@ -68,7 +68,7 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 
 `packages/php-ext`가 있는 저장소는 `make php-ext-arginfo`를 위해 `curl` 또는 `wget`과 `tar`도 필요합니다(K303). PHP의 `gen_stub.php`가
 PHP-Parser를 wget, 없으면 curl로 사본의 build folder에 내려받고 tar로 풉니다. 이들은 mise의 도구가 아니므로 machine과 CI image가
-제공하고, `make toolchain-check`가 빠진 것을 이름으로 알립니다. 근거: PHP 8.5.10 `gen_stub.php`의 `installPhpParser`. kit의 고정된
+제공하고, `make toolchain-check`가 빠진 것을 이름으로 알립니다. 근거: PHP 8.4(고정된 minor) `gen_stub.php`의 `installPhpParser`. kit의 고정된
 Composer dependency는 택하지 않았습니다. gen_stub.php는 자기 PHP와 맞는 PHP-Parser release를 하나로 정하는데, kit은 고정된 minor마다
 그것을 알 수 없기 때문입니다.
 
