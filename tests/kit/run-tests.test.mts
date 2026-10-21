@@ -146,6 +146,32 @@ test('a file whose process outlives its last test fails after the deadline and n
   assert.ok(Date.now() - started < 30_000, 'the deadline ended the file');
 });
 
+// K437: a test that awaits a promise that never settles is ended at the deadline, and the failure names it.
+test('a node test that awaits a promise that never settles is ended past the deadline and named (K437)', (t) => {
+  const root = checkout(t, { 'tests/stuck.test.mjs': `${SPEC}test('never settles', async () => { await new Promise(() => {}); });\n` });
+  const result = runner(root, ['node', '--timeout', '1', '--', 'tests/stuck.test.mjs']);
+  assert.equal(result.status, 1, output(result));
+  assert.match(result.stdout, /✖ tests\/stuck\.test\.mjs › never settles/);
+  assert.match(result.stdout, /timed out after 1000ms/);
+});
+
+// K437: the file's own code awaits a promise that never settles while a handle keeps its process alive. No test ever starts,
+// so the deadline that starts after the last test never does; the deadline from the process start ends the file instead.
+test('a node file whose top-level await never settles, with a live handle, is ended past the deadline (K437)', { timeout: 60_000 }, (t) => {
+  const root = checkout(t, { 'tests/pending.test.mjs': `${SPEC}setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('late', () => {});\n` });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 30_000 });
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /2000 ms/);
+});
+
+// K437: a handle that a test leaves open is still ended at the deadline, and the failure names it (K72 covers it).
+test('a node test that leaves a socket open is ended past the deadline and the socket is named (K437)', (t) => {
+  const root = checkout(t, { 'tests/leak.test.mjs': `${SPEC}test('leaks a socket', async () => { const { createServer } = await import('node:net'); createServer().listen(0); });\n` });
+  const result = runner(root, ['node', '--timeout', '1', '--', 'tests/leak.test.mjs']);
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /did not exit 1000 ms after its last test; it holds [^\n]*TCPServerWrap/);
+});
+
 test('the arguments of the runner are read before the arguments of the tool', () => {
   const options = parseArguments(['node', '--timeout', '5', '--cwd', 'sub', '--', 'a.test.mjs', '--x'], '/repo');
   assert.deepEqual([options.tool, options.timeoutSeconds, options.cwd, options.args], ['node', 5, '/repo/sub', ['a.test.mjs', '--x']]);
@@ -594,6 +620,26 @@ test('an interrupted runner stops the whole process group of the tool and ends o
   const started = recorded(pids);
   assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
   assert.deepEqual(started.filter(alive), [], 'expected no process of the stopped group alive');
+});
+
+// K437: the runner whose parent is killed stops its process group. The timeout is long, so only the lost parent can stop the
+// stub before the assertion; the group must be gone within the deadline (2 s) and the grace of the stop (5 s).
+test('run-tests stops its process group when its parent is killed (K437)', { timeout: 60_000 }, async (t) => {
+  const { root, pids } = hangingPython(t);
+  const parentFile = path.join(root, 'parent.mjs');
+  writeFileSync(parentFile, `const { spawn } = process.getBuiltinModule('node:child_process');\nspawn(process.execPath, [${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/run-tests.mts')))}, 'python', '--timeout', '60', 'tests'], { cwd: ${JSON.stringify(root)}, stdio: 'inherit' });\nsetInterval(() => {}, 1000);\n`);
+  const parent = spawn(process.execPath, [parentFile], { cwd: root, env: { ...process.env, ...CI }, stdio: ['ignore', 'pipe', 'inherit'] });
+  t.after(() => parent.kill('SIGKILL'));
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('the runner never started the test')), 20_000);
+    parent.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) { clearTimeout(timer); resolve(); } });
+  });
+  parent.kill('SIGKILL');
+  const started = recorded(pids);
+  assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
+  const until = Date.now() + 2000 + 5000;
+  while (started.some(alive) && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(started.filter(alive), [], 'expected no process of the group alive after the deadline and the grace');
 });
 
 // A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/mise as its home and

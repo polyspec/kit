@@ -227,6 +227,9 @@ const STOP_GRACE_MS = 5000;
 /** The signals that interrupt the runner; it stops the tool's group, then ends on the signal. */
 const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 
+/** How often the runner checks that its parent is still the process that started it. */
+const PARENT_POLL_MS = 200;
+
 export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
@@ -268,6 +271,9 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;
   let onInterrupt: ((signal: NodeJS.Signals) => void) | undefined;
+  // The check that the parent is still there (K437): a parent that was killed cannot stop the group, so the runner does, as
+  // for a hangup.
+  let parentWatch: NodeJS.Timeout | undefined;
   try {
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit'], detached: true });
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
@@ -280,6 +286,12 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
     onInterrupt = (signal) => { interrupted ??= signal; stop(); };
     for (const signal of INTERRUPTS) process.on(signal, onInterrupt);
+    const parent = process.ppid;
+    parentWatch = setInterval(() => {
+      if (process.ppid === parent) return;
+      clearInterval(parentWatch);
+      onInterrupt?.('SIGHUP');
+    }, PARENT_POLL_MS);
     let timedOut = false;
     const progress = reads ? createProgress({
       write,
@@ -355,6 +367,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     }
     return exit;
   } finally {
+    clearInterval(parentWatch);
     if (onInterrupt) for (const signal of INTERRUPTS) process.off(signal, onInterrupt);
     rmSync(results, { recursive: true, force: true });
     // With its handler removed, the signal ends the runner as it would have without one, unless the host handles it.
