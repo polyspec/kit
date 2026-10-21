@@ -428,3 +428,18 @@ test('commit-row: a subject names a row of a checklist of the tree of its commit
   spawnSync('git', ['add', '-A'], { cwd: fresh, encoding: 'utf8' });
   assert.deepEqual(indexItemFindings(fresh, CONFIG, 'feat(core): Start (#T9)'), [], 'the first commit of a repository passes');
 });
+
+// K449: a docs or chore commit is for documents only; a fix or a change of code is committed with its own type, staged alone.
+test('a docs(plan) or chore commit that stages code, a test or a recipe is refused, and names the paths (K449)', (t) => {
+  const { root, git } = repository(t, ['feat(core): Start (#K1)'], ['K1']);
+  put(root, { 'scripts/kit/link.mts': 'export {};\n' });
+  git('add', '-A');
+  const found = indexItemFindings(root, CONFIG, 'docs(plan): Close K1 (#K1)').filter(entry => entry.rule === 'commit-type');
+  assert.equal(found.length, 1, found.map(entry => entry.message).join('\n'));
+  assert.match(found[0]?.message ?? '', /scripts\/kit\/link\.mts.*stage the fix alone and commit it with its own type/);
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'fix(link): Close K1 (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a fix may stage code');
+  git('reset', '-q');
+  put(root, { 'docs/notes.md': 'n\n' });
+  git('add', 'docs/notes.md');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Note (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a document may be committed as docs');
+});
