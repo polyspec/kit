@@ -313,8 +313,23 @@ export function runGate(folder: string, gate: string, args: string[] = []): Gate
  */
 export function newFindings(root: string, candidate: GateRun, baseline: GateRun): string[] | undefined {
   if (baseline.result.status === 0) return [];
+  // A failure of the environment is no finding of either run, so it is refused with its own output (K474).
+  if (environmentFailure(candidate)) throw new Error(`the gate fails in ${candidate.folder} for an environment reason, which is no finding, ${endOf(candidate)}:\n${outputOf(candidate)}`);
+  if (environmentFailure(baseline)) throw new Error(`the gate fails on the baseline ${baseline.folder} for an environment reason, so it cannot be compared with the candidate, ${endOf(baseline)}:\n${outputOf(baseline)}`);
   const added = newLines(findingLines(candidate.result, candidate.folder, root), findingLines(baseline.result, baseline.folder, root));
   return added.length === 0 ? undefined : added;
+}
+
+/** The stdout and the stderr of a gate run, as the text that a refusal names. */
+const outputOf = (run: GateRun) => `${run.result.stdout}${run.result.stderr}`;
+
+/**
+ * Whether a failed gate run failed for an environment reason rather than for a finding (K474): the signal that ended it, a command
+ * that the shell could not find or run (make reports the shell status as `Error 126` or `Error 127`), or a failure with no finding
+ * line. Such a run is never compared with a baseline, since a baseline that fails the same way would pass it as failing on HEAD too.
+ */
+function environmentFailure(run: GateRun): boolean {
+  return run.result.status === null || /Error 12[67]\b/.test(outputOf(run)) || findingLines(run.result, run.folder, run.folder).length === 0;
 }
 
 /** The text of how a gate run ended: its exit status, or the signal that ended it. */

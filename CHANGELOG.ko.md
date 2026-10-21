@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2e338a3f38154a21cdb2d12d54f7efd258f760b18cedc769fa8b80d9432ce8d7 -->
+<!-- source-sha256: 178e50d3120e360f443a44055fd004830afe8afd58423edf148f2b32ef878a9b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K474는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K474 테스트(기준선이 `Error 127`로 실패한 게이트가 HEAD에서도 실패한 것으로 통과했다)이며, green은 이 커밋의 K474 테스트다 (K474). 환경 사유로 실패한 게이트 실행(신호, `Error 126` 또는 `Error 127`, 또는 발견 줄 없음)은 자체 출력과 함께 거부되며 기준선과 비교되지 않는다.
 - K454는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K454 테스트이며, green은 이 커밋의 K454 테스트이다 (K454).
 - deadline에 실행 중인 테스트가 남은 node 파일은 종료하기 전에, 테스트가 시작한 자식 프로세스를 모두 멈춘다. 그룹의 리더가 되는 자식도 포함한다 (K454). `stopGroup`은 그룹 신호를 보내기 전에 그룹 밖의 run 자손을 같은 방식으로 멈춘다. 자기 그룹의 리더인 자손은 그룹 리더가 끝나면 launchd로 재부모화되기 때문이다 (K454).
 - K465 완료: row가 이 commit에서 [o]이다. red는 수정 전 K465 테스트 실행(root의 workspace가 빠지고 exit 0)이고, green은 이 commit의 K465 테스트이다 (K465). `make npm-install`은 root가 선언한 workspace를 임시 manifest에 project 기준으로 유지하므로 그 link가 project 폴더를 가리킨다. 임시 폴더는 tmpdir()의 실제 경로 아래에 만든다. npm은 /var에서 /private/var로 넘어가는 경로의 workspace를 버리기 때문이다. install 후 project에 dangling link가 남으면 실패한다 (K465).

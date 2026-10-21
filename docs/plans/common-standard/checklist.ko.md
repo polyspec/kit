@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c346c301bf2de73a28e49e2afbcdb3d5e455a7b53974d961d52ca955022466b4 -->
+<!-- source-sha256: 7cffe8207cbd49594fbe8af0f4001084ce1bfedafbf792a403596740b454ab22 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -356,3 +356,4 @@
 | K468 | 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 잠그지 않는다. 선언은 config/polyspec.json에 있고 link가 형제 체크아웃에서 설치한다 (K468) | docs/operations/local-links.md and its Korean twin, PRINCIPLES.md and PRINCIPLES.ko.md (P35), scripts/kit/polyspec-lock-check.mts, scripts/kit/schema/polyspec.schema.json, scripts/kit/link.mts, scripts/kit/npm-install.mts, scripts/kit/kit.mk, tests/kit/polyspec-lock.test.mts | `node --test tests/kit/polyspec-lock.test.mts` `node --test --test-name-pattern=K468 tests/kit/link.test.mts` | [o] |
 | K472 | kit의 oxc-parser 리뷰 기록을 최신 안정 릴리스 0.155.0으로 다시 기록하고 직접 pin을 0.155.0으로 올린다. 원인: 기록이 0.154.0을 최신으로 적고 있다. | package.json, package-lock.json, config/dependency-review.json | `make dependency-policy-check` | [ ] |
 | K473 | vendored gates workflow는 프로젝트 옆에 config/polyspec.json이 선언한 각 저장소를 기본 브랜치로 체크아웃하고, gates 전에 make link를 실행하여, 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling 체크아웃을 갖게 한다 (K473, K468). 선언은 저장소를 owner/name으로 명시한다. | workflows/gates.yml, scripts/kit/schema/polyspec.schema.json (a repository per declaration), tests/kit/gates-workflow.test.mts, tests/kit/polyspec-lock.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K473 tests/kit/gates-workflow.test.mts` `node --test --test-name-pattern=K473 tests/kit/polyspec-lock.test.mts` | [o] |
+| K474 | HEAD 또는 main 기준선이 환경 사유로 실패한 게이트는 "기준선도 실패"로 통과하지 않고 그 오류를 명시하며 실패한다. 발견 줄이 없는 실패는 발견이 아니다 (K474). | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K474 -- tests/kit/land.test.mts` | [o] |

@@ -7,7 +7,8 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, linesOf, machineListing, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, machineListing, newFindings, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
+import type { GateRun } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -600,4 +601,24 @@ test('the land command refuses a gate that exits 2 with its exit status, not an 
   assert.match(run.stderr, /feat-c is refused: the gate findings-x exited 2; nothing is merged/, run.stderr);
   assert.doesNotMatch(run.stderr, /before initialization/, 'the refusal is not an error of the module');
   assert.equal(git(main, 'rev-parse', 'main'), before, 'main is unchanged after the refusal');
+});
+
+// K474: a gate whose run fails for an environment reason is refused with that error; it never passes as failing on the baseline too.
+const gateRun = (status: number, output: string): GateRun => ({
+  folder: process.cwd(),
+  result: { pid: 0, output: [null, output, output], stdout: output, stderr: output, status, signal: null },
+});
+
+test('a gate whose recipe command is missing on HEAD fails naming the error, not as failing on HEAD too (K474)', () => {
+  const error = 'make: *** [lint-ts] Error 127\n';
+  assert.throws(() => newFindings(process.cwd(), gateRun(2, error), gateRun(2, error)), /Error 127/);
+});
+
+test('a gate that fails with no output on the candidate and on HEAD fails naming its exit status (K474)', () => {
+  assert.throws(() => newFindings(process.cwd(), gateRun(2, ''), gateRun(2, '')), /exited 2/);
+});
+
+test('a gate that fails with the same findings on HEAD still passes as failing on HEAD too (K474)', () => {
+  const finding = 'src/a.ts:1: bad\n';
+  assert.equal(newFindings(process.cwd(), gateRun(1, finding), gateRun(1, finding)), undefined);
 });
