@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ee0059bc69451b0e1cc3cd6610558e78c47bef19caa97edab148a5426198480e -->
+<!-- source-sha256: fd6cb319b2c1b5ad97272abf7bc68274b8a843eba9c021fc50e8ebd4eb6fb0ed -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K441: `make land`와 `make worktree-prune`은 자기 worktree를 제거하기 전에 그 Makefile의 `WORKTREE_STOP` target을 실행하고, `make land`는 그 target이 실패하면 worktree를 남기고 target과 그 출력을 적어 실패한다. `make worktree-prune`은 제거된 worktree 폴더를 명령행에 적은 프로세스를 pid와 경로로 나열하며, 어떤 프로세스도 종료하지 않는다(K441). Red: `node --test --test-name-pattern=K441 tests/kit/land.test.mts`와 `node --test --test-name-pattern=K441 tests/kit/worktree-prune.test.mts`가 base에서 exit 1(서버가 멈추지 않고 프로세스가 나열되지 않음); green: `make item-test ID=K441`이 통과한다(테스트 3개, 건너뛰기 없음).
 - `make npm-install`은 주어진 checkout이 제공하는 패키지를 origin과 상관없이 연결하고, lock에만 transitive로 있는 패키지는 override로 연결하며, checkout이 없는 선언된 polyspec 패키지는 npm ci 대신 실패한다(K448-7).
 - K439-2: composer-provider-entries는 provider 항목을 Composer 자체의 lock writer로 오프라인에서, 소비자가 선언한 플랫폼으로 쓴다. 그래서 자기가 쓴 lock을 다시 실행해도 바뀌지 않고, 플랫폼보다 많이 요구하는 provider는 둘을 함께 적고 실패한다 (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts가 exit 1(manifest의 license 형식); green: make 아래에서 make item-test ID=K439-2가 통과한다(툴체인 Composer, 테스트 2개, 건너뛰기 없음). (K439-2).
 

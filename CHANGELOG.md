@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K441: `make land` and `make worktree-prune` run the `WORKTREE_STOP` target of the Makefile of a worktree before they remove the worktree, and `make land` keeps the worktree and fails naming the target and its output when that target fails; `make worktree-prune` lists each process whose command line names a folder of a removed worktree, by pid and path, and kills none (K441). Red: `node --test --test-name-pattern=K441 tests/kit/land.test.mts` and `node --test --test-name-pattern=K441 tests/kit/worktree-prune.test.mts` exit 1 on the base (the servers are not stopped and no process is listed); green: `make item-test ID=K441` passes (3 tests, none skipped).
 - `make npm-install` links the packages that a given checkout provides whatever its origin, and a package that the lock names only transitively, through an override, and a declared polyspec package with no checkout fails instead of npm ci (K448-7).
 - K439-2: composer-provider-entries writes the provider entries with Composer's own lock writer, offline, on the consumer's declared platform, so a rerun on the lock it wrote changes nothing and a provider that demands more than the platform fails naming both (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts exit 1 (the license form of the manifest); green: make item-test ID=K439-2 passes under make with the toolchain Composer (2 tests, none skipped). (K439-2).
 
