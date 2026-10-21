@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- `make commit` on main runs the static gates that `make land` selects for the staged paths and commits nothing when one fails,
+  and the commit-msg check no longer refuses a commit while HEAD is main, so work is done on main directly, as the owner decided
+  when K404 was retired (K446).
 - `make composer-install DIR=<project>` installs a Composer project in place of composer install: where sibling checkouts
   provide polyspec packages of its lock, it writes composer.link.json and composer.link.lock and installs from them, so the
   released metadata of a linked package (such as polyspec/orm 0.0.18 requiring php >=8.5) is never read; without a sibling, as

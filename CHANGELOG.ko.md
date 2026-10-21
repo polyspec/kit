@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dab868c6c84e08c8453bbc899d7781dd9a6c6803d3a3e34cb1039709a43f0d58 -->
+<!-- source-sha256: 37412b370a1fb023ed3c08216056846f64690d438295f01d1927bed96cc5470c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main에서 `make commit`은 스테이징된 경로에 대해 `make land`가 고르는 정적 gate를 실행하고, 하나라도 실패하면 아무것도
+  커밋하지 않는다. commit-msg 검사는 HEAD가 main인 동안 커밋을 거부하지 않으므로, owner가 K404를 폐지하며 정한 대로 작업은
+  main에서 직접 한다(K446).
 - `make composer-install DIR=<project>`는 composer install 대신 Composer 프로젝트를 설치한다. sibling checkout이 그 lock의
   polyspec 패키지를 제공하는 곳에서는 composer.link.json과 composer.link.lock을 쓰고 그것으로 설치하므로, 링크된 패키지의
   release metadata(php >=8.5를 요구하는 polyspec/orm 0.0.18 같은)를 읽지 않는다. CI처럼 sibling이 없으면 추적 lock으로
