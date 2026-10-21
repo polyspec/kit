@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d15abb3cefd52b3cfd55ed33ced266d3fffa84ca0291b008183341d9e8120f09 -->
+<!-- source-sha256: 2fbeb7f7f03370b8609196490fcff5445bb91b53e4d5319094e29d93e940585a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K439-2: composer-provider-entries는 provider 항목을 Composer 자체의 lock writer로 오프라인에서, 소비자가 선언한 플랫폼으로 쓴다. 그래서 자기가 쓴 lock을 다시 실행해도 바뀌지 않고, 플랫폼보다 많이 요구하는 provider는 둘을 함께 적고 실패한다 (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts가 exit 1(manifest의 license 형식); green: make 아래에서 make item-test ID=K439-2가 통과한다(툴체인 Composer, 테스트 2개, 건너뛰기 없음). (K439-2).
 - `make composer-install`과 `make npm-install`은 kit.mk의 다른 설치 대상처럼 온라인으로 실행되므로, 검사를 위해
   COMPOSER_DISABLE_NETWORK나 npm_config_offline을 내보내는 consumer도 lock의 서드파티 패키지를 설치한다(K448-6).
 - `make npm-install DIR=<project>`는 consumer의 npm 패키지를 npm ci 대신 설치한다. sibling checkout이 제공하는 polyspec 패키지는 임시 manifest로 처음부터 link되고, release를 받지 않으며 추적 파일도 쓰지 않는다(K448-2).

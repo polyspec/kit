@@ -18,11 +18,13 @@
 // installs it) and the RustSec advisory database, and those of the Go locks from the govulncheck of mise.toml. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mts.
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
+import { composerCommand, composerEnvironment as toolEnvironment } from './install-composer-project.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
 import { ConfigError, parseJson } from './schema-validate.mts';
@@ -588,14 +590,19 @@ export function updatePlan({ newer, advisories: found, linked = () => false }: {
 /** The manifest fields that Composer copies into a lock entry, in the order that Composer writes them. */
 const LOCK_METADATA = ['require', 'require-dev', 'conflict', 'provide', 'replace', 'suggest', 'type', 'extra', 'autoload', 'autoload-dev', 'bin', 'include-path', 'notification-url', 'license', 'authors', 'description', 'homepage', 'keywords', 'support', 'funding', 'abandoned', 'archive'];
 
+/** K439-2: the value that Composer writes into a lock for a manifest value; its license is a list of identifiers. */
+function lockValue(key: string, value: unknown): unknown {
+  return key === 'license' && typeof value === 'string' ? [value] : value;
+}
+
 /** The entry `entry` with the metadata fields of `manifest`: a field keeps its place, a missing one is dropped, and the name, the version, the dist, the source and the time stay. */
 function lockEntry(entry: Record<string, unknown>, manifest: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(entry)) {
     if (!LOCK_METADATA.includes(key)) next[key] = value;
-    else if (key in manifest) next[key] = manifest[key];
+    else if (key in manifest) next[key] = lockValue(key, manifest[key]);
   }
-  for (const key of LOCK_METADATA) if (!(key in next) && key in manifest) next[key] = manifest[key];
+  for (const key of LOCK_METADATA) if (!(key in next) && key in manifest) next[key] = lockValue(key, manifest[key]);
   return next;
 }
 
@@ -609,6 +616,7 @@ export function providerEntries(
   lockText: string,
   providers: ReadonlyMap<string, Record<string, unknown>>,
   manifest?: Record<string, unknown>,
+  written: ReadonlyMap<string, Record<string, unknown>> = new Map(),
 ): { text: string; rewritten: string[] } {
   const lock: unknown = JSON.parse(lockText);
   if (!isJsonObject(lock)) throw new Error('composer.lock holds no object');
@@ -629,7 +637,7 @@ export function providerEntries(
       if (!isJsonObject(entry) || typeof entry.name !== 'string') return entry;
       const manifest = providers.get(entry.name);
       if (manifest === undefined) return entry;
-      const next = lockEntry(entry, manifest);
+      const next = written.has(entry.name) ? composerForm(entry, written.get(entry.name) ?? {}) : lockEntry(entry, manifest);
       if (JSON.stringify(next) !== JSON.stringify(entry)) rewritten.add(entry.name);
       return next;
     });
@@ -637,32 +645,99 @@ export function providerEntries(
   return { text: rewritten.size ? `${JSON.stringify(lock, null, 4)}\n` : lockText, rewritten: [...rewritten] };
 }
 
+/**
+ * K439-2: the entry of Composer's own lock writer, with the fields that are the lock's own kept: the name, the version, the dist and the
+ * source of the tracked entry. Composer's key order and forms (a license list, the type) are the written ones.
+ */
+function composerForm(entry: Record<string, unknown>, written: Record<string, unknown>): Record<string, unknown> {
+  const kept = ['name', 'version', 'dist', 'source'];
+  const next: Record<string, unknown> = {};
+  for (const key of Object.keys(written)) {
+    if (key === 'transport-options' || key === 'time') continue;
+    next[key] = kept.includes(key) && key in entry ? entry[key] : written[key];
+  }
+  return next;
+}
+
+/**
+ * K439-2: the entries that Composer writes for the packages `packages` (name, version, folder of the provider): Composer locks a scratch
+ * project whose path repositories are the provider folders, offline, with its own writer (composer update --no-install).
+ */
+export function composerEntries(
+  packages: readonly { name: string; version: string; folder: string }[],
+  composer: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: Record<string, string> = {},
+): Map<string, Record<string, unknown>> {
+  const found = new Map<string, Record<string, unknown>>();
+  if (packages.length === 0) return found;
+  const scratch = mkdtempSync(path.join(tmpdir(), 'kit-composer-entries-'));
+  try {
+    const project = {
+      name: 'kit/entries',
+      version: '1.0.0',
+      // The platform that the consumer declares (its config.platform), so the entries resolve as they would for that consumer.
+      config: { platform },
+      require: Object.fromEntries(packages.map(item => [item.name, item.version])),
+      repositories: [{ packagist: false }, ...packages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }))],
+    };
+    writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(project, null, 4)}\n`);
+    // Its own home and cache, so that no global repository of the machine (packagist) is read: the entries come from the providers only.
+    const isolated = { ...env, COMPOSER_HOME: path.join(scratch, 'home'), COMPOSER_CACHE_DIR: path.join(scratch, 'cache'), COMPOSER_DISABLE_NETWORK: '1' };
+    const ran = spawnSync(composer, ['update', '--no-install', '--no-scripts', '--no-plugins', '--no-audit', '--no-interaction'], { cwd: scratch, env: isolated, encoding: 'utf8' });
+    if (ran.status !== 0) throw new Error(`composer update of the provider entries failed (${ran.status}): ${ran.stdout}${ran.stderr}`);
+    const lock: unknown = JSON.parse(readFileSync(path.join(scratch, 'composer.lock'), 'utf8'));
+    const list = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];
+    for (const entry of list) if (isJsonObject(entry) && typeof entry.name === 'string') found.set(entry.name, entry);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  return found;
+}
+
 /** K439-1: a directory of a release consumer (its locks are written by make release-consumer-lock only). */
 export function isReleaseConsumerDirectory(directory: string): boolean {
   return directory.split('/').includes('release-consumer');
 }
 
-/** The composer.json of each Composer package that a sibling checkout of the repository at `root` provides, by package name. */
-function siblingComposerManifests(root: string): Map<string, Record<string, unknown>> {
-  const manifests = new Map<string, Record<string, unknown>>();
+/** The composer.json and the folder of each Composer package that a sibling checkout of the repository at `root` provides, by package name. */
+function siblingComposerProviders(root: string): Map<string, { manifest: Record<string, unknown>; folder: string }> {
+  const found = new Map<string, { manifest: Record<string, unknown>; folder: string }>();
   for (const provider of providers(siblingCheckouts(root).checkouts, undefined, root).values()) {
     if (provider.ecosystem !== 'composer') continue;
     const manifest: unknown = JSON.parse(readFileSync(path.join(provider.folder, 'composer.json'), 'utf8'));
-    if (isJsonObject(manifest)) manifests.set(provider.name, manifest);
+    if (isJsonObject(manifest)) found.set(provider.name, { manifest, folder: provider.folder });
   }
-  return manifests;
+  return found;
 }
 
-/** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote. */
+/** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote (K439-2). */
 function rewriteProviderEntries(root: string, directories: readonly string[]): void {
-  const manifests = siblingComposerManifests(root);
+  const found = siblingComposerProviders(root);
+  const manifests = new Map([...found].map(([name, provider]) => [name, provider.manifest]));
+  // K439-2: the toolchain Composer of the checkout, as K432 runs it (COMPOSER_BIN names another one).
+  const composer = process.env.COMPOSER_BIN ?? composerCommand(root, 'make composer-provider-entries');
   for (const directory of new Set(directories)) {
     if (isReleaseConsumerDirectory(directory)) continue;
     const lock = path.join(root, directory, 'composer.lock');
     if (!existsSync(lock)) continue;
     const own = path.join(root, directory, 'composer.json');
     const manifest: unknown = existsSync(own) ? JSON.parse(readFileSync(own, 'utf8')) : undefined;
-    const { text, rewritten } = providerEntries(readFileSync(lock, 'utf8'), manifests, isJsonObject(manifest) ? manifest : undefined);
+    const lockText = readFileSync(lock, 'utf8');
+    const parsed: unknown = JSON.parse(lockText);
+    const listed: unknown[] = isJsonObject(parsed) ? ['packages', 'packages-dev'].flatMap((section): unknown[] => {
+      const list: unknown = parsed[section];
+      return Array.isArray(list) ? list : [];
+    }) : [];
+    const provided = listed.flatMap(entry => {
+      if (!isJsonObject(entry) || typeof entry.name !== 'string' || typeof entry.version !== 'string') return [];
+      const provider = found.get(entry.name);
+      return provider === undefined ? [] : [{ name: entry.name, version: entry.version, folder: provider.folder }];
+    });
+    const declared = isJsonObject(manifest) && isJsonObject(manifest.config) && isJsonObject(manifest.config.platform) ? manifest.config.platform : {};
+    const platform = Object.fromEntries(Object.entries(declared).filter((item): item is [string, string] => typeof item[1] === 'string'));
+    const written = composerEntries(provided, composer, toolEnvironment(root), platform);
+    const { text, rewritten } = providerEntries(lockText, manifests, isJsonObject(manifest) ? manifest : undefined, written);
     if (rewritten.length === 0) continue;
     writeFileSync(lock, text);
     say(`${path.posix.join(directory, 'composer.lock')}: rewrote the metadata of ${rewritten.join(', ')}`);

@@ -2,11 +2,14 @@
 // that the review found. The checkout is the fixture copy of tests/kit/checkout.mts; the registries are stubs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerCommand, composerEnvironment as toolingEnvironment } from '../../scripts/kit/install-composer-project.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
+import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -281,4 +284,73 @@ test('a release-consumer directory is never a lock that the provider entries rew
   assert.equal(isReleaseConsumerDirectory('tests/fixtures/release-consumer/composer'), true);
   assert.equal(isReleaseConsumerDirectory('tests/release-consumer/npm'), true);
   assert.equal(isReleaseConsumerDirectory('packages/php'), false);
+});
+
+// K439-2: an entry that Composer wrote keeps its form: a provider manifest that says the same thing changes nothing on a rerun.
+test('a rerun on a lock in Composer form changes nothing (K439-2)', () => {
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const composed = { name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.4' }, type: 'library', license: ['MIT'] };
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [composed], 'packages-dev': [] }, null, 4)}\n`;
+  const providers = new Map([['polyspec/orm', { name: 'polyspec/orm', type: 'library', license: 'MIT', require: { php: '>=8.4' } }]]);
+  const first = providerEntries(lock, providers);
+  assert.deepEqual(first.rewritten, [], 'the manifest license string is the lock array of Composer, so nothing is rewritten');
+  assert.equal(first.text, lock);
+});
+
+// K439-2: the entries are the ones Composer writes (its own lock writer, offline, on the consumer's declared platform). The real case: the
+// provider's manifest says php >=8.4, and only the tracked lock still holds the stale >=8.5. A rerun changes nothing; a provider that really
+// demands a PHP the consumer's platform lacks fails, naming both.
+test('the provider entries are Composer\'s own, and a rerun on its lock changes nothing (K439-2)', (t) => {
+  // The toolchain Composer of the checkout, as K432 runs it (K439-2); COMPOSER_BIN names another one.
+  const checkout = repositoryRoot();
+  let composer: string | undefined = process.env.COMPOSER_BIN;
+  try {
+    composer ??= composerCommand(checkout, 'the test of K439-2');
+  } catch {
+    composer = undefined;
+  }
+  if (composer === undefined || spawnSync(composer, ['--version']).status !== 0) {
+    t.skip('no Composer on this machine');
+    return;
+  }
+  const toolEnv = toolingEnvironment(checkout);
+  const platform = { php: '8.4.1' };
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-entries-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, 'orm');
+  mkdirSync(folder);
+  const writeManifest = (php: string) => writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', license: 'MIT', require: { php }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  writeManifest('>=8.4');
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const tracked = `${JSON.stringify({ 'content-hash': 'abc', packages: [{ name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.5' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const manifests = (): Map<string, Record<string, unknown>> => {
+    const manifest: unknown = JSON.parse(readFileSync(path.join(folder, 'composer.json'), 'utf8'));
+    return new Map([['polyspec/orm', isJsonObject(manifest) ? manifest : {}]]);
+  };
+  const packagesOf = (text: string): Record<string, unknown>[] => {
+    const parsed: unknown = JSON.parse(text);
+    const list: unknown = isJsonObject(parsed) ? parsed.packages : undefined;
+    return Array.isArray(list) ? list.filter(isJsonObject) : [];
+  };
+  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder }];
+  const first = providerEntries(tracked, manifests(), undefined, composerEntries(packages, composer, toolEnv, platform));
+  assert.deepEqual(first.rewritten, ['polyspec/orm']);
+  const once = { packages: packagesOf(first.text) };
+  assert.deepEqual(once.packages[0]?.dist, dist, 'the release dist stays');
+  assert.equal(once.packages[0]?.version, '0.0.18', 'the version stays');
+  assert.deepEqual(once.packages[0]?.require, { php: '>=8.4' }, 'the requirement is the manifest of the provider');
+  const again = providerEntries(first.text, manifests(), undefined, composerEntries(packages, composer, toolEnv, platform));
+  assert.deepEqual(again.rewritten, [], 'a rerun on the lock it wrote changes nothing');
+  assert.equal(again.text, first.text);
+  writeManifest('>=8.3');
+  const changed = providerEntries(first.text, manifests(), undefined, composerEntries(packages, composer, toolEnv, platform));
+  const twice = { packages: packagesOf(changed.text) };
+  assert.deepEqual(Object.keys(twice.packages[0] ?? {}), Object.keys(once.packages[0] ?? {}), 'the manifest change keeps the form of the entry');
+  assert.deepEqual(twice.packages[0]?.require, { php: '>=8.3' }, 'a manifest change changes exactly that field');
+  writeManifest('>=8.5');
+  assert.throws(
+    () => composerEntries(packages, composer, toolEnv, platform),
+    (error: unknown) => error instanceof Error && error.message.includes('php >=8.5') && error.message.includes('8.4.1'),
+    'a provider that demands a PHP the consumer lacks fails, naming both',
+  );
 });
