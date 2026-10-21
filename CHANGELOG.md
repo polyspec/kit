@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K404-1: the pre-commit hook runs the gates of `make land` on the staged tree of each commit on main and refuses only a finding that HEAD lacks, naming it; the pre-merge-commit hook refuses a merge commit on main, so main moves by commits and fast-forwards only (K404, K446, P10, P38). `make commit` runs those gates once, through that hook (K404-1).
 - K448-9 is done: its row is [o] in this commit; its change is the fix commit 76ac1d3f, whose red is 4a420f07 and whose green is the K448-9 tests of that commit (K448-9).
 - `make npm-install DIR=<project> CHECKOUTS="<package folder> ..."` forwards each given checkout to the tool, which links it in explicit mode, so a consumer outside the polyspec workspace (a temporary clone under TMPDIR) no longer runs npm ci of its lock. A repository root given instead, a folder with package folders under `packages/`, is refused and the refusal names those package folders; a folder with no package.json is refused too (K448-9). Red: `node --test --test-name-pattern=K448-9 tests/kit/npm-install.test.mts` ran npm ci of the lock with CHECKOUTS given, on 4a420f07.
 - K371-1-1 is done: its red is recorded on fb5dfef0 (the base 9177fbab with the test) and its green on the current tree; the entry above holds both (K371-1-1).
