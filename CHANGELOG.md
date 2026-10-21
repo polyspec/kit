@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The link of a fork keeps the version that the consumer pins: the link manifest gives the path repository of a fork checkout
+  the exact pin of the consumer's composer.json as its tag (2.6.0-p1 as v2.6.0-p1), not a release that the lock recorded
+  before the pin, so Composer takes the fork from forks/<name> in the partial update (K379-1).
 - runCommand of `./run-command` takes an option onLine(stream, line), which receives each complete line of a piped stdout or
   stderr as it arrives and the last line without its newline when the stream ends, so a caller can stream parallel commands
   with a prefix of each while the output is still collected under maxOutputBytes (K430-1).

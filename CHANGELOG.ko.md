@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f96aef702dcdaee04d1c8cf5f63749bbc02510d1342a933ba17d340658cb0a4d -->
+<!-- source-sha256: 4b4556f36f9069219904d042793be5625356f47013b5f468aa79d9296c6df6e0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- fork의 링크는 consumer가 고정한 버전을 지킨다: 링크 manifest는 fork checkout의 path repository에 lock이 고정 전에 기록한
+  release가 아니라 consumer composer.json의 정확한 핀을 태그로(2.6.0-p1을 v2.6.0-p1로) 주므로, Composer는 partial update에서
+  forks/<name>의 fork를 받는다(K379-1).
 - `./run-command`의 runCommand는 option onLine(stream, line)을 받는다. 이는 pipe된 stdout이나 stderr의 완성된 각 줄을
   도착하는 대로, stream이 끝날 때는 newline 없는 마지막 줄을 받으므로, 호출자는 출력을 maxOutputBytes 아래에서 계속 모으면서
   병렬 명령을 각자의 prefix와 함께 내보낼 수 있다(K430-1).
