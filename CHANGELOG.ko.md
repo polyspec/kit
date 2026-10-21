@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5db04ec71cd6505732b14975ca1358693b8b3bdd5532fe87d3e50c7707618cf1 -->
+<!-- source-sha256: d4ff74e79649ce88b9ee96cf7bc41e44eb57883ba323bd7a5f961a0368aa6d9b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -15,6 +15,8 @@
 - K441: `make land`와 `make worktree-prune`은 자기 worktree를 제거하기 전에 그 Makefile의 `WORKTREE_STOP` target을 실행하고, `make land`는 그 target이 실패하면 worktree를 남기고 target과 그 출력을 적어 실패한다. `make worktree-prune`은 제거된 worktree 폴더를 명령행에 적은 프로세스를 pid와 경로로 나열하며, 어떤 프로세스도 종료하지 않는다(K441). Red: `node --test --test-name-pattern=K441 tests/kit/land.test.mts`와 `node --test --test-name-pattern=K441 tests/kit/worktree-prune.test.mts`가 base에서 exit 1(서버가 멈추지 않고 프로세스가 나열되지 않음); green: `make item-test ID=K441`이 통과한다(테스트 3개, 건너뛰기 없음).
 - `make npm-install`은 주어진 checkout이 제공하는 패키지를 origin과 상관없이 연결하고, lock에만 transitive로 있는 패키지는 override로 연결하며, checkout이 없는 선언된 polyspec 패키지는 npm ci 대신 실패한다(K448-7).
 - K439-2: composer-provider-entries는 provider 항목을 Composer 자체의 lock writer로 오프라인에서, 소비자가 선언한 플랫폼으로 쓴다. 그래서 자기가 쓴 lock을 다시 실행해도 바뀌지 않고, 플랫폼보다 많이 요구하는 provider는 둘을 함께 적고 실패한다 (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts가 exit 1(manifest의 license 형식); green: make 아래에서 make item-test ID=K439-2가 통과한다(툴체인 Composer, 테스트 2개, 건너뛰기 없음). (K439-2).
+
+- K440-1: kit은 `link`가 각 Go module에 쓰는 `go.work`와 `go.work.sum`을 무시한다. kit 자신의 도구(scripts/kit/symbols/go)도 포함하므로, `link`가 K440의 workspace hook을 쓰기 전에 "not ignored by Git"으로 실패하지 않는다(K440-1). Red: `node --test --test-name-pattern=K440-1 tests/kit/link.test.mts`가 exit 1로 끝난다(scripts/kit/symbols/go/go.work가 무시되지 않음). green: `make item-test ID=K440-1`이 통과하고, checkout에서 `make link`가 hook을 쓴다.
 
 ### 2026-10-21 — install-packages가 make npm-install로 설치한다 (K448-8)
 

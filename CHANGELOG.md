@@ -15,6 +15,8 @@
 - `make npm-install` links the packages that a given checkout provides whatever its origin, and a package that the lock names only transitively, through an override, and a declared polyspec package with no checkout fails instead of npm ci (K448-7).
 - K439-2: composer-provider-entries writes the provider entries with Composer's own lock writer, offline, on the consumer's declared platform, so a rerun on the lock it wrote changes nothing and a provider that demands more than the platform fails naming both (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts exit 1 (the license form of the manifest); green: make item-test ID=K439-2 passes under make with the toolchain Composer (2 tests, none skipped). (K439-2).
 
+- K440-1: kit ignores the `go.work` and `go.work.sum` that `link` writes into each Go module, kit's own tools included (scripts/kit/symbols/go), so `link` no longer fails with "not ignored by Git" before it writes the workspace hook of K440 (K440-1). Red: `node --test --test-name-pattern=K440-1 tests/kit/link.test.mts` exits 1 (scripts/kit/symbols/go/go.work is not ignored); green: `make item-test ID=K440-1` passes, and `make link` in the checkout writes the hook.
+
 ### 2026-10-21 — install-packages installs with make npm-install (K448-8)
 
 - `install-packages` of `scripts/kit/kit-bootstrap.mk`, which every consumer's `make install` reaches, runs `make npm-install DIR=.` in place of a bare `npm ci` (K448-8), so a sibling-provided polyspec package that the lock pins from a release URL is linked from the start and no release is fetched. Red: `node --test tests/kit/install-packages.test.mts` fails on the base (the recipe runs `npm ci`); green: passes, and `tests/kit/npm-install.test.mts` passes.
