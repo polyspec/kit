@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e15497e0dd07a8994e1737d687e21c00add9282dddf1408eb1975135d1aadb6 -->
+<!-- source-sha256: 9af0e3db266862b5f5663d77e12fdfe0ad942cd46fdf3484c22d6855ae5169d5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main의 `make commit`은 `make land`처럼 gate의 finding을 읽고 kit 도구가 대괄호 이름으로 찍는 진행 줄은 빼므로, HEAD와 다른
+  진행 줄이 commit을 거부하지 않는다(K446-4).
 - `make land`와 main의 `make commit`은 각 gate를 `make -s`로 실행하므로, checkout마다 다른 make의 recipe 출력 줄을
   HEAD에 없는 finding으로 읽지 않는다(K446-3).
 - K439-1: composer-provider-entries는 각 composer.lock의 platform과 platform-overrides를 그 디렉터리의 composer.json에서 다시 계산하고, release-consumer lock은 건드리지 않는다 (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts가 exit 1(export와 재계산 없음); green: 파일 전체 15개 통과, K439-1 포함. (K439-1).

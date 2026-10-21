@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make commit` on main reads the findings of a gate as `make land` does, without the progress lines that a kit tool prints
+  with its name in brackets, so a progress line that differs from HEAD does not refuse a commit (K446-4).
 - `make land` and `make commit` on main run each gate with `make -s`, so the recipes that make echoes, which differ between
   checkouts, are not read as findings that HEAD lacks (K446-3).
 - K439-1: composer-provider-entries recomputes the platform and platform-overrides of each composer.lock from the composer.json of its directory, and leaves every release-consumer lock untouched (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts exit 1 (the export and the recomputation are missing); green: the file passes 15 of 15, including K439-1. (K439-1).

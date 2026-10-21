@@ -252,7 +252,7 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
       for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared)) && !existsSync(path.join(head, shared))) symlinkSync(path.join(folder, shared), path.join(head, shared));
       const base = spawnSync('make', ['--no-print-directory', '-s', gate], { cwd: head, encoding: 'utf8', maxBuffer: 1 << 28 });
       if (base.error) throw new Error(`make ${gate} could not start on HEAD: ${base.error.message}`);
-      const added = newLines(linesOf(`${result.stdout}${result.stderr}`, folder, folder), linesOf(`${base.stdout}${base.stderr}`, head, folder));
+      const added = newLines(findingLines(result, folder, folder), findingLines(base, head, folder));
       if (added.length === 0) { print(`${gate} fails on HEAD too, with no finding that HEAD lacks`); continue; }
       throw new Error(`the gate ${gate} has ${added.length} findings that HEAD lacks, so nothing is committed on main:\n${added.join('\n')}`);
     } finally {

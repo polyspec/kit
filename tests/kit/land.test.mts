@@ -324,3 +324,26 @@ test('a commit on main is not refused for a recipe line that make echoes on one 
   git(main, 'add', 'findings.txt');
   assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding still refuses the commit');
 });
+
+// K446-4: make commit on main reads the findings of a gate as land does, without the progress lines that a kit tool prints on stdout
+// with its name in brackets, so a progress line that differs between HEAD and the staged tree is not a finding (K446-4).
+test('a commit on main is not refused for a progress line that differs from HEAD (K446-4)', (t) => {
+  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@echo "[build-x] inputs $$(cat src/count.txt)"', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/count.txt': 'one\n',
+    'findings.txt': 'src/a.txt\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  put(main, { 'src/count.txt': 'two\n' });
+  git(main, 'add', 'src/count.txt');
+  assert.doesNotThrow(() => runCommitGates(main, ['src/count.txt'], () => {}), 'a progress line that differs from HEAD is not a finding');
+  put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
+  git(main, 'add', 'findings.txt');
+  assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding still refuses the commit');
+});
