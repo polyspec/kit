@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make land` and `make commit` on main read one key for a finding under the real and the logical path of a checkout, so an unchanged finding is not refused for the path it names (K446-2).
 - `make commit` on main compares each selected gate with HEAD, as `make land` does, and refuses only the findings that HEAD lacks, so a finding that HEAD already has does not block an unrelated change (K446-1).
 - A recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install,
   which links the sibling-provided polyspec packages from the start (K448-1).
