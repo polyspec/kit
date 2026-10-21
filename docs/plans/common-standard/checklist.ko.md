@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f6a3c70401ccc2c35ecfb837c86f5f213072d71e99ab5ed0c1be12ecd2d3935e -->
+<!-- source-sha256: 1674ff2e9da8b73179d49df0b7cddbb052a148edf252f085f193c6f508afe1a7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -349,3 +349,4 @@
 | K469 | land과 make commit의 스테이징 트리는 자신의 mise.toml을 체크아웃의 mise 상태에 신뢰로 기록하고 트리와 함께 그 신뢰를 제거하여, mise가 신뢰되지 않은 설정을 거부하지 않고 게이트를 실행한다 (K469). | scripts/kit/land.mts, scripts/kit/bootstrap/install-mise.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K469 -- tests/kit/land.test.mts` | [ ] |
 | K469-1 | install-tools는 심볼릭 링크인 var를 거부하여, worktree가 메인 체크아웃의 var를 쓰지 않고 각 체크아웃이 자신의 var/tools와 mise 상태를 유지한다 (K469-1). | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K469-1 -- tests/kit/install-tools.test.mts` | [ ] |
 | K470 | api-extractor 체인의 moderate sprintf-js 권고는 api-extractor와 ts-command-line의 어떤 릴리스에도 수정이 없고, api-extractor는 kit의 런타임 의존성(parity-symbols)이므로 제거 조건을 가진 문서화된 예외로 남는다 (K470). | config/dependency-policy.json, config/dependency-review.json | `node scripts/kit/run-tests.mts node --test-name-pattern=K470 -- tests/kit/dependency-review.test.mts` | [!] 원인: api-extractor 7.59.4(최신 게시 버전)와 ts-command-line 5.3.17(최신 게시 버전)은 여전히 argparse 1.x에 의존하고, 이는 GHSA-hp3w-g68c-fv3c가 있는 sprintf-js 1.0.3에 의존한다. 어떤 sprintf-js 버전도 이를 고치지 않으며, api-extractor 8.0.0은 잘못 게시된 DO NOT USE 버전이다. api-extractor는 런타임 의존성(parity-symbols)이어서 devDependency가 될 수 없다; 재시도: sprintf-js 버전이 GHSA-hp3w-g68c-fv3c를 고치거나, @microsoft/api-extractor와 @rushstack/ts-command-line이 argparse 1.x 의존을 끊을 때 |
+| K471 | dependency-policy 예외가 package.json overrides의 nested pin(중첩 복사본 고정)을 다루도록 한다: 호환성 사유, 제거 조건, 검사 명령을 함께 기록한다. 원인: check-dependency-policy는 manifest가 선언한 registry dependency에만 예외를 허용하므로, overrides로 고정한 중첩 복사본의 레코드를 둘 수 없다. | scripts/kit/check-dependency-policy.mts and its schema scripts/kit/schema/dependency-policy.schema.json, tests/kit/dependency-policy.test.mts | `node --test tests/kit/dependency-policy.test.mts` | [ ] |
