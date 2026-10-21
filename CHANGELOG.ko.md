@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 71ac3c5b9c3741aeab12b9880e3a39ff5020a56022833f2f4dd9f5d4ea92ea7e -->
+<!-- source-sha256: 4c86ac68d9b2adcff67c1261687bcbfdf66bcd52a5f6b6f6800d9bfa9c12570b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -21,6 +21,7 @@
 
 ### 2026-10-21 — 매핑된 package-dir prefix가 나열된 하위 패키지를 링크한다 (K398-3)
 
+- K448-5: K448-5를 항목으로 등록한다: cargo는 polyspec checkout의 형제 crate를 [patch] 경로로 처음부터 링크하므로 로컬 설치가 release crate를 물질화하지 않는다(K448의 cargo 부분). red와 green은 link 테스트와 함께 온다. (K448-5).
 - `scripts/kit/link.mts`가 `.`에 매핑된 prefix를 가진 정적 `package-dir`를 받아들인다. `setuptools.packages`에는 하위 패키지만 나열한다 (K398-3): 나열된 패키지는 자기가 시작하는 가장 긴 package-dir prefix로 풀리고, 편집 가능 wheel의 finder는 이름을 가장 긴 prefix로 매핑하며 prefix의 상위 패키지에는 자기 폴더가 없는 namespace 패키지를 준다. 그래서 `limepie.module.x.src`가 폴더로 풀리고 거기에는 아무것도 쓰지 않는다. 어떤 prefix도 매핑하지 않는 나열 패키지는 여전히 거부한다. Red: `node --test --test-name-pattern=K398-3 tests/kit/link.test.mts`가 f6e6f254a6b2에서 수정 전 실패(링크가 package-dir를 거부); green: 통과, 나머지 K398 테스트도 통과.
 - K379-2: 링크는 소비자나 연결된 provider가 요구하는 정확한 고정 버전(require와 require-dev)을 tag로 써서 fork를 연결하고, 두 고정 버전이 다르면 둘을 함께 적고 실패한다 (K379-2). Red: node --test --test-name-pattern=K379-2 tests/kit/link.test.mts가 exit 1(link manifest가 lock 버전 2.6.0을 씀); green: link 테스트 파일 82개 전부 통과, K379-2 포함. (K379-2).
 - main의 `make commit`은 `make land`처럼 gate의 finding을 읽고 kit 도구가 대괄호 이름으로 찍는 진행 줄은 빼므로, HEAD와 다른
