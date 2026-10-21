@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0b350b9d979aff9940dd158b6d1ff866143ed7248a7f7f94afed085f9d22d883 -->
+<!-- source-sha256: dab868c6c84e08c8453bbc899d7781dd9a6c6803d3a3e34cb1039709a43f0d58 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make composer-install DIR=<project>`는 composer install 대신 Composer 프로젝트를 설치한다. sibling checkout이 그 lock의
+  polyspec 패키지를 제공하는 곳에서는 composer.link.json과 composer.link.lock을 쓰고 그것으로 설치하므로, 링크된 패키지의
+  release metadata(php >=8.5를 요구하는 polyspec/orm 0.0.18 같은)를 읽지 않는다. CI처럼 sibling이 없으면 추적 lock으로
+  composer install을 실행한다. link는 새 프로젝트의 polyspec 패키지를 그 lock에서 읽는다(K432).
 - kit이 쓰는 추적 composer.lock은 sibling checkout이 제공하는 각 polyspec provider의 manifest(require, autoload와
   composer.json의 다른 field)를 담고 오래된 release의 metadata를 담지 않으며, 버전, dist, source는 그대로 둔다.
   `dependency-review UPDATE=1`이 이를 적용하고, `make composer-provider-entries`는 이것만으로 모든 추적 lock을 다시 쓰므로

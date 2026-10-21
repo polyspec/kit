@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- `make composer-install DIR=<project>` installs a Composer project in place of composer install: where sibling checkouts
+  provide polyspec packages of its lock, it writes composer.link.json and composer.link.lock and installs from them, so the
+  released metadata of a linked package (such as polyspec/orm 0.0.18 requiring php >=8.5) is never read; without a sibling, as
+  in CI, it runs composer install of the tracked lock; link reads the polyspec packages of a fresh project from its lock (K432).
 - A tracked composer.lock that kit writes holds the manifest of each polyspec provider that a sibling checkout provides
   (require, autoload and the other fields of its composer.json), not the metadata of an old release, while its version, dist
   and source stay: `dependency-review UPDATE=1` applies it, and `make composer-provider-entries` rewrites every tracked lock
