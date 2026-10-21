@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K476: Go workspace discovery, go.mod and go.work readers now run checkout mise shims with the checkout mise environment, so dependency-review does not invoke a managed Go shim with a bare process environment (K476).
+
 - K435-1: Go and PyPI targeted releases now have focused tests for registry validation and exact update planning, and a completeness test keeps coverage aligned with every target-release handler (K435-1).
 
 - K439-3-1: the K439-3 real-Composer test now uses the checkout's declared Composer and fails with the install-tools fix instead of skipping when it is unavailable; its verification runs through run-tests, which refuses the skipped-only case (K439-3-1).

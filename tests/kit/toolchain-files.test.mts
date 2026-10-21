@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { declaredRust, readGoMod } from '../../scripts/kit/toolchain-files.mts';
+import { declaredRust, goWorkFile, readGoMod } from '../../scripts/kit/toolchain-files.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 const GO_ENV = { ...process.env, GOTOOLCHAIN: 'local' };
@@ -21,6 +22,13 @@ function goShim(root: string) {
   chmodSync(shim, 0o755);
   return root;
 }
+
+test('go workspace discovery uses the checkout mise environment when the caller has none (K476)', () => {
+  const root = repositoryRoot();
+  const environment = { PATH: process.env.PATH ?? '' };
+  const workspace = goWorkFile(root, 'scripts/kit/symbols/go', environment);
+  assert.ok(workspace === null || path.isAbsolute(workspace), `unexpected go env GOWORK output ${JSON.stringify(workspace)}`);
+});
 
 test('a go.mod is read by go mod edit -json, so a comment after the go line reads as go reads it', (t) => {
   const root = goShim(toolchainCheckout(t, { 'packages/a/go.mod': 'module example.com/a\n\ngo 1.27.2 // the pin of kit\n\ntoolchain go1.27.2\n' }));

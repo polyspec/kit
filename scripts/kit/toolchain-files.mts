@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { execute } from './process.mts';
-import { toolCommand } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { readToml } from './toml.mts';
 import type { TomlTable } from './toml.mts';
 import { parseJson } from './schema-validate.mts';
@@ -42,15 +42,15 @@ type CargoPackage = { manifest_path: string; version: string; rust_version: stri
  * require and replace directives, each when present.
  */
 export const readGoMod = (root: string, file: string, env: NodeJS.ProcessEnv): GoMod =>
-  parseJson<GoMod>(output(file, '`go mod edit -json`', toolCommand(root, 'go'), ['mod', 'edit', '-json', path.join(root, file)], env), 'go-mod.schema.json', `go mod edit -json ${file}`);
+  parseJson<GoMod>(output(file, '`go mod edit -json`', toolCommand(root, 'go'), ['mod', 'edit', '-json', path.join(root, file)], toolsEnvironment(root, env)), 'go-mod.schema.json', `go mod edit -json ${file}`);
 
 /** The go.work file `file` (absolute) of `root` as `go work edit -json` prints it: the directories of its use directives, when present. */
 export const readGoWork = (root: string, file: string, env: NodeJS.ProcessEnv): { Use?: { DiskPath: string }[] } =>
-  parseJson<{ Use?: { DiskPath: string }[] }>(output(file, '`go work edit -json`', toolCommand(root, 'go'), ['work', 'edit', '-json', file], env), 'go-work.schema.json', `go work edit -json ${file}`);
+  parseJson<{ Use?: { DiskPath: string }[] }>(output(file, '`go work edit -json`', toolCommand(root, 'go'), ['work', 'edit', '-json', file], toolsEnvironment(root, env)), 'go-work.schema.json', `go work edit -json ${file}`);
 
 /** The go.work file that the go command uses in the directory `directory` of `root` (`go env GOWORK`), or null for none. */
 export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessEnv): string | null {
-  const file = output(path.posix.join(directory, 'go.mod'), '`go env GOWORK`', toolCommand(root, 'go'), ['env', 'GOWORK'], env, path.join(root, directory)).trim();
+  const file = output(path.posix.join(directory, 'go.mod'), '`go env GOWORK`', toolCommand(root, 'go'), ['env', 'GOWORK'], toolsEnvironment(root, env), path.join(root, directory)).trim();
   // go env prints nothing without a workspace and off when GOWORK=off turns it off.
   return file === '' || file === 'off' ? null : file;
 }

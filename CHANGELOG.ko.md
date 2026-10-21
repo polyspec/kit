@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b5b3b71906bd07456001dc0c7769ef6bd7ab614a1c86e909a3ae025459132a0b -->
+<!-- source-sha256: 0ac5638f972dd3bebd45d980c2fddd71719be0307fbe1ea001938d9888eb15b4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K476: Go workspace discovery와 go.mod/go.work reader는 checkout mise shim을 checkout의 mise environment로 실행하여, dependency-review가 managed Go shim을 가공되지 않은 process environment로 호출하지 않게 한다 (K476).
 
 - K435-1: Go와 PyPI targeted release에 registry 검증과 정확한 update plan의 focused test를 추가하고, completeness test가 모든 target-release handler의 coverage를 맞춘다 (K435-1).
 
