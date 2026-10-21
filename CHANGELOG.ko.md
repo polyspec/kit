@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fd35f9653bfa1a9050ee421b490083d87fdcfb3725ac15e9c2004547a3268e42 -->
+<!-- source-sha256: 8321400a7eea0ceeaa1dfb39c8903e0a1f6f27e3b586825d978794a0d7dd8048 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K468-2: provider에 version 선언이 없으면 오프라인 Composer provider-entry 해석은 sibling package의 exact version requirement를 사용한다. Composer가 strict requirement를 해석하고, 다시 쓴 tracked lock의 version 필드는 기존 값을 유지한다 (K468-2).
 
 - K468-1: consumer workspace와 sibling이 같은 package name을 제공하면 provider 탐색은 consumer의 own package를 유지한다. sibling이 duplicate-provider 오류를 일으키거나 소유권을 가져가지 않는다 (K468-1).
 

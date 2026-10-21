@@ -361,6 +361,39 @@ test('the provider entries are Composer\'s own, and a rerun on its lock changes 
   );
 });
 
+test('Composer provider entries use a sibling exact requirement for a path package while preserving the tracked lock version (K468-2)', (t) => {
+  const checkout = repositoryRoot();
+  const composer = composerOfCheckout(checkout, 'the test of K468-2');
+  const toolEnv = toolingEnvironment(checkout);
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-provider-exact-version-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const yaml = path.join(root, 'yaml');
+  const orm = path.join(root, 'orm');
+  mkdirSync(yaml);
+  mkdirSync(orm);
+  writeFileSync(path.join(yaml, 'composer.json'), JSON.stringify({ name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }));
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }));
+  const tracked = JSON.stringify({ packages: [
+    { name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'zip', url: 'https://example.invalid/yaml.zip' } },
+    { name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/orm.zip' } },
+  ], 'packages-dev': [] }, null, 4) + '\n';
+  const packages = [{ name: 'purrphp/yaml', version: '1.0.0', folder: yaml }, { name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const manifest = { name: 'probe/consumer', require: { 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
+  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock: tracked, folder: root });
+  assert.equal(written.get('purrphp/yaml')?.version, '1.0.0-p1', 'Composer resolves the path provider at the exact sibling requirement');
+  const providerManifests = new Map([
+    ['purrphp/yaml', { name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }],
+    ['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }],
+  ]);
+  const result = providerEntries(tracked, providerManifests, manifest, written);
+  const parsed: unknown = JSON.parse(result.text);
+  assert.ok(isJsonObject(parsed) && Array.isArray(parsed.packages));
+  const yamlEntry = parsed.packages.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml');
+  assert.ok(isJsonObject(yamlEntry));
+  assert.equal(yamlEntry.version, '1.0.0', 'the tracked lock version remains unchanged');
+  assert.ok(result.rewritten.includes('purrphp/yaml'), 'provider metadata is rewritten from Composer output');
+});
+
 // K435: UPDATE with --targets moves each dependency that the file names to its target version, in place of the latest stable release
 // of the registry; a dependency that the file does not name stays as it is, a target that the registry lacks fails, and RECORD states
 // the snapshot moment of the file as the review moment.

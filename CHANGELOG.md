@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K468-2: offline Composer provider-entry resolution uses an exact version required by a sibling package when a provider has no declared version; Composer resolves the strict requirement, while the rewritten tracked lock keeps its existing version field (K468-2).
+
 - K468-1: when a consumer workspace and a sibling both provide the same package name, provider discovery keeps the consumer's own package; the sibling no longer causes a duplicate-provider failure or takes ownership (K468-1).
 
 - K464-2: a sibling without a readable committed main, or a checkout without a readable committed HEAD, fails shared-pin evaluation as a finding instead of progress-only output (K464-2).

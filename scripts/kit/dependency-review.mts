@@ -752,6 +752,28 @@ function composerForm(entry: Record<string, unknown>, written: Record<string, un
   return next;
 }
 
+/** The exact Composer version requirement for `name`, when it is a strict version literal. */
+const STRICT_COMPOSER_VERSION = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/;
+
+/** The Composer version that represents one sibling provider in an offline path repository. */
+function providerResolutionVersion(item: { name: string; version: string; folder: string }, packages: readonly { name: string; version: string; folder: string }[], base?: { manifest: Record<string, unknown> }): string {
+  const own: unknown = JSON.parse(readFileSync(path.join(item.folder, 'composer.json'), 'utf8'));
+  if (isJsonObject(own) && typeof own.version === 'string') return own.version;
+  const pins = new Set<string>();
+  const readPins = (manifest: unknown) => {
+    if (!isJsonObject(manifest)) return;
+    for (const section of ['require', 'require-dev']) {
+      const requirements = isJsonObject(manifest[section]) ? manifest[section] : {};
+      const pin = requirements[item.name];
+      if (typeof pin === 'string' && STRICT_COMPOSER_VERSION.test(pin)) pins.add(pin);
+    }
+  };
+  readPins(base?.manifest);
+  for (const provider of packages) readPins(JSON.parse(readFileSync(path.join(provider.folder, 'composer.json'), 'utf8')));
+  if (pins.size > 1) throw new Error(`${item.name} has conflicting exact Composer requirements from its sibling packages: ${[...pins].join(', ')}`);
+  return [...pins][0] ?? item.version;
+}
+
 /**
  * K439-2: the entries that Composer writes for the packages `packages` (name, version, folder of the provider): Composer locks a scratch
  * project whose path repositories are the provider folders, offline, with its own writer (composer update --no-install).
@@ -767,13 +789,14 @@ export function composerEntries(
   if (packages.length === 0) return found;
   const scratch = mkdtempSync(path.join(tmpdir(), 'kit-composer-entries-'));
   try {
-    const providerRepositories = packages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }));
+    const resolvedPackages = packages.map(item => ({ ...item, version: providerResolutionVersion(item, packages, base) }));
+    const providerRepositories = resolvedPackages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }));
     const project = {
       name: 'kit/entries',
       version: '1.0.0',
       // The platform that the consumer declares (its config.platform), so the entries resolve as they would for that consumer.
       config: { platform },
-      require: Object.fromEntries(packages.map(item => [item.name, item.version])),
+      require: Object.fromEntries(resolvedPackages.map(item => [item.name, item.version])),
       repositories: [{ packagist: false }, ...providerRepositories],
     };
     // K439-3: with the consumer's manifest and tracked lock as the base, the transitive requirements come from the lock: Composer updates
