@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7a56d02d78e1e17105b045665cdf2c5e2389d2eefdc5eafbcd1f38228e1f5d25 -->
+<!-- source-sha256: 4356bd654b75441f022258fac20563fc7608c7cf64e3705d73ad994caee52385 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K464: `make dependency-policy-check`의 sibling 규칙은 direct dependency의 버전 불일치를 config/dependency-review.json의 reviewed target에서 벗어난 체크아웃만 보고하며, 둘 다 target에 있고 target이 다르면 둘 다 보고한다. sibling은 commit된 main에서 읽고, 읽을 수 없는 sibling은 not evaluated로 명시한다. finding 문장에는 review 날짜가 없고 날짜는 progress 출력에 남는다 (K464).
 - K455은 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K455 test 실행이고 green은 이 커밋의 K455 test입니다 (K455).
 - `config/rebuild.json`은 `make rebuild-check`가 읽는 23개 tool마다 class를 정하므로 검사는 main에서 통과하고, class가 없는 tool은 경로와 함께 실패합니다. composer-constraint 재구축 기록(`docs/rebuild/composer-constraint.md`)은 그 근거인 npm 검색을 이름으로 적습니다 (K455).
 - K404-1-1: main의 commit gate는 `make land`가 읽는 같은 sibling checkout으로 문서 check를 실행한다. index의 임시 snapshot은 시스템 임시 폴더가 아니라 checkout 옆에 놓이므로 `check-documents`는 sibling의 kit checklist를 land와 같이 해석하고, kit checklist가 갖지 않은 kit 항목을 이름으로 적는 row는 main에서 거부된다 (K404-1-1). red: `node --test --test-name-pattern=K404-1-1 tests/kit/git-hooks.test.mts`는 b0a99e5c에서 exit 1이다(main의 commit이 수락됨). green: `make item-test ID=K404-1-1`이 통과한다(1 test, none skipped) (K404-1-1).

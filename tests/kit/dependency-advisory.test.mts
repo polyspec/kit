@@ -37,7 +37,7 @@ test('an advisory without an exception fails the review and the gate', (t) => {
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows .*\. Fix: make dependency-review UPDATE=1\.$/m);
   const gated = gate(root);
   assert.equal(gated.status, 1);
-  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review of .+ found advisory RUSTSEC-2099-0001 /m);
+  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review record found advisory RUSTSEC-2099-0001 /m);
 });
 
 test('an advisory with an exception passes the review and the gate, which print it as accepted with its reason', (t) => {
@@ -59,7 +59,7 @@ test('an exception that matches no advisory of the review is stale and fails the
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-rust\/Cargo\.lock itoa: the advisory exception RUSTSEC-2099-0009 of config\/dependency-policy\.json is stale, the review found no such advisory\. Fix: remove the exception from config\/dependency-policy\.json\.$/m);
   const gated = gate(root);
   assert.equal(gated.status, 1);
-  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa: the review of .+ found no advisory RUSTSEC-2099-0009, and config\/dependency-policy\.json holds an exception for it\. Rule: an advisory exception names an advisory that the review of its lock found\. Fix: remove the exception from config\/dependency-policy\.json\.$/m);
+  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa: the review record found no advisory RUSTSEC-2099-0009, and config\/dependency-policy\.json holds an exception for it\. Rule: an advisory exception names an advisory that the review of its lock found\. Fix: remove the exception from config\/dependency-policy\.json\.$/m);
 });
 
 test('an advisory exception without its reason or removal condition fails the gate', (t) => {

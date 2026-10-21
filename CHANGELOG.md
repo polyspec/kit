@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K464: the sibling rule of `make dependency-policy-check` reports a version mismatch of a direct dependency only from the checkout that is off its reviewed target in config/dependency-review.json, and both checkouts when both are at their targets and the targets differ; it reads a sibling from its committed main, names a sibling it cannot read as not evaluated, and no finding text carries the review date, which stays in the progress output (K464).
 - K455 is done: its row is [o] in this commit, whose red is the K455 test run before the fix and whose green is the K455 test of this commit (K455).
 - `config/rebuild.json` names a class for each of the 23 tools that `make rebuild-check` reads, so the check passes on main; a tool without a class fails the check with its path. The composer-constraint rebuild record (`docs/rebuild/composer-constraint.md`) names the npm search that it rests on (K455).
 - K404-1-1: the commit gate on main reads the document checks over the same sibling checkouts that `make land` reads: its temporary snapshot of the index lies beside the checkout and not in the system temporary folder, so `check-documents` resolves the kit checklists of the sibling as land does, and a row that names a kit item the kit checklists lack is refused on main (K404-1-1). Red: `node --test --test-name-pattern=K404-1-1 tests/kit/git-hooks.test.mts` exits 1 on b0a99e5c (the commit on main is accepted); green: `make item-test ID=K404-1-1` passes (1 test, none skipped) (K404-1-1).

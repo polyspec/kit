@@ -121,7 +121,7 @@ test('the review records the git pin of the lock, and the gate fails when the re
   });
   const result = gate(root);
   assert.equal(result.status, 1);
-  assert.ok(findings(result).some(line => line.startsWith(`[dependency-policy] ${GIT_LOCK} pip-tools: the lock pins ${PIP_TOOLS_COMMIT} at 7.4.1, the review of`)), result.stderr);
+  assert.ok(findings(result).some(line => line.startsWith(`[dependency-policy] ${GIT_LOCK} pip-tools: the lock pins ${PIP_TOOLS_COMMIT} at 7.4.1, the review record`)), result.stderr);
 });
 
 test('the review names a newer PyPI release of a registry package with the uv regeneration', (t) => {

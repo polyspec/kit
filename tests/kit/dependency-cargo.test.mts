@@ -28,7 +28,7 @@ test('the review records the Cargo lock with its advisories, and the gate then n
   assert.deepEqual(record.locks.find(item => item.lock === 'packages/fixture-rust/Cargo.lock')?.advisories?.map(item => item.id), ['RUSTSEC-2099-0001', 'RUSTSEC-2099-0002']);
   const gated = gate(root);
   assert.equal(gated.status, 1);
-  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review of .+ found advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows /m);
+  assert.match(gated.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock itoa 1\.0\.15: the review record found advisory RUSTSEC-2099-0001 \(vulnerability\) itoa overflows /m);
 });
 
 test('the gate fails when a Cargo lock changed after its review', (t) => {
@@ -36,7 +36,7 @@ test('the gate fails when a Cargo lock changed after its review', (t) => {
   writeFileSync(path.join(root, 'packages/fixture-rust/Cargo.lock'), `${readFileSync(path.join(root, 'packages/fixture-rust/Cargo.lock'), 'utf8')}\n`);
   const result = gate(root);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock: the lock changed after the review of .+: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
+  assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-rust\/Cargo\.lock: the lock changed after its review: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
 });
 
 test('the review names the install command when cargo-audit is not installed', (t) => {

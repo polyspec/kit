@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
@@ -24,6 +25,9 @@ import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts
 import { known } from './known.mts';
 import { tree } from './tree.mts';
 
+/** A review record that reviews opis/json-schema of composer.json at `version` (the sibling rule reads the target from it, K464). */
+const reviewRecord = (version: string) => `${JSON.stringify({ schema: 1, comment: 'test record', reviewed: '2026-10-19T13:40:32.718Z', locks: [], dependencies: [{ ecosystem: 'composer', manifest: 'composer.json', package: 'opis/json-schema', version, latest: version }], vcs: [] }, null, 4)}\n`;
+
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
 test('the gate passes on the fixture and queries no registry', (t) => {
@@ -40,7 +44,7 @@ test('the gate fails on a lock changed without a review and names the file, the 
   appendFileSync(path.join(root, 'packages/fixture-php/composer.lock'), '\n');
   const result = gate(root);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: the lock changed after the review of .+: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
+  assert.match(result.stderr, /^\[dependency-policy\] packages\/fixture-php\/composer\.lock: the lock changed after its review: its sha256 is [0-9a-f]{64}, the review recorded [0-9a-f]{64}\./m);
 });
 
 // K281: the answer "[none matched]" of composer outdated is no version, so a review record that holds it as the latest fails.
@@ -166,7 +170,7 @@ test('while a project is linked the review record is compared with the versions 
   first.version = '9.9.9';
   first.latest = '9.9.9';
   writeFileSync(path.join(root, RECORD), `${JSON.stringify(record, null, 2)}\n`);
-  assert.match(gate(root).stderr, new RegExp(`${first.package.replace('/', '\\/')}: the lock holds [^,]+, the review of .+ recorded 9\\.9\\.9`), 'without a link the tracked lock is compared');
+  assert.match(gate(root).stderr, new RegExp(`${first.package.replace('/', '\\/')}: the lock holds [^,]+, the review record recorded 9\\.9\\.9`), 'without a link the tracked lock is compared');
   writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
   writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify({ ...lock, packages: lock.packages.map(item => (item.name === first.package ? { ...item, version: '9.9.9' } : item)) }));
   assert.doesNotMatch(gate(root).stderr, /the lock holds/, 'with a link the link lock is compared');
@@ -439,17 +443,19 @@ test('an npm advisory of a package that the lock does not hold at node_modules/<
 });
 
 test('a package that two sibling checkouts lock from different sources or versions is a finding (K378)', (t) => {
-  // A repository of a temporary directory with the files of `files`, all tracked.
+  // A repository of a temporary directory with the files of `files`, committed on main, as the sibling rule reads a sibling.
   const checkout = (name: string, files: Record<string, string>) => {
     const directory = mkdtempSync(path.join(tmpdir(), `${name}-`));
     t.after(() => removeSandbox(directory));
-    initRepository(directory);
+    initRepository(directory, '--initial-branch=main');
     for (const [file, text] of Object.entries(files)) {
       mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
       writeFileSync(path.join(directory, file), text);
     }
     const added = spawnSync('git', ['-C', directory, 'add', '.'], { encoding: 'utf8' });
     assert.equal(added.status, 0, added.stderr);
+    const committed = spawnSync('git', ['-C', directory, 'commit', '--quiet', '-m', 'base'], { encoding: 'utf8' });
+    assert.equal(committed.status, 0, committed.stderr);
     return directory;
   };
   const reference = 'a'.repeat(40);
@@ -458,25 +464,26 @@ test('a package that two sibling checkouts lock from different sources or versio
   const requiring = JSON.stringify({ name: 'example/orm', require: { 'opis/json-schema': '^2.6' } });
   const fork = 'https://github.com/example-orm/json-schema.git';
   const upstream = 'https://github.com/opis/json-schema.git';
-  const base = (directory: string) => path.basename(directory);
+  const record = reviewRecord('2.6.0');
 
-  // Both checkouts require opis/json-schema directly: the fork at v2.6.0-p1 and the upstream at 2.6.0 are a finding that names both locks.
-  const orm = checkout('kit-sibling-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)) });
-  const template = checkout('kit-sibling-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
-  const red = sharedPinFindings(orm, [template]);
+  // Both checkouts lock opis/json-schema at 2.6.0, the fork from one source and the upstream from another: a source mismatch at one
+  // version is a finding that names both locks, whatever the reviewed targets are (K464).
+  const orm = checkout('kit-sibling-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', fork)), 'config/dependency-review.json': record });
+  const template = checkout('kit-sibling-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)), 'config/dependency-review.json': record });
+  const red = sharedPinFindings(orm, [template]).findings;
   assert.equal(red.length, 1, JSON.stringify(red));
-  assert.match(red[0]?.problem ?? '', new RegExp(`${base(orm)}/composer\\.lock:\\d+ locks v2\\.6\\.0-p1 from ${fork}@`));
-  assert.match(red[0]?.problem ?? '', new RegExp(`${base(template)}/composer\\.lock:\\d+ locks 2\\.6\\.0 from ${upstream}@`));
+  assert.match(red[0]?.problem ?? '', new RegExp(`${path.basename(orm)}/composer\\.lock:\\d+ locks 2\\.6\\.0 from ${fork}@`));
+  assert.match(red[0]?.problem ?? '', new RegExp(`${path.basename(template)}/composer\\.lock:\\d+ locks 2\\.6\\.0 from ${upstream}@`));
 
   // The same version from the same source is no finding.
-  const same = checkout('kit-sibling-same', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)) });
-  assert.deepEqual(sharedPinFindings(orm, [same]), []);
+  const same = checkout('kit-sibling-same', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', fork)), 'config/dependency-review.json': record });
+  assert.deepEqual(sharedPinFindings(orm, [same]).findings, []);
 
   // A package that neither checkout requires directly is transitive, so its difference is no finding; and a lock under tests/
   // or fixtures/ is no lock of the checkout, so a fixture that pins another version is no finding either.
-  const transitiveOrm = checkout('kit-transitive-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '1.0.0', fork)) });
-  const transitiveTemplate = checkout('kit-transitive-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '2.0.0', upstream)), 'tests/fixtures/release/composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
-  assert.deepEqual(sharedPinFindings(transitiveOrm, [transitiveTemplate]), []);
+  const transitiveOrm = checkout('kit-transitive-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', fork), pinned('acme/transitive', '1.0.0', fork)), 'config/dependency-review.json': record });
+  const transitiveTemplate = checkout('kit-transitive-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', '2.6.0', fork), pinned('acme/transitive', '2.0.0', upstream)), 'config/dependency-review.json': record, 'tests/fixtures/release/composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
+  assert.deepEqual(sharedPinFindings(transitiveOrm, [transitiveTemplate]).findings, []);
 });
 
 // K458: a finding of a worktree names the checkout by its repository, not by its folder, so the text of a worktree <repo>-<name>-<id>
@@ -494,7 +501,9 @@ test('a finding names the repository of a worktree, not its folder (K458)', (t) 
   const fork = 'https://github.com/example-orm/json-schema.git';
   const upstream = 'https://github.com/opis/json-schema.git';
   writeFileSync(path.join(repo, 'composer.json'), requiring);
-  writeFileSync(path.join(repo, 'composer.lock'), lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)));
+  writeFileSync(path.join(repo, 'composer.lock'), lock(pinned('opis/json-schema', '2.6.0', fork)));
+  mkdirSync(path.join(repo, 'config'));
+  writeFileSync(path.join(repo, 'config/dependency-review.json'), reviewRecord('2.6.0'));
   const added = spawnSync('git', ['-C', repo, 'add', '.'], { encoding: 'utf8' });
   assert.equal(added.status, 0, added.stderr);
   const committed = spawnSync('git', ['-C', repo, 'commit', '--quiet', '-m', 'base'], { encoding: 'utf8' });
@@ -506,16 +515,93 @@ test('a finding names the repository of a worktree, not its folder (K458)', (t) 
   t.after(() => spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', worktree]));
   const template = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-finding-key-template-')));
   t.after(() => removeSandbox(template));
-  initRepository(template);
+  initRepository(template, '--initial-branch=main');
   writeFileSync(path.join(template, 'composer.json'), requiring);
   writeFileSync(path.join(template, 'composer.lock'), lock(pinned('opis/json-schema', '2.6.0', upstream)));
+  mkdirSync(path.join(template, 'config'));
+  writeFileSync(path.join(template, 'config/dependency-review.json'), reviewRecord('2.6.0'));
   assert.equal(spawnSync('git', ['-C', template, 'add', '.'], { encoding: 'utf8' }).status, 0);
+  assert.equal(spawnSync('git', ['-C', template, 'commit', '--quiet', '-m', 'base'], { encoding: 'utf8' }).status, 0);
 
-  const onMain = sharedPinFindings(repo, [template]).map(finding => finding.problem);
-  const inWorktree = sharedPinFindings(worktree, [template]).map(finding => finding.problem);
+  const onMain = sharedPinFindings(repo, [template]).findings.map(finding => finding.problem);
+  const inWorktree = sharedPinFindings(worktree, [template]).findings.map(finding => finding.problem);
   assert.equal(onMain.length, 1, JSON.stringify(onMain));
   assert.deepEqual(inWorktree, onMain, 'the finding of the worktree reads as the finding of main');
   assert.doesNotMatch(inWorktree[0] ?? '', /-x-K1/, 'the folder of the worktree is not named in the finding');
+});
+
+// K464: a version mismatch between sibling checkouts is reported only by the checkout that lags its reviewed target, and the sibling
+// side is the committed main of the sibling. A repository of a temporary directory whose main holds `files`, committed.
+const K464_REFERENCE = 'a'.repeat(40);
+const K464_UPSTREAM = 'https://github.com/opis/json-schema.git';
+const k464Lock = (version: string, url = K464_UPSTREAM) => `${JSON.stringify({ packages: [{ name: 'opis/json-schema', version, source: { type: 'git', url, reference: K464_REFERENCE }, dist: { type: 'zip', url: `${url}/zipball/${K464_REFERENCE}`, reference: K464_REFERENCE } }], 'packages-dev': [] }, null, 4)}\n`;
+const k464Requiring = JSON.stringify({ name: 'example/orm', require: { 'opis/json-schema': '^2.6' } });
+const committedMain = (t: TestContext, name: string, files: Record<string, string>, branch = 'main'): string => {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), `${name}-`)));
+  t.after(() => removeSandbox(directory));
+  initRepository(directory, `--initial-branch=${branch}`);
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+    writeFileSync(path.join(directory, file), text);
+  }
+  const added = spawnSync('git', ['-C', directory, 'add', '.'], { encoding: 'utf8' });
+  assert.equal(added.status, 0, added.stderr);
+  const committed = spawnSync('git', ['-C', directory, 'commit', '--quiet', '-m', 'base'], { encoding: 'utf8' });
+  assert.equal(committed.status, 0, committed.stderr);
+  return directory;
+};
+// The rule of a version mismatch (K464): a checkout reports it when its locked version is not its reviewed target, or when both are at
+// their targets and the targets differ, since the two reviews then disagree. Versions that agree are no version mismatch.
+const reportsVersion = (version: string, target: string, siblingVersion: string, siblingTarget: string) =>
+  version !== siblingVersion && (version !== target || (siblingVersion === siblingTarget && target !== siblingTarget));
+const DATE = /\d{4}-\d{2}-\d{2}/;
+
+for (const ownAtTarget of [true, false]) {
+  for (const siblingAtTarget of [true, false]) {
+    for (const targetsEqual of [true, false]) {
+      test(`a version mismatch is reported by the checkout off its target, not by one at it (K464): own at target ${ownAtTarget}, sibling at target ${siblingAtTarget}, targets equal ${targetsEqual}`, (t) => {
+        const ownTarget = '2.6.0';
+        const siblingTarget = targetsEqual ? '2.6.0' : '2.7.0';
+        const ownVersion = ownAtTarget ? ownTarget : '2.5.0';
+        const siblingVersion = siblingAtTarget ? siblingTarget : '2.4.0';
+        const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock(ownVersion), 'config/dependency-review.json': reviewRecord(ownTarget) });
+        const sibling = committedMain(t, 'kit-k464-sibling', { 'composer.json': k464Requiring, 'composer.lock': k464Lock(siblingVersion), 'config/dependency-review.json': reviewRecord(siblingTarget) });
+        const ownFindings = sharedPinFindings(own, [sibling]).findings;
+        const siblingFindings = sharedPinFindings(sibling, [own]).findings;
+        assert.equal(ownFindings.length, reportsVersion(ownVersion, ownTarget, siblingVersion, siblingTarget) ? 1 : 0, JSON.stringify(ownFindings));
+        assert.equal(siblingFindings.length, reportsVersion(siblingVersion, siblingTarget, ownVersion, ownTarget) ? 1 : 0, JSON.stringify(siblingFindings));
+        for (const finding of [...ownFindings, ...siblingFindings]) {
+          // A finding names the sibling and both reviewed targets, and no review date, which would make a finding new on every review.
+          assert.ok(finding.problem.includes(path.basename(own)) || finding.problem.includes(path.basename(sibling)), finding.problem);
+          assert.ok(finding.problem.includes(ownTarget) && finding.problem.includes(siblingTarget), finding.problem);
+          assert.doesNotMatch(finding.problem, DATE, finding.problem);
+        }
+      });
+    }
+  }
+}
+
+test('the sibling side is the committed main of the sibling, not its working tree (K464)', (t) => {
+  const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
+  const sibling = committedMain(t, 'kit-k464-sibling', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
+  // The working tree of the sibling holds an uncommitted lag; the committed main is at its target, so no finding.
+  writeFileSync(path.join(sibling, 'composer.lock'), k464Lock('2.5.0'));
+  assert.deepEqual(sharedPinFindings(own, [sibling]).findings, []);
+});
+
+test('a sibling whose committed main cannot be read prints not evaluated and no finding (K464)', (t) => {
+  const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.5.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
+  const noMain = committedMain(t, 'kit-k464-trunk', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.7.0'), 'config/dependency-review.json': reviewRecord('2.7.0') }, 'trunk');
+  const result = sharedPinFindings(own, [noMain]);
+  assert.deepEqual(result.findings, []);
+  assert.ok(result.progress.some(line => line.includes(path.basename(noMain)) && line.includes('not evaluated')), JSON.stringify(result.progress));
+});
+
+test('a source mismatch at one version is reported by both checkouts whatever their targets (K464)', (t) => {
+  const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0', 'https://github.com/example-orm/json-schema.git'), 'config/dependency-review.json': reviewRecord('2.6.0') });
+  const sibling = committedMain(t, 'kit-k464-sibling', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.6.0'), 'config/dependency-review.json': reviewRecord('2.7.0') });
+  assert.equal(sharedPinFindings(own, [sibling]).findings.length, 1);
+  assert.equal(sharedPinFindings(sibling, [own]).findings.length, 1);
 });
 
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.

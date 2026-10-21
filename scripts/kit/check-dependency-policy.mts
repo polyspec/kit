@@ -14,9 +14,10 @@ import { satisfies } from './composer-constraint.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
-import { ConfigError, readConfig, readConfigFindings } from './schema-validate.mts';
-import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmLock, readNpmManifest } from './manifests.mts';
-import type { ComposerPackage } from './manifests.mts';
+import { ConfigError, parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
+import { readComposerLock, readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
+import type { ComposerLock, ComposerManifest, ComposerPackage, NpmLock, NpmManifest } from './manifests.mts';
+import { fileAt, git, gitResult } from './git.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
@@ -376,13 +377,13 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     const actual = fileDigest(path.join(root, lock));
-    if (entry.sha256 !== actual) add('record', lock, `the lock changed after the review of ${record.reviewed}: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
+    if (entry.sha256 !== actual) add('record', lock, `the lock changed after its review: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
     for (const advisory of entry.advisories ?? []) {
       if (accepted.has(advisoryKey(lock, advisory.package, advisory.id))) continue;
       const fix = lockEcosystem(lock) === 'pypi'
         ? lockFix(lock, pythonLock(lock).createdBy, advisory.package)
         : `${UPDATE}, which updates the affected package and records the review`;
-      add('advisory', `${lock} ${advisory.package} ${advisoryRelease(advisory)}`, `the review of ${record.reviewed} found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
+      add('advisory', `${lock} ${advisory.package} ${advisoryRelease(advisory)}`, `the review record found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
     }
   }
   for (const lock of recordedLocks.keys()) if (!state.locks.includes(lock)) add('record', lock, 'the review record names a lock that the checkout does not review', REVIEW);
@@ -390,7 +391,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   for (const exception of accepted.values()) {
     const advisories = recordedLocks.get(exception.lock)?.advisories ?? [];
     if (!advisories.some(advisory => advisory.package === exception.package && advisory.id === exception.advisory)) {
-      add('staleAdvisory', `${exception.lock} ${exception.package}`, `the review of ${record.reviewed} found no advisory ${exception.advisory}, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
+      add('staleAdvisory', `${exception.lock} ${exception.package}`, `the review record found no advisory ${exception.advisory}, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
     }
   }
 
@@ -401,7 +402,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   for (const [key, item] of pinned) {
     const entry = reviewedPins.get(key);
     if (!entry) add('record', `${item.lock} ${item.package}`, 'the git package has no entry in the review record', REVIEW);
-    else if (pin(entry) !== pin(item)) add('record', `${item.lock} ${item.package}`, `the lock pins ${item.commitId} at ${item.requestedRevision}, the review of ${record.reviewed} recorded ${entry.commitId} at ${entry.requestedRevision}`, REVIEW);
+    else if (pin(entry) !== pin(item)) add('record', `${item.lock} ${item.package}`, `the lock pins ${item.commitId} at ${item.requestedRevision}, the review record recorded ${entry.commitId} at ${entry.requestedRevision}`, REVIEW);
   }
   for (const key of reviewedPins.keys()) if (!pinned.has(key)) add('record', key, 'the review record names a git package that no lock pins', REVIEW);
 
@@ -414,7 +415,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     if (entry.version !== dependency.version) {
-      add('record', subject, `the lock holds ${dependency.version ?? 'no version'}, the review of ${record.reviewed} recorded ${entry.version}`, REVIEW);
+      add('record', subject, `the lock holds ${dependency.version ?? 'no version'}, the review record recorded ${entry.version}`, REVIEW);
       continue;
     }
     // Composer chose the latest release under the declared minimum-stability of the manifest, so kit judges no Composer stability.
@@ -425,8 +426,8 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     // A linked package is judged by its link, not against the registry (K328).
     if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) continue;
     const outdated = older(dependency.ecosystem, entry.version, entry.latest);
-    if (outdated && !exceptions.has(key)) add('latest', subject, `${entry.version} is older than ${entry.latest}, the latest stable release at the review of ${record.reviewed}, and ${POLICY} holds no exception for it`, `${dependency.kind === 'lock' ? lockFix(dependency.lock, dependency.createdBy, dependency.package) : UPDATE}, or add an exception with its reason, removal condition and verification to ${POLICY}`);
-    if (!outdated && exceptions.has(key)) add('stale', subject, `the review of ${record.reviewed} found ${entry.version}, the latest stable release, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
+    if (outdated && !exceptions.has(key)) add('latest', subject, `${entry.version} is older than ${entry.latest}, the latest stable release at its review, and ${POLICY} holds no exception for it`, `${dependency.kind === 'lock' ? lockFix(dependency.lock, dependency.createdBy, dependency.package) : UPDATE}, or add an exception with its reason, removal condition and verification to ${POLICY}`);
+    if (!outdated && exceptions.has(key)) add('stale', subject, `the review record found ${entry.version}, the latest stable release, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
   }
   for (const key of recorded.keys()) if (!declared.has(key)) add('record', key, 'the review record names a dependency that no manifest declares', REVIEW);
   return findings;
@@ -449,22 +450,71 @@ export function acceptedAdvisories(root: string): string[] {
 // A Composer package of a lock with the source and the dist that Composer records for it.
 type SourcedPackage = ComposerPackage & { source?: { type: string; url: string; reference: string }; dist?: { type: string; url: string; reference?: string } };
 // A package that a lock of a checkout locks for a name the checkout requires directly: its ecosystem, its name (an npm lock key),
-// its version and source, and the lock and line of its entry.
-type Pin = { ecosystem: 'composer' | 'npm'; name: string; version: string; source: string; root: string; lock: string; line: number };
+// its package name, its version and source, the manifest and the lock of its entry, and the line of the entry.
+type Pin = { ecosystem: 'composer' | 'npm'; name: string; package: string; version: string; source: string; root: string; manifest: string; lock: string; line: number };
 
-// The folders of the manifests that install reads: the root, and the folder of each Composer manifest that the policy names.
-function installDirectories(root: string): string[] {
-  const policy = existsSync(path.join(root, POLICY)) ? readConfigFindings<Policy>(root, POLICY, 'dependency-policy.schema.json').value : undefined;
-  const folders = (policy?.composerPlatforms ?? []).map(platform => path.posix.dirname(platform.manifest));
-  return [...new Set(['.', ...folders].map(folder => path.posix.normalize(folder)))];
+/**
+ * The files of one checkout that the sibling rule reads: its working tree (workingSource), or the committed tree of a ref, such as
+ * the main branch of a sibling (committedSource, K464). `has` tells whether the source holds the file.
+ */
+type Source = {
+  root: string;
+  has(file: string): boolean;
+  text(file: string): string;
+  /** The tracked files whose base name is one of `names`. */
+  files(names: readonly string[]): string[];
+  /** The folders directly under `parent`. */
+  folders(parent: string): string[];
+  /** The file as T, validated against the schema file `schema`; a ConfigError names a file that is missing. */
+  json<T>(file: string, schema: string): T;
+};
+
+/** The working tree of the checkout `root`. */
+function workingSource(root: string): Source {
+  return {
+    root,
+    has: file => existsSync(path.join(root, file)),
+    text: file => readFileSync(path.join(root, file), 'utf8'),
+    files: names => trackedManifests(root, names),
+    folders: parent => (existsSync(path.join(root, parent)) ? readdirSync(path.join(root, parent), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => path.posix.join(parent, entry.name)) : []),
+    json<T>(file: string, schema: string): T {
+      return readConfig<T>(root, file, schema);
+    },
+  };
 }
 
-// The folders of a workspace pattern of package.json: a folder, or the folders directly under one that ends in /*.
-function workspaceFolders(root: string, pattern: string): string[] {
-  if (!pattern.endsWith('/*')) return [pattern];
-  const parent = pattern.slice(0, -'/*'.length);
-  if (!existsSync(path.join(root, parent))) return [];
-  return readdirSync(path.join(root, parent), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => path.posix.join(parent, entry.name));
+/**
+ * The committed tree of `ref` in the checkout `root`: the files that git lists there, read with git show, so a sibling is compared by
+ * what its main branch commits and not by its working tree (K464).
+ */
+function committedSource(root: string, ref: string): Source {
+  const listed = git(root, 'ls-tree', '-r', '-z', '--name-only', ref).split('\0').filter(file => file !== '');
+  const known = new Set(listed);
+  const has = (file: string) => known.has(file);
+  return {
+    root,
+    has,
+    text(file: string): string {
+      if (!has(file)) throw new ConfigError(`${file} is not in ${ref}`);
+      return fileAt(root, ref, file);
+    },
+    files: names => listed.filter(file => names.includes(path.posix.basename(file))),
+    folders(parent: string): string[] {
+      const prefix = parent === '.' ? '' : `${parent}/`;
+      return [...new Set(listed.filter(file => file.startsWith(prefix) && file.slice(prefix.length).includes('/')).map(file => `${prefix}${file.slice(prefix.length).split('/')[0]}`))].sort();
+    },
+    json<T>(file: string, schema: string): T {
+      if (!has(file)) throw new ConfigError(`${file} is missing in ${ref}; the repository declares it (schema ${schema} of kit)`);
+      return parseJson<T>(fileAt(root, ref, file), schema, `${ref}:${file}`);
+    },
+  };
+}
+
+// The folders of the manifests that install reads: the root, and the folder of each Composer manifest that the policy names.
+function installDirectories(source: Source): string[] {
+  const policy = source.has(POLICY) ? source.json<Policy>(POLICY, 'dependency-policy.schema.json') : undefined;
+  const folders = (policy?.composerPlatforms ?? []).map(platform => path.posix.dirname(platform.manifest));
+  return [...new Set(['.', ...folders].map(folder => path.posix.normalize(folder)))];
 }
 
 /**
@@ -472,26 +522,26 @@ function workspaceFolders(root: string, pattern: string): string[] {
  * judgedComposerFiles selects, and the dependencies, devDependencies and optionalDependencies of each package.json with those of
  * its workspaces. A requirement that only a lock holds is transitive and is no direct name.
  */
-function directNames(root: string, directories: readonly string[]): { composer: Set<string>; npm: Set<string> } {
+function directNames(source: Source, directories: readonly string[]): { composer: Set<string>; npm: Set<string> } {
   const composer = new Set<string>();
   const npm = new Set<string>();
   const addNpm = (file: string) => {
-    const json = readNpmManifest(root, file);
+    const json = source.json<NpmManifest>(file, 'npm-manifest.schema.json');
     for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies]) for (const name of Object.keys(field ?? {})) npm.add(name);
   };
   for (const directory of directories) {
-    const composerFile = judgedComposerFiles(root, directory).manifest;
-    if (existsSync(path.join(root, composerFile))) {
-      const json = readComposerManifest(root, composerFile);
+    const composerFile = judgedComposerFiles(source.root, directory, file => source.has(file)).manifest;
+    if (source.has(composerFile)) {
+      const json = source.json<ComposerManifest>(composerFile, 'composer-manifest.schema.json');
       for (const name of [...Object.keys(json.require ?? {}), ...Object.keys(json['require-dev'] ?? {})]) if (name.includes('/')) composer.add(name);
     }
     const npmFile = path.posix.join(directory, 'package.json');
-    if (existsSync(path.join(root, npmFile))) {
+    if (source.has(npmFile)) {
       addNpm(npmFile);
-      for (const workspace of readNpmManifest(root, npmFile).workspaces ?? []) {
-        for (const member of workspaceFolders(root, path.posix.join(directory, workspace))) {
+      for (const workspace of source.json<NpmManifest>(npmFile, 'npm-manifest.schema.json').workspaces ?? []) {
+        for (const member of workspaceFolders(source, path.posix.join(directory, workspace))) {
           const memberFile = path.posix.join(member, 'package.json');
-          if (existsSync(path.join(root, memberFile))) addNpm(memberFile);
+          if (source.has(memberFile)) addNpm(memberFile);
         }
       }
     }
@@ -499,78 +549,149 @@ function directNames(root: string, directories: readonly string[]): { composer: 
   return { composer, npm };
 }
 
-/**
- * The locks that install reads at the root of a checkout: the Composer lock that judgedComposerFiles selects (the link lock while
- * linked, K326-2) and the package-lock.json of each folder of installDirectories, when it is tracked. A lock under tests/ or a
- * fixtures/ folder is no lock of the checkout.
- */
-function installLocks(root: string, directories: readonly string[]): string[] {
-  const tracked = new Set(trackedManifests(root, ['composer.lock', 'package-lock.json']));
-  return directories
-    .flatMap((directory) => {
-      const judged = judgedComposerFiles(root, directory);
-      return [judged.lock, path.posix.join(directory, 'package-lock.json')].filter(file => tracked.has(file) || (judged.linked && file === judged.lock));
-    })
-    .filter(file => !/(^|\/)(tests|fixtures)\//.test(file));
+// The folders of a workspace pattern of package.json: a folder, or the folders directly under one that ends in /*.
+function workspaceFolders(source: Source, pattern: string): string[] {
+  if (!pattern.endsWith('/*')) return [pattern];
+  return source.folders(pattern.slice(0, -'/*'.length));
 }
 
 /**
- * The packages that the install locks of `root` lock for a name that the checkout requires directly. A polyspec package is
+ * The locks that install reads at the root of a checkout, each with the manifest that declares it: the Composer lock that
+ * judgedComposerFiles selects (the link lock while linked, K326-2) and the package-lock.json of each folder of installDirectories,
+ * when it is tracked. A lock under tests/ or a fixtures/ folder is no lock of the checkout.
+ */
+function installLocks(source: Source, directories: readonly string[]): { lock: string; manifest: string }[] {
+  const tracked = new Set(source.files(['composer.lock', 'package-lock.json']));
+  return directories
+    .flatMap((directory) => {
+      const judged = judgedComposerFiles(source.root, directory, file => source.has(file));
+      const composer = { lock: judged.lock, manifest: judged.manifest };
+      const npm = { lock: path.posix.join(directory, 'package-lock.json'), manifest: path.posix.join(directory, 'package.json') };
+      return [composer, npm].filter(entry => tracked.has(entry.lock) || (judged.linked && entry.lock === judged.lock));
+    })
+    .filter(entry => !/(^|\/)(tests|fixtures)\//.test(entry.lock));
+}
+
+/**
+ * The packages that the install locks of the checkout lock for a name that it requires directly. A polyspec package is
  * linked, not pinned across the checkouts. An npm package is taken at the top level of node_modules, the place of a direct requirement.
  */
-function directPins(root: string): Pin[] {
-  const directories = installDirectories(root);
-  const direct = directNames(root, directories);
+function directPins(source: Source): Pin[] {
+  const directories = installDirectories(source);
+  const direct = directNames(source, directories);
   const pins: Pin[] = [];
-  for (const lock of installLocks(root, directories)) {
+  for (const { lock, manifest } of installLocks(source, directories)) {
     const isComposer = lockEcosystem(lock) === 'composer';
     // The line of the first entry of each name, found in one pass over the lines of the lock.
     const entryLine = new Map<string, number>();
     const entry = isComposer ? /^\s*"name": "([^"]*)"/ : /^\s*"([^"]*)": \{$/;
-    readFileSync(path.join(root, lock), 'utf8').split('\n').forEach((text, index) => {
+    source.text(lock).split('\n').forEach((text, index) => {
       const found = entry.exec(text)?.[1];
       if (found !== undefined && !entryLine.has(found)) entryLine.set(found, index + 1);
     });
     if (isComposer) {
-      const locked = readComposerLock(root, lock);
+      const locked = source.json<ComposerLock>(lock, 'composer-lock.schema.json');
       const items: SourcedPackage[] = [...(locked.packages ?? []), ...(locked['packages-dev'] ?? [])];
       for (const item of items.filter(item => direct.composer.has(item.name) && !item.name.startsWith('polyspec/'))) {
-        const source = item.source ? `${item.source.url}@${item.source.reference}` : item.dist?.url ?? 'no source';
-        pins.push({ ecosystem: 'composer', name: item.name, version: item.version, source, root, lock, line: entryLine.get(item.name) ?? 0 });
+        const origin = item.source ? `${item.source.url}@${item.source.reference}` : item.dist?.url ?? 'no source';
+        pins.push({ ecosystem: 'composer', name: item.name, package: item.name, version: item.version, source: origin, root: source.root, manifest, lock, line: entryLine.get(item.name) ?? 0 });
       }
     } else {
-      for (const [key, locked] of Object.entries(readNpmLock(root, lock).packages ?? {})) {
+      const locked = source.json<NpmLock>(lock, 'npm-lock.schema.json');
+      for (const [key, pinned] of Object.entries(locked.packages ?? {})) {
         const name = key.slice('node_modules/'.length);
-        if (!key.startsWith('node_modules/') || name.includes('node_modules/') || !direct.npm.has(name) || locked.link === true || name.startsWith('@polyspec/')) continue;
-        pins.push({ ecosystem: 'npm', name: key, version: locked.version ?? '', source: locked.resolved ?? 'no resolved URL', root, lock, line: entryLine.get(key) ?? 0 });
+        if (!key.startsWith('node_modules/') || name.includes('node_modules/') || !direct.npm.has(name) || pinned.link === true || name.startsWith('@polyspec/')) continue;
+        pins.push({ ecosystem: 'npm', name: key, package: name, version: pinned.version ?? '', source: pinned.resolved ?? 'no resolved URL', root: source.root, manifest, lock, line: entryLine.get(key) ?? 0 });
       }
     }
   }
   return pins;
 }
 
+/** The direct pins of a checkout and the reviewed target of each package, by dependencyKey (K464). */
+type Side = { pins: Pin[]; targets: Map<string, string> };
+
+/** The direct pins of the source and the version that its review record (config/dependency-review.json) names for each one. */
+function sideOf(source: Source): Side {
+  const record = source.json<ReviewRecord>(RECORD, 'dependency-review.schema.json');
+  return { pins: directPins(source), targets: new Map(record.dependencies.map(entry => [dependencyKey(entry), entry.version])) };
+}
+
+/** The key of a pin in ReviewRecord.dependencies: its ecosystem, manifest and package. */
+const targetKey = (pin: Pin) => dependencyKey({ ecosystem: pin.ecosystem, manifest: pin.manifest, package: pin.package });
+
+/**
+ * Whether a checkout at `version`, reviewed at `target`, reports a version mismatch with a sibling at `siblingVersion`, reviewed at
+ * `siblingTarget` (K464): it reports when it is not at its target, and when both are at their targets and the targets differ, since
+ * the two reviews then disagree. A checkout at its target reports nothing for the pair, and no version mismatch is no finding.
+ */
+const reportsVersion = (version: string, target: string | undefined, siblingVersion: string, siblingTarget: string | undefined): boolean =>
+  version !== siblingVersion && (version !== target || (siblingVersion === siblingTarget && target !== siblingTarget));
+
+/** What the sibling rule found: its findings, the progress lines that name a sibling not evaluated, and the siblings it compared. */
+export type SharedPinReport = { findings: Finding[]; progress: string[]; compared: string[] };
+
 /**
  * The findings of the packages that `root` and one of its `siblings` both require directly and lock at another version or from
- * another source (K378). Only the lock of `root` is compared with the lock of each sibling; a package that one of them alone
- * locks, or that only a lock holds as a transitive requirement, is no finding. Each finding names both locks with the line of
- * their entries, the version and the source.
+ * another source (K378). The sibling side is its committed main (K464), and a sibling whose main cannot be read is named as not
+ * evaluated in the progress lines, never passed in silence. A version mismatch is reported by the checkout off its reviewed target
+ * only (reportsVersion), and a source mismatch at one version by both. A package that one of them alone locks, or that only a lock
+ * holds as a transitive requirement, is no finding. Each finding names its lock with the line of the entry, the version and the source.
  */
-export function sharedPinFindings(root: string, siblings: readonly string[]): Finding[] {
-  // The pins of the repository by ecosystem and name, so that each pin of a sibling finds its own pins at once.
-  const own = new Map<string, Pin[]>();
-  for (const pin of directPins(root)) own.set(`${pin.ecosystem} ${pin.name}`, [...(own.get(`${pin.ecosystem} ${pin.name}`) ?? []), pin]);
+export function sharedPinFindings(root: string, siblings: readonly string[]): SharedPinReport {
   const findings: Finding[] = [];
+  const progress: string[] = [];
+  const compared: string[] = [];
+  let own: Side;
+  try {
+    own = sideOf(workingSource(root));
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    progress.push(`[dependency-policy] ${repositoryName(root)}: the sibling rule is not evaluated: ${error.message}`);
+    return { findings, progress, compared };
+  }
+  // The pins of the repository by ecosystem and package, so that each pin of a sibling finds its own pins at once.
+  const ownByPackage = new Map<string, Pin[]>();
+  for (const pin of own.pins) ownByPackage.set(`${pin.ecosystem} ${pin.package}`, [...(ownByPackage.get(`${pin.ecosystem} ${pin.package}`) ?? []), pin]);
   // The repository is named, not its folder: a worktree of <repo> has the folder <repo>-<name>-<id>, and its finding must read as main's (K458).
   const label = (pin: Pin) => `${repositoryName(pin.root)}/${pin.lock}:${pin.line}`;
   for (const sibling of siblings) {
-    for (const b of directPins(sibling)) {
-      for (const a of own.get(`${b.ecosystem} ${b.name}`) ?? []) {
+    const name = repositoryName(sibling);
+    const main = gitResult(sibling, 'rev-parse', '--verify', '--quiet', 'refs/heads/main');
+    if (main.error) throw main.error;
+    if (main.status !== 0) {
+      progress.push(`[dependency-policy] sibling ${name}: not evaluated: it has no main branch whose committed HEAD is read`);
+      continue;
+    }
+    let other: Side;
+    try {
+      other = sideOf(committedSource(sibling, 'refs/heads/main'));
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      progress.push(`[dependency-policy] sibling ${name}: not evaluated: ${error.message}`);
+      continue;
+    }
+    compared.push(name);
+    for (const b of other.pins) {
+      for (const a of ownByPackage.get(`${b.ecosystem} ${b.package}`) ?? []) {
         if (a.version === b.version && a.source === b.source) continue;
-        findings.push({ rule: 'sharedPin', subject: a.name, problem: `both checkouts require it directly and lock it from different sources or at different versions: ${label(a)} locks ${a.version} from ${a.source}, and ${label(b)} locks ${b.version} from ${b.source}`, fix: 'lock the package at one version from one source in both checkouts' });
+        if (a.version !== b.version) {
+          const ownTarget = own.targets.get(targetKey(a));
+          const siblingTarget = other.targets.get(targetKey(b));
+          if (!reportsVersion(a.version, ownTarget, b.version, siblingTarget)) continue;
+          const offTarget = a.version !== ownTarget;
+          const problem = offTarget
+            ? `${a.name} is locked at ${a.version} in ${a.lock} of ${repositoryName(a.root)}, not at its reviewed target ${ownTarget ?? 'none recorded'}; sibling ${name} locks ${b.version} and reviews ${siblingTarget ?? 'none recorded'}`
+            : `${a.name} is locked at its reviewed target ${a.version} in ${repositoryName(a.root)}, and sibling ${name} is locked at its reviewed target ${b.version}: the two reviews disagree (${repositoryName(a.root)} reviews ${ownTarget}, ${name} reviews ${siblingTarget ?? 'none recorded'})`;
+          const fix = offTarget ? `lock ${a.name} at ${ownTarget ?? 'its reviewed target'} in ${a.lock}, or review it with ${REVIEW}` : `review ${a.name} at one version in both checkouts (${REVIEW})`;
+          findings.push({ rule: 'sharedPin', subject: a.name, problem, fix });
+          continue;
+        }
+        findings.push({ rule: 'sharedPin', subject: a.name, problem: `both checkouts require it directly and lock it at one version from different sources: ${label(a)} locks ${a.version} from ${a.source}, and ${label(b)} locks ${b.version} from ${b.source}`, fix: 'lock the package from one source in both checkouts' });
       }
     }
   }
-  return findings;
+  return { findings, progress, compared };
 }
 
 /** The line of a finding. */
@@ -584,13 +705,15 @@ function main(): void {
   }
   // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
   const root = args.length ? path.resolve(present(args[1], 'args[1]')) : repositoryRoot();
-  // The locks of the sibling checkouts beside the repository are compared with its own; without a sibling, as in CI, nothing is compared.
-  const siblings = siblingCheckouts(root).checkouts;
-  const findings = [...check(root), ...sharedPinFindings(root, siblings)];
+  // The checkouts beside the repository are compared with its own by their committed main; without a sibling, as in CI, nothing is compared.
+  const { checkouts: siblings } = siblingCheckouts(root);
+  const shared = sharedPinFindings(root, siblings);
+  const findings = [...check(root), ...shared.findings];
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);
+  for (const line of shared.progress) process.stdout.write(`${line}\n`);
   if (siblings.length === 0) process.stdout.write(`[dependency-policy] no sibling checkout beside ${root}: compared no lock across checkouts\n`);
-  else process.stdout.write(`[dependency-policy] compared the direct pins of the install locks of this checkout with ${siblings.length} sibling ${siblings.length === 1 ? 'checkout' : 'checkouts'}: ${siblings.map(checkout => repositoryName(checkout)).join(', ')}\n`);
+  else process.stdout.write(`[dependency-policy] compared the direct pins of the install locks of this checkout with the committed main of ${shared.compared.length} of ${siblings.length} sibling ${siblings.length === 1 ? 'checkout' : 'checkouts'}: ${shared.compared.join(', ') || 'none'}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);

@@ -13,9 +13,12 @@ export const LINK_LOCK = 'composer.link.lock';
 /** The Composer files that the rules judge for the project in `directory` (relative to `root`): their paths and whether it is linked. */
 export type JudgedComposerFiles = { manifest: string; lock: string; linked: boolean };
 
-/** The Composer manifest and lock that the rules judge for the project in `directory` of `root`, linked or not (K326-2). */
-export function judgedComposerFiles(root: string, directory: string): JudgedComposerFiles {
-  const linked = existsSync(path.join(root, directory, LINK_LOCK));
+/**
+ * The Composer manifest and lock that the rules judge for the project in `directory` of `root`, linked or not (K326-2). `present`
+ * tells whether a file (relative to `root`) exists in the source that is judged; by default the working tree of `root` (K464).
+ */
+export function judgedComposerFiles(root: string, directory: string, present: (file: string) => boolean = file => existsSync(path.join(root, file))): JudgedComposerFiles {
+  const linked = present(path.posix.join(directory, LINK_LOCK));
   return linked
     ? { manifest: path.posix.join(directory, LINK_MANIFEST), lock: path.posix.join(directory, LINK_LOCK), linked }
     : { manifest: path.posix.join(directory, 'composer.json'), lock: path.posix.join(directory, 'composer.lock'), linked };
