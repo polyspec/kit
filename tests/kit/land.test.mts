@@ -3,11 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, linesOf, machineListing, newFindings, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, machineListing, newFindings, runCommitGates, trustStagedTree, worktreeProcesses } from '../../scripts/kit/land.mts';
 import type { GateRun } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -621,4 +621,24 @@ test('a gate that fails with no output on the candidate and on HEAD fails naming
 test('a gate that fails with the same findings on HEAD still passes as failing on HEAD too (K474)', () => {
   const finding = 'src/a.ts:1: bad\n';
   assert.equal(newFindings(process.cwd(), gateRun(1, finding), gateRun(1, finding)), undefined);
+});
+
+// K469: the staged tree of a commit on main is trusted by mise in the mise state of its checkout, and that trust is removed with
+// the tree, so the gates run there instead of mise refusing the untrusted mise.toml of the tree. The mise of the checkout is a stub
+// that records each call with the state directory it runs with, so the test reads the trust that the procedure records.
+test('the staged tree trusts its mise.toml in the mise state of its checkout and untrusts it when removed (K469)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const folder = path.join(parent, 'repo');
+  initRepository(folder, '--initial-branch=main');
+  const calls = path.join(parent, 'mise-calls.log');
+  put(folder, { 'var/tools/mise-release/mise/bin/mise': `#!/bin/sh\necho "$* $MISE_STATE_DIR" >> '${calls}'\n` });
+  chmodSync(path.join(folder, 'var/tools/mise-release/mise/bin/mise'), 0o755);
+  const staged = path.join(parent, 'staged');
+  put(staged, { 'mise.toml': '[tools]\n' });
+  trustStagedTree(folder, staged, false);
+  trustStagedTree(folder, staged, true);
+  const config = path.join(staged, 'mise.toml');
+  const state = path.join(folder, 'var/tools/mise/state');
+  assert.deepEqual(readFileSync(calls, 'utf8').trim().split('\n'), [`trust ${config} ${state}`, `trust --untrust ${config} ${state}`]);
 });

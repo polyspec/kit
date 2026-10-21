@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K469 is done: its row is [o] in this commit, whose red is the K469 test run with the fix stashed (the staged tree has no trust of its mise.toml, so mise refuses it) and whose green is the K469 test of this commit (K469). The staged tree of a commit on main or of land trusts its mise.toml in the mise state of its checkout, and removes that trust before the tree is removed, so the gates run there instead of mise refusing the untrusted config.
 - K474 is done: its row is [o] in this commit, whose red is the K474 test run with the fix stashed (a gate whose baseline failed with `Error 127` passed as failing on HEAD too) and whose green is the K474 test of this commit (K474). A gate run that fails for an environment reason (a signal, `Error 126` or `Error 127`, or no finding line) is refused with its own output, and it is never compared with a baseline.
 - K454 is done: its row is [o] in this commit, whose red is the K454 test run with the fix stashed and whose green is the K454 test of this commit (K454).
 - A node file that ends at its deadline with a test still running stops the child processes that its tests started, a plain child and one that leads a process group of its own, before it exits (K454). `stopGroup` stops the descendants of the run outside its group the same way, before it signals the group, since a descendant that leads its own group is reparented to launchd once the group leader ends (K454).

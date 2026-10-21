@@ -18,6 +18,8 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { miseEnvironment } from './bootstrap/install-mise.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
 import { DECLARATION, importGraph, makeDatabase, select } from './owner-check.mts';
@@ -346,7 +348,10 @@ const endOf = (run: GateRun) => (run.result.status === null ? `ended with the si
 function temporaryTree(folder: string, treeish: string): { dir: string; remove: () => void } {
   const dir = mkdtempSync(path.join(path.dirname(folder), `.${path.basename(folder)}-commit-gate-`));
   let added = false;
+  let trusted = false;
   const remove = () => {
+    // The trust goes first, while the mise.toml of the tree still exists, so no entry of trusted-configs outlives the tree (K469).
+    if (trusted) trustStagedTree(folder, dir, true);
     if (added) gitIn(folder, 'worktree', 'remove', '--force', dir);
     rmSync(dir, { recursive: true, force: true });
   };
@@ -360,7 +365,30 @@ function temporaryTree(folder: string, treeish: string): { dir: string; remove: 
     throw error;
   }
   for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared))) symlinkSync(path.join(folder, shared), path.join(dir, shared));
+  try {
+    trustStagedTree(folder, dir, false);
+  } catch (error) {
+    remove();
+    throw error;
+  }
+  trusted = true;
   return { dir, remove };
+}
+
+/**
+ * Trusts the mise.toml of the staged tree `dir` in the mise state of the checkout `folder` with the mise of the checkout (K469), or
+ * removes that trust with `untrust`. The state is the checkout's, which its shims read, so mise runs the gates of the tree instead of
+ * refusing its untrusted config. A tree without a mise.toml has nothing to trust.
+ */
+export function trustStagedTree(folder: string, dir: string, untrust: boolean): void {
+  const config = path.join(dir, 'mise.toml');
+  if (!existsSync(config)) return;
+  const environment: NodeJS.ProcessEnv = { ...process.env, ...miseEnvironment(folder) };
+  delete environment.MISE_GLOBAL_CONFIG_FILE;
+  const args = untrust ? ['trust', '--untrust', config] : ['trust', config];
+  const result = spawnSync(toolsPath(folder, 'mise-release', 'mise', 'bin', 'mise'), args, { cwd: dir, env: environment, encoding: 'utf8' });
+  if (result.error) throw new Error(`mise ${args.join(' ')} could not run in ${folder}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`mise ${args.join(' ')} failed in ${folder}: ${result.stdout}${result.stderr}`);
 }
 
 /**
