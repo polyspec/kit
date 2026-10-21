@@ -6,6 +6,10 @@
 ## Unreleased
 
 - K439-2: composer-provider-entries writes the provider entries with Composer's own lock writer, offline, on the consumer's declared platform, so a rerun on the lock it wrote changes nothing and a provider that demands more than the platform fails naming both (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts exit 1 (the license form of the manifest); green: make item-test ID=K439-2 passes under make with the toolchain Composer (2 tests, none skipped). (K439-2).
+
+### 2026-10-21 — install-packages installs with make npm-install (K448-8)
+
+- `install-packages` of `scripts/kit/kit-bootstrap.mk`, which every consumer's `make install` reaches, runs `make npm-install DIR=.` in place of a bare `npm ci` (K448-8), so a sibling-provided polyspec package that the lock pins from a release URL is linked from the start and no release is fetched. Red: `node --test tests/kit/install-packages.test.mts` fails on the base (the recipe runs `npm ci`); green: passes, and `tests/kit/npm-install.test.mts` passes.
 - `make composer-install` and `make npm-install` run online, as every install target of kit.mk does, so a consumer that
   exports COMPOSER_DISABLE_NETWORK or npm_config_offline for its checks still installs the third-party packages of its lock (K448-6).
 - `make npm-install DIR=<project>` installs a consumer's npm packages in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, through a temporary manifest, with no release fetched and no tracked file written (K448-2).
