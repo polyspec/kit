@@ -286,6 +286,20 @@ test('a release-consumer directory is never a lock that the provider entries rew
   assert.equal(isReleaseConsumerDirectory('packages/php'), false);
 });
 
+// The Composer that the checkout declares in mise.toml (K439-2): make install-tools installs it. A missing or unrunnable one throws and
+// names make install-tools, so a test that needs it fails instead of skipping.
+function composerOfCheckout(checkout: string, user: string): string {
+  let composer: string;
+  try {
+    composer = composerCommand(checkout, user);
+  } catch (error) {
+    throw new Error(`${user} needs the Composer of mise.toml, which make install-tools installs: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+  const version = spawnSync(composer, ['--version'], { encoding: 'utf8' });
+  if (version.error || version.status !== 0) throw new Error(`${user}: ${composer} --version failed, so run make install-tools: ${version.error?.message ?? version.stderr.trim()}`);
+  return composer;
+}
+
 // K439-2: an entry that Composer wrote keeps its form: a provider manifest that says the same thing changes nothing on a rerun.
 test('a rerun on a lock in Composer form changes nothing (K439-2)', () => {
   const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
@@ -301,18 +315,10 @@ test('a rerun on a lock in Composer form changes nothing (K439-2)', () => {
 // provider's manifest says php >=8.4, and only the tracked lock still holds the stale >=8.5. A rerun changes nothing; a provider that really
 // demands a PHP the consumer's platform lacks fails, naming both.
 test('the provider entries are Composer\'s own, and a rerun on its lock changes nothing (K439-2)', (t) => {
-  // The toolchain Composer of the checkout, as K432 runs it (K439-2); COMPOSER_BIN names another one.
+  // The Composer that the checkout declares in mise.toml, which make install-tools installs (K439-2). A missing one fails the test and
+  // names make install-tools; a skip is no verification.
   const checkout = repositoryRoot();
-  let composer: string | undefined = process.env.COMPOSER_BIN;
-  try {
-    composer ??= composerCommand(checkout, 'the test of K439-2');
-  } catch {
-    composer = undefined;
-  }
-  if (composer === undefined || spawnSync(composer, ['--version']).status !== 0) {
-    t.skip('no Composer on this machine');
-    return;
-  }
+  const composer = composerOfCheckout(checkout, 'the test of K439-2');
   const toolEnv = toolingEnvironment(checkout);
   const platform = { php: '8.4.1' };
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-entries-')));
