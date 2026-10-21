@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- runCommand of `./run-command` takes an option onLine(stream, line), which receives each complete line of a piped stdout or
+  stderr as it arrives and the last line without its newline when the stream ends, so a caller can stream parallel commands
+  with a prefix of each while the output is still collected under maxOutputBytes (K430-1).
 - A parity runner or symbol extractor whose tool the checkout lacks reports it as the error of its run, an R3 or R1 finding
   that names the tool and run make install, instead of ending parity-check and parity-declarations-check with an uncaught
   error, which K393-1 had caused in a checkout without python3 (K393-2).

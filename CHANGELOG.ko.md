@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1940f407725776635471910f5933e1326123ad347107741018f6c2858316e820 -->
+<!-- source-sha256: f96aef702dcdaee04d1c8cf5f63749bbc02510d1342a933ba17d340658cb0a4d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `./run-command`의 runCommand는 option onLine(stream, line)을 받는다. 이는 pipe된 stdout이나 stderr의 완성된 각 줄을
+  도착하는 대로, stream이 끝날 때는 newline 없는 마지막 줄을 받으므로, 호출자는 출력을 maxOutputBytes 아래에서 계속 모으면서
+  병렬 명령을 각자의 prefix와 함께 내보낼 수 있다(K430-1).
 - checkout에 도구가 없는 parity runner나 symbol extractor는 그것을 실행의 오류, 즉 도구와 run make install을 적는 R3나 R1
   finding으로 보고하며, K393-1 이후 python3가 없는 checkout에서 그랬듯 parity-check와 parity-declarations-check를 잡히지
   않은 오류로 끝내지 않는다(K393-2).
