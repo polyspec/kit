@@ -2,11 +2,11 @@
 // changed paths of the branch select pass, then removes its branch and worktree; a refused branch leaves main unchanged.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -287,4 +287,17 @@ test('a commit on main passes when the gate fails only on findings that HEAD alr
   put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
   git(main, 'add', 'findings.txt');
   assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding refuses the commit');
+});
+
+// K446-2: a finding that a checkout prints under its real path (/private/var) and under its logical path (/var) is one finding, so a
+// gate that fails the same way on main and on the branch is not refused for the path it names (K446-2).
+test('the findings of a gate read one key under the real and the logical path of one checkout (K446-2)', (t) => {
+  // A folder outside the temporary folder, reached through a symbolic link: the temporary folder is read as <tmp> in any case.
+  const target = realpathSync(mkdtempSync(path.join(process.cwd(), 'var', 'k446-2-')));
+  const logicalFolder = `${target}-link`;
+  symlinkSync(target, logicalFolder);
+  t.after(() => { rmSync(logicalFolder, { force: true }); rmSync(target, { recursive: true, force: true }); });
+  const logical = linesOf(`finding: ${logicalFolder}/src/a.txt`, logicalFolder, logicalFolder);
+  const real = linesOf(`finding: ${target}/src/a.txt`, logicalFolder, logicalFolder);
+  assert.equal(real[0]?.key, logical[0]?.key, 'the real and the logical path of one file give one key');
 });

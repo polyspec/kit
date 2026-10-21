@@ -97,10 +97,14 @@ const TEMPORARY = new RegExp(`(?:${[...new Set([tmpdir(), realpathSync(tmpdir())
  * worktree replaced by `root`, every path inside the temporary folder of the system by <tmp>, every run of digits by #; blank
  * lines are dropped.
  */
-function linesOf(output: string, folder: string, root: string): { line: string; key: string }[] {
+export function linesOf(output: string, folder: string, root: string): { line: string; key: string }[] {
+  // The checkout of the branch, of main and of a temporary worktree, under their own paths and under their real paths (/var and
+  // /private/var alike), all read as <repo>, so that one finding has one key whichever checkout printed it (K446-1).
+  const prefixes = [...new Set([folder, root, realpathSync(folder), realpathSync(root)])].sort((a, b) => b.length - a.length);
+  const repo = new RegExp(prefixes.map(prefix => prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
   return output
     .split('\n')
-    .map(line => ({ line, key: line.split(folder).join(root).replace(TEMPORARY, '<tmp>').replace(/\d+/g, '#') }))
+    .map(line => ({ line, key: line.replace(repo, '<repo>').replace(TEMPORARY, '<tmp>').replace(/\d+/g, '#') }))
     .filter(({ key }) => key.trim() !== '');
 }
 
