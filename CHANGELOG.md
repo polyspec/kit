@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K464-2: a sibling without a readable committed main, or a checkout without a readable committed HEAD, fails shared-pin evaluation as a finding instead of progress-only output (K464-2).
+
 - K464-1-1: removed the unused working-tree source reader and imports after shared-pin comparison moved to committed tracked sources; `make lint-ts` passes (K464-1-1).
 
 - K464-1: the sibling rule compares tracked Composer pins from the current committed HEAD and each sibling's committed main, independently of generated Composer link files. Link files remain in scope for runtime platform and validation rules (K326-2). The focused K464 tests cover generated-link disagreement, a genuine tracked mismatch, and an uncommitted tracked-lock edit (K464-1).

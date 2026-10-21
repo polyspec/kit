@@ -620,12 +620,25 @@ test('the sibling side is the committed main of the sibling, not its working tre
   assert.deepEqual(sharedPinFindings(own, [sibling]).findings, []);
 });
 
-test('a sibling whose committed main cannot be read prints not evaluated and no finding (K464)', (t) => {
+test('a sibling without a readable committed main is a sharedPin finding (K464-2)', (t) => {
   const own = committedMain(t, 'kit-k464-own', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.5.0'), 'config/dependency-review.json': reviewRecord('2.6.0') });
   const noMain = committedMain(t, 'kit-k464-trunk', { 'composer.json': k464Requiring, 'composer.lock': k464Lock('2.7.0'), 'config/dependency-review.json': reviewRecord('2.7.0') }, 'trunk');
   const result = sharedPinFindings(own, [noMain]);
-  assert.deepEqual(result.findings, []);
-  assert.ok(result.progress.some(line => line.includes(path.basename(noMain)) && line.includes('not evaluated')), JSON.stringify(result.progress));
+  assert.equal(result.findings.length, 1, JSON.stringify(result.findings));
+  assert.equal(result.findings[0]?.rule, 'sharedPin');
+  assert.equal(result.findings[0]?.subject, path.basename(noMain));
+  assert.match(result.findings[0]?.problem ?? '', /no main branch/);
+});
+
+test('a checkout without a committed HEAD is a sharedPin finding (K464-2)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k464-empty-')));
+  t.after(() => removeSandbox(root));
+  const initialized = spawnSync('git', ['-C', root, 'init', '--quiet'], { encoding: 'utf8' });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  const result = sharedPinFindings(root, []);
+  assert.equal(result.findings.length, 1, JSON.stringify(result.findings));
+  assert.equal(result.findings[0]?.rule, 'sharedPin');
+  assert.match(result.findings[0]?.problem ?? '', /committed HEAD cannot be evaluated/);
 });
 
 test('a source mismatch at one version is reported by both checkouts whatever their targets (K464)', (t) => {

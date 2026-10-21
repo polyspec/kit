@@ -633,8 +633,8 @@ export function sharedPinFindings(root: string, siblings: readonly string[]): Sh
   try {
     own = sideOf(committedSource(root, 'HEAD'));
   } catch (error) {
-    if (!(error instanceof ConfigError)) throw error;
-    progress.push(`[dependency-policy] ${repositoryName(root)}: the sibling rule is not evaluated: ${error.message}`);
+    const reason = error instanceof Error ? error.message : String(error);
+    findings.push({ rule: 'sharedPin', subject: repositoryName(root), problem: `the checkout's committed HEAD cannot be evaluated for shared pins: ${reason}`, fix: 'commit the tracked manifests and locks before running dependency-policy-check' });
     return { findings, progress, compared };
   }
   // The pins of the repository by ecosystem and package, so that each pin of a sibling finds its own pins at once.
@@ -647,15 +647,15 @@ export function sharedPinFindings(root: string, siblings: readonly string[]): Sh
     const main = gitResult(sibling, 'rev-parse', '--verify', '--quiet', 'refs/heads/main');
     if (main.error) throw main.error;
     if (main.status !== 0) {
-      progress.push(`[dependency-policy] sibling ${name}: not evaluated: it has no main branch whose committed HEAD is read`);
+      findings.push({ rule: 'sharedPin', subject: name, problem: 'the sibling has no main branch whose committed HEAD can be evaluated for shared pins', fix: 'create and commit the sibling main branch, or exclude this checkout from the sibling set' });
       continue;
     }
     let other: Side;
     try {
       other = sideOf(committedSource(sibling, 'refs/heads/main'));
     } catch (error) {
-      if (!(error instanceof ConfigError)) throw error;
-      progress.push(`[dependency-policy] sibling ${name}: not evaluated: ${error.message}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      findings.push({ rule: 'sharedPin', subject: name, problem: `the sibling's committed main cannot be evaluated for shared pins: ${reason}`, fix: 'commit the required manifests, locks and review record on the sibling main, or exclude this checkout from the sibling set' });
       continue;
     }
     compared.push(name);

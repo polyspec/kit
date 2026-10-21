@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 86fe5125828d2568f9b860342b1c055aa46daa78240ae55df553a97da18727e5 -->
+<!-- source-sha256: 5dfd89307d7c7a56724980602f54c9eb33f17e4fc5a276830e3de14141cec198 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K464-2: commit된 main을 읽지 못하는 sibling 또는 commit된 HEAD가 없는 checkout은 progress-only 출력 대신 shared-pin finding으로 실패한다 (K464-2).
 
 - K464-1-1: shared-pin 비교를 commit된 tracked source로 옮긴 뒤 사용하지 않는 working-tree source reader와 import를 제거했다. `make lint-ts`가 통과한다 (K464-1-1).
 
