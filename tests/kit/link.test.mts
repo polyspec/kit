@@ -428,6 +428,34 @@ test('link --siblings links a fork checkout of forks/ beside the checkouts as th
   assert.match(lines.join('\n'), /NOT linked +composer +polyspec\/y .*pinned 1\.0\.0, not 0\.0\.x/);
 });
 
+// K379-1: a fork that the consumer pins at an exact version (2.6.0-p1, declared with a vcs repository) is linked with that version, so
+// Composer takes the fork folder for it in the partial update, not the release that the lock recorded.
+test('link --siblings writes the pinned version of a linked fork into the link manifest, so Composer takes it from forks/ (K379-1)', (t) => {
+  const { root, consumer, env } = workspace(t);
+  const fork = repository(path.join(root, 'forks'), 'json-schema', {
+    'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
+  });
+  put(consumer, {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '2.6.0-p1' }, repositories: [{ type: 'vcs', url: 'https://github.com/min-0-max/json-schema' }] }),
+    // The lock still holds the release that it recorded before the fork was pinned (limepie, S-565), as the tracked lock and the link lock do.
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }, { name: 'opis/json-schema', version: '2.6.0' }] }),
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0', 'install-path': '../opis/json-schema' }] }),
+    'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
+  });
+  const checkouts = siblingCheckouts(consumer).checkouts;
+  assert.ok(checkouts.includes(fork), 'the fork of forks/ is a checkout');
+  const lines: string[] = [];
+  assert.equal(link({ checkouts, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/opis/json-schema')), fork, 'the fork is linked from forks/');
+  assert.ok(seenUpdate(consumer).targets.includes('opis/json-schema'), 'the partial update names the fork');
+  // The link manifest keeps the requirement of the consumer, and its path repository of the fork names the version the consumer pins.
+  const manifest: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.link.json'), 'utf8'));
+  if (!isJsonObject(manifest) || !isJsonObject(manifest.require) || !Array.isArray(manifest.repositories)) throw new Error('composer.link.json holds no require and repositories');
+  const repositories: unknown[] = manifest.repositories;
+  assert.equal(manifest.require['opis/json-schema'], '2.6.0-p1');
+  assert.deepEqual(repositories.find(item => isJsonObject(item) && item.url === fork), { type: 'path', url: fork, options: { symlink: true, versions: { 'opis/json-schema': 'v2.6.0-p1' } } });
+});
+
 // K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.
 test('providers take the packages of the work tree of the consumer as its own, and never the main checkout of its repository (K385)', (t) => {
   const { provider, kit, consumer } = workspace(t);

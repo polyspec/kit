@@ -359,14 +359,20 @@ function declaredList(value: unknown): unknown[] {
   return list;
 }
 
-function linkManifest(project: string, links: readonly { name: string; folder: string }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
+function linkManifest(project: string, links: readonly { name: string; folder: string; fork?: boolean }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
   const manifest = readJsonOf(path.join(project, MANIFESTS.composer));
   if (!isJsonObject(manifest)) throw new Error(`${project}/${MANIFESTS.composer} is no object`);
   // The version of a linked package is the release that the lock recorded, else the exact release that the project requires, so
   // Composer takes the folder for the release and prefers no archive of the same version (K304-2).
   const required = { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...(isJsonObject(manifest['require-dev']) ? manifest['require-dev'] : {}) };
-  const versionOf = (name: string): string | undefined => versions.get(name) ?? (typeof required[name] === 'string' && /^v?\d+\.\d+\.\d+$/.test(required[name]) ? required[name] : undefined);
-  const paths = links.map(({ name, folder }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name) === undefined ? {} : { versions: { [name]: versionOf(name) } }) } }));
+  // K379-1: a fork provides the version that the consumer pins (2.6.0-p1), written as its tag (v2.6.0-p1), not the release that the lock
+  // recorded before the pin: a stale version there makes Composer refuse the fork in the partial update.
+  const versionOf = (name: string, fork: boolean): string | undefined => {
+    const pin = required[name];
+    if (fork && typeof pin === 'string' && /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(pin)) return `v${pin.replace(/^v/, '')}`;
+    return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined);
+  };
+  const paths = links.map(({ name, folder, fork }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name, fork === true) === undefined ? {} : { versions: { [name]: versionOf(name, fork === true) } }) } }));
   const existing = manifest.repositories;
   // Composer reads repositories only from the root manifest (K330): the repositories that a linked package declares, such as the
   // fork that it requires, are written into the link manifest too, so the link resolves them.
@@ -416,7 +422,7 @@ function linkComposer(work: Run, consumer: Consumer) {
     const names = new Set<string>();
     const recorded = new Set<string>();
     const toLink: { name: string; folder: string; copy: string; provider: Provider }[] = [];
-    const linkedNow: { name: string; folder: string }[] = [];
+    const linkedNow: { name: string; folder: string; fork: boolean }[] = [];
     for (const entry of installedPackages(record)) {
       if (typeof entry.name !== 'string') continue;
       // A package of another vendor is linked only when a checkout provides it, such as a fork of forks/ (K379); any other is left alone.
@@ -432,7 +438,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       // A link is Composer's own: the record says the package was installed from a path repository. A symbolic link over an
       // archive install, which the earlier mechanism made, is installed anew (K318).
       const installedFromPath = isJsonObject(entry.dist) && entry.dist.type === 'path';
-      if (real(copy) === realpathSync(provider.folder) && installedFromPath) { reportLink(work, 'composer', entry.name, provider); linkedNow.push({ name: entry.name, folder: provider.folder }); continue; }
+      if (real(copy) === realpathSync(provider.folder) && installedFromPath) { reportLink(work, 'composer', entry.name, provider); linkedNow.push({ name: entry.name, folder: provider.folder, fork: isForkCheckout(provider.checkout) }); continue; }
       const problem = pinProblem(version, provider);
       if (problem) unlinkable(work, 'composer', entry.name, `${problem}: ${copy}`);
       else if (work.check) unlinkable(work, 'composer', entry.name, real(copy) === realpathSync(provider.folder) ? `${copy} is a link over a ${isJsonObject(entry.dist) ? String(entry.dist.type) : 'copy'} install, not Composer's path install` : copy);
@@ -463,7 +469,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       continue;
     }
     if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
-    const all = [...toLink.map(item => ({ name: item.name, folder: item.folder })), ...linkedNow];
+    const all = [...toLink.map(item => ({ name: item.name, folder: item.folder, fork: isForkCheckout(item.provider.checkout) })), ...linkedNow];
     const targets = [...all.map(item => item.name), ...ownTargets];
     excludeComposerLinkFiles(consumer.top);
     writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, all, lockedVersions(lock)), null, 4)}\n`);
