@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 14e79c755f9b1f654e58bd6ea93d3554efd736f42bca8998496d0295eb6071e9 -->
+<!-- source-sha256: 5db04ec71cd6505732b14975ca1358693b8b3bdd5532fe87d3e50c7707618cf1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-check는 env(할당과 option 포함), exec, command, sh/bash/zsh/dash의 -c 문자열 뒤에서 시작하는 PHPUnit과 phpunit.phar도 찾는다(K436-1). Red: 7b4825eb에서 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(finding 5개 중 4개); green: 통과.
 - kit-check는 make 변수를 펼쳐 읽은 recipe 명령 중 run-tests 밖에서 PHPUnit을 시작하는 명령(PHPUnit 자체, 또는 그것을 실행하는 php interpreter)을 거부한다(K436). 시간 제한을 넘긴 test의 process group을 끝내는 run-tests만 멈춘 PHPUnit test를 멈출 수 있고, PHPUnit의 enforceTimeLimit은 libpq 안에서 기다리는 test를 중단하지 못한다. Red: 변경 전 `node --test --test-name-pattern=K436 tests/kit/recipe-tools.test.mts`가 실패(검사가 없고 orm에 그런 명령이 37개 있다); green: 통과하며 kit의 recipe에는 finding이 없다.
 - K439-3: composer-provider-entries는 Composer writer의 scratch 프로젝트를 tracked lock에서 해석한다. 소비자의 composer.json과 composer.lock이 기준이고, 제공되는 패키지는 path repository이며, Composer는 그 패키지만 오프라인으로 갱신한다. 그래서 nikic/php-parser 같은 transitive 요구는 packagist가 아니라 lock에서 온다 (K439-3). Red: node --test --test-name-pattern=K439-3 tests/kit/dependency-review.test.mts가 exit 1(lock 없이는 transitive 요구를 찾지 못함); green: make item-test ID=K439-3이 통과한다(테스트 1개, 건너뛰기 없음). (K439-3).
 - `make cargo-fetch DIR=<project>`는 소비자의 Cargo crate를 `cargo fetch --locked` 대신 가져온다. sibling checkout이 제공하는 polyspec crate는 처음부터 경로로 patch되므로 sibling crate의 git tag를 가져오지 않는다. `link-state-check`는 polyspec crate가 든 lock을 가져오는 recipe를 finding으로 알린다 (K448-5).
