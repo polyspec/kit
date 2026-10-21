@@ -47,9 +47,19 @@ function composerName(text: string | undefined): string | undefined {
   return isJsonObject(manifest) && typeof manifest.name === 'string' ? manifest.name : undefined;
 }
 
-/** The folders of the PHP libraries among `files` (S10): packages/php, and packages/<component>/php for each component. */
-export function libraryFolders(files: readonly string[]): string[] {
-  return files.flatMap(file => (/^packages\/(?:[^/]+\/)?php\/composer\.json$/.test(file) ? [path.posix.dirname(file)] : [])).sort();
+/** Whether the Composer manifest `text` is an application (K433): a package of type project, which is no library of S10. */
+export function isApplication(text: string | undefined): boolean {
+  if (text === undefined) return false;
+  const manifest: unknown = JSON.parse(text);
+  return isJsonObject(manifest) && manifest.type === 'project';
+}
+
+/**
+ * The folders of the PHP libraries among `files` (S10): packages/php, and packages/<component>/php for each component, except an
+ * application; `read` gives the text of a file or undefined.
+ */
+export function libraryFolders(files: readonly string[], read: (file: string) => string | undefined): string[] {
+  return files.flatMap(file => (/^packages\/(?:[^/]+\/)?php\/composer\.json$/.test(file) && !isApplication(read(file)) ? [path.posix.dirname(file)] : [])).sort();
 }
 
 /**
@@ -58,7 +68,7 @@ export function libraryFolders(files: readonly string[]): string[] {
  * repository; `read` gives the text of a file or undefined.
  */
 export function repositoryOf(files: readonly string[], read: (file: string) => string | undefined): { repository: string; libraries: string[] } | { finding: string } {
-  const libraries = libraryFolders(files);
+  const libraries = libraryFolders(files, read);
   if (libraries.length === 0) return { finding: `${LIBRARY}/composer.json: the extension implements the PHP libraries of the repository, packages/php or packages/<component>/php, and the repository has none` };
   const repositories = new Map<string, string>();
   for (const folder of libraries) {

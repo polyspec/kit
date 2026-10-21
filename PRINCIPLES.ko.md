@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 7b159ad73fb3f866a13887f036669d57e2599349d6bad83e281c7b7733594b8d -->
+<!-- source-sha256: d51007ab249344f2ebd9e4919ff8ffe11b210e0532f3f750b8fd8e8e197aa4e2 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -210,5 +210,6 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   (dependency와 autoload-dev는 load하고 library 자신의 autoload는 load하지 않으므로 library에는 extension에 대한 guard가 없다) 실행하는 모든
   library의 PHPUnit 파일과 (있다면) `packages/php-ext`의 것이다. parity implementation은 이 layout으로 library의 test를 공유하며,
   설정에 상대 경로를 두지 않는다. PHP library는 library code뿐이다: Symfony Console CLI처럼 userland framework 위의
-  application은 그 library를 require하는 자기 Composer package이다. 내부 class는 userland class를 확장할 수 없기 때문이다.
+  application은 그 library를 require하는 자기 Composer package이다. 내부 class는 userland class를 확장할 수 없기 때문이다. Composer type이 `project`인 package는 application이다. extension 실행과 S10 library
+  검사 밖에 있으며, `make test-php`는 그 test를 자기 package로 실행한다.
   Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, `make dependency-policy-check`

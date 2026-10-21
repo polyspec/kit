@@ -275,7 +275,8 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   }
 
   // A PHP library of S10 is library code only (K425): its require names no application framework, and its application is a package beside it.
-  for (const folder of libraryFolders(tracked)) {
+  // An application on a userland framework is no library (K433): libraryFolders leaves it out.
+  for (const folder of libraryFolders(tracked, file => (tracked.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined))) {
     const manifestPath = path.posix.join(folder, 'composer.json');
     const manifest = readComposerManifest(root, manifestPath);
     for (const name of APPLICATION_FRAMEWORKS.filter(item => manifest.require?.[item] !== undefined)) {

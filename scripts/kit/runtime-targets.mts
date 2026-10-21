@@ -25,7 +25,7 @@ import { isTestFile } from './check-commits.mts';
 import { ciRefusal } from './ci-only.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { extensionNames, repositoryOf } from './php-extension.mts';
+import { extensionNames, isApplication, repositoryOf } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -44,13 +44,17 @@ const NODE_TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 /** The relative paths of the tracked test scripts of `folder` among `files`. */
 const scriptTests = (files: readonly string[], folder: string) => files.filter(file => file.startsWith(`${folder}/`) && SCRIPT.test(file) && NODE_TEST.test(file)).map(file => path.posix.relative(folder, file));
 
+/** The text of a tracked file of the checkout, or undefined. */
+type Reader = (file: string) => string | undefined;
+const noFile: Reader = () => undefined;
+
 /**
  * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): every PHP library of the repository,
  * packages/php or packages/<component>/php, and the extension itself when it holds tests of its own; the extension alone when
  * no library holds a test.
  */
-export function phpExtensionFolders(files: readonly string[], folder: string): string[] {
-  const libraries = [...new Set(files.flatMap(file => /^(packages\/(?:[^/]+\/)?php)\//.exec(file)?.[1] ?? []))].sort();
+export function phpExtensionFolders(files: readonly string[], folder: string, read: Reader = noFile): string[] {
+  const libraries = [...new Set(files.flatMap(file => /^(packages\/(?:[^/]+\/)?php)\//.exec(file)?.[1] ?? []))].filter(place => !isApplication(read(`${place}/composer.json`))).sort();
   const holds = (place: string) => files.some(file => file.startsWith(`${place}/`) && isTestFile(file));
   const places = [...libraries, folder].filter(place => holds(place));
   return places.length ? places : [folder];
@@ -93,7 +97,7 @@ const unlisted: Listed = () => {
  * `extension` is the built library of the PHP extension, which its tests load, and `listed` tells the tests that a run selects.
  * A PHP library where `cases` selects no test is not run: its line goes to `notes`.
  */
-function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, listed: Listed = unlisted, notes: string[] = []): Run[] {
+function runsOf(files: readonly string[], runtime: string, folder: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, listed: Listed = unlisted, notes: string[] = [], read: Reader = noFile): Run[] {
   const filter = (flag: string) => (cases === undefined ? [] : [flag, cases]);
   switch (runtime) {
     case 'ts':
@@ -110,7 +114,7 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       // The tests of a library run against the extension with none of the library's sources (K329); the tests of the extension itself
       // load its own sources. CASES is one filter for every library, so a library where PHPUnit lists no test for it is not run (K390):
       // a filter that selects no test anywhere is a typo, and fails.
-      const runs = phpExtensionFolders(files, folder).map(cwd => phpExtensionRun(cwd, folder, extension, filter('--filter')));
+      const runs = phpExtensionFolders(files, folder, read).map(cwd => phpExtensionRun(cwd, folder, extension, filter('--filter')));
       const selected = cases === undefined ? runs : runs.filter(run => listed(run).length > 0);
       if (cases !== undefined && selected.length === 0) throw new Error(`CASES=${cases} selects no test of ${runs.map(run => run.cwd).join(', ')}; fix the name of the test`);
       for (const run of runs.filter(run => !selected.includes(run))) notes.push(`${run.cwd}: no case selected by CASES`);
@@ -129,10 +133,10 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
  * `extension` is the built library of the PHP extension, `listed` tells the tests that a run of PHPUnit selects, and
  * `notes` gets the PHP libraries that CASES selects no test in (K390).
  */
-export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, listed?: Listed, notes?: string[]): Run[] {
+export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, listed?: Listed, notes?: string[], read?: Reader): Run[] {
   const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
   if (folders.length === 0) throw new Error(`no package of the runtime ${runtime}: packages/${runtime} or packages/<component>/${runtime}`);
-  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv, listed, notes));
+  return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv, listed, notes, read));
 }
 
 /** A command of a build: its folder relative to the root, the command and its arguments. */
@@ -241,7 +245,9 @@ if (isMain(import.meta.url)) {
     const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
     // The selection of CASES in a PHP library is PHPUnit's own listing of the run.
     const listed: Listed = run => listedTests([run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], root);
-    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes);
+    // The PHP packages of an application (K433) are read from the checkout, so that the extension run leaves them out.
+    const read = (file: string) => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined);
+    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes, read);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[runtime-targets] ${error.message}`);

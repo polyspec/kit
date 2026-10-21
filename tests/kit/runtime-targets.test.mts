@@ -3,7 +3,8 @@
 // under tests/ of the root and run only in CI (K244).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildRuns, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { buildRuns, phpExtensionFolders, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { libraryFolders } from '../../scripts/kit/php-extension.mts';
 
 const FILES = [
   'packages/ts/src/a.ts', 'packages/ts/tests/a.test.ts', 'packages/ts/package.json',
@@ -101,4 +102,30 @@ test('the tests of a Python package run in the environment of the package, found
 test('the unit tests of a script package are its *.test.* and *.spec.* files, never a helper or a probe of tests/ (K325)', () => {
   const files = ['packages/js/tests/a.test.mjs', 'packages/js/tests/b.spec.js', 'packages/js/tests/probe.mjs', 'packages/js/tests/helper.mts', 'packages/js/src/c.test.ts'];
   assert.deepEqual(runtimeRuns(files, 'js', undefined, node), [{ cwd: 'packages/js', tool: 'node', args: ['tests/a.test.mjs', 'tests/b.spec.js', 'src/c.test.ts'] }]);
+});
+
+// A Composer package of type project is an application, not a library: the extension run and the S10 checks leave it out, and
+// test-php runs its tests as a package of its own.
+const K433_TEXTS: Record<string, string> = {
+  'packages/php/composer.json': '{"name":"polyspec/kit"}',
+  'packages/cli/php/composer.json': '{"name":"polyspec/kit-cli","type":"project"}',
+};
+const k433Read = (file: string) => K433_TEXTS[file];
+const K433_FILES = ['packages/php-ext/src/a.c', 'packages/php/composer.json', 'packages/php/tests/ATest.php', 'packages/cli/php/composer.json', 'packages/cli/php/tests/CTest.php'];
+
+test('a PHP package of type project is left out of the extension run, whose libraries are the others (K433)', () => {
+  assert.deepEqual(phpExtensionFolders(K433_FILES, 'packages/php-ext', k433Read), ['packages/php']);
+  const listed = phpunitList({ 'packages/php': ['ATest::parses'], 'packages/cli/php': ['CTest::parses'] });
+  assert.deepEqual(runtimeRuns(K433_FILES, 'php-ext', 'parses', node, '/r/x.so', undefined, listed, [], k433Read).map(run => run.cwd), ['packages/php']);
+});
+
+test('test-php runs the tests of a PHP package of type project as a package of its own (K433)', () => {
+  assert.deepEqual(runtimeRuns(K433_FILES, 'php', undefined, node, undefined, undefined, undefined, undefined, k433Read), [
+    { cwd: 'packages/cli/php', tool: 'phpunit', args: [] },
+    { cwd: 'packages/php', tool: 'phpunit', args: [] },
+  ]);
+});
+
+test('libraryFolders leaves out a PHP package of type project (K433)', () => {
+  assert.deepEqual(libraryFolders(K433_FILES, k433Read), ['packages/php']);
 });
