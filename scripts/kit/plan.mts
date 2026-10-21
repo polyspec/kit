@@ -48,7 +48,6 @@ import { isFile } from './test-selection.mts';
 import { fixProvesRed, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
 import type { GateRecord, Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
-import { runCommitGates } from './land.mts';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
@@ -593,8 +592,7 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
  */
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
-  // On main the gates that land runs guard the commit, since no branch lands it (K446, which retires K404).
-  if (git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').trim() === 'main') runCommitGates(root, git(root, 'diff', '--cached', '--name-only').split('\n').filter(file => file !== ''));
+  // On main the gates of land guard the commit in the pre-commit hook, which git runs for this commit too (K404-1).
   if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);

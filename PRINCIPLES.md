@@ -41,12 +41,13 @@ in kit, with its grounding.
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
 - P9 Correct first; fast only when it stays correct.
   Enforced by: none, the order of correctness and speed is a judgement.
-- P10 Work reaches main only by the fast-forward of `make land` (P38). Each row has its own worktree and branch, named
-  `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`, made by `make worktree-setup`, which refuses
-  under 30 GB of free disk. The worktree and its branch are removed right after the merge into main, by `make land`.
-  Test or experiment code that cannot merge is cherry-picked when it is worth keeping and otherwise discarded, always before
-  the commit; when it cannot be removed at once, a checklist sub-item states the condition of its removal.
-  Enforced by: `.githooks/pre-push`
+- P10 Work reaches main in one of two ways. Direct work on main is committed through the gated commits of P38. Parallel or
+  isolated work has its own worktree and branch, named `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`,
+  made by `make worktree-setup`, which refuses under 30 GB of free disk; it reaches main only by the fast-forward of `make land`,
+  and its worktree and branch are removed right after the merge, by `make land`. Test or experiment code that cannot merge is
+  cherry-picked when it is worth keeping and otherwise discarded, always before the commit; when it cannot be removed at once, a
+  checklist sub-item states the condition of its removal.
+  Enforced by: `.githooks/pre-push`, `.githooks/pre-merge-commit`
 - P11 Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
   English, each with a Korean twin that writes technical terms in English.
   Enforced by: `make commits-check` for the commit messages, `make language-check` for the code
@@ -162,9 +163,12 @@ repository.
 - P37 A result is reported only after its check has run, with the output of that run. A claim that a check passes, made
   without its output, is not a result.
   Enforced by: none, whether a result was checked before it was claimed is a judgement.
-- P38 One integrator writes the main of each repository. No commit lands on main except a fast-forward by `make land`,
-  which the commit-on-main check of `make commits-check` enforces (K404).
-  Enforced by: `make commits-check`
+- P38 main may be written directly, by one actor per checkout, through gated commits. A commit on main runs the gates that
+  `make land` selects for its staged paths, on the staged tree, and is refused only on a finding that HEAD lacks, which it names.
+  A merge commit on main is refused, so main moves by commits and fast-forwards only. The first commit of a repository, which
+  creates main with no commit to compare with, is not gated. The hooks protect against an accidental ungated commit; a deliberate
+  bypass (`--no-verify`, `core.hooksPath`, a raw `update-ref`) is out of scope (K404, K446, K404-1).
+  Enforced by: `.githooks/pre-commit`, `.githooks/pre-merge-commit`
 
 ## Repository standards
 

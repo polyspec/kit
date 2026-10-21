@@ -8,12 +8,15 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, s
 import path from 'node:path';
 import test from 'node:test';
 import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
-import { checkout, git, run } from './gates-checkout.mts';
+import { checkout, git, prepared, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 
 // The configuration of a repository that declares the pattern of its item IDs (K354-3).
 const CONFIG_JSON = '{ "schema": 1, "hooks": ["pre-push"], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
+
+// The owner rules of a fixture whose gate is bypass-check, the kit gate that fails on a --no-verify in a script: every path is owned.
+const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['bypass-check'] }] }, null, 2) + '\n';
 
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
@@ -23,7 +26,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -133,7 +136,7 @@ test('the pre-push hook calls the make target push-gate-hook and names no tool p
 
 // K380: kit owns the commit-msg hook, which runs the message checks of make commit on every commit, an amend included.
 test('make hooks writes the commit-msg hook of kit, which refuses the footer of an AI tool at commit time (K380)', (t) => {
-  const { work } = checkout(t);
+  const { work } = checkout(t, { files: { 'config/owner-checks.json': OWNERS } });
   assert.equal(hooks(work).status, 0);
   const hook = path.join(work, '.githooks/commit-msg');
   assert.equal(statSync(hook).mode & 0o100, 0o100, 'the commit-msg hook is executable');
@@ -148,9 +151,10 @@ test('make hooks writes the commit-msg hook of kit, which refuses the footer of 
   assert.match(check(work).stderr, /\.githooks\/commit-msg does not exist/);
   assert.equal(hooks(work).status, 0);
 
-  // End to end: a commit with a valid message is made, and an amend that adds the footer of an AI tool is refused.
+  // End to end: a commit with a valid message is made, and an amend that adds the footer of an AI tool is refused. The owner rules are
+  // staged too, since the gates of a commit on main read the index (K404-1).
   writeFileSync(path.join(work, 'a.txt'), 'a\n');
-  git(work, 'add', 'a.txt');
+  git(work, 'add', '-A');
   const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
   const valid = 'feat(hooks): Refuse the footer of an AI tool (#T1-1)\n\nThe body names the change.\n';
   const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', valid]);
@@ -199,7 +203,7 @@ test('an amend that restages a document of a fix commit with its test passes the
 // K446: work is done on main directly. The commit-msg hook accepts a commit while HEAD is main, as it accepts one on any branch; the
 // gates of land run in make commit instead (K446).
 test('the commit-msg hook accepts a commit while HEAD is main (K446)', (t) => {
-  const { work } = checkout(t);
+  const { work } = checkout(t, { files: { 'config/owner-checks.json': OWNERS } });
   assert.equal(hooks(work).status, 0);
   const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
   const message = 'feat(hooks): Commit on main (#T1-1)\n\nThe body names the change.\n';
@@ -376,4 +380,78 @@ test('the prepare-commit-msg hook prints nothing on a plain commit (K380-3)', (t
   const prepared = spawnSync('make', ['--no-print-directory', 'prepare-commit-msg-hook', 'SOURCE=message', 'SHA='], { cwd: root, encoding: 'utf8' });
   assert.equal(prepared.status, 0, prepared.stderr);
   assert.equal(prepared.stdout, '', 'the hook prints nothing');
+});
+
+// K404-1: the pre-commit hook runs the gates of land on the staged tree while HEAD is main. A commit that adds a finding of a gate is
+// refused and names it; a finding that is only in the working tree, unstaged, does not count, and a staged finding counts even when the
+// working tree is fixed. A clean commit on main passes.
+test('the pre-commit hook on main refuses a commit that adds a finding of a gate, judged on the index (K404-1)', (t) => {
+  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
+  assert.equal(hooks(work).status, 0);
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  const commit = (subject: string) => run(work, 'git', [...identity, 'commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`]);
+  mkdirSync(path.join(work, 'scripts'), { recursive: true });
+  writeFileSync(path.join(work, 'scripts/unstaged.mts'), "export const flag = '--no-verify';\n");
+  writeFileSync(path.join(work, 'scripts/a.mts'), 'export const a = 1;\n');
+  git(work, 'add', 'scripts/a.mts');
+  const clean = commit('feat(hooks): Add a script (#T1-1)');
+  assert.equal(clean.status, 0, `a clean gated commit on main passes: ${clean.stderr}`);
+  const head = git(work, 'rev-parse', 'HEAD');
+
+  writeFileSync(path.join(work, 'scripts/b.mts'), "export const flag = '--no-verify';\n");
+  git(work, 'add', 'scripts/b.mts');
+  const refused = commit('feat(hooks): Add a flag (#T1-1)');
+  assert.equal(refused.status, 1, 'a commit that adds a finding is refused');
+  assert.match(refused.stderr, /bypass-check/, 'the refusal names the gate');
+  assert.match(refused.stderr, /scripts\/b\.mts:1: --no-verify skips a Git hook/, 'the refusal names the finding');
+  assert.doesNotMatch(refused.stderr, /unstaged/, 'a finding that is not staged is not in the commit');
+  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused commit changes no commit');
+
+  writeFileSync(path.join(work, 'scripts/b.mts'), 'export const flag = 1;\n');
+  const stillStaged = commit('feat(hooks): Add a flag (#T1-1)');
+  assert.equal(stillStaged.status, 1, 'the staged finding still refuses while the working tree is fixed');
+  git(work, 'add', 'scripts/b.mts');
+  const fixed = commit('feat(hooks): Add a flag (#T1-1)');
+  assert.equal(fixed.status, 0, `the staged fix passes: ${fixed.stderr}`);
+});
+
+// K404-1: a merge commit on main is refused by the pre-merge-commit hook, so main moves only by commits and fast-forwards. A merge
+// commit on another branch and a fast-forward of main pass.
+test('the pre-merge-commit hook refuses a merge commit on main and passes a fast-forward and a merge on another branch (K404-1)', (t) => {
+  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
+  assert.equal(hooks(work).status, 0);
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  const run2 = (...args: string[]) => run(work, 'git', [...identity, ...args]);
+  const change = (name: string, subject: string) => {
+    writeFileSync(path.join(work, name), `${name}\n`);
+    git(work, 'add', name);
+    const made = run2('commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`);
+    assert.equal(made.status, 0, made.stderr);
+  };
+  change('a.txt', 'feat(hooks): Add the first file (#T1-1)');
+  git(work, 'checkout', '--quiet', '-b', 'fix/merge-T1-1');
+  change('b.txt', 'feat(hooks): Add the branch file (#T1-1)');
+  git(work, 'checkout', '--quiet', 'main');
+  change('c.txt', 'feat(hooks): Add the main file (#T1-1)');
+
+  const head = git(work, 'rev-parse', 'HEAD');
+  const merged = run2('merge', '--no-ff', '--quiet', '-m', 'feat(hooks): Merge the branch (#T1-1)', 'fix/merge-T1-1');
+  assert.equal(merged.status, 1, 'a merge commit on main is refused');
+  assert.match(merged.stderr, /merge commit on main/, 'the refusal names the rule');
+  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused merge changes no commit');
+
+  git(work, 'checkout', '--quiet', 'fix/merge-T1-1');
+  const onBranch = run2('merge', '--no-ff', '--quiet', '-m', 'feat(hooks): Merge main into the branch (#T1-1)', 'main');
+  assert.equal(onBranch.status, 0, `a merge commit on another branch passes: ${onBranch.stderr}`);
+  git(work, 'checkout', '--quiet', 'main');
+  const forward = run2('merge', '--ff-only', '--quiet', 'fix/merge-T1-1');
+  assert.equal(forward.status, 0, `a fast-forward of main passes: ${forward.stderr}`);
+});
+
+test('the pre-merge-commit hook that make hooks writes calls the make target merge-commit-hook and names no tool path (K404-1)', (t) => {
+  const { work } = prepared(t);
+  assert.equal(hooks(work).status, 0);
+  const hook = readFileSync(path.join(work, '.githooks/pre-merge-commit'), 'utf8');
+  assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
+  assert.match(hook, /^exec make --no-print-directory merge-commit-hook$/m);
 });

@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 881d6ce026cad7a6422ead394cf33e0c93db73d3a9f4a67852affad558a9e56c -->
+<!-- source-sha256: 5a4ccf38d8788fdc65c64c1b4a9e10a57c7b26ac31d24d1e21d883425945569b -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -57,7 +57,7 @@
 - kit checkout `../kit` 옆의 checkout에서는 bootstrap이 첫 make부터 link가 설치하는 provider인 `../kit/dist`를 `KIT`로 쓰므로 새 worktree는 `npm ci` 전에 `kit.mk`를 읽고 자신이 개발하는 kit의 도구로 설치한다. build되지 않은 kit checkout이면 `make build in ../kit`과 함께 실패한다(K348-1). 없으면 CI처럼 `KIT`는 설치된 package이다.
 - 여유 disk가 30 GB 미만이면 worktree를 만들지 않는다(`scripts/kit/worktree-setup.mts`의 `WORKTREE_DISK_FLOOR`).
 - worktree의 install directory(`node_modules`, `vendor`, `.venv`, `target`, `var`)는 자기 것이며 다른 checkout으로의 symbolic link가 아니므로 그 test는 자기 source를 실행한다(K375). mise의 도구는 그런 install이 아니다. worktree는 그 저장소의 main checkout이 설치한 mise의 도구를 읽으므로(`MISE_SHARED_INSTALL_DIRS`) main checkout에 없는 도구만 설치하며, data dir, state, shim, wrapper는 자기 것으로 남는다(K387).
-- `main`에는 commit하지 않는다. `make hooks`가 쓰는 commit-msg hook이 `HEAD`가 `main`인 동안의 commit을 거부하므로(K404), 등록, 닫기, gate 수정도 그 row의 branch에서 commit하고, `make land`는 commit을 만들지 않는 fast-forward로 branch를 merge한다. `main`을 만드는 저장소의 첫 commit만 예외이다.
+- `main`은 checkout마다 한 행위자가 gate를 거친 commit으로 직접 쓴다(P38). `main`의 모든 commit은 `make hooks`가 쓰는 pre-commit hook을 거쳐 `make land`가 스테이징된 경로에 대해 고르는 gate를 실행하며, `HEAD`에 없는 finding일 때만 이름을 적어 거부한다. `main`의 merge commit은 pre-merge-commit hook이 거부하므로 `main`은 commit과 fast-forward로만 움직인다. 병렬이나 격리된 작업은 (위의) worktree와 branch를 쓰고 `make land`로 `main`에 들어가며, `make land`는 merge 직후 worktree와 branch를 지운다. 저장소의 첫 commit은 `main`을 만들며 비교할 commit이 없으므로 gate를 거치지 않는다. hook은 실수로 gate를 거치지 않은 commit을 막으며, 의도적 우회(`--no-verify`, `core.hooksPath`, raw `update-ref`)는 범위 밖이다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지운다. `make land`는 land한 branch를 지우고, `make worktree-prune`은 자기 commit(reflog가 기록한 생성 지점 이후의 commit)이 모두 `main`에 있는 branch를 모두 지우며, 그 worktree에 commit하지 않은 변경이 없으면 worktree도 지운다. 자기 commit이 없는 새 branch는 남긴다. merge된 branch가 남아 있는 동안 `make link-state-check`는 실패한다(K381).
 
 ## 알려진 영향

@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: d51007ab249344f2ebd9e4919ff8ffe11b210e0532f3f750b8fd8e8e197aa4e2 -->
+<!-- source-sha256: 1d1ebf991dd6fd87f423360493723d57873379f1f4a71efc7e2fd9566a2cad42 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -41,12 +41,13 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
 - P9 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
-- P10 main에는 `make land`의 fast-forward로만 작업이 들어갑니다(P38). 각 행은 자기 worktree와 branch를 가지며,
-  `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로 이름 짓고 `make worktree-setup`으로
-  만듭니다. 자유 디스크가 30 GB 미만이면 거부합니다. worktree와 그 branch는 main에 merge된 직후 `make land`가
-  지웁니다. merge될 수 없는 test나 실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에
-  합니다; 바로 지울 수 없으면 checklist 하위 항목에 제거 조건을 적습니다.
-  Enforced by: `.githooks/pre-push`
+- P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 gate를 거친 commit으로 들어갑니다. 병렬이나 격리된
+  작업은 자기 worktree와 branch를 가지며, `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로
+  이름 짓고 `make worktree-setup`으로 만듭니다. 자유 디스크가 30 GB 미만이면 거부합니다. 이 작업은 `make land`의
+  fast-forward로만 main에 들어가며, worktree와 그 branch는 merge된 직후 `make land`가 지웁니다. merge될 수 없는 test나
+  실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에 합니다; 바로 지울 수 없으면 checklist
+  하위 항목에 제거 조건을 적습니다.
+  Enforced by: `.githooks/pre-push`, `.githooks/pre-merge-commit`
 - P11 code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
   영어로 쓰는 한국어 쌍을 가집니다.
   Enforced by: `make commits-check`는 commit message에 대해, `make language-check`는 code에 대해
@@ -152,9 +153,12 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - P37 결과는 그 check가 실행된 뒤, 그 실행의 출력과 함께만 보고한다. 출력 없이 check가 통과한다고 주장하는 것은 결과가
   아니다.
   Enforced by: none, 주장하기 전에 결과를 확인했는지는 판단이다.
-- P38 각 저장소의 main을 쓰는 integrator는 한 명이다. `make land`의 fast-forward 말고는 어떤 commit도 main에 들어가지
-  않으며, 이는 `make commits-check`의 commit-on-main 검사가 강제한다 (K404).
-  Enforced by: `make commits-check`
+- P38 main은 checkout마다 한 행위자가 gate를 거친 commit으로 직접 쓸 수 있다. main의 commit은 `make land`가 스테이징된 경로에
+  대해 고르는 gate를 스테이징된 tree에서 실행하고, HEAD에 없는 finding일 때만 이름을 적어 거부한다. main의 merge commit은
+  거부하므로 main은 commit과 fast-forward로만 움직인다. 저장소의 첫 commit은 main을 만들며 비교할 commit이 없으므로 gate를
+  거치지 않는다. hook은 실수로 gate를 거치지 않은 commit을 막는다. 의도적 우회(`--no-verify`, `core.hooksPath`, raw
+  `update-ref`)는 이 규칙의 범위 밖이다 (K404, K446, K404-1).
+  Enforced by: `.githooks/pre-commit`, `.githooks/pre-merge-commit`
 
 ## Repository 기준
 

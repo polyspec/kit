@@ -173,6 +173,14 @@
       },
       {
         "paths": [
+          ".githooks/pre-merge-commit"
+        ],
+        "targets": [
+          "hooks-check"
+        ]
+      },
+      {
+        "paths": [
           "ruff.toml"
         ],
         "targets": [

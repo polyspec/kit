@@ -95,7 +95,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 # `make ci-targets` (ci-only.mts); no target runs it locally.
 COMMIT ?= HEAD
 
-.PHONY: hooks hooks-check staged-generated-hook push-gate-hook commit-msg-hook push-gate-commit
+.PHONY: hooks hooks-check staged-generated-hook commit-gates-hook merge-commit-hook push-gate-hook commit-msg-hook push-gate-commit
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-push),)
@@ -107,7 +107,7 @@ endif
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-push, commit-msg and prepare-commit-msg hooks of kit and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-merge-commit, pre-push, commit-msg and prepare-commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
@@ -118,6 +118,12 @@ staged-generated-hook: ## The generated-file check of the pre-commit hook: fail 
 
 push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) hook
+
+commit-gates-hook: ## The gates of land on the staged tree of a commit on main, which refuse only a finding that HEAD lacks (K404-1, P38); silent on any other commit; the pre-commit hook that make hooks writes runs it
+	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --commit-gates
+
+merge-commit-hook: ## Refuse a merge commit on main (K404-1, P38): the pre-merge-commit hook that make hooks writes runs it
+	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --merge-commit
 
 commit-msg-hook: ## The message checks of make commit on the message being committed as MESSAGE (K380); the commit-msg hook that make hooks writes runs it
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)

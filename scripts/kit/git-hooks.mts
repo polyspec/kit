@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-push`, `commit-msg` and `prepare-commit-msg` belong to
-// kit: `pre-commit` refuses a staged generated path through `make staged-generated-hook`, `pre-push` runs the push gate through
+// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-merge-commit`, `pre-push`, `commit-msg` and
+// `prepare-commit-msg` belong to kit: `pre-commit` refuses a staged generated path through `make staged-generated-hook`, then runs
+// the gates of land on the staged tree of a commit on main through `make commit-gates-hook` (K404-1); `pre-merge-commit` refuses a
+// merge commit on main through `make merge-commit-hook` (K404-1); `pre-push` runs the push gate through
 // `make push-gate-hook`, `commit-msg` runs the message checks of make commit on every commit, an amend included, through
 // `make commit-msg-hook`, and `prepare-commit-msg` records an amend for that check through `make prepare-commit-msg-hook` (K380-2);
 // each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
@@ -20,15 +22,25 @@ import { gitResult } from './git.mts';
 
 export const HOOKS_PATH = '.githooks';
 export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
+export const PRE_MERGE_COMMIT = `${HOOKS_PATH}/pre-merge-commit`;
 export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
 export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
 export const PREPARE_COMMIT_MSG = `${HOOKS_PATH}/prepare-commit-msg`;
 export const PRE_COMMIT_CONTENT = `#!/bin/sh
 # The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
-# (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. Written by
-# \`make hooks\`; do not edit it. It calls the make target of the check, which stays across the versions of kit.
+# (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. On main the gates of
+# land run on the staged tree and refuse a finding that HEAD lacks (K404-1). Written by \`make hooks\`; do not edit it. It calls the
+# make targets of the checks, which stay across the versions of kit.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec make --no-print-directory staged-generated-hook
+make --no-print-directory staged-generated-hook || exit 1
+exec make --no-print-directory commit-gates-hook
+`;
+export const PRE_MERGE_COMMIT_CONTENT = `#!/bin/sh
+# The pre-merge-commit hook. Git runs it before it creates a merge commit. It refuses a merge commit on main, since main moves only by
+# commits and fast-forwards (P38, K404-1). Written by \`make hooks\`; do not edit it. It calls the make target of the check, which
+# stays across the versions of kit.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec make --no-print-directory merge-commit-hook
 `;
 export const PRE_PUSH_CONTENT = `#!/bin/sh
 # The pre-push hook. Git starts it with the pushed refs on standard input. The push gate refuses the push while an item of
@@ -56,6 +68,7 @@ exec make --no-print-directory prepare-commit-msg-hook SOURCE="$2" SHA="$3"
 /** The hooks that kit writes into every checkout, with their content. */
 const KIT_HOOKS = [
   { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
+  { file: PRE_MERGE_COMMIT, content: PRE_MERGE_COMMIT_CONTENT },
   { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
   { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
   { file: PREPARE_COMMIT_MSG, content: PREPARE_COMMIT_MSG_CONTENT },

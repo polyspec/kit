@@ -14,6 +14,7 @@
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
+import type { SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -202,27 +203,23 @@ export function land(root: string, branch: string, { print = (text: string) => c
     for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
     print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
     for (const gate of gates) {
-      // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
-      const args = gate === 'commits-check' ? ['--no-print-directory', '-s', gate, `RANGE=main..${branch}`] : ['--no-print-directory', '-s', gate];
       print(`${gate} in ${folder}`);
-      const result = spawnSync('make', args, { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
-      if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
-      if (result.status !== 0 && gate !== 'commits-check') {
-        const onMain = spawnSync('make', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-        if (onMain.error) throw new Error(`make ${gate} could not start in ${root}: ${onMain.error.message}`);
-        if (onMain.status !== 0) {
-          const added = newLines(findingLines(result, folder, root), findingLines(onMain, folder, root));
-          if (added.length === 0) {
-            print(`${gate} fails on main too, with no finding that main does not have`);
-            continue;
-          }
+      const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
+      const candidate = runGate(folder, gate, args);
+      if (candidate.result.status !== 0 && gate !== 'commits-check') {
+        const added = newFindings(root, candidate, runGate(root, gate, args));
+        if (added === undefined) {
+          print(`${gate} fails on main too, with no finding that main does not have`);
+          continue;
+        }
+        if (added.length > 0) {
           print(`${gate} has findings that main does not have:\n${added.join('\n')}`);
           throw new Error(`${branch} is refused: the gate ${gate} has ${added.length} findings that main does not have; nothing is merged`);
         }
       }
-      if (result.status !== 0) {
-        print(`${gate} failed in ${folder}:\n${result.stdout}${result.stderr}`);
-        throw new Error(`${branch} is refused: the gate ${gate} ${result.status === null ? `ended with the signal ${result.signal}` : `exited ${result.status}`}; nothing is merged`);
+      if (candidate.result.status !== 0) {
+        print(`${gate} failed in ${folder}:\n${candidate.result.stdout}${candidate.result.stderr}`);
+        throw new Error(`${branch} is refused: the gate ${gate} ${endOf(candidate)}; nothing is merged`);
       }
       print(`${gate} passed`);
     }
@@ -258,32 +255,125 @@ if (isMain(import.meta.url)) {
   }
 }
 
+/** One run of a gate in `folder`: the folder and make's outcome, read with make -s (K446-3). */
+export interface GateRun {
+  folder: string;
+  result: SpawnSyncReturns<string>;
+}
+
+// The variables that git gives a hook for the index it commits, and that locate the repository (K404-1).
+const HOOK_VARIABLES = ['GIT_INDEX_FILE', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_PREFIX'];
+
 /**
- * Runs the static gates of land that the changed paths of `folder` select, before a commit on main (K446), and refuses only the
- * findings that HEAD lacks, as land does (K394-1): a gate that fails on HEAD too is printed and passes. The commit gate
- * (commits-check) is left to the commit itself. The gate runs on HEAD in a temporary worktree that shares the tools of `folder`.
- * Throws, naming the gate and its new findings, when one is new; nothing is committed then.
+ * Runs `body` with the variables of the hook's index removed from the environment of this process, then restores them. Every run that
+ * `body` starts, git and make and the tools they start, reads the index and the repository of its own folder (K404-1). git gives a
+ * hook a relative GIT_INDEX_FILE, which names no file inside a temporary tree.
+ */
+function withoutHookVariables<T>(body: () => T): T {
+  const saved = HOOK_VARIABLES.map(name => [name, process.env[name]] as const);
+  for (const name of HOOK_VARIABLES) delete process.env[name];
+  try {
+    return body();
+  } finally {
+    for (const [name, value] of saved) if (value !== undefined) process.env[name] = value;
+  }
+}
+
+/** The standard output of `git <args>` in `cwd`; throws with git's error when it fails. */
+function gitIn(cwd: string, ...args: string[]): string {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`git ${args.join(' ')} could not start in ${cwd}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${result.stderr.trim()}`);
+  return result.stdout;
+}
+
+/**
+ * Runs `gate` in `folder` with make -s, with `args` after the gate (such as RANGE=), and returns the run. A make that cannot start throws.
+ */
+export function runGate(folder: string, gate: string, args: string[] = []): GateRun {
+  // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
+  const result = spawnSync('make', ['--no-print-directory', '-s', gate, ...args], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
+  return { folder, result };
+}
+
+/**
+ * The verdict of a failed run `candidate` of a gate against its run `baseline` of the same gate on the tree without the change (main
+ * for land, HEAD for a commit), read as <repo> through `root` (K394-1, K446-2). Undefined when the gate fails on the baseline too with
+ * no finding line that the baseline lacks, so it passes. Otherwise the new finding lines of the candidate; empty when the baseline
+ * passes, since no finding of it covers the failure, so the caller refuses with the exit status of the candidate.
+ */
+export function newFindings(root: string, candidate: GateRun, baseline: GateRun): string[] | undefined {
+  if (baseline.result.status === 0) return [];
+  const added = newLines(findingLines(candidate.result, candidate.folder, root), findingLines(baseline.result, baseline.folder, root));
+  return added.length === 0 ? undefined : added;
+}
+
+/** The text of how a gate run ended: its exit status, or the signal that ended it. */
+const endOf = (run: GateRun) => (run.result.status === null ? `ended with the signal ${run.result.signal}` : `exited ${run.result.status}`);
+
+/**
+ * A temporary folder with the tracked files of `treeish` and no other file (K404-1): a detached worktree of HEAD without files, whose
+ * index reads `treeish` and whose files are checked out from that index, so the folder holds the staged or committed tree and no
+ * untracked or ignored file. Its tool folders `var` and `node_modules` are symbolic links to those of `folder`, which K446 shares. The
+ * returned `remove` removes the worktree and the folder.
+ */
+function temporaryTree(folder: string, treeish: string): { dir: string; remove: () => void } {
+  const dir = mkdtempSync(path.join(tmpdir(), 'kit-commit-gate-'));
+  let added = false;
+  const remove = () => {
+    if (added) gitIn(folder, 'worktree', 'remove', '--force', dir);
+    rmSync(dir, { recursive: true, force: true });
+  };
+  try {
+    gitIn(folder, 'worktree', 'add', '--quiet', '--detach', '--no-checkout', dir, 'HEAD');
+    added = true;
+    gitIn(dir, 'read-tree', treeish);
+    gitIn(dir, 'checkout-index', '--all', '--force');
+  } catch (error) {
+    remove();
+    throw error;
+  }
+  for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared))) symlinkSync(path.join(folder, shared), path.join(dir, shared));
+  return { dir, remove };
+}
+
+/**
+ * Runs the static gates of land that the changed paths of `folder` select, before a commit on main (K446), on the staged tree (K404-1):
+ * the index of `folder` is written as a tree and checked out in a temporary worktree, where each gate runs (the commit-gate of
+ * commits-check is left to the commit itself). A gate that fails there is refused only on a finding that HEAD lacks, as land refuses
+ * on main (newFindings): HEAD is checked out the same way and the gate runs there. Throws, naming the gate and its new findings, when
+ * one is new, so nothing is committed; the temporary trees are removed in every case.
  */
 export function runCommitGates(folder: string, changed: string[], print: (text: string) => void = text => console.log(`[plan] ${text}`)): void {
-  const { gates } = gatesOf(folder, changed);
-  for (const gate of gates.filter(gate => gate !== 'commits-check')) {
-    print(`${gate} in ${folder}`);
-    const result = spawnSync('make', ['--no-print-directory', '-s', gate], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
-    if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
-    if (result.status === 0) continue;
-    const head = mkdtempSync(path.join(tmpdir(), 'kit-commit-gate-'));
-    try {
-      const made = spawnSync('git', ['worktree', 'add', '--quiet', '--detach', head, 'HEAD'], { cwd: folder, encoding: 'utf8' });
-      if (made.status !== 0) throw new Error(`git worktree add of HEAD failed: ${made.stderr}`);
-      for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared)) && !existsSync(path.join(head, shared))) symlinkSync(path.join(folder, shared), path.join(head, shared));
-      const base = spawnSync('make', ['--no-print-directory', '-s', gate], { cwd: head, encoding: 'utf8', maxBuffer: 1 << 28 });
-      if (base.error) throw new Error(`make ${gate} could not start on HEAD: ${base.error.message}`);
-      const added = newLines(findingLines(result, folder, folder), findingLines(base, head, folder));
-      if (added.length === 0) { print(`${gate} fails on HEAD too, with no finding that HEAD lacks`); continue; }
-      throw new Error(`the gate ${gate} has ${added.length} findings that HEAD lacks, so nothing is committed on main:\n${added.join('\n')}`);
-    } finally {
-      spawnSync('git', ['worktree', 'remove', '--force', head], { cwd: folder, encoding: 'utf8' });
-      rmSync(head, { recursive: true, force: true });
+  // write-tree reads the index of the commit that git gives the hook, so it runs before the hook variables are removed.
+  const tree = git(folder, 'write-tree').trim();
+  withoutHookVariables(() => commitGatesOf(folder, tree, changed, print));
+}
+
+/** The body of runCommitGates, run with the hook variables removed: the gates on the tree `tree` against HEAD (K404-1). */
+function commitGatesOf(folder: string, tree: string, changed: string[], print: (text: string) => void): void {
+  const staged = temporaryTree(folder, tree);
+  try {
+    const { gates } = gatesOf(staged.dir, changed);
+    for (const gate of gates.filter(gate => gate !== 'commits-check')) {
+      print(`${gate} in the staged tree`);
+      const candidate = runGate(staged.dir, gate);
+      if (candidate.result.status === 0) continue;
+      const head = temporaryTree(folder, 'HEAD');
+      try {
+        const added = newFindings(folder, candidate, runGate(head.dir, gate));
+        if (added === undefined) {
+          print(`${gate} fails on HEAD too, with no finding that HEAD lacks`);
+          continue;
+        }
+        if (added.length === 0) throw new Error(`the gate ${gate} ${endOf(candidate)} on the staged tree and passes on HEAD, so nothing is committed on main:\n${candidate.result.stdout}${candidate.result.stderr}`);
+        throw new Error(`the gate ${gate} has ${added.length} findings that HEAD lacks, so nothing is committed on main:\n${added.join('\n')}`);
+      } finally {
+        head.remove();
+      }
     }
+  } finally {
+    staged.remove();
   }
 }

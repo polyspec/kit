@@ -187,7 +187,7 @@ test('a merge commit in the range is not checked', (t) => {
 
 test('the command checks a range or a message file and exits with the findings', (t) => {
   const { root, git } = repository(t, ['feat(docs): Start (#K1)', 'bad subject'], ['K1', 'K2']);
-  // The message being committed is checked on the branch of its row, since a commit on main is refused (K404).
+  // The message being committed is checked on its own branch here; the gates that a commit on main also runs are not part of this check (K404-1).
   git('checkout', '-q', '-b', 'feat/name-K2');
   const command = (...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), ...args], { cwd: root, encoding: 'utf8' });
   const range = command('--range', 'HEAD~1..HEAD');

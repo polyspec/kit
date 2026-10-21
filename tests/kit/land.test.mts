@@ -431,3 +431,57 @@ test('make land keeps the worktree and names the stop target when it fails (K441
   assert.equal(existsSync(folder), true, 'the worktree is kept');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-broken'], { cwd: main }).status, 0, 'the branch is kept');
 });
+
+// K404-1: a commit on main and make land judge a failing gate with the same function, so one new finding refuses both, named by the
+// same line. The gate fails on the staged tree of main (the commit) and on the branch (land), and only its c.txt line is new.
+test('a commit on main and make land refuse the same new finding of a gate (K404-1)', (t) => {
+  const findingsMakefile = ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n';
+  const sandbox = () => {
+    const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-same-')));
+    t.after(() => rmSync(parent, { recursive: true, force: true }));
+    const main = path.join(parent, 'repo');
+    initRepository(main, '--initial-branch=main');
+    put(main, {
+      'Makefile': findingsMakefile,
+      'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
+      '.gitignore': 'var/\n',
+      'src/.keep': '',
+      'findings.txt': 'src/a.txt\n',
+    });
+    git(main, 'add', '-A');
+    git(main, 'commit', '--quiet', '-m', 'base');
+    return { parent, main };
+  };
+
+  const onMain = sandbox();
+  put(onMain.main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
+  git(onMain.main, 'add', 'findings.txt');
+  let commitRefusal = '';
+  try {
+    runCommitGates(onMain.main, ['findings.txt'], () => {});
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    commitRefusal = error.message;
+  }
+
+  const onLand = sandbox();
+  git(onLand.main, 'worktree', 'add', '--quiet', path.join(onLand.parent, 'repo-x'), '-b', 'feat-x', 'main');
+  put(path.join(onLand.parent, 'repo-x'), { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
+  git(path.join(onLand.parent, 'repo-x'), 'add', '-A');
+  git(path.join(onLand.parent, 'repo-x'), 'commit', '--quiet', '-m', 'x');
+  const printed: string[] = [];
+  let landRefusal = '';
+  try {
+    land(onLand.main, 'feat-x', { print: text => printed.push(text) });
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    landRefusal = error.message;
+  }
+  const landed = `${printed.join('\n')}\n${landRefusal}`;
+
+  assert.match(commitRefusal, /findings that HEAD lacks.*finding: src\/c\.txt/s, 'the commit on main refuses the new finding and names it');
+  assert.match(landed, /findings that main does not have:\n.*finding: src\/c\.txt/s, 'make land refuses the same new finding and names it');
+  assert.match(landRefusal, /findings that main does not have; nothing is merged/, 'make land refuses the branch');
+  assert.doesNotMatch(commitRefusal, /src\/a\.txt/, 'a finding that HEAD already has is not named');
+  assert.doesNotMatch(landed, /finding: src\/a\.txt/, 'a finding that main already has is not named');
+});

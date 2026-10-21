@@ -27,6 +27,8 @@
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
 //   node scripts/kit/check-commits.mts --prepare --source=<s> --sha=<sha>   the record of an amend, from the prepare-commit-msg hook (K380-2)
+//   node scripts/kit/check-commits.mts --commit-gates   the gates of land on the staged tree of a commit on main, from the pre-commit hook (K404-1)
+//   node scripts/kit/check-commits.mts --merge-commit   refuses a merge commit on main, from the pre-merge-commit hook (K404-1)
 //
 // A commit of a range is compared with its parent; the message being committed, with the index against HEAD, or against the parent
 // of HEAD when the commit amends it (K380-2). The item rules
@@ -41,6 +43,7 @@ import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } 
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gitIsAncestor, provesRed } from './gate-red.mts';
+import { runCommitGates } from './land.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
@@ -118,10 +121,15 @@ export function nextIdentityFindings(root: string): CommitFinding[] {
 }
 
 /**
- * The finding of the next commit of `root` while HEAD is the branch main and main has a commit (K404): a row is committed on its own
- * branch, which make land merges into main by fast-forward, so no commit is made on main; the first commit of a repository creates
- * main, which no branch can land on, and passes.
+ * Whether a commit that `root` makes now lands on main, which holds a commit (K404-1): HEAD names main and main resolves. The first commit
+ * of a repository creates main, which has no commit to compare the gates with, so it is not one (K404).
  */
+export function isCommitOnMain(root: string): boolean {
+  return gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').stdout.trim() === 'main' && gitResult(root, 'rev-parse', '--verify', '--quiet', 'refs/heads/main').status === 0;
+}
+
+/** The message of a merge commit on main that the pre-merge-commit hook refuses (K404-1, P38). */
+export const MERGE_ON_MAIN = 'a merge commit on main is refused: main moves by commits and fast-forwards only (P38, K404-1). Land the branch with make land, or rebase it on main.';
 
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message: string, config: CommitRules) {
@@ -468,13 +476,23 @@ export function rangeFindings(root: string, range: string, config: CommitRules) 
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' }, prepare: { type: 'boolean' }, source: { type: 'string' }, sha: { type: 'string' } } });
+  const { values } = parseArgs({ options: { range: { type: 'string' }, message: { type: 'string' }, prepare: { type: 'boolean' }, source: { type: 'string' }, sha: { type: 'string' }, 'commit-gates': { type: 'boolean' }, 'merge-commit': { type: 'boolean' } } });
   let findings: string[];
   let label: string;
   try {
     const config = COMMIT_RULES;
     if (values.prepare) {
       recordAmend(root, values.source ?? '', values.sha ?? '');
+      process.exit(0);
+    }
+    if (values['commit-gates']) {
+      if (isCommitOnMain(root)) {
+        runCommitGates(root, git(root, 'diff', '--cached', '--name-only').split('\n').filter(file => file !== ''), text => console.log(`[check-commits] ${text}`));
+      }
+      process.exit(0);
+    }
+    if (values['merge-commit']) {
+      if (gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').stdout.trim() === 'main') throw new Error(MERGE_ON_MAIN);
       process.exit(0);
     }
     if (values.message !== undefined) {
