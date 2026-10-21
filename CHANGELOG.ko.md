@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aaaa4de0e55efe35b46fbbcece7df1b0665edd48b492ce689e405def01a9cef5 -->
+<!-- source-sha256: 292c6588e1c45579a60dc425dc111c73f1dc13871cd12ab3e68195517a9f382c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K439-4-1: 추적되는 composer.lock의 provider 항목을, 그 lock에서 update 명령을 실행하기 전에 쓴다. 그래서 낡은 polyspec 항목(crudui의 polyspec/ordered-json 0.0.9처럼 이전 release의 php >=8.5)이 다른 패키지의 추적 update를 Composer의 platform 검사에서 더 이상 실패시키지 않는다. `scripts/kit/dependency-review.mts`의 `runUpdateSteps`는 plan의 전과 후에 항목을 쓴다 (K439-4-1). 붉은 확인: `node --test --test-name-pattern=K439-4-1 tests/kit/dependency-review.test.mts`가 18cf55d5에서 exit 1이다(추적 update 실패: polyspec/orm 0.0.18은 php >=8.5를 요구한다). 초록 확인: `make item-test ID=K439-4-1`이 통과한다(1 test, none skipped) (K439-4-1).
 - K462는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K462 test 실행이고 green은 이 커밋의 K462 test입니다 (K462).
 - `link.mjs providers <checkout>...`은 checkout의 npm provider마다 이름, 탭, package folder를 이름순으로 한 줄씩 출력합니다. link가 provider를 읽는 규칙(제외 경로 제외, package folder를 저장소 루트보다 우선)을 따르므로, 소비자는 polyspec 패키지의 folder를 규칙을 복사하지 않고 kit에서 얻습니다 (K462).
 - K439-4: composer-provider-entries는 scratch 프로젝트를 소비자 자신의 repositories로 해석한다. provided 패키지가 먼저, 그다음 소비자의 repositories이며, 그 path url은 소비자 폴더 기준으로 풀린다. packagist는 꺼진 채이고, 읽을 수 없는 소비자 path repository는 이름을 밝히고 실패한다. 그런 repository만 제공하는 root 요구(crudui, orm, template)는 더 이상 "not in remote repositories"로 실패하지 않는다 (K439-4). 붉은 확인: `node --test --test-name-pattern=K439-4 tests/kit/dependency-review.test.mts`가 3554285c에서 exit 1이다(2 of 2 실패: root 요구를 찾지 못하고, 읽을 수 없는 repository는 알아채지 못하고 통과한다). 초록 확인: `make item-test ID=K439-4`가 통과하고(2 tests, none skipped), K439-3 test도 계속 통과한다 (K439-4).

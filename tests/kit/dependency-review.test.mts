@@ -9,7 +9,7 @@ import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { composerCommand, composerEnvironment as toolingEnvironment } from '../../scripts/kit/install-composer-project.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
-import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -496,4 +496,33 @@ test('an unreadable path repository of the consumer fails naming it (K439-4)', (
   const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
   const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
   assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer }), /\.\/missing/);
+});
+
+// K439-4-1: the provider entries of a tracked lock are written before the commands of an update run on it. The tracked lock holds an old
+// polyspec/orm 0.0.18 entry that requires php >=8.5; Composer's platform check of a tracked update of example/lib fails on it, unless the
+// entry takes the provider manifest first.
+test('a tracked update passes a stale polyspec entry, whose provider entry is written before it (K439-4-1)', (t) => {
+  const checkout = repositoryRoot();
+  composerOfCheckout(checkout, 'the test of K439-4-1');
+  const scratch = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-update-steps-')));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const orm = path.join(scratch, 'orm');
+  const consumer = path.join(scratch, 'consumer');
+  const lib = path.join(consumer, 'lib');
+  mkdirSync(orm);
+  mkdirSync(lib, { recursive: true });
+  const ormManifest = { name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } };
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify(ormManifest));
+  writeFileSync(path.join(lib, 'composer.json'), JSON.stringify({ name: 'example/lib', version: '1.0.0', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Lib\\': 'src/' } } }));
+  // The consumer has no repository of polyspec/orm: its locked entry is the only metadata that Composer reads for it (as crudui's tracked lock).
+  const repositories = [{ packagist: false }, { type: 'path', url: './lib', options: { symlink: false } }];
+  writeFileSync(path.join(consumer, 'composer.json'), JSON.stringify({ name: 'kit/consumer', type: 'project', license: 'proprietary', repositories, require: { php: '>=8.4', 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } }));
+  writeFileSync(path.join(consumer, 'composer.lock'), JSON.stringify({ packages: [{ name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/polyspec-orm-0.0.18.zip' }, type: 'library', require: { php: '>=8.5' } }], 'packages-dev': [], platform: { php: '>=8.4' }, 'platform-overrides': { php: '8.4.1' } }));
+  const found = new Map([['polyspec/orm', { manifest: ormManifest, folder: orm }]]);
+  const plan = [{ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-audit', '--no-interaction', 'example/lib'], cwd: path.relative(checkout, consumer), tracked: true }];
+  assert.equal(runUpdateSteps(checkout, plan, found), 0, 'the tracked update passes');
+  const lock: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'));
+  const entries: unknown[] = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];
+  const ormEntry = entries.find((entry: unknown) => isJsonObject(entry) && entry.name === 'polyspec/orm');
+  assert.equal(isJsonObject(ormEntry) && isJsonObject(ormEntry.require) ? ormEntry.require.php : undefined, '>=8.4', 'the entry takes the provider manifest');
 });

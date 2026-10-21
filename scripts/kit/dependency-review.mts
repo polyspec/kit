@@ -838,8 +838,7 @@ function siblingComposerProviders(root: string): Map<string, { manifest: Record<
 }
 
 /** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote (K439-2). */
-function rewriteProviderEntries(root: string, directories: readonly string[]): void {
-  const found = siblingComposerProviders(root);
+function rewriteProviderEntries(root: string, directories: readonly string[], found: Map<string, { manifest: Record<string, unknown>; folder: string }> = siblingComposerProviders(root)): void {
   const manifests = new Map([...found].map(([name, provider]) => [name, provider.manifest]));
   // K439-2: the toolchain Composer of the checkout, as K432 runs it (COMPOSER_BIN names another one).
   const composer = process.env.COMPOSER_BIN ?? composerCommand(root, 'make composer-provider-entries');
@@ -869,6 +868,28 @@ function rewriteProviderEntries(root: string, directories: readonly string[]): v
     writeFileSync(lock, text);
     say(`${path.posix.join(directory, 'composer.lock')}: rewrote the metadata of ${rewritten.join(', ')}`);
   }
+}
+
+/**
+ * Runs the commands of an update plan in order and returns how many failed (K439-4-1 seam: the provider entries of the composer directories of
+ * the plan are rewritten after its commands; `found` names the providers, by default the sibling checkouts).
+ */
+export function runUpdateSteps(root: string, plan: readonly { command: string; args: string[]; cwd: string; tracked?: boolean }[], found?: Map<string, { manifest: Record<string, unknown>; folder: string }>): number {
+  // K439-4-1: the provider entries of the tracked locks are written before the commands run on them, so a stale polyspec entry (php >=8.5 of an
+  // older release) does not fail Composer's platform check of the update; they are written again after, for the locks the commands changed.
+  const directories = plan.filter(step => step.command === 'composer').map(step => step.cwd);
+  rewriteProviderEntries(root, directories, found);
+  let failed = 0;
+  for (const step of plan) {
+    say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
+    const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' && !step.tracked ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
+    if (outcome.error || outcome.status !== 0) {
+      failed += 1;
+      say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);
+    }
+  }
+  rewriteProviderEntries(root, directories, found);
+  return failed;
 }
 
 function print(result: { notes: string[]; lines: string[] }) {
@@ -922,17 +943,8 @@ function main(): void {
     }
     // A linked package is moved by its link, not by the update (K340).
     const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package) && (targets === undefined || named(item))), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)), linked: directory => composerEnvironment(root, directory) !== undefined, targeted: targets !== undefined });
-    let failed = 0;
-    for (const step of plan) {
-      say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
-      const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' && !step.tracked ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
-      if (outcome.error || outcome.status !== 0) {
-        failed += 1;
-        say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);
-      }
-    }
+    const failed = runUpdateSteps(root, plan);
     say(`${plan.length - failed} of ${plan.length} update commands passed; reviewing again`);
-    rewriteProviderEntries(root, plan.filter(step => step.command === 'composer').map(step => step.cwd));
     result = review(root, targets);
   }
   print(result);
