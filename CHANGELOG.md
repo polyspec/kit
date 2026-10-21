@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K439-3-1: the K439-3 real-Composer test now uses the checkout's declared Composer and fails with the install-tools fix instead of skipping when it is unavailable; its verification runs through run-tests, which refuses the skipped-only case (K439-3-1).
+
 - K468-2-1: the Composer regression fixture validates parsed lock entries through unknown-valued elements, so `make lint-ts` passes without unsafe JSON assignments (K468-2-1).
 
 - K468-2: offline Composer provider-entry resolution uses an exact version required by a sibling package when a provider has no declared version; Composer resolves the strict requirement, while the rewritten tracked lock keeps its existing version field (K468-2).

@@ -466,16 +466,7 @@ test('RECORD with TARGETS records the snapshot moment of the file as the review 
 // locked in the tracked lock) resolves offline; without the base the scratch cannot find it and fails.
 test('the provider entries resolve the transitive requirements from the tracked lock, offline (K439-3)', (t) => {
   const checkout = repositoryRoot();
-  let composer: string | undefined = process.env.COMPOSER_BIN;
-  try {
-    composer ??= composerCommand(checkout, 'the test of K439-3');
-  } catch {
-    composer = undefined;
-  }
-  if (composer === undefined || spawnSync(composer, ['--version']).status !== 0) {
-    t.skip('no Composer on this machine');
-    return;
-  }
+  const composer = composerOfCheckout(checkout, 'the test of K439-3');
   const toolEnv = toolingEnvironment(checkout);
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-transitive-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));

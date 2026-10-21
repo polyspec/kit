@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4b549e4d2416b7608d612404d14bda5585d6b2b4b9000a7cb52fbb3f2540ea80 -->
+<!-- source-sha256: c457f4a881c2be9185a75b548ec559d582c8ab9e9e1e54f331570eb09b901f09 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K439-3-1: K439-3 real-Composer test는 checkout이 선언한 Composer를 사용하고, 없으면 skip하지 않고 install-tools 수정을 안내하며 실패한다. Verification은 run-tests를 거쳐 skipped-only case를 거부한다 (K439-3-1).
 
 - K468-2-1: Composer regression fixture는 parsed lock entry를 unknown element로 검증하여, unsafe JSON assignment 없이 `make lint-ts`를 통과한다 (K468-2-1).
 
