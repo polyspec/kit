@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 37412b370a1fb023ed3c08216056846f64690d438295f01d1927bed96cc5470c -->
+<!-- source-sha256: 8010046365cce6d976d1f2702d860d72b4a8f330858db6858ab25b752f7eefa3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- lock을 composer install하는 recipe는 뒤에 link 단계가 있어도 거부되며, sibling이 제공하는 polyspec 패키지를 처음부터
+  link하는 make composer-install을 쓰라고 적는다(K448-1).
 - main에서 `make commit`은 스테이징된 경로에 대해 `make land`가 고르는 정적 gate를 실행하고, 하나라도 실패하면 아무것도
   커밋하지 않는다. commit-msg 검사는 HEAD가 main인 동안 커밋을 거부하지 않으므로, owner가 K404를 폐지하며 정한 대로 작업은
   main에서 직접 한다(K446).

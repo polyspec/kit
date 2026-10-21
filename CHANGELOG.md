@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install,
+  which links the sibling-provided polyspec packages from the start (K448-1).
 - `make commit` on main runs the static gates that `make land` selects for the staged paths and commits nothing when one fails,
   and the commit-msg check no longer refuses a commit while HEAD is main, so work is done on main directly, as the owner decided
   when K404 was retired (K446).
