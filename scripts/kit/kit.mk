@@ -384,6 +384,12 @@ worktree-prune: ## Remove the worktree and delete the branch of every branch mer
 composer-install: ## Install the Composer project DIR in place of its composer install: through the link when a sibling checkout provides a polyspec package of its composer.lock, else composer install of the tracked lock (K432)
 	$(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR)
 
+# npm-install is the install of a consumer's npm packages in place of its npm ci: a sibling checkout's polyspec package is linked from the
+# start, through a temporary manifest, so no release is fetched (K448-2).
+.PHONY: npm-install
+npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2)
+	NPM_BIN=$(NPM) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR)
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
