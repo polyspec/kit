@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5da0c6571d129dab617be650fd3c3efa47e83487169fc4262116461390d165ae -->
+<!-- source-sha256: e244fadf1ead9f955d382102d7ecd26a8a884febf55a5465bc6afcb3943c752a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K458은 done입니다. 항목은 이 커밋에서 [o]입니다. 변경은 fix 커밋 12e458ca이고, red는 f925cb58, green은 그 커밋의 K458 test입니다 (K458).
 - K458: `make dependency-policy-check`의 sibling 비교는 checkout을 폴더가 아니라 repository 이름으로 적으므로, worktree `<repo>-NAME-ID`의 finding이 main의 finding으로 읽히고 `make land`는 더 이상 이를 새 finding으로 셈하지 않는다. 이름은 `scripts/kit/link-providers.mts`의 `repositoryName`이 준다. 붉은 확인: `node --test --test-name-pattern=K458 tests/kit/dependency-policy.test.mts`가 f925cb58에서 실패한다(worktree finding이 `repo-x-K1`을 적는다). 초록 확인: `make item-test ID=K458`이 통과한다(1 test, none skipped) (K458).
 - K326-2: 링크된 Composer project에서 `make dependency-policy-check`의 모든 Composer 규칙(platform, K415 잠금 요구사항, `composer validate`, 검토 기록 버전)은 `composer.link.json`과 `composer.link.lock`을 판단하고, 링크되지 않으면 추적된 파일을 판단한다. 하나의 선택 함수 `scripts/kit/composer-project.mts`를 모든 규칙과 검토가 쓴다. 붉은 확인: `node --test --test-name-pattern=K326-2 tests/kit/dependency-policy.test.mts`가 8ad71384에서 추적된 lock의 `psr/log requires php >=8.5.0` finding으로 실패하고 link lock은 깨끗하다. 초록 확인: `make item-test ID=K326-2`가 통과한다(1 test, none skipped) (K326-2).
 - K404-1: pre-commit hook은 main의 각 commit에서 `make land`의 gate를 스테이징된 tree에서 실행하고, HEAD에 없는 finding일 때만 이름을 적어 거부한다. pre-merge-commit hook은 main의 merge commit을 거부하므로 main은 commit과 fast-forward로만 움직인다(K404, K446, P10, P38). `make commit`은 이 hook을 통해 gate를 한 번만 실행한다 (K404-1).
