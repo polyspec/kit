@@ -109,10 +109,29 @@ export function bareToolFindings(make: MakeDatabase): string[] {
 // The last segment of a path, as the shell looks a command up by it.
 const baseName = (word: string): string => word.slice(word.lastIndexOf('/') + 1);
 
-/** Whether the command `words` starts PHPUnit: PHPUnit itself, or a php interpreter that runs it. */
+// The commands that run the command after them: env with its assignments and options, exec and command.
+const PREFIXES = new Set(['env', 'exec', 'command']);
+// The options of env that take the next word as their value.
+const ENV_VALUED = new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']);
+// A shell that runs its -c string, with -c alone or in combined flags such as -ec.
+const SHELL = /^(?:ba|z|da)?sh$/;
+const SHELL_STRING = /^-[a-z]*c[a-z]*$/;
+const PHPUNIT = /^phpunit(?:\.phar)?$/;
+
+/** Whether the command `words` starts PHPUnit: PHPUnit itself, a php interpreter that runs it, or either behind env, exec, command or sh -c. */
 function startsPhpunit(words: readonly string[]): boolean {
-  const command = baseName(words[0] ?? '');
-  return command === 'phpunit' || (/^php[0-9.]*$/.test(command) && words.slice(1).some(word => baseName(word) === 'phpunit'));
+  let rest = [...words];
+  while (rest.length > 0 && PREFIXES.has(baseName(rest[0] ?? ''))) {
+    rest = rest.slice(1);
+    while (rest.length > 0 && ((rest[0] ?? '').startsWith('-') || /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest[0] ?? ''))) rest = rest.slice(ENV_VALUED.has(rest[0] ?? '') ? 2 : 1);
+  }
+  const command = baseName(rest[0] ?? '');
+  if (SHELL.test(command)) {
+    const flag = rest.findIndex(word => SHELL_STRING.test(word));
+    const script = flag === -1 ? undefined : rest[flag + 1];
+    return script !== undefined && commandParts(script).some(part => startsPhpunit(commandOf(part)));
+  }
+  return PHPUNIT.test(command) || (/^php[0-9.]*$/.test(command) && rest.slice(1).some(word => PHPUNIT.test(baseName(word))));
 }
 
 /** One finding for each recipe command of `make` that starts PHPUnit outside run-tests. */

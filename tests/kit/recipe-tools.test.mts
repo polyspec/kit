@@ -47,6 +47,8 @@ test('a recipe that starts PHPUnit outside run-tests is a finding, also through 
     '\t$(PHP_EXTENSION_TESTS) tests/ModelTest.php',
     '\t@test -f env && vendor/bin/phpunit t.php',
     '\t/opt/homebrew/opt/php@8.4/bin/php8.4 vendor/bin/phpunit t.php',
+    '\tenv -u X FOO=1 php vendor/bin/phpunit.phar t.php',
+    '\tsh -ec "cd a && exec vendor/bin/phpunit t.php"',
     'fine:',
     '\t$(RUN_TESTS) phpunit --php-extension x.so -- --configuration a.xml tests/ModelTest.php',
     '\t@echo run phpunit',
@@ -54,7 +56,7 @@ test('a recipe that starts PHPUnit outside run-tests is a finding, also through 
     '',
   ].join('\n');
   const findings = testRunnerFindings(makeDatabase(tree(t, { Makefile: makefile })));
-  assert.equal(findings.length, 3, findings.join('\n'));
+  assert.equal(findings.length, 5, findings.join('\n'));
   assert.ok(findings.every(finding => finding.startsWith('make target direct starts PHPUnit outside run-tests: ')), findings.join('\n'));
   assert.match(findings[0] ?? '', /`\$\(PHP_EXTENSION_TESTS\) tests\/ModelTest\.php`; a test that hangs there has no time limit\. Fix: run it as \$\(RUN_TESTS\) phpunit \[--php-extension <file>\] -- <arguments>, which stops a test at its timeout$/);
 });
