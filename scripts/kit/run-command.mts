@@ -21,6 +21,11 @@ export interface RunCommandOptions {
   stderr?: 'inherit' | 'pipe' | undefined;
   /** The captured output of stdout and stderr together that stops the command; 16 MiB by default. */
   maxOutputBytes?: number | undefined;
+  /**
+   * Called with each complete line of a piped stream as it arrives, and with its last line without the newline when the stream
+   * ends, so a caller can print it at once, such as with a prefix of the command (K430-1); the output is collected all the same.
+   */
+  onLine?: ((stream: 'stdout' | 'stderr', line: string) => void) | undefined;
 }
 export interface RunCommandResult {
   status: number | null;
@@ -65,7 +70,7 @@ function untrack(pid: number): void {
  * did not start.
  */
 export function runCommand(
-  { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES }: RunCommandOptions,
+  { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine }: RunCommandOptions,
 ): Promise<RunCommandResult> {
   const started = performance.now();
   return new Promise<RunCommandResult>(resolve => {
@@ -84,7 +89,10 @@ export function runCommand(
     if (child.pid !== undefined) track(child.pid);
     const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
     for (const name of ['stdout', 'stderr'] as const) {
-      child[name]?.setEncoding('utf8').on('data', (chunk: string) => {
+      // The text of the stream after its last newline, which waits for the rest of its line.
+      let pending = '';
+      const stream = child[name]?.setEncoding('utf8');
+      stream?.on('data', (chunk: string) => {
         bytes += Buffer.byteLength(chunk);
         if (bytes > maxOutputBytes) {
           if (!stopped && child.pid !== undefined) signalGroup(child.pid, 'SIGKILL');
@@ -92,6 +100,14 @@ export function runCommand(
           return;
         }
         output[name] += chunk;
+        if (onLine === undefined) return;
+        const lines = `${pending}${chunk}`.split('\n');
+        pending = lines.pop() ?? '';
+        for (const line of lines) onLine(name, line);
+      });
+      stream?.on('end', () => {
+        if (onLine !== undefined && pending !== '') onLine(name, pending);
+        pending = '';
       });
     }
     child.once('error', error => finish({ error }));

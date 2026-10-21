@@ -55,3 +55,21 @@ test('failureOf states the failure of a finished command in one line, and none f
   assert.equal(failureOf({ status: null, signal: null, error: new Error('spawn x ENOENT') }), 'spawn x ENOENT');
   assert.equal(failureOf({ status: null, signal: 'SIGKILL', stopped: 'output' }), 'wrote more than its output limit; stopped its process group');
 });
+
+// K430-1: a caller that streams the output of parallel commands with a prefix of each takes every line as it arrives, the last one
+// without its newline when the stream ends, while the output is still collected.
+test('onLine receives each line of a piped stream as it arrives, and the output is still collected (K430-1)', async () => {
+  const lines: string[] = [];
+  const result = await runCommand({
+    command: process.execPath,
+    args: ['-e', "process.stdout.write('one\\ntw'); setTimeout(() => { process.stdout.write('o\\nthree'); process.stderr.write('err\\n'); }, 50)"],
+    stdout: 'pipe',
+    stderr: 'pipe',
+    onLine: (stream, line) => lines.push(`${stream}: ${line}`),
+  });
+  assert.equal(result.status, 0);
+  assert.deepEqual(lines.filter(line => line.startsWith('stdout')), ['stdout: one', 'stdout: two', 'stdout: three']);
+  assert.deepEqual(lines.filter(line => line.startsWith('stderr')), ['stderr: err']);
+  assert.equal(result.stdout, 'one\ntwo\nthree');
+  assert.equal(result.stderr, 'err\n');
+});
