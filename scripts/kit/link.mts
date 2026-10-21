@@ -1378,6 +1378,15 @@ if (isMain(import.meta.url)) {
         for (const repository of rest) rebuild(workTreeOf(repository), print);
         refreshComposerAutoload({ directories, print });
         break;
+      case 'providers': {
+        // The npm providers of the checkouts that the arguments name, one line each: the name, a tab and the package folder, sorted by
+        // name. They are read by the rules of link (the excluded paths, a package folder before its root, one provider per name), so a
+        // consumer takes the folder of each polyspec package from the kit (K462).
+        if (rest.length === 0) throw new Error('Usage: link.mjs providers <checkout>...');
+        const npm = [...providers(rest, undefined, process.cwd()).values()].filter(provider => provider.ecosystem === 'npm');
+        for (const provider of npm.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) print(`${provider.name}\t${provider.folder}`);
+        break;
+      }
       case 'packages': {
         const [directory, ecosystem] = rest;
         if (!directory || (ecosystem !== 'python' && ecosystem !== 'npm')) throw new Error('Usage: link.mjs packages <dir> python|npm');
@@ -1400,7 +1409,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | providers <checkout>... | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

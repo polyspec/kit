@@ -867,6 +867,22 @@ test('a root-level provider of another checkout yields to a package folder of on
   assert.equal(providers([...current, other], undefined, root).get('npm:@polyspec/x')?.folder, path.join(provider, 'packages/ts'));
 });
 
+// K462: `link.mjs providers <checkout>...` prints each npm provider with its folder, by the rule that link reads the providers with: the
+// excluded paths are left out, and a package folder is named as its folder, never the repository root beside it, so a consumer asks the
+// kit for the folders instead of copying the rule (S-584-1).
+test('K462: link providers prints each npm provider with its folder, leaving out an excluded path (K462)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-providers-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const checkout = repository(root, 'polyspec', {
+    'packages/ts/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }),
+    'tests/fixture/package.json': JSON.stringify({ name: '@polyspec/y', version: '0.0.1' }),
+    'package.json': JSON.stringify({ name: '@polyspec/z', version: '0.0.1' }),
+  });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'providers', checkout], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, `@polyspec/x\t${path.join(checkout, 'packages/ts')}\n@polyspec/z\t${checkout}\n`);
+});
+
 test('K220: a private npm package of a provider checkout is linked like any other: its copy becomes a link, and check passes', (t) => {
   const { root, consumer, env } = workspace(t);
   const priv = repository(root, 'priv', { 'package.json': JSON.stringify({ name: '@x/p', version: '0.0.1', private: true }), 'index.js': '' });
