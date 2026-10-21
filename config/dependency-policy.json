@@ -12,8 +12,8 @@
       "lock": "package-lock.json",
       "package": "sprintf-js",
       "advisory": "1241202",
-      "reason": "GHSA-hp3w-g68c-fv3c (npm advisory 1241202) covers every release of sprintf-js, so no release fixes it. kit pulls sprintf-js 1.0.3 in only through @microsoft/api-extractor -> @rushstack/ts-command-line -> argparse 1.0.10 -> sprintf-js, which formats the help and error texts of the api-extractor command with its own format strings; make lint-ts runs that command with fixed arguments only, and no input of a user reaches sprintf-js",
-      "removalCondition": "a release of sprintf-js fixes GHSA-hp3w-g68c-fv3c, or @microsoft/api-extractor no longer depends on argparse; make dependency-review then reports the exception as stale"
+      "reason": "GHSA-hp3w-g68c-fv3c (npm advisory 1241202, medium) lists first_patched_version none for sprintf-js, and the latest sprintf-js is 1.1.3 (checked against the npm registry), so no release fixes it. kit pulls sprintf-js 1.0.3 in only through @microsoft/api-extractor 7.59.4 (the latest) -> @rushstack/ts-command-line 5.3.17 (the latest) -> argparse 1.0.10 -> sprintf-js. Three alternatives were rejected: no patched sprintf-js exists; a TypeScript compiler API would reimplement the canonical references and ae-forgotten-export detection of API Extractor (P14); an argparse 2.0.1 override breaks 'api-extractor --help', which lint-ts runs. make lint-ts runs that command with fixed arguments only, and no input of a user reaches sprintf-js",
+      "removalCondition": "a patched sprintf-js (a version that fixes GHSA-hp3w-g68c-fv3c), or an api-extractor release without argparse 1.x; make dependency-review then reports the exception as stale"
     }
   ]
 }

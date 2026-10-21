@@ -3,6 +3,7 @@
 // as accepted with its reason; an advisory without an entry still fails both, and an entry that matches no advisory of the
 // review is stale and fails both. cargo-audit is a stub that reports one advisory of the Cargo lock of the fixture.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
@@ -67,4 +68,20 @@ test('an advisory exception without its reason or removal condition fails the ga
   const gated = gate(root);
   assert.equal(gated.status, 1);
   assert.match(gated.stderr, /^\[dependency-policy\] config\/dependency-policy\.json: the advisory exception RUSTSEC-2099-0001 of packages\/fixture-rust\/Cargo\.lock itoa lacks a lock, package, advisory, reason or removal condition\./m);
+});
+
+// K470: the sprintf-js advisory of the api-extractor chain stays an accepted exception, and its record carries the evidence
+// that no release fixes it and the removal condition that the review reads as stale.
+test('the sprintf-js advisory stays an accepted exception with its evidence and removal condition (K470)', () => {
+  const policy: unknown = JSON.parse(readFileSync(new URL('../../config/dependency-policy.json', import.meta.url), 'utf8'));
+  const exceptions: unknown[] = typeof policy === 'object' && policy !== null && 'advisoryExceptions' in policy && Array.isArray(policy.advisoryExceptions) ? policy.advisoryExceptions : [];
+  const record: unknown = exceptions.find(item => typeof item === 'object' && item !== null && 'package' in item && item.package === 'sprintf-js' && 'advisory' in item && item.advisory === '1241202');
+  assert.ok(typeof record === 'object' && record !== null && 'reason' in record && typeof record.reason === 'string' && 'removalCondition' in record && typeof record.removalCondition === 'string', 'an advisoryExceptions entry names sprintf-js and GHSA-hp3w-g68c-fv3c with its reason and removal condition');
+  const reason = record.reason;
+  const removalCondition = record.removalCondition;
+  assert.match(reason, /first_patched_version none/, 'the reason records that no patched sprintf-js exists');
+  assert.match(reason, /sprintf-js is 1\.1\.3/, 'the reason records the latest sprintf-js release');
+  assert.match(reason, /argparse 2\.0\.1 override breaks 'api-extractor --help'/, 'the reason records why the argparse override is refused');
+  assert.match(reason, /ae-forgotten-export/, 'the reason records why the TypeScript compiler API is refused');
+  assert.match(removalCondition, /a patched sprintf-js .*or an api-extractor release without argparse 1\.x/, 'the removal condition names the retry condition');
 });
