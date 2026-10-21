@@ -19,6 +19,12 @@ function nameOf(checkout: string): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+/** The package name of an overrides key without its version or range: "@scope/name@1.0.0" and "name@^2" name "@scope/name" and "name". */
+function packageNameOf(key: string): string {
+  const at = key.indexOf('@', key.startsWith('@') ? 1 : 0);
+  return at === -1 ? key : key.slice(0, at);
+}
+
 /** The package folders that a repository root holds under packages/: each directory there with a package.json, sorted. */
 function packageFoldersOf(checkout: string): string[] {
   const packages = path.join(checkout, 'packages');
@@ -90,9 +96,21 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
       for (const [name, folder] of provided) if (name in deps) deps[name] = `file:${folder}`;
       linked[section] = deps;
     }
+    // Every overrides entry that names a provided package, at any depth, takes its checkout folder: npm refuses an override of a direct
+    // dependency whose spec differs from the dependency's (EOVERRIDE, npm docs: package.json, overrides), so no asset spec of a provided
+    // package stays in the temporary manifest (K448-10). The other overrides of the manifest are kept.
+    const rewrite = (entries: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(Object.entries(entries).map(([key, value]) => {
+      const folder = provided.get(packageNameOf(key));
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const nested = rewrite(Object.fromEntries(Object.entries(value)));
+        if (folder !== undefined) nested['.'] = `file:${folder}`;
+        return [key, nested];
+      }
+      return [key, folder !== undefined ? `file:${folder}` : value];
+    }));
+    const overrides = rewrite(sectionOf('overrides'));
     // The packages that only the lock names, transitively, are linked through overrides (K448-7).
-    const overrides: Record<string, string> = {};
-    for (const [name, folder] of provided) if (!declared.has(name)) overrides[name] = `file:${folder}`;
+    for (const [name, folder] of provided) if (!declared.has(name) && !(name in overrides)) overrides[name] = `file:${folder}`;
     if (Object.keys(overrides).length) linked.overrides = overrides;
     writeFileSync(path.join(temporary, 'package.json'), JSON.stringify(linked, null, 2) + '\n');
     if (existsSync(lock)) copyFileSync(lock, path.join(temporary, 'package-lock.json'));

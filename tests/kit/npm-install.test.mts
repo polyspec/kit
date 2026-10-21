@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import test from 'node:test';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { npmInstall } from '../../scripts/kit/npm-install.mts';
 
 test('npm install of a consumer links a sibling polyspec package from its folder and changes no tracked file (K448-2)', (t) => {
@@ -99,4 +100,48 @@ test('the CLI refuses a repository root given as a checkout and names the packag
   assert.match(refused.stderr, /is a repository root, not a package folder/);
   assert.match(refused.stderr, /packages\/ts/, 'the refusal names the package folder it contains');
   assert.equal(existsSync(path.join(project, 'node_modules')), false, 'nothing is installed');
+});
+
+// K448-10: an overrides entry of the manifest that names a provided package takes the checkout folder of its direct dependency, so npm
+// accepts the temporary manifest; an override of a direct dependency must have the same spec (npm docs, package.json, overrides).
+test('npm install links a provided package whose manifest overrides entry names the same asset (K448-10)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-override-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 3;\n');
+  // The tracked manifest names the asset in its dependencies and in its overrides, as limepie node/contracts does.
+  const asset = 'file:var/assets/polyspec-ordered-json-npm-0.0.9.tgz';
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': asset }, overrides: { '@polyspec/ordered-json': asset } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: () => undefined, env: process.env });
+  assert.equal(took, 'linked');
+  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(sibling), 'the link resolves to the sibling folder');
+});
+
+// K448-10: the temporary manifest that npm installs keeps no asset spec of a provided package, at any depth, and keeps the other overrides.
+test('the temporary manifest rewrites each overrides entry of a provided package and keeps the other overrides (K448-10)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-manifest-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9' }));
+  const asset = 'file:var/assets/polyspec-ordered-json-npm-0.0.9.tgz';
+  const overrides = { '@polyspec/ordered-json': asset, '@npm/bar': { '@polyspec/ordered-json@0.0.9': asset, '.': '1.0.0' }, 'left-pad': '1.3.0' };
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': asset }, overrides }, null, 2) + '\n');
+  // The stub npm records the temporary manifest that the install reads; it runs no real npm.
+  const stub = path.join(root, 'npm');
+  const recorded = path.join(root, 'manifest.json');
+  writeFileSync(stub, `#!/bin/sh\nif [ "$1" = install ]; then cp package.json "${recorded}"; mkdir -p node_modules; fi\n`, { mode: 0o755 });
+  npmInstall({ directory: project, checkouts: [sibling], npm: stub, print: () => undefined, env: process.env });
+  const temporary = readJsonObject(root, 'manifest.json');
+  const folder = `file:${realpathSync(sibling)}`;
+  assert.deepEqual(temporary.dependencies, { '@polyspec/ordered-json': folder });
+  assert.deepEqual(temporary.overrides, { '@polyspec/ordered-json': folder, '@npm/bar': { '@polyspec/ordered-json@0.0.9': folder, '.': '1.0.0' }, 'left-pad': '1.3.0' }, 'the provided package takes the checkout folder at each depth, and the other overrides are kept');
+  assert.doesNotMatch(readFileSync(recorded, 'utf8'), /var\/assets/, 'no asset spec of a provided package remains');
 });
