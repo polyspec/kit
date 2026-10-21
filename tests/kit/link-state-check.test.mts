@@ -96,8 +96,9 @@ test('a recipe that installs from a lock without the kit link step after it is a
     'd-install:', '	$(MAKE) link', '	composer install', '',
   ].join('\n');
   assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), [
+    'Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
     'Makefile:6: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
-    'Makefile:18: the recipe d-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:18: the recipe d-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
   ]);
 });
 
@@ -111,9 +112,10 @@ test('a recipe that installs through a make variable without the link step after
     'f-install:', '\t${UV} sync --frozen', '\tnode kit link --siblings', '',
   ].join('\n');
   assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:2: the recipe a-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
     'Makefile:5: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
     'Makefile:8: the recipe c-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:11: the recipe d-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
   ]);
 });
 
@@ -145,7 +147,7 @@ test('the recipe rule holds only for an ecosystem with a polyspec dependency, an
   assert.deepEqual(recipeFindings('.', ['Makefile', 'package.json'], file => (file === 'Makefile' ? kitLike : JSON.stringify({ devDependencies: { typescript: '6.0.0' } }))), [], 'a repository without a polyspec dependency has nothing to link');
   const consumer = ['install: install-kit repo-install', 'install-kit:', '\t$(MAKE) --no-print-directory install-packages', 'install-packages:', '\t$(NPM) ci', 'repo-install:', '\tcomposer install', 'gen:', '\tcomposer install', ''].join('\n');
   assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? consumer : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:9: the recipe gen installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:9: the recipe gen installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
   ], 'install reaches install-packages by a make call and repo-install by a prerequisite, and links last; gen is outside it');
 });
 
@@ -205,6 +207,21 @@ test('a recipe that runs make composer-install installs through the link, so no 
     'lock-install:', '\tcomposer install', '',
   ].join('\n');
   assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:9: the recipe lock-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+    'Makefile:9: the recipe lock-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
   ]);
+});
+
+// K448-1: a tracked Composer project below the root (hyper examples/board) with a copy of a polyspec package in its vendor is a
+// finding of the gate, whichever install made the copy, so a consumer's own composer install is caught too.
+test('a copy of a polyspec package in the vendor of a nested Composer project is a finding of the gate (K448-1)', (t) => {
+  const { root, env } = consumer(t, { y: true, z: true });
+  put(root, { 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/z': '0.0.1' } }), 'examples/board/composer.lock': '{}', 'examples/board/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/z', version: '0.0.1', 'install-path': '../polyspec/z', dist: { type: 'zip' } }] }), 'examples/board/vendor/polyspec/z/composer.json': JSON.stringify({ name: 'polyspec/z' }) });
+  assert.deepEqual(linkFindings(root, env), ['composer polyspec/z: examples/board/vendor/polyspec/z is a copy at 0.0.1, not a link, while other packages are linked']);
+});
+
+// K448-1: a recipe that runs composer install of a tracked lock is refused even with the link step after it, since the release is
+// installed first; the recipe must run make composer-install, which links from the start (K448-1).
+test('a recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install (K448-1)', () => {
+  const makefile = ['a-install:', '\tcomposer install --working-dir=examples/board', '\t$(MAKE) link', ''].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), ['Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)']);
 });

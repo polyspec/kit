@@ -1433,3 +1433,19 @@ test('link reads the polyspec packages of a Composer project from its composer.l
   assert.equal(checked.ok, false, checked.text);
   assert.match(checked.text, /NOT linked +composer +polyspec\/y \(not installed in /);
 });
+
+// K448-1: a tracked Composer project below the root with its own lock and var folder (hyper examples/board) takes the sibling
+// provider from the start, so no release is copied into its vendor.
+test('make composer-install of a nested Composer project links the polyspec package of its lock and copies no release (K448-1)', (t) => {
+  const { provider, kit, consumer, env, log } = workspace(t);
+  const board = path.join(consumer, 'examples/board');
+  put(consumer, { 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/y': '0.0.1' } }) });
+  freshComposer(board);
+  // hyper's board keeps its Composer vendor in vendor/, not in var/contracts (K448-1).
+  put(board, { 'composer-vendor-dir': 'vendor' });
+  mkdirSync(path.join(board, 'var'), { recursive: true });
+  const lines: string[] = [];
+  composerInstall({ directory: board, checkouts: [provider, kit], env, print: text => lines.push(text) });
+  assert.doesNotMatch(log(), /^composer install/m, 'no composer install of the tracked lock runs in the nested project');
+  assert.equal(realpathSync(path.join(board, 'vendor/polyspec/y')), path.join(provider, 'packages/php'), 'the nested project links the provider folder');
+});
