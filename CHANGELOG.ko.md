@@ -1,11 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6e5f3e85ba5dbb3e951b67a0d24b80f88555e23b91d945846e35d260e4f39af0 -->
+<!-- source-sha256: 0b350b9d979aff9940dd158b6d1ff866143ed7248a7f7f94afed085f9d22d883 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit이 쓰는 추적 composer.lock은 sibling checkout이 제공하는 각 polyspec provider의 manifest(require, autoload와
+  composer.json의 다른 field)를 담고 오래된 release의 metadata를 담지 않으며, 버전, dist, source는 그대로 둔다.
+  `dependency-review UPDATE=1`이 이를 적용하고, `make composer-provider-entries`는 이것만으로 모든 추적 lock을 다시 쓰므로
+  어떤 lock도 release의 `php >=8.5`를 지니지 않는다(K439).
 - link는 --project 아래 consumer 자신의 Python 프로젝트도 K398의 editable wheel로 --no-deps와 함께 설치하고 direct_url.json을
   그 폴더의 editable 기록으로 다시 쓰므로, container가 read-only로 mount한 checkout에 아무것도 쓰지 않는다. `uv pip install
   -e`는 남지 않으며, K398의 거부가 그것에도 적용된다(K398-1).

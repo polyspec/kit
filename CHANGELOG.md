@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- A tracked composer.lock that kit writes holds the manifest of each polyspec provider that a sibling checkout provides
+  (require, autoload and the other fields of its composer.json), not the metadata of an old release, while its version, dist
+  and source stay: `dependency-review UPDATE=1` applies it, and `make composer-provider-entries` rewrites every tracked lock
+  with it alone, so no lock keeps a release's `php >=8.5` (K439).
 - The link installs the consumer's own Python projects under --project from the editable wheel of K398 too, with --no-deps,
   and rewrites their direct_url.json to the editable record of their folder, so it writes nothing into a checkout that a
   container mounts read-only; no `uv pip install -e` remains, and the refusals of K398 apply to them (K398-1).
