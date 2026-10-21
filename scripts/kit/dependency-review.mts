@@ -605,10 +605,23 @@ function lockEntry(entry: Record<string, unknown>, manifest: Record<string, unkn
  * lock is written as kit writes its locks (4-space indentation, a final newline). `rewritten` names the packages that changed; with
  * none the text is returned as it was read.
  */
-export function providerEntries(lockText: string, providers: ReadonlyMap<string, Record<string, unknown>>): { text: string; rewritten: string[] } {
+export function providerEntries(
+  lockText: string,
+  providers: ReadonlyMap<string, Record<string, unknown>>,
+  manifest?: Record<string, unknown>,
+): { text: string; rewritten: string[] } {
   const lock: unknown = JSON.parse(lockText);
   if (!isJsonObject(lock)) throw new Error('composer.lock holds no object');
   const rewritten = new Set<string>();
+  if (manifest !== undefined) {
+    // K439-1: the root platform sections are what Composer computes from the require and config.platform of the manifest.
+    const require = isJsonObject(manifest.require) ? manifest.require : {};
+    const platform = Object.fromEntries(Object.entries(require).filter(([name]) => name === 'php' || name.startsWith('ext-') || name.startsWith('lib-')));
+    const config = isJsonObject(manifest.config) ? manifest.config : {};
+    const overrides = isJsonObject(config.platform) ? config.platform : {};
+    if ('platform' in lock && JSON.stringify(lock.platform) !== JSON.stringify(platform)) { lock.platform = platform; rewritten.add('platform'); }
+    if ('platform-overrides' in lock && JSON.stringify(lock['platform-overrides']) !== JSON.stringify(overrides)) { lock['platform-overrides'] = overrides; rewritten.add('platform-overrides'); }
+  }
   for (const section of ['packages', 'packages-dev']) {
     const list = lock[section];
     if (!Array.isArray(list)) continue;
@@ -622,6 +635,11 @@ export function providerEntries(lockText: string, providers: ReadonlyMap<string,
     });
   }
   return { text: rewritten.size ? `${JSON.stringify(lock, null, 4)}\n` : lockText, rewritten: [...rewritten] };
+}
+
+/** K439-1: a directory of a release consumer (its locks are written by make release-consumer-lock only). */
+export function isReleaseConsumerDirectory(directory: string): boolean {
+  return directory.split('/').includes('release-consumer');
 }
 
 /** The composer.json of each Composer package that a sibling checkout of the repository at `root` provides, by package name. */
@@ -639,9 +657,12 @@ function siblingComposerManifests(root: string): Map<string, Record<string, unkn
 function rewriteProviderEntries(root: string, directories: readonly string[]): void {
   const manifests = siblingComposerManifests(root);
   for (const directory of new Set(directories)) {
+    if (isReleaseConsumerDirectory(directory)) continue;
     const lock = path.join(root, directory, 'composer.lock');
     if (!existsSync(lock)) continue;
-    const { text, rewritten } = providerEntries(readFileSync(lock, 'utf8'), manifests);
+    const own = path.join(root, directory, 'composer.json');
+    const manifest: unknown = existsSync(own) ? JSON.parse(readFileSync(own, 'utf8')) : undefined;
+    const { text, rewritten } = providerEntries(readFileSync(lock, 'utf8'), manifests, isJsonObject(manifest) ? manifest : undefined);
     if (rewritten.length === 0) continue;
     writeFileSync(lock, text);
     say(`${path.posix.join(directory, 'composer.lock')}: rewrote the metadata of ${rewritten.join(', ')}`);

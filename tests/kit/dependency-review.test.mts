@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'no
 import path from 'node:path';
 import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { composerEnvironment, highestStableRelease, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
@@ -262,4 +262,23 @@ test('a package that no checkout provides is unchanged byte for byte (K439)', ()
   assert.deepEqual(result.rewritten, ['polyspec/orm']);
   assert.equal(providerEntries(lock, new Map()).text, lock, 'without a provider nothing is rewritten');
   assert.deepEqual(providerEntries(lock, new Map()).rewritten, []);
+});
+
+// K439-1: the platform sections of the root of a lock are recomputed from the composer.json of its directory (require and config.platform),
+// and a release-consumer lock is never rewritten: it is written by make release-consumer-lock only.
+test('the platform and platform-overrides of a lock are recomputed from its own composer.json (K439-1)', () => {
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [], 'packages-dev': [], platform: { php: '>=8.5' }, 'platform-overrides': { php: '8.5.0' } }, null, 4)}\n`;
+  const manifest = { require: { php: '>=8.4', 'ext-json': '*', 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
+  const result = providerEntries(lock, new Map(), manifest);
+  const parsed: unknown = JSON.parse(result.text);
+  assert.ok(isJsonObject(parsed), result.text);
+  assert.deepEqual(parsed.platform, { php: '>=8.4', 'ext-json': '*' });
+  assert.deepEqual(parsed['platform-overrides'], { php: '8.4.1' });
+  assert.ok(result.rewritten.includes('platform-overrides') && result.rewritten.includes('platform'), JSON.stringify(result.rewritten));
+});
+
+test('a release-consumer directory is never a lock that the provider entries rewrite (K439-1)', () => {
+  assert.equal(isReleaseConsumerDirectory('tests/fixtures/release-consumer/composer'), true);
+  assert.equal(isReleaseConsumerDirectory('tests/release-consumer/npm'), true);
+  assert.equal(isReleaseConsumerDirectory('packages/php'), false);
 });

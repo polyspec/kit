@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K439-1: composer-provider-entries recomputes the platform and platform-overrides of each composer.lock from the composer.json of its directory, and leaves every release-consumer lock untouched (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts exit 1 (the export and the recomputation are missing); green: the file passes 15 of 15, including K439-1. (K439-1).
+
 - `make land` and `make commit` on main read one key for a finding under the real and the logical path of a checkout, so an unchanged finding is not refused for the path it names (K446-2).
 - `make commit` on main compares each selected gate with HEAD, as `make land` does, and refuses only the findings that HEAD lacks, so a finding that HEAD already has does not block an unrelated change (K446-1).
 - A recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install,
