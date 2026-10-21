@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K468-1: when a consumer workspace and a sibling both provide the same package name, provider discovery keeps the consumer's own package; the sibling no longer causes a duplicate-provider failure or takes ownership (K468-1).
+
 - K464-2: a sibling without a readable committed main, or a checkout without a readable committed HEAD, fails shared-pin evaluation as a finding instead of progress-only output (K464-2).
 
 - K464-1-1: removed the unused working-tree source reader and imports after shared-pin comparison moved to committed tracked sources; `make lint-ts` passes (K464-1-1).

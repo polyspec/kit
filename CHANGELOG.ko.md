@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5dfd89307d7c7a56724980602f54c9eb33f17e4fc5a276830e3de14141cec198 -->
+<!-- source-sha256: fd35f9653bfa1a9050ee421b490083d87fdcfb3725ac15e9c2004547a3268e42 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K468-1: consumer workspace와 sibling이 같은 package name을 제공하면 provider 탐색은 consumer의 own package를 유지한다. sibling이 duplicate-provider 오류를 일으키거나 소유권을 가져가지 않는다 (K468-1).
 
 - K464-2: commit된 main을 읽지 못하는 sibling 또는 commit된 HEAD가 없는 checkout은 progress-only 출력 대신 shared-pin finding으로 실패한다 (K464-2).
 

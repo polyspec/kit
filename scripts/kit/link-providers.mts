@@ -212,6 +212,12 @@ export function providers(checkouts: readonly string[], go: Tool | undefined, cw
       const earlier = found.get(key);
       const atRoot = (item: Provider) => item.folder === item.checkout;
       if (!earlier) { found.set(key, provider); continue; }
+      const earlierIsOwn = earlier.repository === ownRepository;
+      const providerIsOwn = provider.repository === ownRepository;
+      if (earlierIsOwn !== providerIsOwn) {
+        if (providerIsOwn) found.set(key, provider);
+        continue;
+      }
       // A root yields to a package folder; two of one kind (both roots, or both package folders) are a conflict.
       if (atRoot(earlier) === atRoot(provider)) throw new Error(`${provided.ecosystem} package ${provided.name} has two providers: ${earlier.folder} and ${provider.folder}`);
       if (!atRoot(provider)) found.set(key, provider);

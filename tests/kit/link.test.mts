@@ -1420,6 +1420,16 @@ test('K226: a dependency that the project itself provides (an npm workspace memb
   assert.doesNotMatch(text, /NOT linked/);
 });
 
+test('a consumer workspace package wins over a sibling package with the same name (K468-1)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, { 'packages/own/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }) });
+  assert.equal(providers([provider], undefined, consumer, consumer).get('npm:@polyspec/x')?.folder, path.join(consumer, 'packages/own'));
+  const lines: string[] = [];
+  const ok = link({ checkouts: [provider, ...current.slice(1)], directories: [consumer], check: false, print: text => lines.push(text), env });
+  assert.equal(ok, true, lines.join('\n'));
+  assert.doesNotMatch(lines.join('\n'), /NOT linked/);
+});
+
 test('K226: a dependency that no provider and no project package provides still fails the run', (t) => {
   const { consumer, env } = ownPackages(t, true);
   const lines: string[] = [];
