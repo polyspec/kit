@@ -354,3 +354,56 @@ test('the provider entries are Composer\'s own, and a rerun on its lock changes 
     'a provider that demands a PHP the consumer lacks fails, naming both',
   );
 });
+
+// K435: UPDATE with --targets moves each dependency that the file names to its target version, in place of the latest stable release
+// of the registry; a dependency that the file does not name stays as it is, a target that the registry lacks fails, and RECORD states
+// the snapshot moment of the file as the review moment.
+const SNAPSHOT = '2026-10-20T12:00:00.000Z';
+function writeTargets(root: string, targets: Record<string, Record<string, string>>): string {
+  const file = path.join(root, 'targets.json');
+  writeFileSync(file, JSON.stringify({ schema: 1, snapshot: SNAPSHOT, targets }));
+  return file;
+}
+
+test('UPDATE with TARGETS takes each named npm and Composer package to its target and leaves an unnamed outdated package (K435)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  const manifest = readFileSync(path.join(root, 'packages/fixture-lib/package.json'), 'utf8');
+  stub.registry({ ...FIXTURE_REGISTRY, npm: { 'is-number': ['7.0.0', '7.1.0', '7.2.0'], semver: ['7.6.0', '7.7.0'] }, composer: { 'fixture-php': { 'psr/log': '3.0.4' } }, packagist: { 'psr/log': ['3.0.2', '3.0.3', '3.0.4'] } });
+  const file = writeTargets(root, { npm: { 'is-number': '7.1.0' }, composer: { 'psr/log': '3.0.3' } });
+  const result = review(root, ['--update', '--targets', file], stub.env);
+  const calls = stub.calls();
+  assert.ok(calls.includes('npm install --save-dev --save-exact is-number@7.1.0'), calls.join('\n'));
+  assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction psr/log:^3.0.3'), calls.join('\n'));
+  assert.deepEqual(calls.filter(call => /^(npm install|composer )/.test(call) && /semver|is-number@7\.2|psr\/log:\^3\.0\.4/.test(call)), [], calls.join('\n'));
+  assert.equal(readFileSync(path.join(root, 'packages/fixture-lib/package.json'), 'utf8'), manifest, 'the unnamed package is not updated');
+  assert.match(result.stdout, /semver 7\.6\.0 < 7\.7\.0: a newer stable release exists/, result.stdout);
+});
+
+test('a target version that the registry lacks fails UPDATE before any dependency changes, and names it (K435)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry(FIXTURE_REGISTRY);
+  const file = writeTargets(root, { npm: { 'is-number': '9.9.9' } });
+  const result = review(root, ['--update', '--targets', file], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /is-number[^\n]*9\.9\.9/, result.stdout);
+  assert.deepEqual(stub.calls().filter(call => call.startsWith('npm install')), [], stub.calls().join('\n'));
+});
+
+test('RECORD with TARGETS records the snapshot moment of the file as the review moment (K435)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry(FIXTURE_REGISTRY);
+  const file = writeTargets(root, { npm: { 'is-number': '7.0.0' } });
+  review(root, ['--record', '--targets', file], stub.env);
+  const record: unknown = JSON.parse(readFileSync(path.join(root, 'config/dependency-review.json'), 'utf8'));
+  assert.ok(isJsonObject(record), 'the record is a JSON object');
+  assert.equal(record.reviewed, SNAPSHOT);
+});

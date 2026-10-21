@@ -448,8 +448,9 @@ dependency-policy-check: ## Check the manifests and locks against config/depende
 dependency-policy-mutation-check: ## Check that the dependency gate rejects each known mutation of the checkout; offline
 	$(NODE) $(KIT)/check-dependency-policy-mutation.$(KIT_EXT)
 
-dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update)
+# K435: TARGETS names the versions of one batch, so that every checkout takes the same pin and records the same snapshot.
+dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; TARGETS=<file> with UPDATE=1 takes the named versions of its JSON file (dependency-targets.schema.json) in place of the latest stable releases, and RECORD=1 then records its snapshot moment; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update) $(if $(TARGETS),--targets $(TARGETS))
 
 # K439: the metadata of a provided polyspec package in each tracked composer.lock, without the review or the updates.
 composer-provider-entries: ## Rewrite the metadata of each polyspec package that a sibling checkout provides in every tracked composer.lock of the Composer projects, from its composer.json, keeping the versions; offline

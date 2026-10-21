@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Packagist metadata of a package (K435)",
+  "type": "object",
+  "required": ["packages"],
+  "properties": {
+    "packages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["version"],
+          "properties": {
+            "version": { "type": "string" },
+            "require": {
+              "type": "object",
+              "properties": { "php": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

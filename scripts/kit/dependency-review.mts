@@ -5,7 +5,7 @@
 // stable release without an exception, each stale exception and each advisory with its fix, one line each; it fails
 // when there is one.
 //
-//   node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update]
+//   node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--targets <file>]
 //
 // --record writes what it reviewed to config/dependency-review.json: the time, the sha256 and the advisories of every
 // lock, and the locked and latest stable version of every registry dependency. The gate scripts/kit/check-dependency-policy.mts
@@ -17,17 +17,22 @@
 // The advisories of the Cargo locks come from the cargo-audit of mise.toml (its shim, mise-tools.mts; `make install-tools`
 // installs it) and the RustSec advisory database, and those of the Go locks from the govulncheck of mise.toml. A PyPI dependency is pinned exactly in its pyproject.toml,
 // and `--update` sets the pin of a newer release with scripts/kit/pin-python-dependency.mts.
+// --targets <file> (K435) names the version of each dependency that the batch takes: a JSON file of the snapshot moment of the
+// registries and of the versions by ecosystem (dependency-targets.schema.json). Each named dependency is judged against its target,
+// which the registry must hold as a stable release, and `--update` moves it to exactly that version; the others are reviewed as before,
+// and `--update` moves none of them. With --record the review moment is the snapshot moment.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
+import semver from 'semver';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
 import { composerCommand, composerEnvironment as toolEnvironment } from './install-composer-project.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
-import { ConfigError, parseJson } from './schema-validate.mts';
+import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { readComposerLock } from './manifests.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
@@ -81,6 +86,9 @@ export type FoundAdvisory = Advisory & { lock: string };
 /** A dependency with a newer stable release; its release is undefined when its query failed with an empty message. */
 export type Newer = Dependency & { latest: string | null | undefined };
 
+/** The targets of --targets: the moment of the registry snapshot, the file that names them, and the version of each package by ecosystem. */
+export interface Targets { file: string; snapshot: string; versions: Record<string, Record<string, string>> }
+
 /** The fields of a newer dependency and of an advisory that updatePlan reads. */
 type PlannedDependency = Pick<Newer, 'ecosystem' | 'manifest' | 'package' | 'spec' | 'latest'> & Partial<Pick<Newer, 'kind' | 'lock'>>;
 type PlannedAdvisory = Pick<FoundAdvisory, 'lock' | 'package'>;
@@ -126,6 +134,8 @@ interface CargoAudit {
 interface ComposerAdvisory { advisoryId: string | number; severity?: string | null; title: string; link: string }
 // PHP encodes an empty map as an empty list.
 interface ComposerAudit { advisories?: Record<string, ComposerAdvisory[] | Record<string, ComposerAdvisory>> | []; abandoned?: Record<string, string | null> | [] }
+// The metadata of a Composer package in Packagist: each release, with the PHP that it requires.
+interface PackagistPackage { packages: Record<string, { version: string; require?: { php?: string } }[]> }
 
 function run(command: string, args: string[], cwd: string, statuses?: number[], env?: NodeJS.ProcessEnv): Ran {
   try {
@@ -159,15 +169,22 @@ export function composerEnvironment(root: string, directory: string): NodeJS.Pro
   return existsSync(path.join(root, directory, 'composer.link.lock')) ? { ...process.env, COMPOSER: 'composer.link.json' } : undefined;
 }
 
-/** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
-function npmLatest(root: string, name: string): Latest {
+/** The latest dist-tag and the versions of an npm package, from npm view: { value } or { error }. */
+function npmView(root: string, name: string): Answer<{ tag: string | undefined; versions: string[] }> {
   const answer = query<NpmView | NpmView[]>('npm-view.schema.json', toolCommand(root, 'npm'), ['view', name, 'dist-tags', 'versions', '--json'], root);
   if (answer.error !== undefined) return answer;
   const value = answer.value;
   // npm 12 prints the fields of the one matching package as an array of one object.
   const view = Array.isArray(value) ? value[0] ?? {} : value;
-  const tag = view['dist-tags']?.latest;
   const versions = Array.isArray(view.versions) ? view.versions : [view.versions].filter((version): version is string => Boolean(version));
+  return { value: { tag: view['dist-tags']?.latest, versions } };
+}
+
+/** The latest stable npm release of `name` that its publisher has not deprecated: { latest } or { error }. */
+function npmLatest(root: string, name: string): Latest {
+  const answer = npmView(root, name);
+  if (answer.error !== undefined) return answer;
+  const { tag, versions } = answer.value;
   const candidates = stableDescending('npm', versions).filter((version: string) => !tag || isPrerelease('npm', tag) || !older('npm', tag, version));
   for (const version of candidates) {
     const deprecated = run(toolCommand(root, 'npm'), ['view', `${name}@${version}`, 'deprecated'], root);
@@ -175,6 +192,60 @@ function npmLatest(root: string, name: string): Latest {
     if (!deprecated.stdout.trim()) return { latest: version };
   }
   return { error: `npm view ${name} reported no stable release that is not deprecated` };
+}
+
+/** The target version of an npm package, when the registry holds it as a stable release that its publisher has not deprecated. */
+function npmTarget(root: string, name: string, version: string): Latest {
+  const answer = npmView(root, name);
+  if (answer.error !== undefined) return answer;
+  if (!stableDescending('npm', answer.value.versions).includes(version)) return { error: `npm has no stable release ${version} of ${name}` };
+  const deprecated = run(toolCommand(root, 'npm'), ['view', `${name}@${version}`, 'deprecated'], root);
+  if (deprecated.error !== undefined) return deprecated;
+  return deprecated.stdout.trim() ? { error: `npm release ${version} of ${name} is deprecated` } : { latest: version };
+}
+
+/** The target version of a Go module, when the registry holds it as a stable release. */
+function goTarget(root: string, name: string, version: string, directory: string): Latest {
+  const answer = query<GoVersions>('go-versions.schema.json', toolCommand(root, 'go'), ['list', '-m', '-versions', '-json', name], path.join(root, directory));
+  if (answer.error !== undefined) return { error: answer.error };
+  return stableDescending('go', answer.value.Versions ?? []).includes(version) ? { latest: version } : { error: `go list -m -versions has no stable release ${version} of ${name}` };
+}
+
+/** The target version of a PyPI project, when the registry holds it as a stable release with files. */
+function pypiTarget(root: string, name: string, version: string): Latest {
+  const answer = query<PypiProject>('pypi-project.schema.json', 'curl', ['-fsSL', `https://pypi.org/pypi/${name}/json`], root);
+  if (answer.error !== undefined) return { error: answer.error };
+  const files = answer.value.releases?.[version];
+  return files !== undefined && highestStableRelease({ [version]: files }) === version ? { latest: version } : { error: `PyPI has no stable release ${version} of ${name}` };
+}
+
+/**
+ * The target version of a Composer package, when Packagist holds it as a stable release whose PHP requirement the PHP platform of its
+ * lock directory satisfies (`php`, the platform of config/dependency-policy.json).
+ */
+function composerTarget(root: string, name: string, version: string, php: string | undefined): Latest {
+  const answer = query<PackagistPackage>('packagist-package.schema.json', 'curl', ['-fsSL', `https://repo.packagist.org/p2/${name}.json`], root);
+  if (answer.error !== undefined) return { error: answer.error };
+  const bare = version.replace(/^v/, '');
+  const release = (answer.value.packages[name] ?? []).find(item => item.version.replace(/^v/, '') === bare);
+  if (release === undefined) return { error: `Packagist has no release ${version} of ${name}` };
+  if (!/^\d+(\.\d+)*$/.test(bare)) return { error: `${version} of ${name} is no stable release` };
+  const requirement = release.require?.php;
+  if (php !== undefined && requirement !== undefined) {
+    // Composer joins the constraints that a comma separates, as semver joins those that a space separates.
+    const range = requirement.replace(/,/g, ' ');
+    if (semver.validRange(range) === null) return { error: `${name} ${version} requires php ${requirement}, which the review does not read` };
+    if (!semver.satisfies(php, range)) return { error: `${name} ${version} requires php ${requirement}, and the platform of the policy is php ${php}` };
+  }
+  return { latest: version };
+}
+
+/** The verdict on the target `version` of a dependency: the registry holds it as a stable release, or the failure that names it. */
+function targetRelease(root: string, dependency: Dependency, version: string, platforms: Map<string, string>): Latest {
+  if (dependency.ecosystem === 'npm') return npmTarget(root, dependency.package, version);
+  if (dependency.ecosystem === 'go') return goTarget(root, dependency.package, version, path.posix.dirname(dependency.manifest));
+  if (dependency.ecosystem === 'pypi') return pypiTarget(root, dependency.package, version);
+  return composerTarget(root, dependency.package, version, platforms.get(path.posix.dirname(present(dependency.lock, 'dependency.lock'))));
 }
 
 /**
@@ -211,7 +282,7 @@ export function goAdvisories(report: GovulncheckSarif): Advisory[] {
 }
 
 /** The latest stable release of every registry dependency: key -> { latest } or { error }. */
-function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
+function latestReleases(root: string, state: ReviewState, targets: Targets | undefined, platforms: Map<string, string>): Map<string, Latest> {
   const latest = new Map<string, Latest>();
   const npm = new Map<string, Latest>();
   const composer = new Map<string, Answer<ComposerOutdated>>();
@@ -220,6 +291,12 @@ function latestReleases(root: string, state: ReviewState): Map<string, Latest> {
     // A linked package is judged by its link, and the comparison with its latest release belongs to the batch release (K328, K340).
     if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) {
       latest.set(key, { latest: present(dependency.version, 'dependency.version') });
+      continue;
+    }
+    // A dependency that the targets name is judged against its target version, which the registry must hold as a stable release.
+    const target = targets?.versions[dependency.ecosystem]?.[dependency.package];
+    if (target !== undefined) {
+      latest.set(key, targetRelease(root, dependency, target, platforms));
       continue;
     }
     if (dependency.ecosystem === 'npm') {
@@ -434,22 +511,33 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
 }
 
 /** The review of the checkout at `root`: the findings, the newer dependencies, the advisories and the record. */
-export function review(root: string) {
-  const policy = readPolicy<DependencyPolicy & { exceptions: { ecosystem: string; manifest: string; package: string; reason: string }[] }>(root);
+export function review(root: string, targets?: Targets) {
+  const policy = readPolicy<DependencyPolicy & { exceptions: { ecosystem: string; manifest: string; package: string; reason: string }[]; composerPlatforms: { manifest: string; php: string }[] }>(root);
   const exceptions = new Map<string, { reason: string }>(policy.exceptions.map(exception => [dependencyKey(exception), exception]));
   const state: ReviewState = readState(root, policy);
-  const latest = latestReleases(root, state);
+  // The PHP platform of each Composer lock directory, which a target of Composer must satisfy.
+  const composerPlatforms: { manifest: string; php: string }[] = policy.composerPlatforms;
+  const platforms = new Map(composerPlatforms.map(platform => [path.posix.dirname(platform.manifest), platform.php]));
+  const latest = latestReleases(root, state, targets, platforms);
   const audits = advisories(root, state);
   const lines: string[] = [];
   const notes: string[] = [];
   const newer: Newer[] = [];
   const found: FoundAdvisory[] = [];
+  // The subjects of the dependencies whose target the registry lacks.
+  const failed: string[] = [];
   for (const dependency of state.dependencies) {
     const key = dependencyKey(dependency);
     const subject = `${dependency.manifest} ${dependency.package}`;
+    const target = targets?.versions[dependency.ecosystem]?.[dependency.package];
     // latestReleases answers every dependency of the state.
     const answer = present(latest.get(key), 'latest.get(key)');
     if (answer.error !== undefined) {
+      if (target !== undefined) {
+        failed.push(subject);
+        lines.push(`${subject}: the registry query failed: ${answer.error}. Fix: correct the target ${target} in ${present(targets, 'targets').file} to a stable release that the registry holds`);
+        continue;
+      }
       lines.push(`${subject}: the registry query failed: ${answer.error}. Fix: run make dependency-review again when the registry answers`);
       continue;
     }
@@ -457,13 +545,15 @@ export function review(root: string) {
     if (isLinked(root, dependency.ecosystem, dependency.lock, dependency.package)) continue;
     // A dependency that its lock holds at no version is not at the latest release. A locked version above the latest release is
     // no newer release, though composer outdated reports update-possible for it: it is never a downgrade (K369).
-    const outdated = answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate && (dependency.version === null || older(dependency.ecosystem, dependency.version, String(answer.latest)));
+    // A dependency that the targets name is outdated when it is not at its target, in either direction, since the target is exact.
+    const outdated = target !== undefined ? dependency.version === null || dependency.version.replace(/^v/, '') !== target.replace(/^v/, '') : answer.upToDate === undefined ? dependency.version === null || !answer.latest || older(dependency.ecosystem, dependency.version, answer.latest) : !answer.upToDate && (dependency.version === null || older(dependency.ecosystem, dependency.version, String(answer.latest)));
     // The condition checks that exceptions has the key.
     if (outdated && exceptions.has(key)) notes.push(`${subject} ${dependency.version} < ${answer.latest}: kept by the exception of ${POLICY}: ${present(exceptions.get(key), 'exceptions.get(key)').reason}`);
     else if (outdated) {
       const item = { ...dependency, latest: answer.latest };
       newer.push(item);
-      lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(item)}`);
+      if (target === undefined) lines.push(`${subject} ${dependency.version} < ${answer.latest}: a newer stable release exists. Fix: ${fixOf(item)}`);
+      else lines.push(`${subject} ${dependency.version} is not the target ${target} of ${present(targets, 'targets').file}. Fix: ${UPDATE} TARGETS=${present(targets, 'targets').file}`);
     } else if (exceptions.has(key)) lines.push(`${subject} ${dependency.version}: the exception of ${POLICY} is stale, ${answer.latest} is the latest stable release. Fix: remove the exception from ${POLICY}`);
   }
   // An accepted advisory is printed as a note with its reason; an exception that the review of its lock does not find is stale.
@@ -497,7 +587,7 @@ export function review(root: string) {
   const record = {
     schema: 1,
     comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.',
-    reviewed: new Date().toISOString(),
+    reviewed: targets?.snapshot ?? new Date().toISOString(),
     // advisories answers every lock of the state.
     locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (present(audits.get(lock), 'audits.get(lock)').advisories ?? []).map(({ package: name, version, range, id, severity, title, url }) => ({ package: name, ...(version !== undefined ? { version } : { range }), id, severity, title, ...(url ? { url } : {}) })) })),
     // latestReleases answers every dependency of the state.
@@ -506,7 +596,7 @@ export function review(root: string) {
   };
   // advisories answers every lock of the state.
   const complete = state.locks.every(lock => !present(audits.get(lock), 'audits.get(lock)').error) && [...latest.values()].every(answer => !answer.error);
-  return { lines, notes, newer, advisories: found, record, complete };
+  return { lines, notes, newer, advisories: found, record, complete, failed };
 }
 
 // The fix of a newer release: the ruff of mise.toml is set by hand, and make toolchain-lock pins the digests of its archives;
@@ -521,8 +611,10 @@ export const fixOf = (dependency: Newer): string => {
 const operator = (spec: string) => (/^[\^~]/.test(spec) ? spec[0] : '');
 
 /** The commands that raise the newer dependencies and update the packages with an advisory, in order. */
-export function updatePlan({ newer, advisories: found, linked = () => false }: { newer: PlannedDependency[]; advisories: PlannedAdvisory[]; linked?: (directory: string) => boolean }): { command: string; args: string[]; cwd: string; tracked?: boolean }[] {
+export function updatePlan({ newer, advisories: all, linked = () => false, targeted = false }: { newer: PlannedDependency[]; advisories: PlannedAdvisory[]; linked?: (directory: string) => boolean; targeted?: boolean }): { command: string; args: string[]; cwd: string; tracked?: boolean }[] {
   const plan: { command: string; args: string[]; cwd: string; tracked?: boolean }[] = [];
+  // With --targets the plan moves only the named dependencies: an advisory fix, or the npm dedupe, would move the others too.
+  const found = targeted ? [] : all;
   for (const dependency of newer) {
     // A package of a PEP 751 lock is regenerated by the tool that wrote the lock (fixOf names it), never pinned in place.
     if (dependency.manifest === TOOLCHAIN || dependency.kind === 'lock') continue;
@@ -564,7 +656,7 @@ export function updatePlan({ newer, advisories: found, linked = () => false }: {
   for (const lock of new Set(found.filter(advisory => lockEcosystem(advisory.lock) === 'npm').map(advisory => advisory.lock))) {
     plan.push({ command: 'npm', args: ['audit', 'fix'], cwd: path.posix.dirname(lock) });
   }
-  for (const cwd of new Set(plan.filter(step => step.command === 'npm').map(step => step.cwd))) plan.push({ command: 'npm', args: ['dedupe'], cwd });
+  if (!targeted) for (const cwd of new Set(plan.filter(step => step.command === 'npm').map(step => step.cwd))) plan.push({ command: 'npm', args: ['dedupe'], cwd });
   const affected = new Map<string, Set<string>>();
   for (const advisory of found.filter(item => lockEcosystem(item.lock) !== 'npm')) {
     if (!affected.has(advisory.lock)) affected.set(advisory.lock, new Set());
@@ -752,20 +844,28 @@ function print(result: { notes: string[]; lines: string[] }) {
     : 'no newer stable release without an exception and no advisory without an exception');
 }
 
+/** The targets of the file of --targets, checked against dependency-targets.schema.json */
+function readTargets(file: string): Targets {
+  const value = readJsonFile<{ snapshot: string; targets: Record<string, Record<string, string>> }>(path.resolve(file), 'dependency-targets.schema.json');
+  return { file, snapshot: value.snapshot, versions: value.targets };
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   let root = repositoryRoot();
   let record = false;
   let update = false;
   let providerOnly = false;
+  let targetsFile: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     // The condition checks that the argument after --root is present.
     if (args[index] === '--root' && args[index + 1]) root = path.resolve(present(args[++index], 'args[++index]'));
     else if (args[index] === '--record') record = true;
     else if (args[index] === '--update') update = true;
     else if (args[index] === '--provider-entries') providerOnly = true;
+    else if (args[index] === '--targets' && args[index + 1]) targetsFile = present(args[++index], 'args[++index]');
     else {
-      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--provider-entries]');
+      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--provider-entries] [--targets <file>]');
       process.exit(2);
     }
   }
@@ -773,11 +873,20 @@ function main(): void {
     rewriteProviderEntries(root, checkedFiles(root).filter(file => path.posix.basename(file) === 'composer.lock').map(file => path.posix.dirname(file)));
     return;
   }
-  let result = review(root);
+  const targets = targetsFile === undefined ? undefined : readTargets(targetsFile);
+  // A dependency that the targets name, and so the only one that a targeted update moves
+  const named = (item: { ecosystem: string; package: string }) => targets?.versions[item.ecosystem]?.[item.package] !== undefined;
+  let result = review(root, targets);
   if (update) {
     print(result);
+    // A target that the registry lacks fails before any dependency changes
+    if (targets !== undefined && result.failed.length) {
+      say(`no dependency is updated: the target of ${result.failed.join(', ')} is not a stable release of the registry`);
+      process.exitCode = 1;
+      return;
+    }
     // A linked package is moved by its link, not by the update (K340).
-    const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package)), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)), linked: directory => composerEnvironment(root, directory) !== undefined });
+    const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package) && (targets === undefined || named(item))), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)), linked: directory => composerEnvironment(root, directory) !== undefined, targeted: targets !== undefined });
     let failed = 0;
     for (const step of plan) {
       say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
@@ -789,7 +898,7 @@ function main(): void {
     }
     say(`${plan.length - failed} of ${plan.length} update commands passed; reviewing again`);
     rewriteProviderEntries(root, plan.filter(step => step.command === 'composer').map(step => step.cwd));
-    result = review(root);
+    result = review(root, targets);
   }
   print(result);
   if (record || update) {
