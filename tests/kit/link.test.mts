@@ -1584,3 +1584,17 @@ test('link-state-check fails while the workspace folder lacks the kit hook, name
   linkSiblings(consumer, env);
   assert.deepEqual(linkFindings(consumer, env).filter(finding => finding.includes('settings.json')), []);
 });
+
+// K448-5: cargo links the sibling crates from the start. make cargo-fetch runs cargo fetch of the project through the link, with
+// the checkouts beside it patched, so no fetch materialises the git tag of a sibling crate.
+test('make cargo-fetch runs cargo fetch through the link of the sibling checkouts (K448-5)', () => {
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', 'NODE=node', 'cargo-fetch', 'DIR=x'], { cwd: KIT, encoding: 'utf8' });
+  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/link.mts cargo --siblings x fetch --locked');
+});
+
+test('link cargo --siblings runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
+});

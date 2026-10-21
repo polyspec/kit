@@ -392,6 +392,12 @@ composer-install: ## Install the Composer project DIR in place of its composer i
 npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2)
 	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR)
 
+# cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
+# of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).
+.PHONY: cargo-fetch
+cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a sibling checkout provides are patched to their paths from the start, no git tag fetched (K448-5)
+	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo --siblings $(DIR) fetch --locked
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 

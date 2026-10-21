@@ -17,7 +17,7 @@
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
 //   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
-//                 packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...
+//                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
@@ -1359,14 +1359,22 @@ if (isMain(import.meta.url)) {
         break;
       }
       case 'cargo': {
+        // `--siblings` takes the checkouts beside the project as the checkouts, as link does (K448-5); without any, cargo runs as given.
+        const siblings = rest[0] === '--siblings';
+        if (siblings) rest.shift();
         const checkouts: string[] = [];
         while (rest[0] === '--checkout') checkouts.push(rest.splice(0, 2)[1] ?? '');
         const [directory, ...args] = rest;
-        if (!directory) throw new Error('Usage: link.mjs cargo [--checkout <checkout>]... <dir> <cargo args>...');
+        if (!directory) throw new Error('Usage: link.mjs cargo [--siblings] [--checkout <checkout>]... <dir> <cargo args>...');
+        if (siblings) {
+          const found = siblingCheckouts(directory);
+          for (const folder of found.skipped) print(`skipped ${folder}: no main checkout of a polyspec repository, whose origin is github.com/polyspec/<its folder>`);
+          checkouts.push(...found.checkouts);
+        }
         process.exitCode = cargo({ directory, args, checkouts });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | cargo [--checkout <checkout>]... <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

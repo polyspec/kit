@@ -243,3 +243,20 @@ test('a recipe that runs composer install of a lock is refused even with the lin
   const makefile = ['a-install:', '\tcomposer install --working-dir=examples/board', '\t$(MAKE) link', ''].join('\n');
   assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), ['Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)']);
 });
+
+// K448-5: a recipe that fetches the crates of a lock naming a polyspec crate of a sibling checkout fetches the git tag of the crate,
+// so it must run make cargo-fetch, which links the sibling crates through a [patch] path (cargo's own link).
+test('a recipe that fetches the crates of a lock naming a polyspec crate is a finding (K448-5)', () => {
+  const makefile = ['ci-setup:', '\tcargo fetch --locked', '', 'good-setup:', '\t$(MAKE) cargo-fetch DIR=.', ''].join('\n');
+  const cargoToml = '[dependencies]\npolyspec-ordered-json = { git = "https://github.com/polyspec/ordered-json", tag = "v0.0.9" }\n';
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? makefile : cargoToml)), [
+    'Makefile:2: the recipe ci-setup fetches the crates of a lock that names a polyspec crate; run $(MAKE) cargo-fetch DIR=<project> instead, which links the sibling crates through a [patch] path (K448-5)',
+  ]);
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? 'ci-setup:\n\tcargo fetch --locked\n' : '[dependencies]\nserde = "1"\n')), [], 'a lock without a polyspec crate is not a finding');
+});
+
+// K448-5: the crate that a Cargo.toml names itself is no dependency of the lock, so its own build is no finding.
+test('a recipe that builds the crate named by its own Cargo.toml is no finding (K448-5)', () => {
+  const makefile = 'build-own:\n\tcargo build --locked\n';
+  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? makefile : '[package]\nname = "polyspec-ordered-json"\nversion = "0.0.1"\n')), []);
+});

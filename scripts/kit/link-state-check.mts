@@ -146,6 +146,10 @@ const LINKS = /\blink\b/;
 // A composer install of a lock, which installs the released polyspec packages of the lock before a link replaces them (K448-1).
 const COMPOSER_LOCK = /\bcomposer\s+install\b|\$[({]COMPOSER(?:_BIN)?[)}]\s+install\b/;
 const COMPOSER_INSTALL = /(?:\$[({]MAKE[)}]|\bmake)\s+composer-install\b/;
+// cargo fetches the crates of a lock: a polyspec crate of a sibling checkout is locked at its git tag, which the cargo link replaces (K448-5).
+const CARGO_FETCH = /\bcargo\s+(?:fetch|build)\b/;
+// A dependency of a Cargo.toml on a polyspec crate, inline or as a table: `polyspec-x = ...` or `[dependencies.polyspec-x]`.
+const CARGO_POLYSPEC_DEPENDENCY = /^polyspec[-_][\w-]*\s*=|^\[[\w.-]*dependencies\.polyspec[-_]/m;
 // An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
 // A make call of a recipe and the targets it names.
@@ -236,6 +240,8 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
   };
   visit('install');
   const found: string[] = [];
+  // A Cargo.toml that depends on a polyspec crate: its lock names the crate at a git tag (K448-5). The package's own name is no dependency.
+  const cargoPolyspec = files.some(name => path.posix.basename(name) === 'Cargo.toml' && !EXCLUDED.test(name) && CARGO_POLYSPEC_DEPENDENCY.test(read(name) ?? ''));
   // A rule of several targets runs one recipe, so it is reached when one of its targets is.
   for (const { file, targets, recipe } of rules) {
     const target = targets.join(' ');
@@ -248,6 +254,8 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
     } else if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
       found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
     }
+    const fetch = cargoPolyspec ? recipe.findIndex(({ text }) => CARGO_FETCH.test(text)) : -1;
+    if (fetch !== -1) found.push(`${file}:${recipe[fetch]?.line}: the recipe ${target} fetches the crates of a lock that names a polyspec crate; run $(MAKE) cargo-fetch DIR=<project> instead, which links the sibling crates through a [patch] path (K448-5)`);
   }
   return found;
 }
