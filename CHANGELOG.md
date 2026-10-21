@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make npm-install DIR=<project>` installs a consumer's npm packages in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, through a temporary manifest, with no release fetched and no tracked file written (K448-2).
 - K379-2: The link writes a fork at the exact pin that the consumer or a linked provider requires (require and require-dev), as its tag, and fails naming both pins when they differ (K379-2). Red: node --test --test-name-pattern=K379-2 tests/kit/link.test.mts exit 1 (the link manifest took the lock version 2.6.0); green: the link tests pass, 82 of 82 in the file, including K379-2. (K379-2).
 - `make commit` on main reads the findings of a gate as `make land` does, without the progress lines that a kit tool prints
   with its name in brackets, so a progress line that differs from HEAD does not refuse a commit (K446-4).
