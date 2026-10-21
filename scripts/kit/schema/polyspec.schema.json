@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/polyspec.json",
-  "description": "The 0.0.x polyspec packages that a repository consumes by link (K468). Each declaration names an ecosystem, the project folder named from the repository root (\".\" is the root) and the package name. A declaration holds no version, URL or path: the provider is the sibling checkout that the link installs from, and no tracked manifest or lock names the package.",
+  "description": "The 0.0.x polyspec packages that a repository consumes by link (K468). Each declaration names an ecosystem, the project folder named from the repository root (\".\" is the root), the package name and the repository that provides it as owner/name (K473), which the gates workflow clones beside the project. A declaration holds no version, URL or path: the provider is the sibling checkout that the link installs from, and no tracked manifest or lock names the package.",
   "type": "object",
   "additionalProperties": false,
   "required": ["packages"],
@@ -11,7 +11,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["ecosystem", "project", "name"],
+        "required": ["ecosystem", "project", "name", "repository"],
         "properties": {
           "ecosystem": { "enum": ["composer", "npm", "python"] },
           "project": {
@@ -19,7 +19,12 @@
             "pattern": "^(\\.|(?!\\.\\.)[A-Za-z0-9_.-]+(/(?!\\.\\.)[A-Za-z0-9_.-]+)*)$",
             "description": "The project folder from the repository root, or \".\" for the root; no leading slash and no .. segment."
           },
-          "name": { "type": "string", "minLength": 1 }
+          "name": { "type": "string", "minLength": 1 },
+          "repository": {
+            "type": "string",
+            "pattern": "^polyspec/[A-Za-z0-9._-]+$",
+            "description": "The GitHub repository that provides the package, as owner/name; the gates workflow clones it at its default branch (K473)."
+          }
         },
         "allOf": [
           {

@@ -1686,7 +1686,7 @@ test('K468: a Composer package that config/polyspec.json declares is linked thro
   put(consumer, {
     'composer.json': JSON.stringify({ name: 'cons/app', require: { 'psr/log': '3.0.0' } }),
     'composer.lock': JSON.stringify({ packages: [{ name: 'psr/log', version: '3.0.0' }] }),
-    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/y' }] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/y', repository: 'polyspec/y' }] }),
   });
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
@@ -1706,7 +1706,7 @@ test('K468: a declared Composer package that no checkout provides is NOT linked,
     'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [] }),
     'composer.json': JSON.stringify({ name: 'cons/app', require: {} }),
     'composer.lock': JSON.stringify({ packages: [] }),
-    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/nope' }] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/nope', repository: 'polyspec/nope' }] }),
   });
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, false);
@@ -1720,7 +1720,7 @@ test('K468: a declared npm package that package.json does not name and that is n
     'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: {}, devDependencies: {} }),
     'package-lock.json': '{}',
     'npm-query.json': JSON.stringify([]),
-    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'npm', project: '.', name: '@polyspec/x' }] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'npm', project: '.', name: '@polyspec/x', repository: 'polyspec/x' }] }),
   });
   rmSync(path.join(consumer, 'node_modules/@polyspec/x'), { recursive: true, force: true });
   rmSync(path.join(consumer, 'node_modules/@polyspec/kit'), { recursive: true, force: true });

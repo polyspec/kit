@@ -52,17 +52,32 @@ test('K468: a clean tracked tree has no finding, and the declarations of config/
     'packages/php/composer.lock': JSON.stringify({ packages: [{ name: 'psr/log', version: '3.0.0' }] }),
     'package.json': JSON.stringify({ devDependencies: { ajv: '8.20.0' } }),
     'config/polyspec.json': JSON.stringify({ packages: [
-      { ecosystem: 'composer', project: 'packages/php', name: 'polyspec/orm' },
-      { ecosystem: 'npm', project: '.', name: '@polyspec/kit' },
+      { ecosystem: 'composer', project: 'packages/php', name: 'polyspec/orm', repository: 'polyspec/orm' },
+      { ecosystem: 'npm', project: '.', name: '@polyspec/kit', repository: 'polyspec/kit' },
     ] }),
   });
   assert.deepEqual(polyspecLockFindings(root), []);
 });
 
+test('K473: a declaration names its repository as owner/name, which the gates workflow clones beside the project', (t) => {
+  const root = repository(t, {
+    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/fsm', require: { php: '>=8.4' } }),
+    'config/polyspec.json': JSON.stringify({ packages: [
+      { ecosystem: 'composer', project: 'packages/php', name: 'polyspec/orm' },
+      { ecosystem: 'composer', project: 'packages/php', name: 'polyspec/ordered-json', repository: 'https://github.com/polyspec/ordered-json' },
+    ] }),
+  });
+  const findings = polyspecLockFindings(root);
+  assert.ok(findings.length >= 2, findings.join('\n'));
+  for (const finding of findings) assert.match(finding, /^config\/polyspec\.json:/);
+  assert.ok(findings.some(finding => finding.includes('/packages/0')), 'the declaration without a repository is named');
+  assert.ok(findings.some(finding => finding.includes('/packages/1/repository')), 'the URL is named as no owner/name');
+});
+
 test('K468: a declaration whose project folder lacks the manifest of its ecosystem is a finding', (t) => {
   const root = repository(t, {
     'package.json': JSON.stringify({}),
-    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'python', project: 'packages/python', name: 'polyspec-orm' }] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'python', project: 'packages/python', name: 'polyspec-orm', repository: 'polyspec/orm' }] }),
   });
   const findings = polyspecLockFindings(root);
   assert.equal(findings.length, 1, findings.join('\n'));

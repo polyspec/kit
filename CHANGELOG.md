@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K473: the vendored gates workflow clones each repository that config/polyspec.json declares beside the project, at its default branch, before install, and runs `make link` before the gates. A declaration names its `repository` as owner/name (schema), so CI of a repository with a 0.0.x polyspec package has the sibling checkouts that the link model needs. Red: the K473 tests of `tests/kit/gates-workflow.test.mts` and `tests/kit/polyspec-lock.test.mts` fail before the fix (K473).
 - K437-1 is done: its row is [o] in this commit, whose red is the K437-1 test run with the old assertion and whose green is the K437-1 test of this commit (K437-1).
 - The K437 test of a node file whose top-level await never settles accepts the deadline message that the run reports: the gap watch of `run-tests` (K371-1) ends the run at the same deadline first, with `no test started within 2 s`, so the test asserted a file-side text that never appears under `run-tests`. The test now requires the run to end at its deadline with exit status 1, to name the file and one of the two deadline messages, and to finish before its limit (K437-1).
 - K380-2-1: the K380-2 amend test names in its fixture commits only the row `T1-1` that the fixture tree holds, so `commit-row` passes on main and the test checks the amend it names (K380-2-1). Red: `node --test --test-name-pattern=K380-2 tests/kit/git-hooks.test.mts` exits 1 on 66a4fb26 (commit-row: the subject names K380-2); green: `make item-test ID=K380-2-1` passes (1 test, none skipped) (K380-2-1).

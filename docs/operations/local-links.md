@@ -22,7 +22,7 @@ Why: development stalled because each repository waited for another repository's
 A tracked file reads the same in every checkout, so a tracked lock describes only the packages that the repository itself declares. A tracked lock never describes a polyspec package of 0.0.x, and no item waits for a release because of one.
 
 - A tracked manifest or lock names no polyspec package of 0.0.x: no Composer `require`, `require-dev` or `packages` entry, no npm dependency section or `packages` node, no pyproject dependency or pylock package, and no source of one (a URL, a git repository, a tag, a path, a file or a relative folder). `make polyspec-lock-check` fails on each such entry, by file and name.
-- The declarations live in `config/polyspec.json` (schema `scripts/kit/schema/polyspec.schema.json`): for each ecosystem, the project folder, named from the repository root, and the names of the packages that it consumes. A declaration holds no version, URL or path, since the provider is the sibling checkout.
+- The declarations live in `config/polyspec.json` (schema `scripts/kit/schema/polyspec.schema.json`): for each ecosystem, the project folder, named from the repository root, and the names of the packages that it consumes, and the repository that provides them as `owner/name` (K473). A declaration holds no version, URL or path, since the provider is the sibling checkout.
 - link installs each declared package from the sibling checkout that provides it, as a link. The installed folder is the link and counts as the released version. A declared package that no checkout provides fails the link and names it (`NOT linked <ecosystem> <name> (no provider)`); nothing is downloaded in its place. The link manifest requires a declared Composer package as `*` at the version that its provider's composer.json declares, and npm links a declared package that is not installed as a symbolic link in the project's node_modules.
 - A tracked lock covers the third-party packages only. Its consistency with the tracked manifest is checked by the tool of its ecosystem (`npm ci`, `composer validate --check-lock`, `uv lock --check`).
 - The link files (`composer.link.json`, the temporary npm manifest and the uv overrides) carry the declared requirements of the linked install. The tracked files never carry them.
@@ -37,7 +37,7 @@ Why this model, attacked:
 Accepted costs:
 
 - A checkout without its sibling checkouts, such as a fresh clone, cannot run the code that imports a declared package. The link names the missing checkout and stops. This is the 0.0.x model: development runs against the sibling sources.
-- CI of a repository that declares a package needs its sibling checkouts. The workflows are vendored from kit, so the CI change is made in kit and copied by `make kit-sync`.
+- CI of a repository that declares a package needs its sibling checkouts. The workflows are vendored from kit, so the CI change is made in kit and copied by `make kit-sync`. The vendored gates workflow clones each declared `repository` beside the project at its default branch, before install, and runs `make link` before the gates (K473); the project lies in the folder named by its repository, so the clones lie beside it, as link reads them.
 
 Publishing later:
 

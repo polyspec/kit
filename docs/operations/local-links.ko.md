@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 11d9048ff990682fd0fd795dc62d4688e7c5158f290f768bc4c83c0533bc9c1c -->
+<!-- source-sha256: 4724501a65671f7016154e23672a3781fb0f0b108d30ec2a88494d1220ec8fee -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -23,7 +23,7 @@
 추적되는 파일은 어느 checkout에서 읽어도 같으므로, 추적되는 lock은 저장소 자신이 선언한 패키지만 기술한다. 추적되는 lock은 0.0.x polyspec 패키지를 기술하지 않으며, 이 때문에 어떤 항목도 릴리스를 기다리지 않는다.
 
 - 추적되는 manifest나 lock은 0.0.x polyspec 패키지를 이름으로 적지 않는다: Composer의 `require`, `require-dev`, `packages` 항목, npm의 dependency 절이나 `packages` 노드, pyproject의 dependency나 pylock의 패키지가 없고, 그 source(URL, git 저장소, tag, path, file, 상대 폴더)도 없다. `make polyspec-lock-check`는 그런 항목을 파일과 이름으로 실패시킨다.
-- 선언은 `config/polyspec.json`(schema `scripts/kit/schema/polyspec.schema.json`)에 있다: 생태계마다 프로젝트 폴더(저장소 root에서 이름 붙인 것)와 그것이 쓰는 패키지 이름. 선언에는 version, URL, path가 없는데 제공자는 형제 checkout이기 때문이다.
+- 선언은 `config/polyspec.json`(schema `scripts/kit/schema/polyspec.schema.json`)에 있다: 생태계마다 프로젝트 폴더(저장소 root에서 이름 붙인 것)와 그것이 쓰는 패키지 이름, 그리고 그것을 제공하는 저장소를 `owner/name`으로(K473). 선언에는 version, URL, path가 없는데 제공자는 형제 checkout이기 때문이다.
 - link는 선언된 각 패키지를 그것을 제공하는 형제 checkout에서 링크로 설치한다. 설치된 폴더가 링크이며 설치된 릴리스 버전으로 간주한다. 제공하는 checkout이 없는 선언된 패키지는 link를 실패시키고 그 이름을 적는다(`NOT linked <ecosystem> <name> (no provider)`). link 매니페스트는 선언된 Composer 패키지를 `*`로 요구하고 버전은 그 제공자 composer.json이 선언한 것이고, npm은 설치되지 않은 선언된 패키지를 프로젝트 node_modules의 심볼릭 링크로 링크한다. 그 자리에 아무것도 내려받지 않는다.
 - 추적되는 lock은 제3자 패키지만 다룬다. 추적되는 manifest와의 일관성은 생태계의 도구가 검사한다(`npm ci`, `composer validate --check-lock`, `uv lock --check`).
 - 링크 파일(`composer.link.json`, 임시 npm manifest, uv overrides)이 링크된 설치의 선언된 요구사항을 담는다. 추적되는 파일은 그것을 담지 않는다.
@@ -38,7 +38,7 @@
 감수하는 비용:
 
 - 형제 checkout이 없는 checkout(새 clone 등)은 선언된 패키지를 import하는 코드를 실행할 수 없다. link가 없는 형제를 밝히고 멈춘다. 이것이 0.0.x 모델이다: 개발은 형제 소스에 대해 실행된다.
-- 패키지를 선언한 저장소의 CI는 형제 checkout이 필요하다. workflow는 kit에서 가져온 것이므로 CI 변경은 kit에서 하고 `make kit-sync`로 복사한다.
+- 패키지를 선언한 저장소의 CI는 형제 checkout이 필요하다. workflow는 kit에서 가져온 것이므로 CI 변경은 kit에서 하고 `make kit-sync`로 복사한다. 가져온 gates workflow는 설치 전에 선언된 각 `repository`를 프로젝트 옆에 기본 브랜치로 clone하고, gates 전에 `make link`를 실행한다(K473). 프로젝트는 저장소 이름의 폴더에 있으므로 clone은 link가 읽는 대로 그 옆에 놓인다.
 
 나중에 게시하기:
 
