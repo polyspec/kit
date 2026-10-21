@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fcd673056e5473f39e07b50af4c20b4edd3ec3218f347513b8e10d174c3959f2 -->
+<!-- source-sha256: 4103d739ad7d0855e3b83a88158208fbde597110497994b8b313eaddef91dcfc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K475: provider 항목은 추적되는 composer.lock의 소비자 `vcs` repository를, `origin`이 같은 저장소를 가리키는 형제 checkout을 path repository로 삼아 해석하므로, `make dependency-review UPDATE=1`은 COMPOSER_DISABLE_NETWORK 아래에서 오프라인으로 실행된다. 형제 checkout이 가리키지 않는 vcs repository는 이름을 붙여 실패한다. red: 수정 전 `tests/kit/dependency-review.test.mts`의 K475 테스트가 실패한다(Composer가 오프라인에서 repository에 닿지 못함) (K475).
 - K469-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 가드를 stash한 상태에서 실행한 K469-1 테스트(install-tools가 심볼릭 링크 var를 통해 기록했다)이며, green은 이 커밋의 K469-1 테스트다 (K469-1). `make install-tools`는 심볼릭 링크인 var를 거부하여, worktree가 자신의 var/tools와 mise 상태를 유지한다.
 - K469는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K469 테스트(스테이징 트리에 mise.toml의 신뢰가 없어 mise가 거부한다)이며, green은 이 커밋의 K469 테스트다 (K469). main 커밋 또는 land의 스테이징 트리는 자신의 mise.toml을 체크아웃의 mise 상태에 신뢰로 기록하고, 트리를 제거하기 전에 그 신뢰를 제거하여, 신뢰되지 않은 설정을 mise가 거부하는 대신 게이트가 그곳에서 실행된다.
 - K474는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K474 테스트(기준선이 `Error 127`로 실패한 게이트가 HEAD에서도 실패한 것으로 통과했다)이며, green은 이 커밋의 K474 테스트다 (K474). 환경 사유로 실패한 게이트 실행(신호, `Error 126` 또는 `Error 127`, 또는 발견 줄 없음)은 자체 출력과 함께 거부되며 기준선과 비교되지 않는다.

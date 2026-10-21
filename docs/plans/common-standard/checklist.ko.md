@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3233656f4fa04b791e240a735af8676c9826fc82c1b822a7453e2cd53dc8a826 -->
+<!-- source-sha256: acbdd63006bd2c25e5efc9c63ec21c15e1f7f56ae40629125152e09eaa602342 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -357,3 +357,4 @@
 | K472 | kit의 oxc-parser 리뷰 기록을 최신 안정 릴리스 0.155.0으로 다시 기록하고 직접 pin을 0.155.0으로 올린다. 원인: 기록이 0.154.0을 최신으로 적고 있다. | package.json, package-lock.json, config/dependency-review.json | `make dependency-policy-check` | [ ] |
 | K473 | vendored gates workflow는 프로젝트 옆에 config/polyspec.json이 선언한 각 저장소를 기본 브랜치로 체크아웃하고, gates 전에 make link를 실행하여, 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling 체크아웃을 갖게 한다 (K473, K468). 선언은 저장소를 owner/name으로 명시한다. | workflows/gates.yml, scripts/kit/schema/polyspec.schema.json (a repository per declaration), tests/kit/gates-workflow.test.mts, tests/kit/polyspec-lock.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K473 tests/kit/gates-workflow.test.mts` `node --test --test-name-pattern=K473 tests/kit/polyspec-lock.test.mts` | [o] |
 | K474 | HEAD 또는 main 기준선이 환경 사유로 실패한 게이트는 "기준선도 실패"로 통과하지 않고 그 오류를 명시하며 실패한다. 발견 줄이 없는 실패는 발견이 아니다 (K474). | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K474 -- tests/kit/land.test.mts` | [o] |
+| K475 | The provider entries of a tracked composer.lock resolve a consumer vcs repository through the sibling checkout whose origin it names, offline; a vcs repository that no sibling checkout provides fails naming it (K475, K439-4, K468) | scripts/kit/dependency-review.mts, tests/kit/dependency-review.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K475 tests/kit/dependency-review.test.mts` | [~] |

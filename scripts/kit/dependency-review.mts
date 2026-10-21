@@ -38,7 +38,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { isJsonObject, writeJson } from './bootstrap/files.mts';
-import { providers, siblingCheckouts } from './link-providers.mts';
+import { linkGit, providers, siblingCheckouts } from './link-providers.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
 import { LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
@@ -761,7 +761,7 @@ export function composerEntries(
   composer: string,
   env: NodeJS.ProcessEnv = process.env,
   platform: Record<string, string> = {},
-  base?: { manifest: Record<string, unknown>; lock: string; folder: string },
+  base?: { manifest: Record<string, unknown>; lock: string; folder: string; siblings?: ReadonlyMap<string, string> },
 ): Map<string, Record<string, unknown>> {
   const found = new Map<string, Record<string, unknown>>();
   if (packages.length === 0) return found;
@@ -784,7 +784,7 @@ export function composerEntries(
       ...base.manifest,
       config: { ...(isJsonObject(base.manifest.config) ? base.manifest.config : {}), platform },
       require: { ...(isJsonObject(base.manifest.require) ? base.manifest.require : {}), ...project.require },
-      repositories: [{ packagist: false }, ...providerRepositories, ...consumerRepositories(base.manifest, base.folder)],
+      repositories: [{ packagist: false }, ...providerRepositories, ...consumerRepositories(base.manifest, base.folder, base.siblings ?? new Map())],
     };
     writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(scratchProject, null, 4)}\n`);
     if (base !== undefined) writeFileSync(path.join(scratch, 'composer.lock'), base.lock);
@@ -803,16 +803,33 @@ export function composerEntries(
 }
 
 /**
- * K439-4: the repositories of a consumer manifest as Composer reads them in the folder of the consumer. A path url is relative to that folder
- * and must name a folder that exists, or the call fails naming it; no other repository stands in for it. A packagist entry is dropped, since
- * the scratch keeps packagist disabled.
+ * The key of a repository url that names the same repository whatever its form: https or ssh, with or without the .git suffix or a final slash.
+ * A url of another form is its own key.
  */
-function consumerRepositories(manifest: Record<string, unknown>, folder: string): Record<string, unknown>[] {
+export function repositoryKey(url: string): string {
+  const match = /^(?:https:\/\/|ssh:\/\/git@|git@)([^/:]+)[:/](.+?)(?:\.git)?\/?$/i.exec(url.trim());
+  return match?.[1] === undefined || match[2] === undefined ? url.trim() : `${match[1].toLowerCase()}/${match[2]}`;
+}
+
+/**
+ * K439-4, K475: the repositories of a consumer manifest as Composer reads them in the folder of the consumer. A path url is relative to that folder
+ * and must name a folder that exists, or the call fails naming it; no other repository stands in for it. A vcs url is read from the sibling
+ * checkout whose origin names the same repository (`siblings`, origin url to folder), as a path repository of that folder, so the scratch needs
+ * no network; a vcs url that no sibling checkout names fails naming it. A packagist entry is dropped, since the scratch keeps packagist disabled.
+ */
+function consumerRepositories(manifest: Record<string, unknown>, folder: string, siblings: ReadonlyMap<string, string>): Record<string, unknown>[] {
   const declared = manifest.repositories;
   const list: unknown[] = Array.isArray(declared) ? declared : isJsonObject(declared) ? Object.values(declared) : [];
+  const byKey = new Map([...siblings].map(([url, sibling]) => [repositoryKey(url), sibling]));
   return list.flatMap((repository: unknown) => {
     if (repository === false || (isJsonObject(repository) && 'packagist' in repository)) return [];
     if (!isJsonObject(repository)) throw new Error(`a repository of the consumer is not an object: ${JSON.stringify(repository)}`);
+    if (repository.type === 'vcs') {
+      if (typeof repository.url !== 'string') throw new Error(`a vcs repository of the consumer has no url: ${JSON.stringify(repository)}`);
+      const sibling = byKey.get(repositoryKey(repository.url));
+      if (sibling === undefined) throw new Error(`the vcs repository ${repository.url} of the consumer is provided by no sibling checkout (no checkout's origin names it): the provider entries are not written`);
+      return [{ type: 'path', url: sibling, options: { symlink: false } }];
+    }
     if (repository.type !== 'path') return [repository];
     if (typeof repository.url !== 'string') throw new Error(`a path repository of the consumer has no url: ${JSON.stringify(repository)}`);
     const url = path.resolve(folder, repository.url);
@@ -837,9 +854,22 @@ function siblingComposerProviders(root: string): Map<string, { manifest: Record<
   return found;
 }
 
+/** The origin url of each main checkout beside the repository of `root` (and the forks), to its folder: the vcs repositories of a consumer resolve through them (K475). */
+function siblingOrigins(root: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const folder of siblingCheckouts(root).checkouts) {
+    // git config exits 1 for a key that is not set; a checkout without an origin names no repository.
+    const origin = linkGit(folder, 'config', '--get', 'remote.origin.url');
+    if (origin.error || (origin.status !== 0 && origin.status !== 1)) throw new Error(`git config --get remote.origin.url failed in ${folder}: ${origin.error?.message ?? origin.stderr.trim()}`);
+    if (origin.status === 0) found.set(origin.stdout.trim(), folder);
+  }
+  return found;
+}
+
 /** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote (K439-2). */
 function rewriteProviderEntries(root: string, directories: readonly string[], found: Map<string, { manifest: Record<string, unknown>; folder: string }> = siblingComposerProviders(root)): void {
   const manifests = new Map([...found].map(([name, provider]) => [name, provider.manifest]));
+  const siblings = siblingOrigins(root);
   // K439-2: the toolchain Composer of the checkout, as K432 runs it (COMPOSER_BIN names another one).
   const composer = process.env.COMPOSER_BIN ?? composerCommand(root, 'make composer-provider-entries');
   for (const directory of new Set(directories)) {
@@ -861,7 +891,7 @@ function rewriteProviderEntries(root: string, directories: readonly string[], fo
     });
     const declared = isJsonObject(manifest) && isJsonObject(manifest.config) && isJsonObject(manifest.config.platform) ? manifest.config.platform : {};
     const platform = Object.fromEntries(Object.entries(declared).filter((item): item is [string, string] => typeof item[1] === 'string'));
-    const base = isJsonObject(manifest) ? { manifest, lock: lockText, folder: path.join(root, directory) } : undefined;
+    const base = isJsonObject(manifest) ? { manifest, lock: lockText, folder: path.join(root, directory), siblings } : undefined;
     const written = composerEntries(provided, composer, toolEnvironment(root), platform, base);
     const { text, rewritten } = providerEntries(lockText, manifests, isJsonObject(manifest) ? manifest : undefined, written);
     if (rewritten.length === 0) continue;

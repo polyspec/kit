@@ -526,3 +526,34 @@ test('a tracked update passes a stale polyspec entry, whose provider entry is wr
   const ormEntry = entries.find((entry: unknown) => isJsonObject(entry) && entry.name === 'polyspec/orm');
   assert.equal(isJsonObject(ormEntry) && isJsonObject(ormEntry.require) ? ormEntry.require.php : undefined, '>=8.4', 'the entry takes the provider manifest');
 });
+
+// K475: a consumer vcs repository whose origin a sibling checkout names resolves through that sibling, offline (the scratch has no network);
+// a vcs repository that no sibling checkout provides fails naming it, with no silent skip.
+test('a consumer vcs repository resolves through the sibling checkout that names its origin, offline (K475)', (t) => {
+  const checkout = repositoryRoot();
+  const composer = composerOfCheckout(checkout, 'the test of K475');
+  const toolEnv = toolingEnvironment(checkout);
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-vcs-sibling-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const orm = path.join(root, 'orm');
+  mkdirSync(orm);
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const yaml = path.join(root, 'yaml');
+  mkdirSync(yaml);
+  writeFileSync(path.join(yaml, 'composer.json'), JSON.stringify({ name: 'purrphp/yaml', version: '1.0.0', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Purr\\Yaml\\': 'src/' } } }));
+  const consumer = path.join(root, 'consumer');
+  mkdirSync(consumer);
+  // The consumer names the repository without its .git suffix; the sibling's origin names it with one: both are the same repository.
+  const url = 'https://github.com/min-0-max/yaml';
+  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18', 'purrphp/yaml': '^1.0' }, repositories: [{ type: 'vcs', url, 'no-api': true }], config: { platform: { php: '8.4.1' } } };
+  const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
+  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const siblings = new Map([['https://github.com/min-0-max/yaml.git', yaml]]);
+  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer, siblings });
+  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+  assert.throws(
+    () => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer, siblings: new Map() }),
+    /https:\/\/github\.com\/min-0-max\/yaml/,
+    'a vcs repository that no sibling checkout provides fails naming it',
+  );
+});
