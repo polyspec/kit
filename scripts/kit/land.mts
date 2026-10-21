@@ -13,7 +13,7 @@
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { kitGates } from './gate-red.mts';
@@ -228,8 +228,10 @@ if (isMain(import.meta.url)) {
 }
 
 /**
- * Runs the static gates of land that the changed paths of `folder` select, before a commit on main (K446): `make <gate>` in the
- * folder, the commit gate (commits-check) left to the commit itself. Throws, naming the gate and its output, when one fails.
+ * Runs the static gates of land that the changed paths of `folder` select, before a commit on main (K446), and refuses only the
+ * findings that HEAD lacks, as land does (K394-1): a gate that fails on HEAD too is printed and passes. The commit gate
+ * (commits-check) is left to the commit itself. The gate runs on HEAD in a temporary worktree that shares the tools of `folder`.
+ * Throws, naming the gate and its new findings, when one is new; nothing is committed then.
  */
 export function runCommitGates(folder: string, changed: string[], print: (text: string) => void = text => console.log(`[plan] ${text}`)): void {
   const { gates } = gatesOf(folder, changed);
@@ -237,6 +239,20 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
     print(`${gate} in ${folder}`);
     const result = spawnSync('make', ['--no-print-directory', gate], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
     if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
-    if (result.status !== 0) throw new Error(`the gate ${gate} fails, so nothing is committed on main:\n${result.stdout}${result.stderr}`);
+    if (result.status === 0) continue;
+    const head = mkdtempSync(path.join(tmpdir(), 'kit-commit-gate-'));
+    try {
+      const made = spawnSync('git', ['worktree', 'add', '--quiet', '--detach', head, 'HEAD'], { cwd: folder, encoding: 'utf8' });
+      if (made.status !== 0) throw new Error(`git worktree add of HEAD failed: ${made.stderr}`);
+      for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared)) && !existsSync(path.join(head, shared))) symlinkSync(path.join(folder, shared), path.join(head, shared));
+      const base = spawnSync('make', ['--no-print-directory', gate], { cwd: head, encoding: 'utf8', maxBuffer: 1 << 28 });
+      if (base.error) throw new Error(`make ${gate} could not start on HEAD: ${base.error.message}`);
+      const added = newLines(linesOf(`${result.stdout}${result.stderr}`, folder, folder), linesOf(`${base.stdout}${base.stderr}`, head, folder));
+      if (added.length === 0) { print(`${gate} fails on HEAD too, with no finding that HEAD lacks`); continue; }
+      throw new Error(`the gate ${gate} has ${added.length} findings that HEAD lacks, so nothing is committed on main:\n${added.join('\n')}`);
+    } finally {
+      spawnSync('git', ['worktree', 'remove', '--force', head], { cwd: folder, encoding: 'utf8' });
+      rmSync(head, { recursive: true, force: true });
+    }
   }
 }

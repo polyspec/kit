@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, runCommitGates, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -264,4 +264,27 @@ test('land lists the processes of the worktree and refuses while one runs (K429)
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged while a process runs in the worktree');
   assert.equal(existsSync(folderX), true, 'the worktree is kept');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'the branch is kept');
+});
+
+// K446-1: make commit on main refuses only the findings that HEAD lacks, as land does (K394-1): a finding that HEAD already has does
+// not block an unrelated change.
+test('a commit on main passes when the gate fails only on findings that HEAD already has (K446-1)', (t) => {
+  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+    'findings.txt': 'src/a.txt\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  put(main, { 'src/b.txt': 'b\n' });
+  git(main, 'add', 'src/b.txt');
+  assert.doesNotThrow(() => runCommitGates(main, ['src/b.txt'], () => {}), 'an unrelated change passes when HEAD fails with the same finding');
+  put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
+  git(main, 'add', 'findings.txt');
+  assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding refuses the commit');
 });
