@@ -26,6 +26,7 @@ import semver from 'semver';
 import { checkedFiles } from './tracked-files.mts';
 import { readComposerLock, readComposerManifest, readNpmLock, readNpmManifest, type ComposerPackage, type NpmLock, type NpmLockEntry } from './manifests.mts';
 import { readConfig } from './schema-validate.mts';
+import { LINK_LOCK, judgedComposerFiles } from './composer-project.mts';
 import { goWorkFile, readGoMod, readGoWork } from './toolchain-files.mts';
 import { declaredMiseTools } from './toolchain-mise.mts';
 import { readPylock } from './pylock.mts';
@@ -225,7 +226,7 @@ export const cargoLocks = (root: string): string[] => checkedFiles(root).filter(
 
 // A PEP 751 lock is pylock.toml or pylock.<name>.toml.
 const PYLOCK = /^pylock(\.[A-Za-z0-9_-]+)?\.toml$/;
-const LOCK_ECOSYSTEMS: Record<string, string> = { 'package-lock.json': 'npm', 'composer.lock': 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' };
+const LOCK_ECOSYSTEMS: Record<string, string> = { 'package-lock.json': 'npm', 'composer.lock': 'composer', [LINK_LOCK]: 'composer', 'Cargo.lock': 'cargo', 'go.sum': 'go' };
 
 /** The ecosystem of a lock: npm, composer, cargo, go or pypi (a PEP 751 pylock.toml). */
 export const lockEcosystem = (lock: string) => {
@@ -333,11 +334,11 @@ export function readState(root: string, policy: DependencyPolicy) {
   for (const { manifest: manifestPath } of policy.composerPlatforms) {
     const lockPath = path.posix.join(path.posix.dirname(manifestPath), 'composer.lock');
     locks.push(lockPath);
-    const composer = readComposerManifest(root, manifestPath);
-    // While the project is linked the versions are those of the link lock, which Composer resolved and the vendor holds; the tracked
-    // lock cannot relock while a provider is linked (K326-1).
-    const linkLock = path.posix.join(path.posix.dirname(manifestPath), 'composer.link.lock');
-    const composerLock = readComposerLock(root, existsSync(path.join(root, linkLock)) ? linkLock : lockPath);
+    // The project's files are the ones that every rule judges (K326-2): while linked, the link manifest and the link lock that Composer
+    // resolved and the vendor holds, since the tracked lock cannot relock while a provider is linked (K326-1).
+    const judged = judgedComposerFiles(root, path.posix.dirname(manifestPath));
+    const composer = readComposerManifest(root, judged.manifest);
+    const composerLock = readComposerLock(root, judged.lock);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
     // A path dist of the repository has a url relative to the project; the link lock records a provider that the link installs with
     // the absolute folder of its checkout, which is a linked dependency, judged by its link (K358).

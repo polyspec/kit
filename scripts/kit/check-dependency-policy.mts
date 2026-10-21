@@ -20,6 +20,7 @@ import type { ComposerPackage } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
+import { LINK_LOCK, LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
 import { siblingCheckouts, trackedManifests } from './link-providers.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
@@ -98,10 +99,6 @@ const isRemoteTarball = (resolved: string) => {
   return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'registry.npmjs.org' && url.pathname.endsWith('.tgz');
 };
 
-// The files that a link run writes beside a Composer project (link.mts, K304-1).
-const LINK_MANIFEST = 'composer.link.json';
-const LINK_LOCK = 'composer.link.lock';
-
 /** The findings of the link lock of the project `directory`: a package of a path repository of the link manifest is locked from its path. */
 function linkFindings(root: string, directory: string, lock: ReturnType<typeof readComposerLock>, add: (rule: Rule, subject: string, problem: string, fix: string) => void) {
   const manifest = readComposerManifest(root, path.posix.join(directory, LINK_MANIFEST));
@@ -124,7 +121,7 @@ const repositoryKey = (repository: { type?: string; url?: string; package?: { na
  * Composer reads `repositories` only from the root manifest (K330), so a root that requires a polyspec package must itself declare
  * each repository that the package declares. The package is read from the path repository of the link manifest, else from the vendor.
  */
-function providerRepositoryFindings(root: string, directory: string, manifest: ReturnType<typeof readComposerManifest>, add: (rule: Rule, subject: string, problem: string, fix: string) => void) {
+function providerRepositoryFindings(root: string, directory: string, manifestPath: string, manifest: ReturnType<typeof readComposerManifest>, add: (rule: Rule, subject: string, problem: string, fix: string) => void) {
   const linkFile = path.posix.join(directory, LINK_MANIFEST);
   const folders = new Map<string, string>();
   if (existsSync(path.join(root, linkFile))) {
@@ -140,7 +137,7 @@ function providerRepositoryFindings(root: string, directory: string, manifest: R
     if (!existsSync(file)) continue;
     for (const repository of readComposerManifestFile(file).repositories ?? []) {
       if (repository.type === 'path' || declared.has(repositoryKey(repository))) continue;
-      add('platform', path.posix.join(directory, 'composer.json'), `requires ${name}, whose composer.json declares the repository ${repositoryKey(repository)} that this root manifest lacks; Composer reads repositories only from the root`, `add the repository ${JSON.stringify(repository)} to repositories of ${path.posix.join(directory, 'composer.json')}`);
+      add('platform', manifestPath, `requires ${name}, whose composer.json declares the repository ${repositoryKey(repository)} that this root manifest lacks; Composer reads repositories only from the root`, `add the repository ${JSON.stringify(repository)} to repositories of ${manifestPath}`);
     }
   }
 }
@@ -193,21 +190,20 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     const directory = path.posix.dirname(manifestPath);
-    const composerManifest = readComposerManifest(root, manifestPath);
-    // While the project is linked (K326), the local checkouts are canonical: the rules of the platform and of composer validate judge the
-    // link lock that Composer resolved from the path packages, and the tracked lock is judged by the check of the batch release.
-    const linked = existsSync(path.join(root, directory, LINK_LOCK));
-    const lockPath = path.posix.join(directory, linked ? LINK_LOCK : 'composer.lock');
-    const composerLock = readComposerLock(root, lockPath);
-    if (linked) linkFindings(root, directory, composerLock, add);
-    providerRepositoryFindings(root, directory, composerManifest, add);
-    if (composerManifest.config?.platform?.php !== platform.php) add('platform', manifestPath, `config.platform.php is ${String(composerManifest.config?.platform?.php ?? 'absent')}, the policy declares ${platform.php}`, `set config.platform.php to ${platform.php} and run composer update --lock in ${directory}`);
-    if (composerLock['platform-overrides']?.php !== platform.php) add('platform', lockPath, `the lock was resolved for PHP ${composerLock['platform-overrides']?.php ?? 'without a platform override'}, the policy declares ${platform.php}`, `run composer update --lock in ${directory}`);
+    // Every rule of the Composer project judges the files that judgedComposerFiles selects: the link files while it is linked (K326-2),
+    // the tracked ones otherwise.
+    const judged = judgedComposerFiles(root, directory);
+    const composerManifest = readComposerManifest(root, judged.manifest);
+    const composerLock = readComposerLock(root, judged.lock);
+    if (judged.linked) linkFindings(root, directory, composerLock, add);
+    providerRepositoryFindings(root, directory, judged.manifest, composerManifest, add);
+    if (composerManifest.config?.platform?.php !== platform.php) add('platform', judged.manifest, `config.platform.php is ${String(composerManifest.config?.platform?.php ?? 'absent')}, the policy declares ${platform.php}`, `set config.platform.php to ${platform.php} and run composer update --lock in ${directory}`);
+    if (composerLock['platform-overrides']?.php !== platform.php) add('platform', judged.lock, `the lock was resolved for PHP ${composerLock['platform-overrides']?.php ?? 'without a platform override'}, the policy declares ${platform.php}`, `run composer update --lock in ${directory}`);
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published
     // composer.json declares its version, which the artifact repository of its release zip reads, so the warning on a
     // version field is not reported.
-    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory), linked ? LINK_MANIFEST : undefined);
-    if (failure) add('composerLock', manifestPath, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
+    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory), judged.linked ? LINK_MANIFEST : undefined);
+    if (failure) add('composerLock', judged.manifest, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
   }
 
   // One PHP platform (K282): every Composer manifest that declares config.platform.php, and every entry of composerPlatforms,
@@ -232,9 +228,11 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   // not declare is not checked.
   const tracked = checkedFiles(root);
   for (const file of tracked.filter(item => path.posix.basename(item) === 'composer.json' && !kitWrote(item) && !item.startsWith(`${symbols}/`))) {
-    const lockPath = path.posix.join(path.posix.dirname(file), 'composer.lock');
-    if (!tracked.includes(lockPath)) continue;
-    const platform = readComposerManifest(root, file).config?.platform ?? {};
+    // The project's files are the link files while it is linked (K326-2), which the tracked ones are not checked against.
+    const judged = judgedComposerFiles(root, path.posix.dirname(file));
+    if (!judged.linked && !tracked.includes(judged.lock)) continue;
+    const lockPath = judged.lock;
+    const platform = readComposerManifest(root, judged.manifest).config?.platform ?? {};
     const composerLock = readComposerLock(root, lockPath);
     for (const locked of [...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])]) {
       for (const [name, constraint] of Object.entries(locked.require ?? {})) {
@@ -247,7 +245,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
           add('platform', lockPath, `${locked.name} ${locked.version} requires ${name} ${constraint}, which kit does not read: ${error instanceof Error ? error.message : String(error)}`, `change the requirement of ${locked.name} in ${lockPath}, or lock a release that kit reads`);
           continue;
         }
-        if (!satisfied) add('platform', lockPath, `${locked.name} ${locked.version} requires ${name} ${constraint}, the platform that ${file} declares is ${name} ${declared}`, `lock a release of ${locked.name} that ${name} ${declared} satisfies, or set config.platform.${name} of ${file} to a version that satisfies ${constraint}, and run composer update --lock in ${path.posix.dirname(file)}`);
+        if (!satisfied) add('platform', lockPath, `${locked.name} ${locked.version} requires ${name} ${constraint}, the platform that ${judged.manifest} declares is ${name} ${declared}`, `lock a release of ${locked.name} that ${name} ${declared} satisfies, or set config.platform.${name} of ${judged.manifest} to a version that satisfies ${constraint}, and run composer update --lock in ${path.posix.dirname(file)}`);
       }
     }
   }
@@ -371,7 +369,7 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   const recordedLocks = new Map(record.locks.map(entry => [entry.lock, entry]));
   for (const lock of state.locks) {
     // The review record holds the tracked Composer lock; while its project is linked, that lock waits for the batch release (K326).
-    if (lockEcosystem(lock) === 'composer' && existsSync(path.join(root, path.posix.dirname(lock), LINK_LOCK))) continue;
+    if (lockEcosystem(lock) === 'composer' && judgedComposerFiles(root, path.posix.dirname(lock)).linked) continue;
     const entry = recordedLocks.get(lock);
     if (!entry) {
       add('record', lock, 'the lock has no entry in the review record', REVIEW);
@@ -470,9 +468,9 @@ function workspaceFolders(root: string, pattern: string): string[] {
 }
 
 /**
- * The names that the manifests of `directories` require directly: the require and require-dev of each composer.json, and
- * the dependencies, devDependencies and optionalDependencies of each package.json with those of its workspaces. A requirement
- * that only a lock holds is transitive and is no direct name.
+ * The names that the manifests of `directories` require directly: the require and require-dev of each Composer manifest that
+ * judgedComposerFiles selects, and the dependencies, devDependencies and optionalDependencies of each package.json with those of
+ * its workspaces. A requirement that only a lock holds is transitive and is no direct name.
  */
 function directNames(root: string, directories: readonly string[]): { composer: Set<string>; npm: Set<string> } {
   const composer = new Set<string>();
@@ -482,7 +480,7 @@ function directNames(root: string, directories: readonly string[]): { composer: 
     for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies]) for (const name of Object.keys(field ?? {})) npm.add(name);
   };
   for (const directory of directories) {
-    const composerFile = path.posix.join(directory, 'composer.json');
+    const composerFile = judgedComposerFiles(root, directory).manifest;
     if (existsSync(path.join(root, composerFile))) {
       const json = readComposerManifest(root, composerFile);
       for (const name of [...Object.keys(json.require ?? {}), ...Object.keys(json['require-dev'] ?? {})]) if (name.includes('/')) composer.add(name);
@@ -502,12 +500,18 @@ function directNames(root: string, directories: readonly string[]): { composer: 
 }
 
 /**
- * The locks that install reads at the root of a checkout: the composer.lock and package-lock.json of each folder of
- * installDirectories that is tracked. A lock under tests/ or a fixtures/ folder is no lock of the checkout.
+ * The locks that install reads at the root of a checkout: the Composer lock that judgedComposerFiles selects (the link lock while
+ * linked, K326-2) and the package-lock.json of each folder of installDirectories, when it is tracked. A lock under tests/ or a
+ * fixtures/ folder is no lock of the checkout.
  */
 function installLocks(root: string, directories: readonly string[]): string[] {
-  const wanted = new Set(directories.flatMap(directory => ['composer.lock', 'package-lock.json'].map(name => path.posix.join(directory, name))));
-  return trackedManifests(root, ['composer.lock', 'package-lock.json']).filter(file => wanted.has(file) && !/(^|\/)(tests|fixtures)\//.test(file));
+  const tracked = new Set(trackedManifests(root, ['composer.lock', 'package-lock.json']));
+  return directories
+    .flatMap((directory) => {
+      const judged = judgedComposerFiles(root, directory);
+      return [judged.lock, path.posix.join(directory, 'package-lock.json')].filter(file => tracked.has(file) || (judged.linked && file === judged.lock));
+    })
+    .filter(file => !/(^|\/)(tests|fixtures)\//.test(file));
 }
 
 /**
@@ -519,7 +523,7 @@ function directPins(root: string): Pin[] {
   const direct = directNames(root, directories);
   const pins: Pin[] = [];
   for (const lock of installLocks(root, directories)) {
-    const isComposer = path.posix.basename(lock) === 'composer.lock';
+    const isComposer = lockEcosystem(lock) === 'composer';
     // The line of the first entry of each name, found in one pass over the lines of the lock.
     const entryLine = new Map<string, number>();
     const entry = isComposer ? /^\s*"name": "([^"]*)"/ : /^\s*"([^"]*)": \{$/;

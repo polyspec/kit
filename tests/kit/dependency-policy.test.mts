@@ -188,6 +188,24 @@ test('while a project is linked a provider path dist of the link lock is a linke
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
+// K326-2: while a project is linked, the K415 rule judges the link lock too. The tracked lock requires php >=8.5.0 from psr/log, which the
+// declared platform 8.2.0 does not meet; the link lock, which Composer resolved for the declared platform, does not, so no finding names it.
+test('while a project is linked the K415 locked-requirement rule judges the link lock, not the tracked lock (K326-2)', (t) => {
+  const root = fixture(t);
+  const stub = stubRegistries(t, root);
+  const directory = path.join(root, 'packages/fixture-php');
+  const lock = readConfig<{ packages: { name: string; require?: Record<string, string> }[] }>(root, 'packages/fixture-php/composer.lock', 'composer-lock.schema.json');
+  const tracked = { ...lock, packages: lock.packages.map(item => (item.name === 'psr/log' ? { ...item, require: { php: '>=8.5.0' } } : item)) };
+  writeFileSync(path.join(directory, 'composer.lock'), JSON.stringify(tracked));
+  assert.match(gate(root, stub.env).stderr, /packages\/fixture-php\/composer\.lock: psr\/log \S+ requires php >=8\.5\.0, the platform that packages\/fixture-php\/composer\.json declares is php 8\.2\.0/, 'without a link the tracked lock is judged');
+  writeFileSync(path.join(directory, 'composer.link.json'), readFileSync(path.join(directory, 'composer.json'), 'utf8'));
+  writeFileSync(path.join(directory, 'composer.link.lock'), JSON.stringify(lock));
+  const linked = gate(root, stub.env);
+  assert.doesNotMatch(linked.stderr, /requires php/, 'with a link the link lock is judged, not the tracked lock');
+  // composer validate of the linked project runs on the link files: the stub logs the COMPOSER it was given.
+  assert.ok(stub.calls().some(call => call.startsWith('composer validate ') && call.includes('[COMPOSER=composer.link.json]')), stub.calls().join('\n'));
+});
+
 // K328: while a project is linked, a linked package is judged by its link; the registry comparison belongs to the batch release.
 test('a linked package is not compared with the latest release of the registry, and a third-party package still is (K328)', (t) => {
   const root = fixture(t);

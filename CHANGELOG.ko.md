@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e10d6e04a931b901159042044e07292e75258679075614f2e694f885004c9356 -->
+<!-- source-sha256: 7f2618d1c61baffc9da001e7451b9aab21974d968349a8a78c2df0048ef196f0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K326-2: 링크된 Composer project에서 `make dependency-policy-check`의 모든 Composer 규칙(platform, K415 잠금 요구사항, `composer validate`, 검토 기록 버전)은 `composer.link.json`과 `composer.link.lock`을 판단하고, 링크되지 않으면 추적된 파일을 판단한다. 하나의 선택 함수 `scripts/kit/composer-project.mts`를 모든 규칙과 검토가 쓴다. 붉은 확인: `node --test --test-name-pattern=K326-2 tests/kit/dependency-policy.test.mts`가 8ad71384에서 추적된 lock의 `psr/log requires php >=8.5.0` finding으로 실패하고 link lock은 깨끗하다. 초록 확인: `make item-test ID=K326-2`가 통과한다(1 test, none skipped) (K326-2).
 - K404-1: pre-commit hook은 main의 각 commit에서 `make land`의 gate를 스테이징된 tree에서 실행하고, HEAD에 없는 finding일 때만 이름을 적어 거부한다. pre-merge-commit hook은 main의 merge commit을 거부하므로 main은 commit과 fast-forward로만 움직인다(K404, K446, P10, P38). `make commit`은 이 hook을 통해 gate를 한 번만 실행한다 (K404-1).
 - K448-9은 done입니다. 항목은 이 커밋에서 [o]입니다. 변경은 fix 커밋 76ac1d3f이고, red는 4a420f07, green은 그 커밋의 K448-9 test입니다 (K448-9).
 - `make npm-install DIR=<project> CHECKOUTS="<package folder> ..."`은 주어진 각 checkout을 도구에 전달하고, 명시 모드에서 그것을 연결합니다. 그래서 polyspec 작업 공간 밖의 소비자(TMPDIR 아래 임시 clone)가 자기 lock의 npm ci를 더 이상 실행하지 않습니다. 대신 `packages/` 아래 package folder를 가진 저장소 루트를 주면 거부하며, 거부 메시지가 그 package folder들을 밝힙니다. package.json이 없는 폴더도 거부합니다(K448-9). Red: 4a420f07에서 CHECKOUTS를 준 상태로 `node --test --test-name-pattern=K448-9 tests/kit/npm-install.test.mts`가 lock의 npm ci를 실행했습니다.

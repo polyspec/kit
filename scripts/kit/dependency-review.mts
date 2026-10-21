@@ -41,6 +41,7 @@ import { isJsonObject, writeJson } from './bootstrap/files.mts';
 import { providers, siblingCheckouts } from './link-providers.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
+import { LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -166,7 +167,7 @@ function query<T>(schema: string, command: string, args: string[], cwd: string, 
  * package from its zip, never changes the tracked composer.json and composer.lock, and never reinstalls the vendor from them.
  */
 export function composerEnvironment(root: string, directory: string): NodeJS.ProcessEnv | undefined {
-  return existsSync(path.join(root, directory, 'composer.link.lock')) ? { ...process.env, COMPOSER: 'composer.link.json' } : undefined;
+  return judgedComposerFiles(root, directory).linked ? { ...process.env, COMPOSER: LINK_MANIFEST } : undefined;
 }
 
 /** The latest dist-tag and the versions of an npm package, from npm view: { value } or { error }. */

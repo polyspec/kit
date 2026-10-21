@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 5a4ccf38d8788fdc65c64c1b4a9e10a57c7b26ac31d24d1e21d883425945569b -->
+<!-- source-sha256: 1ff6b2f572b308b94165992edc286f623e30afec7f5ec94f46e3d9eee6ae6963 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -20,7 +20,7 @@
 
 ## 검증
 
-`make link-state-check`(K305-1, P30)는 모든 저장소의 gate이다. link가 설치된 릴리스 버전으로 간주되고 버전은 설치할 때만 검사하므로 version도 요구사항도 비교하지 않는다. link가 있는 동안 0.0.x에 고정된 설치된 polyspec 패키지가 link들 사이의 사본이거나, link가 그 이름의 패키지(npm `package.json`, Composer `composer.json`)로 풀리지 않거나, Composer 패키지가 릴리스 archive 설치 위의 link이거나(`installed.json`의 기록이 `dist` type `path`가 아님), `go.work`의 `use` 폴더에 `go.mod`가 없으면 ecosystem과 패키지를 적어 실패한다. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다. Composer project가 link된 동안(`composer.link.lock`이 있는 동안) `make dependency-policy-check`는 그 project의 platform과 `composer validate`를 `composer.link.json`과 `composer.link.lock`에서 판단하고, link lock이 다른 dist로 가진 path repository의 polyspec 패키지는 실패시키며, 추적되는 `composer.lock`의 review hash는 일괄 release의 검사에 맡긴다(K326). 연결된 패키지(link lock의 path dist, `node_modules`의 심볼릭 링크)는 `make dependency-review`와 policy 검사에서 registry의 최신 release와 비교하지 않고 외부 패키지는 여전히 비교한다(K328). Composer는 `repositories`를 root manifest에서만 읽으므로, 같은 검사는 polyspec package를 require하는 root `composer.json`에 그 package의 `composer.json`이 선언한 repository(fork 등)가 없으면 둘의 이름과 함께 실패하고, link는 linked package가 선언한 repositories를 `composer.link.json`에 쓴다(K330).
+`make link-state-check`(K305-1, P30)는 모든 저장소의 gate이다. link가 설치된 릴리스 버전으로 간주되고 버전은 설치할 때만 검사하므로 version도 요구사항도 비교하지 않는다. link가 있는 동안 0.0.x에 고정된 설치된 polyspec 패키지가 link들 사이의 사본이거나, link가 그 이름의 패키지(npm `package.json`, Composer `composer.json`)로 풀리지 않거나, Composer 패키지가 릴리스 archive 설치 위의 link이거나(`installed.json`의 기록이 `dist` type `path`가 아님), `go.work`의 `use` 폴더에 `go.mod`가 없으면 ecosystem과 패키지를 적어 실패한다. link가 없는 checkout은 통과하므로 릴리스된 패키지를 설치하는 CI는 영향을 받지 않는다. pre-push gate는 link 기록을 계속 거부한다. Composer project가 link된 동안(`composer.link.lock`이 있는 동안) `make dependency-policy-check`는 그 project의 모든 Composer 규칙(platform, 잠금된 요구사항, `composer validate`, 검토 버전)을 `composer.link.json`과 `composer.link.lock`에서 판단하고 (K326-2), link lock이 다른 dist로 가진 path repository의 polyspec 패키지는 실패시키며, 추적되는 `composer.lock`의 review hash는 일괄 release의 검사에 맡긴다(K326). 연결된 패키지(link lock의 path dist, `node_modules`의 심볼릭 링크)는 `make dependency-review`와 policy 검사에서 registry의 최신 release와 비교하지 않고 외부 패키지는 여전히 비교한다(K328). Composer는 `repositories`를 root manifest에서만 읽으므로, 같은 검사는 polyspec package를 require하는 root `composer.json`에 그 package의 `composer.json`이 선언한 repository(fork 등)가 없으면 둘의 이름과 함께 실패하고, link는 linked package가 선언한 repositories를 `composer.link.json`에 쓴다(K330).
 
 ## 방식
 
