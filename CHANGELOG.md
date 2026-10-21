@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K469-1 is done: its row is [o] in this commit, whose red is the K469-1 test run with the guard stashed (install-tools wrote through a symbolic var) and whose green is the K469-1 test of this commit (K469-1). `make install-tools` refuses a var that is a symbolic link, so a worktree keeps its own var/tools and its own mise state.
 - K469 is done: its row is [o] in this commit, whose red is the K469 test run with the fix stashed (the staged tree has no trust of its mise.toml, so mise refuses it) and whose green is the K469 test of this commit (K469). The staged tree of a commit on main or of land trusts its mise.toml in the mise state of its checkout, and removes that trust before the tree is removed, so the gates run there instead of mise refusing the untrusted config.
 - K474 is done: its row is [o] in this commit, whose red is the K474 test run with the fix stashed (a gate whose baseline failed with `Error 127` passed as failing on HEAD too) and whose green is the K474 test of this commit (K474). A gate run that fails for an environment reason (a signal, `Error 126` or `Error 127`, or no finding line) is refused with its own output, and it is never compared with a baseline.
 - K454 is done: its row is [o] in this commit, whose red is the K454 test run with the fix stashed and whose green is the K454 test of this commit (K454).

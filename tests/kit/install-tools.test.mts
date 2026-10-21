@@ -6,7 +6,7 @@
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -215,4 +215,17 @@ test('the make targets composer-install and npm-install run their tools online (
   const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', 'NODE=node', 'NPM=npm', ...args], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry('composer-install', 'DIR=x').stdout.trim(), 'online-wrapper node scripts/kit/composer-install.mts x');
   assert.equal(dry('npm-install', 'DIR=x').stdout.trim(), 'NPM_BIN=npm online-wrapper node scripts/kit/npm-install.mts x');
+});
+
+// K469-1: a var that is a symbolic link is the var of another checkout, so install-tools refuses it: each checkout keeps its own
+// var/tools and its own mise state, and a worktree never writes the var of the main checkout.
+test('install-tools refuses a var that is a symbolic link, so it never writes the var of another checkout (K469-1)', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n');
+  const shared = path.join(root, 'shared-var');
+  renameSync(path.join(root, 'var'), shared);
+  symlinkSync(shared, path.join(root, 'var'));
+  const result = start(INSTALL_TOOLS, root, stubs.env);
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /var is a symbolic link; each checkout keeps its own var, so make install-tools refuses to write the var of another checkout \(K469-1\)/);
+  assert.deepEqual(stubs.calls(), [], 'no mise call runs through the shared var');
 });

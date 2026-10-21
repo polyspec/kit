@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3c4f525f3088e70c099a2ab93e6f57c02c4acb7f3be11097679512d0a301f12f -->
+<!-- source-sha256: fcd673056e5473f39e07b50af4c20b4edd3ec3218f347513b8e10d174c3959f2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K469-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 가드를 stash한 상태에서 실행한 K469-1 테스트(install-tools가 심볼릭 링크 var를 통해 기록했다)이며, green은 이 커밋의 K469-1 테스트다 (K469-1). `make install-tools`는 심볼릭 링크인 var를 거부하여, worktree가 자신의 var/tools와 mise 상태를 유지한다.
 - K469는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K469 테스트(스테이징 트리에 mise.toml의 신뢰가 없어 mise가 거부한다)이며, green은 이 커밋의 K469 테스트다 (K469). main 커밋 또는 land의 스테이징 트리는 자신의 mise.toml을 체크아웃의 mise 상태에 신뢰로 기록하고, 트리를 제거하기 전에 그 신뢰를 제거하여, 신뢰되지 않은 설정을 mise가 거부하는 대신 게이트가 그곳에서 실행된다.
 - K474는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K474 테스트(기준선이 `Error 127`로 실패한 게이트가 HEAD에서도 실패한 것으로 통과했다)이며, green은 이 커밋의 K474 테스트다 (K474). 환경 사유로 실패한 게이트 실행(신호, `Error 126` 또는 `Error 127`, 또는 발견 줄 없음)은 자체 출력과 함께 거부되며 기준선과 비교되지 않는다.
 - K454는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K454 테스트이며, green은 이 커밋의 K454 테스트이다 (K454).

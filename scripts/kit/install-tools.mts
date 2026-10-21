@@ -13,7 +13,7 @@
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
 // the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). The command takes no tool names: mise.lock is one set of tools. It prints a line for each
 // step and has no time limit.
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { MISE_WRAPPER, NODE_WRAPPER, removeForeignTrusts } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
@@ -32,6 +32,9 @@ import { declaredLintTools } from './toolchain-lint.mts';
 
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
 export function installTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
+  // A var that is a symbolic link belongs to another checkout: each checkout keeps its own var/tools and its own mise state (K469-1).
+  const variables = path.join(root, 'var');
+  if (existsSync(variables) && lstatSync(variables).isSymbolicLink()) throw new Error(`${variables} is a symbolic link; each checkout keeps its own var, so make install-tools refuses to write the var of another checkout (K469-1)`);
   const mise = toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
