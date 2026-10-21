@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bdb56481df21073863c3971cd73e334ea3b42138f2386ee2738fd210b8478490 -->
+<!-- source-sha256: b7d5204700d248ac10878ff5d4e1899cce50eba1e91457a23a3a8693a385dc9b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K437-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 이전 단정으로 실행한 K437-1 테스트이며, green은 이 커밋의 K437-1 테스트이다 (K437-1).
+- top-level await가 끝나지 않는 node 파일의 K437 테스트는 run이 보고하는 deadline 메시지를 받아들인다. run-tests의 gap watch(K371-1)가 같은 deadline에 run을 먼저 끝내며 `no test started within 2 s`를 보고하므로, run-tests 아래에서 나타나지 않는 파일 쪽 문구를 확인하던 테스트가 실패했다. 테스트는 이제 run이 deadline에 exit status 1로 끝나고, 파일 이름과 두 deadline 메시지 중 하나를 포함하며, 제한 전에 끝나는 것을 요구한다 (K437-1).
 - K380-2-1: K380-2 amend 테스트의 fixture commit이 fixture tree가 갖고 있는 row `T1-1`만 적는다. 그래서 `commit-row`는 main에서 통과하고 테스트는 자신이 이름을 붙이는 amend를 검사한다 (K380-2-1). red: `node --test --test-name-pattern=K380-2 tests/kit/git-hooks.test.mts`는 66a4fb26에서 exit 1이다(commit-row: subject이 K380-2를 적음). green: `make item-test ID=K380-2-1`이 통과한다(1 test, none skipped) (K380-2-1).
 - K468는 이 커밋에서 done으로 기록된다: 항목이 [~]에서 [o]로 바뀌고, 그 changelog 줄은 위의 줄이다 (K468).
 - K468는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K468 test 실행이고 green은 이 커밋의 K468 test입니다 (K468). 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 이름으로 적지 않는다. 선언은 config/polyspec.json에 있고, `make polyspec-lock-check`가 추적되는 이름을 실패시키며, link는 선언된 각 패키지를 형제 checkout에서 설치한다 (K468).

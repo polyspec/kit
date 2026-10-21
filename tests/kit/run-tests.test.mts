@@ -156,12 +156,18 @@ test('a node test that awaits a promise that never settles is ended past the dea
 });
 
 // K437: the file's own code awaits a promise that never settles while a handle keeps its process alive. No test ever starts,
-// so the deadline that starts after the last test never does; the deadline from the process start ends the file instead.
-test('a node file whose top-level await never settles, with a live handle, is ended past the deadline (K437)', { timeout: 60_000 }, (t) => {
+// so the deadline that starts after the last test never does. The run ends the file at its deadline with one of two messages:
+// the gap watch of run-tests (K371-1), which runs at the same deadline and reports it first, or the file-side watch of
+// test-exit-deadline, which names the deadline in milliseconds (K437-1).
+test('a node file whose top-level await never settles, with a live handle, is ended past the deadline (K437-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/pending.test.mjs': `${SPEC}setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('late', () => {});\n` });
+  const began = Date.now();
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 30_000 });
+  const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
-  assert.match(output(result), /2000 ms/);
+  assert.match(output(result), /⏱ node \. tests\/pending\.test\.mjs: no test started (within 2 s after the start of the run|or ended within 2000 ms of the process start)/);
+  assert.match(output(result), /✖ tests\/pending\.test\.mjs/);
+  assert.ok(elapsed < 15_000, `the run took ${elapsed} ms, expected the end at the 2 s deadline`);
 });
 
 // K437: a handle that a test leaves open is still ended at the deadline, and the failure names it (K72 covers it).
