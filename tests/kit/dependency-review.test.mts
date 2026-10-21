@@ -421,3 +421,33 @@ test('RECORD with TARGETS records the snapshot moment of the file as the review 
   assert.ok(isJsonObject(record), 'the record is a JSON object');
   assert.equal(record.reviewed, SNAPSHOT);
 });
+
+// K439-3: the scratch project takes the consumer's manifest and tracked lock as its base, so a provider's transitive requirement (nikic/php-parser,
+// locked in the tracked lock) resolves offline; without the base the scratch cannot find it and fails.
+test('the provider entries resolve the transitive requirements from the tracked lock, offline (K439-3)', (t) => {
+  const checkout = repositoryRoot();
+  let composer: string | undefined = process.env.COMPOSER_BIN;
+  try {
+    composer ??= composerCommand(checkout, 'the test of K439-3');
+  } catch {
+    composer = undefined;
+  }
+  if (composer === undefined || spawnSync(composer, ['--version']).status !== 0) {
+    t.skip('no Composer on this machine');
+    return;
+  }
+  const toolEnv = toolingEnvironment(checkout);
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-transitive-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, 'orm');
+  mkdirSync(folder);
+  writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4', 'nikic/php-parser': '^5.9.0' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const parser = { name: 'nikic/php-parser', version: '5.9.0', dist: { type: 'zip', url: 'https://example.invalid/php-parser.zip' }, require: { php: '>=8.1' } };
+  const lock = JSON.stringify({ packages: [parser], 'packages-dev': [] });
+  const consumer = { require: { 'polyspec/orm': '0.0.18', 'nikic/php-parser': '^5.9.0' }, config: { platform: { php: '8.4.1' } } };
+  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder }];
+  assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }), /nikic\/php-parser/, 'without the base the transitive requirement is not found');
+  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest: consumer, lock });
+  assert.ok(written.has('polyspec/orm'), 'the provider is written');
+  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+});

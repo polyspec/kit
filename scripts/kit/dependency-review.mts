@@ -760,6 +760,7 @@ export function composerEntries(
   composer: string,
   env: NodeJS.ProcessEnv = process.env,
   platform: Record<string, string> = {},
+  base?: { manifest: Record<string, unknown>; lock: string },
 ): Map<string, Record<string, unknown>> {
   const found = new Map<string, Record<string, unknown>>();
   if (packages.length === 0) return found;
@@ -773,10 +774,20 @@ export function composerEntries(
       require: Object.fromEntries(packages.map(item => [item.name, item.version])),
       repositories: [{ packagist: false }, ...packages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }))],
     };
-    writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(project, null, 4)}\n`);
+    // K439-3: with the consumer's manifest and tracked lock as the base, the transitive requirements come from the lock: Composer updates
+    // only the provided packages, offline.
+    const scratchProject = base === undefined ? project : {
+      ...base.manifest,
+      config: { ...(isJsonObject(base.manifest.config) ? base.manifest.config : {}), platform },
+      require: { ...(isJsonObject(base.manifest.require) ? base.manifest.require : {}), ...project.require },
+      repositories: project.repositories,
+    };
+    writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(scratchProject, null, 4)}\n`);
+    if (base !== undefined) writeFileSync(path.join(scratch, 'composer.lock'), base.lock);
     // Its own home and cache, so that no global repository of the machine (packagist) is read: the entries come from the providers only.
     const isolated = { ...env, COMPOSER_HOME: path.join(scratch, 'home'), COMPOSER_CACHE_DIR: path.join(scratch, 'cache'), COMPOSER_DISABLE_NETWORK: '1' };
-    const ran = spawnSync(composer, ['update', '--no-install', '--no-scripts', '--no-plugins', '--no-audit', '--no-interaction'], { cwd: scratch, env: isolated, encoding: 'utf8' });
+    const names = packages.map(item => item.name);
+    const ran = spawnSync(composer, ['update', ...(base === undefined ? [] : names), '--no-install', '--no-scripts', '--no-plugins', '--no-audit', '--no-interaction'], { cwd: scratch, env: isolated, encoding: 'utf8' });
     if (ran.status !== 0) throw new Error(`composer update of the provider entries failed (${ran.status}): ${ran.stdout}${ran.stderr}`);
     const lock: unknown = JSON.parse(readFileSync(path.join(scratch, 'composer.lock'), 'utf8'));
     const list = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];
@@ -828,7 +839,8 @@ function rewriteProviderEntries(root: string, directories: readonly string[]): v
     });
     const declared = isJsonObject(manifest) && isJsonObject(manifest.config) && isJsonObject(manifest.config.platform) ? manifest.config.platform : {};
     const platform = Object.fromEntries(Object.entries(declared).filter((item): item is [string, string] => typeof item[1] === 'string'));
-    const written = composerEntries(provided, composer, toolEnvironment(root), platform);
+    const base = isJsonObject(manifest) ? { manifest, lock: lockText } : undefined;
+    const written = composerEntries(provided, composer, toolEnvironment(root), platform, base);
     const { text, rewritten } = providerEntries(lockText, manifests, isJsonObject(manifest) ? manifest : undefined, written);
     if (rewritten.length === 0) continue;
     writeFileSync(lock, text);
