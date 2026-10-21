@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d54d8fe3b62e7c715e9617aa47a96548fcd2b5e79bbc707c628d3b9171107364 -->
+<!-- source-sha256: 6020c72f5282c7c1e48bb3eceb7f57d3331c138ca0cf2fd00ff77386bcf021c9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -324,3 +324,4 @@
 | K452-1 | PHP 확장 실행은 PHPUnit이 시작되기 전에 각 --php-extension이 로드됐는지 확인하고, 로드되지 않으면 .so 경로와 그것이 빌드된 PHP 버전·API를 실행 중인 것과 함께 명명하며 실패한다: PHP 8.5용 .so가 PHP 8.4에서 조용히 라이브러리를 시험하면 안 된다(P8) | scripts/kit/run-tests.mts | `node --test --test-name-pattern=K452-1 tests/kit/run-tests.test.mts` | [ ] |
 | K453 | make land이 land 뒤 연결된 소비자가 쓰는 kit dist/를 다시 만든다(K453). 원인: make land는 gitignore된 kit dist/를 다시 만들지 않아, 연결된 소비자가 land할 때마다 오래된 run-tests를 실행한다. 근거: 14:42의 dist에는 19:22에 수동 make build를 하기 전까지 K371-1이 없었다. 완료 기준: fast-forward 뒤 land가 main checkout에서 make build를 실행해 dist/가 병합된 source를 담고, build가 실패하면 land는 성공을 보고하기 전에 실패한다. 현재 빨간 상태: scripts/kit을 바꾸는 branch를 land하면 dist/가 병합 전 source를 담는다. | `scripts/kit/land.mts`, `tests/kit/land.test.mts` | `node scripts/kit/run-tests.mts node --test-name-pattern=K453 -- tests/kit/land.test.mts` | [ ] |
 | K454 | test-exit-deadline으로 끝나는 preload 종료가 test의 child process를 멈춘다(K454). 원인: run-tests의 preload가 test-exit-deadline에 끝나면 process.exit가 child process를 멈추지 않아, runner가 끝난 뒤에도 child가 launchd 아래로 옮겨져 계속 실행된다. 근거: deadline에 끝난 run의 child가 launchd 아래에서 계속 실행되었다. 완료 기준: deadline 종료는 process가 끝나기 전에 run의 child process group마다 멈추고, 끝난 run의 child가 남지 않는다. 현재 빨간 상태: 끝나지 않는 test의 child process가 deadline에 run-tests가 끝난 뒤에도 남는다. | `scripts/kit/run-tests.mts`, `scripts/kit/process-group.mts`, `tests/kit/run-tests.test.mts` | `node scripts/kit/run-tests.mts node --test-name-pattern=K454 -- tests/kit/run-tests.test.mts` | [ ] |
+| K455 | main에서 rebuild-check가 통과한다. kit의 모든 tool이 config/rebuild.json에 class를 가진다(K455). 원인: main에서 make rebuild-check가 실패한다. scripts/kit의 tool 23개가 config/rebuild.json에 class가 없어, 모든 소비자가 실행하는 검사(K248-1)가 기본 branch에서 빨갛다. 근거: main의 make rebuild-check가 class 없는 tool 23개를 보고한다. 완료 기준: config/rebuild.json이 검사가 읽는 scripts/kit의 모든 tool에 class를 적고, class가 없는 tool은 검사를 경로와 함께 실패시킨다. 현재 빨간 상태: main의 rebuild-check가 class 누락 finding 23개로 실패한다. | `config/rebuild.json`, `scripts/kit/rebuild-check.mts` | `node scripts/kit/run-tests.mts node --test-name-pattern=K455 -- tests/kit/rebuild-check.test.mts` | [ ] |
