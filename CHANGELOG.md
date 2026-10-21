@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make commit` on main compares each selected gate with HEAD, as `make land` does, and refuses only the findings that HEAD lacks, so a finding that HEAD already has does not block an unrelated change (K446-1).
 - A recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install,
   which links the sibling-provided polyspec packages from the start (K448-1).
 - `make commit` on main runs the static gates that `make land` selects for the staged paths and commits nothing when one fails,

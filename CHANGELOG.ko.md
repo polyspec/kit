@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8010046365cce6d976d1f2702d860d72b4a8f330858db6858ab25b752f7eefa3 -->
+<!-- source-sha256: 4bb8a3fbd8d79e92291161acd55ef592a3216b1a06506caa8bdca59d6d56bf8c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main에서 `make commit`은 선택된 gate를 `make land`처럼 HEAD와 비교하고, HEAD에 없는 finding만 거부하므로 HEAD가 이미 가진 finding은 관계없는 변경을 막지 않는다(K446-1).
 - lock을 composer install하는 recipe는 뒤에 link 단계가 있어도 거부되며, sibling이 제공하는 polyspec 패키지를 처음부터
   link하는 make composer-install을 쓰라고 적는다(K448-1).
 - main에서 `make commit`은 스테이징된 경로에 대해 `make land`가 고르는 정적 gate를 실행하고, 하나라도 실패하면 아무것도
