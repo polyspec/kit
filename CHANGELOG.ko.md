@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ca8e3fe173a0bd06c078eb8aa77de6ac40df000f4555dea0aea94d177c265074 -->
+<!-- source-sha256: 97714a82fffb45470c0bd5366c80b8c481925469d1f72685215f9cd66933e701 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K468는 이 커밋에서 done으로 기록된다: 항목이 [~]에서 [o]로 바뀌고, 그 changelog 줄은 위의 줄이다 (K468).
 - K468는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K468 test 실행이고 green은 이 커밋의 K468 test입니다 (K468). 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 이름으로 적지 않는다. 선언은 config/polyspec.json에 있고, `make polyspec-lock-check`가 추적되는 이름을 실패시키며, link는 선언된 각 패키지를 형제 checkout에서 설치한다 (K468).
 - K464: `make dependency-policy-check`의 sibling 규칙은 direct dependency의 버전 불일치를 config/dependency-review.json의 reviewed target에서 벗어난 체크아웃만 보고하며, 둘 다 target에 있고 target이 다르면 둘 다 보고한다. sibling은 commit된 main에서 읽고, 읽을 수 없는 sibling은 not evaluated로 명시한다. finding 문장에는 review 날짜가 없고 날짜는 progress 출력에 남는다 (K464).
 - K455은 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K455 test 실행이고 green은 이 커밋의 K455 test입니다 (K455).
