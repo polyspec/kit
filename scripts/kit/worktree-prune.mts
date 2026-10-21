@@ -6,12 +6,40 @@
 // has no uncommitted change (an ignored install does not count), then the branch is deleted with `git branch -d`. A dirty worktree, an unmerged, a fresh or a reflog-less
 // branch is listed with its reason and left, so a second run leaves the same state. It is a module of its own beside land.mts, which
 // removes one branch and its worktree after a merge; link-state-check reads its branchStates to find a merged branch that is left.
+// Before a worktree is removed, the stop targets of WORKTREE_STOP run in it (K441), and the processes that name a dead worktree
+// folder of the repository are listed by pid and path, and never killed.
 //
 //   node scripts/kit/worktree-prune.mts
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
+import { machineListing, stopServers, stopTargetOf } from './land.mts';
 import { git, gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 
 export type BranchState = { branch: string; folder: string | undefined; merged: boolean; reason: string };
+
+/**
+ * The processes of the ps `listing` whose command line names a path `<parent>/<name>-<rest>` under the worktree folders of `root`
+ * (the parent folder, the repository's name as a prefix, as worktree-setup names them) that no live worktree of `root` has, with
+ * the pid, the command and the dead path (K441).
+ */
+export function deadWorktreeProcesses(root: string, listing: string): { pid: number; command: string; folder: string }[] {
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const prefix = `${realpathSync(path.dirname(root))}/${path.basename(root)}-`;
+  const pattern = new RegExp(`(?<![^\\s=])(${escape(prefix)}[^\\s/'"]+)`, 'g');
+  const live = new Set(git(root, 'worktree', 'list', '--porcelain').split('\n').map(line => /^worktree (.*)$/.exec(line)?.[1]));
+  const found: { pid: number; command: string; folder: string }[] = [];
+  for (const line of listing.split('\n')) {
+    const match = /^\s*(\d+)\s+\d+\s+(.*)$/.exec(line);
+    if (match === null) continue;
+    const [, id = '', command = ''] = match;
+    for (const named of command.matchAll(pattern)) {
+      const folder = named[1] ?? '';
+      if (!live.has(folder)) found.push({ pid: Number(id), command, folder });
+    }
+  }
+  return found.filter((entry, index) => found.findIndex(other => other.pid === entry.pid && other.folder === entry.folder) === index);
+}
 
 /** The folders of the worktrees of `root` that have a branch checked out, by branch, from `git worktree list --porcelain`. */
 function worktreeFolders(root: string): Map<string, string> {
@@ -73,6 +101,8 @@ export function prune(root: string, { print = (text: string) => console.log(`[wo
         print(`kept ${branch} in ${folder}: it has uncommitted changes`);
         continue;
       }
+      const stop = stopTargetOf(folder);
+      if (stop !== undefined) stopServers(folder, stop, print);
       git(root, 'worktree', 'remove', folder);
       print(`removed the worktree ${folder} of ${branch}`);
     }
@@ -82,6 +112,9 @@ export function prune(root: string, { print = (text: string) => console.log(`[wo
       continue;
     }
     print(`deleted the branch ${branch}`);
+  }
+  for (const { pid, command, folder } of deadWorktreeProcesses(root, machineListing().ps)) {
+    print(`process ${pid} names the path ${folder} of a removed worktree, which no live worktree has; it is left running: ${command}`);
   }
 }
 

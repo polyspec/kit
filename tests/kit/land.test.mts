@@ -2,6 +2,7 @@
 // changed paths of the branch select pass, then removes its branch and worktree; a refused branch leaves main unchanged.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -346,4 +347,64 @@ test('a commit on main is not refused for a progress line that differs from HEAD
   put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
   git(main, 'add', 'findings.txt');
   assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding still refuses the commit');
+});
+
+// K441: a repository declares WORKTREE_STOP, the make target that stops the servers of its worktree. make land runs it in the
+// worktree after the merge and before the removal, so the server that the test started is gone when the worktree is removed.
+test('make land stops the servers of the worktree before it removes the worktree (K441)', { timeout: 60000 }, async (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // stop-servers kills the pid that server.pid of the worktree names, as the server-stop target of orm stops its servers.
+  put(main, {
+    'Makefile': 'WORKTREE_STOP := stop-servers\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-servers:\n\tkill "$$(cat server.pid)"\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\nserver.pid\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-srv');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-srv', 'main');
+  put(folder, { 'src/a.txt': 'a\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'srv');
+  // A server started with a path in the worktree, as make orm-test-servers starts mysqld with its --datadir.
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${folder}/data`]);
+  t.after(() => child.kill());
+  await once(child, 'spawn');
+  const exited = once(child, 'exit');
+  put(folder, { 'server.pid': `${child.pid}\n` });
+  const head = git(main, 'rev-parse', 'feat-srv');
+  land(main, 'feat-srv', { print: () => {} });
+  await exited;
+  assert.equal(child.signalCode, 'SIGTERM', 'stop-servers kills the server before the removal');
+  assert.equal(git(main, 'rev-parse', 'main'), head, 'main fast-forwards to the branch');
+  assert.equal(existsSync(folder), false, 'the worktree is removed');
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-srv'], { cwd: main }).status, 1, 'the branch is deleted');
+});
+
+// K441: a stop target that fails refuses the removal of the worktree and names the target and its output.
+test('make land keeps the worktree and names the stop target when it fails (K441)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': 'WORKTREE_STOP := stop-broken\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-broken:\n\t@echo "the servers do not stop" >&2; exit 3\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-broken');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-broken', 'main');
+  put(folder, { 'src/a.txt': 'a\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'broken');
+  assert.throws(() => land(main, 'feat-broken', { print: () => {} }), (error: Error) => error.message.includes('stop-broken') && error.message.includes('the servers do not stop'));
+  assert.equal(existsSync(folder), true, 'the worktree is kept');
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-broken'], { cwd: main }).status, 0, 'the branch is kept');
 });

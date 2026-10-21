@@ -9,7 +9,8 @@
 // commits-check refuses on any failure. On a refusal it prints the gate and its output and merges nothing. Then it merges
 // fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
-// skips the gates and the merge, and only what is left is removed.
+// skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
+// names in its Makefile stop its servers (K441); a stop that fails keeps the worktree.
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
@@ -18,9 +19,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
-import { DECLARATION, importGraph, select } from './owner-check.mts';
+import { DECLARATION, importGraph, makeDatabase, select } from './owner-check.mts';
 import type { OwnerDeclaration } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { expandMake } from './recipe-tools.mts';
 import { readConfig } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -68,7 +70,7 @@ export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, 
 }
 
 /** The ps and lsof outputs of the machine, read only; lsof is undefined when it is not installed. */
-function machineListing(): MachineListing {
+export function machineListing(): MachineListing {
   const ps = spawnSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (ps.error || ps.status !== 0) throw new Error(`ps could not list the processes: ${ps.error?.message ?? ps.stderr}`);
   const lsof = spawnSync('lsof', ['-d', 'cwd', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
@@ -83,6 +85,35 @@ function worktreeOf(root: string, branch: string): string | undefined {
   return entries
     .map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }))
     .find(entry => entry.branch === branch)?.folder;
+}
+
+/** The make targets that WORKTREE_STOP of the Makefile of `folder` names, read from the make database; undefined when it names none. */
+export function stopTargetOf(folder: string): string[] | undefined {
+  const make = makeDatabase(folder);
+  const targets = expandMake(make.variables.get('WORKTREE_STOP') ?? '', make.variables).split(/\s+/).filter(Boolean);
+  return targets.length > 0 ? targets : undefined;
+}
+
+/** Runs the stop `targets` in the worktree `folder` with make; throws, naming the targets and printing their output, when one fails. */
+export function stopServers(folder: string, targets: string[], print: (text: string) => void): void {
+  const names = targets.join(' ');
+  print(`${names} in ${folder}`);
+  const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`make ${names} could not start in ${folder}: ${result.error.message}`);
+  if (result.status !== 0) {
+    throw new Error(`the stop target ${names} failed in ${folder} (${result.status ?? result.signal}), so the worktree is kept; its output:\n${result.stdout}${result.stderr}`);
+  }
+  print(`${names} passed`);
+}
+
+/** Refuses with the processes that run in the worktree `folder` (K429), when there are some; `consequence` says what is kept. */
+function refuseWhileRunning(folder: string, branch: string, consequence: string, print: (text: string) => void): void {
+  const listing = machineListing();
+  if (listing.lsof === undefined) print(`lsof is missing: only the command lines name the processes of ${folder}`);
+  const live = worktreeProcesses(folder, listing);
+  if (live.length) {
+    throw new Error(`${branch} is refused: ${live.length} processes run in the worktree ${folder}; ${consequence}. Stop them first, then run make land again:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
+  }
 }
 
 // A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
@@ -158,15 +189,11 @@ export function land(root: string, branch: string, { print = (text: string) => c
   if (dirty !== '') throw new Error(`the main checkout ${root} has uncommitted changes:\n${dirty}`);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
+  // The worktree of a repository whose Makefile declares WORKTREE_STOP has its servers stopped after the merge, before its removal,
+  // so its running servers are no refusal here; the check before the removal still refuses a server that the stop left alive.
+  const stop = folder === undefined ? undefined : stopTargetOf(folder);
   // K429: no gate runs, nothing is merged and nothing is removed while a process of the worktree runs.
-  if (folder !== undefined) {
-    const listing = machineListing();
-    if (listing.lsof === undefined) print(`lsof is missing: only the command lines name the processes of ${folder}`);
-    const live = worktreeProcesses(folder, listing);
-    if (live.length) {
-      throw new Error(`${branch} is refused: ${live.length} processes run in the worktree ${folder}; nothing is merged, removed or deleted. Stop them first, then run make land again:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
-    }
-  }
+  if (folder !== undefined && stop === undefined) refuseWhileRunning(folder, branch, 'nothing is merged, removed or deleted', print);
   if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
@@ -208,6 +235,8 @@ export function land(root: string, branch: string, { print = (text: string) => c
   let kept = false;
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
+      if (stop !== undefined) stopServers(folder, stop, print);
+      refuseWhileRunning(folder, branch, 'the worktree and the branch are kept', print);
       git(root, 'worktree', 'remove', folder);
       print(`removed the worktree ${folder}`);
     } else {

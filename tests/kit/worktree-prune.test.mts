@@ -2,7 +2,8 @@
 // own that are all in main is merged; make worktree-prune removes it with its clean worktree and keeps a fresh, unmerged or dirty
 // one with the reason, and a second run leaves the same state; link-state-check fails while a merged branch or its worktree is left.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -112,4 +113,18 @@ test('a fresh branch rebased onto a newer main is fresh, and a rebased branch wi
   prune(main, { print: text => lines.push(text) });
   assert.ok(exists(main, 'fix/rebased-K6'), `the fresh branch is kept: ${lines.join('\n')}`);
   assert.ok(!exists(main, 'fix/row-K7'), 'the merged branch is deleted');
+});
+
+// K441: worktree-prune reports each process whose command line names a path under a worktree folder of the repository that is no
+// live worktree, with its pid and the dead path; it leaves the process running.
+test('worktree-prune reports the processes that name a path under a removed worktree folder, and kills none (K441)', { timeout: 60000 }, async (t) => {
+  const { main, open } = fixture(t);
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${open}/data`]);
+  t.after(() => child.kill());
+  await once(child, 'spawn');
+  const lines: string[] = [];
+  prune(main, { print: text => lines.push(text) });
+  assert.ok(lines.some(line => line.includes(`${child.pid} `) && line.includes(open)), lines.join('\n'));
+  assert.equal(child.exitCode, null, 'the process is left running');
+  assert.equal(child.signalCode, null, 'the process is not signalled');
 });

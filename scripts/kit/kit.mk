@@ -370,12 +370,14 @@ link-check: ## List every installed polyspec package pinned at 0.0.x as linked, 
 worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main, install it from its own sources with make install and check it with link-state-check; refuses under 30 GB of free disk; a second run installs it again (K348); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
+# WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
+# orm). land and worktree-prune run it, with make in the worktree, before they remove the worktree; a failing stop keeps the worktree.
 .PHONY: land
-land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then removes the worktree and the branch; offline
+land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then runs the WORKTREE_STOP targets of the worktree and removes it, refused while a process runs in it (K429), and removes the branch; offline
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
 .PHONY: worktree-prune
-worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); offline
+worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), running the WORKTREE_STOP targets of the worktree first, and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); also list the processes that name a path of a removed worktree folder, by pid and path, and kill none; offline
 	$(NODE) $(KIT)/worktree-prune.$(KIT_EXT)
 
 # composer-install is the install of a consumer's Composer project in place of its composer install: through the link when a sibling
