@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/polyspec.json",
+  "description": "The 0.0.x polyspec packages that a repository consumes by link (K468). Each declaration names an ecosystem, the project folder named from the repository root (\".\" is the root) and the package name. A declaration holds no version, URL or path: the provider is the sibling checkout that the link installs from, and no tracked manifest or lock names the package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packages"],
+  "properties": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ecosystem", "project", "name"],
+        "properties": {
+          "ecosystem": { "enum": ["composer", "npm", "python"] },
+          "project": {
+            "type": "string",
+            "pattern": "^(\\.|(?!\\.\\.)[A-Za-z0-9_.-]+(/(?!\\.\\.)[A-Za-z0-9_.-]+)*)$",
+            "description": "The project folder from the repository root, or \".\" for the root; no leading slash and no .. segment."
+          },
+          "name": { "type": "string", "minLength": 1 }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "ecosystem": { "const": "composer" } } },
+            "then": { "properties": { "name": { "type": "string", "pattern": "^polyspec/[a-z0-9][a-z0-9_.-]*$" } } }
+          },
+          {
+            "if": { "properties": { "ecosystem": { "const": "npm" } } },
+            "then": { "properties": { "name": { "type": "string", "pattern": "^@polyspec/[a-z0-9][a-z0-9._-]*$" } } }
+          },
+          {
+            "if": { "properties": { "ecosystem": { "const": "python" } } },
+            "then": { "properties": { "name": { "type": "string", "pattern": "^polyspec[-_][A-Za-z0-9._-]+$" } } }
+          }
+        ]
+      }
+    }
+  }
+}

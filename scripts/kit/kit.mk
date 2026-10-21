@@ -174,12 +174,16 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check polyspec-lock-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 
 .PHONY: link-state-check
 link-state-check: ## Fail while an installed 0.0.x polyspec package is a copy among links, or a link resolves to no package: npm, Composer and go.work (K305-1, P30); offline
 	$(NODE) $(KIT)/link-state-check.$(KIT_EXT)
+
+.PHONY: polyspec-lock-check
+polyspec-lock-check: ## Fail while a tracked manifest or lock names a polyspec package of 0.0.x, or config/polyspec.json declares one that its project lacks (K468); offline
+	$(NODE) $(KIT)/polyspec-lock-check.$(KIT_EXT)
 
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline

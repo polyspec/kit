@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K468 is done: its row is [o] in this commit, whose red is the K468 test run before the fix and whose green is the K468 tests of this commit (K468). A tracked Composer, npm or pylock file names no 0.0.x polyspec package: the declarations live in config/polyspec.json, `make polyspec-lock-check` fails on a tracked name, and link installs each declared package from its sibling checkout (K468).
 - K464: the sibling rule of `make dependency-policy-check` reports a version mismatch of a direct dependency only from the checkout that is off its reviewed target in config/dependency-review.json, and both checkouts when both are at their targets and the targets differ; it reads a sibling from its committed main, names a sibling it cannot read as not evaluated, and no finding text carries the review date, which stays in the progress output (K464).
 - K455 is done: its row is [o] in this commit, whose red is the K455 test run before the fix and whose green is the K455 test of this commit (K455).
 - `config/rebuild.json` names a class for each of the 23 tools that `make rebuild-check` reads, so the check passes on main; a tool without a class fails the check with its path. The composer-constraint rebuild record (`docs/rebuild/composer-constraint.md`) names the npm search that it rests on (K455).

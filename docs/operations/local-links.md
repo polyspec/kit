@@ -13,9 +13,37 @@ Development is completed against the latest source of each polyspec repository. 
 
 - An installed polyspec package is linked to the source of the repository that provides it, and the link counts as the installed released version.
 - Releases follow in one batch after development is complete, in dependency order: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
-- Builds, CI and the batch release use released versions. A link exists only in a local checkout and is never committed.
+- Builds use the links to the sibling checkouts. Nothing waits for a release, because a tracked file locks no 0.0.x polyspec package (Tracked locks). A link exists only in a local checkout and is never committed.
 
 Why: development stalled because each repository waited for another repository's release, which waited for a third. With every package linked to its source, a change is visible at once in every consumer.
+
+## Tracked locks (K468)
+
+A tracked file reads the same in every checkout, so a tracked lock describes only the packages that the repository itself declares. A tracked lock never describes a polyspec package of 0.0.x, and no item waits for a release because of one.
+
+- A tracked manifest or lock names no polyspec package of 0.0.x: no Composer `require`, `require-dev` or `packages` entry, no npm dependency section or `packages` node, no pyproject dependency or pylock package, and no source of one (a URL, a git repository, a tag, a path, a file or a relative folder). `make polyspec-lock-check` fails on each such entry, by file and name.
+- The declarations live in `config/polyspec.json` (schema `scripts/kit/schema/polyspec.schema.json`): for each ecosystem, the project folder, named from the repository root, and the names of the packages that it consumes. A declaration holds no version, URL or path, since the provider is the sibling checkout.
+- link installs each declared package from the sibling checkout that provides it, as a link. The installed folder is the link and counts as the released version. A declared package that no checkout provides fails the link and names it (`NOT linked <ecosystem> <name> (no provider)`); nothing is downloaded in its place. The link manifest requires a declared Composer package as `*` at the version that its provider's composer.json declares, and npm links a declared package that is not installed as a symbolic link in the project's node_modules.
+- A tracked lock covers the third-party packages only. Its consistency with the tracked manifest is checked by the tool of its ecosystem (`npm ci`, `composer validate --check-lock`, `uv lock --check`).
+- The link files (`composer.link.json`, the temporary npm manifest and the uv overrides) carry the declared requirements of the linked install. The tracked files never carry them.
+
+Why this model, attacked:
+
+- A lock of sibling content (a path or a git source generated from a sibling checkout) changes with each sibling commit, so it churns and does not reproduce on another machine; it needs a relative path, an absolute path or a git revision, which the rules of this repository forbid for 0.0.x.
+- Keeping a release entry and re-resolving it locally consumes a release, which is forbidden. It also fails when the release requires a newer PHP than the policy: orm 0.0.18 requires php >=8.5 against the policy 8.4.1.
+- Keeping the requirement in the manifest and dropping only its lock entry leaves the tracked state inconsistent: `npm ci` and `composer validate --check-lock` reject it.
+- Waiting for a batch release is an indefinite deferral (P36).
+
+Accepted costs:
+
+- A checkout without its sibling checkouts, such as a fresh clone, cannot run the code that imports a declared package. The link names the missing checkout and stops. This is the 0.0.x model: development runs against the sibling sources.
+- CI of a repository that declares a package needs its sibling checkouts. The workflows are vendored from kit, so the CI change is made in kit and copied by `make kit-sync`.
+
+Publishing later:
+
+- At the batch release, in dependency order, the release step moves each declared package into the manifest at its released version, re-resolves the tracked lock from the registry, which records the integrity of the release, and removes the declaration. The result is a function of the manifests and the registry at that release, so a fresh checkout reproduces it. No tracked state waits for that step before it.
+
+Enforced by: `make polyspec-lock-check`.
 
 ## Verification
 

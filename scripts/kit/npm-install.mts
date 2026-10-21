@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
+import { declaredFor } from './polyspec-lock-check.mts';
+import { workTreeOf } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
@@ -46,7 +48,8 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     const value = manifest[section];
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
   };
-  const declared = new Set(SECTIONS.flatMap(section => Object.keys(sectionOf(section))));
+  // The packages that config/polyspec.json declares for the project are declared too (K468): the tracked manifest names none.
+  const declared = new Set([...SECTIONS.flatMap(section => Object.keys(sectionOf(section))), ...declaredFor(workTreeOf(project), 'npm', project)]);
   // The packages of the lock too: a transitive package is named only there, and a sibling checkout that provides it is linked through
   // an override of the temporary manifest (K448-7).
   const lock = path.join(project, 'package-lock.json');

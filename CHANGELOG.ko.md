@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4356bd654b75441f022258fac20563fc7608c7cf64e3705d73ad994caee52385 -->
+<!-- source-sha256: ca8e3fe173a0bd06c078eb8aa77de6ac40df000f4555dea0aea94d177c265074 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K468는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K468 test 실행이고 green은 이 커밋의 K468 test입니다 (K468). 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 이름으로 적지 않는다. 선언은 config/polyspec.json에 있고, `make polyspec-lock-check`가 추적되는 이름을 실패시키며, link는 선언된 각 패키지를 형제 checkout에서 설치한다 (K468).
 - K464: `make dependency-policy-check`의 sibling 규칙은 direct dependency의 버전 불일치를 config/dependency-review.json의 reviewed target에서 벗어난 체크아웃만 보고하며, 둘 다 target에 있고 target이 다르면 둘 다 보고한다. sibling은 commit된 main에서 읽고, 읽을 수 없는 sibling은 not evaluated로 명시한다. finding 문장에는 review 날짜가 없고 날짜는 progress 출력에 남는다 (K464).
 - K455은 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K455 test 실행이고 green은 이 커밋의 K455 test입니다 (K455).
 - `config/rebuild.json`은 `make rebuild-check`가 읽는 23개 tool마다 class를 정하므로 검사는 main에서 통과하고, class가 없는 tool은 경로와 함께 실패합니다. composer-constraint 재구축 기록(`docs/rebuild/composer-constraint.md`)은 그 근거인 npm 검색을 이름으로 적습니다 (K455).

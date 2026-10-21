@@ -35,6 +35,7 @@ import {
   providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf,
 } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
+import { declaredFor as declaredIn } from './polyspec-lock-check.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
@@ -246,6 +247,22 @@ function linkNpm(work: Run, consumer: Consumer) {
     if (projectPackage(work, 'npm', name, provider, own)) continue;
     unlinkable(work, 'npm', name, typeof provider === 'string' ? provider : 'not installed');
   }
+  // K468: a package that config/polyspec.json declares and that no installed copy holds is linked from its provider as a symbolic link in
+  // the node_modules of its project, since the tracked lock never names it; the copies that npm query lists are linked above.
+  for (const file of files) {
+    const folder = path.dirname(file);
+    for (const name of declaredIn(consumer.top, 'npm', folder).filter(linkable)) {
+      const installed = path.join(folder, 'node_modules', name);
+      if (existsSync(installed)) continue;
+      const provider = providerFor(work, consumer, 'npm', name);
+      if (typeof provider === 'string') { unlinkable(work, 'npm', name, provider); continue; }
+      if (work.check) { unlinkable(work, 'npm', name, `not installed in ${folder}`); continue; }
+      assertIgnored(installed);
+      mkdirSync(path.dirname(installed), { recursive: true });
+      symlinkSync(path.relative(path.dirname(installed), provider.folder), installed);
+      line(work, 'linked', 'npm', `${name} -> ${provider.folder} (declared, now)`);
+    }
+  }
 }
 
 // --- Composer: the vendor of each Composer project of the consumer, and Composer's record of it.
@@ -312,6 +329,7 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
     if (!chosen) continue;
     const entry = found.get(chosen.vendor) ?? { project: chosen.project, installed: chosen.installed, declared: new Set<string>() };
     for (const name of declaredComposer(file)) entry.declared.add(name);
+    for (const name of declaredIn(consumer.top, 'composer', entry.project)) entry.declared.add(name);
     found.set(chosen.vendor, entry);
   }
   return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
@@ -345,6 +363,14 @@ function lockedVersions(lock: string): Map<string, string> {
     for (const item of Array.isArray(list) ? list : []) if (isJsonObject(item) && typeof item.name === 'string' && typeof item.version === 'string') found.set(item.name, item.version);
   }
   return found;
+}
+
+/**
+ * The polyspec packages of the Composer project `project` of the repository `top`: those that config/polyspec.json declares for it, and
+ * any that its composer.lock still holds (K468).
+ */
+function polyspecOf(top: string, project: string): string[] {
+  return [...new Set([...declaredIn(top, 'composer', project), ...lockedPolyspec(project)])];
 }
 
 /** The polyspec packages that the composer.lock of `project` holds, by name; none without a lock. */
@@ -391,13 +417,19 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
     const providerManifest: unknown = existsSync(path.join(link.folder, MANIFESTS.composer)) ? readJsonOf(path.join(link.folder, MANIFESTS.composer)) : undefined;
     if (isJsonObject(providerManifest)) addPins(providerManifest);
   }
+  // K468: a linked package that no requirement names has the version of its provider's own composer.json.
+  const providerVersion = (name: string): string | undefined => {
+    const link = links.find(item => item.name === name);
+    const provider: unknown = link === undefined ? undefined : readJsonOf(path.join(link.folder, MANIFESTS.composer));
+    return isJsonObject(provider) && typeof provider.version === 'string' ? provider.version : undefined;
+  };
   const versionOf = (name: string, fork: boolean): string | undefined => {
     const pin = required[name];
     const found = [...(pins.get(name) ?? [])];
     if (fork && found.length > 1) throw new Error(`${name} is pinned at ${found.join(' and ')}, by the consumer and its linked providers, so the link cannot choose one (K379-2)`);
     const [only] = found;
     if (fork && only !== undefined && found.length === 1) return `v${only.replace(/^v/, '')}`;
-    return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined);
+    return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined) ?? providerVersion(name);
   };
   const paths = links.map(({ name, folder, fork }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name, fork === true) === undefined ? {} : { versions: { [name]: versionOf(name, fork === true) } }) } }));
   const existing = manifest.repositories;
@@ -415,7 +447,11 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
   }
   const added = [...paths, ...provided];
   const repositories = isJsonObject(existing) ? { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing } : [...added, ...declaredList(existing)];
-  return { ...manifest, repositories };
+  // K468: a linked package that no requirement names is required as '*' in the link manifest, so Composer updates it; the tracked
+  // composer.json names none.
+  const unrequired = links.filter(({ name }) => required[name] === undefined);
+  const withRequire = unrequired.length === 0 ? manifest : { ...manifest, require: { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...Object.fromEntries(unrequired.map(({ name }) => [name, '*'])) } };
+  return { ...withRequire, repositories };
 }
 
 /**
@@ -459,7 +495,7 @@ export function linkComposerInstall({ directory, checkouts, composer, print, env
   const consumer = consumerOf(directory, true);
   const project = consumer.scope;
   const work: Run = { found: providers(checkouts, undefined, consumer.top, consumer.top), check: false, print, failed: false, env };
-  const links = lockedPolyspec(project).flatMap(name => {
+  const links = polyspecOf(consumer.top, project).flatMap(name => {
     const provider = providerFor(work, consumer, 'composer', name);
     return typeof provider === 'string' ? [] : [{ name, folder: provider.folder }];
   });
@@ -487,7 +523,7 @@ function linkComposer(work: Run, consumer: Consumer) {
       unlinkable(work, 'composer', name, typeof provider === 'string' ? provider : `not installed in ${vendor}`);
     };
     // A vendor without installed.json, as in a fresh checkout, names the polyspec packages of its composer.lock too.
-    if (!installed) { new Set([...declared, ...lockedPolyspec(project)]).forEach(notInstalled); continue; }
+    if (!installed) { new Set([...declared, ...polyspecOf(consumer.top, project)]).forEach(notInstalled); continue; }
     const record = path.join(vendor, 'composer/installed.json');
     const names = new Set<string>();
     const recorded = new Set<string>();
@@ -735,7 +771,12 @@ function requirementNames(list: readonly unknown[]): string[] {
 }
 
 /** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
-function declaredPython(file: string): string[] {
+/** The polyspec packages of the pyproject `file` of the repository `top`: those that the file names and those that config/polyspec.json declares for its folder (K468). */
+function declaredPython(top: string, file: string): string[] {
+  return [...new Set([...manifestPython(file), ...declaredIn(top, 'python', path.dirname(file))])];
+}
+
+function manifestPython(file: string): string[] {
   const document = readTomlFile(file);
   const requirements = [
     ...dependencyArrays(document, file).filter(array => !array.kind.startsWith('group:')).flatMap(array => array.list),
@@ -753,7 +794,7 @@ function closure(work: Run, consumer: Consumer, names: Iterable<string>): Provid
     const provider = providerFor(work, consumer, 'python', name);
     if (typeof provider === 'string') { unlinkable(work, 'python', name, provider); continue; }
     result.set(name, provider);
-    pending.push(...declaredPython(path.join(provider.folder, MANIFESTS.python)));
+    pending.push(...declaredPython(provider.checkout, path.join(provider.folder, MANIFESTS.python)));
   }
   return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -949,14 +990,14 @@ const WRITE_DIRECT_URL = [
 
 function linkPython(work: Run, consumer: Consumer) {
   const files = consumer.manifests('python');
-  if (!files.some(file => declaredPython(file).length)) return;
+  if (!files.some(file => declaredPython(consumer.top, file).length)) return;
   const uv = consumerTool(consumer.top, 'uv', work.env);
   // Every project of an environment is a member of it: with --no-install-workspace the sync installs none of them, so each
   // member, polyspec or not, is installed as an editable install of its folder (K224). An environment with no polyspec package is not synced.
   const byVenv = new Map<string, { workspace: string; names: Set<string>; projects: Provider[] }>();
   for (const file of files) {
     const target = pythonTarget(uv, file);
-    const declared = declaredPython(file);
+    const declared = declaredPython(consumer.top, file);
     if (typeof target === 'string') { for (const name of declared) unlinkable(work, 'python', name, target); continue; }
     const entry = byVenv.get(target.venv) ?? { workspace: target.workspace, names: new Set<string>(), projects: [] };
     for (const name of declared) entry.names.add(name);
@@ -1147,7 +1188,9 @@ export function link({ checkouts, directories, check, print, env = process.env, 
 /** The polyspec packages of `ecosystem` that the consumer `directory` declares, for a recipe (uv sync --no-install-package). */
 export function packages(directory: string, ecosystem: 'python' | 'npm'): string[] {
   const consumer = consumerOf(directory);
-  const names = ecosystem === 'python' ? consumer.manifests('python').flatMap(declaredPython) : consumer.manifests('npm').flatMap(declaredNpm);
+  const names = ecosystem === 'python'
+    ? consumer.manifests('python').flatMap(file => declaredPython(consumer.top, file))
+    : consumer.manifests('npm').flatMap(file => [...declaredNpm(file), ...declaredIn(consumer.top, 'npm', path.dirname(file))]);
   return [...new Set(names)].sort();
 }
 
@@ -1174,7 +1217,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         print(`  restored   composer ${project}`);
       }
     }
-    const pythonFiles = consumer.manifests('python').filter(file => declaredPython(file).length);
+    const pythonFiles = consumer.manifests('python').filter(file => declaredPython(consumer.top, file).length);
     if (pythonFiles.length) {
       const uv = consumerTool(consumer.top, 'uv', env);
       for (const file of pythonFiles) {
@@ -1185,8 +1228,10 @@ export function unlink({ directories, print, env = process.env, project = false 
           // their editables; a linked package that the lock does not hold has no locked release to restore.
           const lock = pylockOf(target.workspace);
           if (lock === undefined) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-          const { pins, missing } = pylockReleases(lock, declaredPython(file));
-          for (const name of missing) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
+          const { pins, missing } = pylockReleases(lock, declaredPython(consumer.top, file));
+          // A package that config/polyspec.json declares has no locked release by design (K468), so it is not a restore that is skipped.
+          const configured = new Set(declaredIn(consumer.top, 'python', path.dirname(file)).map(normalizeName));
+          for (const name of missing.filter(item => !configured.has(normalizeName(item)))) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
           if (pins.length) {
             run(uv.command, ['pip', 'install', '--python', path.join(target.venv, 'bin/python'), ...pins.map(pin => pin.requirement), ...pins.flatMap(pin => ['--reinstall-package', pin.name])], { cwd: target.workspace, env: uv.env });
             print(`  restored   python   ${target.venv}`);
@@ -1196,7 +1241,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
         // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
         // --inexact keeps every other package (K237).
-        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
+        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(consumer.top, file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);
       }
     }

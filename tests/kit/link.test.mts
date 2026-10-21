@@ -1679,3 +1679,52 @@ test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', 
     assert.equal(isIgnored(work), true, `${work} is not ignored by Git, so link fails on it`);
   }
 });
+
+test('K468: a Composer package that config/polyspec.json declares is linked through composer.link.json alone, at the version of its provider composer.json; the tracked files name it nowhere', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.1', autoload: { 'psr-4': { 'Y\\': 'src/' } } }) });
+  put(consumer, {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'psr/log': '3.0.0' } }),
+    'composer.lock': JSON.stringify({ packages: [{ name: 'psr/log', version: '3.0.0' }] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/y' }] }),
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')), path.join(provider, 'packages/php'));
+  const seen = seenUpdate(consumer);
+  assert.equal(seen.file, 'composer.link.json');
+  assert.deepEqual(seen.targets, ['polyspec/y']);
+  assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
+  const linkManifest = readJsonObject(consumer, 'composer.link.json');
+  assert.deepEqual(linkManifest.require, { 'psr/log': '3.0.0', 'polyspec/y': '*' }, 'the link manifest requires the declared package');
+  assert.deepEqual(readJsonObject(consumer, 'composer.json').require, { 'psr/log': '3.0.0' }, 'the tracked composer.json is unchanged');
+});
+
+test('K468: a declared Composer package that no checkout provides is NOT linked, and the run fails naming it', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, {
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [] }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: {} }),
+    'composer.lock': JSON.stringify({ packages: [] }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'composer', project: '.', name: 'polyspec/nope' }] }),
+  });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, false);
+  assert.match(text, /NOT linked.*polyspec\/nope/);
+  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no link file is written for a package that no checkout provides');
+});
+
+test('K468: a declared npm package that package.json does not name and that is not installed is linked as a symbolic link to its provider', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, {
+    'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: {}, devDependencies: {} }),
+    'package-lock.json': '{}',
+    'npm-query.json': JSON.stringify([]),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'npm', project: '.', name: '@polyspec/x' }] }),
+  });
+  rmSync(path.join(consumer, 'node_modules/@polyspec/x'), { recursive: true, force: true });
+  rmSync(path.join(consumer, 'node_modules/@polyspec/kit'), { recursive: true, force: true });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+});

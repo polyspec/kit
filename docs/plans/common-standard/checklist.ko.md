@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9afc236c420f77f51bf2ed70f19ab82c73b5591b10628ccc2ed84ca18252aa55 -->
+<!-- source-sha256: b7efd8a372c5248ec6bcb7d854f35d36f81c015c6e4d7d9839be921fc846970f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -350,3 +350,4 @@
 | K469-1 | install-tools는 심볼릭 링크인 var를 거부하여, worktree가 메인 체크아웃의 var를 쓰지 않고 각 체크아웃이 자신의 var/tools와 mise 상태를 유지한다 (K469-1). | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K469-1 -- tests/kit/install-tools.test.mts` | [ ] |
 | K470 | api-extractor 체인의 moderate sprintf-js 권고는 api-extractor와 ts-command-line의 어떤 릴리스에도 수정이 없고, api-extractor는 kit의 런타임 의존성(parity-symbols)이므로 제거 조건을 가진 문서화된 예외로 남는다 (K470). | config/dependency-policy.json, config/dependency-review.json | `node scripts/kit/run-tests.mts node --test-name-pattern=K470 -- tests/kit/dependency-review.test.mts` | [!] 원인: api-extractor 7.59.4(최신 게시 버전)와 ts-command-line 5.3.17(최신 게시 버전)은 여전히 argparse 1.x에 의존하고, 이는 GHSA-hp3w-g68c-fv3c가 있는 sprintf-js 1.0.3에 의존한다. 어떤 sprintf-js 버전도 이를 고치지 않으며, api-extractor 8.0.0은 잘못 게시된 DO NOT USE 버전이다. api-extractor는 런타임 의존성(parity-symbols)이어서 devDependency가 될 수 없다; 재시도: sprintf-js 버전이 GHSA-hp3w-g68c-fv3c를 고치거나, @microsoft/api-extractor와 @rushstack/ts-command-line이 argparse 1.x 의존을 끊을 때 |
 | K471 | dependency-policy 예외가 package.json overrides의 nested pin(중첩 복사본 고정)을 다루도록 한다: 호환성 사유, 제거 조건, 검사 명령을 함께 기록한다. 원인: check-dependency-policy는 manifest가 선언한 registry dependency에만 예외를 허용하므로, overrides로 고정한 중첩 복사본의 레코드를 둘 수 없다. | scripts/kit/check-dependency-policy.mts and its schema scripts/kit/schema/dependency-policy.schema.json, tests/kit/dependency-policy.test.mts | `node --test tests/kit/dependency-policy.test.mts` | [ ] |
+| K468 | 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 잠그지 않는다. 선언은 config/polyspec.json에 있고 link가 형제 체크아웃에서 설치한다 (K468) | docs/operations/local-links.md and its Korean twin, PRINCIPLES.md and PRINCIPLES.ko.md (P35), scripts/kit/polyspec-lock-check.mts, scripts/kit/schema/polyspec.schema.json, scripts/kit/link.mts, scripts/kit/npm-install.mts, scripts/kit/kit.mk, tests/kit/polyspec-lock.test.mts | `node --test tests/kit/polyspec-lock.test.mts` `node --test --test-name-pattern=K468 tests/kit/link.test.mts` | [~] |

@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: e71139da65e18306daf3001d708eadddc984999ecc62cc417aa837184bc0dd10 -->
+<!-- source-sha256: 11d9048ff990682fd0fd795dc62d4688e7c5158f290f768bc4c83c0533bc9c1c -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -14,9 +14,37 @@
 
 - 설치된 polyspec 패키지를 그 패키지를 제공하는 저장소의 소스에 링크한다. 링크는 설치된 릴리스 버전으로 간주한다.
 - 릴리스는 개발이 끝난 뒤 의존 순서대로 한 번에 한다: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
-- 빌드, CI, 일괄 릴리스는 릴리스된 버전을 쓴다. 링크는 로컬 checkout에만 있고 커밋하지 않는다.
+- 빌드는 형제 checkout으로의 링크를 쓴다. 추적되는 파일은 0.0.x polyspec 패키지를 잠그지 않으므로 어떤 항목도 릴리스를 기다리지 않는다(추적되는 lock). 링크는 로컬 checkout에만 있고 커밋하지 않는다.
 
 이유: 각 저장소가 다른 저장소의 릴리스를 기다리고, 그 저장소가 또 다른 저장소의 릴리스를 기다리면서 개발이 멈췄다. 모든 패키지를 소스에 링크하면 한 변경이 모든 소비자에게 바로 보인다.
+
+## 추적되는 lock (K468)
+
+추적되는 파일은 어느 checkout에서 읽어도 같으므로, 추적되는 lock은 저장소 자신이 선언한 패키지만 기술한다. 추적되는 lock은 0.0.x polyspec 패키지를 기술하지 않으며, 이 때문에 어떤 항목도 릴리스를 기다리지 않는다.
+
+- 추적되는 manifest나 lock은 0.0.x polyspec 패키지를 이름으로 적지 않는다: Composer의 `require`, `require-dev`, `packages` 항목, npm의 dependency 절이나 `packages` 노드, pyproject의 dependency나 pylock의 패키지가 없고, 그 source(URL, git 저장소, tag, path, file, 상대 폴더)도 없다. `make polyspec-lock-check`는 그런 항목을 파일과 이름으로 실패시킨다.
+- 선언은 `config/polyspec.json`(schema `scripts/kit/schema/polyspec.schema.json`)에 있다: 생태계마다 프로젝트 폴더(저장소 root에서 이름 붙인 것)와 그것이 쓰는 패키지 이름. 선언에는 version, URL, path가 없는데 제공자는 형제 checkout이기 때문이다.
+- link는 선언된 각 패키지를 그것을 제공하는 형제 checkout에서 링크로 설치한다. 설치된 폴더가 링크이며 설치된 릴리스 버전으로 간주한다. 제공하는 checkout이 없는 선언된 패키지는 link를 실패시키고 그 이름을 적는다(`NOT linked <ecosystem> <name> (no provider)`). link 매니페스트는 선언된 Composer 패키지를 `*`로 요구하고 버전은 그 제공자 composer.json이 선언한 것이고, npm은 설치되지 않은 선언된 패키지를 프로젝트 node_modules의 심볼릭 링크로 링크한다. 그 자리에 아무것도 내려받지 않는다.
+- 추적되는 lock은 제3자 패키지만 다룬다. 추적되는 manifest와의 일관성은 생태계의 도구가 검사한다(`npm ci`, `composer validate --check-lock`, `uv lock --check`).
+- 링크 파일(`composer.link.json`, 임시 npm manifest, uv overrides)이 링크된 설치의 선언된 요구사항을 담는다. 추적되는 파일은 그것을 담지 않는다.
+
+이 모델을 공격해 본 근거:
+
+- 형제 checkout 내용으로 만든 lock(형제 checkout에서 생성한 path나 git source)은 형제의 커밋마다 바뀌어 churn이 생기고 다른 기계에서 재현되지 않는다. 0.0.x에서 이 저장소의 규칙이 금지하는 상대 경로, 절대 경로나 git revision을 필요로 한다.
+- 릴리스 항목을 남기고 로컬에서 다시 resolve하면 릴리스를 소비하게 되는데 이는 금지된다. 또한 릴리스가 정책보다 새로운 PHP를 요구하면 실패한다: orm 0.0.18은 정책 8.4.1에 맞서 php >=8.5를 요구한다.
+- manifest에는 요구사항을 두고 lock 항목만 빼면 추적되는 상태가 일관되지 않다: `npm ci`와 `composer validate --check-lock`이 거부한다.
+- 일괄 릴리스를 기다리는 것은 기한 없는 연기이다(P36).
+
+감수하는 비용:
+
+- 형제 checkout이 없는 checkout(새 clone 등)은 선언된 패키지를 import하는 코드를 실행할 수 없다. link가 없는 형제를 밝히고 멈춘다. 이것이 0.0.x 모델이다: 개발은 형제 소스에 대해 실행된다.
+- 패키지를 선언한 저장소의 CI는 형제 checkout이 필요하다. workflow는 kit에서 가져온 것이므로 CI 변경은 kit에서 하고 `make kit-sync`로 복사한다.
+
+나중에 게시하기:
+
+- 일괄 릴리스 때 의존 순서대로 릴리스 단계가 각 선언된 패키지를 릴리스된 버전으로 manifest에 옮기고, 추적되는 lock을 registry에서 다시 resolve하고(그 릴리스의 integrity를 기록한다), 선언을 지운다. 결과는 그 릴리스의 manifest와 registry의 함수이므로 새 checkout이 재현한다. 그 단계 전에도 추적되는 상태는 아무것도 기다리지 않는다.
+
+검사: `make polyspec-lock-check`.
 
 ## 검증
 
