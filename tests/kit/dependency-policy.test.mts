@@ -3,7 +3,7 @@
 // the same way on every run. The registries are stubs (tests/kit/registry.mts), so no test queries the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { tmpdir } from 'node:os';
@@ -477,6 +477,45 @@ test('a package that two sibling checkouts lock from different sources or versio
   const transitiveOrm = checkout('kit-transitive-orm', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '1.0.0', fork)) });
   const transitiveTemplate = checkout('kit-transitive-template', { 'composer.json': requiring, 'composer.lock': lock(pinned('opis/json-schema', 'v2.6.0-p1', fork), pinned('acme/transitive', '2.0.0', upstream)), 'tests/fixtures/release/composer.lock': lock(pinned('opis/json-schema', '2.6.0', upstream)) });
   assert.deepEqual(sharedPinFindings(transitiveOrm, [transitiveTemplate]), []);
+});
+
+// K458: a finding of a worktree names the checkout by its repository, not by its folder, so the text of a worktree <repo>-<name>-<id>
+// equals the text of main <repo> and land does not count the finding as new.
+test('a finding names the repository of a worktree, not its folder (K458)', (t) => {
+  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-finding-key-')));
+  t.after(() => removeSandbox(main));
+  const repo = path.join(main, 'repo');
+  mkdirSync(repo);
+  initRepository(repo, '--initial-branch=main');
+  const reference = 'a'.repeat(40);
+  const pinned = (name: string, version: string, url: string) => ({ name, version, source: { type: 'git', url, reference }, dist: { type: 'zip', url: `${url}/zipball/${reference}`, reference } });
+  const lock = (...packages: object[]) => `${JSON.stringify({ packages, 'packages-dev': [] }, null, 4)}\n`;
+  const requiring = JSON.stringify({ name: 'example/orm', require: { 'opis/json-schema': '^2.6' } });
+  const fork = 'https://github.com/example-orm/json-schema.git';
+  const upstream = 'https://github.com/opis/json-schema.git';
+  writeFileSync(path.join(repo, 'composer.json'), requiring);
+  writeFileSync(path.join(repo, 'composer.lock'), lock(pinned('opis/json-schema', 'v2.6.0-p1', fork)));
+  const added = spawnSync('git', ['-C', repo, 'add', '.'], { encoding: 'utf8' });
+  assert.equal(added.status, 0, added.stderr);
+  const committed = spawnSync('git', ['-C', repo, 'commit', '--quiet', '-m', 'base'], { encoding: 'utf8' });
+  assert.equal(committed.status, 0, committed.stderr);
+  // The worktree of the branch, in a folder named <repo>-x-K1 beside main, as worktree-setup names it.
+  const worktree = `${repo}-x-K1`;
+  const created = spawnSync('git', ['-C', repo, 'worktree', 'add', '--quiet', '-b', 'fix/x-K1', worktree], { encoding: 'utf8' });
+  assert.equal(created.status, 0, created.stderr);
+  t.after(() => spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', worktree]));
+  const template = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-finding-key-template-')));
+  t.after(() => removeSandbox(template));
+  initRepository(template);
+  writeFileSync(path.join(template, 'composer.json'), requiring);
+  writeFileSync(path.join(template, 'composer.lock'), lock(pinned('opis/json-schema', '2.6.0', upstream)));
+  assert.equal(spawnSync('git', ['-C', template, 'add', '.'], { encoding: 'utf8' }).status, 0);
+
+  const onMain = sharedPinFindings(repo, [template]).map(finding => finding.problem);
+  const inWorktree = sharedPinFindings(worktree, [template]).map(finding => finding.problem);
+  assert.equal(onMain.length, 1, JSON.stringify(onMain));
+  assert.deepEqual(inWorktree, onMain, 'the finding of the worktree reads as the finding of main');
+  assert.doesNotMatch(inWorktree[0] ?? '', /-x-K1/, 'the folder of the worktree is not named in the finding');
 });
 
 // K58: a command module does not act when it is imported; the mutation check runs only as the command.

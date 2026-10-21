@@ -21,7 +21,7 @@ import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
 import { LINK_LOCK, LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
-import { siblingCheckouts, trackedManifests } from './link-providers.mts';
+import { repositoryName, siblingCheckouts, trackedManifests } from './link-providers.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
@@ -560,7 +560,8 @@ export function sharedPinFindings(root: string, siblings: readonly string[]): Fi
   const own = new Map<string, Pin[]>();
   for (const pin of directPins(root)) own.set(`${pin.ecosystem} ${pin.name}`, [...(own.get(`${pin.ecosystem} ${pin.name}`) ?? []), pin]);
   const findings: Finding[] = [];
-  const label = (pin: Pin) => `${path.basename(pin.root)}/${pin.lock}:${pin.line}`;
+  // The repository is named, not its folder: a worktree of <repo> has the folder <repo>-<name>-<id>, and its finding must read as main's (K458).
+  const label = (pin: Pin) => `${repositoryName(pin.root)}/${pin.lock}:${pin.line}`;
   for (const sibling of siblings) {
     for (const b of directPins(sibling)) {
       for (const a of own.get(`${b.ecosystem} ${b.name}`) ?? []) {
@@ -589,7 +590,7 @@ function main(): void {
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);
   if (siblings.length === 0) process.stdout.write(`[dependency-policy] no sibling checkout beside ${root}: compared no lock across checkouts\n`);
-  else process.stdout.write(`[dependency-policy] compared the direct pins of the install locks of this checkout with ${siblings.length} sibling ${siblings.length === 1 ? 'checkout' : 'checkouts'}: ${siblings.map(checkout => path.basename(checkout)).join(', ')}\n`);
+  else process.stdout.write(`[dependency-policy] compared the direct pins of the install locks of this checkout with ${siblings.length} sibling ${siblings.length === 1 ? 'checkout' : 'checkouts'}: ${siblings.map(checkout => repositoryName(checkout)).join(', ')}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);

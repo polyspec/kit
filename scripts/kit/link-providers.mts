@@ -79,6 +79,10 @@ export const repositoryOf = (directory: string): string => realpathSync(revParse
 // The workspace folder of `directory`: the parent of its repository, whose checkouts sit beside it (K440).
 export const workspaceOf = (directory: string): string => path.dirname(path.dirname(repositoryOf(directory)));
 
+// The name of the repository of `directory`: the folder of its main checkout, which a worktree shares, so a worktree of <repo> is
+// named <repo> too and a finding that names the checkout prints the same text in both (K458).
+export const repositoryName = (directory: string): string => path.basename(path.dirname(repositoryOf(directory)));
+
 /** The top level of the work tree of `directory`, or `directory` itself outside Git. */
 export const workTreeOf = (directory: string): string => realpathSync(revParse(directory, '--show-toplevel')?.[0] ?? directory);
 
