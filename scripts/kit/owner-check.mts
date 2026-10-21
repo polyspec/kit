@@ -33,6 +33,7 @@ import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 import { expandMake } from './recipe-tools.mts';
+import { INSTALLED } from './kit-check.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -399,7 +400,11 @@ if (isMain(import.meta.url)) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);
     process.exit(1);
   }
-  const declaration = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
+  // The owner rules that kit ships with its copies (K410-1) join the rules of a consumer: those of the installed package. Kit
+  // itself declares its own rules, and its copies are paths of its own tree, so it reads no shipped rule.
+  const own = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
+  const shipped = existsSync(path.join(root, INSTALLED, 'package.json')) ? readNpmManifest(root, `${INSTALLED}/package.json`) : undefined;
+  const declaration = { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? [])] };
   const tracked = trackedFiles(root);
   const project = { make: makeDatabase(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);

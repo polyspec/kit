@@ -10,6 +10,8 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { check, checkConfig, isSource } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
+import { validate, type OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
+import { globExpression } from '../../scripts/kit/glob.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
 import { readFixture } from './json-fixture.mts';
@@ -197,5 +199,31 @@ test('every root file that kit-sync writes is declared among the root files of c
   for (const key of Object.keys(manifest.kit.copies)) {
     if (key.includes('/')) continue;
     assert.ok(layout.includes(`"!${key}"`), `${key} is a root file that kit-sync writes, but config/layout.kit.yml does not declare it: add "!${key}" to the root files of layout-root-files`);
+  }
+});
+
+// K410-1: kit-sync writes the copies of kit.copies into a consumer, and the owner rules that kit ships (kit.owners of its
+// package.json) own them, so owner-validate of the consumer passes after a sync with no rule of its own for them.
+test('a consumer after kit-sync passes owner-validate with the rules that kit ships, and no rule of its own (K410-1)', (t) => {
+  const kit = readFixture<NpmManifest>(path.join(import.meta.dirname, '../..'), 'package.json');
+  const copies = kit.kit?.copies ?? {};
+  const files = Object.fromEntries(Object.values(copies).map(from => [from, `${from}\n`]));
+  const root = repository(t, { copies, files });
+  sync(root);
+  write(root, '.githooks/prepare-commit-msg', '#!/bin/sh\n');
+  write(root, 'config/owner-checks.json', '{}\n');
+  const tracked = [...Object.keys(copies), '.githooks/prepare-commit-msg', 'config/owner-checks.json', 'package.json', 'package-lock.json'];
+  const own: OwnerDeclaration = { owners: [{ paths: ['package.json', 'package-lock.json', 'config/owner-checks.json'], targets: ['owner-validate'] }] };
+  const targets = new Set((kit.kit?.owners ?? []).flatMap(rule => rule.targets ?? []).concat(['owner-validate']));
+  const project = { make: { targets: new Map([...targets].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() }, scripts: {}, workspaces: [], prefixes: [] };
+  const declaration = { owners: [...own.owners, ...(kit.kit?.owners ?? [])] };
+  assert.deepEqual(validate(declaration, tracked, project, file => existsSync(path.join(root, file))), []);
+});
+
+test('every file that kit-sync writes is owned by a rule that kit ships (K410-1)', () => {
+  const kit = readFixture<NpmManifest>(path.join(import.meta.dirname, '../..'), 'package.json');
+  const rules = kit.kit?.owners ?? [];
+  for (const file of Object.keys(kit.kit?.copies ?? {})) {
+    assert.ok(rules.some(({ paths }) => paths.some(glob => globExpression(glob).test(file))), `${file} is written by kit-sync, and no rule of kit.owners in package.json owns it`);
   }
 });

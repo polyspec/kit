@@ -116,7 +116,112 @@
       "config/php-lint/composer.json": "config/php-lint/composer.json",
       "config/php-lint/composer.lock": "config/php-lint/composer.lock",
       ".github/workflows/gates.yml": "workflows/gates.yml"
-    }
+    },
+    "comment": "K410-1: the owner rules that kit ships with its copies and with the hooks that make hooks writes; a consumer merges them into its owner checks (owner-check reads them from the installed package), and the test of tests/kit/kit-sync.test.mts fails a copy that no rule owns.",
+    "owners": [
+      {
+        "paths": [
+          "scripts/kit/kit-bootstrap.mk",
+          "scripts/kit/bootstrap/*.mts",
+          ".github/workflows/release.yml",
+          ".github/workflows/gates.yml",
+          ".claude/settings.json",
+          "PRINCIPLES.ko.md",
+          ".editorconfig"
+        ],
+        "targets": [
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "PRINCIPLES.md"
+        ],
+        "targets": [
+          "rules-check",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "config/layout.kit.yml",
+          "config/pyproject.schema.json",
+          "config/composer.schema.json",
+          "config/cargo.schema.json"
+        ],
+        "targets": [
+          "layout-check",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "config/commit-identity.json"
+        ],
+        "targets": [
+          "commits-check",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          ".githooks/prepare-commit-msg"
+        ],
+        "targets": [
+          "hooks-check"
+        ]
+      },
+      {
+        "paths": [
+          "ruff.toml"
+        ],
+        "targets": [
+          "lint-python",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "phpcs.xml.dist",
+          "phpstan.dist.neon",
+          "config/php-lint/composer.json",
+          "config/php-lint/composer.lock"
+        ],
+        "targets": [
+          "lint-php",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          ".golangci.yml"
+        ],
+        "targets": [
+          "lint-go",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "clippy.toml"
+        ],
+        "targets": [
+          "lint-rust",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          ".oxlintrc.json",
+          "knip.json",
+          "config/api-extractor.kit.json"
+        ],
+        "targets": [
+          "lint-ts",
+          "kit-check"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "@decimalturn/toml-patch": "3.3.1",

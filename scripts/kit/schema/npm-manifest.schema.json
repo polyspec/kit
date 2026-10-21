@@ -46,6 +46,21 @@
       "properties": {
         "copies": {
           "$ref": "#/$defs/specs"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "owners": {
+          "description": "K410-1: the owner rules that kit ships with its copies, which a consumer reads as its own owner-checks.json rules",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["paths"],
+            "properties": {
+              "paths": { "type": "array", "items": { "type": "string" } },
+              "targets": { "type": "array", "items": { "type": "string" } }
+            }
+          }
         }
       }
     },

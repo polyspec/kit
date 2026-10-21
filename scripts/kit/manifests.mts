@@ -35,7 +35,8 @@ export type NpmManifest = {
   peerDependencies?: Record<string, string>;
   overrides?: Record<string, unknown>;
   engines?: Record<string, unknown>;
-  kit?: { copies?: Record<string, string> };
+  // The owner rules that kit ships with its copies (K410-1), read by owner-check beside config/owner-checks.json.
+  kit?: { copies?: Record<string, string>; owners?: { paths: string[]; targets?: string[] }[] };
 };
 
 /** A Composer manifest; composer-manifest.schema.json. A platform package of config.platform is false when Composer leaves it out. */
