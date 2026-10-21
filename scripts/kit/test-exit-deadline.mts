@@ -8,6 +8,7 @@
 // no test was reached. A running test has node's own timeout at the same deadline; the watch allows a margin over it.
 import { writeSync } from 'node:fs';
 import { after, afterEach, beforeEach } from 'node:test';
+import { stopDescendants } from './process-group.mts';
 
 // The internal handle of a standard stream; Node.js does not declare it.
 type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
@@ -26,13 +27,16 @@ if (file && process.env.NODE_TEST_CONTEXT) {
   (process.stdout as typeof process.stdout & WithHandle)._handle?.setBlocking?.(true);
   // As above.
   (process.stderr as typeof process.stderr & WithHandle)._handle?.setBlocking?.(true);
+  // The exit at a deadline stops the children that the tests started first (K454): a process that ends here would leave them
+  // running, reparented to launchd, after the run has ended.
+  const failAndExit = (message: string) => {
+    writeSync(2, `${file}: ${message}\n`);
+    void stopDescendants(process.pid).finally(() => process.exit(1));
+  };
   let watch: NodeJS.Timeout | undefined;
   const arm = (ms: number, message: string) => {
     clearTimeout(watch);
-    watch = setTimeout(() => {
-      writeSync(2, `${file}: ${message}\n`);
-      process.exit(1);
-    }, ms);
+    watch = setTimeout(() => failAndExit(message), ms);
     watch.unref();
   };
   arm(deadline, `no test started or ended within ${deadline} ms of the process start; the file's own code did not settle`);
@@ -44,9 +48,6 @@ if (file && process.env.NODE_TEST_CONTEXT) {
   });
   after(() => {
     clearTimeout(watch);
-    setTimeout(() => {
-      writeSync(2, `${file}: the process did not exit ${deadline} ms after its last test; it holds ${process.getActiveResourcesInfo().join(', ')}\n`);
-      process.exit(1);
-    }, deadline).unref();
+    setTimeout(() => failAndExit(`the process did not exit ${deadline} ms after its last test; it holds ${process.getActiveResourcesInfo().join(', ')}`), deadline).unref();
   });
 }

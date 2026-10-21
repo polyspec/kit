@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ce2684a920c5873c28c5d69e87919973b5da46215e63a8a507ab599639de5487 -->
+<!-- source-sha256: 2e338a3f38154a21cdb2d12d54f7efd258f760b18cedc769fa8b80d9432ce8d7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K454는 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 fix를 stash한 상태에서 실행한 K454 테스트이며, green은 이 커밋의 K454 테스트이다 (K454).
+- deadline에 실행 중인 테스트가 남은 node 파일은 종료하기 전에, 테스트가 시작한 자식 프로세스를 모두 멈춘다. 그룹의 리더가 되는 자식도 포함한다 (K454). `stopGroup`은 그룹 신호를 보내기 전에 그룹 밖의 run 자손을 같은 방식으로 멈춘다. 자기 그룹의 리더인 자손은 그룹 리더가 끝나면 launchd로 재부모화되기 때문이다 (K454).
 - K465 완료: row가 이 commit에서 [o]이다. red는 수정 전 K465 테스트 실행(root의 workspace가 빠지고 exit 0)이고, green은 이 commit의 K465 테스트이다 (K465). `make npm-install`은 root가 선언한 workspace를 임시 manifest에 project 기준으로 유지하므로 그 link가 project 폴더를 가리킨다. 임시 폴더는 tmpdir()의 실제 경로 아래에 만든다. npm은 /var에서 /private/var로 넘어가는 경로의 workspace를 버리기 때문이다. install 후 project에 dangling link가 남으면 실패한다 (K465).
 - K473: vendored gates workflow는 config/polyspec.json이 선언한 각 저장소를 프로젝트 옆에 기본 브랜치로 설치 전에 clone하고, gates 전에 `make link`를 실행한다. 선언은 `repository`를 owner/name으로 명시하므로(schema), 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling checkout을 갖는다. Red: 수정 전 `tests/kit/gates-workflow.test.mts`와 `tests/kit/polyspec-lock.test.mts`의 K473 test가 실패한다 (K473).
 - K437-1은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 이전 단정으로 실행한 K437-1 테스트이며, green은 이 커밋의 K437-1 테스트이다 (K437-1).

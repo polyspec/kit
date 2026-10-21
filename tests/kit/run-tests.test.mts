@@ -753,6 +753,28 @@ test('run-tests stops its process group when its parent is killed (K437)', { tim
   assert.deepEqual(started.filter(alive), [], 'expected no process of the group alive after the deadline and the grace');
 });
 
+// K454: a test that starts child processes and never ends. The deadline ends its file, and that exit stops the children the test started,
+// a plain one and one that leads a process group of its own, so no child of the finished run remains.
+test('a file ended at its deadline stops the child processes that its tests started (K454)', { timeout: 60_000 }, (t) => {
+  const body = [
+    "import { spawn } from 'node:child_process';",
+    "import { writeFileSync } from 'node:fs';",
+    "test('starts children and never ends', () => {",
+    "  const sleeper = ['-e', 'setInterval(() => {}, 1000)'];",
+    "  const plain = spawn(process.execPath, sleeper, { stdio: 'ignore' });",
+    "  const grouped = spawn(process.execPath, sleeper, { stdio: 'ignore', detached: true });",
+    '  writeFileSync("pids.txt", `${plain.pid}\\n${grouped.pid}\\n`);',
+    '  return new Promise(() => {});',
+    '});',
+  ].join('\n') + '\n';
+  const root = checkout(t, { 'tests/children.test.mjs': `${SPEC}${body}` });
+  const result = runner(root, ['node', '--timeout', '2', '--', 'tests/children.test.mjs']);
+  assert.equal(result.status, 1, output(result));
+  const pids = readFileSync(path.join(root, 'pids.txt'), 'utf8').trim().split('\n').map(Number);
+  assert.equal(pids.length, 2, output(result));
+  assert.deepEqual(pids.filter(alive), [], 'the deadline exit left a child process of the file running');
+});
+
 // A virtual environment of the checkout's Python (K37): pyvenv.cfg names the bin of a Python under var/tools/mise as its home and
 // bin/python is a stub that prints unittest output; `home` overrides the named home.
 function venvRoot(t: TestContext, { home }: { home?: string } = {}) {
