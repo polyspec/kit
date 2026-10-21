@@ -130,6 +130,8 @@ const INSTALLS: { ecosystem: Ecosystem; pattern: RegExp }[] = [
 ];
 const LINKS = /\blink\b/;
 // composer-install installs through the link where a sibling provides a polyspec package (K432), so its line is an install that links.
+// A composer install of a lock, which installs the released polyspec packages of the lock before a link replaces them (K448-1).
+const COMPOSER_LOCK = /\bcomposer\s+install\b|\$[({]COMPOSER(?:_BIN)?[)}]\s+install\b/;
 const COMPOSER_INSTALL = /(?:\$[({]MAKE[)}]|\bmake)\s+composer-install\b/;
 // An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
@@ -226,7 +228,11 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
     const target = targets.join(' ');
     if (targets.includes('unlink') || targets.some(name => reached.has(name) || extras.has(name))) continue;
     const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && !COMPOSER_INSTALL.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
-    if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
+    // A Composer install of a lock is refused even with the link after it: the release is installed first, which the user rule
+    // forbids, so the recipe runs make composer-install, which links from the start (K448-1).
+    if (index !== -1 && COMPOSER_LOCK.test(recipe[index]?.text ?? '')) {
+      found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)`);
+    } else if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
       found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
     }
   }
