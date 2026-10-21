@@ -244,16 +244,6 @@ export function land(root: string, branch: string, { print = (text: string) => c
   }
 }
 
-if (isMain(import.meta.url)) {
-  const [branch = ''] = process.argv.slice(2);
-  try {
-    land(repositoryRoot(), branch);
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    console.error(`[land] ${error.message}`);
-    process.exit(1);
-  }
-}
 
 /** One run of a gate in `folder`: the folder and make's outcome, read with make -s (K446-3). */
 export interface GateRun {
@@ -375,5 +365,18 @@ function commitGatesOf(folder: string, tree: string, changed: string[], print: (
     }
   } finally {
     staged.remove();
+  }
+}
+
+// The entry point runs last: it calls land when the module loads, so every constant that land uses (endOf, among others) must be
+// initialized before it (K463).
+if (isMain(import.meta.url)) {
+  const [branch = ''] = process.argv.slice(2);
+  try {
+    land(repositoryRoot(), branch);
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    console.error(`[land] ${error.message}`);
+    process.exit(1);
   }
 }

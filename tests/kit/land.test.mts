@@ -485,3 +485,33 @@ test('a commit on main and make land refuse the same new finding of a gate (K404
   assert.doesNotMatch(commitRefusal, /src\/a\.txt/, 'a finding that HEAD already has is not named');
   assert.doesNotMatch(landed, /finding: src\/a\.txt/, 'a finding that main already has is not named');
 });
+
+// K463: the command line of land refuses a gate that exits 2 with that exit status. The entry point runs land when the module loads, so
+// the constants of the module must be initialized before it runs; the function test cannot see that order.
+test('the land command refuses a gate that exits 2 with its exit status, not an error of the module (K463)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-cli-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // findings-x fails while findings.txt names a finding; main is green, so the branch that adds one is refused by its exit status.
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+    'findings.txt': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-feat-c');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-c', 'main');
+  put(folder, { 'findings.txt': 'src/d.txt\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'feat-c');
+  const before = git(main, 'rev-parse', 'main');
+  const run = spawnSync(process.execPath, [path.join(import.meta.dirname, '../../scripts/kit/land.mts'), 'feat-c'], { cwd: main, encoding: 'utf8' });
+  assert.notEqual(run.status, 0, 'the branch is refused');
+  assert.match(run.stderr, /feat-c is refused: the gate findings-x exited 2; nothing is merged/, run.stderr);
+  assert.doesNotMatch(run.stderr, /before initialization/, 'the refusal is not an error of the module');
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'main is unchanged after the refusal');
+});
