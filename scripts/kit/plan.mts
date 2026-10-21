@@ -8,6 +8,9 @@
 //   item-new   PLAN=<slug> ID=<id> TASK= TASK_KO= DELIVERABLES= VERIFICATION=
 //              adds the row of the item in the waiting state to the checklist of the plan and to its Korean twin: a sub-item
 //              (an ID that ends in -<n>) after the last sub-item of its parent, another item at the end of the last table
+//   item-edit  ID=<id> [TASK= TASK_KO= DELIVERABLES= VERIFICATION= | CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
+//              replaces the Task, Deliverables or Verification cells of the item in both languages, or rewrites the cause and the
+//              retry of a bypassed item (the cause alone of an impossible one) with the checks of item-state
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
 //              moves the item to STATE in both languages along an allowed transition; the done state needs a line with
 //              (<id>) that the working tree adds to each changelog of the commit rules, the bypassed state a cause and a
@@ -36,7 +39,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, write
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, indexItemFindings, isTestFile, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, type CommitRules, indexItemFindings, isTestFile, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
 import { fileAt, git } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
@@ -205,6 +208,46 @@ export function editItem(root: string, { id, deliverables, verification, task, t
 }
 
 /**
+ * The files that write the English and Korean state cells into the row of `entry` in its checklist and twin, through the checks of
+ * the commit rules and of the checklists; throws, writing nothing, on a finding that writing them would add.
+ */
+function stateFiles(root: string, trackers: Tracker[], entry: ReturnType<typeof findItem>, id: string, [english, korean]: [string, string], rules: CommitRules): Record<string, string> {
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const files = restamped(root, {
+    [entry.tracker.path]: withState(read(entry.tracker.path), id, english),
+    [entry.tracker.translation]: withState(read(entry.tracker.translation), id, korean),
+  });
+  refuseAdded(root, trackers, files);
+  const refused = workingItemFindings(root, rules, files);
+  if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
+  return files;
+}
+
+/** The item `id` with its checklist, found in `trackers`; throws when no checklist holds it. */
+function findItem(trackers: Tracker[], read: (name: string) => string, id: string) {
+  const [entry] = trackers.flatMap(tracker => readChecklist(read(tracker.path), tracker).items.filter(item => item.id === id).map(item => ({ tracker, item })));
+  if (!entry) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
+  return entry;
+}
+
+/**
+ * Rewrites the cause and the retry condition of the bypassed item `change.id`, or only the cause of the impossible one, in its checklist
+ * and the Korean twin, through the checks of setState for the same texts (K442); returns the two files as { path: text }. Throws, writing
+ * nothing, for an item in another state, a retry of an impossible item, and a missing or evasive cause or retry.
+ */
+export function editState(root: string, change: Omit<NewState, 'state'>): Record<string, string> {
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
+  const entry = findItem(trackers, read, change.id);
+  const state = entry.item.state;
+  if (state !== BYPASSED && state !== IMPOSSIBLE) throw new Error(`${change.id} is ${state}; item-edit rewrites the cause and the retry of a bypassed (${BYPASSED}) item and the cause of an impossible (${IMPOSSIBLE}) one`);
+  if (state === IMPOSSIBLE && (change.retry !== undefined || change.retryKo !== undefined)) throw new Error(`${change.id} is ${IMPOSSIBLE}, which has no retry condition; RETRY and RETRY_KO belong to a bypassed item`);
+  const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }), COMMIT_RULES);
+  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
+  return files;
+}
+
+/**
  * Throws with the findings that writing `files` ({ path: text }) would add to the checklists of `trackers`, as docs-check
  * reads them. A finding that the checkout has already, such as an empty checklist of another plan, is the work of another
  * change; a finding is the same when its file, rule and message are, since an inserted row moves the lines.
@@ -338,9 +381,7 @@ export function setState(root: string, change: NewState, print: (text: string) =
   if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
-  const found = trackers.flatMap(tracker => readChecklist(read(tracker.path), tracker).items.filter(item => item.id === change.id).map(item => ({ tracker, item })));
-  const [entry] = found;
-  if (!entry) throw new Error(`${change.id} is no item of a checklist of ${PLANS}`);
+  const entry = findItem(trackers, read, change.id);
   const allowed = present(TRANSITIONS[entry.item.state], 'TRANSITIONS[state]');
   if (!allowed.includes(change.state)) {
     const next = allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own';
@@ -359,14 +400,7 @@ export function setState(root: string, change: NewState, print: (text: string) =
       if (count(existsSync(path.join(root, file)) ? read(file) : '') <= count(fileAt(root, 'HEAD', file))) throw new Error(`${file} adds no line with (${change.id}) to HEAD; record the item in the changelog of both languages first`);
     }
   }
-  const [english, korean] = stateCells(change);
-  const files = restamped(root, {
-    [entry.tracker.path]: withState(read(entry.tracker.path), change.id, english),
-    [entry.tracker.translation]: withState(read(entry.tracker.translation), change.id, korean),
-  });
-  refuseAdded(root, trackers, files);
-  const refused = workingItemFindings(root, rules, files);
-  if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
+  const files = stateFiles(root, trackers, entry, change.id, stateCells(change), rules);
   // An item that becomes active records the red of the gates that its Verification runs, on the parent of its commit (K357).
   if (change.state === ACTIVE) recordRed(root, change.id, itemCommands(read(entry.tracker.path), entry.tracker, change.id), print);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
@@ -595,7 +629,13 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-edit') {
       const id = required(env.ID, 'ID');
-      for (const file of Object.keys(editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO }))) console.log(`[plan] edited ${id} in ${file}`);
+      // The cause and the retry of a held item are edited apart from the cells of editItem.
+      const held = [env.CAUSE, env.RETRY, env.CAUSE_KO, env.RETRY_KO].some(value => value !== undefined);
+      if (held && [env.TASK, env.TASK_KO, env.DELIVERABLES, env.VERIFICATION].some(value => value !== undefined)) throw new Error('item-edit takes CAUSE, RETRY, CAUSE_KO and RETRY_KO apart from TASK, TASK_KO, DELIVERABLES and VERIFICATION');
+      const files = held
+        ? editState(root, { id, cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO })
+        : editItem(root, { id, deliverables: env.DELIVERABLES, verification: env.VERIFICATION, task: env.TASK, taskKo: env.TASK_KO });
+      for (const file of Object.keys(files)) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       // The done state needs the verification of the row to pass on the tree of the commit (K335).

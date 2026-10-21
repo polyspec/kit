@@ -782,3 +782,42 @@ test('item-edit replaces the Deliverables cell in both languages, and not of a d
   setState(done, { id: 'T2', state: '[o]' }, () => {});
   assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`' }), /is \[o\]/);
 });
+
+// K442: item-edit rewrites the cause and the retry of a bypassed item, and the cause of an impossible one, through the checks of item-state.
+test('item-edit rewrites the cause and the retry of a held item in both languages (K442)', (t) => {
+  const root = committed(t, 'T1', 'T2', 'T3');
+  const english = 'docs/plans/parser/checklist.md';
+  const edit = (env: Record<string, string>) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-edit'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
+  // The checks of item-state refuse a second item that differs from HEAD, so each state change is committed before the next.
+  const commitAll = (message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) assert.equal(spawnSync('git', args, { cwd: root, encoding: 'utf8' }).status, 0);
+  };
+  setState(root, { id: 'T2', state: '[-]', cause: 'the feature was dropped', causeKo: '기능을 버림' });
+  commitAll('impossible');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  commitAll('active');
+  setState(root, { id: 'T1', state: '[!]', cause: 'no runner', retry: 'T2 done', causeKo: 'runner 없음', retryKo: 'T2 완료' });
+  commitAll('bypassed');
+  const before = rows(root, english);
+  const bypassed = edit({ ID: 'T1', CAUSE: 'no CI runner', RETRY: 'T3 done', CAUSE_KO: 'CI 러너 없음', RETRY_KO: 'T3 완료' });
+  assert.equal(bypassed.status, 0, bypassed.stderr);
+  commitAll('edit bypassed');
+  assert.equal(rows(root, english)[0], '| T1 | Task T1 | `a.mts` | `node --test a.test.mts` | [!] cause: no CI runner; retry: T3 done |');
+  assert.equal(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [!] 원인: CI 러너 없음; 재시도: T3 완료 |');
+  assert.deepEqual(rows(root, english).slice(1), before.slice(1), 'the other rows are unchanged');
+  const impossible = edit({ ID: 'T2', CAUSE: 'the feature moved to K9', CAUSE_KO: '기능은 K9로 옮김' });
+  assert.equal(impossible.status, 0, impossible.stderr);
+  commitAll('edit impossible');
+  assert.equal(rows(root, english)[1], '| T2 | Task T2 | `a.mts` | `node --test a.test.mts` | [-] cause: the feature moved to K9 |');
+  const after = rows(root, english);
+  const waiting = edit({ ID: 'T3', CAUSE: 'x', CAUSE_KO: 'y' });
+  assert.notEqual(waiting.status, 0);
+  assert.match(waiting.stderr, /T3 is \[ \]/);
+  const missing = edit({ ID: 'T1', CAUSE: 'no CI runner', RETRY: 'T3 done', RETRY_KO: 'T3 완료' });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /CAUSE_KO is empty/);
+  const retry = edit({ ID: 'T2', CAUSE: 'the feature moved to K9', RETRY: 'T3 done', CAUSE_KO: '기능은 K9로 옮김' });
+  assert.notEqual(retry.status, 0);
+  assert.match(retry.stderr, /no retry condition/);
+  assert.deepEqual(rows(root, english), after, 'a refused edit writes nothing');
+});
