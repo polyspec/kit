@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2751b7013f603c89b06f07b28f9bee8dc7e0fb75ef53ad368b7085c1380f3f26 -->
+<!-- source-sha256: ee0059bc69451b0e1cc3cd6610558e78c47bef19caa97edab148a5426198480e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install`은 주어진 checkout이 제공하는 패키지를 origin과 상관없이 연결하고, lock에만 transitive로 있는 패키지는 override로 연결하며, checkout이 없는 선언된 polyspec 패키지는 npm ci 대신 실패한다(K448-7).
 - K439-2: composer-provider-entries는 provider 항목을 Composer 자체의 lock writer로 오프라인에서, 소비자가 선언한 플랫폼으로 쓴다. 그래서 자기가 쓴 lock을 다시 실행해도 바뀌지 않고, 플랫폼보다 많이 요구하는 provider는 둘을 함께 적고 실패한다 (K439-2). Red: node --test --test-name-pattern=K439-2 tests/kit/dependency-review.test.mts가 exit 1(manifest의 license 형식); green: make 아래에서 make item-test ID=K439-2가 통과한다(툴체인 Composer, 테스트 2개, 건너뛰기 없음). (K439-2).
 
 ### 2026-10-21 — install-packages가 make npm-install로 설치한다 (K448-8)
