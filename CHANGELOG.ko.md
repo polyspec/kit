@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8321400a7eea0ceeaa1dfb39c8903e0a1f6f27e3b586825d978794a0d7dd8048 -->
+<!-- source-sha256: 4b549e4d2416b7608d612404d14bda5585d6b2b4b9000a7cb52fbb3f2540ea80 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K468-2-1: Composer regression fixture는 parsed lock entry를 unknown element로 검증하여, unsafe JSON assignment 없이 `make lint-ts`를 통과한다 (K468-2-1).
 
 - K468-2: provider에 version 선언이 없으면 오프라인 Composer provider-entry 해석은 sibling package의 exact version requirement를 사용한다. Composer가 strict requirement를 해석하고, 다시 쓴 tracked lock의 version 필드는 기존 값을 유지한다 (K468-2).
 

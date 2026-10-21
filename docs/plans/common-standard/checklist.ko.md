@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3917b39cd0cf158897e329ff7be44dc8950bcee4e963b9730fcfb7023e263ba9 -->
+<!-- source-sha256: 1755d1a77ce2c27a8ad04fc9a90972e8436753df6f91288fb32b268da98e5b1f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -357,6 +357,7 @@
 | K468 | 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 잠그지 않는다. 선언은 config/polyspec.json에 있고 link가 형제 체크아웃에서 설치한다 (K468) | docs/operations/local-links.md and its Korean twin, PRINCIPLES.md and PRINCIPLES.ko.md (P35), scripts/kit/polyspec-lock-check.mts, scripts/kit/schema/polyspec.schema.json, scripts/kit/link.mts, scripts/kit/npm-install.mts, scripts/kit/kit.mk, tests/kit/polyspec-lock.test.mts | `node --test tests/kit/polyspec-lock.test.mts` `node --test --test-name-pattern=K468 tests/kit/link.test.mts` | [o] |
 | K468-1 | 같은 package name을 가진 sibling provider보다 consumer workspace package가 우선하여 own package가 잘못 분류되거나 link되지 않는다 | scripts/kit/link-providers.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K468-1 -- tests/kit/link.test.mts` | [o] |
 | K468-2 | 오프라인 Composer provider-entry resolver는 tracked lock version이 오래되었을 때 strict exact Composer requirement에 맞춰 sibling package를 표시하되 tracked version 필드는 바꾸지 않는다 | scripts/kit/dependency-review.mts, tests/kit/dependency-review.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K468-2 -- tests/kit/dependency-review.test.mts` | [o] |
+| K468-2-1 | JSON에서 나온 any 값을 할당하지 않고 K468-2 Composer fixture의 package-list parsing을 type-safe하게 유지한다 | tests/kit/dependency-review.test.mts | `make lint-ts` | [o] |
 | K472 | kit의 oxc-parser 리뷰 기록을 최신 안정 릴리스 0.155.0으로 다시 기록하고 직접 pin을 0.155.0으로 올린다. 원인: 기록이 0.154.0을 최신으로 적고 있다. | package.json, package-lock.json, config/dependency-review.json | `make dependency-policy-check` | [ ] |
 | K473 | vendored gates workflow는 프로젝트 옆에 config/polyspec.json이 선언한 각 저장소를 기본 브랜치로 체크아웃하고, gates 전에 make link를 실행하여, 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling 체크아웃을 갖게 한다 (K473, K468). 선언은 저장소를 owner/name으로 명시한다. | workflows/gates.yml, scripts/kit/schema/polyspec.schema.json (a repository per declaration), tests/kit/gates-workflow.test.mts, tests/kit/polyspec-lock.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K473 tests/kit/gates-workflow.test.mts` `node --test --test-name-pattern=K473 tests/kit/polyspec-lock.test.mts` | [o] |
 | K474 | HEAD 또는 main 기준선이 환경 사유로 실패한 게이트는 "기준선도 실패"로 통과하지 않고 그 오류를 명시하며 실패한다. 발견 줄이 없는 실패는 발견이 아니다 (K474). | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K474 -- tests/kit/land.test.mts` | [o] |

@@ -387,8 +387,9 @@ test('Composer provider entries use a sibling exact requirement for a path packa
   ]);
   const result = providerEntries(tracked, providerManifests, manifest, written);
   const parsed: unknown = JSON.parse(result.text);
-  assert.ok(isJsonObject(parsed) && Array.isArray(parsed.packages));
-  const yamlEntry = parsed.packages.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml');
+  assert.ok(isJsonObject(parsed));
+  const resolvedEntries: unknown[] = Array.isArray(parsed.packages) ? parsed.packages.map((item: unknown) => item) : [];
+  const yamlEntry = resolvedEntries.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml');
   assert.ok(isJsonObject(yamlEntry));
   assert.equal(yamlEntry.version, '1.0.0', 'the tracked lock version remains unchanged');
   assert.ok(result.rewritten.includes('purrphp/yaml'), 'provider metadata is rewritten from Composer output');
