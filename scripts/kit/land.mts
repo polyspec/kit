@@ -323,11 +323,13 @@ const endOf = (run: GateRun) => (run.result.status === null ? `ended with the si
 /**
  * A temporary folder with the tracked files of `treeish` and no other file (K404-1): a detached worktree of HEAD without files, whose
  * index reads `treeish` and whose files are checked out from that index, so the folder holds the staged or committed tree and no
- * untracked or ignored file. Its tool folders `var` and `node_modules` are symbolic links to those of `folder`, which K446 shares. The
- * returned `remove` removes the worktree and the folder.
+ * untracked or ignored file. The folder is made beside the checkout `folder`, in its workspace, and not in the temporary folder of the
+ * system: a check reads the sibling checkouts of the repository beside it (kitCheckoutOf, siblingCheckouts), so the snapshot must
+ * resolve them as the checkout does (K404-1-1). Its tool folders `var` and `node_modules` are symbolic links to those of `folder`,
+ * which K446 shares. The returned `remove` removes the worktree and the folder.
  */
 function temporaryTree(folder: string, treeish: string): { dir: string; remove: () => void } {
-  const dir = mkdtempSync(path.join(tmpdir(), 'kit-commit-gate-'));
+  const dir = mkdtempSync(path.join(path.dirname(folder), `.${path.basename(folder)}-commit-gate-`));
   let added = false;
   const remove = () => {
     if (added) gitIn(folder, 'worktree', 'remove', '--force', dir);

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K404-1-1: the commit gate on main reads the document checks over the same sibling checkouts that `make land` reads: its temporary snapshot of the index lies beside the checkout and not in the system temporary folder, so `check-documents` resolves the kit checklists of the sibling as land does, and a row that names a kit item the kit checklists lack is refused on main (K404-1-1). Red: `node --test --test-name-pattern=K404-1-1 tests/kit/git-hooks.test.mts` exits 1 on b0a99e5c (the commit on main is accepted); green: `make item-test ID=K404-1-1` passes (1 test, none skipped) (K404-1-1).
 - K453 is done: its row is [o] in this commit, whose red is the K453 tests run before the fix and whose green is the K453 tests of this commit (K453).
 - `make land` runs `make build` in the main checkout after the fast-forward, so the ignored dist/ holds the merged sources; a failing build fails land. `link-state-check` names each linked npm provider whose build is stale (K453).
 - `make land` reads the processes of a worktree with `lsof -nP`, which skips the name lookups that took 5.6 s per call against 0.4 s (K453).
