@@ -244,11 +244,12 @@ test('the progress closes a run as failed when a test failed, a group failed, th
   progress.start('a'); progress.pass('a', 10);
   progress.start('b'); progress.skip('b');
   const result = progress.close('suite');
-  assert.deepEqual({ ...result, cases: undefined }, { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: true, cases: undefined });
+  assert.deepEqual({ ...result, cases: undefined }, { passed: 1, failed: 0, skipped: 1, timedOut: 0, ran: 1, ok: false, cases: undefined });
+  assert.match(lines.join('\n'), /skipped cases: b/, 'the run names the skipped case (K460)');
   assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['a', 'pass'], ['b', 'skip']]);
   assert.equal(known(result.cases[0], 'result.cases[0]').elapsedMs, 10); // The cases are asserted above.
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), result);
-  assert.match(known(lines.at(-1), 'lines.at(-1)'), /✔ suite: 1 passed, 0 failed, 0 timed out, 1 skipped/); // close wrote its summary line.
+  assert.match(known(lines.at(-1), 'lines.at(-1)'), /✖ suite: 1 passed, 0 failed, 0 timed out, 1 skipped; skipped cases: b/); // close wrote its summary line, which names the skip (K460).
 
   const failing = counts();
   failing.start('x'); failing.fail('x', 5, 'boom\nmore');
@@ -753,6 +754,15 @@ test('run-tests stops its process group when its parent is killed (K437)', { tim
   assert.deepEqual(started.filter(alive), [], 'expected no process of the group alive after the deadline and the grace');
 });
 
+// K460: a skipped test is not a verification. The run with one passing and one skipped test fails and names the skipped case, and
+// the run with only skipped tests fails too.
+test('a run with a skipped test fails and names each skipped case (K460)', { timeout: 60_000 }, (t) => {
+  const root = checkout(t, { 'tests/skip.test.mjs': `${SPEC}test('runs and passes', () => {});\ntest('is skipped for now', { skip: 'not yet' }, () => {});\n` });
+  const result = runner(root, ['node', '--', 'tests/skip.test.mjs']);
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /1 passed, 0 failed, 0 timed out, 1 skipped; skipped cases: [^\n]*is skipped for now/);
+});
+
 // K454: a test that starts child processes and never ends. The deadline ends its file, and that exit stops the children the test started,
 // a plain one and one that leads a process group of its own, so no child of the finished run remains.
 test('a file ended at its deadline stops the child processes that its tests started (K454)', { timeout: 60_000 }, (t) => {
@@ -871,7 +881,9 @@ test('--results writes the cases, the tool, the inputs and the elapsed time of a
 test('--results records the cases of node tests, which the reporter counts in its own process', (t) => {
   const root = checkout(t, { 'tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('later', { skip: true }, () => {});\n` });
   const result = runner(root, ['node', '--results', '.results/node.json', '--inputs', 'tests', '--', 'tests/a.test.mjs']);
-  assert.equal(result.status, 0, output(result));
+  // A skipped case fails the run (K460); the record still holds each case with its status.
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /skipped cases: tests\/a\.test\.mjs › later/);
   const record = readStub(path.join(root, '.results/node.json'), RESULTS);
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/a.test.mjs › adds', 'pass'], ['tests/a.test.mjs › later', 'skip']]);
   assert.equal(record.tool, 'node');

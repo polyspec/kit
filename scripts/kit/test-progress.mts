@@ -42,6 +42,8 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   // Each test with its outcome and elapsed time, in the order they ended; a test that ran out of time is `timeout`.
   const cases: TestCase[] = [];
   const groupCounts = { passed: 0, failed: 0 };
+  // The ids of the tests and groups that skipped, which the run names: a skip is not a verification (K460).
+  const skipped: string[] = [];
   const line = (text: string): unknown => write(`[${compactSeconds(now() - started).padStart(8)}] ${text}\n`);
   const timer = setInterval(() => {
     for (const [id, test] of running) {
@@ -102,6 +104,7 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       for (const detail of String(message ?? '').split('\n').filter(Boolean)) write(`           ${detail}\n`);
     },
     skip(id: string): unknown {
+      skipped.push(id);
       if (groups.has(id)) { groups.delete(id); return line(`○ ${id} skipped`); }
       counts.skipped++;
       finish(id, undefined, 'skip');
@@ -121,15 +124,17 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       for (const id of running.keys()) this.fail(id, undefined, 'the test did not finish');
       const ran = counts.passed + counts.failed + counts.timedOut;
       const none = ran === 0;
-      const failed = counts.failed + counts.timedOut + groupCounts.failed + (exitCode === 0 ? 0 : 1) + (none ? 1 : 0);
+      // A skipped test fails the run as a failed one does, so the run that only skipped checks nothing and fails (K460).
+      const failed = counts.failed + counts.timedOut + groupCounts.failed + skipped.length + (exitCode === 0 ? 0 : 1) + (none ? 1 : 0);
       // A group can fail while every test in it passed, for example on a failed hook of a file.
       const groupsFailed = groupCounts.failed === 1 ? ', 1 group failed' : `, ${groupCounts.failed} groups failed`;
       const summary = `${counts.passed} passed, ${counts.failed} failed, ${counts.timedOut} timed out, ${counts.skipped} skipped${groupCounts.failed ? groupsFailed : ''}${none ? ', no test ran' : ''}`;
-      const unexplained = counts.failed + counts.timedOut + groupCounts.failed === 0;
+      const unexplained = counts.failed + counts.timedOut + groupCounts.failed + skipped.length === 0;
       const why = !unexplained ? '' : errors.length ? `: ${errors.slice(-3).join('; ')}` : ' and printed no error line';
       const exit = exitCode === 0 ? '' : `, the tool exited with ${exitCode}${why}`;
+      const named = skipped.length ? `; skipped cases: ${skipped.join('; ')}` : '';
       const built = build.length ? `; build errors: ${build.slice(0, 10).join('; ')}${build.length > 10 ? `; and ${build.length - 10} more` : ''}` : '';
-      line(`${failed ? '✖' : '✔'} ${label}: ${summary}${exit}${built} (${compactSeconds(now() - started)})`);
+      line(`${failed ? '✖' : '✔'} ${label}: ${summary}${named}${exit}${built} (${compactSeconds(now() - started)})`);
       const result = { ...counts, ran, ok: failed === 0, cases };
       if (resultFile) writeFileSync(resultFile, JSON.stringify(result));
       return result;

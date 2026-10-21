@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cca86d3142e7e321e850babf0fe50aec1cc69420d75ab3588fd4917ae84576e7 -->
+<!-- source-sha256: 65948569d43b0d39d7591055fda6dc4d6c424344add1859858ff89c191167950 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -51,6 +51,8 @@
 
 ### 2026-10-21 — worktree-setup이 link-state-check 전에 패키지를 빌드한다 (K482)
 
+- K460은 이 커밋에서 done으로 기록된다: 항목이 [o]이고, red는 progress 변경을 stash한 상태에서 실행한 K460 테스트이며, green은 이 커밋의 K460 테스트다 (K460).
+- 스킵된 테스트가 있는 run은 실패하고 각 스킵 케이스의 이름을 말한다. `run-tests`는 요약 줄에 `skipped cases: <이름>`을 출력하고 실패한 테스트와 같이 exit 1을 낸다. 스킵은 검증이 아니므로이다 (K460). 모든 테스트가 스킵한 run도 실패한다.
 - K457 완료: row가 이 commit에서 [o]이다. red는 fix를 stash한 상태의 K457 테스트 실행(make 변수 `$`가 확장되어 `run  and $HOME`로 저장됨, exit 1)이고, green은 이 commit의 K457 테스트이다 (K457). `make item-new`와 `make item-edit`은 각 text를 작성된 그대로 도구에 넘기므로, 달러 기호·괄호·따옴표가 확장 없이 checklist에 기록된다 (K457).
 - `make uv-install DIR=<project> CHECKOUTS="<checkout>..."`은 consumer의 uv 환경을 uv sync 대신 설치한다. checkout이 제공하는 polyspec 패키지는 sync에서 제외되고 그 checkout의 editable link로 설치되므로 polyspec release는 설치되지 않으며, checkout이 없는 선언된 polyspec 패키지는 uv를 실행하기 전에 거부된다(K448-3). Red: 428ec1f7에서 `node --test --test-name-pattern=K448-3 tests/kit/uv-install.test.mts`가 "does not provide an export named 'uvInstall'"로 실패했다.
 - K439-5: composer-provider-entries는 Composer writer가 path repository에 쓰지 않는 source와 notification-url을 tracked lock 항목에서 보존하므로, provider 항목은 기록된 release source를 유지한다 (K439-5). Red: node --test --test-name-pattern=K439-5 tests/kit/dependency-review.test.mts가 exit 1(source 소실); green: make 아래에서 파일 30개 통과, K439-5 포함, lint-ts 통과. (K439-5).
