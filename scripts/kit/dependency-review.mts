@@ -22,7 +22,7 @@
 // which the registry must hold as a stable release, and `--update` moves it to exactly that version; the others are reviewed as before,
 // and `--update` moves none of them. With --record the review moment is the snapshot moment.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
@@ -761,27 +761,30 @@ export function composerEntries(
   composer: string,
   env: NodeJS.ProcessEnv = process.env,
   platform: Record<string, string> = {},
-  base?: { manifest: Record<string, unknown>; lock: string },
+  base?: { manifest: Record<string, unknown>; lock: string; folder: string },
 ): Map<string, Record<string, unknown>> {
   const found = new Map<string, Record<string, unknown>>();
   if (packages.length === 0) return found;
   const scratch = mkdtempSync(path.join(tmpdir(), 'kit-composer-entries-'));
   try {
+    const providerRepositories = packages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }));
     const project = {
       name: 'kit/entries',
       version: '1.0.0',
       // The platform that the consumer declares (its config.platform), so the entries resolve as they would for that consumer.
       config: { platform },
       require: Object.fromEntries(packages.map(item => [item.name, item.version])),
-      repositories: [{ packagist: false }, ...packages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }))],
+      repositories: [{ packagist: false }, ...providerRepositories],
     };
     // K439-3: with the consumer's manifest and tracked lock as the base, the transitive requirements come from the lock: Composer updates
     // only the provided packages, offline.
+    // K439-4: the consumer's own repositories follow the provided packages, so a provider wins and a root requirement that only a consumer
+    // path repository provides resolves as it does for the consumer; packagist stays disabled, the first entry.
     const scratchProject = base === undefined ? project : {
       ...base.manifest,
       config: { ...(isJsonObject(base.manifest.config) ? base.manifest.config : {}), platform },
       require: { ...(isJsonObject(base.manifest.require) ? base.manifest.require : {}), ...project.require },
-      repositories: project.repositories,
+      repositories: [{ packagist: false }, ...providerRepositories, ...consumerRepositories(base.manifest, base.folder)],
     };
     writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(scratchProject, null, 4)}\n`);
     if (base !== undefined) writeFileSync(path.join(scratch, 'composer.lock'), base.lock);
@@ -797,6 +800,25 @@ export function composerEntries(
     rmSync(scratch, { recursive: true, force: true });
   }
   return found;
+}
+
+/**
+ * K439-4: the repositories of a consumer manifest as Composer reads them in the folder of the consumer. A path url is relative to that folder
+ * and must name a folder that exists, or the call fails naming it; no other repository stands in for it. A packagist entry is dropped, since
+ * the scratch keeps packagist disabled.
+ */
+function consumerRepositories(manifest: Record<string, unknown>, folder: string): Record<string, unknown>[] {
+  const declared = manifest.repositories;
+  const list: unknown[] = Array.isArray(declared) ? declared : isJsonObject(declared) ? Object.values(declared) : [];
+  return list.flatMap((repository: unknown) => {
+    if (repository === false || (isJsonObject(repository) && 'packagist' in repository)) return [];
+    if (!isJsonObject(repository)) throw new Error(`a repository of the consumer is not an object: ${JSON.stringify(repository)}`);
+    if (repository.type !== 'path') return [repository];
+    if (typeof repository.url !== 'string') throw new Error(`a path repository of the consumer has no url: ${JSON.stringify(repository)}`);
+    const url = path.resolve(folder, repository.url);
+    if (!existsSync(url) || !statSync(url).isDirectory()) throw new Error(`the path repository ${repository.url} of the consumer is not a readable folder (${url}): the provider entries are not written`);
+    return [{ ...repository, url }];
+  });
 }
 
 /** K439-1: a directory of a release consumer (its locks are written by make release-consumer-lock only). */
@@ -840,7 +862,7 @@ function rewriteProviderEntries(root: string, directories: readonly string[]): v
     });
     const declared = isJsonObject(manifest) && isJsonObject(manifest.config) && isJsonObject(manifest.config.platform) ? manifest.config.platform : {};
     const platform = Object.fromEntries(Object.entries(declared).filter((item): item is [string, string] => typeof item[1] === 'string'));
-    const base = isJsonObject(manifest) ? { manifest, lock: lockText } : undefined;
+    const base = isJsonObject(manifest) ? { manifest, lock: lockText, folder: path.join(root, directory) } : undefined;
     const written = composerEntries(provided, composer, toolEnvironment(root), platform, base);
     const { text, rewritten } = providerEntries(lockText, manifests, isJsonObject(manifest) ? manifest : undefined, written);
     if (rewritten.length === 0) continue;

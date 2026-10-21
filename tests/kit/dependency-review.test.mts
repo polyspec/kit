@@ -453,7 +453,47 @@ test('the provider entries resolve the transitive requirements from the tracked 
   const consumer = { require: { 'polyspec/orm': '0.0.18', 'nikic/php-parser': '^5.9.0' }, config: { platform: { php: '8.4.1' } } };
   const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder }];
   assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }), /nikic\/php-parser/, 'without the base the transitive requirement is not found');
-  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest: consumer, lock });
+  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest: consumer, lock, folder: root });
   assert.ok(written.has('polyspec/orm'), 'the provider is written');
   assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+});
+
+// K439-4: the scratch resolves the root as the consumer does: a path repository of the consumer, relative to the consumer folder, is one of its
+// repositories, so a root requirement that only that repository provides resolves; packagist stays disabled.
+test('a root requirement that only the consumer own path repository provides resolves in the scratch (K439-4)', (t) => {
+  const checkout = repositoryRoot();
+  const composer = composerOfCheckout(checkout, 'the test of K439-4');
+  const toolEnv = toolingEnvironment(checkout);
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-own-repository-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const orm = path.join(root, 'orm');
+  mkdirSync(orm);
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const consumer = path.join(root, 'consumer');
+  const own = path.join(consumer, 'own');
+  mkdirSync(own, { recursive: true });
+  writeFileSync(path.join(own, 'composer.json'), JSON.stringify({ name: 'polyspec/own', type: 'library', version: '1.0.0', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Own\\': 'src/' } } }));
+  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18', 'polyspec/own': '1.0.0' }, repositories: [{ type: 'path', url: './own' }], config: { platform: { php: '8.4.1' } } };
+  const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
+  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer });
+  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+});
+
+// K439-4: a repository of the consumer that is not a readable folder fails naming it; no other repository stands in for it.
+test('an unreadable path repository of the consumer fails naming it (K439-4)', (t) => {
+  const checkout = repositoryRoot();
+  const composer = composerOfCheckout(checkout, 'the test of K439-4');
+  const toolEnv = toolingEnvironment(checkout);
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-missing-repository-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const orm = path.join(root, 'orm');
+  mkdirSync(orm);
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' } }));
+  const consumer = path.join(root, 'consumer');
+  mkdirSync(consumer);
+  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18' }, repositories: [{ type: 'path', url: './missing' }], config: { platform: { php: '8.4.1' } } };
+  const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
+  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer }), /\.\/missing/);
 });

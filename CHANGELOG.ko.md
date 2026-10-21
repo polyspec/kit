@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d6c7e6647190c622019c1fcb73d4f017815494ec2b1fdf39c57144b77326020d -->
+<!-- source-sha256: 21a09e9c479781362b1ba1498cbc5d01de022f3e50586994df5cba48c9409391 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K439-4: composer-provider-entries는 scratch 프로젝트를 소비자 자신의 repositories로 해석한다. provided 패키지가 먼저, 그다음 소비자의 repositories이며, 그 path url은 소비자 폴더 기준으로 풀린다. packagist는 꺼진 채이고, 읽을 수 없는 소비자 path repository는 이름을 밝히고 실패한다. 그런 repository만 제공하는 root 요구(crudui, orm, template)는 더 이상 "not in remote repositories"로 실패하지 않는다 (K439-4). 붉은 확인: `node --test --test-name-pattern=K439-4 tests/kit/dependency-review.test.mts`가 3554285c에서 exit 1이다(2 of 2 실패: root 요구를 찾지 못하고, 읽을 수 없는 repository는 알아채지 못하고 통과한다). 초록 확인: `make item-test ID=K439-4`가 통과하고(2 tests, none skipped), K439-3 test도 계속 통과한다 (K439-4).
 - K448-10은 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K448-10 test 실행이고 green은 이 커밋의 K448-10 test입니다 (K448-10).
 - `make npm-install`은 manifest의 `overrides` 항목 중 제공되는 패키지를 이름으로 가진 항목을 깊이와 관계없이 direct dependency의 checkout 폴더로 다시 씁니다. 그래서 npm은 임시 manifest를 받아들이고(`dependencies`와 `overrides`에 이름이 모두 있는 limepie node/contracts 형태에서 EOVERRIDE가 더 나오지 않음), 제공되는 패키지의 asset spec이 임시 manifest에 남지 않습니다. manifest의 다른 overrides는 버리지 않고 유지합니다 (K448-10). npm 문서(package.json, overrides): direct dependency의 override는 그 dependency와 같은 spec이어야 합니다.
 - K458은 done입니다. 항목은 이 커밋에서 [o]입니다. 변경은 fix 커밋 12e458ca이고, red는 f925cb58, green은 그 커밋의 K458 test입니다 (K458).
