@@ -129,6 +129,8 @@ const INSTALLS: { ecosystem: Ecosystem; pattern: RegExp }[] = [
   { ecosystem: 'python', pattern: /\buv\s+sync\b|\$[({]UV[)}]\s+sync\b/ },
 ];
 const LINKS = /\blink\b/;
+// composer-install installs through the link where a sibling provides a polyspec package (K432), so its line is an install that links.
+const COMPOSER_INSTALL = /(?:\$[({]MAKE[)}]|\bmake)\s+composer-install\b/;
 // An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
 const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
 // A make call of a recipe and the targets it names.
@@ -223,7 +225,7 @@ export function recipeFindings(root: string, files: readonly string[], read: (fi
   for (const { file, targets, recipe } of rules) {
     const target = targets.join(' ');
     if (targets.includes('unlink') || targets.some(name => reached.has(name) || extras.has(name))) continue;
-    const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
+    const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && !COMPOSER_INSTALL.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
     if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
       found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
     }

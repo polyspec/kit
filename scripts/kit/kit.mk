@@ -377,6 +377,12 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); offline
 	$(NODE) $(KIT)/worktree-prune.$(KIT_EXT)
 
+# composer-install is the install of a consumer's Composer project in place of its composer install: through the link when a sibling
+# checkout provides a polyspec package of the composer.lock of DIR, else composer install of the tracked lock.
+.PHONY: composer-install
+composer-install: ## Install the Composer project DIR in place of its composer install: through the link when a sibling checkout provides a polyspec package of its composer.lock, else composer install of the tracked lock (K432)
+	$(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR)
+
 unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 

@@ -197,3 +197,14 @@ test('a target that installs a lock with no link after it is a finding, unless I
   const named = tree(t, { 'package.json': manifest, Makefile: 'INSTALL_PACKAGES_EXTRA := svelte-tools-install\nsvelte-tools-install:\n\tnpm ci --prefix tools\n' });
   assert.deepEqual(linkFindings(named, process.env), []);
 });
+
+test('a recipe that runs make composer-install installs through the link, so no link step is asked after it (K432)', () => {
+  const makefile = [
+    'app-install:', '\t$(MAKE) composer-install DIR=app', '',
+    'pkg-install:', '\tmake composer-install DIR=packages/php', '\t@echo done', '',
+    'lock-install:', '\tcomposer install', '',
+  ].join('\n');
+  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
+    'Makefile:9: the recipe lock-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
+  ]);
+});

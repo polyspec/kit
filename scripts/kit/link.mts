@@ -347,6 +347,12 @@ function lockedVersions(lock: string): Map<string, string> {
   return found;
 }
 
+/** The polyspec packages that the composer.lock of `project` holds, by name; none without a lock. */
+function lockedPolyspec(project: string): string[] {
+  const lock = path.join(project, 'composer.lock');
+  return existsSync(lock) ? [...lockedVersions(lock).keys()].filter(name => name.startsWith('polyspec/')) : [];
+}
+
 /**
  * The composer.json of the link run of `project` (K304-1): the tracked one with a path repository for each linked folder in front
  * of its repositories, so the folder, not a released archive, provides the package. `symlink` makes the installed folder a
@@ -406,6 +412,48 @@ function writeMissingLinkFiles(work: Run, top: string, project: string, linked: 
   if (missing.includes(COMPOSER_LINK_FILES[1])) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
 }
 
+/**
+ * The partial update of the Composer project `project` from its link files (K304-1): composer.link.json, the link manifest of the
+ * folders `links` (name and folder), and composer.link.lock, the copy of the tracked lock that is written only while it is missing.
+ * Composer runs with COMPOSER=composer.link.json and updates the `targets`, so the tracked composer.json and composer.lock stay.
+ */
+function updateLinkedComposer(composer: Tool, top: string, project: string, links: readonly { name: string; folder: string }[], targets: readonly string[]) {
+  const lock = path.join(project, 'composer.lock');
+  excludeComposerLinkFiles(top);
+  writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, links, lockedVersions(lock)), null, 4)}\n`);
+  // The link lock is written from the tracked lock only when it is missing, and kept afterwards (K392): what `dependency-review UPDATE=1`
+  // applied to it stays, and the partial update changes only the linked packages there; the packages that it does not link keep their
+  // versions. A tracked lock that gained a package is not copied over it: remove the link lock to take the tracked lock again.
+  if (!existsSync(path.join(project, COMPOSER_LINK_FILES[1]))) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
+  run(composer.command, ['update', ...targets, '--with-dependencies', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
+}
+
+/**
+ * Installs the Composer project of `directory` through the links (K432) when the sibling `checkouts` provide a polyspec package that its
+ * composer.lock holds: the link files are written and the partial update runs from them, so each provided package resolves from its folder
+ * and the released metadata of the lock is never read. Returns the names that it linked; none when no checkout provides one, and then the
+ * caller installs the tracked lock.
+ */
+export function linkComposerInstall({ directory, checkouts, composer, print, env }: { directory: string; checkouts: readonly string[]; composer: Tool; print: Print; env: NodeJS.ProcessEnv }): string[] {
+  const consumer = consumerOf(directory, true);
+  const project = consumer.scope;
+  const work: Run = { found: providers(checkouts, undefined, consumer.top, consumer.top), check: false, print, failed: false, env };
+  const links = lockedPolyspec(project).flatMap(name => {
+    const provider = providerFor(work, consumer, 'composer', name);
+    return typeof provider === 'string' ? [] : [{ name, folder: provider.folder }];
+  });
+  if (links.length === 0) return [];
+  updateLinkedComposer(composer, consumer.top, project, links, links.map(item => item.name));
+  const record = path.join(composerVendor(project, composer), 'composer/installed.json');
+  for (const { name, folder } of links) {
+    const entry = installedPackages(record).find(item => item.name === name);
+    const copy = typeof entry?.['install-path'] === 'string' ? path.resolve(path.dirname(record), entry['install-path']) : undefined;
+    if (copy === undefined || real(copy) !== realpathSync(folder)) throw new Error(`composer update did not link ${name} to ${folder}`);
+    line(work, 'linked', 'composer', `${name} -> ${folder} (now)`);
+  }
+  return links.map(item => item.name);
+}
+
 function linkComposer(work: Run, consumer: Consumer) {
   if (!consumer.manifests('composer').length) return;
   const composer = consumerTool(consumer.top, 'composer', work.env);
@@ -417,7 +465,8 @@ function linkComposer(work: Run, consumer: Consumer) {
       if (projectPackage(work, 'composer', name, provider, own)) return;
       unlinkable(work, 'composer', name, typeof provider === 'string' ? provider : `not installed in ${vendor}`);
     };
-    if (!installed) { declared.forEach(notInstalled); continue; }
+    // A vendor without installed.json, as in a fresh checkout, names the polyspec packages of its composer.lock too.
+    if (!installed) { new Set([...declared, ...lockedPolyspec(project)]).forEach(notInstalled); continue; }
     const record = path.join(vendor, 'composer/installed.json');
     const names = new Set<string>();
     const recorded = new Set<string>();
@@ -471,13 +520,7 @@ function linkComposer(work: Run, consumer: Consumer) {
     if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
     const all = [...toLink.map(item => ({ name: item.name, folder: item.folder, fork: isForkCheckout(item.provider.checkout) })), ...linkedNow];
     const targets = [...all.map(item => item.name), ...ownTargets];
-    excludeComposerLinkFiles(consumer.top);
-    writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, all, lockedVersions(lock)), null, 4)}\n`);
-    // The link lock is written from the tracked lock only when it is missing, and kept afterwards (K392): what `dependency-review UPDATE=1`
-    // applied to it stays, and the partial update changes only the linked packages there; the packages that it does not link keep their
-    // versions. A tracked lock that gained a package is not copied over it: remove the link lock to take the tracked lock again.
-    if (!existsSync(path.join(project, COMPOSER_LINK_FILES[1]))) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
-    run(composer.command, ['update', ...targets, '--with-dependencies', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
+    updateLinkedComposer(composer, consumer.top, project, all, targets);
     for (const item of toLink) {
       if (real(item.copy) === realpathSync(item.provider.folder)) line(work, 'linked', 'composer', `${item.name} -> ${item.provider.folder} (now)`);
       else unlinkable(work, 'composer', item.name, `composer update did not link ${item.copy}`);

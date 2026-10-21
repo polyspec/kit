@@ -11,6 +11,7 @@ import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets, rebuild } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { composerInstall } from '../../scripts/kit/composer-install.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -141,7 +142,7 @@ function workspace(t: TestContext) {
   stub(bin, log, 'npm', 'cat npm-query.json');
   // `composer update <names> --working-dir <project>` under COMPOSER=<file>: for each path repository of that file, the installed
   // folder of the package it provides becomes a link to the url (what Composer does with `symlink`); the stub records the file it read.
-  put(bin, { 'composer-update.mjs': `import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+  put(bin, { 'composer-update.mjs': `import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 const args = process.argv.slice(2);
 const project = args[args.indexOf('--working-dir') + 1];
@@ -149,19 +150,25 @@ const file = path.join(project, process.env.COMPOSER);
 writeFileSync(path.join(project, 'composer-update.seen.json'), JSON.stringify({ file: process.env.COMPOSER, targets: args.filter(item => item.includes('/') && !item.startsWith('-') && item !== project), manifest: JSON.parse(readFileSync(file, 'utf8')) }));
 let vendor = 'vendor';
 try { vendor = readFileSync(path.join(project, 'composer-vendor-dir'), 'utf8').trim(); } catch {}
-const record = JSON.parse(readFileSync(path.join(project, vendor, 'composer/installed.json'), 'utf8'));
+const recordFile = path.join(project, vendor, 'composer/installed.json');
+// A fresh vendor has no record yet, so Composer writes one with each path package that it installs.
+const fresh = !existsSync(recordFile);
+const record = fresh ? { packages: [] } : JSON.parse(readFileSync(recordFile, 'utf8'));
 for (const repository of JSON.parse(readFileSync(file, 'utf8')).repositories ?? []) {
   if (repository.type !== 'path') continue;
   const url = path.resolve(project, repository.url);
   const name = JSON.parse(readFileSync(path.join(url, 'composer.json'), 'utf8')).name;
-  const entry = record.packages.find(item => item.name === name);
+  let entry = record.packages.find(item => item.name === name);
+  if (!entry && fresh) { entry = { name, version: repository.options?.versions?.[name] ?? '0.0.0', 'install-path': path.join('..', name) }; record.packages.push(entry); }
   if (!entry?.['install-path']) continue;
   const target = path.resolve(project, vendor, 'composer', entry['install-path']);
+  mkdirSync(path.dirname(target), { recursive: true });
   rmSync(target, { recursive: true, force: true });
   symlinkSync(url, target);
   entry.dist = { type: 'path', url };
 }
-writeFileSync(path.join(project, vendor, 'composer/installed.json'), JSON.stringify(record));
+mkdirSync(path.dirname(recordFile), { recursive: true });
+writeFileSync(recordFile, JSON.stringify(record));
 ` });
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi\nif [ "$1" = update ]; then node ${JSON.stringify(path.join(bin, 'composer-update.mjs'))} "$@"; fi\nif [ "$1" = dump-autoload ]; then echo "COMPOSER=$COMPOSER" >> ${JSON.stringify(log)}; fi`);
   stub(bin, log, 'uv', `case "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
@@ -1381,4 +1388,48 @@ test('K316-1, K398: the overrides of an install name each linked provider by its
   const wheel = path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl');
   assert.ok(overrides.includes(`polyspec-z @ file://${wheel}`), 'a name @ file:// line of the wheel beats the release URL of another requirement');
   assert.ok(!overrides.includes(`-e ${path.join(provider, 'packages/python')}`), 'the provider is named by its wheel, not by its folder');
+});
+
+// make composer-install installs a consumer's Composer project through the link when a sibling checkout provides a polyspec
+// package that its composer.lock holds, so the lock's release archive is never installed and the provided folder resolves.
+/** A fresh checkout of the consumer: its composer.lock pins polyspec/y as a release archive, and no vendor is installed. */
+function freshComposer(consumer: string) {
+  rmSync(path.join(consumer, 'var/contracts/vendor'), { recursive: true, force: true });
+  put(consumer, { 'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'zip', url: 'https://example.invalid/polyspec/y-0.0.1.zip' } }] }) });
+}
+
+test('make composer-install in a fresh consumer links the polyspec package of its lock from the sibling checkout and never runs composer install (K432)', (t) => {
+  const { provider, kit, consumer, env, log } = workspace(t);
+  freshComposer(consumer);
+  const lines: string[] = [];
+  composerInstall({ directory: consumer, checkouts: [provider, kit], env, print: text => lines.push(text) });
+  assert.doesNotMatch(log(), /^composer install/m, 'no composer install runs, neither of the tracked lock nor of the link');
+  const seen = seenUpdate(consumer);
+  assert.equal(seen.file, 'composer.link.json', 'the partial update reads the link manifest');
+  assert.deepEqual(seen.targets, ['polyspec/y'], 'the update names the provided package');
+  assert.match(log(), new RegExp(`composer update polyspec/y --with-dependencies --no-scripts --no-plugins --no-interaction --working-dir ${consumer}\n`));
+  assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
+  assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')), path.join(provider, 'packages/php'), 'the installed folder is the provider folder');
+  assert.equal(existsSync(path.join(consumer, 'composer.link.lock')), true, 'the link lock is written beside the link manifest');
+  assert.match(lines.join('\n'), /through the link/, 'the path that was taken is printed');
+});
+
+test('make composer-install without a sibling that provides a polyspec package of the lock runs composer install of the tracked lock (K432)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  freshComposer(consumer);
+  const lines: string[] = [];
+  composerInstall({ directory: consumer, checkouts: [], env, print: text => lines.push(text) });
+  assert.match(log(), /^composer install --no-interaction$/m, 'the tracked lock is installed');
+  assert.doesNotMatch(log(), /^composer update/m, 'no update runs without a link');
+  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no link manifest is written');
+  assert.match(lines.join('\n'), /composer install of the tracked lock/, 'the path that was taken is printed');
+});
+
+test('link reads the polyspec packages of a Composer project from its composer.lock when its vendor holds no installed.json (K432)', (t) => {
+  const { consumer, env } = workspace(t);
+  freshComposer(consumer);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: {} }) });
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, false, checked.text);
+  assert.match(checked.text, /NOT linked +composer +polyspec\/y \(not installed in /);
 });
