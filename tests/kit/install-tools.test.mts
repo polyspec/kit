@@ -208,3 +208,11 @@ test('the make targets install-tools and toolchain-lock run their tools online, 
   // packages of package-lock.json, which npm ci installs only after it.
   assert.equal(dry('install-tools', 'TOOLS=npm').stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
 });
+
+// K448-6: composer-install and npm-install install the third-party packages of the lock, so they run online as every install target
+// does; a consumer that exports COMPOSER_DISABLE_NETWORK or npm_config_offline for its checks unsets them through ONLINE (K448-6).
+test('the make targets composer-install and npm-install run their tools online (K448-6)', () => {
+  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', 'NODE=node', 'NPM=npm', ...args], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(dry('composer-install', 'DIR=x').stdout.trim(), 'online-wrapper node scripts/kit/composer-install.mts x');
+  assert.equal(dry('npm-install', 'DIR=x').stdout.trim(), 'NPM_BIN=npm online-wrapper node scripts/kit/npm-install.mts x');
+});

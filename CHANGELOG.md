@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make composer-install` and `make npm-install` run online, as every install target of kit.mk does, so a consumer that
+  exports COMPOSER_DISABLE_NETWORK or npm_config_offline for its checks still installs the third-party packages of its lock (K448-6).
 - `make npm-install DIR=<project>` installs a consumer's npm packages in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, through a temporary manifest, with no release fetched and no tracked file written (K448-2).
 
 ### 2026-10-21 — A package-dir prefix mapped to "." links its listed subpackages (K398-3)

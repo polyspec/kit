@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b9e5c09568a37a1e03b03b9132a2473fc5ab70a2fcf6c58527659fd138570773 -->
+<!-- source-sha256: d15abb3cefd52b3cfd55ed33ced266d3fffa84ca0291b008183341d9e8120f09 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make composer-install`과 `make npm-install`은 kit.mk의 다른 설치 대상처럼 온라인으로 실행되므로, 검사를 위해
+  COMPOSER_DISABLE_NETWORK나 npm_config_offline을 내보내는 consumer도 lock의 서드파티 패키지를 설치한다(K448-6).
 - `make npm-install DIR=<project>`는 consumer의 npm 패키지를 npm ci 대신 설치한다. sibling checkout이 제공하는 polyspec 패키지는 임시 manifest로 처음부터 link되고, release를 받지 않으며 추적 파일도 쓰지 않는다(K448-2).
 
 ### 2026-10-21 — 매핑된 package-dir prefix가 나열된 하위 패키지를 링크한다 (K398-3)
